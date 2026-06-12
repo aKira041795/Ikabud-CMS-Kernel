@@ -21,8 +21,9 @@ Tracks the multi-phase delivery of the inventory-spec wave (module version `1.1.
 | E | Selling accounts + per-day ledger | ✅ |
 | F | Consolidated branch summary + variance flags | ✅ |
 | G | Manifest, docs, tests, audit hooks | ✅ |
-| H (future) | Disyl admin UI for new domains | ⬜ |
-| I (future) | Supervisor variance dashboard polish | ⬜ |
+| H | Disyl admin UI for Price Groups + Selling Accounts | ✅ |
+| H2 | Disyl admin UI for Consolidated Branch Summary | ✅ |
+| I | Supervisor variance dashboard (grouped view, quick filters, bulk actions, summary stats) | ✅ |
 | J (future) | Android app surfacing of selling accounts | ⬜ |
 | K | Android withdrawal reason codes UI | ✅ |
 
@@ -115,8 +116,8 @@ Delivered:
 
 ## Out-of-Scope / Deferred 🔁
 
-- **Disyl admin UI.** New routes and handlers exist; corresponding admin templates for price-groups, selling-accounts, and the consolidated summary card are deferred to Phase H. Until then admins can use the JSON APIs directly.
-- **Supervisor dashboard polish.** Variance flags can be queried through `GET /deliveries/{id}` and `GET /receivings/{id}`. A dedicated dashboard view is Phase I.
+- **Disyl admin UI.** ✅ Price Groups admin page (`/admin/price-groups`), Selling Accounts admin page (`/admin/selling-accounts`), and Consolidated Branch Summary page (`/admin/branch-summary`) are all built with Disyl templates, handlers, sidebar nav entries, and API-backed CRUD.
+- **Supervisor dashboard.** ✅ The Variance Dashboard (`/admin/variances`) now includes summary stat cards, quick-filter pills, grouped-by-branch accordion view, list view, bulk status updates with checkboxes, color-coded variance values, and auto-scoping to supervisor-assigned branches. Supervisor and admin both benefit from the enhanced view.
 - **Android surfacing.** Mobile cashier app continues to operate against legacy ledger endpoints; selling-account sync is Phase J.
 
 ---

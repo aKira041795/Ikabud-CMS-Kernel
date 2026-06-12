@@ -1,103 +1,566 @@
 {extends "modules/daily-ledger/layouts/app.disyl"}
 
 {block head}
+<style>
+    .variance-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: .75rem;
+        margin-bottom: 1.25rem;
+    }
+    .variance-stat {
+        border-radius: 3px;
+        border: 1px solid rgb(226 232 240);
+        background: #fff;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        cursor: pointer;
+        transition: box-shadow .15s, border-color .15s;
+    }
+    .variance-stat:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .variance-stat--active {
+        border-color: rgb(99 102 241);
+        box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+    }
+    .variance-stat-label {
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+    .variance-stat-value {
+        margin-top: .25rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+    .variance-stat-sub {
+        margin-top: .125rem;
+        font-size: .75rem;
+    }
+    .variance-stat--unreviewed .variance-stat-label { color: rgb(180 83 9); }
+    .variance-stat--unreviewed .variance-stat-value { color: rgb(180 83 9); }
+    .variance-stat--investigated .variance-stat-label { color: rgb(29 78 216); }
+    .variance-stat--investigated .variance-stat-value { color: rgb(29 78 216); }
+    .variance-stat--corrected .variance-stat-label { color: rgb(4 120 87); }
+    .variance-stat--corrected .variance-stat-value { color: rgb(4 120 87); }
+    .variance-stat--total .variance-stat-label { color: rgb(71 85 105); }
+    .variance-stat--total .variance-stat-value { color: rgb(15 23 42); }
+
+    .variance-filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .5rem;
+        margin-bottom: 1rem;
+    }
+    .variance-filter-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .375rem;
+        border-radius: 999px;
+        padding: .35rem .85rem;
+        font-size: .8125rem;
+        font-weight: 600;
+        border: 1px solid rgb(226 232 240);
+        background: #fff;
+        color: rgb(71 85 105);
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .variance-filter-pill:hover { background: rgb(248 250 252); }
+    .variance-filter-pill--active {
+        background: rgb(238 242 255);
+        border-color: rgb(165 180 252);
+        color: rgb(67 56 202);
+    }
+    .variance-filter-pill-count {
+        font-size: .6875rem;
+        font-weight: 700;
+        padding: .1rem .4rem;
+        border-radius: 999px;
+        background: rgb(241 245 249);
+        color: rgb(71 85 105);
+    }
+    .variance-filter-pill--active .variance-filter-pill-count {
+        background: rgb(199 210 254);
+        color: rgb(55 48 163);
+    }
+
+    .variance-status-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: .2rem .65rem;
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .variance-status-badge--unreviewed {
+        background: rgb(254 243 199);
+        color: rgb(146 64 14);
+        ring: 1px rgb(252 211 77);
+    }
+    .variance-status-badge--investigated {
+        background: rgb(219 234 254);
+        color: rgb(30 64 175);
+    }
+    .variance-status-badge--corrected {
+        background: rgb(209 250 229);
+        color: rgb(6 95 70);
+    }
+
+    .variance-value {
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+    }
+    .variance-value--over { color: rgb(4 120 87); }
+    .variance-value--short { color: rgb(190 18 60); }
+    .variance-value--zero { color: rgb(148 163 184); }
+
+    /* Branch-grouped view */
+    .variance-branch-group {
+        border: 1px solid rgb(226 232 240);
+        border-radius: 3px;
+        background: #fff;
+        margin-bottom: .75rem;
+        overflow: hidden;
+    }
+    .variance-branch-group-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .75rem 1rem;
+        cursor: pointer;
+        background: rgb(248 250 252);
+        border-bottom: 1px solid rgb(226 232 240);
+        transition: background-color .15s;
+        user-select: none;
+    }
+    .variance-branch-group-header:hover { background: rgb(241 245 249); }
+    .variance-branch-group-header--expanded { background: rgb(238 242 255); border-bottom-color: rgb(199 210 254); }
+    .variance-branch-group-name {
+        font-weight: 600;
+        font-size: .9375rem;
+        color: rgb(15 23 42);
+    }
+    .variance-branch-group-metrics {
+        display: flex;
+        gap: 1rem;
+        font-size: .8125rem;
+    }
+    .variance-branch-group-metric {
+        display: flex;
+        align-items: center;
+        gap: .25rem;
+    }
+    .variance-branch-group-metric-dot {
+        width: 8px; height: 8px; border-radius: 999px;
+    }
+    .variance-branch-group-metric-dot--unreviewed { background: rgb(245 158 11); }
+    .variance-branch-group-metric-dot--investigated { background: rgb(59 130 246); }
+    .variance-branch-group-metric-dot--corrected { background: rgb(16 185 129); }
+    .variance-branch-group-body { display: none; }
+    .variance-branch-group-body--expanded { display: block; }
+    .variance-branch-group-body table { margin: 0; }
+
+    /* Bulk actions */
+    .variance-bulk-bar {
+        display: none;
+        align-items: center;
+        gap: .75rem;
+        padding: .625rem 1rem;
+        background: rgb(238 242 255);
+        border: 1px solid rgb(199 210 254);
+        border-radius: 3px;
+        margin-bottom: .75rem;
+        font-size: .8125rem;
+        font-weight: 500;
+        color: rgb(55 48 163);
+    }
+    .variance-bulk-bar--visible { display: flex; }
+
+    /* View toggle */
+    .variance-view-toggle {
+        display: inline-flex;
+        border-radius: 3px;
+        border: 1px solid rgb(203 213 225);
+        overflow: hidden;
+    }
+    .variance-view-toggle-btn {
+        padding: .35rem .75rem;
+        font-size: .75rem;
+        font-weight: 600;
+        border: none;
+        background: #fff;
+        color: rgb(71 85 105);
+        cursor: pointer;
+        transition: all .15s;
+    }
+    .variance-view-toggle-btn:not(:last-child) { border-right: 1px solid rgb(203 213 225); }
+    .variance-view-toggle-btn--active { background: rgb(79 70 229); color: #fff; }
+    .variance-view-toggle-btn:hover:not(.variance-view-toggle-btn--active) { background: rgb(248 250 252); }
+
+    @media (max-width: 767px) {
+        .variance-stat-grid { grid-template-columns: repeat(2, 1fr); }
+        .variance-branch-group-metrics { display: none; }
+        .variance-branch-group-header { flex-wrap: wrap; gap: .5rem; }
+    }
+</style>
 {/block}
 
 {block content}
-<div class="flex items-center justify-between mb-6">
-    <div>
-        <h2 class="text-lg font-semibold text-gray-900">Variance Flags</h2>
-        <p class="text-sm text-gray-500">Beginning Inventory vs previous day ending.</p>
+<div x-data="varianceDashboard()" x-init="init()">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-900">Variance Dashboard</h2>
+            <p class="text-sm text-gray-500">
+                Track beginning-vs-ending inventory discrepancies across branches.
+                {if is_supervisor}Showing your assigned branches.{/if}
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <div class="variance-view-toggle">
+                <button class="variance-view-toggle-btn"
+                    :class="{ 'variance-view-toggle-btn--active': view === 'grouped' }"
+                    @click="switchView('grouped')">
+                    <i class="fas fa-layer-group mr-1"></i> Grouped
+                </button>
+                <button class="variance-view-toggle-btn"
+                    :class="{ 'variance-view-toggle-btn--active': view === 'list' }"
+                    @click="switchView('list')">
+                    <i class="fas fa-list mr-1"></i> List
+                </button>
+            </div>
+            <form class="flex gap-2" action="{base_url}/admin/variances" method="GET">
+                <input type="hidden" name="view" :value="view">
+                <input type="hidden" name="status" value="{status_filter}">
+                {if branch_id}<input type="hidden" name="branch_id" value="{branch_id}">{/if}
+                <input type="text" class="form-input w-48" name="q" value="{search}" placeholder="Product or branch...">
+                <button type="submit" class="btn btn-outline btn-sm">Search</button>
+            </form>
+        </div>
     </div>
-</div>
 
-<form class="card mb-6" action="{base_url}/admin/variances" method="GET">
-    <div class="card-body">
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end">
-    <div class="form-group">
-        <label class="form-label">Branch</label>
-        <select class="form-input" name="branch_id">
-            <option value="">All Branches</option>
+    <!-- Stat cards -->
+    <div class="variance-stat-grid">
+        <a href="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-stat variance-stat--unreviewed {if status_filter == 'unreviewed'}variance-stat--active{/if}">
+            <div class="variance-stat-label">Unreviewed</div>
+            <div class="variance-stat-value">{stats_unreviewed}</div>
+            <div class="variance-stat-sub">{if stats_unreviewed > 0}Needs attention{/if}{if stats_unreviewed == 0}All clear{/if}</div>
+        </a>
+        <a href="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-stat variance-stat--investigated {if status_filter == 'investigated'}variance-stat--active{/if}">
+            <div class="variance-stat-label">Investigated</div>
+            <div class="variance-stat-value">{stats_investigated}</div>
+            <div class="variance-stat-sub">Under review</div>
+        </a>
+        <a href="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-stat variance-stat--corrected {if status_filter == 'corrected'}variance-stat--active{/if}">
+            <div class="variance-stat-label">Corrected</div>
+            <div class="variance-stat-value">{stats_corrected}</div>
+            <div class="variance-stat-sub">Resolved</div>
+        </a>
+        <a href="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-stat variance-stat--total {if status_filter == '' || status_filter == null}variance-stat--active{/if}">
+            <div class="variance-stat-label">Total Flags</div>
+            <div class="variance-stat-value">{stats_total}</div>
+            <div class="variance-stat-sub">Net: {if stats_net_variance >= 0}+{/if}{stats_net_variance} units</div>
+        </a>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="variance-filter-bar">
+        <span class="text-xs font-semibold text-gray-500 mr-1">Quick filter:</span>
+        <a href="?view={view_mode}{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-filter-pill {if status_filter == '' || status_filter == null}variance-filter-pill--active{/if}">
+            All <span class="variance-filter-pill-count">{stats_total}</span>
+        </a>
+        <a href="?view={view_mode}&status=unreviewed{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-filter-pill {if status_filter == 'unreviewed'}variance-filter-pill--active{/if}">
+            Unreviewed <span class="variance-filter-pill-count">{stats_unreviewed}</span>
+        </a>
+        <a href="?view={view_mode}&status=investigated{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-filter-pill {if status_filter == 'investigated'}variance-filter-pill--active{/if}">
+            Investigated <span class="variance-filter-pill-count">{stats_investigated}</span>
+        </a>
+        <a href="?view={view_mode}&status=corrected{if branch_id}&branch_id={branch_id}{/if}{if search != ''}&q={search}{/if}"
+           class="variance-filter-pill {if status_filter == 'corrected'}variance-filter-pill--active{/if}">
+            Corrected <span class="variance-filter-pill-count">{stats_corrected}</span>
+        </a>
+
+        <span class="mx-2 text-gray-300">|</span>
+
+        <select class="form-input w-auto mt-0 text-xs py-1 px-2" onchange="window.location=this.value">
+            <option value="?view={view_mode}{if status_filter}&status={status_filter}{/if}{if search != ''}&q={search}{/if}">All Branches</option>
             {foreach branches as br}
-            <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            <option value="?view={view_mode}&branch_id={br.id}{if status_filter}&status={status_filter}{/if}{if search != ''}&q={search}{/if}" {if br.id == branch_id}selected{/if}>{br.name}</option>
             {/foreach}
         </select>
-    </div>
-    <div class="form-group">
-        <label class="form-label">Status</label>
-        <select class="form-input" name="status">
-            <option value="">All</option>
-            <option value="unreviewed" {if status_filter == 'unreviewed'}selected{/if}>Unreviewed</option>
-            <option value="investigated" {if status_filter == 'investigated'}selected{/if}>Investigated</option>
-            <option value="corrected" {if status_filter == 'corrected'}selected{/if}>Corrected</option>
-        </select>
-    </div>
-    <div class="form-group">
-        <label class="form-label">Search</label>
-        <input type="text" class="form-input" name="q" value="{search}" placeholder="Product or branch...">
-    </div>
-    <div class="form-group">
-        <div class="h-5"></div>
-        <button type="submit" class="btn btn-primary w-full h-11">Filter</button>
-    </div>
-    </div>
-    </div>
-</form>
 
-<div class="card">
-    <div class="card-header">
-        <span>Variance Records</span>
-        <span class="text-sm text-muted">{variances | count} flags</span>
+        {if branch_id || status_filter || search != ''}
+        <a href="?view={view_mode}" class="text-xs text-indigo-600 hover:underline ml-1">Clear all</a>
+        {/if}
     </div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Branch</th>
-                    <th>Product</th>
-                    <th class="text-right">Prev Bal End</th>
-                    <th class="text-right">Current Beg Bal</th>
-                    <th class="text-right">Variance</th>
-                    <th>Status</th>
-                    <th>Reviewer</th>
-                </tr>
-            </thead>
-            <tbody>
-                {if variances | count == 0}
-                <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No variances found</td></tr>
-                {/if}
-                {foreach variances as v}
-                <tr>
-                    <td>{v.ledger_date}</td>
-                    <td>{v.branch_name}</td>
-                    <td>{v.product_name}</td>
-                    <td class="text-right">{v.prev_bal_end}</td>
-                    <td class="text-right">{v.current_beg_bal}</td>
-                    <td class="text-right font-semibold {if v.variance > 0}text-emerald-700{/if}{if v.variance < 0}text-rose-700{/if}">{v.variance}</td>
-                    <td>
-                        <select class="form-input mt-0 w-auto min-w-40 px-2 py-1 text-xs" data-id="{v.id}" onchange="updateVarianceStatus(this)">
-                            <option value="unreviewed" {if v.resolution_status == 'unreviewed'}selected{/if}>Unreviewed</option>
-                            <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
-                            <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
-                        </select>
-                    </td>
-                    <td class="text-sm text-muted">{v.reviewer_name}</td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
+
+    <!-- Bulk action bar -->
+    <div class="variance-bulk-bar" :class="{ 'variance-bulk-bar--visible': selectedIds.length > 0 }">
+        <span x-text="selectedIds.length + ' selected'"></span>
+        <button class="btn btn-sm btn-outline" @click="bulkUpdateStatus('investigated')">
+            <i class="fas fa-search text-xs"></i> Mark Investigated
+        </button>
+        <button class="btn btn-sm btn-outline" @click="bulkUpdateStatus('corrected')">
+            <i class="fas fa-check text-xs"></i> Mark Corrected
+        </button>
+        <button class="btn btn-sm btn-outline" @click="selectedIds = []">Clear selection</button>
     </div>
+
+    {if variances | length == 0}
+    <div class="card">
+        <div class="card-body text-center py-12">
+            <i class="fas fa-check-circle text-4xl text-emerald-400 mb-3"></i>
+            <p class="text-gray-900 font-semibold">No variance flags found</p>
+            <p class="text-sm text-gray-500 mt-1">
+                {if status_filter}No {status_filter} flags match your filters.{/if}
+                {if !status_filter}All inventory transitions are clean for the selected criteria.{/if}
+            </p>
+        </div>
+    </div>
+    {/if}
+
+    {if variances | length > 0}
+    <!-- Grouped view -->
+    <div x-show="view === 'grouped'" x-cloak>
+        {foreach branch_summary as bg}
+        <div class="variance-branch-group" x-data="{ open: {if bg.unreviewed > 0}true{else}false{/if} }">
+            <div class="variance-branch-group-header"
+                 :class="{ 'variance-branch-group-header--expanded': open }"
+                 @click="open = !open">
+                <div class="flex items-center gap-3">
+                    <i class="fas text-xs text-gray-400" :class="open ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                    <span class="variance-branch-group-name">{bg.branch_name}</span>
+                    {if bg.unreviewed > 0}
+                    <span class="variance-status-badge variance-status-badge--unreviewed">{bg.unreviewed} unreviewed</span>
+                    {/if}
+                </div>
+                <div class="variance-branch-group-metrics">
+                    <span class="variance-branch-group-metric">
+                        <span class="variance-branch-group-metric-dot variance-branch-group-metric-dot--unreviewed"></span>
+                        {bg.unreviewed}
+                    </span>
+                    <span class="variance-branch-group-metric">
+                        <span class="variance-branch-group-metric-dot variance-branch-group-metric-dot--investigated"></span>
+                        {bg.investigated}
+                    </span>
+                    <span class="variance-branch-group-metric">
+                        <span class="variance-branch-group-metric-dot variance-branch-group-metric-dot--corrected"></span>
+                        {bg.corrected}
+                    </span>
+                    <span class="text-xs text-gray-400">Net: {if bg.net_variance >= 0}+{/if}{bg.net_variance}</span>
+                </div>
+            </div>
+            <div class="variance-branch-group-body" :class="{ 'variance-branch-group-body--expanded': open }">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="w-8"><input type="checkbox" @change="toggleBranch($event, '{bg.branch_id}')"></th>
+                            <th>Date</th>
+                            <th>Product</th>
+                            <th class="text-right">Prev Bal</th>
+                            <th class="text-right">Curr Beg</th>
+                            <th class="text-right">Variance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach bg.items as v}
+                        <tr>
+                            <td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>
+                            <td class="text-sm">{v.ledger_date}</td>
+                            <td>
+                                <span class="font-medium text-sm">{v.product_name}</span>
+                                {if v.product_sku}<span class="text-xs text-gray-400 ml-1">({v.product_sku})</span>{/if}
+                            </td>
+                            <td class="text-right text-sm">{v.prev_bal_end}</td>
+                            <td class="text-right text-sm">{v.current_beg_bal}</td>
+                            <td class="text-right">
+                                <span class="variance-value {if v.variance > 0}variance-value--over{/if}{if v.variance < 0}variance-value--short{/if}{if v.variance == 0}variance-value--zero{/if}">
+                                    {if v.variance > 0}+{/if}{v.variance}
+                                </span>
+                            </td>
+                            <td>
+                                <select class="form-input mt-0 w-auto text-xs py-0.5 px-1.5"
+                                        data-id="{v.id}"
+                                        onchange="updateVarianceStatus(this)"
+                                        style="min-width: 110px;">
+                                    <option value="unreviewed" {if v.resolution_status == 'unreviewed'}selected{/if}>Unreviewed</option>
+                                    <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
+                                    <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
+                                </select>
+                            </td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {/foreach}
+    </div>
+
+    <!-- List view -->
+    <div x-show="view === 'list'" x-cloak>
+        <div class="card">
+            <div class="card-header">
+                <span>Variance Records</span>
+                <span class="text-sm text-muted">{variances | count} flags</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="w-8"><input type="checkbox" @change="toggleAll($event)"></th>
+                            <th>Date</th>
+                            <th>Branch</th>
+                            <th>Product</th>
+                            <th class="text-right">Prev Bal</th>
+                            <th class="text-right">Curr Beg</th>
+                            <th class="text-right">Variance</th>
+                            <th>Status</th>
+                            <th>Reviewer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach variances as v}
+                        <tr>
+                            <td><input type="checkbox" value="{v.id}" x-model="selectedIds"></td>
+                            <td class="text-sm">{v.ledger_date}</td>
+                            <td class="text-sm font-medium">{v.branch_name}</td>
+                            <td>
+                                <span class="text-sm">{v.product_name}</span>
+                                {if v.product_sku}<span class="text-xs text-gray-400 ml-1">({v.product_sku})</span>{/if}
+                            </td>
+                            <td class="text-right text-sm">{v.prev_bal_end}</td>
+                            <td class="text-right text-sm">{v.current_beg_bal}</td>
+                            <td class="text-right">
+                                <span class="variance-value {if v.variance > 0}variance-value--over{/if}{if v.variance < 0}variance-value--short{/if}{if v.variance == 0}variance-value--zero{/if}">
+                                    {if v.variance > 0}+{/if}{v.variance}
+                                </span>
+                            </td>
+                            <td>
+                                <select class="form-input mt-0 w-auto text-xs py-0.5 px-1.5"
+                                        data-id="{v.id}"
+                                        onchange="updateVarianceStatus(this)"
+                                        style="min-width: 110px;">
+                                    <option value="unreviewed" {if v.resolution_status == 'unreviewed'}selected{/if}>Unreviewed</option>
+                                    <option value="investigated" {if v.resolution_status == 'investigated'}selected{/if}>Investigated</option>
+                                    <option value="corrected" {if v.resolution_status == 'corrected'}selected{/if}>Corrected</option>
+                                </select>
+                            </td>
+                            <td class="text-sm text-muted">{v.reviewer_name}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {/if}
 </div>
 {/block}
 
 {block scripts}
 <script>
     var BASE = '{base_url}';
+    var initialView = '{view_mode}' || 'list';
+
+    function varianceDashboard() {
+        return {
+            view: initialView,
+            selectedIds: [],
+            init() {
+                // Restore view preference
+                var saved = localStorage.getItem('dl_variance_view');
+                if (saved && (saved === 'grouped' || saved === 'list')) {
+                    this.view = saved;
+                }
+            },
+            switchView(mode) {
+                this.view = mode;
+                localStorage.setItem('dl_variance_view', mode);
+                // Update URL without reload
+                var url = new URL(window.location);
+                url.searchParams.set('view', mode);
+                window.history.replaceState({}, '', url);
+            },
+            toggleAll(e) {
+                var checked = e.target.checked;
+                var checkboxes = document.querySelectorAll('tbody input[type="checkbox"]');
+                if (checked) {
+                    this.selectedIds = Array.from(checkboxes).map(function(cb) { return cb.value; });
+                } else {
+                    this.selectedIds = [];
+                }
+            },
+            toggleBranch(e, branchId) {
+                // Toggle all items in a branch group
+                var checked = e.target.checked;
+                var group = e.target.closest('.variance-branch-group');
+                if (!group) return;
+                var checkboxes = group.querySelectorAll('tbody input[type="checkbox"]');
+                var ids = Array.from(checkboxes).map(function(cb) { return cb.value; });
+                if (checked) {
+                    this.selectedIds = this.selectedIds.concat(ids.filter(function(id) {
+                        return this.selectedIds.indexOf(id) === -1;
+                    }, this));
+                } else {
+                    this.selectedIds = this.selectedIds.filter(function(id) {
+                        return ids.indexOf(id) === -1;
+                    });
+                }
+            },
+            bulkUpdateStatus(status) {
+                if (this.selectedIds.length === 0) return;
+                if (!confirm('Mark ' + this.selectedIds.length + ' variance(s) as ' + status + '?')) return;
+
+                var self = this;
+                var done = 0;
+                var total = this.selectedIds.length;
+
+                this.selectedIds.forEach(function(id) {
+                    fetch(BASE + '/api/v1/admin/variances/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ variance_id: parseInt(id), status: status })
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        done++;
+                        if (done >= total) {
+                            self.selectedIds = [];
+                            showToast(total + ' variance(s) set to ' + status, 'success');
+                            setTimeout(function() { location.reload(); }, 800);
+                        }
+                    })
+                    .catch(function() {
+                        done++;
+                        if (done >= total) {
+                            showToast('Some updates may have failed. Reloading...', 'error');
+                            setTimeout(function() { location.reload(); }, 1200);
+                        }
+                    });
+                });
+            }
+        };
+    }
 
     function updateVarianceStatus(select) {
         var id = select.dataset.id;
         var status = select.value;
+        var originalStatus = select.getAttribute('data-original') || select.value;
         select.disabled = true;
 
         fetch(BASE + '/api/v1/admin/variances/update', {
@@ -109,16 +572,23 @@
         .then(function(res) {
             select.disabled = false;
             if (res.ok) {
-                // Update styling
-                select.className = 'form-input mt-0 w-auto min-w-40 px-2 py-1 text-xs status-select ' + status;
-                showToast('Status updated to ' + status);
+                showToast('Status updated to ' + status, 'success');
+                // Brief highlight effect
+                var row = select.closest('tr');
+                if (row) {
+                    row.style.transition = 'background-color .4s';
+                    row.style.backgroundColor = status === 'corrected' ? '#ecfdf5' : '#eff6ff';
+                    setTimeout(function() { row.style.backgroundColor = ''; }, 1200);
+                }
             } else {
-                showToast(res.error || 'Update failed');
+                showToast(res.error || 'Update failed', 'error');
+                select.value = originalStatus;
             }
         })
         .catch(function() {
             select.disabled = false;
-            showToast('Network error');
+            showToast('Network error', 'error');
+            select.value = originalStatus;
         });
     }
 </script>

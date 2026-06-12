@@ -1,0 +1,230 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+
+{block head}
+<style>
+    .branch-summary-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .75rem;
+    }
+    .branch-summary-metric {
+        border-radius: 3px;
+        border: 1px solid rgb(226 232 240);
+        background: #fff;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .branch-summary-metric-label {
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: rgb(100 116 139);
+    }
+    .branch-summary-metric-value {
+        margin-top: .25rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: rgb(15 23 42);
+    }
+    .branch-summary-metric-sub {
+        margin-top: .125rem;
+        font-size: .75rem;
+        color: rgb(100 116 139);
+    }
+    .branch-summary-row {
+        transition: background-color .15s;
+    }
+    .branch-summary-row:hover {
+        background: rgb(248 250 252);
+    }
+    .branch-summary-branch-name {
+        font-weight: 600;
+        color: rgb(15 23 42);
+    }
+    .branch-summary-branch-code {
+        font-size: .75rem;
+        color: rgb(100 116 139);
+        font-family: ui-monospace, monospace;
+    }
+    .branch-summary-badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: .15rem .55rem;
+        font-size: .6875rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+    .branch-summary-badge--commissary {
+        background: rgb(224 231 255);
+        color: rgb(67 56 202);
+    }
+    .branch-summary-badge--branch {
+        background: rgb(209 250 229);
+        color: rgb(4 120 87);
+    }
+    .branch-summary-account-list {
+        margin-top: .5rem;
+        padding-top: .5rem;
+        border-top: 1px dashed rgb(226 232 240);
+    }
+    .branch-summary-account-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: .25rem 0;
+        font-size: .8125rem;
+    }
+    .branch-summary-account-name {
+        color: rgb(71 85 105);
+    }
+    .branch-summary-account-total {
+        font-weight: 600;
+        color: rgb(79 70 229);
+    }
+    @media (max-width: 767px) {
+        .branch-summary-metrics {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{/block}
+
+{block content}
+<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">Branch Summary</h2>
+        <p class="text-sm text-gray-500">
+            Consolidated view combining regular branch ledger sales
+            {if selling_accounts_enabled}and selling account totals{/if}
+            per branch for a single date.
+        </p>
+        <div class="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+            <span>Business date: <span class="font-medium text-gray-700">{business_date_label}</span></span>
+            <span>·</span>
+            <span>Timezone: <span class="font-medium text-gray-700">{operating_timezone}</span></span>
+            <span>·</span>
+            <span>Cutoff: <span class="font-medium text-gray-700">{close_of_day_time}</span></span>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <form class="flex gap-2" action="{base_url}/admin/branch-summary" method="GET">
+            <input type="date" class="form-input w-full sm:w-44" name="date" value="{date}">
+            <button type="submit" class="btn btn-outline">View</button>
+        </form>
+    </div>
+</div>
+
+<!-- Grand totals -->
+<div class="branch-summary-metrics mb-6">
+    <div class="branch-summary-metric">
+        <div class="branch-summary-metric-label">Regular Sales</div>
+        <div class="branch-summary-metric-value">PHP {grand_regular | number_format:2}</div>
+        <div class="branch-summary-metric-sub">Branch ledger only</div>
+    </div>
+    {if selling_accounts_enabled}
+    <div class="branch-summary-metric">
+        <div class="branch-summary-metric-label">Selling Accounts</div>
+        <div class="branch-summary-metric-value">PHP {grand_accounts | number_format:2}</div>
+        <div class="branch-summary-metric-sub">Mall, kiosk, reseller, etc.</div>
+    </div>
+    {/if}
+    <div class="branch-summary-metric">
+        <div class="branch-summary-metric-label">Grand Total</div>
+        <div class="branch-summary-metric-value">PHP {grand_total | number_format:2}</div>
+        <div class="branch-summary-metric-sub">All channels combined</div>
+    </div>
+</div>
+
+<!-- Branch rows -->
+<div class="card">
+    <div class="card-header">
+        <span>Branch Breakdown — {date}</span>
+        <span class="text-sm text-muted">{summaries | length} branches</span>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Branch</th>
+                    <th>Type</th>
+                    <th class="text-right">Regular Sales</th>
+                    {if selling_accounts_enabled}
+                    <th class="text-right">Selling Accounts</th>
+                    {/if}
+                    <th class="text-right">Total</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {if summaries | length == 0}
+                <tr><td colspan="{if selling_accounts_enabled}6{else}5{/if}" class="text-center text-sm text-gray-500 py-10">No branch data available for {date}.</td></tr>
+                {/if}
+                {foreach summaries as s}
+                <tr class="branch-summary-row">
+                    <td>
+                        <div class="branch-summary-branch-name">{s.branch_name}</div>
+                        {if s.branch_code}<div class="branch-summary-branch-code">{s.branch_code}</div>{/if}
+                    </td>
+                    <td>
+                        {if s.is_commissary}
+                        <span class="branch-summary-badge branch-summary-badge--commissary">Commissary</span>
+                        {/if}
+                        {if !s.is_commissary}
+                        <span class="branch-summary-badge branch-summary-badge--branch">Branch</span>
+                        {/if}
+                        <div class="text-xs text-gray-500 mt-0.5">{s.supply_mode}</div>
+                    </td>
+                    <td class="text-right">
+                        <span class="font-semibold text-gray-900">PHP {s.regular_sales | number_format:2}</span>
+                    </td>
+                    {if selling_accounts_enabled}
+                    <td class="text-right">
+                        {if s.selling_accounts_total > 0}
+                        <span class="font-semibold text-indigo-700">PHP {s.selling_accounts_total | number_format:2}</span>
+                        {/if}
+                        {if s.selling_accounts_total == 0}
+                        <span class="text-gray-400">—</span>
+                        {/if}
+                    </td>
+                    {/if}
+                    <td class="text-right">
+                        <span class="font-bold text-gray-900">PHP {s.total | number_format:2}</span>
+                    </td>
+                    <td class="text-right">
+                        <a href="{base_url}/admin/sales?branch_id={s.branch_id}&date_from={date}&date_to={date}" class="text-xs text-indigo-600 hover:underline">View Sales</a>
+                    </td>
+                </tr>
+                {if selling_accounts_enabled && s.selling_accounts | length > 0}
+                <tr class="bg-gray-50">
+                    <td colspan="{if selling_accounts_enabled}6{else}5{/if}" class="py-2 px-4">
+                        <div class="branch-summary-account-list">
+                            {foreach s.selling_accounts as sa}
+                            <div class="branch-summary-account-item">
+                                <span class="branch-summary-account-name">
+                                    <i class="fas fa-store text-xs text-indigo-400 mr-1.5"></i>
+                                    {sa.name | default:'Untitled'}
+                                    <span class="text-xs text-gray-400 ml-1">({sa.type | default:'account'})</span>
+                                </span>
+                                <span class="branch-summary-account-total">PHP {sa.total | number_format:2}</span>
+                            </div>
+                            {/foreach}
+                        </div>
+                    </td>
+                </tr>
+                {/if}
+                {/foreach}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-6 text-xs text-gray-400">
+    <p>Regular sales = &Sigma;(beg_bal + addtl &minus; withdraw &minus; bal_end) &times; price_snapshot per product per branch.</p>
+    {if selling_accounts_enabled}
+    <p>Selling accounts = &Sigma;(beg_qty + delivered_qty &minus; return_qty &minus; end_qty) &times; price_snapshot per product per account.</p>
+    {/if}
+</div>
+{/block}

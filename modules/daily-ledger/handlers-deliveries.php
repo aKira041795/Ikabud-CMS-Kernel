@@ -1851,6 +1851,70 @@ function dl_layoutFlags(): array
     ];
 }
 
+function handleAdminBranchSummary(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    $user = dlCurrentUser(['admin', 'supervisor']);
+
+    $input = $ctx->input();
+    $today = dl_businessDate();
+    $date = !empty($input['date']) ? (string)$input['date'] : $today;
+
+    $branches = $ctx->db()->query(
+        'SELECT id, code, name, is_commissary, default_supply_mode FROM dl_branches WHERE is_active = 1 ORDER BY name'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $summaries = [];
+    $grandRegular = 0.0;
+    $grandAccounts = 0.0;
+    $grandTotal = 0.0;
+
+    foreach ($branches as $branch) {
+        $bid = (int)$branch['id'];
+        $summary = dl_branchConsolidatedSummary($bid, $date);
+        $summaries[] = [
+            'branch_id'   => $bid,
+            'branch_code' => (string)($branch['code'] ?? ''),
+            'branch_name' => (string)($branch['name'] ?? ''),
+            'is_commissary' => (bool)($branch['is_commissary'] ?? false),
+            'supply_mode' => (string)($branch['default_supply_mode'] ?? 'self_managed'),
+            'regular_sales' => (float)($summary['regular_sales'] ?? 0),
+            'selling_accounts_total' => (float)($summary['selling_accounts_total'] ?? 0),
+            'total' => (float)($summary['total'] ?? 0),
+            'selling_accounts' => $summary['selling_accounts'] ?? [],
+        ];
+        $grandRegular  += (float)($summary['regular_sales'] ?? 0);
+        $grandAccounts += (float)($summary['selling_accounts_total'] ?? 0);
+        $grandTotal    += (float)($summary['total'] ?? 0);
+    }
+
+    $sellingAccountsEnabled = dl_areSellingAccountsEnabled();
+    $clockLabel = dl_operatingClockLabel();
+
+    $role = (string)($user['role'] ?? '');
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+
+    echo dlRender('modules/daily-ledger/admin/branch-summary.disyl', array_merge(dl_layoutFlags(), [
+        'page_title'   => 'Branch Summary',
+        'user_name'    => $userName,
+        'user_role'    => $role,
+        'current_page' => 'branch-summary',
+        'base_url'     => dlGetBaseUrl(),
+        'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
+        'date'         => $date,
+        'business_date_label' => $clockLabel['business_date'],
+        'close_of_day_time'   => $clockLabel['close_of_day_time'],
+        'operating_timezone'  => $clockLabel['operating_timezone'],
+        'operating_region'    => $clockLabel['operating_region'],
+        'summaries'    => $summaries,
+        'grand_regular'  => $grandRegular,
+        'grand_accounts' => $grandAccounts,
+        'grand_total'    => $grandTotal,
+        'selling_accounts_enabled' => $sellingAccountsEnabled,
+    ]));
+}
+
 function handleAdminDeliveries(array $params = []): void
 {
     $ctx = module();

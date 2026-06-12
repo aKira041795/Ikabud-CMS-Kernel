@@ -4486,15 +4486,30 @@ function handleAdminVariances(array $params = []): void
     }
 
     $user = dlCurrentUser(['admin', 'supervisor']);
+    $role = (string)($user['role'] ?? '');
+    $isSupervisor = ($role === 'supervisor');
 
     $input = $ctx->input();
     $branchId = !empty($input['branch_id']) ? (int)$input['branch_id'] : null;
     $statusFilter = $input['status'] ?? null;
     $search   = trim((string)($input['q'] ?? ''));
+    $viewMode = $input['view'] ?? ($isSupervisor ? 'grouped' : 'list');
+
+    // For supervisors, restrict to their assigned branches if no explicit filter
+    $supervisorBranchIds = [];
+    if ($isSupervisor) {
+        $userId = (int)($user['id'] ?? 0);
+        $sbStmt = $ctx->db()->prepare(
+            'SELECT branch_id FROM dl_user_branches WHERE user_id = :uid'
+        );
+        $sbStmt->execute([':uid' => $userId]);
+        $supervisorBranchIds = array_map('intval', $sbStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $sql = 'SELECT vf.*, p.name AS product_name, b.name AS branch_name,
+    // Build the variance query
+    $sql = 'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name,
                    COALESCE(reviewer.full_name, \'Unknown\') AS reviewer_name
             FROM dl_variance_flags vf
             INNER JOIN dl_products p ON p.id = vf.product_id
@@ -4506,7 +4521,17 @@ function handleAdminVariances(array $params = []): void
     if ($branchId) {
         $sql .= ' AND vf.branch_id = :bid';
         $bind[':bid'] = $branchId;
+    } elseif ($isSupervisor && !empty($supervisorBranchIds)) {
+        // Auto-scope to supervisor branches when no explicit filter
+        $placeholders = [];
+        foreach ($supervisorBranchIds as $i => $sbId) {
+            $key = ":sb_{$i}";
+            $placeholders[] = $key;
+            $bind[$key] = $sbId;
+        }
+        $sql .= ' AND vf.branch_id IN (' . implode(',', $placeholders) . ')';
     }
+
     if ($statusFilter && in_array($statusFilter, ['unreviewed', 'investigated', 'corrected'], true)) {
         $sql .= ' AND vf.resolution_status = :st';
         $bind[':st'] = $statusFilter;
@@ -4522,20 +4547,78 @@ function handleAdminVariances(array $params = []): void
     $stmt->execute($bind);
     $variances = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $role = (string)($user['role'] ?? '');
+    // ── Aggregate stats ──────────────────────────────────────────────
+    $statsTotal = count($variances);
+    $statsUnreviewed = 0;
+    $statsInvestigated = 0;
+    $statsCorrected = 0;
+    $statsTotalVariance = 0;
+    foreach ($variances as $v) {
+        $st = (string)($v['resolution_status'] ?? '');
+        if ($st === 'unreviewed') { $statsUnreviewed++; }
+        elseif ($st === 'investigated') { $statsInvestigated++; }
+        elseif ($st === 'corrected') { $statsCorrected++; }
+        $statsTotalVariance += (int)($v['variance'] ?? 0);
+    }
+
+    // ── Per-branch breakdown ─────────────────────────────────────────
+    $branchSummary = [];
+    foreach ($variances as $v) {
+        $bid = (int)($v['branch_id'] ?? 0);
+        $bname = (string)($v['branch_name'] ?? 'Unknown');
+        if (!isset($branchSummary[$bid])) {
+            $branchSummary[$bid] = [
+                'branch_id'   => $bid,
+                'branch_name' => $bname,
+                'total'       => 0,
+                'unreviewed'  => 0,
+                'investigated'=> 0,
+                'corrected'   => 0,
+                'net_variance'=> 0,
+                'items'       => [],
+            ];
+        }
+        $branchSummary[$bid]['total']++;
+        $st = (string)($v['resolution_status'] ?? '');
+        if ($st === 'unreviewed') { $branchSummary[$bid]['unreviewed']++; }
+        elseif ($st === 'investigated') { $branchSummary[$bid]['investigated']++; }
+        elseif ($st === 'corrected') { $branchSummary[$bid]['corrected']++; }
+        $branchSummary[$bid]['net_variance'] += (int)($v['variance'] ?? 0);
+        $branchSummary[$bid]['items'][] = $v;
+    }
+    // Sort branches by unreviewed count desc, then name
+    uasort($branchSummary, function($a, $b) {
+        if ($a['unreviewed'] !== $b['unreviewed']) {
+            return $b['unreviewed'] - $a['unreviewed'];
+        }
+        return strcmp($a['branch_name'], $b['branch_name']);
+    });
+    $branchSummary = array_values($branchSummary);
+
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     echo dlRender('modules/daily-ledger/admin/variances.disyl', [
-        'page_title'    => 'Variance Flags',
+        'page_title'    => 'Variance Dashboard',
         'user_name'     => $userName,
         'user_role'     => $role,
         'current_page'  => 'variances',
-        'base_url' => dlGetBaseUrl(),
+        'base_url'      => dlGetBaseUrl(),
         'dl_token'      => (string)kernelCookie(dlCookieName(), ''),
         'branch_id'     => $branchId,
         'status_filter' => $statusFilter,
         'branches'      => $branches,
         'variances'     => $variances,
         'search'        => $search,
+        'view_mode'     => $viewMode,
+        'is_supervisor' => $isSupervisor,
+        'supervisor_branch_ids' => $supervisorBranchIds,
+        // Aggregate stats
+        'stats_total'        => $statsTotal,
+        'stats_unreviewed'   => $statsUnreviewed,
+        'stats_investigated' => $statsInvestigated,
+        'stats_corrected'    => $statsCorrected,
+        'stats_net_variance' => $statsTotalVariance,
+        // Branch breakdown
+        'branch_summary' => $branchSummary,
     ]);
 }
 
