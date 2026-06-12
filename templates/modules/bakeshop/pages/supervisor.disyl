@@ -920,6 +920,14 @@
                                         <button class="bakeshop-button" type="submit" id="product-submit">Save Product</button>
                                     </div>
                                 </div>
+                                <div class="bakeshop-form-actions" style="padding-top:0;">
+                                    <span class="bakeshop-help">Bulk import products from a CSV file. <a href="#" id="product-csv-template-link">Download CSV template</a>.</span>
+                                    <div class="bakeshop-actions">
+                                        <input id="product-csv-file" type="file" accept=".csv,text/csv" hidden>
+                                        <button class="bakeshop-button secondary" type="button" id="product-import-csv">Import Products CSV</button>
+                                    </div>
+                                    </div>
+                                </div>
                             </form>
 
                             <div class="bakeshop-grid-2" {if !product_recipes_enabled}style="display:none;"{/if}>
@@ -970,6 +978,13 @@
                                             <div class="bakeshop-actions">
                                                 <button class="bakeshop-button danger" type="button" id="recipe-cancel" hidden disabled>Cancel Edit</button>
                                                 <button class="bakeshop-button" type="submit" id="recipe-submit">Save Recipe Line</button>
+                                            </div>
+                                        </div>
+                                        <div class="bakeshop-form-actions" style="grid-column: 1 / -1; padding-top:0;">
+                                            <span class="bakeshop-help">Bulk import recipe lines from a CSV file. <a href="#" id="recipe-csv-template-link">Download CSV template</a>.</span>
+                                            <div class="bakeshop-actions">
+                                                <input id="recipe-csv-file" type="file" accept=".csv,text/csv" hidden>
+                                                <button class="bakeshop-button secondary" type="button" id="recipe-import-csv">Import Recipe CSV</button>
                                             </div>
                                         </div>
                                     </form>
@@ -1394,6 +1409,12 @@
                                 <button class="bakeshop-button" type="submit" id="production-submit" hidden>Update Saved Entry</button>
                                 <button class="bakeshop-button secondary" type="button" id="production-cancel" hidden disabled>Cancel</button>
                             </div>
+                            <div class="bakeshop-form-actions" style="grid-column: 1 / -1; padding-top:0;">
+                                <span class="bakeshop-help">Bulk import production batches from a CSV file. <a href="#" id="production-csv-template-link">Download CSV template</a>.</span>
+                                <div class="bakeshop-actions">
+                                    <input id="production-csv-file" type="file" accept=".csv,text/csv" hidden>
+                                    <button class="bakeshop-button secondary" type="button" id="production-import-csv">Import Production CSV</button>
+                                </div>
                         </form>
 
                         <div class="bakeshop-review-card" id="production-last-saved" hidden>
@@ -1877,6 +1898,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const productionSectionPanels = document.querySelectorAll('[data-production-section-panel]');
     const deliveryLines = $('#delivery-lines');
     const deliveryCsvFile = $('#delivery-csv-file');
+    const productCsvFile = $('#product-csv-file');
+    const productImportCsv = $('#product-import-csv');
+    const productCsvTemplateLink = $('#product-csv-template-link');
+    const recipeCsvFile = $('#recipe-csv-file');
+    const recipeImportCsv = $('#recipe-import-csv');
+    const recipeCsvTemplateLink = $('#recipe-csv-template-link');
+    const productionCsvFile = $('#production-csv-file');
+    const productionImportCsv = $('#production-import-csv');
+    const productionCsvTemplateLink = $('#production-csv-template-link');
     const permissionsForm = $('#permissions-form');
     const branchForm = $('#branch-form');
     const productForm = $('#product-form');
@@ -3857,6 +3887,108 @@ document.addEventListener('DOMContentLoaded', () => {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(objectUrl);
+    }
+
+    // --- Generic CSV import / template helpers ---------------------------------
+
+    async function importCsvFromFile(fileInput, apiUrl, successLabel, afterRefresh) {
+        const file = fileInput && fileInput.files && fileInput.files[0];
+        if (!file) {
+            showBanner('Please select a CSV file first.', false);
+            return;
+        }
+
+        try {
+            const text = await file.text();
+            if (!text || !text.trim()) {
+                throw new Error('The selected file is empty.');
+            }
+
+            showBanner('Importing ' + successLabel + '…', true);
+            const data = await request(apiUrl, {
+                method: 'POST',
+                body: JSON.stringify({ csv: text })
+            });
+
+            const created = Number(data.created || 0);
+            const updated = Number(data.updated || 0);
+            const errors = Number(data.error_count || 0);
+            const total = Number(data.total_rows || 0);
+
+            let msg = 'Imported ' + total + ' ' + successLabel + ' rows';
+            if (created > 0) { msg += ' (' + created + ' created'; }
+            if (updated > 0) { msg += (created > 0 ? ', ' : ' (') + updated + ' updated'; }
+            if ((created > 0 || updated > 0) && errors === 0) { msg += ')'; }
+            if (errors > 0) { msg += ', ' + errors + ' errors'; }
+            if (errors > 0 && (created > 0 || updated > 0)) { msg += ')'; }
+            msg += '.';
+
+            showBanner(msg, errors === 0);
+
+            if (typeof afterRefresh === 'function') {
+                await afterRefresh(data);
+            }
+
+            await applyCacheInvalidations(data.cache_invalidate || [], { refreshCurrentTab: true });
+        } catch (error) {
+            showBanner(successLabel + ' import failed: ' + (error.message || 'Unknown error'), false);
+        } finally {
+            if (fileInput) { fileInput.value = ''; }
+        }
+    }
+
+    function downloadCsvTemplate(url, filename) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // --- Product import / export -----------------------------------------------
+
+    if (productImportCsv && productCsvFile) {
+        productImportCsv.addEventListener('click', () => productCsvFile.click());
+        productCsvFile.addEventListener('change', () => {
+            importCsvFromFile(productCsvFile, api.products + '/import', 'product', () => loadProducts(true));
+        });
+    }
+    if (productCsvTemplateLink) {
+        productCsvTemplateLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            downloadCsvTemplate(api.products + '/import/template', 'bakeshop-products-template.csv');
+        });
+    }
+
+    // --- Recipe import / export ------------------------------------------------
+
+    if (recipeImportCsv && recipeCsvFile) {
+        recipeImportCsv.addEventListener('click', () => recipeCsvFile.click());
+        recipeCsvFile.addEventListener('change', () => {
+            importCsvFromFile(recipeCsvFile, api.recipes + '/import', 'recipe', () => loadRecipes(true));
+        });
+    }
+    if (recipeCsvTemplateLink) {
+        recipeCsvTemplateLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            downloadCsvTemplate(api.recipes + '/import/template', 'bakeshop-recipes-template.csv');
+        });
+    }
+
+    // --- Production import / export --------------------------------------------
+
+    if (productionImportCsv && productionCsvFile) {
+        productionImportCsv.addEventListener('click', () => productionCsvFile.click());
+        productionCsvFile.addEventListener('change', () => {
+            importCsvFromFile(productionCsvFile, api.production + '/import', 'production', () => loadProduction(true));
+        });
+    }
+    if (productionCsvTemplateLink) {
+        productionCsvTemplateLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            downloadCsvTemplate(api.production + '/import/template', 'bakeshop-production-template.csv');
+        });
     }
 
     async function loadBranches(force = false) {
