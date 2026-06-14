@@ -89,6 +89,71 @@ The 4.x line introduced six tag families that extend the rendering language with
 
 184 unit tests cover the 4.x surface end-to-end. See per-release notes under `docs/releases/` for honest-scope statements (what shipped, what's deferred to point releases) and the [DiSyL 4.x Capabilities table in the module guide](module-development-guide.md#disyl-4x-capabilities-kernel--40) for the module-author summary.
 
+## Async Rendering Convention (`{parallel}` / `{await}` / `{suspense}`)
+
+### When to use async in templates
+
+The rule: **use `{parallel}` when a single render needs data from 2+ independent sources, and none depends on another's result.** In all other cases, fetch data in the handler and pass it via `$context`.
+
+```disyl
+{[ parallel ]}
+  {[ await let=products src=fetch('/api/products?featured=3') timeout=400 ]}
+    {[ for p in products ]}<article>{{ p.name }}</article>{[ endfor ]}
+  {[ loading ]}<article class="skeleton">Loading products...</article>{[ endawait ]}
+
+  {[ await let=stats src=fetch('/api/stats/dashboard') timeout=200 ]}
+    <div class="stats">{{ stats.orders }} orders today</div>
+  {[ endawait ]}
+{[ endparallel ]}
+```
+
+### When this scenario happens (real-world triggers)
+
+Async rendering is for data that **can only be resolved during render**, not before:
+
+| Scenario | Why async at render time? |
+|---|---|
+| **Entity-view resolution via polyglot service** | Template renders `{ikb_entity_list source="weather.current"}`, EntityViewResolver calls a Python service via ServiceProxy — this happens inside the render pipeline |
+| **Cross-module capability composition** | A dashboard page aggregates data from CMS (content stats) + ecommerce (order count) + guidance (case count) — each `{await}` dispatches to a different module's capability |
+| **External API enrichment** | Product detail page needs reviews (external service) + stock level (WMS capability) + related products (ecommerce capability) — all independent |
+| **Federated queries** | `{federated_query}` composes data from multiple services; the `{parallel}` concurrency is built-in |
+| **Builder-composed pages** | A visual builder page with multiple entity widgets — each widget's data source resolves independently during render |
+
+### When NOT to use async
+
+| Situation | Right approach |
+|---|---|
+| Data available before render | Fetch in handler, pass via `$context` — no `{await}` needed |
+| One data source drives the next | Sequential `{await}` outside `{parallel}` (or fetch both in handler) |
+| Single data source | Just pass it in `$context` |
+| Simple DB query | Handler-level — no template async overhead |
+
+```disyl
+{# ❌ WRONG: user.id needed by second call, but parallel blocks don't share state #}
+{[ parallel ]}
+  {[ await let=user src=fetch('/api/user') ]}...{[ endawait ]}
+  {[ await let=orders src=fetch('/api/orders/' + user.id) ]}...{[ endawait ]}
+{[ endparallel ]}
+
+{# ✅ RIGHT: fetch user in handler, pass both user + orders in context #}
+```
+
+### Streaming protocol (how it renders)
+
+Today (4.5.0 sync scheduler): each `{await}` resolves sequentially in source order. The `{loading}` arm renders while waiting, `{catch}` on error.
+
+When Fibers land (4.5.1): all `{await}` blocks in a `{parallel}` will run concurrently. Templates that use `{parallel}` today will automatically get the speedup — **zero markup changes required.** The output is always source-order deterministic regardless of resolution order.
+
+### Quick reference
+
+| Tag | Purpose |
+|---|---|
+| `{parallel}` | Wraps multiple `{await}` blocks for concurrent resolution |
+| `{await let=X src=... timeout=N}` | Fetches data, binds to `X`, renders body on success |
+| `{loading}` | Renders while `{await}` is waiting |
+| `{catch let=err}` | Renders on error (timeout, HTTP failure) |
+| `{suspense fallback=...}` | Single fallback for an entire section — catches loading/error from all descendants |
+
 ## Developer Advantage
 
 ### One rendering model across the platform

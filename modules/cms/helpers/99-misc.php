@@ -184,6 +184,29 @@ if (class_exists('Ikabud\\Kernel\\EventBus')) {
         if (function_exists('pageCacheInvalidateModule')) {
             pageCacheInvalidateModule('cms');
         }
+
+        // Proactive page-cache warm-up: pre-render the published page so the
+        // next real visitor gets a cache hit instead of a cold miss.
+        // Opt-in via PAGE_CACHE_WARM_ENABLED=true (default: off).
+        if (function_exists('pageCacheWarm')
+            && filter_var($_ENV['PAGE_CACHE_WARM_ENABLED'] ?? false, FILTER_VALIDATE_BOOL)
+        ) {
+            $urls = ['/' . ltrim($slug, '/')];
+            // Also warm the home page if this is a post
+            $type = (string)($payload['type'] ?? 'post');
+            if ($type === 'post' && $slug !== '' && $slug !== '/') {
+                $urls[] = '/';
+            }
+            // Fire-and-forget: warm in the background if possible
+            if (function_exists('fastcgi_finish_request') || function_exists('finish_response_if_possible')) {
+                // Defer to shutdown so the response goes out first
+                register_shutdown_function(static function () use ($urls): void {
+                    pageCacheWarm($urls, 5000);
+                });
+            } else {
+                pageCacheWarm($urls, 3000);
+            }
+        }
     }, 10, 'cms');
 
     // Content updated

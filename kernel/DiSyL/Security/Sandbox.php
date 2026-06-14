@@ -23,6 +23,11 @@ require_once __DIR__ . '/CapabilitySet.php';
  *   - AST-time annotation (current impl is runtime-only)
  *   - Auto-wrapping of every cmsRender() boundary in `untrusted`
  *   - Per-cache-fragment cap-set hash binding
+ *
+ * 4.4.1 resource limits (shipped):
+ *   - CPU time limit per sandbox block (default 5s)
+ *   - Memory growth limit per sandbox block (default 16 MB)
+ *   - Limits checked on pop(); violations logged to audit file
  */
 final class Sandbox
 {
@@ -40,6 +45,17 @@ final class Sandbox
 
     /** @var bool If true, an `untrusted` block is currently active anywhere on the stack. */
     private bool $untrustedActive = false;
+
+    // ── 4.4.1 resource limits ──────────────────────────────────────
+
+    /** @var list<array{started_at:float, start_memory:int, cpu_limit_s:float, mem_limit_bytes:int}> */
+    private array $resourceStack = [];
+
+    /** Default CPU time limit per sandbox block (seconds, 0 = unlimited). */
+    private float $defaultCpuLimitS = 5.0;
+
+    /** Default memory growth limit per sandbox block (bytes, 0 = unlimited). */
+    private int $defaultMemLimitBytes = 16 * 1024 * 1024; // 16 MB
 
     public function __construct(?CapabilitySet $initial = null, ?string $auditRoot = null)
     {
@@ -60,14 +76,21 @@ final class Sandbox
     public function depth(): int { return count($this->stack); }
 
     /** @param list<string> $deny @param list<string> $allow */
-    public function pushSandbox(array $deny, array $allow = [], bool $policyStrict = false): void
+    public function pushSandbox(array $deny, array $allow = [], bool $policyStrict = false, float $cpuLimitS = 0, int $memLimitBytes = 0): void
     {
         $base = $this->current();
         if ($policyStrict) {
             $this->stack[] = CapabilitySet::strict();
-            return;
+        } else {
+            $this->stack[] = $base->narrow($deny, $allow);
         }
-        $this->stack[] = $base->narrow($deny, $allow);
+        // Track resource usage for limits check on pop()
+        $this->resourceStack[] = [
+            'started_at'      => microtime(true),
+            'start_memory'    => memory_get_usage(true),
+            'cpu_limit_s'     => $cpuLimitS > 0 ? $cpuLimitS : $this->defaultCpuLimitS,
+            'mem_limit_bytes' => $memLimitBytes > 0 ? $memLimitBytes : $this->defaultMemLimitBytes,
+        ];
     }
 
     public function pushTrusted(): bool
@@ -100,6 +123,34 @@ final class Sandbox
         // untrusted region remains effectively in force until that frame pops.
         // Conservative recovery: only clear when we return to base.
         if (count($this->stack) === 1) $this->untrustedActive = false;
+
+        // ── 4.4.1: check resource limits on sandbox exit ──────────
+        if ($this->resourceStack !== []) {
+            $res = array_pop($this->resourceStack);
+            $elapsed  = microtime(true) - (float)($res['started_at'] ?? 0);
+            $memDelta = memory_get_usage(true) - (int)($res['start_memory'] ?? 0);
+            $cpuLimit = (float)($res['cpu_limit_s'] ?? 0);
+            $memLimit = (int)($res['mem_limit_bytes'] ?? 0);
+
+            if ($cpuLimit > 0 && $elapsed > $cpuLimit) {
+                $this->record('SANDBOX_CPU_LIMIT', 'sandbox', 'cpu', sprintf('%.2fs/%.2fs', $elapsed, $cpuLimit));
+            }
+            if ($memLimit > 0 && $memDelta > $memLimit) {
+                $this->record('SANDBOX_MEM_LIMIT', 'sandbox', 'memory', sprintf('%.1fMB/%.1fMB', $memDelta / 1048576, $memLimit / 1048576));
+            }
+        }
+    }
+
+    /**
+     * Configure default resource limits for sandbox blocks.
+     *
+     * @param float $cpuLimitS  Max CPU seconds per sandbox block (0 = unlimited).
+     * @param int   $memBytes   Max memory growth per sandbox block (0 = unlimited).
+     */
+    public function setResourceLimits(float $cpuLimitS, int $memBytes): void
+    {
+        $this->defaultCpuLimitS = max(0.0, $cpuLimitS);
+        $this->defaultMemLimitBytes = max(0, $memBytes);
     }
 
     /**

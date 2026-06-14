@@ -1142,19 +1142,93 @@ All database access goes through `app()->db()` (or `module()->db()` for module-s
 
 - **Use parameterized queries always** — `$db->prepare()` + `$stmt->execute([...])` — never string interpolation
 - **Add LIMIT to `fetchAll()`** — unbounded queries on large tables (orders, content, logs) will exhaust memory
-- **Use static caches** for settings/config reads that don't change within a request
+- **Use per-request static caches** for settings/config/form-field reads (see standard below)
 - **Batch queries** — one query that returns 100 rows is faster than 100 queries returning 1 row each
 
+### Per-Request Caching Standard (REQUIRED)
+
+Every module helper function that reads from the database and returns stable-within-a-request data **must** use per-request static caching. This is the single highest-ROI performance pattern in Ikabud modules.
+
+**Rule:** If your function does a DB read and can be called more than once in a request, cache it.
+
+#### Pattern 1 — Single-value cache (settings, tier, user)
+
 ```php
-// ✅ Good: static cache + parameterized query + LIMIT
-function myModuleSettings(): array {
-    static $cache = [];
-    $tid = app()->tenant()->current() ?? 0;
-    if (isset($cache[$tid])) return $cache[$tid];
-    $cache[$tid] = myModuleLoadSettings();
-    return $cache[$tid];
+function myModuleSetting(string $key): ?string
+{
+    static $cache = null;
+    // Batch-load ALL settings on first call — 1 query instead of N
+    if ($cache === null) {
+        $cache = [];
+        $rows = myDb()->query('SELECT k, v FROM my_settings')->fetchAll();
+        foreach ($rows as $r) { $cache[$r['k']] = $r['v']; }
+    }
+    return $cache[$key] ?? null;
 }
 ```
+
+#### Pattern 2 — Keyed cache (form fields by type, location by ID)
+
+```php
+function myModuleFormFields(string $formType): array
+{
+    static $cache = [];
+    if (array_key_exists($formType, $cache)) {
+        return $cache[$formType];
+    }
+    $cache[$formType] = myDb()->query(
+        'SELECT * FROM my_forms WHERE type = ?', [$formType]
+    )->fetchAll();
+    return $cache[$formType];
+}
+```
+
+#### Pattern 3 — Simple flag cache (tenant tier, feature flag)
+
+```php
+function myModuleIsPro(): bool
+{
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $cached = myModuleLookupTier() === 'pro';
+    return $cached;
+}
+```
+
+#### Anti-patterns to avoid
+
+```php
+// ❌ BAD: DB query on every call, no cache
+function mySetting(string $key): ?string {
+    return myDb()->query('SELECT v FROM settings WHERE k=?', [$key])->fetchColumn();
+}
+
+// ❌ BAD: $GLOBALS cache without tenant key — leaks across tenants
+function mySetting(string $key): ?string {
+    $GLOBALS['my_cache'][$key] ??= myDb()->query(...);
+}
+
+// ❌ BAD: Static flag that can't be reset in tests
+function mySetting(string $key): ?string {
+    static $loaded = false;  // once true, never reloads even if DB changes
+    static $cache = [];
+    if (!$loaded) { /* load */ $loaded = true; }
+}
+```
+
+**Modules already using this standard (reference implementations):**
+
+| Module | Function | Pattern |
+|--------|----------|---------|
+| CMS | `cmsPublicContext()` | Pattern 1 — full context cache |
+| Guidance | `guidanceGetSetting()` | Pattern 1 — batch-loaded settings |
+| Guidance | `guidanceGetFormFields()` | Pattern 2 — keyed by form type |
+| Guidance | `guidanceTenantTier()` | Pattern 3 — simple flag |
+| WMS | `wmsSettings()` | Pattern 1 — batch-loaded settings |
+| WMS | `wmsConfigGet()` | Pattern 1 — batch-loaded configs |
+| WMS | `wmsLocationRecord()` | Pattern 2 — keyed by location ID |
+| Daily Ledger | `dlSettings()` | Pattern 1 — batch-loaded settings |
+| Bakeshop | `bakeshopSettings()` | Pattern 1 — batch-loaded settings |
 
 ### Tenant Migration Sync
 

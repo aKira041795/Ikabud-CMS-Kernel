@@ -205,6 +205,12 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
         return; // Don't cache trivially small responses (redirects, errors)
     }
 
+    // Do not cache pages that contain a CSRF token — the cached token
+    // would be served to a different session, causing 419 on form submit.
+    if (pageCacheHtmlHasCsrfToken($html)) {
+        return;
+    }
+
     $etag = md5($html);
     $key = pageCacheKey($uri);
     $tags = pageCacheTags($uri, $moduleId);
@@ -217,6 +223,39 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
         'module' => $moduleId,
     ];
     app()->cache()->setWithTags(pageCacheInstance(), $key, $data, $tags, pageCacheTtlForModule($moduleId));
+}
+
+// ── CSRF token detection ─────────────────────────────────────────────
+
+/**
+ * Check if rendered HTML contains a CSRF token hidden field.
+ * Pages with CSRF tokens must NOT be page-cached because the cached
+ * token would be served to a different session, causing 419 on POST.
+ *
+ * Matches common CSRF field patterns:
+ *   <input type="hidden" name="csrf_token" value="...">
+ *   <input type="hidden" name="_token" value="...">
+ *   <input type="hidden" name="ikabud_csrf" value="...">
+ */
+function pageCacheHtmlHasCsrfToken(string $html): bool
+{
+    // Fast pre-check: only scan if HTML contains a hidden input
+    if (!str_contains($html, 'type="hidden"') && !str_contains($html, "type='hidden'")) {
+        return false;
+    }
+
+    $patterns = [
+        '/<input[^>]+name=["\'](?:csrf_token|_token|ikabud_csrf|csrf|__csrf)["\'][^>]*>/i',
+        '/<input[^>]+name=["\']csrf_token["\'][^>]*>/i',
+    ];
+
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $html)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // ── Serve from cache ─────────────────────────────────────────────────
@@ -283,6 +322,68 @@ function pageCacheFlushAll(): int
     // Clean up any stale lock files
     pageCacheLockCleanup();
     return app()->cache()->clearByTags(pageCacheInstance(), ['pagecache:all']);
+}
+
+// ── Cache Warm-Up ────────────────────────────────────────────────────
+//
+// Proactively populates the page cache after content changes so the next
+// real visitor gets an instant cache hit instead of a cold miss.
+
+/**
+ * Warm the page cache for a list of URL paths.
+ *
+ * Makes internal HTTP sub-requests to populate the page cache. Each URL
+ * is fetched in sequence; failures are logged but do not throw.
+ *
+ * Usage after CMS content save/publish:
+ *   pageCacheWarm(['/blog/my-post', '/about', '/']);
+ *
+ * @param list<string> $urls  URL paths relative to the app root (e.g. '/about')
+ * @param int          $timeoutMs  Max time per URL before giving up
+ * @return array{success: int, failed: int}  Count of warmed vs failed URLs
+ */
+function pageCacheWarm(array $urls, int $timeoutMs = 3000): array
+{
+    $success = 0;
+    $failed = 0;
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : (external_base_url('') ?: 'http://localhost')), '/');
+
+    foreach ($urls as $url) {
+        $url = trim((string)$url);
+        if ($url === '' || $url[0] !== '/') {
+            $failed++;
+            continue;
+        }
+
+        $fullUrl = $baseUrl . $url;
+        $ctx = stream_context_create([
+            'http' => [
+                'method'  => 'GET',
+                'timeout' => max(1, (int)($timeoutMs / 1000)),
+                'header'  => "Accept: text/html\r\nUser-Agent: Ikabud-PageCache-Warmer/1.0\r\n",
+                'ignore_errors' => true,
+            ],
+        ]);
+
+        try {
+            $result = @file_get_contents($fullUrl, false, $ctx);
+            if ($result !== false && strlen($result) > 100) {
+                $success++;
+            } else {
+                $failed++;
+                if (function_exists('write_log')) {
+                    write_log("pageCacheWarm failed for {$url}: empty or short response", 'warning');
+                }
+            }
+        } catch (\Throwable $e) {
+            $failed++;
+            if (function_exists('write_log')) {
+                write_log("pageCacheWarm failed for {$url}: " . $e->getMessage(), 'warning');
+            }
+        }
+    }
+
+    return ['success' => $success, 'failed' => $failed];
 }
 
 // ── Stampede Protection ──────────────────────────────────────────────

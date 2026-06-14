@@ -29,12 +29,40 @@ function kernelTriggerTemplateVariables(string $template): array
     return $vars;
 }
 
+/** @var array<string, array<int, string>>|null Per-request cache for kernelEventAvailableVars(). Cleared on event registry flush. */
+function &kernelEventAvailableVarsCache(): array
+{
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+    }
+    return $cache;
+}
+
+/** Invalidate the per-request cache for a specific event (or all if empty). */
+function kernelEventAvailableVarsCacheClear(string $eventKey = ''): void
+{
+    $cache = &kernelEventAvailableVarsCache();
+    if ($eventKey === '') {
+        $cache = [];
+        return;
+    }
+    unset($cache[$eventKey]);
+}
+
 function kernelEventAvailableVars(string $eventKey): array
 {
     $eventKey = trim($eventKey);
     if ($eventKey === '') {
         return [];
     }
+
+    // Per-request cache: avoid DB query on every trigger validation/fire.
+    $cache = &kernelEventAvailableVarsCache();
+    if (array_key_exists($eventKey, $cache)) {
+        return $cache[$eventKey];
+    }
+
     try {
         \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         try {
@@ -54,21 +82,26 @@ function kernelEventAvailableVars(string $eventKey): array
                         if (is_array($vars)) {
                             $vars = array_values(array_unique(array_filter($vars, fn($v) => is_string($v) && trim($v) !== '')));
                             sort($vars);
+                            $cache[$eventKey] = $vars;
                             return $vars;
                         }
                     }
                 }
             }
+            $cache[$eventKey] = [];
             return [];
         }
         $decoded = json_decode((string)$raw, true);
         if (!is_array($decoded)) {
+            $cache[$eventKey] = [];
             return [];
         }
         $vars = array_values(array_unique(array_filter($decoded, fn($v) => is_string($v) && trim($v) !== '')));
         sort($vars);
+        $cache[$eventKey] = $vars;
         return $vars;
     } catch (Throwable $e) {
+        $cache[$eventKey] = [];
         return [];
     }
 }
@@ -298,6 +331,8 @@ function kernelFlushPendingEventRegistrations(): void
         if ($syncTtl > 0) {
             app()->cache()->set(kernelEventRegistrySyncInstance(), $compositeKey, ['synced' => true], $syncTtl);
         }
+        // Invalidate per-request event-vars cache so next kernelEventAvailableVars() reads fresh DB state.
+        kernelEventAvailableVarsCacheClear();
     } catch (Throwable $e) {
         if (\dbConnectionLost($e)) {
             try {

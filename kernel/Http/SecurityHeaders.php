@@ -122,7 +122,16 @@ final class SecurityHeaders
         //   - Alpine.js v3 (CDN build uses new Function() for expression evaluation)
         //   - Tailwind CSS CDN (JIT mode generates styles via eval-based class scanning)
         $scriptSrc = ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://unpkg.com'];
-        
+
+        // CSP nonce transition: when CSP_NONCE_MODE is enabled, replace
+        // 'unsafe-inline' with the per-request nonce. Templates must carry
+        // nonce="{csp_nonce}" on every inline <script> tag before enabling.
+        if (function_exists('csp_nonce_mode_enabled') && csp_nonce_mode_enabled()
+            && function_exists('csp_nonce') && csp_nonce() !== '') {
+            $scriptSrc = array_values(array_filter($scriptSrc, fn($s) => $s !== "'unsafe-inline'"));
+            $scriptSrc[] = "'nonce-" . csp_nonce() . "'";
+        }
+
         $csp = implode('; ', [
             "default-src 'self'",
             'script-src ' . implode(' ', $scriptSrc),

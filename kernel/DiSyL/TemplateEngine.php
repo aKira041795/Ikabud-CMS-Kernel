@@ -3305,11 +3305,44 @@ class TemplateEngine
             return $this->compiledEligibilityCache[$templatePath];
         }
 
+        // Persistent file-based eligibility cache: avoid re-scanning template
+        // sources on every request. Keyed by template path + mtime of root template.
+        $eligibilityCacheFile = $this->getCompiledEligibilityCachePath($templatePath);
+        if ($eligibilityCacheFile !== null && is_file($eligibilityCacheFile)) {
+            $cached = @json_decode((string)@file_get_contents($eligibilityCacheFile), true);
+            if (is_array($cached) && isset($cached['eligible'])) {
+                $this->compiledEligibilityCache[$templatePath] = (bool)$cached['eligible'];
+                return (bool)$cached['eligible'];
+            }
+        }
+
         $visited = [];
         $eligible = !$this->templateGraphUsesComponentTags($templatePath, $visited);
         $this->compiledEligibilityCache[$templatePath] = $eligible;
 
+        // Persist the result for future requests
+        if ($eligibilityCacheFile !== null) {
+            @file_put_contents($eligibilityCacheFile, json_encode([
+                'eligible'   => $eligible,
+                'checked_at' => time(),
+            ]), LOCK_EX);
+        }
+
         return $eligible;
+    }
+
+    /**
+     * Get the file path for the compiled-mode eligibility cache.
+     * Returns null if the extends cache directory is not writable.
+     */
+    private function getCompiledEligibilityCachePath(string $templatePath): ?string
+    {
+        if (!is_dir($this->extendsCacheDir) && !@mkdir($this->extendsCacheDir, 0755, true)) {
+            return null;
+        }
+        $mtime = @filemtime($templatePath);
+        $hash = md5($templatePath . '|' . ($mtime ?: 0));
+        return $this->extendsCacheDir . '/elig_' . $hash . '.json';
     }
 
     private function templateGraphUsesComponentTags(string $templatePath, array &$visited): bool

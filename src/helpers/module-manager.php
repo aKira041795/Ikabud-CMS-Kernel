@@ -1995,6 +1995,23 @@ function loadModuleHelpers(array $module): void
         });
     }
 
+    // Auto-register auth-owned module user tables in the kernel auth table map.
+    // Modules declaring auth_owned.users_table no longer need to call
+    // app()->registerAuthTable() manually during bootstrap.
+    $authOwned = $module['auth_owned'] ?? null;
+    if (is_array($authOwned) && !empty($authOwned['users_table'])) {
+        $usersTable = trim((string)$authOwned['users_table']);
+        if ($usersTable !== '' && function_exists('app')) {
+            try {
+                app()->registerAuthTable($moduleId, $usersTable);
+            } catch (\Throwable $e) {
+                if (function_exists('write_log')) {
+                    write_log("Failed to auto-register auth table for module '{$moduleId}': " . $e->getMessage(), 'warning');
+                }
+            }
+        }
+    }
+
     $_loadedModuleHelpers[$moduleId] = true;
 }
 
@@ -2348,8 +2365,12 @@ function executeModuleHandler(string $handler, array $params = []): void
                 header('X-Page-Cache: miss');
             }
             echo $html;
+            // Release session lock after GET render so concurrent requests can proceed.
+            if (function_exists('releaseSessionAfterRender')) { releaseSessionAfterRender(); }
         } else {
             ob_end_flush(); // success — send captured output
+            // Release session lock after GET render so concurrent requests can proceed.
+            if (function_exists('releaseSessionAfterRender')) { releaseSessionAfterRender(); }
         }
     } catch (\Throwable $e) {
         ob_end_clean(); // discard any partial output from the bad handler

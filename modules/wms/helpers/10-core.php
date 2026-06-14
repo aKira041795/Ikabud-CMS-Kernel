@@ -250,33 +250,65 @@ function wmsAdminContext(array $user, string $currentPage, array $extra = []): a
 
 function wmsSettings(): array
 {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $defaults = [
         'low_stock_threshold' => 10,
         'picking_strategy' => 'fefo',
     ];
 
     if (!function_exists('readTenantModuleSettings')) {
-        return $defaults;
+        $cached = $defaults;
+        return $cached;
     }
 
     $settings = readTenantModuleSettings('wms');
     if (!is_array($settings)) {
-        return $defaults;
+        $cached = $defaults;
+        return $cached;
     }
 
-    return array_merge($defaults, $settings);
+    $cached = array_merge($defaults, $settings);
+    return $cached;
 }
 
 
 function wmsConfigGet(string $key, mixed $default = null): mixed
 {
+    // Per-request cache: batch-load all configs on first call to avoid
+    // repeated DB queries when multiple configs are read in one request.
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            $rows = wmsDb()->query('SELECT config_key, config_value FROM wms_configs')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $row) {
+                $k = (string)$row['config_key'];
+                $val = json_decode((string)$row['config_value'], true);
+                $cache[$k] = (json_last_error() === JSON_ERROR_NONE) ? $val : $default;
+            }
+        } catch (Throwable $e) {
+            // Fall through to per-key query on cache miss
+        }
+    }
+
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    // Cold path: key not in batch-loaded cache
     $row = wmsFetchOne('SELECT config_value FROM wms_configs WHERE config_key = ? LIMIT 1', [$key]);
     if ($row !== null && isset($row['config_value'])) {
         $val = json_decode($row['config_value'], true);
         if (json_last_error() === JSON_ERROR_NONE) {
+            $cache[$key] = $val;
             return $val;
         }
     }
+    $cache[$key] = $default;
     return $default;
 }
 
@@ -367,7 +399,16 @@ function wmsLocationRecord(int $locationId): ?array
         return null;
     }
 
-    return wmsFetchOne('SELECT * FROM wms_locations WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$locationId]);
+    // Per-request cache per location ID: location records are read frequently
+    // (stock queries, movement validation, staging checks) within a request.
+    static $cache = [];
+    if (array_key_exists($locationId, $cache)) {
+        return $cache[$locationId];
+    }
+
+    $record = wmsFetchOne('SELECT * FROM wms_locations WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$locationId]);
+    $cache[$locationId] = $record;
+    return $record;
 }
 
 function wmsLocationIsStaging(int $locationId): bool

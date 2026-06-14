@@ -112,6 +112,14 @@ function cmsPublicContextHasSection(array $availability, string $section): bool
 
 function cmsPublicContext(array $extra = []): array
 {
+    // Per-request cache: avoid rebuilding menus, customizer, and theme
+    // context when multiple handlers call cmsPublicContext() in the same request.
+    static $cached = null;
+    static $cachedExtra = null;
+    if ($cached !== null && $cachedExtra === $extra) {
+        return $cached;
+    }
+
     $timingEnabled = cmsPublicContextTimingEnabled();
     $detailedTimingEnabled = $timingEnabled && cmsPublicContextDetailedTimingEnabled();
     $totalStart = $timingEnabled ? microtime(true) : 0.0;
@@ -409,7 +417,14 @@ function cmsPublicContext(array $extra = []): array
         ]);
     }
 
-    return array_merge($ctx, $extra);
+    $result = array_merge($ctx, $extra);
+
+    // Per-request cache: avoid rebuilding context when called multiple times
+    // with the same extra parameters within a single request.
+    $cached = $result;
+    $cachedExtra = $extra;
+
+    return $result;
 }
 
 function cmsCanonicalRenderTemplateContract(string $template): string

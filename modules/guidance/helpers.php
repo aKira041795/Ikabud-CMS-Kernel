@@ -136,17 +136,36 @@ function guidanceClearTrackerCache(): void
 
 function guidanceGetSetting(string $key, ?string $default = null): ?string
 {
+    // Per-request cache: batch-load all settings on first call to avoid
+    // repeated DB queries when multiple settings are read in one request.
+    static $cache = null;
+    if ($cache === null) {
+        $cache = [];
+        try {
+            $rows = guidanceDb()->query('SELECT setting_key, setting_value FROM gm_settings')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $row) {
+                $cache[(string)$row['setting_key']] = (string)$row['setting_value'];
+            }
+        } catch (Throwable $e) {
+            // Fall through to per-key query on cache miss
+        }
+    }
+
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key] !== '' ? $cache[$key] : $default;
+    }
+
+    // Cold path: key not in batch-loaded cache (e.g. new setting added mid-request)
     try {
         $stmt = guidanceDb()->prepare("SELECT setting_value FROM gm_settings WHERE setting_key = ? LIMIT 1");
         $stmt->execute([$key]);
         $raw = $stmt->fetchColumn();
-        if ($raw === false || $raw === null) {
-            return $default;
-        }
-        return (string)$raw;
+        $value = ($raw !== false && $raw !== null) ? (string)$raw : $default;
     } catch (Throwable $e) {
-        return $default;
+        $value = $default;
     }
+    $cache[$key] = $value;
+    return $value;
 }
 
 function guidanceAllowedFormTypes(): array
@@ -197,6 +216,13 @@ function guidanceGetFormFields(string $formType): array
         return [];
     }
 
+    // Per-request cache per form type: form field definitions don't change
+    // within a request and are often read multiple times (validation + render).
+    static $cache = [];
+    if (array_key_exists($formType, $cache)) {
+        return $cache[$formType];
+    }
+
     try {
         $stmt = guidanceDb()->prepare(
             'SELECT * FROM gm_form_fields WHERE form_type = ? AND is_enabled = 1 ORDER BY sort_order, id'
@@ -204,6 +230,7 @@ function guidanceGetFormFields(string $formType): array
         $stmt->execute([$formType]);
         $fields = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
+        $cache[$formType] = [];
         return [];
     }
 
@@ -212,6 +239,7 @@ function guidanceGetFormFields(string $formType): array
     }
     unset($field);
 
+    $cache[$formType] = $fields;
     return $fields;
 }
 
@@ -642,15 +670,22 @@ function guidanceFindActiveUserByIdentity(string $identity): ?array
  * Returns 'free' or 'pro'.
  */
 function guidanceTenantTier(): string {
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
     $tenantId = (int)(app()->tenant()->current() ?? 0);
     $entitlement = moduleTenantEntitlementRow('guidance', $tenantId);
     
     // Safely extract tier, default to free
     if (!$entitlement || empty($entitlement['tier'])) {
+        $cached = 'free';
         return 'free';
     }
     
-    return strtolower((string)$entitlement['tier']) === 'pro' ? 'pro' : 'free';
+    $cached = strtolower((string)$entitlement['tier']) === 'pro' ? 'pro' : 'free';
+    return $cached;
 }
 
 /**

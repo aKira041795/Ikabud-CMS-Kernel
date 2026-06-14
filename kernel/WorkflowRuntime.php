@@ -436,8 +436,24 @@ final class WorkflowRuntime
                 $startedTransaction = true;
             }
 
-            $db->prepare('UPDATE workflow_instances SET state = :st, updated_at = NOW() WHERE id = :id')
-                ->execute([':st' => $to, ':id' => (int)$instance['id']]);
+            // Conditional UPDATE: only transition if current state matches expected.
+            // Prevents lost updates from concurrent transitions on the same instance.
+            $updateStmt = $db->prepare(
+                'UPDATE workflow_instances SET state = :to, updated_at = NOW() WHERE id = :id AND state = :from'
+            );
+            $updateStmt->execute([
+                ':to'   => $to,
+                ':id'   => (int)$instance['id'],
+                ':from' => $from,
+            ]);
+
+            if ($updateStmt->rowCount() === 0) {
+                // State changed concurrently — another transition already committed.
+                if ($startedTransaction) {
+                    $db->rollBack();
+                }
+                return ['ok' => false, 'error' => 'State changed concurrently. Please retry.'];
+            }
 
             $metaJson = is_array($payload['meta'] ?? null) ? json_encode($payload['meta']) : null;
             $db->prepare('INSERT INTO workflow_transition_logs (instance_id, action, from_state, to_state, actor_user_id, meta_json, created_at) VALUES (:iid, :action, :from, :to, :actor, :meta, NOW())')
