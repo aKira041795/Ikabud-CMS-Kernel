@@ -849,5 +849,86 @@ function ec_cap_orders_get_1(mixed $payload, string $capabilityId = '', string $
     return $id ? (ecOrderGet($id) ?? []) : [];
 }
 
+// ── Entity-View Capabilities ──────────────────────────────────────────
+
+function ec_capability_handlers_entity(): array
+{
+    return [
+        'entity.list.ecommerce_product@1' => 'ec_cap_entity_list_product_1',
+        'entity.get.ecommerce_product@1' => 'ec_cap_entity_get_product_1',
+        'entity.list.ecommerce_order@1' => 'ec_cap_entity_list_order_1',
+        'entity.get.ecommerce_order@1' => 'ec_cap_entity_get_order_1',
+    ];
+}
+
+function ec_cap_entity_list_product_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 20), 100);
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $filter = '';
+    if ($qualifier === 'featured') { $filter = ' AND p.is_featured = 1'; }
+    try {
+        $db = ecDb();
+        $stmt = $db->query("SELECT p.id, p.name, p.price, p.stock_status, p.created_at, (SELECT file_path FROM ec_product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as image FROM ec_products p WHERE p.deleted_at IS NULL{$filter} ORDER BY p.created_at DESC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query("SELECT COUNT(*) FROM ec_products WHERE deleted_at IS NULL{$filter}");
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        if (\function_exists('write_log')) { \write_log('entity.list.ecommerce_product: ' . $e->getMessage(), 'warning'); }
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function ec_cap_entity_get_product_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = ecDb();
+        $stmt = $db->prepare('SELECT p.*, (SELECT file_path FROM ec_product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as image FROM ec_products p WHERE p.id = :id AND p.deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function ec_cap_entity_list_order_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 15), 100);
+    try {
+        $db = ecDb();
+        $stmt = $db->query("SELECT id, order_number, status, total, created_at FROM ec_orders WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query('SELECT COUNT(*) FROM ec_orders WHERE deleted_at IS NULL');
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        if (\function_exists('write_log')) { \write_log('entity.list.ecommerce_order: ' . $e->getMessage(), 'warning'); }
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function ec_cap_entity_get_order_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = ecDb();
+        $stmt = $db->prepare('SELECT * FROM ec_orders WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!is_array($row)) return [];
+        $itemsStmt = $db->prepare('SELECT * FROM ec_order_items WHERE order_id = :oid');
+        $itemsStmt->execute([':oid' => $id]);
+        $row['items'] = $itemsStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        return $row;
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
 // Run auto-page install on module load
 ecMaybeInstallPages();

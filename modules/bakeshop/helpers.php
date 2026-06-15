@@ -12,6 +12,8 @@ function bakeshop_capability_handlers(): array
         'bakeshop.manage@1' => 'bakeshop_cap_bakeshop_manage_1',
         'bakeshop.product.read@1' => 'bakeshop_cap_bakeshop_product_read_1',
         'bakeshop.ingredient.usage.read@1' => 'bakeshop_cap_bakeshop_ingredient_usage_read_1',
+        'entity.list.bakeshop_product@1' => 'bs_cap_entity_list_product_1',
+        'entity.get.bakeshop_product@1' => 'bs_cap_entity_get_product_1',
     ];
 }
 
@@ -1601,4 +1603,44 @@ function bakeshop_cap_bakeshop_product_read_1(mixed $payload, string $capability
 function bakeshop_cap_bakeshop_ingredient_usage_read_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     return bakeshopCapabilityPermissionResult('bakeshop.read', $payload);
+}
+
+// ── Entity-View Capabilities ──────────────────────────────────────────
+
+function bs_cap_entity_list_product_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 20), 100);
+    $sortField = (string)($payload['sort']['field'] ?? 'created_at');
+    $sortDir = strtoupper((string)($payload['sort']['direction'] ?? 'DESC'));
+    if (!in_array($sortDir, ['ASC', 'DESC'], true)) { $sortDir = 'DESC'; }
+    $allowedSort = ['id', 'name', 'price', 'created_at', 'updated_at', 'stock_qty'];
+    if (!in_array($sortField, $allowedSort, true)) { $sortField = 'created_at'; }
+
+    try {
+        $db = \app()->dbForTenant((int)(\app()->tenant()->current() ?? 0));
+        $stmt = $db->query(
+            "SELECT id, name, price, unit, stock_qty, category, created_at, updated_at FROM bakeshop_products WHERE deleted_at IS NULL ORDER BY {$sortField} {$sortDir} LIMIT {$limit}"
+        );
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query('SELECT COUNT(*) FROM bakeshop_products WHERE deleted_at IS NULL');
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function bs_cap_entity_get_product_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = \app()->dbForTenant((int)(\app()->tenant()->current() ?? 0));
+        $stmt = $db->prepare('SELECT * FROM bakeshop_products WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
 }

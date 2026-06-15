@@ -13,5 +13,9 @@ function wms_capability_handlers(): array
         'wms.order.create@1' => 'wms_cap_wms_order_create_1',
         'wms.order.cancel@1' => 'wms_cap_wms_order_cancel_1',
         'wms.return.create@1' => 'wms_cap_wms_return_create_1',
+        'entity.list.wms_stock@1' => 'wms_cap_entity_list_stock_1',
+        'entity.get.wms_stock@1' => 'wms_cap_entity_get_stock_1',
+        'entity.list.wms_location@1' => 'wms_cap_entity_list_location_1',
+        'entity.get.wms_location@1' => 'wms_cap_entity_get_location_1',
     ];
 }

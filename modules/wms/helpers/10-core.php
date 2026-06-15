@@ -441,6 +441,67 @@ function wmsCap_wmsStockPayload(mixed $payload): array
     return is_array($payload) ? $payload : [];
 }
 
+// ── Entity-View Capabilities ──────────────────────────────────────────
+
+function wms_cap_entity_list_stock_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 30), 100);
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $filter = '';
+    if ($qualifier === 'low') { $filter = ' AND s.qty <= 10'; }
+    try {
+        $db = wmsDb();
+        $stmt = $db->query("SELECT s.id, s.sku, s.name, s.qty, l.name as location_name, s.updated_at FROM wms_stock s LEFT JOIN wms_locations l ON l.id = s.location_id WHERE s.deleted_at IS NULL{$filter} ORDER BY s.updated_at DESC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query("SELECT COUNT(*) FROM wms_stock WHERE deleted_at IS NULL{$filter}");
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function wms_cap_entity_get_stock_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = wmsDb();
+        $stmt = $db->prepare('SELECT s.*, l.name as location_name FROM wms_stock s LEFT JOIN wms_locations l ON l.id = s.location_id WHERE s.id = :id AND s.deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function wms_cap_entity_list_location_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 20), 100);
+    try {
+        $db = wmsDb();
+        $stmt = $db->query("SELECT id, name, type, is_staging, created_at FROM wms_locations WHERE deleted_at IS NULL ORDER BY name ASC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query('SELECT COUNT(*) FROM wms_locations WHERE deleted_at IS NULL');
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function wms_cap_entity_get_location_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        return wmsLocationRecord($id) ?? [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
 function wmsBridgeResolveProductId(array $item): int
 {
     $productId = (int)($item['product_id'] ?? 0);

@@ -6,6 +6,10 @@ function guidance_capability_handlers(): array
 {
     return [
         'kernel.auth.authenticate@1' => 'guidance_cap_kernel_auth_authenticate_1',
+        'entity.list.guidance_case@1' => 'gm_cap_entity_list_case_1',
+        'entity.get.guidance_case@1' => 'gm_cap_entity_get_case_1',
+        'entity.list.guidance_appointment@1' => 'gm_cap_entity_list_appointment_1',
+        'entity.get.guidance_appointment@1' => 'gm_cap_entity_get_appointment_1',
     ];
 }
 
@@ -1666,4 +1670,71 @@ function rateLimit(string $key, int $maxAttempts = 5, int $windowSeconds = 300):
     $attempts = (int) $checkStmt->fetchColumn();
 
     return $attempts <= $maxAttempts;
+}
+
+// ── Entity-View Capabilities ──────────────────────────────────────────
+
+function gm_cap_entity_list_case_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 15), 100);
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $statusFilter = '';
+    if ($qualifier === 'open') { $statusFilter = " AND c.status = 'open'"; }
+    elseif ($qualifier === 'closed') { $statusFilter = " AND c.status = 'closed'"; }
+
+    try {
+        $db = guidanceDb();
+        $stmt = $db->query("SELECT c.id, c.student_name, c.status, c.created_at, c.updated_at, u.full_name as counselor_name FROM gm_cases c LEFT JOIN gm_users u ON u.id = c.counselor_id WHERE c.deleted_at IS NULL{$statusFilter} ORDER BY c.updated_at DESC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query("SELECT COUNT(*) FROM gm_cases WHERE deleted_at IS NULL{$statusFilter}");
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function gm_cap_entity_get_case_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = guidanceDb();
+        $stmt = $db->prepare('SELECT c.*, u.full_name as counselor_name FROM gm_cases c LEFT JOIN gm_users u ON u.id = c.counselor_id WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+function gm_cap_entity_list_appointment_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 10), 100);
+    try {
+        $db = guidanceDb();
+        $stmt = $db->query("SELECT a.id, a.title, a.appointment_date as date, a.status, c.student_name FROM gm_appointments a LEFT JOIN gm_cases c ON c.id = a.case_id WHERE a.deleted_at IS NULL ORDER BY a.appointment_date DESC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query('SELECT COUNT(*) FROM gm_appointments WHERE deleted_at IS NULL');
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function gm_cap_entity_get_appointment_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = guidanceDb();
+        $stmt = $db->prepare('SELECT a.*, c.student_name FROM gm_appointments a LEFT JOIN gm_cases c ON c.id = a.case_id WHERE a.id = :id AND a.deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
 }

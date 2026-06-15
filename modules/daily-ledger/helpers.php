@@ -19,6 +19,8 @@ function daily_ledger_capability_handlers(): array
 {
     return [
         'kernel.auth.authenticate@1' => 'daily_ledger_cap_kernel_auth_authenticate_1',
+        'entity.list.daily_ledger_entry@1' => 'dl_cap_entity_list_entry_1',
+        'entity.get.daily_ledger_entry@1' => 'dl_cap_entity_get_entry_1',
     ];
 }
 
@@ -765,4 +767,40 @@ function dlCsvNullableInt(mixed $value): ?int
     }
 
     return (int)$normalized;
+}
+
+// ── Entity-View Capabilities ──────────────────────────────────────────
+
+function dl_cap_entity_list_entry_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 25), 100);
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $typeFilter = '';
+    if ($qualifier === 'sales') { $typeFilter = " AND entry_type = 'sale'"; }
+    elseif ($qualifier === 'expense') { $typeFilter = " AND entry_type = 'expense'"; }
+    try {
+        $db = dlDb();
+        $stmt = $db->query("SELECT id, entry_type, amount, notes, created_at, updated_at FROM dl_entries WHERE deleted_at IS NULL{$typeFilter} ORDER BY created_at DESC LIMIT {$limit}");
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $countStmt = $db->query("SELECT COUNT(*) FROM dl_entries WHERE deleted_at IS NULL{$typeFilter}");
+        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) {
+        return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()];
+    }
+}
+
+function dl_cap_entity_get_entry_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
+    if ($id <= 0) return [];
+    try {
+        $db = dlDb();
+        $stmt = $db->prepare('SELECT * FROM dl_entries WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return is_array($row) ? $row : [];
+    } catch (\Throwable $e) {
+        return [];
+    }
 }

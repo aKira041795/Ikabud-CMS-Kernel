@@ -276,6 +276,15 @@ final class EntityViewResolver
             'appointments' => ['fields' => ['id', 'title', 'date', 'status'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
             'tickets' => ['fields' => ['id', 'subject', 'status', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No tickets.'],
             'weather' => ['fields' => ['date', 'high_c', 'low_c', 'condition'], 'actions' => [], 'limit' => 5, 'empty_state' => 'No weather data.'],
+            // Phase 2 — extended entity-view adoption (June 2026)
+            'bakeshop_product' => ['fields' => ['id', 'name', 'price', 'unit', 'stock_qty', 'category'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No products found.'],
+            'guidance_case' => ['fields' => ['id', 'student_name', 'status', 'created_at', 'counselor_name'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No cases found.'],
+            'guidance_appointment' => ['fields' => ['id', 'title', 'date', 'status', 'student_name'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
+            'daily_ledger_entry' => ['fields' => ['id', 'entry_type', 'amount', 'created_at', 'notes'], 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No ledger entries.'],
+            'wms_stock' => ['fields' => ['id', 'sku', 'name', 'qty', 'location_name', 'updated_at'], 'actions' => ['view', 'move'], 'limit' => 30, 'empty_state' => 'No stock items.'],
+            'wms_location' => ['fields' => ['id', 'name', 'type', 'is_staging'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No locations.'],
+            'ecommerce_product' => ['fields' => ['id', 'name', 'price', 'image', 'stock_status'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
+            'ecommerce_order' => ['fields' => ['id', 'order_number', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No orders yet.'],
         ];
 
         $base = $compactDefaults[$entityType] ?? ['fields' => '*', 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No records found.'];
