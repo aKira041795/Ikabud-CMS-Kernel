@@ -187,19 +187,69 @@
   "auth_cookie": "daily_ledger_token",
   "nav": [
     {
-      "label": "Dashboard",
-      "url": "/admin/dashboard",
-      "icon": "grid",
-      "roles": [
-        "supervisor"
-      ]
-    },
-    {
       "label": "Ledger",
       "url": "/cashier/ledger",
       "icon": "clipboard",
       "roles": [
         "cashier",
+        "supervisor"
+      ]
+    },
+    {
+      "label": "Production Output",
+      "url": "/admin/production-output",
+      "icon": "layers",
+      "roles": [
+        "admin",
+        "supervisor",
+        "production_in_charge"
+      ]
+    },
+    {
+      "label": "Commissary",
+      "url": "/admin/commissary",
+      "icon": "archive",
+      "roles": [
+        "admin",
+        "supervisor",
+        "production_in_charge"
+      ]
+    },
+    {
+      "label": "Deliveries",
+      "url": "/admin/deliveries",
+      "icon": "truck",
+      "roles": [
+        "admin",
+        "supervisor",
+        "production_in_charge"
+      ]
+    },
+    {
+      "label": "Production Withdrawal",
+      "url": "/admin/production",
+      "icon": "factory",
+      "roles": [
+        "admin",
+        "supervisor",
+        "production_in_charge"
+      ]
+    },
+    {
+      "label": "Usage",
+      "url": "/admin/usage",
+      "icon": "package",
+      "roles": [
+        "admin",
+        "supervisor",
+        "production_in_charge"
+      ]
+    },
+    {
+      "label": "Dashboard",
+      "url": "/admin/dashboard",
+      "icon": "grid",
+      "roles": [
         "supervisor"
       ]
     },
@@ -220,6 +270,15 @@
       ]
     },
     {
+      "label": "Branch Summary",
+      "url": "/admin/branch-summary",
+      "icon": "layers",
+      "roles": [
+        "admin",
+        "supervisor"
+      ]
+    },
+    {
       "label": "Activity",
       "url": "/admin/activity",
       "icon": "activity",
@@ -228,42 +287,43 @@
       ]
     },
     {
-      "label": "Usage",
-      "url": "/admin/usage",
+      "label": "Products",
+      "url": "/admin/products",
       "icon": "package",
       "roles": [
-        "admin",
-        "supervisor",
-        "production_in_charge"
+        "admin"
       ]
     },
     {
-      "label": "Production Withdrawal",
-      "url": "/admin/production",
-      "icon": "factory",
+      "label": "Branches",
+      "url": "/admin/branches",
+      "icon": "git-branch",
       "roles": [
-        "admin",
-        "supervisor",
-        "production_in_charge"
+        "admin"
       ]
     },
     {
-      "label": "Production Output",
-      "url": "/admin/production-output",
-      "icon": "layers",
+      "label": "Users",
+      "url": "/admin/users",
+      "icon": "users",
       "roles": [
-        "admin",
-        "supervisor",
-        "production_in_charge"
+        "admin"
       ]
     },
     {
-      "label": "Commissary",
-      "url": "/admin/commissary",
-      "icon": "archive",
+      "label": "Price Groups",
+      "url": "/admin/price-groups",
+      "icon": "tag",
       "roles": [
-        "admin",
-        "supervisor"
+        "admin"
+      ]
+    },
+    {
+      "label": "Selling Accounts",
+      "url": "/admin/selling-accounts",
+      "icon": "store",
+      "roles": [
+        "admin"
       ]
     },
     {
