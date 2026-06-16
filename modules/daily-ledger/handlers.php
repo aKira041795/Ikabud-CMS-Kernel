@@ -5094,6 +5094,21 @@ function handleAdminActivity(array $params = []): void
 
     $formatValue = static function (string $key, $value) use ($productLookup, $materialLookup, $branchLookup): string {
         if (is_array($value)) {
+            // Format items arrays with product names
+            if ($key === 'items' || (array_keys($value) === range(0, count($value) - 1) && count($value) > 0 && isset($value[0]['product_id']))) {
+                $parts = [];
+                foreach ($value as $item) {
+                    if (!is_array($item)) {
+                        $parts[] = json_encode($item, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                        continue;
+                    }
+                    $pid = (int)($item['product_id'] ?? 0);
+                    $pname = $pid > 0 ? ($productLookup[$pid] ?? 'Product #' . $pid) : '?';
+                    $qty = $item['quantity'] ?? $item['qty'] ?? '?';
+                    $parts[] = $pname . ' ×' . $qty;
+                }
+                return implode('; ', $parts);
+            }
             return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '[]';
         }
         if ($value === null) {
