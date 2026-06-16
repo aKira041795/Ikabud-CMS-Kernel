@@ -2372,7 +2372,11 @@ function handleCashierRows(array $params = []): void
               ORDER BY p.sort_order, p.name'
         );
     }
-    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
+    if ($isSA) {
+        $stmt->execute([':bid' => $branchId, ':d' => $ledgerDate]);
+    } else {
+        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
+    }
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
