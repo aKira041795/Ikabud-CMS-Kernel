@@ -35,7 +35,7 @@
 </form>
 
 <!-- Summary stat cards -->
-<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
     <div class="card">
         <div class="card-body py-3">
             <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Produced</div>
@@ -46,6 +46,12 @@
         <div class="card-body py-3">
             <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dispatched</div>
             <div class="mt-1 text-2xl font-semibold text-blue-700">{totals.total_dispatched}</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body py-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Wastage</div>
+            <div class="mt-1 text-2xl font-semibold text-rose-700">{totals.total_wastage}</div>
         </div>
     </div>
     <div class="card">
@@ -120,7 +126,7 @@
                         <th>Commissary</th>
                         <th class="text-right">Produced Today</th>
                         <th class="text-right">Dispatched Today</th>
-                        <th class="text-right">Remaining Today</th>
+                        <th class="text-right">Wastage Today</th>
                         <th class="text-right">On Hand (All)</th>
                         <th>Last Updated</th>
                     </tr>
@@ -136,7 +142,7 @@
                         <td class="text-sm text-muted">{row.commissary_name}</td>
                         <td class="text-right font-semibold text-emerald-700">{row.produced_qty}</td>
                         <td class="text-right font-semibold text-blue-700">{row.dispatched_qty}</td>
-                        <td class="text-right font-semibold {if row.remaining_qty < 0}text-rose-600{elseif row.remaining_qty > 0}text-gray-900{else}text-gray-400{/if}">{row.remaining_qty}</td>
+                        <td class="text-right font-semibold text-rose-700">{row.wastage_qty}</td>
                         <td class="text-right text-sm text-gray-600">
                             <span class="font-semibold">{row.cumulative_remaining}</span>
                         </td>
@@ -280,8 +286,8 @@
                         <th>SKU</th>
                         <th class="text-right">Produced</th>
                         <th class="text-right">Dispatched</th>
+                        <th class="text-right">Wastage</th>
                         <th class="text-right">Returned</th>
-                        <th class="text-right">Remaining</th>
                         <th class="text-right">Net Available</th>
                     </tr>
                 </thead>
@@ -295,8 +301,8 @@
                         <td class="font-mono text-sm text-muted">{row.sku}</td>
                         <td class="text-right font-semibold text-emerald-700">{row.produced_qty}</td>
                         <td class="text-right text-blue-700">{row.dispatched_qty}</td>
+                        <td class="text-right text-rose-700">{row.wastage_qty}</td>
                         <td class="text-right text-amber-700">{row.returned_qty}</td>
-                        <td class="text-right">{row.remaining_qty}</td>
                         <td class="text-right font-semibold text-gray-900">{row.net_available}</td>
                     </tr>
                     {/foreach}
@@ -307,8 +313,8 @@
                         <td></td>
                         <td class="text-right font-semibold text-emerald-700">{totals.total_produced}</td>
                         <td class="text-right font-semibold text-blue-700">{totals.total_dispatched}</td>
+                        <td class="text-right font-semibold text-rose-700">{totals.total_wastage}</td>
                         <td class="text-right font-semibold text-amber-700">{totals.total_returned}</td>
-                        <td class="text-right font-semibold">{totals.total_remaining}</td>
                         <td class="text-right font-semibold text-gray-900">{totals.total_remaining + totals.total_returned}</td>
                     </tr>
                 </tfoot>

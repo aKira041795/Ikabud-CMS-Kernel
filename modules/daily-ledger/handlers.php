@@ -940,7 +940,8 @@ function dl_applyCommissaryProductLedgerDelta(
     string $ledgerDate,
     int $producedDelta,
     int $dispatchedDelta,
-    int $actorId
+    int $actorId,
+    int $wastageDelta = 0
 ): array {
     if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
         return ['produced_qty' => 0, 'dispatched_qty' => 0, 'remaining_qty' => 0, 'skipped' => true];
@@ -954,7 +955,7 @@ function dl_applyCommissaryProductLedgerDelta(
     }
 
     $select = $db->prepare(
-        'SELECT id, produced_qty, dispatched_qty
+        'SELECT id, produced_qty, dispatched_qty, wastage_qty
            FROM dl_commissary_product_ledger
           WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d
           LIMIT 1
@@ -964,43 +965,48 @@ function dl_applyCommissaryProductLedgerDelta(
     $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
 
     if (!$row) {
-        if ($producedDelta < 0 || $dispatchedDelta < 0) {
+        if ($producedDelta < 0 || $dispatchedDelta < 0 || $wastageDelta < 0) {
             throw new \RuntimeException('Cannot reverse commissary production before any output exists for this date.');
         }
         $newProduced = max(0, $producedDelta);
         $newDispatched = max(0, $dispatchedDelta);
+        $newWastage = max(0, $wastageDelta);
         $db->prepare(
             'INSERT INTO dl_commissary_product_ledger
-                (commissary_branch_id, product_id, ledger_date, produced_qty, dispatched_qty, updated_by)
-             VALUES (:cb, :pid, :d, :prod, :disp, :uid)'
+                (commissary_branch_id, product_id, ledger_date, produced_qty, dispatched_qty, wastage_qty, updated_by)
+             VALUES (:cb, :pid, :d, :prod, :disp, :waste, :uid)'
         )->execute([
             ':cb' => $commissaryBranchId,
             ':pid' => $productId,
             ':d' => $ledgerDate,
             ':prod' => $newProduced,
             ':disp' => $newDispatched,
+            ':waste' => $newWastage,
             ':uid' => $actorId > 0 ? $actorId : null,
         ]);
-        return ['produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'remaining_qty' => $newProduced - $newDispatched, 'skipped' => false];
+        return ['produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => $newProduced - $newDispatched - $newWastage, 'skipped' => false];
     }
 
     $currentProduced = (int)$row['produced_qty'];
     $currentDispatched = (int)$row['dispatched_qty'];
+    $currentWastage = (int)$row['wastage_qty'];
     $newProduced = max(0, $currentProduced + $producedDelta);
     $newDispatched = max(0, $currentDispatched + $dispatchedDelta);
+    $newWastage = max(0, $currentWastage + $wastageDelta);
 
     $db->prepare(
         'UPDATE dl_commissary_product_ledger
-            SET produced_qty = :prod, dispatched_qty = :disp, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
+            SET produced_qty = :prod, dispatched_qty = :disp, wastage_qty = :waste, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
           WHERE id = :id'
     )->execute([
         ':prod' => $newProduced,
         ':disp' => $newDispatched,
+        ':waste' => $newWastage,
         ':uid' => $actorId > 0 ? $actorId : null,
         ':id' => (int)$row['id'],
     ]);
 
-    return ['produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'remaining_qty' => $newProduced - $newDispatched, 'skipped' => false];
+    return ['produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'wastage_qty' => $newWastage, 'remaining_qty' => $newProduced - $newDispatched - $newWastage, 'skipped' => false];
 }
 
 function dl_processProductionMovement(array $user, string $movementType, array $input): array
@@ -2560,21 +2566,24 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null
                 );
 
-                // Credit commissary product ledger for saleable returned goods.
-                // Damaged/consumed goods (spoilage, damage, staff_meal, sampling,
-                // testing, promo, donation) are NOT credited back to inventory.
+                // Credit commissary product ledger:
+                // - Saleable goods (manual_adjustment, other, null) → produced_qty (can re-dispatch)
+                // - Unsaleable/damaged (spoilage, damage, etc.) → wastage_qty (tracked loss)
                 $unsaleableReasons = ['spoilage', 'damage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation'];
                 $isSaleableReturn = $reasonCode === null || !in_array($reasonCode, $unsaleableReasons, true);
-                if ($isSaleableReturn) {
-                    foreach ($validLines as $line) {
+
+                foreach ($validLines as $line) {
+                    $pid = (int)$line['product_id'];
+                    $qty = (int)$line['quantity'];
+                    if ($isSaleableReturn) {
                         dl_applyCommissaryProductLedgerDelta(
-                            $ctx->db(),
-                            $targetBranchId,
-                            (int)$line['product_id'],
-                            $date,
-                            (int)$line['quantity'],  // credit produced_qty (treat return as addition to stock)
-                            0,
-                            $actorId
+                            $ctx->db(), $targetBranchId, $pid, $date,
+                            $qty, 0, $actorId, 0  // produced_qty += qty
+                        );
+                    } else {
+                        dl_applyCommissaryProductLedgerDelta(
+                            $ctx->db(), $targetBranchId, $pid, $date,
+                            0, 0, $actorId, $qty  // wastage_qty += qty
                         );
                     }
                 }
@@ -7209,6 +7218,7 @@ function handleAdminCommissary(): void
                 p.sku,
                 cpl.produced_qty,
                 cpl.dispatched_qty,
+                cpl.wastage_qty,
                 cpl.remaining_qty,
                 COALESCE(cum.cumulative_remaining, cpl.remaining_qty) AS cumulative_remaining,
                 cpl.updated_at
@@ -7221,7 +7231,7 @@ function handleAdminCommissary(): void
                 GROUP BY commissary_branch_id, product_id
            ) cum ON cum.commissary_branch_id = cpl.commissary_branch_id AND cum.product_id = cpl.product_id
           WHERE cpl.ledger_date = :date
-            AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0)
+            AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)
           ORDER BY p.name ASC"
     );
     $inventoryStmt->execute([':date' => $rawDate]);
@@ -7320,6 +7330,7 @@ function handleAdminCommissary(): void
                 p.sku,
                 COALESCE(inv.produced_qty, 0) AS produced_qty,
                 COALESCE(inv.dispatched_qty, 0) AS dispatched_qty,
+                COALESCE(inv.wastage_qty, 0) AS wastage_qty,
                 COALESCE(inv.remaining_qty, 0) AS remaining_qty,
                 COALESCE(ret.returned_qty, 0) AS returned_qty,
                 (COALESCE(inv.remaining_qty, 0) + COALESCE(ret.returned_qty, 0)) AS net_available
@@ -7328,6 +7339,7 @@ function handleAdminCommissary(): void
                SELECT product_id,
                       SUM(produced_qty) AS produced_qty,
                       SUM(dispatched_qty) AS dispatched_qty,
+                      SUM(wastage_qty) AS wastage_qty,
                       SUM(remaining_qty) AS remaining_qty
                  FROM dl_commissary_product_ledger
                 WHERE ledger_date = :date1
@@ -7355,6 +7367,7 @@ function handleAdminCommissary(): void
     $totals = [
         'total_produced' => 0,
         'total_dispatched' => 0,
+        'total_wastage' => 0,
         'total_returned' => 0,
         'total_remaining' => 0,
         'total_deliveries' => count($deliveryRows),
@@ -7363,6 +7376,7 @@ function handleAdminCommissary(): void
     foreach ($inventoryRows as $row) {
         $totals['total_produced'] += (int)($row['produced_qty'] ?? 0);
         $totals['total_dispatched'] += (int)($row['dispatched_qty'] ?? 0);
+        $totals['total_wastage'] += (int)($row['wastage_qty'] ?? 0);
         $totals['total_remaining'] += (int)($row['remaining_qty'] ?? 0);
     }
     foreach ($pulloutRows as $row) {
