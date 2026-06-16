@@ -64,8 +64,7 @@
                                 {/foreach}
                                 </optgroup>
                                 {/if}
-                            </select>
-                    </div>
+                            </select>                        </div>                    </div>
 
                     <div class="mb-3 bg-gray-50 rounded-lg p-3">
                         <table class="w-full text-sm">
