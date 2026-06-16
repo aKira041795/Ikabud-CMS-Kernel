@@ -2530,13 +2530,13 @@ function apiSaveCashierWithdrawals(array $params = []): void
             if ($commissary) {
                 $actorId = dl_getActorUserId($user);
                 $effectiveUserId = $actorId > 0 ? $actorId : null;
+                $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
 
                 // Skip self-delivery when branch IS the commissary (self-managed production)
                 if ($branchId === $targetBranchId) {
                     // No physical delivery needed — goods stay at the production site.
                     // Still credit commissary product ledger below.
                 } else {
-                    $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
                     $priceGroupId = dl_defaultPriceGroupId();
 
                     $delIns = $ctx->db()->prepare(
@@ -2605,11 +2605,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     }
                 }
 
-                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$returnDeliveryId, null, [
-                    'dr_number' => $returnDr,
-                    'status' => 'posted',
+                dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)($returnDeliveryId ?? 0), null, [
+                    'dr_number' => $returnDr ?? '[self-managed-no-delivery]',
+                    'status' => $returnDeliveryId ? 'posted' : 'ledger-only',
                     'source' => 'cashier_pullout_return',
                     'destination_commissary_id' => $targetBranchId,
+                    'saleable' => $isSaleableReturn,
                     'items' => count($validLines),
                 ]);
             }
