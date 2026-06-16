@@ -4263,120 +4263,6 @@ function handleAdminSales(array $params = []): void
     ]);
 }
 
-function handleAdminProduction(array $params = []): void
-{
-    $ctx = module();
-    if (!$ctx) {
-        http_response_code(500);
-        echo 'Module context unavailable';
-        return;
-    }
-
-    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
-    $input = $ctx->input();
-
-    $today = dl_businessDate();
-    $ledgerDate = !empty($input['ledger_date']) ? (string)$input['ledger_date'] : $today;
-    $dateFrom = !empty($input['date_from']) ? (string)$input['date_from'] : date('Y-m-d', strtotime($today . ' -7 days'));
-    $dateTo = !empty($input['date_to']) ? (string)$input['date_to'] : $today;
-
-    $allowedBranchIds = dl_accessibleBranchIds($user);
-    dl_maybeAutoCloseBranches($allowedBranchIds, dl_getActorUserId($user));
-    $branches = [];
-    $products = [];
-    $productRowsBread = [];
-    $productRowsCake  = [];
-    $movementRows = [];
-
-    if (count($allowedBranchIds) > 0) {
-        $placeholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
-
-        $branchStmt = $ctx->db()->prepare(
-            "SELECT id, code, name, COALESCE(area, '') AS area
-             FROM dl_branches
-             WHERE is_active = 1 AND id IN ({$placeholders})
-             ORDER BY area, name"
-        );
-        $branchStmt->execute($allowedBranchIds);
-        $branches = $branchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        $products = dl_fetchActiveProductsForProduction($ctx->db());
-
-        foreach ($products as $p) {
-            if (($p['product_category'] ?? '') === 'cake') {
-                $productRowsCake[] = $p;
-            } else {
-                $productRowsBread[] = $p;
-            }
-        }
-
-        $moveSql =
-            "SELECT pm.id, pm.destination_branch_id, pm.product_id,
-                    pm.movement_type, pm.flow_mode, pm.ledger_date, pm.quantity,
-                    pm.dr_number,
-                    pm.override_reason, pm.created_at,
-                    b.name AS destination_name, b.code AS destination_code,
-                    COALESCE(b.area, '') AS destination_area,
-                    p.name AS product_name, p.sku,
-                    pm.created_by_role,
-                    EXISTS(
-                        SELECT 1
-                        FROM dl_production_movements r
-                        WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
-                    ) AS has_reverse
-             FROM dl_production_movements pm
-             INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
-             INNER JOIN dl_products p ON p.id = pm.product_id
-             WHERE pm.destination_branch_id IN ({$placeholders})
-               AND pm.ledger_date BETWEEN ? AND ?
-               AND (pm.movement_type = 'withdrawal'
-                    OR (pm.movement_type = 'reverse' AND pm.reference_movement_id IN (
-                        SELECT id FROM dl_production_movements WHERE movement_type = 'withdrawal'
-                    )))
-             ORDER BY pm.created_at DESC
-             LIMIT 200";
-        $bind = $allowedBranchIds;
-        $bind[] = $dateFrom;
-        $bind[] = $dateTo;
-        $moveStmt = $ctx->db()->prepare($moveSql);
-        $moveStmt->execute($bind);
-        $movementRows = $moveStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    $role = (string)($user['role'] ?? '');
-    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    $canProductionOverride = dl_roleHasPermission($role, 'production.override');
-    $featureSettings = dl_featureSettings();
-        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
-    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    $clockLabel = dl_operatingClockLabel();
-    echo dlRender('modules/daily-ledger/admin/production.disyl', [
-        'page_title' => 'Production Withdrawal',
-        'user_name' => $userName,
-        'user_role' => $role,
-        'current_page' => 'production',
-        'base_url' => dlGetBaseUrl(),
-        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
-        'ledger_date' => $ledgerDate,
-        'date_from' => $dateFrom,
-        'date_to' => $dateTo,
-        'branches' => $branches,
-        'products' => $products,
-        'product_rows_bread' => $productRowsBread,
-        'product_rows_cake'  => $productRowsCake,
-        'movement_rows' => $movementRows,
-        'can_production_override' => $canProductionOverride,
-        'can_production_output' => $featureSettings['production_output_enabled'],
-        'business_date_label' => $clockLabel['business_date'],
-        'close_of_day_time' => $clockLabel['close_of_day_time'],
-        'auto_close_enabled' => $clockLabel['auto_close_enabled'],
-        'operating_timezone' => $clockLabel['operating_timezone'],
-        'operating_region' => $clockLabel['operating_region'],
-        'all_branches' => $allBranches,
-    ]);
-}
-
 function handleAdminProductionOutput(array $params = []): void
 {
     $ctx = module();
@@ -7324,7 +7210,6 @@ function handleAdminCommissary(): void
     $selectedBranchId = $requestedBranchId > 0 && in_array($requestedBranchId, $availableBranchIds, true)
         ? $requestedBranchId
         : 0;
-    $selectedCommissaryId = $requestedCommissaryId > 0 ? $requestedCommissaryId : 0;
 
     // ── Tab 1: Inventory (commissary product ledger) ──
     $inventorySql = "SELECT cpl.commissary_branch_id,
@@ -7405,6 +7290,10 @@ function handleAdminCommissary(): void
         $deliverySql .= ' AND d.destination_id = :branch';
         $deliveryBind[':branch'] = $selectedBranchId;
     }
+    if ($selectedCommissaryId > 0) {
+        $deliverySql .= ' AND d.origin_id = :cid';
+        $deliveryBind[':cid'] = $selectedCommissaryId;
+    }
     $deliverySql .= ' ORDER BY d.delivery_date DESC, b.name ASC, p.name ASC, d.id DESC';
     $deliveryStmt = $db->prepare($deliverySql);
     $deliveryStmt->execute($deliveryBind);
@@ -7449,8 +7338,7 @@ function handleAdminCommissary(): void
     $pulloutRows = $pulloutStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Tab 4: Summary ──
-    $summaryStmt = $db->prepare(
-        "SELECT p.id AS product_id,
+    $summarySql = "SELECT p.id AS product_id,
                 p.name AS product_name,
                 p.sku,
                 COALESCE(inv.produced_qty, 0) AS produced_qty,
@@ -7467,7 +7355,13 @@ function handleAdminCommissary(): void
                       SUM(wastage_qty) AS wastage_qty,
                       SUM(remaining_qty) AS remaining_qty
                  FROM dl_commissary_product_ledger
-                WHERE ledger_date = :date1
+                WHERE ledger_date = :date1";
+    $summaryBind = [':date1' => $rawDate];
+    if ($selectedCommissaryId > 0) {
+        $summarySql .= ' AND commissary_branch_id = :cid';
+        $summaryBind[':cid'] = $selectedCommissaryId;
+    }
+    $summarySql .= "
                 GROUP BY product_id
            ) inv ON inv.product_id = p.id
            LEFT JOIN (
@@ -7477,15 +7371,25 @@ function handleAdminCommissary(): void
                 WHERE d.destination_type = 'commissary'
                   AND d.origin_type = 'branch'
                   AND d.status = 'posted'
-                  AND d.delivery_date = :date2
+                  AND d.delivery_date = :date2";
+    $summaryBind[':date2'] = $rawDate;
+    if ($selectedBranchId > 0) {
+        $summarySql .= ' AND d.origin_id = :branch';
+        $summaryBind[':branch'] = $selectedBranchId;
+    }
+    if ($selectedCommissaryId > 0) {
+        $summarySql .= ' AND d.destination_id = :cid2';
+        $summaryBind[':cid2'] = $selectedCommissaryId;
+    }
+    $summarySql .= "
                 GROUP BY di.product_id
            ) ret ON ret.product_id = p.id
           WHERE COALESCE(inv.produced_qty, 0) > 0
              OR COALESCE(inv.dispatched_qty, 0) > 0
              OR COALESCE(ret.returned_qty, 0) > 0
-          ORDER BY p.name ASC"
-    );
-    $summaryStmt->execute([':date1' => $rawDate, ':date2' => $rawDate]);
+          ORDER BY p.name ASC";
+    $summaryStmt = $db->prepare($summarySql);
+    $summaryStmt->execute($summaryBind);
     $summaryRows = $summaryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Aggregate totals
