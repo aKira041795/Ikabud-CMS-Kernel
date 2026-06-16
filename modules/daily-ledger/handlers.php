@@ -8175,11 +8175,13 @@ function handleAdminWithdrawals(): void
                    cw.quantity, cw.dr_number,
                    p.name AS product_name,
                    b.name AS branch_name,
-                   COALESCE(NULLIF(u.full_name, ""), u.username, "Unknown") AS cashier_name
+                   COALESCE(NULLIF(u.full_name, ""), NULLIF(uc.full_name, ""), u.username, uc.username, "Unknown") AS cashier_name
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id
-              LEFT JOIN dl_users u ON u.id = cw.encoded_by
+              LEFT JOIN dl_users u ON u.id = cw.encoded_by AND cw.encoded_by > 0
+              LEFT JOIN dl_user_branches ub ON ub.branch_id = cw.branch_id
+              LEFT JOIN dl_users uc ON uc.id = ub.user_id AND uc.role = "cashier"
              WHERE cw.ledger_date = :d';
     $bind = [':d' => $date];
     if ($branchId > 0) {
