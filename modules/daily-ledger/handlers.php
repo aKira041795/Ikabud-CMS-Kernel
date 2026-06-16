@@ -3183,7 +3183,7 @@ function apiReceivePaperDelivery(array $params = []): void
             )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
         }
 
-        $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $userId, $receiveDate, null);
+        $receivingId = dl_acceptFormalDelivery($ctx->db(), $destinationBranchId, $deliveryId, $actorId, $receiveDate, null);
         $ctx->db()->commit();
         $ctx->json(['ok' => true, 'delivery_id' => $deliveryId, 'receiving_id' => $receivingId]);
     } catch (\Throwable $e) {
