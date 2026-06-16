@@ -372,10 +372,12 @@ function receiveModal() {
                     showToast('Paper DR captured and received', 'success');
                     this.closeModal();
                     var body = document.getElementById('ledger-body');
-                    if (body && window.htmx) {
-                        window.htmx.trigger(body, 'load');
-                    } else {
-                        window.location.reload();
+                    if (body) {
+                        if (typeof htmx !== 'undefined') {
+                            htmx.trigger(body, 'load');
+                        } else {
+                            window.location.reload();
+                        }
                     }
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to receive paper DR.';
@@ -477,11 +479,12 @@ function receiveModal() {
                     this.closeModal();
                     // Refresh ledger rows so Addt'l column updates
                     var body = document.getElementById('ledger-body');
-                    if (body && window.htmx) {
-                        window.htmx.trigger(body, 'load');
-                    } else {
-                        // Fallback: reload page after short delay
-                        setTimeout(function() { window.location.reload(); }, 600);
+                    if (body) {
+                        if (typeof htmx !== 'undefined') {
+                            htmx.trigger(body, 'load');
+                        } else {
+                            window.location.reload();
+                        }
                     }
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to receive delivery.';
