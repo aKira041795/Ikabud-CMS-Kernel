@@ -8196,11 +8196,16 @@ function handleAdminWithdrawals(): void
         $bind[':bid'] = $branchId;
     }
     $sql .= ' ORDER BY cw.created_at DESC LIMIT 500';
-    // Wrap to filter out Unknown cashier rows
-    $sql = 'SELECT * FROM (' . $sql . ') sub WHERE sub.cashier_name != "Unknown"';
     $stmt = $db->prepare($sql);
     $stmt->execute($bind);
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $allRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Hide rows where cashier couldn't be resolved
+    $rows = [];
+    foreach ($allRows as $row) {
+        if (($row['cashier_name'] ?? 'Unknown') !== 'Unknown') {
+            $rows[] = $row;
+        }
+    }
 
     $branches = $db->query('SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
