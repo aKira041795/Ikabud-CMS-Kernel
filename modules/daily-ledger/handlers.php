@@ -2508,6 +2508,8 @@ function apiSaveCashierWithdrawals(array $params = []): void
         // When a branch pullout is recorded with a target commissary,
         // create a return delivery and auto-receive so the commissary
         // ledger reflects the returned goods.
+        // If the branch IS the commissary (self-managed production),
+        // skip the delivery — no physical movement, just credit the ledger.
         $returnDeliveryId = null;
         $returnReceivingId = null;
         if ($type === 'pullout' && $targetBranchId !== null && dl_isFormalDeliveryEnabled()) {
@@ -2517,54 +2519,60 @@ function apiSaveCashierWithdrawals(array $params = []): void
             $commissaryCheck->execute([':id' => $targetBranchId]);
             $commissary = $commissaryCheck->fetch(PDO::FETCH_ASSOC);
             if ($commissary) {
-                $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
-                $priceGroupId = dl_defaultPriceGroupId();
                 $actorId = dl_getActorUserId($user);
                 $effectiveUserId = $actorId > 0 ? $actorId : null;
 
-                // Create return delivery: branch → commissary
-                $delIns = $ctx->db()->prepare(
-                    'INSERT INTO dl_deliveries
-                        (origin_type, origin_id, destination_type, destination_id, dr_number,
-                         delivery_date, status, created_by, posted_by, posted_at, remarks)
-                     VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :uid1, :uid2, NOW(), :remarks)'
-                );
-                $delIns->execute([
-                    ':ot' => 'branch',
-                    ':oid' => $branchId,
-                    ':dt' => 'branch',
-                    ':did' => $targetBranchId,
-                    ':dr' => $returnDr,
-                    ':dd' => $date,
-                    ':uid1' => $effectiveUserId,
-                    ':uid2' => $effectiveUserId,
-                    ':remarks' => '[cashier-pullout-return]',
-                ]);
-                $returnDeliveryId = (int)$ctx->db()->lastInsertId();
+                // Skip self-delivery when branch IS the commissary (self-managed production)
+                if ($branchId === $targetBranchId) {
+                    // No physical delivery needed — goods stay at the production site.
+                    // Still credit commissary product ledger below.
+                } else {
+                    $returnDr = '[pullout-return-' . $date . '-' . $branchId . '-' . date('His') . ']';
+                    $priceGroupId = dl_defaultPriceGroupId();
 
-                // Add delivery items
-                $itemIns = $ctx->db()->prepare(
-                    'INSERT INTO dl_delivery_items
-                        (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
-                     VALUES (:did, :pid, :qty, :unit, :cost, :price, :pg, :remarks)'
-                );
-                foreach ($validLines as $line) {
-                    $itemIns->execute([
-                        ':did' => $returnDeliveryId,
-                        ':pid' => $line['product_id'],
-                        ':qty' => $line['quantity'],
-                        ':unit' => 'pcs',
-                        ':cost' => 0,
-                        ':price' => dl_resolveProductPrice((int)$line['product_id'], $priceGroupId, $date),
-                        ':pg' => $priceGroupId,
-                        ':remarks' => 'pullout_return:' . $branchId,
+                    $delIns = $ctx->db()->prepare(
+                        'INSERT INTO dl_deliveries
+                            (origin_type, origin_id, destination_type, destination_id, dr_number,
+                             delivery_date, status, created_by, posted_by, posted_at, remarks)
+                         VALUES (:ot, :oid, :dt, :did, :dr, :dd, "posted", :uid1, :uid2, NOW(), :remarks)'
+                    );
+                    $delIns->execute([
+                        ':ot' => 'branch',
+                        ':oid' => $branchId,
+                        ':dt' => 'branch',
+                        ':did' => $targetBranchId,
+                        ':dr' => $returnDr,
+                        ':dd' => $date,
+                        ':uid1' => $effectiveUserId,
+                        ':uid2' => $effectiveUserId,
+                        ':remarks' => '[cashier-pullout-return]',
                     ]);
-                }
+                    $returnDeliveryId = (int)$ctx->db()->lastInsertId();
 
-                // Auto-receive for commissary
-                $returnReceivingId = dl_acceptFormalDelivery(
-                    $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null
-                );
+                    // Add delivery items
+                    $itemIns = $ctx->db()->prepare(
+                        'INSERT INTO dl_delivery_items
+                            (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+                         VALUES (:did, :pid, :qty, :unit, :cost, :price, :pg, :remarks)'
+                    );
+                    foreach ($validLines as $line) {
+                        $itemIns->execute([
+                            ':did' => $returnDeliveryId,
+                            ':pid' => $line['product_id'],
+                            ':qty' => $line['quantity'],
+                            ':unit' => 'pcs',
+                            ':cost' => 0,
+                            ':price' => dl_resolveProductPrice((int)$line['product_id'], $priceGroupId, $date),
+                            ':pg' => $priceGroupId,
+                            ':remarks' => 'pullout_return:' . $branchId,
+                        ]);
+                    }
+
+                    // Auto-receive for commissary
+                    $returnReceivingId = dl_acceptFormalDelivery(
+                        $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null
+                    );
+                }
 
                 // Credit commissary product ledger:
                 // - Saleable goods (manual_adjustment, other, null) → produced_qty (can re-dispatch)
