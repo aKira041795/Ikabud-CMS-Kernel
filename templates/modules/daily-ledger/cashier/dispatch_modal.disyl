@@ -57,6 +57,7 @@
                                 {/if}
                                 {/foreach}
                                 </optgroup>
+                                <!-- DEBUG: selling accounts count = {dispatch_selling_accounts | count} -->
                                 <optgroup label="Selling Accounts">
                                 {foreach dispatch_selling_accounts as sa}
                                 <option value="{sa.id}" data-type="selling_account">{sa.name}</option>
