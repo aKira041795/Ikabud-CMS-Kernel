@@ -266,14 +266,6 @@
                 </a>
                 {/if}
 
-                {if feature_selling_accounts}
-                <a href="{base_url}/admin/selling-accounts"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'selling_accounts'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-store w-6"></i>
-                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Selling Accounts</span>
-                </a>
-                {/if}
-
                 <a href="{base_url}/admin/settings"
                    class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'settings'}bg-white/10 ring-1 ring-white/10{/if}">
                     <i class="fas fa-user-shield w-6"></i>

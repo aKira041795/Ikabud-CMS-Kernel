@@ -782,11 +782,7 @@ function dl_accessibleBranchIds(array $user): array
     $role = (string)($user['role'] ?? '');
     if ($role === 'admin') {
         $stmt = $ctx->db()->query('SELECT id FROM dl_branches WHERE is_active = 1 ORDER BY id');
-        $ids = array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
-        // Include selling account IDs
-        $saStmt = $ctx->db()->query('SELECT id FROM dl_selling_accounts WHERE is_active = 1');
-        $saIds = array_map('intval', array_column($saStmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
-        return array_merge($ids, $saIds);
+        return array_map('intval', array_column($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [], 'id'));
     }
 
     if ($role === 'supervisor') {
