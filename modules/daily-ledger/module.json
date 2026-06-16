@@ -38,8 +38,6 @@
     "dl_production_movements",
     "dl_raw_materials",
     "dl_commissary_ledger",
-    "dl_selling_account_ledger",
-    "dl_selling_account_day_status",
     "dl_cashier_withdrawals",
     "dl_deliveries",
     "dl_delivery_items",
@@ -49,11 +47,9 @@
     "dl_product_prices",
     "dl_production_runs",
     "dl_branch_product_supply_rules",
-    "dl_selling_accounts",
     "dl_delivery_variance_flags",
     "dl_commissary_product_ledger",
-    "dl_password_resets",
-    "dl_user_selling_accounts"
+    "dl_password_resets"
   ],
   "co_owns_tables": [
     "audit_logs"

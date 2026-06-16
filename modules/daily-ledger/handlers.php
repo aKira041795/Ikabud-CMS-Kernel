@@ -2283,69 +2283,11 @@ function handleCashierRows(array $params = []): void
 
 function handleSellingAccountLedger(array $params = []): void
 {
+    // Selling accounts are now regular branches — redirect to branch ledger
     $ctx = module();
-    if (!$ctx) {
-        http_response_code(500);
-        echo 'Module context unavailable';
-        return;
-    }
-
-    $user = dlRequireAuth(['cashier', 'supervisor', 'admin']);
-    $input = $ctx->input();
-    $accountId = (int)($params['id'] ?? $input['id'] ?? 0);
-    if ($accountId <= 0) {
+    if ($ctx) {
         $ctx->redirect(dlGetBaseUrl() . '/ledger');
-        return;
     }
-
-    $db = $ctx->db();
-    $accountStmt = $db->prepare('SELECT * FROM dl_selling_accounts WHERE id = :id AND is_active = 1 LIMIT 1');
-    $accountStmt->execute([':id' => $accountId]);
-    $account = $accountStmt->fetch(PDO::FETCH_ASSOC);
-    if (!$account) {
-        $ctx->redirect(dlGetBaseUrl() . '/ledger');
-        return;
-    }
-
-    // Verify access: assigned cashier, or admin/supervisor
-    $userId = dl_getActorUserId($user);
-    $role = (string)($user['role'] ?? '');
-    if (!in_array($role, ['admin', 'supervisor'], true)) {
-        $accessStmt = $db->prepare('SELECT 1 FROM dl_user_selling_accounts WHERE user_id = :uid AND selling_account_id = :aid LIMIT 1');
-        $accessStmt->execute([':uid' => $userId, ':aid' => $accountId]);
-        if (!$accessStmt->fetchColumn()) {
-            $ctx->redirect(dlGetBaseUrl() . '/ledger');
-            return;
-        }
-    }
-
-    $today = dl_businessDate();
-    $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
-    $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
-
-    $dayStatus = 'open';
-    $dayStmt = $db->prepare('SELECT status FROM dl_selling_account_day_status WHERE selling_account_id = :aid AND ledger_date = :d LIMIT 1');
-    $dayStmt->execute([':aid' => $accountId, ':d' => $ledgerDate]);
-    $dayStatus = (string)($dayStmt->fetchColumn() ?: 'open');
-
-    $clockLabel = dl_operatingClockLabel();
-    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-    echo dlRender('modules/daily-ledger/cashier/selling-account-ledger.disyl', [
-        'page_title' => $account['name'] . ' Ledger',
-        'user_name' => $userName,
-        'user_role' => $role,
-        'current_page' => 'ledger',
-        'base_url' => dlGetBaseUrl(),
-        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
-        'account' => $account,
-        'account_id' => $accountId,
-        'ledger_date' => $ledgerDate,
-        'today' => $today,
-        'day_status' => $dayStatus,
-        'reference_only' => $referenceOnly,
-        'business_date_label' => $clockLabel['business_date'],
-        'close_of_day_time' => $clockLabel['close_of_day_time'],
-    ]);
 }
 
 // ─── Cashier API ───────────────────────────────────────────────────────
