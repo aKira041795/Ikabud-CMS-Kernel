@@ -226,16 +226,6 @@
       ]
     },
     {
-      "label": "Production Withdrawal",
-      "url": "/admin/production",
-      "icon": "factory",
-      "roles": [
-        "admin",
-        "supervisor",
-        "production_in_charge"
-      ]
-    },
-    {
       "label": "Usage",
       "url": "/admin/usage",
       "icon": "package",
