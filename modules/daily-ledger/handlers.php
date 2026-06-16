@@ -8175,7 +8175,7 @@ function handleAdminWithdrawals(): void
                    cw.quantity, cw.dr_number,
                    p.name AS product_name,
                    b.name AS branch_name,
-                   COALESCE(u.full_name, u.username, \'Unknown\') AS cashier_name
+                   COALESCE(NULLIF(u.full_name, ""), u.username, "Unknown") AS cashier_name
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id
