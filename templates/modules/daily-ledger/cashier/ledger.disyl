@@ -187,6 +187,17 @@
     window.COMMISSARY_BRANCH_ID = COMMISSARY_BRANCH_ID;
     window.COMMISSARY_BRANCH_NAME = COMMISSARY_BRANCH_NAME;
 
+    // Modal openers — defined here so they always work even if included templates fail
+    window.openReceiveModal = function() {
+        window.dispatchEvent(new CustomEvent('open-receive-modal', { detail: {} }));
+    };
+    window.openDispatchModal = function() {
+        window.dispatchEvent(new CustomEvent('open-dispatch-modal', { detail: {} }));
+    };
+    window.openWithdrawalModal = function() {
+        window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
+    };
+
     // Offline buffer: localStorage write-ahead log
     var PENDING_KEY = 'bbs_pending_saves';
 
