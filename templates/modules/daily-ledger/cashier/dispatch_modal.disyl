@@ -52,7 +52,7 @@
                                 <option value="">-- Select destination --</option>
                                  {foreach all_branches as b}
                                  {if b.id != branch_id}
-                                 <option value="{b.id}" data-type="{b.type|default:'branch'}">{b.code} — {b.name}</option>
+                                 <option value="{b.id}" data-type="branch">{b.code} — {b.name}</option>
                                  {/if}
                                  {/foreach}                             </select>
                         </div>
