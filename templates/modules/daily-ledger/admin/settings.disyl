@@ -180,23 +180,6 @@
                 {/if}
             </div>
 
-            <div>
-                <p class="text-sm text-gray-700 font-medium">Selling Accounts (Phase E)</p>
-                <p class="mt-1 text-sm text-gray-500">Per-branch sub-ledgers (consignment carts, kiosks, resellers) with their own day open/close cycles. Existing branch ledgers are unaffected when OFF.</p>
-            </div>
-            <div>
-                {if can_manage_feature_activation}
-                <label class="inline-flex items-center gap-2 text-sm text-gray-700">
-                    <input type="checkbox" id="feature-selling-accounts" {if selling_accounts_enabled}checked{/if}>
-                    Enable selling accounts
-                </label>
-                {/if}
-                {if !can_manage_feature_activation}
-                <div class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset {if selling_accounts_enabled}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}{if !selling_accounts_enabled}bg-gray-100 text-gray-700 ring-gray-300{/if}">
-                    Selling Accounts {if selling_accounts_enabled}Enabled{/if}{if !selling_accounts_enabled}Disabled{/if}
-                </div>
-                {/if}
-            </div>
         </div>
     </div>
 </div>
