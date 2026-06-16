@@ -7202,12 +7202,16 @@ function handleAdminCommissary(): void
     }
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
+    $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
     $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
     $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $commissariesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
+    $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
     $selectedBranchId = $requestedBranchId > 0 && in_array($requestedBranchId, $availableBranchIds, true)
         ? $requestedBranchId
         : 0;
+    $selectedCommissaryId = $requestedCommissaryId > 0 ? $requestedCommissaryId : 0;
 
     // ── Tab 1: Inventory (commissary product ledger) ──
     $inventoryStmt = $db->prepare(
@@ -7234,8 +7238,14 @@ function handleAdminCommissary(): void
             AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)
           ORDER BY p.name ASC"
     );
-    $inventoryStmt->execute([':date' => $rawDate]);
-    $inventoryRows = $inventoryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $inventoryBind = [':date' => $rawDate];
+    if ($selectedCommissaryId > 0) {
+        $inventorySql .= ' AND cpl.commissary_branch_id = :cid';
+        $inventoryBind[':cid'] = $selectedCommissaryId;
+    }
+    $inventorySql .= ' ORDER BY p.name ASC';
+    $inventoryStmt = $db->prepare($inventorySql);
+    $inventoryStmt->execute($inventoryBind);
 
     // ── Cumulative stock (all dates) for dispatch dropdown ──
     $cumulativeStockStmt = $db->prepare(
@@ -7317,6 +7327,14 @@ function handleAdminCommissary(): void
     if ($selectedBranchId > 0) {
         $pulloutSql .= ' AND d.destination_id = :branch';
         $pulloutBind[':branch'] = $selectedBranchId;
+    }
+    if ($selectedCommissaryId > 0) {
+        $pulloutSql = str_replace(
+            "WHERE d.destination_type = 'commissary'",
+            "WHERE d.destination_id = :cid AND d.destination_type = 'commissary'",
+            $pulloutSql
+        );
+        $pulloutBind[':cid'] = $selectedCommissaryId;
     }
     $pulloutSql .= ' ORDER BY d.delivery_date DESC, ob.name ASC, p.name ASC';
     $pulloutStmt = $db->prepare($pulloutSql);
@@ -7425,7 +7443,9 @@ function handleAdminCommissary(): void
         'user_role' => $user['role'] ?? 'unknown',
         'date' => $rawDate,
         'branches' => $branches,
+        'commissaries' => $commissaries,
         'branch_id' => $selectedBranchId,
+        'commissary_id' => $selectedCommissaryId,
         'inventory_rows' => $inventoryRows,
         'delivery_rows' => $deliveryRows,
         'pullout_rows' => $pulloutRows,

@@ -11,13 +11,22 @@
 
 <form class="card mb-4" method="GET" action="{base_url}/admin/commissary">
     <div class="card-body">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-4 items-end">
             <div class="form-group mb-0">
                 <label class="form-label">Date</label>
                 <input type="date" class="form-input" name="date" value="{date}">
             </div>
             <div class="form-group mb-0">
-                <label class="form-label">Branch Filter</label>
+                <label class="form-label">Commissary</label>
+                <select class="form-input" name="commissary_id">
+                    <option value="">All Commissaries</option>
+                    {foreach commissaries as c}
+                    <option value="{c.id}" {if c.id == commissary_id}selected{/if}>{c.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">Branch</label>
                 <select class="form-input" name="branch_id">
                     <option value="">All Branches</option>
                     {foreach branches as br}
