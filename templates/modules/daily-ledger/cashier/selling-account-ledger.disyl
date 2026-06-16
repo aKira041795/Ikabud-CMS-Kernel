@@ -42,7 +42,7 @@
     {/if}
 </div>
 
-<div id="ledger-body" hx-get="{base_url}/api/v1/selling-accounts/ledger?id={account_id}&date={ledger_date}" hx-trigger="load" hx-swap="innerHTML">
+<div id="ledger-body" hx-get="{base_url}/api/v1/selling-accounts/ledger?selling_account_id={account_id}&date={ledger_date}" hx-trigger="load" hx-swap="innerHTML">
     <div class="py-12 text-center text-sm text-gray-500">Loading ledger...</div>
 </div>
 {/block}
