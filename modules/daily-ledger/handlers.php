@@ -2457,7 +2457,7 @@ function apiSaveCashierWithdrawals(array $params = []): void
         return;
     }
 
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $totals = [];
 
     $ctx->db()->beginTransaction();
@@ -8175,12 +8175,11 @@ function handleAdminWithdrawals(): void
                    cw.quantity, cw.dr_number,
                    p.name AS product_name,
                    b.name AS branch_name,
-                   COALESCE(NULLIF(u.full_name, ""), NULLIF(ul.full_name, ""), u.username, ul.username, "Unknown") AS cashier_name
+                   COALESCE(NULLIF(u.full_name, ""), u.username, "Unknown") AS cashier_name
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id
               LEFT JOIN dl_users u ON u.id = cw.encoded_by
-              LEFT JOIN dl_users ul ON ul.legacy_table = "dl_cashiers" AND ul.legacy_id = cw.encoded_by
              WHERE cw.ledger_date = :d';
     $bind = [':d' => $date];
     if ($branchId > 0) {
