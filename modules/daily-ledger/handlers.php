@@ -2169,6 +2169,20 @@ function handleCashierLedger(array $params = []): void
     $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+    // Merge selling accounts as branch-like entries so they appear in all branch dropdowns
+    $saRows = $ctx->db()->query(
+        'SELECT id, name, account_type FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    foreach ($saRows as $sa) {
+        $allBranches[] = [
+            'id'   => (int)$sa['id'],
+            'code' => 'SA',
+            'name' => $sa['name'],
+            'is_commissary' => 0,
+            'type' => 'selling_account',
+        ];
+    }
+
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     $incomingCount = 0;
@@ -2239,9 +2253,8 @@ function handleCashierLedger(array $params = []): void
     }
 
     // Always load ALL active selling accounts for the dispatch destination dropdown.
-    $dispatchSellingAccounts = $ctx->db()->query(
-        'SELECT id, name, account_type FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name'
-    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // Merged into all_branches above — dispatch_selling_accounts kept for backward compat.
+    $dispatchSellingAccounts = $saRows;
 
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
