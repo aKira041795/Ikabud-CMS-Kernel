@@ -278,7 +278,12 @@
             if (!confirm('Delete user "' + name + '"? Their account will be hidden from the active list. All historical sales, ledger entries, and audit records are preserved. You can restore from the Deleted tab.')) return;
             fetch(BASE + '/api/v1/admin/dl-users/delete', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
                 body: JSON.stringify({ user_id: id, role: role })
             })
             .then(function(r) { return r.json(); })
@@ -298,7 +303,12 @@
             if (!confirm('Restore user "' + name + '"? The account will be restored as inactive; re-activate it from the Inactive tab when ready.')) return;
             fetch(BASE + '/api/v1/admin/dl-users/restore', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': (window.DL_CSRF || ''),
+                    'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+                },
                 body: JSON.stringify({ user_id: id, role: role })
             })
             .then(function(r) { return r.json(); })
@@ -381,7 +391,12 @@
         btn.disabled = true; btn.textContent = 'Saving...';
         fetch(BASE + '/api/v1/admin/dl-users/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
             body: JSON.stringify({
                 user_id: parseInt(document.getElementById('edit-id').value),
                 email: document.getElementById('edit-email').value,
