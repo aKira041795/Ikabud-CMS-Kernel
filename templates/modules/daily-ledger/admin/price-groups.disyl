@@ -231,8 +231,6 @@
                             </div>
                             <div class="text-xs text-gray-500 mt-2 leading-5">
                                 <span x-text="group.branch_count + ' branch' + (group.branch_count === 1 ? '' : 'es')"></span>
-                                <span> · </span>
-                                <span x-text="group.selling_account_count + ' selling account' + (group.selling_account_count === 1 ? '' : 's')"></span>
                             </div>
                         </div>
                         <div class="text-right flex shrink-0 items-center gap-3 pt-1">
@@ -263,15 +261,12 @@
                 </div>
                 <p class="mt-3 text-xs text-gray-500">
                     Assigned to <span class="font-semibold text-gray-700" x-text="editGroup.branch_count || 0"></span>
-                    active <span x-text="(editGroup.branch_count || 0) === 1 ? 'branch' : 'branches'"></span>
-                    and <span class="font-semibold text-gray-700" x-text="editGroup.selling_account_count || 0"></span>
-                    active <span x-text="(editGroup.selling_account_count || 0) === 1 ? 'selling account' : 'selling accounts'"></span>.
+                    active <span x-text="(editGroup.branch_count || 0) === 1 ? 'branch' : 'branches'"></span>.
                 </p>
                 <div class="price-groups-assignment-grid">
                     <div class="price-groups-assignment-panel">
                         <div class="price-groups-assignment-heading">
                             <div class="price-groups-assignment-title">Assigned Branches</div>
-                            <a class="price-groups-assignment-link" :href="manageAssignmentsUrl('branches')">Manage</a>
                         </div>
                         <template x-if="(editGroup.branch_assignments || []).length === 0">
                             <div class="price-groups-assignment-empty">
@@ -285,26 +280,25 @@
                             </template>
                             <button type="button" class="price-groups-assignment-toggle" x-show="hiddenAssignmentCount('branch') > 0 || isAssignmentExpanded('branch')" @click="toggleAssignment('branch')" x-text="assignmentToggleLabel('branch')"></button>
                         </div>
-                        <p class="price-groups-assignment-hint">Branch price-group ownership is managed from the Branches admin screen.</p>
-                    </div>
-                    <div class="price-groups-assignment-panel">
-                        <div class="price-groups-assignment-heading">
-                            <div class="price-groups-assignment-title">Selling Accounts</div>
-                            <a class="price-groups-assignment-link" :href="manageAssignmentsUrl('selling-accounts')">Manage</a>
+                        <p class="price-groups-assignment-hint">Use the search below to assign branches, or manage assignments from the Branches admin screen.</p>
+
+                        <!-- Branch search + assign -->
+                        <div class="flex items-center gap-2 mt-2">
+                            <input type="text" class="form-input flex-1" placeholder="Search branches…"
+                                   x-model="branchSearch" @input.debounce.300ms="searchBranches()">
+                            <button class="btn btn-sm btn-primary" @click="assignBranch()" :disabled="!assignableBranchId">Assign</button>
                         </div>
-                        <template x-if="(editGroup.selling_account_assignments || []).length === 0">
-                            <div class="price-groups-assignment-empty">
-                                <div class="price-groups-assignment-empty-badge">0 Active Accounts</div>
-                                <p class="price-groups-assignment-empty-copy">No active selling accounts are currently assigned to this price group.</p>
+                        <div class="relative" x-show="branchSearchResults.length > 0" @click.outside="branchSearchResults = []">
+                            <div class="absolute z-20 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+                                <template x-for="b in branchSearchResults" :key="b.id">
+                                    <div class="px-3 py-2 hover:bg-indigo-50 cursor-pointer text-sm"
+                                         :class="b.id === assignableBranchId ? 'bg-indigo-50 font-semibold' : ''"
+                                         @click="assignableBranchId = b.id; assignableBranchName = b.name; branchSearch = b.name; branchSearchResults = []">
+                                        <span x-text="b.code ? b.code + ' - ' + b.name : b.name"></span>
+                                    </div>
+                                </template>
                             </div>
-                        </template>
-                        <div class="price-groups-assignment-list" x-show="(editGroup.selling_account_assignments || []).length > 0">
-                            <template x-for="item in visibleAssignments('account')" :key="'account:' + item.url">
-                                <a class="price-groups-assignment-pill price-groups-assignment-pill--link" :href="item.url" x-text="item.label"></a>
-                            </template>
-                            <button type="button" class="price-groups-assignment-toggle" x-show="hiddenAssignmentCount('account') > 0 || isAssignmentExpanded('account')" @click="toggleAssignment('account')" x-text="assignmentToggleLabel('account')"></button>
                         </div>
-                        <p class="price-groups-assignment-hint">Selling-account price-group ownership is managed from the Selling Accounts screen.</p>
                     </div>
                 </div>
                 <p class="mt-2 text-xs text-gray-500" x-show="editGroup.is_default">Default groups stay selectable, but prices still fall back to current product price when no override exists.</p>
@@ -345,10 +339,6 @@
                         <div class="price-groups-selection-metric">
                             <div class="price-groups-selection-metric-label">Branches</div>
                             <div class="price-groups-selection-metric-value" x-text="editGroup.branch_count || 0"></div>
-                        </div>
-                        <div class="price-groups-selection-metric">
-                            <div class="price-groups-selection-metric-label">Selling Accounts</div>
-                            <div class="price-groups-selection-metric-value" x-text="editGroup.selling_account_count || 0"></div>
                         </div>
                         <div class="price-groups-selection-metric">
                             <div class="price-groups-selection-metric-label">Unsaved Prices</div>
@@ -431,7 +421,7 @@ function priceGroupsPage() {
     return {
         groups: [
             {foreach price_groups as g}
-            { id: {g.id}, name: {g.name | json}, type: {g.type | json}, is_default: {if g.is_default}true{else}false{/if}, is_active: {if g.is_active}true{else}false{/if}, branch_count: {g.branch_count | default:0}, selling_account_count: {g.selling_account_count | default:0}, branch_assignments: {g.branch_assignments_json | raw}, selling_account_assignments: {g.selling_account_assignments_json | raw} },
+            { id: {g.id}, name: {g.name | json}, type: {g.type | json}, is_default: {if g.is_default}true{else}false{/if}, is_active: {if g.is_active}true{else}false{/if}, branch_count: {g.branch_count | default:0}, branch_assignments: {g.branch_assignments_json | raw} },
             {/foreach}
         ],
         selectedGroup: null,
@@ -443,34 +433,26 @@ function priceGroupsPage() {
         savingPrices: false,
         baseUrl: '{base_url}',
         assignmentPreviewLimit: 4,
-        expandedAssignments: { branch: false, account: false },
+        expandedAssignments: { branch: false },
         newGroup: { name: '', type: 'other' },
-        editGroup: { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, selling_account_count: 0, branch_assignments: [], selling_account_assignments: [] },
+        editGroup: { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, branch_assignments: [] },
+        branchSearch: '',
+        branchSearchResults: [],
+        assignableBranchId: null,
+        assignableBranchName: '',
 
         get dirtyCount() {
             return Object.keys(this.dirtyPrices).length;
-        },
-        manageAssignmentsUrl(section) {
-            const suffix = section === 'selling-accounts' ? '/admin/selling-accounts' : '/admin/branches';
-            if (!this.editGroup.id) {
-                return this.baseUrl + suffix;
-            }
-            return this.baseUrl + suffix + '?price_group_id=' + encodeURIComponent(String(this.editGroup.id));
-        },
-        assignmentSource(kind) {
-            return kind === 'account'
-                ? (this.editGroup.selling_account_assignments || [])
-                : (this.editGroup.branch_assignments || []);
         },
         isAssignmentExpanded(kind) {
             return !!this.expandedAssignments[kind];
         },
         hiddenAssignmentCount(kind) {
-            const items = this.assignmentSource(kind);
+            const items = this.editGroup.branch_assignments || [];
             return Math.max(0, items.length - this.assignmentPreviewLimit);
         },
         visibleAssignments(kind) {
-            const items = this.assignmentSource(kind);
+            const items = this.editGroup.branch_assignments || [];
             return this.isAssignmentExpanded(kind) ? items : items.slice(0, this.assignmentPreviewLimit);
         },
         assignmentToggleLabel(kind) {
@@ -481,24 +463,69 @@ function priceGroupsPage() {
             if (hidden <= 0) {
                 return '';
             }
-            const noun = kind === 'account'
-                ? (hidden === 1 ? 'selling account' : 'selling accounts')
-                : (hidden === 1 ? 'branch' : 'branches');
-            return 'Show ' + hidden + ' more ' + noun;
+            return 'Show ' + hidden + ' more ' + (hidden === 1 ? 'branch' : 'branches');
         },
         toggleAssignment(kind) {
             this.expandedAssignments[kind] = !this.expandedAssignments[kind];
+        },
+        searchBranches() {
+            const q = (this.branchSearch || '').trim();
+            if (q.length < 1) { this.branchSearchResults = []; return; }
+            fetch(this.baseUrl + '/api/v1/admin/branches/search?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(j => {
+                    if (j && j.ok) {
+                        this.branchSearchResults = (j.branches || []).filter(function(b) {
+                            return !(this.editGroup.branch_assignments || []).some(function(a) {
+                                return a.url && a.url.indexOf('q=' + encodeURIComponent(b.code || b.name)) !== -1;
+                            });
+                        }.bind(this));
+                    }
+                });
+        },
+        assignBranch() {
+            if (!this.assignableBranchId || !this.selectedGroup) return;
+            fetch(this.baseUrl + '/api/v1/admin/price-groups/assign-branch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    price_group_id: this.selectedGroup,
+                    branch_id: this.assignableBranchId
+                })
+            })
+            .then(r => r.json())
+            .then(j => {
+                if (j && j.ok) {
+                    showToast('Branch assigned', 'success');
+                    this.branchSearch = '';
+                    this.assignableBranchId = null;
+                    this.assignableBranchName = '';
+                    this.branchSearchResults = [];
+                    this.editGroup.branch_count = (this.editGroup.branch_count || 0) + 1;
+                    this.editGroup.branch_assignments.push({
+                        label: j.label || this.assignableBranchName,
+                        url: this.baseUrl + '/admin/branches?price_group_id=' + this.selectedGroup + '&q=' + encodeURIComponent(j.code || this.assignableBranchName)
+                    });
+                } else {
+                    showToast((j && j.error) || 'Failed to assign branch', 'error');
+                }
+            })
+            .catch(function() { showToast('Network error', 'error'); });
         },
         init() {},
         openEdit(id) {
             this.selectedGroup = id;
             this.prices = {};
             this.dirtyPrices = {};
-            this.expandedAssignments = { branch: false, account: false };
+            this.expandedAssignments = { branch: false };
+            this.branchSearch = '';
+            this.branchSearchResults = [];
+            this.assignableBranchId = null;
+            this.assignableBranchName = '';
             const group = this.groups.find(function(item) { return item.id === id; });
             this.editGroup = group
-                ? { id: group.id, name: group.name || '', type: group.type || '', is_default: !!group.is_default, is_active: !!group.is_active, branch_count: group.branch_count || 0, selling_account_count: group.selling_account_count || 0, branch_assignments: group.branch_assignments || [], selling_account_assignments: group.selling_account_assignments || [] }
-                : { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, selling_account_count: 0, branch_assignments: [], selling_account_assignments: [] };
+                ? { id: group.id, name: group.name || '', type: group.type || '', is_default: !!group.is_default, is_active: !!group.is_active, branch_count: group.branch_count || 0, branch_assignments: group.branch_assignments || [] }
+                : { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, branch_assignments: [] };
             fetch('{base_url}/api/v1/product-prices?price_group_id=' + id)
                 .then(r => r.json())
                 .then(j => {
@@ -510,8 +537,12 @@ function priceGroupsPage() {
             this.selectedGroup = null;
             this.prices = {};
             this.dirtyPrices = {};
-            this.expandedAssignments = { branch: false, account: false };
-            this.editGroup = { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, selling_account_count: 0, branch_assignments: [], selling_account_assignments: [] };
+            this.expandedAssignments = { branch: false };
+            this.branchSearch = '';
+            this.branchSearchResults = [];
+            this.assignableBranchId = null;
+            this.assignableBranchName = '';
+            this.editGroup = { id: 0, name: '', type: '', is_default: false, is_active: true, branch_count: 0, branch_assignments: [] };
         },
         markDirty(productId) {
             this.dirtyPrices[String(productId)] = true;
@@ -606,9 +637,7 @@ function priceGroupsPage() {
                         is_default: group.is_default,
                         is_active: !!this.editGroup.is_active,
                         branch_count: group.branch_count || 0,
-                        selling_account_count: group.selling_account_count || 0,
-                        branch_assignments: group.branch_assignments || [],
-                        selling_account_assignments: group.selling_account_assignments || []
+                        branch_assignments: group.branch_assignments || []
                     };
                 });
                 showToast((j && j.message) || 'Price group updated', 'success');

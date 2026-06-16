@@ -1512,6 +1512,50 @@ function apiProductPriceList(array $params = []): void
     $ctx->json(['ok' => true, 'prices' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
 }
 
+function apiBranchSearch(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    dlCurrentUser(['admin']);
+    $q = trim((string)($_GET['q'] ?? ''));
+    if ($q === '') { $ctx->json(['ok' => true, 'branches' => []]); return; }
+    $like = '%' . $q . '%';
+    $stmt = $ctx->db()->prepare(
+        'SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND (name LIKE :q OR code LIKE :q2) ORDER BY name LIMIT 15'
+    );
+    $stmt->execute([':q' => $like, ':q2' => $like]);
+    $ctx->json(['ok' => true, 'branches' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
+}
+
+function apiPriceGroupAssignBranch(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    if (!dl_arePriceGroupsEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'Price Groups feature is disabled.'], 403);
+        return;
+    }
+    dlCurrentUser(['admin']);
+    $input = (array)json_decode(file_get_contents('php://input'), true);
+    $groupId = (int)($input['price_group_id'] ?? 0);
+    $branchId = (int)($input['branch_id'] ?? 0);
+    if ($groupId <= 0 || $branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'price_group_id and branch_id required'], 422);
+        return;
+    }
+
+    try {
+        $ctx->db()->prepare('UPDATE dl_branches SET price_group_id = :pg WHERE id = :id AND is_active = 1')
+            ->execute([':pg' => $groupId, ':id' => $branchId]);
+        $info = $ctx->db()->prepare('SELECT code, name FROM dl_branches WHERE id = :id')->execute([':id' => $branchId])->fetch(PDO::FETCH_ASSOC);
+        dl_auditLog('price_group_branch_assigned', $branchId, 'dl_branches', (string)$branchId,
+            null, ['price_group_id' => $groupId]);
+        $ctx->json(['ok' => true, 'code' => $info['code'] ?? '', 'label' => ($info['code'] ?? '') ? ($info['code'] . ' - ' . $info['name']) : ($info['name'] ?? '')]);
+    } catch (\Throwable $e) {
+        $ctx->json(['ok' => false, 'error' => 'Database error'], 500);
+    }
+}
+
 // ─── Phase E: Selling-account handlers ───────────────────────────────────
 
 function apiSellingAccountList(array $params = []): void
@@ -2020,8 +2064,7 @@ function handleAdminPriceGroups(array $params = []): void
                 pg.is_default,
                 pg.is_active,
                 pg.created_at,
-                COALESCE(branch_usage.branch_count, 0) AS branch_count,
-                COALESCE(account_usage.selling_account_count, 0) AS selling_account_count
+                COALESCE(branch_usage.branch_count, 0) AS branch_count
              FROM dl_price_groups pg
              LEFT JOIN (
                 SELECT price_group_id, COUNT(*) AS branch_count
@@ -2029,12 +2072,6 @@ function handleAdminPriceGroups(array $params = []): void
                  WHERE price_group_id IS NOT NULL AND is_active = 1
                  GROUP BY price_group_id
              ) AS branch_usage ON branch_usage.price_group_id = pg.id
-             LEFT JOIN (
-                SELECT price_group_id, COUNT(*) AS selling_account_count
-                  FROM dl_branches
-                 WHERE price_group_id IS NOT NULL AND is_active = 1 AND account_type IS NOT NULL
-                 GROUP BY price_group_id
-             ) AS account_usage ON account_usage.price_group_id = pg.id
             ORDER BY pg.is_default DESC, pg.name'
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
@@ -2061,37 +2098,10 @@ function handleAdminPriceGroups(array $params = []): void
         ];
     }
 
-    $sellingAccountAssignments = [];
-    $accountRows = $ctx->db()->query(
-        'SELECT id, price_group_id, code, name
-           FROM dl_branches
-          WHERE price_group_id IS NOT NULL AND is_active = 1 AND account_type IS NOT NULL
-          ORDER BY name'
-    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    foreach ($accountRows as $row) {
-        $groupId = (int)($row['price_group_id'] ?? 0);
-        if ($groupId <= 0) {
-            continue;
-        }
-        $searchToken = trim((string)($row['code'] ?? '')) !== ''
-            ? (string)$row['code']
-            : (string)$row['name'];
-        $sellingAccountAssignments[$groupId][] = [
-            'label' => trim((string)($row['code'] ?? '')) !== ''
-                ? (string)$row['code'] . ' - ' . (string)$row['name']
-                : (string)$row['name'],
-            'url' => $baseUrl . '/admin/selling-accounts?price_group_id=' . $groupId . '&q=' . rawurlencode($searchToken),
-        ];
-    }
-
     foreach ($groups as &$group) {
         $groupId = (int)($group['id'] ?? 0);
         $group['branch_assignments_json'] = json_encode(
             array_values($branchAssignments[$groupId] ?? []),
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-        ) ?: '[]';
-        $group['selling_account_assignments_json'] = json_encode(
-            array_values($sellingAccountAssignments[$groupId] ?? []),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
         ) ?: '[]';
     }

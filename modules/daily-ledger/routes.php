@@ -59,6 +59,9 @@ return [
         '/daily-ledger/api/v1/price-groups'         => 'daily-ledger:apiPriceGroupList',
         '/daily-ledger/api/v1/product-prices'       => 'daily-ledger:apiProductPriceList',
 
+        // Admin: branch search (for assignment dropdowns)
+        '/daily-ledger/api/v1/admin/branches/search' => 'daily-ledger:apiBranchSearch',
+
 
         // Phase F: branch consolidated summary
         '/daily-ledger/api/v1/admin/branch-summary' => 'daily-ledger:apiBranchConsolidatedSummary',
@@ -137,6 +140,7 @@ return [
         // Phase D: price groups + product prices
         '/daily-ledger/api/v1/admin/price-groups'         => 'daily-ledger:apiPriceGroupCreate',
         '/daily-ledger/api/v1/admin/price-groups/update'  => 'daily-ledger:apiPriceGroupUpdate',
+        '/daily-ledger/api/v1/admin/price-groups/assign-branch' => 'daily-ledger:apiPriceGroupAssignBranch',
         '/daily-ledger/api/v1/admin/product-prices'       => 'daily-ledger:apiProductPriceUpsert',
 
     ],
