@@ -190,12 +190,6 @@
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
                 </a>
 
-                <a href="{base_url}/admin/branch-summary"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branch-summary'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-chart-pie w-6"></i>
-                    <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branch Summary</span>
-                </a>
-
                 <a href="{base_url}/admin/variances"
                    class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'variances'}bg-white/10 ring-1 ring-white/10{/if}">
                     <i class="fas fa-triangle-exclamation w-6"></i>
@@ -239,7 +233,7 @@
 
                 {if user_role == 'admin' || user_role == 'supervisor'}
                 <a href="{base_url}/admin/branch-summary"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branch_summary'}bg-white/10 ring-1 ring-white/10{/if}">
+                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branch-summary'}bg-white/10 ring-1 ring-white/10{/if}">
                     <i class="fas fa-chart-pie w-6"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branch Summary</span>
                 </a>
