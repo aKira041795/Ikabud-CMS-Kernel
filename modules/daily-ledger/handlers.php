@@ -1689,6 +1689,24 @@ function dlAuthenticatedHomeRedirect(): ?string
 
     $role = (string)($user['role'] ?? '');
     if ($role === 'cashier') {
+        // If the cashier has selling account assignments, go directly to the first selling account ledger
+        $userId = dl_getActorUserId($user);
+        if ($userId > 0) {
+            $ctx = module();
+            if ($ctx) {
+                $saStmt = $ctx->db()->prepare(
+                    'SELECT sa.id FROM dl_user_selling_accounts usa
+                      INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
+                     WHERE usa.user_id = :uid AND sa.is_active = 1
+                     ORDER BY sa.name LIMIT 1'
+                );
+                $saStmt->execute([':uid' => $userId]);
+                $saId = $saStmt->fetchColumn();
+                if ($saId) {
+                    return '/daily-ledger/selling-account/ledger?id=' . (int)$saId;
+                }
+            }
+        }
         return '/daily-ledger/ledger';
     }
 
@@ -2736,7 +2754,8 @@ function apiCreateCashierDispatch(array $params = []): void
     $originBranchId = dl_resolveLedgerBranchId($user, $input);
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $drNumber = trim((string)($input['dr_number'] ?? ''));
-    $targetBranchId = (int)($input['target_branch_id'] ?? 0);
+    $destType = (string)($input['destination_type'] ?? 'branch');
+    $destId = (int)($input['destination_id'] ?? $input['target_branch_id'] ?? 0);
     $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
     $role = (string)($user['role'] ?? '');
     $actorId = dl_getActorUserId($user);
@@ -2753,7 +2772,15 @@ function apiCreateCashierDispatch(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
         return;
     }
-    if ($targetBranchId <= 0 || $targetBranchId === $originBranchId) {
+    if (!in_array($destType, ['branch', 'selling_account'], true)) {
+        $ctx->json(['ok' => false, 'error' => 'Invalid destination type.'], 422);
+        return;
+    }
+    if ($destId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'A destination is required.'], 422);
+        return;
+    }
+    if ($destType === 'branch' && $destId === $originBranchId) {
         $ctx->json(['ok' => false, 'error' => 'A different destination branch is required.'], 422);
         return;
     }
@@ -2787,8 +2814,8 @@ function apiCreateCashierDispatch(array $params = []): void
     $dupStmt->execute([
         ':origin_type' => 'branch',
         ':origin_id' => $originBranchId,
-        ':destination_type' => 'branch',
-        ':destination_id' => $targetBranchId,
+        ':destination_type' => $destType,
+        ':destination_id' => $destId,
         ':dr_number' => $drNumber,
     ]);
     $dup = $dupStmt->fetch(PDO::FETCH_ASSOC) ?: null;
@@ -2810,8 +2837,8 @@ function apiCreateCashierDispatch(array $params = []): void
         $ins->execute([
             ':ot' => 'branch',
             ':oid' => $originBranchId,
-            ':dt' => 'branch',
-            ':did' => $targetBranchId,
+            ':dt' => $destType,
+            ':did' => $destId,
             ':dr' => $drNumber,
             ':dd' => $deliveryDate,
             ':created_by' => $actorId ?: null,
@@ -2841,8 +2868,8 @@ function apiCreateCashierDispatch(array $params = []): void
 
         $ctx->db()->commit();
         dl_auditLog('create_delivery', $originBranchId, 'dl_deliveries', (string)$deliveryId, null, [
-            'destination_type' => 'branch',
-            'destination_id' => $targetBranchId,
+            'destination_type' => $destType,
+            'destination_id' => $destId,
             'items' => count($items),
             'dr_number' => $drNumber,
             'status' => 'posted',
