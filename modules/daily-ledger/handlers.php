@@ -6238,14 +6238,20 @@ function apiCreateUser(array $params = []): void
         return $v > 0;
     })));
 
-    // Cashiers: branch is optional when selling accounts are assigned
+    // Cashiers: require a branch; selling accounts are optional when the feature is enabled
     if ($role === 'cashier' && $branchId <= 0) {
-        $sellingAccountIds = $input['selling_account_ids'] ?? [];
-        if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
-        $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
-        if (empty($sellingAccountIds)) {
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
-            $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
+        if (dl_areSellingAccountsEnabled()) {
+            $sellingAccountIds = $input['selling_account_ids'] ?? [];
+            if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
+            $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
+            if (empty($sellingAccountIds)) {
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
+                $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
+                return;
+            }
+        } else {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
             return;
         }
     }
@@ -6270,15 +6276,17 @@ function apiCreateUser(array $params = []): void
                 'INSERT IGNORE INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)'
             )->execute([':uid' => $newUserId, ':bid' => $branchId]);
 
-            // Optional selling account assignments
-            $sellingAccountIds = $input['selling_account_ids'] ?? [];
-            if (is_array($sellingAccountIds)) {
-                foreach ($sellingAccountIds as $said) {
-                    $said = (int)$said;
-                    if ($said <= 0) continue;
-                    $ctx->db()->prepare(
-                        'INSERT IGNORE INTO dl_user_selling_accounts (user_id, selling_account_id) VALUES (:uid, :said)'
-                    )->execute([':uid' => $newUserId, ':said' => $said]);
+            // Optional selling account assignments (only when feature is enabled)
+            if (dl_areSellingAccountsEnabled()) {
+                $sellingAccountIds = $input['selling_account_ids'] ?? [];
+                if (is_array($sellingAccountIds)) {
+                    foreach ($sellingAccountIds as $said) {
+                        $said = (int)$said;
+                        if ($said <= 0) continue;
+                        $ctx->db()->prepare(
+                            'INSERT IGNORE INTO dl_user_selling_accounts (user_id, selling_account_id) VALUES (:uid, :said)'
+                        )->execute([':uid' => $newUserId, ':said' => $said]);
+                    }
                 }
             }
         } elseif (in_array($role, ['supervisor', 'production_in_charge'], true)) {
@@ -6416,12 +6424,18 @@ function apiUpdateUser(array $params = []): void
         })));
 
         if ($role === 'cashier' && $branchId <= 0) {
-            $sellingAccountIds = $input['selling_account_ids'] ?? [];
-            if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
-            $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
-            if (empty($sellingAccountIds)) {
-                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
-                $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
+            if (dl_areSellingAccountsEnabled()) {
+                $sellingAccountIds = $input['selling_account_ids'] ?? [];
+                if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
+                $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
+                if (empty($sellingAccountIds)) {
+                    header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
+                    $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
+                    return;
+                }
+            } else {
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
+                $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
                 return;
             }
         }
@@ -6454,8 +6468,8 @@ function apiUpdateUser(array $params = []): void
                 )->execute([':uid' => $editId, ':bid' => $bid]);
             }
 
-            // Selling account assignments (cashier only)
-            if ($role === 'cashier') {
+            // Selling account assignments (cashier only, only when feature is enabled)
+            if ($role === 'cashier' && dl_areSellingAccountsEnabled()) {
                 $ctx->db()->prepare('DELETE FROM dl_user_selling_accounts WHERE user_id = :uid')->execute([':uid' => $editId]);
                 $sellingAccountIds = $input['selling_account_ids'] ?? [];
                 if (is_array($sellingAccountIds)) {
