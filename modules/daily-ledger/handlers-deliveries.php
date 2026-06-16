@@ -531,7 +531,7 @@ function apiCreateDelivery(array $params = []): void
     $items      = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
 
     $allowedOrigins = ['commissary','branch','supplier','manual'];
-    $allowedDests   = ['branch','selling_account','own_account','reseller','customer','event','wastage','internal_use','adjustment'];
+    $allowedDests   = ['branch','own_account','reseller','customer','event','wastage','internal_use','adjustment'];
     if (!in_array($originType, $allowedOrigins, true) || !in_array($destType, $allowedDests, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid origin or destination type'], 422);
         return;
@@ -556,10 +556,6 @@ function apiCreateDelivery(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Explain why this branch delivery is being recorded here so the recovery trail stays clear.'], 422);
         return;
     }
-    if ($destType === 'selling_account' && !dl_areSellingAccountsEnabled()) {
-        $ctx->json(['ok' => false, 'error' => 'Selling Accounts feature is disabled.'], 403);
-        return;
-    }
     if ($destType === 'branch') {
         $remarks = $remarks !== null && $remarks !== ''
             ? 'Admin recovery reason: ' . $recoveryReason . "\n" . $remarks
@@ -567,30 +563,6 @@ function apiCreateDelivery(array $params = []): void
     }
 
     $priceGroupId = null;
-    if ($destType === 'selling_account' && $destId) {
-        $accountStmt = $ctx->db()->prepare(
-            'SELECT assigned_branch_id, price_group_id, is_active
-               FROM dl_selling_accounts
-              WHERE id = :id
-              LIMIT 1'
-        );
-        $accountStmt->execute([':id' => $destId]);
-        $accountRow = $accountStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        if (!$accountRow || (int)($accountRow['is_active'] ?? 0) !== 1) {
-            $ctx->json(['ok' => false, 'error' => 'Selling account not found'], 404);
-            return;
-        }
-
-        $assignedBranchId = (int)($accountRow['assigned_branch_id'] ?? 0);
-        $allowedBranchIds = dl_accessibleBranchIds($user);
-        if ($assignedBranchId <= 0 || !in_array($assignedBranchId, $allowedBranchIds, true)) {
-            $ctx->json(['ok' => false, 'error' => 'Selling account is outside your branch scope'], 403);
-            return;
-        }
-
-        $pgId = $accountRow['price_group_id'] ?? null;
-        $priceGroupId = $pgId !== false && $pgId !== null ? (int)$pgId : null;
-    }
     if (dl_arePriceGroupsEnabled() && $priceGroupId === null) {
         $priceGroupId = $destType === 'branch' && $destId ? dl_branchPriceGroupId($destId) : dl_defaultPriceGroupId();
     }
@@ -647,72 +619,6 @@ function apiCreateDelivery(array $params = []): void
     }
 }
 
-function dl_postDeliveryToSellingAccount(int $deliveryId): void
-{
-    $ctx = module();
-    if (!$ctx) return;
-
-    $h = $ctx->db()->prepare('SELECT * FROM dl_deliveries WHERE id = :id');
-    $h->execute([':id' => $deliveryId]);
-    $delivery = $h->fetch(PDO::FETCH_ASSOC);
-    if (!$delivery || $delivery['destination_type'] !== 'selling_account' || !$delivery['destination_id']) {
-        return;
-    }
-    $accId = (int)$delivery['destination_id'];
-    $date  = (string)$delivery['delivery_date'];
-
-    $items = $ctx->db()->prepare('SELECT * FROM dl_delivery_items WHERE delivery_id = :id');
-    $items->execute([':id' => $deliveryId]);
-    $rows = $items->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    $check = $ctx->db()->prepare(
-        'SELECT id, delivered_qty FROM dl_selling_account_ledger
-          WHERE selling_account_id = :a AND product_id = :p AND ledger_date = :d FOR UPDATE'
-    );
-    $upd = $ctx->db()->prepare(
-        'UPDATE dl_selling_account_ledger
-            SET delivered_qty = delivered_qty + :q,
-                price_snapshot = :ps,
-                sold_qty = beg_qty + (delivered_qty + :q2) - return_qty - end_qty,
-                gross_amount = (beg_qty + (delivered_qty + :q3) - return_qty - end_qty) * :ps2
-          WHERE id = :id'
-    );
-    $ins = $ctx->db()->prepare(
-        'INSERT INTO dl_selling_account_ledger
-            (selling_account_id, product_id, ledger_date, price_snapshot, delivered_qty, sold_qty, gross_amount)
-         VALUES (:a, :p, :d, :ps, :q, 0 - 0, 0)'
-    );
-    foreach ($rows as $r) {
-        $pid = (int)$r['product_id'];
-        $qty = (int)$r['quantity'];
-        $ps  = (float)$r['price_snapshot'];
-        $check->execute([':a' => $accId, ':p' => $pid, ':d' => $date]);
-        $ex = $check->fetch(PDO::FETCH_ASSOC);
-        if ($ex) {
-            $upd->execute([
-                ':q' => $qty, ':q2' => $qty, ':q3' => $qty,
-                ':ps' => $ps, ':ps2' => $ps, ':id' => (int)$ex['id'],
-            ]);
-        } else {
-            $ins->execute([
-                ':a' => $accId, ':p' => $pid, ':d' => $date,
-                ':ps' => $ps, ':q' => $qty,
-            ]);
-            // Recompute sold_qty/gross via update path for the new row.
-            $check->execute([':a' => $accId, ':p' => $pid, ':d' => $date]);
-            $newRow = $check->fetch(PDO::FETCH_ASSOC);
-            if ($newRow) {
-                $ctx->db()->prepare(
-                    'UPDATE dl_selling_account_ledger
-                        SET sold_qty = beg_qty + delivered_qty - return_qty - end_qty,
-                            gross_amount = (beg_qty + delivered_qty - return_qty - end_qty) * price_snapshot
-                      WHERE id = :id'
-                )->execute([':id' => (int)$newRow['id']]);
-            }
-        }
-    }
-}
-
 function apiPostDelivery(array $params = []): void
 {
     $ctx = module();
@@ -733,31 +639,8 @@ function apiPostDelivery(array $params = []): void
         if ((string)$row['destination_type'] === 'branch' && !dl_isFormalDeliveryEnabled()) {
             throw new \RuntimeException('Formal Delivery Workflow is disabled for branch deliveries.');
         }
-        if ((string)$row['destination_type'] === 'selling_account' && !dl_areSellingAccountsEnabled()) {
-            throw new \RuntimeException('Selling Accounts feature is disabled.');
-        }
-
         $priceGroupId = null;
-        if ((string)$row['destination_type'] === 'selling_account') {
-            $accountStmt = $ctx->db()->prepare(
-                'SELECT assigned_branch_id, price_group_id, is_active
-                   FROM dl_selling_accounts
-                  WHERE id = :id
-                  LIMIT 1'
-            );
-            $accountStmt->execute([':id' => (int)$row['destination_id']]);
-            $account = $accountStmt->fetch(PDO::FETCH_ASSOC) ?: null;
-            if (!$account || (int)($account['is_active'] ?? 0) !== 1) {
-                throw new \RuntimeException('Selling account not found.');
-            }
-
-            $assignedBranchId = (int)($account['assigned_branch_id'] ?? 0);
-            if ($assignedBranchId <= 0 || !in_array($assignedBranchId, dl_accessibleBranchIds($user), true)) {
-                throw new \RuntimeException('Selling account is outside your branch scope.');
-            }
-
-            $priceGroupId = $account['price_group_id'] !== null ? (int)$account['price_group_id'] : null;
-        } elseif ((string)$row['destination_type'] === 'branch' && (int)$row['destination_id'] > 0) {
+        if ((string)$row['destination_type'] === 'branch' && (int)$row['destination_id'] > 0) {
             $priceGroupId = dl_branchPriceGroupId((int)$row['destination_id']);
         }
         if ($priceGroupId === null && dl_arePriceGroupsEnabled()) {
@@ -800,10 +683,6 @@ function apiPostDelivery(array $params = []): void
         ]);
         if ($postStmt->rowCount() !== 1) {
             throw new \RuntimeException('Delivery cannot be posted because it is no longer draft or already has an active receiving.');
-        }
-
-        if ($row['destination_type'] === 'selling_account') {
-            dl_postDeliveryToSellingAccount($deliveryId);
         }
 
         $ctx->db()->commit();
@@ -986,18 +865,18 @@ function apiListDeliveries(array $params = []): void
                    ru.username AS provenance_reviewer_name,
                    CASE
                        WHEN d.origin_type = "commissary" THEN "Commissary"
-                       WHEN d.origin_type IN ("branch", "selling_account") THEN COALESCE(ob.name, CONCAT("Branch #", d.origin_id))
+                       WHEN d.origin_type = "branch" THEN COALESCE(ob.name, CONCAT("Branch #", d.origin_id))
                        WHEN d.origin_id IS NOT NULL AND d.origin_id > 0 THEN CONCAT(REPLACE(d.origin_type, "_", " "), " #", d.origin_id)
                        ELSE REPLACE(d.origin_type, "_", " ")
                    END AS origin_label,
                    CASE
-                       WHEN d.destination_type IN ("branch", "selling_account") THEN COALESCE(db.name, CONCAT("Branch #", d.destination_id))
+                       WHEN d.destination_type = "branch" THEN COALESCE(db.name, CONCAT("Branch #", d.destination_id))
                        WHEN d.destination_id IS NOT NULL AND d.destination_id > 0 THEN CONCAT(REPLACE(d.destination_type, "_", " "), " #", d.destination_id)
                        ELSE REPLACE(d.destination_type, "_", " ")
                    END AS destination_label
               FROM dl_deliveries d
-              LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type IN ("branch", "selling_account")
-              LEFT JOIN dl_branches db ON db.id = d.destination_id AND d.destination_type IN ("branch", "selling_account")
+              LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
+              LEFT JOIN dl_branches db ON db.id = d.destination_id AND d.destination_type = "branch"
               LEFT JOIN dl_users ru ON ru.id = d.provenance_reviewed_by'
          . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '')
          . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';
@@ -1572,30 +1451,14 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
     $regStmt->execute([':b' => $branchId, ':d' => $date]);
     $reg = $regStmt->fetch(PDO::FETCH_ASSOC) ?: ['qty' => 0, 'amt' => 0];
 
-    if (!dl_areSellingAccountsEnabled()) {
-        return [
-            'branch_id' => $branchId,
-            'date' => $date,
-            'regular_sales' => (float)$reg['amt'],
-            'regular_qty' => (int)$reg['qty'],
-            'selling_accounts' => [],
-            'selling_accounts_total' => 0.0,
-            'total_sales' => (float)$reg['amt'],
-        ];
-    }
-
-    // Selling accounts are now regular branches — no separate SA aggregates
-    $accounts = [];
-    $accountsTotal = 0.0;
-
     return [
         'branch_id' => $branchId,
         'date' => $date,
         'regular_sales' => (float)$reg['amt'],
         'regular_qty' => (int)$reg['qty'],
-        'selling_accounts' => $accounts,
-        'selling_accounts_total' => $accountsTotal,
-        'total_sales' => (float)$reg['amt'] + $accountsTotal,
+        'selling_accounts' => [],
+        'selling_accounts_total' => 0.0,
+        'total_sales' => (float)$reg['amt'],
     ];
 }
 
@@ -1617,7 +1480,6 @@ function dl_layoutFlags(): array
     $s = dlModuleSettings();
     return [
         'feature_formal_delivery'   => dl_settingToBool($s['formal_delivery_workflow_enabled'] ?? false),
-        'feature_selling_accounts'  => dl_settingToBool($s['selling_accounts_enabled'] ?? false),
         'feature_price_groups'      => dl_settingToBool($s['price_groups_enabled'] ?? true),
     ];
 }

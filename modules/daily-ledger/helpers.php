@@ -302,12 +302,6 @@ function dlUploadBrandAsset(string $assetType, array $file): array
     ];
 }
 
-function dl_areSellingAccountsEnabled(): bool
-{
-    $settings = dlModuleSettings();
-    return dl_settingToBool($settings['selling_accounts_enabled'] ?? false);
-}
-
 function dl_arePriceGroupsEnabled(): bool
 {
     $settings = dlModuleSettings();

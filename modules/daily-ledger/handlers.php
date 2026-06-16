@@ -378,7 +378,6 @@ function dl_featureSettings(): array
     return [
         'production_output_enabled' => dl_settingToBool($settings['production_output_enabled'] ?? false),
         'formal_delivery_workflow_enabled' => dl_settingToBool($settings['formal_delivery_workflow_enabled'] ?? false),
-        'selling_accounts_enabled' => dl_settingToBool($settings['selling_accounts_enabled'] ?? false),
         'price_groups_enabled' => dl_settingToBool($settings['price_groups_enabled'] ?? true),
     ];
 }
@@ -2279,17 +2278,6 @@ function handleCashierRows(array $params = []): void
     ]);
 }
 
-// ─── Selling Account Ledger ───────────────────────────────────────────
-
-function handleSellingAccountLedger(array $params = []): void
-{
-    // Selling accounts are now regular branches — redirect to branch ledger
-    $ctx = module();
-    if ($ctx) {
-        $ctx->redirect(dlGetBaseUrl() . '/ledger');
-    }
-}
-
 // ─── Cashier API ───────────────────────────────────────────────────────
 
 function apiGetLedgerRows(array $params = []): void
@@ -2679,7 +2667,7 @@ function apiCreateCashierDispatch(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Paper DR number is required.'], 422);
         return;
     }
-    if (!in_array($destType, ['branch', 'selling_account'], true)) {
+    if ($destType !== 'branch') {
         $ctx->json(['ok' => false, 'error' => 'Invalid destination type.'], 422);
         return;
     }
@@ -2771,10 +2759,6 @@ function apiCreateCashierDispatch(array $params = []): void
                 ':remarks' => $item['remarks'],
             ]);
             dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
-        }
-
-        if ($destType === 'selling_account') {
-            dl_postDeliveryToSellingAccount($deliveryId);
         }
 
         $ctx->db()->commit();
@@ -4081,8 +4065,6 @@ function handleAdminDashboard(array $params = []): void
 
     $totalUnitsToday = 0;
     $totalAmountToday = 0.0;
-    $totalSellingAccountsToday = 0.0;
-    $sellingAccountsEnabled = function_exists('dl_areSellingAccountsEnabled') && dl_areSellingAccountsEnabled();
     $branchCards = [];
     foreach ($branches as $br) {
         $bid = (int)$br['id'];
@@ -4090,25 +4072,13 @@ function handleAdminDashboard(array $params = []): void
         $units  = $ts ? (int)$ts['total_units'] : 0;
         $amount = $ts ? (float)$ts['total_amount'] : 0.0;
         $status = $dayStatuses[$bid] ?? 'none';
-        $saTotal = 0.0;
-        if ($sellingAccountsEnabled && function_exists('dl_branchConsolidatedSummary')) {
-            try {
-                $sum = dl_branchConsolidatedSummary($bid, $today);
-                $saTotal = (float)($sum['selling_accounts_total'] ?? 0);
-            } catch (\Throwable $e) {
-                $saTotal = 0.0;
-            }
-        }
         $totalUnitsToday  += $units;
         $totalAmountToday += $amount;
-        $totalSellingAccountsToday += $saTotal;
         $branchCards[] = [
             'name'   => $br['name'],
             'units'  => $units,
             'amount' => $amount,
             'status' => $status,
-            'selling_accounts_total' => $saTotal,
-            'consolidated_total' => $amount + $saTotal,
         ];
     }
 
@@ -4132,8 +4102,6 @@ function handleAdminDashboard(array $params = []): void
         'recent_activity'       => $recentActivity,
         'total_units_today'     => $totalUnitsToday,
         'total_amount_today'    => $totalAmountToday,
-        'total_selling_accounts_today' => $totalSellingAccountsToday,
-        'selling_accounts_enabled' => $sellingAccountsEnabled,
         'business_date_label'   => $clockLabel['business_date'],
         'close_of_day_time'     => $clockLabel['close_of_day_time'],
         'auto_close_enabled'    => $clockLabel['auto_close_enabled'],
@@ -4450,7 +4418,6 @@ function handleAdminSettings(array $params = []): void
         'can_manage_feature_activation' => $canManageFeatureActivation,
         'production_output_enabled' => $featureSettings['production_output_enabled'],
         'formal_delivery_workflow_enabled' => $featureSettings['formal_delivery_workflow_enabled'],
-        'selling_accounts_enabled' => $featureSettings['selling_accounts_enabled'],
         'price_groups_enabled' => $featureSettings['price_groups_enabled'],
         'app_name' => trim((string)(dlModuleSettings()['app_name'] ?? 'Daily Ledger')),
         'logo_url' => dlLogoUrl(),
@@ -4559,7 +4526,6 @@ function apiSaveRolePermissions(array $params = []): void
     $featureSettings = dl_featureSettings();
     $productionOutputEnabled = $featureSettings['production_output_enabled'];
     $formalDeliveryEnabled = $featureSettings['formal_delivery_workflow_enabled'];
-    $sellingAccountsEnabled = $featureSettings['selling_accounts_enabled'];
     $priceGroupsEnabled = $featureSettings['price_groups_enabled'];
 
     if (array_key_exists('production_output_enabled', $input)) {
@@ -4574,7 +4540,6 @@ function apiSaveRolePermissions(array $params = []): void
     }
     foreach ([
         'formal_delivery_workflow_enabled' => &$formalDeliveryEnabled,
-        'selling_accounts_enabled' => &$sellingAccountsEnabled,
         'price_groups_enabled' => &$priceGroupsEnabled,
     ] as $key => &$ref) {
         if (array_key_exists($key, $input)) {
@@ -4622,7 +4587,6 @@ function apiSaveRolePermissions(array $params = []): void
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled ? '1' : '0',
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled ? '1' : '0',
-        'selling_accounts_enabled' => $sellingAccountsEnabled ? '1' : '0',
         'price_groups_enabled' => $priceGroupsEnabled ? '1' : '0',
     ];
 
@@ -4644,7 +4608,6 @@ function apiSaveRolePermissions(array $params = []): void
         'favicon_url' => $faviconUrl,
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
-        'selling_accounts_enabled' => $sellingAccountsEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
         'is_kernel_admin' => $isKernelAdmin,
         'updated_by_role' => (string)($user['role'] ?? ''),
@@ -4663,7 +4626,6 @@ function apiSaveRolePermissions(array $params = []): void
         'operating_region' => $operatingRegion,
         'production_output_enabled' => $productionOutputEnabled,
         'formal_delivery_workflow_enabled' => $formalDeliveryEnabled,
-        'selling_accounts_enabled' => $sellingAccountsEnabled,
         'price_groups_enabled' => $priceGroupsEnabled,
     ]);
 }
@@ -6164,7 +6126,6 @@ function handleAdminUsers(array $params = []): void
     ];
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $sellingAccounts = []; // SA tables dropped — selling accounts are now branches
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -6181,7 +6142,6 @@ function handleAdminUsers(array $params = []): void
         'inactive_count' => (int)($counts['inactive_count'] ?? 0),
         'deleted_count' => (int)($counts['deleted_count'] ?? 0),
         'branches' => $branches,
-        'selling_accounts' => $sellingAccounts,
         'search' => $search,
     ]);
 }
@@ -6238,22 +6198,11 @@ function apiCreateUser(array $params = []): void
         return $v > 0;
     })));
 
-    // Cashiers: require a branch; selling accounts are optional when the feature is enabled
+    // Cashiers must be assigned to a branch
     if ($role === 'cashier' && $branchId <= 0) {
-        if (dl_areSellingAccountsEnabled()) {
-            $sellingAccountIds = $input['selling_account_ids'] ?? [];
-            if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
-            $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
-            if (empty($sellingAccountIds)) {
-                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
-                $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
-                return;
-            }
-        } else {
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
-            $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
-            return;
-        }
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
+        return;
     }
 
     if (in_array($role, ['supervisor', 'production_in_charge'], true) && count($branchIds) === 0) {
@@ -6275,20 +6224,6 @@ function apiCreateUser(array $params = []): void
             $ctx->db()->prepare(
                 'INSERT IGNORE INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)'
             )->execute([':uid' => $newUserId, ':bid' => $branchId]);
-
-            // Optional selling account assignments (only when feature is enabled)
-            if (dl_areSellingAccountsEnabled()) {
-                $sellingAccountIds = $input['selling_account_ids'] ?? [];
-                if (is_array($sellingAccountIds)) {
-                    foreach ($sellingAccountIds as $said) {
-                        $said = (int)$said;
-                        if ($said <= 0) continue;
-                        $ctx->db()->prepare(
-                            'INSERT IGNORE INTO dl_user_selling_accounts (user_id, selling_account_id) VALUES (:uid, :said)'
-                        )->execute([':uid' => $newUserId, ':said' => $said]);
-                    }
-                }
-            }
         } elseif (in_array($role, ['supervisor', 'production_in_charge'], true)) {
             foreach ($branchIds as $bid) {
                 $ctx->db()->prepare(
@@ -6424,20 +6359,9 @@ function apiUpdateUser(array $params = []): void
         })));
 
         if ($role === 'cashier' && $branchId <= 0) {
-            if (dl_areSellingAccountsEnabled()) {
-                $sellingAccountIds = $input['selling_account_ids'] ?? [];
-                if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
-                $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
-                if (empty($sellingAccountIds)) {
-                    header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
-                    $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
-                    return;
-                }
-            } else {
-                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
-                $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
-                return;
-            }
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
+            return;
         }
 
         if (in_array($role, ['supervisor', 'production_in_charge'], true) && count($branchIds) === 0) {
@@ -6466,21 +6390,6 @@ function apiUpdateUser(array $params = []): void
                 $ctx->db()->prepare(
                     'INSERT IGNORE INTO dl_user_branches (user_id, branch_id) VALUES (:uid, :bid)'
                 )->execute([':uid' => $editId, ':bid' => $bid]);
-            }
-
-            // Selling account assignments (cashier only, only when feature is enabled)
-            if ($role === 'cashier' && dl_areSellingAccountsEnabled()) {
-                $ctx->db()->prepare('DELETE FROM dl_user_selling_accounts WHERE user_id = :uid')->execute([':uid' => $editId]);
-                $sellingAccountIds = $input['selling_account_ids'] ?? [];
-                if (is_array($sellingAccountIds)) {
-                    foreach ($sellingAccountIds as $said) {
-                        $said = (int)$said;
-                        if ($said <= 0) continue;
-                        $ctx->db()->prepare(
-                            'INSERT IGNORE INTO dl_user_selling_accounts (user_id, selling_account_id) VALUES (:uid, :said)'
-                        )->execute([':uid' => $editId, ':said' => $said]);
-                    }
-                }
             }
         }
 
