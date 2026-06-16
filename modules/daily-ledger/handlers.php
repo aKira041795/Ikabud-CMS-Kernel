@@ -2383,7 +2383,16 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     $user = dlCurrentUser();
     $input = (array)json_decode(file_get_contents('php://input'), true);
+    $branchId = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Missing branch_id. Ensure the page is loaded with a valid branch selected.'], 422);
+        return;
+    }
     $branchId = dl_resolveLedgerBranchId($user, $input);
+    if ($branchId <= 0) {
+        $ctx->json(['ok' => false, 'error' => 'Unable to resolve branch. Verify your branch assignment.'], 422);
+        return;
+    }
     $date = $input['date'] ?? date('Y-m-d');
     $header = (array)($input['header'] ?? []);
     $lines = (array)($input['lines'] ?? []);
