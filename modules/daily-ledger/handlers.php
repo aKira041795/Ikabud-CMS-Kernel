@@ -1689,6 +1689,23 @@ function dlAuthenticatedHomeRedirect(): ?string
 
     $role = (string)($user['role'] ?? '');
     if ($role === 'cashier') {
+        $userId = dl_getActorUserId($user);
+        if ($userId > 0) {
+            $ctx = module();
+            if ($ctx) {
+                $saStmt = $ctx->db()->prepare(
+                    'SELECT sa.id FROM dl_user_selling_accounts usa
+                      INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
+                     WHERE usa.user_id = :uid AND sa.is_active = 1
+                     ORDER BY sa.name LIMIT 1'
+                );
+                $saStmt->execute([':uid' => $userId]);
+                $saId = $saStmt->fetchColumn();
+                if ($saId) {
+                    return '/daily-ledger/selling-account/ledger?id=' . (int)$saId;
+                }
+            }
+        }
         return '/daily-ledger/ledger';
     }
 
@@ -2198,9 +2215,8 @@ function handleCashierLedger(array $params = []): void
         }
     }
 
-    // Load assigned selling accounts for dispatch dropdown:
-    // - cashiers: only their assigned accounts
-    // - admin/supervisor: all active accounts so they can dispatch to any
+    // Load assigned selling accounts for badges and dispatch dropdown.
+    // Cashiers see their assigned accounts; admins/supervisors see all active.
     $assignedSellingAccounts = [];
     if ($role === 'cashier') {
         $userId = dl_getActorUserId($user);
@@ -2221,6 +2237,11 @@ function handleCashierLedger(array $params = []): void
         );
         $assignedSellingAccounts = $saAllStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
+
+    // Always load ALL active selling accounts for the dispatch destination dropdown.
+    $dispatchSellingAccounts = $ctx->db()->query(
+        'SELECT id, name, account_type FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
@@ -2249,6 +2270,7 @@ function handleCashierLedger(array $params = []): void
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
         'assigned_selling_accounts' => $assignedSellingAccounts,
+        'dispatch_selling_accounts' => $dispatchSellingAccounts,
     ]);
 }
 

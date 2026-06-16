@@ -57,9 +57,9 @@
                                 {/if}
                                 {/foreach}
                                 </optgroup>
-                                {if assigned_selling_accounts}
+                                {if dispatch_selling_accounts}
                                 <optgroup label="Selling Accounts">
-                                {foreach assigned_selling_accounts as sa}
+                                {foreach dispatch_selling_accounts as sa}
                                 <option value="{sa.id}" data-type="selling_account">{sa.name}</option>
                                 {/foreach}
                                 </optgroup>
