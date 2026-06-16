@@ -987,19 +987,17 @@ function apiListDeliveries(array $params = []): void
                    CASE
                        WHEN d.origin_type = "commissary" THEN "Commissary"
                        WHEN d.origin_type IN ("branch", "selling_account") THEN COALESCE(ob.name, CONCAT("Branch #", d.origin_id))
-                       WHEN d.origin_type = "selling_account" THEN COALESCE(osa.name, CONCAT("Selling Account #", d.origin_id))
                        WHEN d.origin_id IS NOT NULL AND d.origin_id > 0 THEN CONCAT(REPLACE(d.origin_type, "_", " "), " #", d.origin_id)
                        ELSE REPLACE(d.origin_type, "_", " ")
                    END AS origin_label,
                    CASE
                        WHEN d.destination_type IN ("branch", "selling_account") THEN COALESCE(db.name, CONCAT("Branch #", d.destination_id))
-                       WHEN d.destination_type = "selling_account" THEN COALESCE(dsa.name, CONCAT("Selling Account #", d.destination_id))
                        WHEN d.destination_id IS NOT NULL AND d.destination_id > 0 THEN CONCAT(REPLACE(d.destination_type, "_", " "), " #", d.destination_id)
                        ELSE REPLACE(d.destination_type, "_", " ")
                    END AS destination_label
               FROM dl_deliveries d
               LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type IN ("branch", "selling_account")
-              LEFT JOIN dl_selling_accounts dsa ON dsa.id = d.destination_id AND d.destination_type = "selling_account"
+              LEFT JOIN dl_branches db ON db.id = d.destination_id AND d.destination_type IN ("branch", "selling_account")
               LEFT JOIN dl_users ru ON ru.id = d.provenance_reviewed_by'
          . (count($where) ? ' WHERE ' . implode(' AND ', $where) : '')
          . ' ORDER BY d.delivery_date DESC, d.id DESC LIMIT 200';

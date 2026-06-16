@@ -2920,7 +2920,7 @@ function apiReceiveDelivery(array $params = []): void
         return;
     }
 
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $receiveDate = dl_businessDate();
 
     if (count($deliveryIds) > 0) {
@@ -3141,8 +3141,8 @@ function apiReceivePaperDelivery(array $params = []): void
                 ':did' => $destinationBranchId,
                 ':dr' => $drNumber,
                 ':dd' => $deliveryDate,
-                ':created_by' => $userId ?: null,
-                ':posted_by' => $userId ?: null,
+                ':created_by' => $actorId ?: null,
+                ':posted_by' => $actorId ?: null,
                 ':remarks' => dl_paperDrCaptureRemark(),
                 ':provenance_status' => 'paper_dr_pending',
             ]);
