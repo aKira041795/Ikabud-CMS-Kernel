@@ -2198,9 +2198,9 @@ function handleCashierLedger(array $params = []): void
         }
     }
 
-    // Load cashier's assigned selling accounts
+    // Load cashier's assigned selling accounts (always, feature flag is UI-only)
     $assignedSellingAccounts = [];
-    if ($role === 'cashier' && dl_areSellingAccountsEnabled()) {
+    if ($role === 'cashier') {
         $userId = (int)($user['id'] ?? 0);
         if ($userId > 0) {
             $saStmt = $ctx->db()->prepare(
