@@ -7266,7 +7266,7 @@ function handleAdminUsage(): void
     $pageData = dl_buildUsagePageData($ctx->db(), $user, $rawDate, $requestedBranchId);
 
     echo dlRender('modules/daily-ledger/admin/usage.disyl', [
-        'page_title' => 'Usage',
+        'page_title' => 'Commissary Usage',
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'csrf_token' => app()->csrfToken(),

@@ -6,8 +6,8 @@
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
-        <h2 class="text-lg font-semibold text-gray-900">Usage & Ingredients</h2>
-        <p class="text-sm text-gray-500">Production runs (input side) — record baker, yield, kilo, and egg per product. Complements Production Output.</p>
+        <h2 class="text-lg font-semibold text-gray-900">Commissary Usage</h2>
+        <p class="text-sm text-gray-500">Track ingredient consumption and production run inputs per date. Dispatch finished goods via Production Output.</p>
     </div>
     <div class="flex items-center gap-2">
         <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage">
@@ -29,8 +29,8 @@
     <div class="card p-0 overflow-hidden flex flex-col">
         <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex flex-col gap-3">
             <div class="flex items-center justify-between">
-                <h3 class="font-medium text-gray-900">Branch Usage Trace</h3>
-                <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+                <h3 class="font-medium text-gray-900">Production Run Inputs</h3>
+                <p class="text-xs text-gray-500">Kilo · Egg · Yield per product batch. Auto-saves on blur.</p>
             </div>
             <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
@@ -47,7 +47,7 @@
                     {/if}
                 </div>
                 <div>
-                    <label class="form-label text-xs">Output Destination <span class="ml-1 text-gray-400 font-normal">(saving a row dispatches yield to this branch)</span></label>
+                    <label class="form-label text-xs">Dispatch Destination <span class="ml-1 text-gray-400 font-normal">(finished goods sent to this branch)</span></label>
                     <select id="commissary-branch" class="form-input font-bold text-indigo-700" onchange="onCommissaryBranchChange(parseInt(this.value, 10) || 0);">
                         <option value="0">— Hold in Commissary (no branch ledger update) —</option>
                         {foreach branches as b}
@@ -122,8 +122,8 @@
 
     <div class="card p-0 overflow-hidden flex flex-col">
         <div class="px-4 py-3 border-b border-gray-200 bg-gray-50">
-            <h3 class="font-medium text-gray-900">Raw Material Counts</h3>
-            <p class="text-xs text-gray-500">Auto-saves on blur.</p>
+            <h3 class="font-medium text-gray-900">Commissary Ingredient Ledger</h3>
+            <p class="text-xs text-gray-500">Raw materials at commissary — beg balance, deliveries, usage, actual count. Auto-saves on blur.</p>
         </div>
         <div class="overflow-y-auto" style="max-height: 600px;">
             <table class="w-full text-sm">
