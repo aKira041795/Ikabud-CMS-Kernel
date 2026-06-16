@@ -733,10 +733,9 @@ function dl_getBranchName(int $branchId): string
 {
     $ctx = module();
     if (!$ctx) return 'Unknown';
-
     $stmt = $ctx->db()->prepare('SELECT name FROM dl_branches WHERE id = :id');
     $stmt->execute([':id' => $branchId]);
-    return (string)($stmt->fetchColumn() ?: 'Unknown');
+    return (string)($stmt->fetchColumn() ?: 'Branch #' . $branchId);
 }
 
 function dl_getDayStatus(int $branchId, string $date): string
@@ -2150,16 +2149,7 @@ function handleCashierLedger(array $params = []): void
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
-    $isSellingAccount = false;
-    if ($branchId > 0) {
-        $saCheck = $ctx->db()->prepare('SELECT name FROM dl_selling_accounts WHERE id = :id AND is_active = 1 LIMIT 1');
-        $saCheck->execute([':id' => $branchId]);
-        $saName = $saCheck->fetchColumn();
-        if ($saName) {
-            $branchName = $saName;
-            $isSellingAccount = true;
-        }
-    }
+    $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
     if ($branchId) {
@@ -2182,23 +2172,9 @@ function handleCashierLedger(array $params = []): void
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
-    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    // All active branches (including former selling accounts) for dispatch dropdown
+    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary, COALESCE(account_type, 'branch') AS type FROM dl_branches WHERE is_active = 1 ORDER BY name");
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    // Merge selling accounts as branch-like entries so they appear in all branch dropdowns
-    $saRows = $ctx->db()->query(
-        'SELECT id, name, account_type FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name'
-    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    foreach ($saRows as $sa) {
-        $allBranches[] = [
-            'id'   => (int)$sa['id'],
-            'code' => 'SA',
-            'name' => $sa['name'],
-            'is_commissary' => 0,
-            'type' => 'selling_account',
-        ];
-    }
-
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     $incomingCount = 0;
@@ -2245,33 +2221,6 @@ function handleCashierLedger(array $params = []): void
         }
     }
 
-    // Load assigned selling accounts for badges and dispatch dropdown.
-    // Cashiers see their assigned accounts; admins/supervisors see all active.
-    $assignedSellingAccounts = [];
-    if ($role === 'cashier') {
-        $userId = dl_getActorUserId($user);
-        if ($userId > 0) {
-            $saStmt = $ctx->db()->prepare(
-                'SELECT sa.id, sa.name, sa.account_type
-                   FROM dl_user_selling_accounts usa
-                   INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
-                  WHERE usa.user_id = :uid AND sa.is_active = 1
-                  ORDER BY sa.name'
-            );
-            $saStmt->execute([':uid' => $userId]);
-            $assignedSellingAccounts = $saStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        }
-    } elseif (in_array($role, ['admin', 'supervisor'], true)) {
-        $saAllStmt = $ctx->db()->query(
-            'SELECT id, name, account_type FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name'
-        );
-        $assignedSellingAccounts = $saAllStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
-
-    // Always load ALL active selling accounts for the dispatch destination dropdown.
-    // Merged into all_branches above — dispatch_selling_accounts kept for backward compat.
-    $dispatchSellingAccounts = $saRows;
-
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -2298,8 +2247,6 @@ function handleCashierLedger(array $params = []): void
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
-        'assigned_selling_accounts' => $assignedSellingAccounts,
-        'dispatch_selling_accounts' => $dispatchSellingAccounts,
     ]);
 }
 
@@ -2319,64 +2266,30 @@ function handleCashierRows(array $params = []): void
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
-    // Check if this is a selling account
-    $isSA = false;
-    if ($branchId > 0) {
-        $saCheck = $ctx->db()->prepare('SELECT 1 FROM dl_selling_accounts WHERE id = :id AND is_active = 1 LIMIT 1');
-        $saCheck->execute([':id' => $branchId]);
-        $isSA = (bool)$saCheck->fetchColumn();
+    if ($branchId) {
+        dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
     }
 
-    if ($isSA) {
-        $dayStatus = 'open';
-        $ds = $ctx->db()->prepare('SELECT status FROM dl_selling_account_day_status WHERE selling_account_id = :a AND ledger_date = :d LIMIT 1');
-        $ds->execute([':a' => $branchId, ':d' => $ledgerDate]);
-        $dayStatus = (string)($ds->fetchColumn() ?: 'open');
-    } else {
-        if ($branchId) {
-            dl_maybeAutoCloseBranchDay($branchId, dl_getActorUserId($user));
-        }
-        $dayStatus = $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open';
-    }
+    $dayStatus = $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open';
 
     if (!$branchId) {
         echo '<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-light);">No branch assigned</td></tr>';
         return;
     }
 
-    // Get all active products with their ledger data
-    if ($isSA) {
-        $stmt = $ctx->db()->prepare(
-            'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
-                    COALESCE(l.beg_qty, 0) AS beg_bal,
-                    COALESCE(l.delivered_qty, 0) AS addtl,
-                    COALESCE(l.return_qty, 0) AS withdraw,
-                    COALESCE(l.end_qty, 0) AS bal_end,
-                    GREATEST(0, COALESCE(l.beg_qty,0) + COALESCE(l.delivered_qty,0) - COALESCE(l.return_qty,0) - COALESCE(l.end_qty,0)) AS sales
-               FROM dl_products p
-               LEFT JOIN dl_selling_account_ledger l
-                      ON l.product_id = p.id AND l.selling_account_id = :bid AND l.ledger_date = :d
-              WHERE p.is_active = 1
-              ORDER BY p.sort_order, p.name'
-        );
-    } else {
-        $stmt = $ctx->db()->prepare(
-            'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
-                    COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
-                    COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
-                    GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot
-               FROM dl_products p
-               INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
-               LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d
-              WHERE p.is_active = 1
-              ORDER BY p.sort_order, p.name'
-        );
-    }
-    if ($isSA) {
-        $stmt->execute([':bid' => $branchId, ':d' => $ledgerDate]);
-    } else {
-        $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
-    }
+    // Get all active products for this branch with their ledger data
+    $stmt = $ctx->db()->prepare(
+        'SELECT p.id AS product_id, p.name, p.current_price, p.sort_order,
+                COALESCE(dl.beg_bal, 0) AS beg_bal, COALESCE(dl.addtl, 0) AS addtl,
+                COALESCE(dl.withdraw, 0) AS withdraw, COALESCE(dl.bal_end, 0) AS bal_end,
+                GREATEST(0, COALESCE(dl.beg_bal,0) + COALESCE(dl.addtl,0) - COALESCE(dl.withdraw,0) - COALESCE(dl.bal_end,0)) AS sales, dl.price_snapshot
+           FROM dl_products p
+           INNER JOIN dl_branch_products bp ON bp.product_id = p.id AND bp.branch_id = :bid AND bp.is_active = 1
+           LEFT JOIN dl_daily_ledger dl ON dl.product_id = p.id AND dl.branch_id = :bid2 AND dl.ledger_date = :d
+          WHERE p.is_active = 1
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':bid' => $branchId, ':bid2' => $branchId, ':d' => $ledgerDate]);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     echo dlRender('modules/daily-ledger/cashier/partials/ledger-rows.disyl', [
