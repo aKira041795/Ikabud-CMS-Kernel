@@ -8195,6 +8195,14 @@ function apiDailyLedgerMe(array $params = []): void
     ]);
 }
 
+function handleBranchSummaryRedirect(): void
+{
+    $ctx = module();
+    if ($ctx) {
+        $ctx->redirect(dlGetBaseUrl() . '/admin/sales');
+    }
+}
+
 function handleAdminWithdrawals(): void
 {
     $ctx = module();
