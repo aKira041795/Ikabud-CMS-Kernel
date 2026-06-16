@@ -1547,7 +1547,9 @@ function apiPriceGroupAssignBranch(array $params = []): void
     try {
         $ctx->db()->prepare('UPDATE dl_branches SET price_group_id = :pg WHERE id = :id AND is_active = 1')
             ->execute([':pg' => $groupId, ':id' => $branchId]);
-        $info = $ctx->db()->prepare('SELECT code, name FROM dl_branches WHERE id = :id')->execute([':id' => $branchId])->fetch(PDO::FETCH_ASSOC);
+        $infoStmt = $ctx->db()->prepare('SELECT code, name FROM dl_branches WHERE id = :id');
+        $infoStmt->execute([':id' => $branchId]);
+        $info = $infoStmt->fetch(PDO::FETCH_ASSOC);
         dl_auditLog('price_group_branch_assigned', $branchId, 'dl_branches', (string)$branchId,
             null, ['price_group_id' => $groupId]);
         $ctx->json(['ok' => true, 'code' => $info['code'] ?? '', 'label' => ($info['code'] ?? '') ? ($info['code'] . ' - ' . $info['name']) : ($info['name'] ?? '')]);

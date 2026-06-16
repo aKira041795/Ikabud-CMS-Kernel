@@ -7319,7 +7319,7 @@ function handleAdminCommissary(): void
         $inventorySql .= ' AND cpl.commissary_branch_id = :cid';
         $inventoryBind[':cid'] = $selectedCommissaryId;
     }
-    $inventorySql .= ' ORDER BY p.name ASC';
+    $inventorySql .= " ORDER BY COALESCE(b.name, 'Commissary') ASC, p.name ASC";
     $inventoryStmt = $db->prepare($inventorySql);
     $inventoryStmt->execute($inventoryBind);
     $inventoryRows = $inventoryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -7402,15 +7402,11 @@ function handleAdminCommissary(): void
                      AND d.delivery_date = :date";
     $pulloutBind = [':date' => $rawDate];
     if ($selectedBranchId > 0) {
-        $pulloutSql .= ' AND d.destination_id = :branch';
+        $pulloutSql .= ' AND d.origin_id = :branch';
         $pulloutBind[':branch'] = $selectedBranchId;
     }
     if ($selectedCommissaryId > 0) {
-        $pulloutSql = str_replace(
-            "WHERE d.destination_type = 'commissary'",
-            "WHERE d.destination_id = :cid AND d.destination_type = 'commissary'",
-            $pulloutSql
-        );
+        $pulloutSql .= ' AND d.destination_id = :cid';
         $pulloutBind[':cid'] = $selectedCommissaryId;
     }
     $pulloutSql .= ' ORDER BY d.delivery_date DESC, ob.name ASC, p.name ASC';
@@ -8179,7 +8175,7 @@ function handleAdminWithdrawals(): void
                    cw.quantity, cw.dr_number,
                    p.name AS product_name,
                    b.name AS branch_name,
-                   u.full_name AS cashier_name
+                   COALESCE(u.full_name, u.username, \'Unknown\') AS cashier_name
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id
