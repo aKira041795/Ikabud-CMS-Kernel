@@ -7295,10 +7295,31 @@ function handleAdminCommissary(): void
 
     $requestedBranchId = (int)($input['branch_id'] ?? 0);
     $requestedCommissaryId = (int)($input['commissary_id'] ?? 0);
-    $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
-    $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $commissariesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY name ASC");
     $commissaries = $commissariesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $selectedCommissaryId = $requestedCommissaryId > 0 ? $requestedCommissaryId : 0;
+
+    // Branches: when commissary selected, show only branches assigned to it OR with DR data from it
+    if ($selectedCommissaryId > 0) {
+        $branchesStmt = $db->prepare(
+            "SELECT DISTINCT b.id, b.name
+               FROM dl_branches b
+               LEFT JOIN dl_deliveries d ON d.destination_id = b.id
+                 AND d.destination_type = 'branch'
+                 AND d.origin_id = :cid
+                 AND d.origin_type = 'commissary'
+                 AND d.status = 'posted'
+                 AND d.delivery_date = :date
+              WHERE b.is_active = 1
+                AND (b.assigned_commissary_id = :cid2 OR d.id IS NOT NULL)
+              ORDER BY b.name ASC"
+        );
+        $branchesStmt->execute([':cid' => $selectedCommissaryId, ':cid2' => $selectedCommissaryId, ':date' => $rawDate]);
+        $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } else {
+        $branchesStmt = $db->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name ASC");
+        $branches = $branchesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
     $availableBranchIds = array_map('intval', array_column($branches, 'id'));
     $selectedBranchId = $requestedBranchId > 0 && in_array($requestedBranchId, $availableBranchIds, true)
         ? $requestedBranchId
