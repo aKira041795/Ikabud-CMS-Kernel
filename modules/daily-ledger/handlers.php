@@ -2201,7 +2201,7 @@ function handleCashierLedger(array $params = []): void
     // Load cashier's assigned selling accounts (always, feature flag is UI-only)
     $assignedSellingAccounts = [];
     if ($role === 'cashier') {
-        $userId = (int)($user['id'] ?? 0);
+        $userId = dl_getActorUserId($user);
         if ($userId > 0) {
             $saStmt = $ctx->db()->prepare(
                 'SELECT sa.id, sa.name, sa.account_type
@@ -2325,7 +2325,7 @@ function handleSellingAccountLedger(array $params = []): void
     }
 
     // Verify access: assigned cashier, or admin/supervisor
-    $userId = (int)($user['id'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $role = (string)($user['role'] ?? '');
     if (!in_array($role, ['admin', 'supervisor'], true)) {
         $accessStmt = $db->prepare('SELECT 1 FROM dl_user_selling_accounts WHERE user_id = :uid AND selling_account_id = :aid LIMIT 1');
@@ -4873,7 +4873,7 @@ function handleAdminVariances(array $params = []): void
     // For supervisors, restrict to their assigned branches if no explicit filter
     $supervisorBranchIds = [];
     if ($isSupervisor) {
-        $userId = (int)($user['id'] ?? 0);
+        $userId = dl_getActorUserId($user);
         $sbStmt = $ctx->db()->prepare(
             'SELECT branch_id FROM dl_user_branches WHERE user_id = :uid'
         );

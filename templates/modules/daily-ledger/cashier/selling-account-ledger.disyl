@@ -42,8 +42,25 @@
     {/if}
 </div>
 
-<div id="ledger-body" hx-get="{base_url}/api/v1/selling-accounts/ledger?selling_account_id={account_id}&date={ledger_date}" hx-trigger="load" hx-swap="innerHTML">
-    <div class="py-12 text-center text-sm text-gray-500">Loading ledger...</div>
+<div class="card">
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th class="text-left w-14">#</th>
+                    <th>Description</th>
+                    <th class="text-right">Beg. Bal</th>
+                    <th class="text-right">Addt'l</th>
+                    <th class="text-right">W/Draw</th>
+                    <th class="text-right">Bal. End</th>
+                    <th class="text-right">Sales</th>
+                </tr>
+            </thead>
+            <tbody id="ledger-body" hx-get="{base_url}/selling-account/rows?selling_account_id={account_id}&date={ledger_date}" hx-trigger="load, refresh from:body" hx-swap="innerHTML">
+                <tr><td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
 </div>
 {/block}
 {block scripts}
@@ -90,6 +107,47 @@
             else { showToast(res.error || 'Failed to reopen', 'error'); }
         })
         .catch(function() { showToast('Network error', 'error'); });
+    }
+
+    function saveSellingAccountField(el) {
+        var productId = el.getAttribute('data-product');
+        var field = el.getAttribute('data-field');
+        var value = el.value;
+        fetch(BASE + '/api/v1/selling-accounts/save', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                selling_account_id: ACCOUNT_ID,
+                product_id: productId,
+                date: LEDGER_DATE,
+                field: field,
+                value: value
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) {
+                el.classList.remove('border-red-400');
+                document.getElementById('global-status').textContent = 'All saved';
+                document.getElementById('global-status').className = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-emerald-50 text-emerald-700 ring-emerald-200';
+                // Refresh the row to get updated computed values
+                htmx.trigger('#ledger-body', 'refresh');
+            } else {
+                el.classList.add('border-red-400');
+                document.getElementById('global-status').textContent = 'Save failed';
+                document.getElementById('global-status').className = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-red-50 text-red-700 ring-red-200';
+            }
+        })
+        .catch(function() {
+            el.classList.add('border-red-400');
+            document.getElementById('global-status').textContent = 'Network error';
+            document.getElementById('global-status').className = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset bg-red-50 text-red-700 ring-red-200';
+        });
     }
 </script>
 {/block}

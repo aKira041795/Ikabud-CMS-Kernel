@@ -1633,11 +1633,20 @@ function apiSellingAccountLedger(array $params = []): void
     if ($accId <= 0) { $ctx->json(['ok' => false, 'error' => 'selling_account_id required'], 422); return; }
 
     $stmt = $ctx->db()->prepare(
-        'SELECT l.product_id, p.name AS product_name, l.price_snapshot,
-                l.beg_qty, l.delivered_qty, l.return_qty, l.end_qty, l.sold_qty, l.gross_amount
-           FROM dl_selling_account_ledger l
-           INNER JOIN dl_products p ON p.id = l.product_id
-          WHERE l.selling_account_id = :a AND l.ledger_date = :d
+        'SELECT p.id AS product_id, p.name AS product_name,
+                COALESCE(l.price_snapshot, p.current_price) AS price_snapshot,
+                COALESCE(l.beg_qty, 0) AS beg_qty,
+                COALESCE(l.delivered_qty, 0) AS delivered_qty,
+                COALESCE(l.return_qty, 0) AS return_qty,
+                COALESCE(l.end_qty, 0) AS end_qty,
+                COALESCE(l.sold_qty, 0) AS sold_qty,
+                COALESCE(l.gross_amount, 0) AS gross_amount
+           FROM dl_products p
+           LEFT JOIN dl_selling_account_ledger l
+                  ON l.product_id = p.id
+                 AND l.selling_account_id = :a
+                 AND l.ledger_date = :d
+          WHERE p.is_active = 1
           ORDER BY p.sort_order, p.name'
     );
     $stmt->execute([':a' => $accId, ':d' => $date]);
@@ -1650,6 +1659,54 @@ function apiSellingAccountLedger(array $params = []): void
     $ctx->json(['ok' => true, 'rows' => $rows, 'status' => $status, 'ledger_date' => $date]);
 }
 
+function handleSellingAccountRows(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser();
+    $accId = (int)($_GET['selling_account_id'] ?? $params['selling_account_id'] ?? 0);
+    $date  = (string)($_GET['date'] ?? $params['date'] ?? date('Y-m-d'));
+    if ($accId <= 0) { echo '<tr><td colspan="7" class="text-center py-10 text-sm text-gray-500">No selling account specified.</td></tr>'; return; }
+
+    $role = (string)($user['role'] ?? '');
+    $referenceOnly = ($role === 'cashier' && $date !== dl_businessDate());
+
+    $db = $ctx->db();
+    $dayStmt = $db->prepare('SELECT status FROM dl_selling_account_day_status WHERE selling_account_id = :a AND ledger_date = :d LIMIT 1');
+    $dayStmt->execute([':a' => $accId, ':d' => $date]);
+    $dayStatus = (string)($dayStmt->fetchColumn() ?: 'open');
+
+    $stmt = $db->prepare(
+        'SELECT p.id AS product_id, p.name,
+                COALESCE(l.price_snapshot, p.current_price) AS price_snapshot,
+                COALESCE(l.beg_qty, 0) AS beg_bal,
+                COALESCE(l.delivered_qty, 0) AS addtl,
+                COALESCE(l.return_qty, 0) AS withdraw,
+                COALESCE(l.end_qty, 0) AS bal_end,
+                GREATEST(0, COALESCE(l.beg_qty,0) + COALESCE(l.delivered_qty,0) - COALESCE(l.return_qty,0) - COALESCE(l.end_qty,0)) AS sales,
+                COALESCE(l.sold_qty, 0) AS sold_qty,
+                COALESCE(l.gross_amount, 0) AS gross_amount,
+                COALESCE(l.beg_qty, 0) AS beg_qty,
+                COALESCE(l.return_qty, 0) AS return_qty,
+                COALESCE(l.end_qty, 0) AS end_qty
+           FROM dl_products p
+           LEFT JOIN dl_selling_account_ledger l
+                  ON l.product_id = p.id
+                 AND l.selling_account_id = :a
+                 AND l.ledger_date = :d
+          WHERE p.is_active = 1
+          ORDER BY p.sort_order, p.name'
+    );
+    $stmt->execute([':a' => $accId, ':d' => $date]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    echo dlRender('modules/daily-ledger/cashier/partials/selling-account-rows.disyl', [
+        'rows' => $rows,
+        'day_status' => $dayStatus,
+        'reference_only' => $referenceOnly,
+    ]);
+}
+
 function apiSellingAccountSaveField(array $params = []): void
 {
     $ctx = module();
@@ -1659,7 +1716,7 @@ function apiSellingAccountSaveField(array $params = []): void
         return;
     }
     $user = dlCurrentUser();
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $accId = (int)($input['selling_account_id'] ?? 0);
     $productId = (int)($input['product_id'] ?? 0);
@@ -1744,7 +1801,7 @@ function apiSellingAccountCloseDay(array $params = []): void
         return;
     }
     $user = dlCurrentUser(['supervisor','admin']);
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $accId = (int)($input['selling_account_id'] ?? 0);
     $date  = (string)($input['date'] ?? date('Y-m-d'));
@@ -1772,7 +1829,7 @@ function apiSellingAccountReopenDay(array $params = []): void
         return;
     }
     $user = dlCurrentUser(['admin']);
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $accId = (int)($input['selling_account_id'] ?? 0);
     $date  = (string)($input['date'] ?? date('Y-m-d'));
