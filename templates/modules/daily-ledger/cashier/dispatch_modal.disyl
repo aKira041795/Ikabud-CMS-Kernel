@@ -57,13 +57,11 @@
                                 {/if}
                                 {/foreach}
                                 </optgroup>
-                                {if dispatch_selling_accounts}
                                 <optgroup label="Selling Accounts">
                                 {foreach dispatch_selling_accounts as sa}
                                 <option value="{sa.id}" data-type="selling_account">{sa.name}</option>
                                 {/foreach}
                                 </optgroup>
-                                {/if}
                             </select>                        </div>                    </div>
 
                     <div class="mb-3 bg-gray-50 rounded-lg p-3">
