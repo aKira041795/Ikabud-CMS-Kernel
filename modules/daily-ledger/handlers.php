@@ -7222,8 +7222,7 @@ function handleAdminCommissary(): void
     $selectedCommissaryId = $requestedCommissaryId > 0 ? $requestedCommissaryId : 0;
 
     // ── Tab 1: Inventory (commissary product ledger) ──
-    $inventoryStmt = $db->prepare(
-        "SELECT cpl.commissary_branch_id,
+    $inventorySql = "SELECT cpl.commissary_branch_id,
                 COALESCE(b.name, 'Commissary') AS commissary_name,
                 cpl.product_id,
                 p.name AS product_name,
@@ -7243,9 +7242,7 @@ function handleAdminCommissary(): void
                 GROUP BY commissary_branch_id, product_id
            ) cum ON cum.commissary_branch_id = cpl.commissary_branch_id AND cum.product_id = cpl.product_id
           WHERE cpl.ledger_date = :date
-            AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)
-          ORDER BY p.name ASC"
-    );
+            AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0 OR cpl.wastage_qty > 0)";
     $inventoryBind = [':date' => $rawDate];
     if ($selectedCommissaryId > 0) {
         $inventorySql .= ' AND cpl.commissary_branch_id = :cid';
@@ -7254,6 +7251,7 @@ function handleAdminCommissary(): void
     $inventorySql .= ' ORDER BY p.name ASC';
     $inventoryStmt = $db->prepare($inventorySql);
     $inventoryStmt->execute($inventoryBind);
+    $inventoryRows = $inventoryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // ── Cumulative stock (all dates) for dispatch dropdown ──
     $cumulativeStockStmt = $db->prepare(
