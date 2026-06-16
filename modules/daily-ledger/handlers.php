@@ -2198,7 +2198,9 @@ function handleCashierLedger(array $params = []): void
         }
     }
 
-    // Load cashier's assigned selling accounts (always, feature flag is UI-only)
+    // Load assigned selling accounts for dispatch dropdown:
+    // - cashiers: only their assigned accounts
+    // - admin/supervisor: all active accounts so they can dispatch to any
     $assignedSellingAccounts = [];
     if ($role === 'cashier') {
         $userId = dl_getActorUserId($user);
@@ -2213,6 +2215,11 @@ function handleCashierLedger(array $params = []): void
             $saStmt->execute([':uid' => $userId]);
             $assignedSellingAccounts = $saStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
         }
+    } elseif (in_array($role, ['admin', 'supervisor'], true)) {
+        $saAllStmt = $ctx->db()->query(
+            'SELECT id, name, account_type FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name'
+        );
+        $assignedSellingAccounts = $saAllStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
