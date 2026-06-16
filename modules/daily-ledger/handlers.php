@@ -6382,14 +6382,15 @@ function dlUserIdentityConflict(int $excludeUserId, string $username, ?string $e
         'SELECT id
          FROM dl_users
          WHERE id <> :exclude_id
-           AND ((:email <> "" AND username = :email)
-             OR (email IS NOT NULL AND email = :username))
+           AND ((:check_email <> "" AND username = :check_email2)
+             OR (email IS NOT NULL AND email = :check_username))
          LIMIT 1'
     );
     $stmt->execute([
         ':exclude_id' => max(0, $excludeUserId),
-        ':email' => $email ?? '',
-        ':username' => $username,
+        ':check_email' => $email ?? '',
+        ':check_email2' => $email ?? '',
+        ':check_username' => $username,
     ]);
 
     return $stmt->fetch(PDO::FETCH_ASSOC) ? 'Username or email conflicts with another account.' : null;
