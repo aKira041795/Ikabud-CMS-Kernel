@@ -22,17 +22,7 @@
 
     <div class="flex flex-wrap items-center gap-2">
         <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">{branch_name}</span>
-        {if assigned_selling_accounts | count > 0}
-        <div class="flex flex-wrap items-center gap-1.5 mt-1">
-            <span class="text-xs text-gray-500">Selling Accounts:</span>
-            {foreach assigned_selling_accounts as sa}
-            <a href="{base_url}/selling-account/ledger?id={sa.id}&date={ledger_date}"
-               class="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 hover:bg-violet-100">
-                {sa.name} <span class="ml-1 text-violet-400">→</span>
-            </a>
-            {/foreach}
-        </div>
-        {/if}
+
         {if is_cashier}
         <input type="date" class="form-input mt-0 w-auto min-w-40" id="ledger-date" value="{ledger_date}" max="{today}"
                hx-get="{base_url}/ledger"

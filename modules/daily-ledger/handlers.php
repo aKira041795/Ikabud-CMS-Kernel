@@ -1707,23 +1707,6 @@ function dlAuthenticatedHomeRedirect(): ?string
 
     $role = (string)($user['role'] ?? '');
     if ($role === 'cashier') {
-        $userId = dl_getActorUserId($user);
-        if ($userId > 0) {
-            $ctx = module();
-            if ($ctx) {
-                $saStmt = $ctx->db()->prepare(
-                    'SELECT sa.id FROM dl_user_selling_accounts usa
-                      INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
-                     WHERE usa.user_id = :uid AND sa.is_active = 1
-                     ORDER BY sa.name LIMIT 1'
-                );
-                $saStmt->execute([':uid' => $userId]);
-                $saId = $saStmt->fetchColumn();
-                if ($saId) {
-                    return '/daily-ledger/selling-account/ledger?id=' . (int)$saId;
-                }
-            }
-        }
         return '/daily-ledger/ledger';
     }
 
@@ -2164,9 +2147,20 @@ function handleCashierLedger(array $params = []): void
 
     $input = $ctx->input();
     $branchId   = dl_resolveLedgerBranchId($user, $input);
-    $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
+
+    // If the resolved "branch" is actually a selling account, redirect to its ledger
+    if ($branchId > 0) {
+        $saCheck = $ctx->db()->prepare('SELECT 1 FROM dl_selling_accounts WHERE id = :id AND is_active = 1 LIMIT 1');
+        $saCheck->execute([':id' => $branchId]);
+        if ($saCheck->fetchColumn()) {
+            $ctx->redirect(dlGetBaseUrl() . '/selling-account/ledger?id=' . $branchId . '&date=' . $ledgerDate);
+            return;
+        }
+    }
+
+    $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
     if ($branchId) {
