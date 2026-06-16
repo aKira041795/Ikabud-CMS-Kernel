@@ -1876,24 +1876,9 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
         ];
     }
 
-    $accStmt = $ctx->db()->prepare(
-        'SELECT a.id, a.name, a.account_type,
-                COALESCE(SUM(l.sold_qty), 0) AS sold_qty,
-                COALESCE(SUM(l.gross_amount), 0) AS gross_amount
-           FROM dl_selling_accounts a
-           LEFT JOIN dl_selling_account_ledger l
-             ON l.selling_account_id = a.id AND l.ledger_date = :d
-          WHERE a.assigned_branch_id = :b AND a.is_active = 1
-          GROUP BY a.id, a.name, a.account_type
-          ORDER BY a.name'
-    );
-    $accStmt->execute([':b' => $branchId, ':d' => $date]);
-    $accounts = $accStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
+    // Selling accounts are now regular branches — no separate SA aggregates
+    $accounts = [];
     $accountsTotal = 0.0;
-    foreach ($accounts as $a) {
-        $accountsTotal += (float)$a['gross_amount'];
-    }
 
     return [
         'branch_id' => $branchId,
@@ -2000,10 +1985,7 @@ function handleAdminDeliveries(array $params = []): void
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
 
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $accounts = [];
-    if (dl_areSellingAccountsEnabled()) {
-        $accounts = $ctx->db()->query('SELECT id, name, account_type, assigned_branch_id FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+    $accounts = $ctx->db()->query('SELECT id, name, account_type, NULL AS assigned_branch_id FROM dl_branches WHERE is_active = 1 AND account_type IS NOT NULL ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
@@ -2051,8 +2033,8 @@ function handleAdminPriceGroups(array $params = []): void
              ) AS branch_usage ON branch_usage.price_group_id = pg.id
              LEFT JOIN (
                 SELECT price_group_id, COUNT(*) AS selling_account_count
-                  FROM dl_selling_accounts
-                 WHERE price_group_id IS NOT NULL AND is_active = 1
+                  FROM dl_branches
+                 WHERE price_group_id IS NOT NULL AND is_active = 1 AND account_type IS NOT NULL
                  GROUP BY price_group_id
              ) AS account_usage ON account_usage.price_group_id = pg.id
             ORDER BY pg.is_default DESC, pg.name'
