@@ -6320,6 +6320,9 @@ function handleAdminUsers(array $params = []): void
     ];
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $sellingAccounts = dl_areSellingAccountsEnabled()
+        ? $ctx->db()->query('SELECT id, name, account_type, assigned_branch_id FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: []
+        : [];
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
@@ -6336,6 +6339,7 @@ function handleAdminUsers(array $params = []): void
         'inactive_count' => (int)($counts['inactive_count'] ?? 0),
         'deleted_count' => (int)($counts['deleted_count'] ?? 0),
         'branches' => $branches,
+        'selling_accounts' => $sellingAccounts,
         'search' => $search,
     ]);
 }
