@@ -61,6 +61,7 @@ return [
         // Phase E: selling accounts
         '/daily-ledger/api/v1/selling-accounts'           => 'daily-ledger:apiSellingAccountList',
         '/daily-ledger/api/v1/selling-accounts/ledger'    => 'daily-ledger:apiSellingAccountLedger',
+        '/daily-ledger/selling-account/ledger'             => 'daily-ledger:handleSellingAccountLedger',
 
         // Phase F: branch consolidated summary
         '/daily-ledger/api/v1/admin/branch-summary' => 'daily-ledger:apiBranchConsolidatedSummary',

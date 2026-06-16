@@ -1,0 +1,92 @@
+{extends "modules/daily-ledger/layouts/app.disyl"}
+{block head}
+{/block}
+{block content}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h2 class="text-lg font-semibold text-gray-900">{account.name} <span class="text-sm font-normal text-gray-500">— Selling Account</span></h2>
+        <p class="text-sm text-gray-500">{account.account_type|default:'Account'} · Assigned to branch via delivery workflow</p>
+        <p class="text-xs text-gray-500 mt-1">
+            Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
+            · Cutoff: <span class="font-medium text-gray-700">{close_of_day_time}</span>
+        </p>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{base_url}/ledger" class="btn btn-outline">Back to Branch Ledger</a>
+    </div>
+</div>
+
+<div class="flex flex-wrap items-center gap-2 mb-4">
+    <span class="inline-flex items-center rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 ring-1 ring-inset ring-indigo-200">{account.name}</span>
+    {if day_status == 'closed'}
+    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Closed</span>
+    {/if}
+    {if reference_only}
+    <span class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-inset ring-slate-300">Reference only</span>
+    {/if}
+    <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200" id="global-status">All saved</span>
+</div>
+
+<div class="mb-4 flex items-center gap-3">
+    <label class="text-sm font-medium text-gray-700">Date:</label>
+    <input type="date" id="sa-ledger-date" class="form-input w-48" value="{ledger_date}"
+        onchange="window.location.href='{base_url}/selling-account/ledger?id={account_id}&date='+this.value">
+    {if day_status != 'closed' && !reference_only}
+    <button type="button" class="btn btn-outline ml-auto" onclick="closeDay()">Close Day</button>
+    {/if}
+    {if day_status == 'closed' && (user_role == 'admin' || user_role == 'supervisor')}
+    <button type="button" class="btn btn-outline ml-auto" onclick="reopenDay()">Reopen Day</button>
+    {/if}
+</div>
+
+<div id="ledger-body" hx-get="{base_url}/api/v1/selling-accounts/ledger?id={account_id}&date={ledger_date}" hx-trigger="load" hx-swap="innerHTML">
+    <div class="py-12 text-center text-sm text-gray-500">Loading ledger...</div>
+</div>
+{/block}
+{block scripts}
+<script>
+    var BASE = '{base_url}';
+    var LEDGER_DATE = '{ledger_date}';
+    var ACCOUNT_ID = '{account_id}';
+
+    function closeDay() {
+        if (!confirm('Close the day for {account.name}? This locks all entries for ' + LEDGER_DATE + '.')) return;
+        fetch(BASE + '/api/v1/selling-accounts/close-day', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ selling_account_id: ACCOUNT_ID, date: LEDGER_DATE })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { showToast('Day closed'); window.location.reload(); }
+            else { showToast(res.error || 'Failed to close day', 'error'); }
+        })
+        .catch(function() { showToast('Network error', 'error'); });
+    }
+
+    function reopenDay() {
+        if (!confirm('Reopen the day for {account.name}?')) return;
+        fetch(BASE + '/api/v1/admin/selling-accounts/reopen-day', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({ selling_account_id: ACCOUNT_ID, date: LEDGER_DATE })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { showToast('Day reopened'); window.location.reload(); }
+            else { showToast(res.error || 'Failed to reopen', 'error'); }
+        })
+        .catch(function() { showToast('Network error', 'error'); });
+    }
+</script>
+{/block}
