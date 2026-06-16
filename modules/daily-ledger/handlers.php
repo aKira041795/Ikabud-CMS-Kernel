@@ -7361,7 +7361,7 @@ function handleAdminCommissary(): void
         return;
     }
 
-    $user = dlCurrentUser(['admin', 'supervisor']);
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $db = $ctx->db();
     $input = $ctx->input();
     $rawDate = (string)($input['date'] ?? '');
