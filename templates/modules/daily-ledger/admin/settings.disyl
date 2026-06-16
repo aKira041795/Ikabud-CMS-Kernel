@@ -392,10 +392,6 @@
         if (featurePriceGroups) {
             payload.price_groups_enabled = featurePriceGroups.checked;
         }
-        var featureSellingAccounts = document.getElementById('feature-selling-accounts');
-        if (featureSellingAccounts) {
-            payload.selling_accounts_enabled = featureSellingAccounts.checked;
-        }
 
         var appNameInput = document.getElementById('app-name');
         if (appNameInput) {

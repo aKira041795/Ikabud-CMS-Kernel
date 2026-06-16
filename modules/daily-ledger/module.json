@@ -172,13 +172,6 @@
       "description": "Switch deliveries and branch receipts onto the dl_deliveries / dl_branch_receivings tables with draft/posted/voided status. When off, the legacy cashier-withdrawal delivery flow continues to apply."
     },
     {
-      "key": "selling_accounts_enabled",
-      "type": "checkbox",
-      "label": "Enable Selling Accounts (Mall, Kiosk, Event Booth, etc.)",
-      "default": "0",
-      "description": "Expose selling-account ledgers, separate price groups, and consolidated branch summaries that include their assigned selling accounts."
-    },
-    {
       "key": "price_groups_enabled",
       "type": "checkbox",
       "label": "Enable Channel Price Groups",

@@ -25,7 +25,7 @@ return [
         '/daily-ledger/admin/branches'             => 'daily-ledger:handleAdminBranches',
         '/daily-ledger/admin/deliveries'           => 'daily-ledger:handleAdminDeliveries',
         '/daily-ledger/admin/price-groups'         => 'daily-ledger:handleAdminPriceGroups',
-        '/daily-ledger/admin/selling-accounts'     => 'daily-ledger:handleAdminSellingAccounts',
+
         '/daily-ledger/admin/users'                => 'daily-ledger:handleAdminUsers',
         '/daily-ledger/admin/activity'             => 'daily-ledger:handleAdminActivity',
         '/daily-ledger/admin/settings'             => 'daily-ledger:handleAdminSettings',
@@ -58,11 +58,6 @@ return [
         '/daily-ledger/api/v1/price-groups'         => 'daily-ledger:apiPriceGroupList',
         '/daily-ledger/api/v1/product-prices'       => 'daily-ledger:apiProductPriceList',
 
-        // Phase E: selling accounts
-        '/daily-ledger/api/v1/selling-accounts'           => 'daily-ledger:apiSellingAccountList',
-        '/daily-ledger/api/v1/selling-accounts/ledger'    => 'daily-ledger:apiSellingAccountLedger',
-        '/daily-ledger/selling-account/ledger'             => 'daily-ledger:handleSellingAccountLedger',
-        '/daily-ledger/selling-account/rows'               => 'daily-ledger:handleSellingAccountRows',
 
         // Phase F: branch consolidated summary
         '/daily-ledger/api/v1/admin/branch-summary' => 'daily-ledger:apiBranchConsolidatedSummary',
@@ -143,11 +138,5 @@ return [
         '/daily-ledger/api/v1/admin/price-groups/update'  => 'daily-ledger:apiPriceGroupUpdate',
         '/daily-ledger/api/v1/admin/product-prices'       => 'daily-ledger:apiProductPriceUpsert',
 
-        // Phase E: selling accounts
-        '/daily-ledger/api/v1/admin/selling-accounts'     => 'daily-ledger:apiSellingAccountCreate',
-        '/daily-ledger/api/v1/admin/selling-accounts/update' => 'daily-ledger:apiSellingAccountUpdate',
-        '/daily-ledger/api/v1/selling-accounts/save'      => 'daily-ledger:apiSellingAccountSaveField',
-        '/daily-ledger/api/v1/selling-accounts/close-day' => 'daily-ledger:apiSellingAccountCloseDay',
-        '/daily-ledger/api/v1/admin/selling-accounts/reopen-day' => 'daily-ledger:apiSellingAccountReopenDay',
     ],
 ];
