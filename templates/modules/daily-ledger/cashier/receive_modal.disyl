@@ -124,7 +124,6 @@
                         </template>
                     </div>
 
-                    {if formal_delivery_enabled}
                     <div class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
                         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
@@ -217,7 +216,6 @@
                             </div>
                         </div>
                     </div>
-                    {/if}
                 </div>
 
                 <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse">

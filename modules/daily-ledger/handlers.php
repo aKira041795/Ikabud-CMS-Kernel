@@ -3147,10 +3147,6 @@ function apiReceivePaperDelivery(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser();
-    if (!dl_isFormalDeliveryEnabled()) {
-        $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled for branch deliveries.'], 403);
-        return;
-    }
 
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $destinationBranchId = dl_resolveLedgerBranchId($user, $input);
@@ -3160,7 +3156,6 @@ function apiReceivePaperDelivery(array $params = []): void
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $receiveDate = (string)($input['receive_date'] ?? dl_businessDate());
     $items = dl_normalizeDeliveryItems((array)($input['items'] ?? []));
-    $userId = (int)($user['sub'] ?? 0);
     $actorId = dl_getActorUserId($user);
     $role = (string)($user['role'] ?? '');
     $isAdminUser = $role === 'admin' || dl_isKernelAdmin($user);
