@@ -933,6 +933,76 @@ function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, 
     return [$column => $newVal];
 }
 
+function dl_applyCommissaryProductLedgerDelta(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $commissaryBranchId,
+    int $productId,
+    string $ledgerDate,
+    int $producedDelta,
+    int $dispatchedDelta,
+    int $actorId
+): array {
+    if ($commissaryBranchId <= 0 || $productId <= 0 || $ledgerDate === '') {
+        return ['produced_qty' => 0, 'dispatched_qty' => 0, 'remaining_qty' => 0, 'skipped' => true];
+    }
+
+    // Verify the branch is actually a commissary
+    $checkStmt = $db->prepare('SELECT id FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1');
+    $checkStmt->execute([':id' => $commissaryBranchId]);
+    if (!$checkStmt->fetchColumn()) {
+        return ['produced_qty' => 0, 'dispatched_qty' => 0, 'remaining_qty' => 0, 'skipped' => true];
+    }
+
+    $select = $db->prepare(
+        'SELECT id, produced_qty, dispatched_qty
+           FROM dl_commissary_product_ledger
+          WHERE commissary_branch_id = :cb AND product_id = :pid AND ledger_date = :d
+          LIMIT 1
+          FOR UPDATE'
+    );
+    $select->execute([':cb' => $commissaryBranchId, ':pid' => $productId, ':d' => $ledgerDate]);
+    $row = $select->fetch(PDO::FETCH_ASSOC) ?: null;
+
+    if (!$row) {
+        if ($producedDelta < 0 || $dispatchedDelta < 0) {
+            throw new \RuntimeException('Cannot reverse commissary production before any output exists for this date.');
+        }
+        $newProduced = max(0, $producedDelta);
+        $newDispatched = max(0, $dispatchedDelta);
+        $db->prepare(
+            'INSERT INTO dl_commissary_product_ledger
+                (commissary_branch_id, product_id, ledger_date, produced_qty, dispatched_qty, updated_by)
+             VALUES (:cb, :pid, :d, :prod, :disp, :uid)'
+        )->execute([
+            ':cb' => $commissaryBranchId,
+            ':pid' => $productId,
+            ':d' => $ledgerDate,
+            ':prod' => $newProduced,
+            ':disp' => $newDispatched,
+            ':uid' => $actorId > 0 ? $actorId : null,
+        ]);
+        return ['produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'remaining_qty' => $newProduced - $newDispatched, 'skipped' => false];
+    }
+
+    $currentProduced = (int)$row['produced_qty'];
+    $currentDispatched = (int)$row['dispatched_qty'];
+    $newProduced = max(0, $currentProduced + $producedDelta);
+    $newDispatched = max(0, $currentDispatched + $dispatchedDelta);
+
+    $db->prepare(
+        'UPDATE dl_commissary_product_ledger
+            SET produced_qty = :prod, dispatched_qty = :disp, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
+          WHERE id = :id'
+    )->execute([
+        ':prod' => $newProduced,
+        ':disp' => $newDispatched,
+        ':uid' => $actorId > 0 ? $actorId : null,
+        ':id' => (int)$row['id'],
+    ]);
+
+    return ['produced_qty' => $newProduced, 'dispatched_qty' => $newDispatched, 'remaining_qty' => $newProduced - $newDispatched, 'skipped' => false];
+}
+
 function dl_processProductionMovement(array $user, string $movementType, array $input): array
 {
     $ctx = module();
@@ -1030,10 +1100,33 @@ function dl_processProductionMovement(array $user, string $movementType, array $
         }
     }
 
+    // Resolve commissary for output movements — credit commissary finished-goods ledger
+    $commissaryBranchId = null;
+    $isCommissaryDirectOutput = false;
+    if ($movementType === 'output') {
+        $commCheckStmt = $ctx->db()->prepare(
+            'SELECT id, is_commissary, default_supply_mode, assigned_commissary_id
+               FROM dl_branches WHERE id = :id AND is_active = 1 LIMIT 1'
+        );
+        $commCheckStmt->execute([':id' => $destinationBranchId]);
+        $destBranch = $commCheckStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        if ($destBranch && (int)($destBranch['is_commissary'] ?? 0) === 1) {
+            $commissaryBranchId = $destinationBranchId;
+            $isCommissaryDirectOutput = true;
+        } else {
+            $supply = dl_resolveProductSupplySource($destinationBranchId, $productId);
+            if ($supply['source'] === 'commissary' && $supply['source_id'] !== null) {
+                $commissaryBranchId = (int)$supply['source_id'];
+            }
+        }
+    }
+
     $shouldAutoCreateFormalDelivery = $movementType === 'output'
         && $referenceMovementId === null
         && $formalDeliveryEnabled
-        && $drNumber !== '';
+        && $drNumber !== ''
+        && !$isCommissaryDirectOutput;
     if ($movementType === 'reverse') {
         if ($reason === '') {
             throw new \RuntimeException('Reverse requires an override reason.');
@@ -1101,11 +1194,43 @@ function dl_processProductionMovement(array $user, string $movementType, array $
 
     $ctx->db()->beginTransaction();
     try {
-        if ($shouldAutoCreateFormalDelivery) {
-            // Do NOT update addtl directly — the branch must accept the delivery
-            // via Receive Stock first. dl_upsertCommissaryOutputDeliveryItem below
-            // creates the posted delivery, and dl_acceptFormalDelivery will update
-            // addtl when the branch cashier receives it.
+        // Credit commissary finished-goods ledger for output movements
+        $commissaryLedgerState = null;
+        if ($movementType === 'output' && $commissaryBranchId !== null) {
+            $commissaryLedgerState = dl_applyCommissaryProductLedgerDelta(
+                $ctx->db(),
+                $commissaryBranchId,
+                $productId,
+                $ledgerDate,
+                $delta,  // produced_qty += quantity
+                0,       // dispatched_qty tracked separately via delivery
+                $actorId
+            );
+
+            if (empty($commissaryLedgerState['skipped'])) {
+                dl_auditLog(
+                    'commissary_production',
+                    $commissaryBranchId,
+                    'dl_commissary_product_ledger',
+                    "{$commissaryBranchId}-{$productId}-{$ledgerDate}",
+                    null,
+                    [
+                        'commissary_branch_id' => $commissaryBranchId,
+                        'product_id' => $productId,
+                        'ledger_date' => $ledgerDate,
+                        'produced_qty' => $commissaryLedgerState['produced_qty'],
+                        'dispatched_qty' => $commissaryLedgerState['dispatched_qty'],
+                        'remaining_qty' => $commissaryLedgerState['remaining_qty'],
+                        'movement_id' => null, // will be set after insert
+                    ]
+                );
+            }
+        }
+
+        if ($shouldAutoCreateFormalDelivery || $isCommissaryDirectOutput) {
+            // Do NOT update addtl directly — commissary production is tracked
+            // in dl_commissary_product_ledger. Branch receives addtl only when
+            // it accepts a delivery via Receive Stock.
             $ledgerState = [$ledgerColumn => 0];
         } else {
             $ledgerState = dl_applyLedgerDelta($destinationBranchId, $productId, $ledgerDate, $delta, $actorId, $ledgerColumn);
@@ -1153,7 +1278,8 @@ function dl_processProductionMovement(array $user, string $movementType, array $
                 $quantity,
                 $drNumber,
                 $actorId,
-                $movementId
+                $movementId,
+                $commissaryBranchId
             );
         }
 
@@ -1211,7 +1337,8 @@ function dl_upsertCommissaryOutputDeliveryItem(
     int $quantity,
     string $drNumber,
     int $actorId,
-    int $movementId
+    int $movementId,
+    ?int $commissaryBranchId = null
 ): int {
     if ($branchId <= 0 || $productId <= 0 || $quantity <= 0 || trim($drNumber) === '') {
         throw new \RuntimeException('Formal production output delivery requires branch, product, quantity, and DR number.');
@@ -1251,12 +1378,18 @@ function dl_upsertCommissaryOutputDeliveryItem(
             ]);
         }
 
+        // Debit commissary dispatched_qty for the added quantity
+        if ($commissaryBranchId !== null) {
+            dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $deliveryDate, 0, $quantity, $actorId);
+        }
+
         dl_auditLog('update_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
             'dr_number' => $drNumber,
             'source' => 'production_output',
             'movement_id' => $movementId,
             'product_id' => $productId,
             'quantity_added' => $quantity,
+            'commissary_branch_id' => $commissaryBranchId,
         ]);
 
         return $deliveryId;
@@ -1274,11 +1407,12 @@ function dl_upsertCommissaryOutputDeliveryItem(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
                  delivery_date, status, created_by, posted_by, posted_at, remarks)
-             VALUES (:origin_type, NULL, :destination_type, :destination_id, :dr_number,
+             VALUES (:origin_type, :origin_id, :destination_type, :destination_id, :dr_number,
                      :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
         );
         $stmt->execute([
             ':origin_type' => 'commissary',
+            ':origin_id' => $commissaryBranchId,
             ':destination_type' => 'branch',
             ':destination_id' => $branchId,
             ':dr_number' => $drNumber,
@@ -1294,7 +1428,13 @@ function dl_upsertCommissaryOutputDeliveryItem(
             'status' => 'posted',
             'source' => 'production_output',
             'movement_id' => $movementId,
+            'commissary_branch_id' => $commissaryBranchId,
         ]);
+    }
+
+    // Debit commissary dispatched_qty for the new delivery
+    if ($commissaryBranchId !== null) {
+        dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $productId, $deliveryDate, 0, $quantity, $actorId);
     }
 
     $itemStmt = $db->prepare(
@@ -2641,6 +2781,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                                  WHEN d.origin_type = "commissary" THEN "Commissary"
                                  ELSE COALESCE(ob.name, d.origin_type)
                              END AS origin_branch_name,
+                             di.id AS delivery_item_id,
                              di.product_id, p.name AS product_name, di.quantity
                       FROM dl_deliveries d
                       INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
@@ -2674,7 +2815,7 @@ function apiGetIncomingDeliveries(array $params = []): void
                 ];
             }
             $groups[$key]['items'][] = [
-                'id' => (int)$row['delivery_id'],
+                'id' => (int)$row['delivery_item_id'],
                 'product_id' => (int)$row['product_id'],
                 'product_name' => $row['product_name'],
                 'quantity' => (int)$row['quantity'],
@@ -4202,7 +4343,7 @@ function handleAdminProductionOutput(array $params = []): void
         $branchStmt = $ctx->db()->prepare(
             "SELECT id, code, name, COALESCE(area, '') AS area
              FROM dl_branches
-             WHERE is_active = 1 AND id IN ({$placeholders})
+             WHERE is_active = 1 AND is_commissary = 1 AND id IN ({$placeholders})
              ORDER BY area, name"
         );
         $branchStmt->execute($allowedBranchIds);
@@ -5086,6 +5227,7 @@ function handleAdminActivity(array $params = []): void
         'dl_production_movements' => 'production movement',
         'dl_production_runs' => 'production run',
         'dl_commissary_ledger' => 'commissary material',
+        'dl_commissary_product_ledger' => 'commissary product inventory',
         'dl_ledger_day_status' => 'day status',
         'module_settings' => 'settings',
     ];
@@ -5146,6 +5288,16 @@ function handleAdminActivity(array $params = []): void
                 $summary = 'Saved commissary material count';
                 $badgeLabel = 'Material';
                 $badgeClasses = 'bg-sky-50 text-sky-800 ring-sky-200';
+                break;
+            case 'commissary_production':
+                $summary = 'Recorded commissary production';
+                $badgeLabel = 'Production';
+                $badgeClasses = 'bg-amber-50 text-amber-800 ring-amber-200';
+                break;
+            case 'commissary_dispatch':
+                $summary = 'Dispatched from commissary to branch';
+                $badgeLabel = 'Dispatch';
+                $badgeClasses = 'bg-violet-50 text-violet-800 ring-violet-200';
                 break;
             case 'create_delivery':
             case 'delivery_created':
@@ -7029,128 +7181,205 @@ function handleAdminCommissary(): void
         ? $requestedBranchId
         : 0;
 
-    $yieldSql = "SELECT pr.id, pr.ledger_date, pr.product_id, p.name AS product_name,
-                        pr.destination_branch_id, COALESCE(b.name, 'Commissary Stock') AS branch_name,
-                        pr.baker_name, pr.dr_number, pr.yield_qty
-                 FROM dl_production_runs pr
-                 INNER JOIN dl_products p ON p.id = pr.product_id
-                 LEFT JOIN dl_branches b ON b.id = pr.destination_branch_id
-                 WHERE pr.ledger_date = :date
-                   AND pr.destination_branch_id IS NOT NULL
-                   AND pr.yield_qty > 0";
-    $yieldBind = [':date' => $rawDate];
-    if ($selectedBranchId > 0) {
-        $yieldSql .= ' AND pr.destination_branch_id = :branch';
-        $yieldBind[':branch'] = $selectedBranchId;
-    }
-    $yieldSql .= ' ORDER BY branch_name ASC, product_name ASC, pr.id DESC';
-    $yieldStmt = $db->prepare($yieldSql);
-    $yieldStmt->execute($yieldBind);
-    $branchYieldRows = $yieldStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // ── Tab 1: Inventory (commissary product ledger) ──
+    $inventoryStmt = $db->prepare(
+        "SELECT cpl.commissary_branch_id,
+                COALESCE(b.name, 'Commissary') AS commissary_name,
+                cpl.product_id,
+                p.name AS product_name,
+                p.sku,
+                cpl.produced_qty,
+                cpl.dispatched_qty,
+                cpl.remaining_qty,
+                COALESCE(cum.cumulative_remaining, cpl.remaining_qty) AS cumulative_remaining,
+                cpl.updated_at
+           FROM dl_commissary_product_ledger cpl
+           INNER JOIN dl_products p ON p.id = cpl.product_id
+           LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
+           LEFT JOIN (
+               SELECT commissary_branch_id, product_id, SUM(remaining_qty) AS cumulative_remaining
+                 FROM dl_commissary_product_ledger
+                GROUP BY commissary_branch_id, product_id
+           ) cum ON cum.commissary_branch_id = cpl.commissary_branch_id AND cum.product_id = cpl.product_id
+          WHERE cpl.ledger_date = :date
+            AND (cpl.produced_qty > 0 OR cpl.dispatched_qty > 0)
+          ORDER BY p.name ASC"
+    );
+    $inventoryStmt->execute([':date' => $rawDate]);
+    $inventoryRows = $inventoryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $directDispatchSql = "SELECT pm.id, pm.ledger_date AS movement_date, pm.destination_branch_id AS branch_id,
-                                 b.name AS branch_name, pm.product_id, p.name AS product_name,
-                                 pm.dr_number, pm.quantity, 'direct-output' AS source_type,
-                                 'Direct Output' AS source_label
-                          FROM dl_production_movements pm
-                          INNER JOIN dl_branches b ON b.id = pm.destination_branch_id
-                          INNER JOIN dl_products p ON p.id = pm.product_id
-                          WHERE pm.ledger_date = :date
-                            AND pm.movement_type = 'output'
-                            AND pm.flow_mode = 'commissary'
-                            AND NOT EXISTS (
-                                SELECT 1 FROM dl_production_movements r
-                                WHERE r.reference_movement_id = pm.id AND r.movement_type = 'reverse'
-                            )";
-    $dispatchBind = [':date' => $rawDate];
-    if ($selectedBranchId > 0) {
-        $directDispatchSql .= ' AND pm.destination_branch_id = :branch';
-        $dispatchBind[':branch'] = $selectedBranchId;
-    }
-    $directDispatchSql .= ' ORDER BY branch_name ASC, product_name ASC, pm.id DESC';
-    $directDispatchStmt = $db->prepare($directDispatchSql);
-    $directDispatchStmt->execute($dispatchBind);
-    $deliveryRows = $directDispatchStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // ── Cumulative stock (all dates) for dispatch dropdown ──
+    $cumulativeStockStmt = $db->prepare(
+        "SELECT cpl.commissary_branch_id,
+                COALESCE(b.name, 'Commissary') AS commissary_name,
+                cpl.product_id,
+                p.name AS product_name,
+                p.sku,
+                SUM(cpl.produced_qty) AS total_produced,
+                SUM(cpl.dispatched_qty) AS total_dispatched,
+                SUM(cpl.remaining_qty) AS cumulative_remaining
+           FROM dl_commissary_product_ledger cpl
+           INNER JOIN dl_products p ON p.id = cpl.product_id AND p.is_active = 1
+           LEFT JOIN dl_branches b ON b.id = cpl.commissary_branch_id
+          GROUP BY cpl.commissary_branch_id, cpl.product_id, b.name, p.name, p.sku
+         HAVING cumulative_remaining > 0
+          ORDER BY p.name ASC"
+    );
+    $cumulativeStockStmt->execute();
+    $cumulativeStock = $cumulativeStockStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $formalSql = "SELECT d.id, d.delivery_date AS movement_date, d.destination_id AS branch_id,
-                         b.name AS branch_name, di.product_id, p.name AS product_name,
-                         d.dr_number, di.quantity, 'formal-delivery' AS source_type,
-                         CONCAT('Formal Delivery (', d.status, ')') AS source_label
-                  FROM dl_deliveries d
-                  INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
-                  INNER JOIN dl_branches b ON b.id = d.destination_id
-                  INNER JOIN dl_products p ON p.id = di.product_id
-                  WHERE d.origin_type = 'commissary'
-                    AND d.destination_type = 'branch'
-                    AND d.status <> 'voided'
-                    AND d.delivery_date = :date";
-    $formalBind = [':date' => $rawDate];
+    // ── Tab 2: Deliveries to branches ──
+    $deliverySql = "SELECT d.id AS delivery_id,
+                           d.delivery_date,
+                           d.dr_number,
+                           d.destination_id AS branch_id,
+                           b.name AS branch_name,
+                           di.product_id,
+                           p.name AS product_name,
+                           p.sku,
+                           di.quantity,
+                           d.status,
+                           d.remarks,
+                           d.created_at,
+                           COALESCE(u.full_name, u.username, '') AS created_by_name
+                    FROM dl_deliveries d
+                    INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                    INNER JOIN dl_branches b ON b.id = d.destination_id
+                    INNER JOIN dl_products p ON p.id = di.product_id
+                    LEFT JOIN dl_users u ON u.id = d.created_by
+                    WHERE d.origin_type = 'commissary'
+                      AND d.destination_type = 'branch'
+                      AND d.delivery_date = :date";
+    $deliveryBind = [':date' => $rawDate];
     if ($selectedBranchId > 0) {
-        $formalSql .= ' AND d.destination_id = :branch';
-        $formalBind[':branch'] = $selectedBranchId;
+        $deliverySql .= ' AND d.destination_id = :branch';
+        $deliveryBind[':branch'] = $selectedBranchId;
     }
-    $formalSql .= ' ORDER BY branch_name ASC, product_name ASC, d.id DESC';
-    $formalStmt = $db->prepare($formalSql);
-    $formalStmt->execute($formalBind);
-    $deliveryRows = array_merge($deliveryRows, $formalStmt->fetchAll(PDO::FETCH_ASSOC) ?: []);
-    usort($deliveryRows, static function (array $left, array $right): int {
-        $dateCmp = strcmp((string)($right['movement_date'] ?? ''), (string)($left['movement_date'] ?? ''));
-        if ($dateCmp !== 0) {
-            return $dateCmp;
-        }
-        $branchCmp = strcmp((string)($left['branch_name'] ?? ''), (string)($right['branch_name'] ?? ''));
-        if ($branchCmp !== 0) {
-            return $branchCmp;
-        }
-        return strcmp((string)($left['product_name'] ?? ''), (string)($right['product_name'] ?? ''));
-    });
+    $deliverySql .= ' ORDER BY d.delivery_date DESC, b.name ASC, p.name ASC, d.id DESC';
+    $deliveryStmt = $db->prepare($deliverySql);
+    $deliveryStmt->execute($deliveryBind);
+    $deliveryRows = $deliveryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $balanceStmt = $db->prepare(
+    // ── Tab 3: Pullouts / Returns to commissary ──
+    $pulloutSql = "SELECT d.id AS delivery_id,
+                          d.delivery_date,
+                          d.dr_number,
+                          d.origin_id AS from_branch_id,
+                          COALESCE(ob.name, 'Branch') AS from_branch_name,
+                          d.destination_id AS commissary_branch_id,
+                          COALESCE(cb.name, 'Commissary') AS commissary_branch_name,
+                          di.product_id,
+                          p.name AS product_name,
+                          p.sku,
+                          di.quantity,
+                          d.status,
+                          d.remarks,
+                          d.created_at
+                   FROM dl_deliveries d
+                   INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                   INNER JOIN dl_products p ON p.id = di.product_id
+                   LEFT JOIN dl_branches ob ON ob.id = d.origin_id
+                   LEFT JOIN dl_branches cb ON cb.id = d.destination_id
+                   WHERE d.destination_type = 'commissary'
+                     AND d.origin_type = 'branch'
+                     AND d.status = 'posted'
+                     AND d.delivery_date = :date";
+    $pulloutBind = [':date' => $rawDate];
+    if ($selectedBranchId > 0) {
+        $pulloutSql .= ' AND d.destination_id = :branch';
+        $pulloutBind[':branch'] = $selectedBranchId;
+    }
+    $pulloutSql .= ' ORDER BY d.delivery_date DESC, ob.name ASC, p.name ASC';
+    $pulloutStmt = $db->prepare($pulloutSql);
+    $pulloutStmt->execute($pulloutBind);
+    $pulloutRows = $pulloutStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // ── Tab 4: Summary ──
+    $summaryStmt = $db->prepare(
         "SELECT p.id AS product_id,
                 p.name AS product_name,
-                COALESCE(prod.produced_qty, 0) AS produced_qty,
-                COALESCE(dispatch.dispatched_qty, 0) AS dispatched_qty,
-                COALESCE(prod.produced_qty, 0) - COALESCE(dispatch.dispatched_qty, 0) AS remaining_qty
-         FROM dl_products p
-         LEFT JOIN (
-             SELECT pr.product_id, SUM(pr.yield_qty) AS produced_qty
-             FROM dl_production_runs pr
-             WHERE pr.destination_branch_id IS NULL
-               AND pr.ledger_date <= :as_of_date
-             GROUP BY pr.product_id
-         ) AS prod ON prod.product_id = p.id
-         LEFT JOIN (
-             SELECT di.product_id, SUM(di.quantity) AS dispatched_qty
-             FROM dl_deliveries d
-             INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
-             WHERE d.origin_type = 'commissary'
-                             AND d.status = 'posted'
-               AND d.delivery_date <= :as_of_dispatch_date
-             GROUP BY di.product_id
-         ) AS dispatch ON dispatch.product_id = p.id
-         WHERE COALESCE(prod.produced_qty, 0) > 0 OR COALESCE(dispatch.dispatched_qty, 0) > 0
-         ORDER BY p.name ASC"
+                p.sku,
+                COALESCE(inv.produced_qty, 0) AS produced_qty,
+                COALESCE(inv.dispatched_qty, 0) AS dispatched_qty,
+                COALESCE(inv.remaining_qty, 0) AS remaining_qty,
+                COALESCE(ret.returned_qty, 0) AS returned_qty,
+                (COALESCE(inv.remaining_qty, 0) + COALESCE(ret.returned_qty, 0)) AS net_available
+           FROM dl_products p
+           LEFT JOIN (
+               SELECT product_id,
+                      SUM(produced_qty) AS produced_qty,
+                      SUM(dispatched_qty) AS dispatched_qty,
+                      SUM(remaining_qty) AS remaining_qty
+                 FROM dl_commissary_product_ledger
+                WHERE ledger_date = :date1
+                GROUP BY product_id
+           ) inv ON inv.product_id = p.id
+           LEFT JOIN (
+               SELECT di.product_id, SUM(di.quantity) AS returned_qty
+                 FROM dl_deliveries d
+                 INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
+                WHERE d.destination_type = 'commissary'
+                  AND d.origin_type = 'branch'
+                  AND d.status = 'posted'
+                  AND d.delivery_date = :date2
+                GROUP BY di.product_id
+           ) ret ON ret.product_id = p.id
+          WHERE COALESCE(inv.produced_qty, 0) > 0
+             OR COALESCE(inv.dispatched_qty, 0) > 0
+             OR COALESCE(ret.returned_qty, 0) > 0
+          ORDER BY p.name ASC"
     );
-    $balanceStmt->execute([
-        ':as_of_date' => $rawDate,
-        ':as_of_dispatch_date' => $rawDate,
-    ]);
-    $stockRows = $balanceStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $summaryStmt->execute([':date1' => $rawDate, ':date2' => $rawDate]);
+    $summaryRows = $summaryStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    $summary = [
-        'branch_yield_total' => 0,
-        'branch_dispatch_total' => 0,
-        'commissary_remaining_total' => 0,
+    // Aggregate totals
+    $totals = [
+        'total_produced' => 0,
+        'total_dispatched' => 0,
+        'total_returned' => 0,
+        'total_remaining' => 0,
+        'total_deliveries' => count($deliveryRows),
+        'total_pullouts' => count($pulloutRows),
     ];
-    foreach ($branchYieldRows as $row) {
-        $summary['branch_yield_total'] += (int)($row['yield_qty'] ?? 0);
+    foreach ($inventoryRows as $row) {
+        $totals['total_produced'] += (int)($row['produced_qty'] ?? 0);
+        $totals['total_dispatched'] += (int)($row['dispatched_qty'] ?? 0);
+        $totals['total_remaining'] += (int)($row['remaining_qty'] ?? 0);
     }
+    foreach ($pulloutRows as $row) {
+        $totals['total_returned'] += (int)($row['quantity'] ?? 0);
+    }
+
+    // Branch-level dispatch summary for deliveries tab
+    $branchDispatchSummary = [];
     foreach ($deliveryRows as $row) {
-        $summary['branch_dispatch_total'] += (int)($row['quantity'] ?? 0);
+        $bid = (int)($row['branch_id'] ?? 0);
+        if (!isset($branchDispatchSummary[$bid])) {
+            $branchDispatchSummary[$bid] = [
+                'branch_id' => $bid,
+                'branch_name' => (string)($row['branch_name'] ?? ''),
+                'total_qty' => 0,
+                'delivery_count' => 0,
+                'dr_numbers' => [],
+            ];
+        }
+        $branchDispatchSummary[$bid]['total_qty'] += (int)($row['quantity'] ?? 0);
+        $dr = trim((string)($row['dr_number'] ?? ''));
+        if ($dr !== '' && !in_array($dr, $branchDispatchSummary[$bid]['dr_numbers'], true)) {
+            $branchDispatchSummary[$bid]['dr_numbers'][] = $dr;
+        }
     }
-    foreach ($stockRows as $row) {
-        $summary['commissary_remaining_total'] += (int)($row['remaining_qty'] ?? 0);
+    // Count unique delivery IDs per branch
+    foreach ($branchDispatchSummary as $bid => &$bs) {
+        $uniqueDeliveryIds = [];
+        foreach ($deliveryRows as $row) {
+            if ((int)($row['branch_id'] ?? 0) === $bid) {
+                $uniqueDeliveryIds[(int)($row['delivery_id'] ?? 0)] = true;
+            }
+        }
+        $bs['delivery_count'] = count($uniqueDeliveryIds);
     }
+    unset($bs);
 
     echo dlRender('modules/daily-ledger/admin/commissary.disyl', [
         'page_title' => 'Commissary',
@@ -7164,10 +7393,13 @@ function handleAdminCommissary(): void
         'date' => $rawDate,
         'branches' => $branches,
         'branch_id' => $selectedBranchId,
-        'branch_yield_rows' => $branchYieldRows,
+        'inventory_rows' => $inventoryRows,
         'delivery_rows' => $deliveryRows,
-        'stock_rows' => $stockRows,
-        'summary' => $summary,
+        'pullout_rows' => $pulloutRows,
+        'summary_rows' => $summaryRows,
+        'branch_dispatch_summary' => array_values($branchDispatchSummary),
+        'cumulative_stock' => $cumulativeStock,
+        'totals' => $totals,
     ]);
 }
 
@@ -7478,6 +7710,209 @@ function apiSaveProductionRun(): void
         }
         $ctx->json(['ok' => false, 'error' => 'Database error executing transaction'], 500);
     }}
+
+function apiCommissaryDispatch(): void
+{
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        return;
+    }
+
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    if (!dl_isFormalDeliveryEnabled()) {
+        $ctx->json(['ok' => false, 'error' => 'Formal delivery workflow is not enabled. Enable it in Settings first.'], 422);
+        return;
+    }
+
+    $db = $ctx->db();
+    $input = $ctx->input();
+    $items = $input['items'] ?? [];
+    $destinationBranchId = (int)($input['destination_branch_id'] ?? 0);
+    $drNumber = trim((string)($input['dr_number'] ?? ''));
+    $ledgerDate = (string)($input['ledger_date'] ?? dl_businessDate());
+    $actorId = dl_getActorUserId($user);
+
+    if (!is_array($items) || count($items) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'items[] array is required with at least one item.'], 422);
+        return;
+    }
+    if ($destinationBranchId <= 0 || $drNumber === '') {
+        $ctx->json(['ok' => false, 'error' => 'destination_branch_id and dr_number are required.'], 422);
+        return;
+    }
+
+    // Normalize and validate items
+    $cleanItems = [];
+    foreach ($items as $i) {
+        if (!is_array($i)) continue;
+        $cid = (int)($i['commissary_branch_id'] ?? 0);
+        $pid = (int)($i['product_id'] ?? 0);
+        $qty = (int)($i['quantity'] ?? 0);
+        if ($cid <= 0 || $pid <= 0 || $qty <= 0) continue;
+        if ($cid === $destinationBranchId) {
+            $ctx->json(['ok' => false, 'error' => 'Cannot dispatch from a commissary to itself.'], 422);
+            return;
+        }
+        $key = $cid . ':' . $pid;
+        if (isset($cleanItems[$key])) {
+            $cleanItems[$key]['quantity'] += $qty;
+        } else {
+            $cleanItems[$key] = ['commissary_branch_id' => $cid, 'product_id' => $pid, 'quantity' => $qty];
+        }
+    }
+    if (count($cleanItems) === 0) {
+        $ctx->json(['ok' => false, 'error' => 'No valid items with commissary_branch_id, product_id, and quantity > 0.'], 422);
+        return;
+    }
+
+    try {
+        $db->beginTransaction();
+
+        // Verify destination branch
+        $destStmt = $db->prepare('SELECT id, name FROM dl_branches WHERE id = :id AND is_active = 1 LIMIT 1');
+        $destStmt->execute([':id' => $destinationBranchId]);
+        $destBranch = $destStmt->fetch(PDO::FETCH_ASSOC);
+        if (!$destBranch) {
+            throw new RuntimeException('Destination branch is not active.');
+        }
+
+        // Verify DR not already used
+        $existingDelivery = dl_findAutoCommissaryDelivery($db, $destinationBranchId, $ledgerDate, $drNumber);
+        if ($existingDelivery) {
+            throw new RuntimeException('A delivery with DR "' . $drNumber . '" already exists for this branch on ' . $ledgerDate . '.');
+        }
+        $existingPaper = dl_findPaperCapturedCommissaryDelivery($db, $destinationBranchId, $ledgerDate, $drNumber);
+        if ($existingPaper) {
+            throw new RuntimeException('A paper DR capture with DR "' . $drNumber . '" already exists for this branch on ' . $ledgerDate . '.');
+        }
+
+        // Validate cumulative stock for each item
+        $commissaryNames = [];
+        foreach ($cleanItems as $item) {
+            $cid = $item['commissary_branch_id'];
+            $pid = $item['product_id'];
+            $qty = $item['quantity'];
+
+            // Verify commissary
+            if (!isset($commissaryNames[$cid])) {
+                $commStmt = $db->prepare('SELECT id, name FROM dl_branches WHERE id = :id AND is_commissary = 1 AND is_active = 1 LIMIT 1');
+                $commStmt->execute([':id' => $cid]);
+                $comm = $commStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$comm) {
+                    throw new RuntimeException('Branch #' . $cid . ' is not an active commissary.');
+                }
+                $commissaryNames[$cid] = $comm['name'];
+            }
+
+            // Check cumulative stock
+            $cumulativeStmt = $db->prepare(
+                'SELECT SUM(produced_qty - dispatched_qty) AS cumulative_remaining
+                   FROM dl_commissary_product_ledger
+                  WHERE commissary_branch_id = :cb AND product_id = :pid
+                  HAVING cumulative_remaining > 0'
+            );
+            $cumulativeStmt->execute([':cb' => $cid, ':pid' => $pid]);
+            $cumulativeRemaining = (int)($cumulativeStmt->fetchColumn() ?: 0);
+            if ($cumulativeRemaining < $qty) {
+                throw new RuntimeException('Insufficient commissary stock for product #' . $pid . '. Available: ' . $cumulativeRemaining . ', requested: ' . $qty . '.');
+            }
+        }
+
+        // Create ONE delivery
+        $primaryCommissaryId = array_key_first($cleanItems);
+        $primaryCommissaryId = (int)explode(':', $primaryCommissaryId)[0];
+        $delStmt = $db->prepare(
+            'INSERT INTO dl_deliveries
+                (origin_type, origin_id, destination_type, destination_id, dr_number,
+                 delivery_date, status, created_by, posted_by, posted_at, remarks)
+             VALUES (:origin_type, :origin_id, :destination_type, :destination_id, :dr_number,
+                     :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
+        );
+        $delStmt->execute([
+            ':origin_type' => 'commissary',
+            ':origin_id' => $primaryCommissaryId,
+            ':destination_type' => 'branch',
+            ':destination_id' => $destinationBranchId,
+            ':dr_number' => $drNumber,
+            ':delivery_date' => $ledgerDate,
+            ':created_by' => $actorId > 0 ? $actorId : null,
+            ':posted_by' => $actorId > 0 ? $actorId : null,
+            ':remarks' => '[commissary-dispatch]',
+        ]);
+        $deliveryId = (int)$db->lastInsertId();
+
+        // Add delivery items + update commissary ledger for each item
+        $priceGroupId = dl_defaultPriceGroupId();
+        $resultItems = [];
+        $itemStmt = $db->prepare(
+            'INSERT INTO dl_delivery_items
+                (delivery_id, product_id, quantity, unit, unit_cost_snapshot, price_snapshot, price_group_id, remarks)
+             VALUES (:delivery_id, :product_id, :quantity, :unit, :unit_cost_snapshot, :price_snapshot, :price_group_id, :remarks)'
+        );
+
+        foreach ($cleanItems as $item) {
+            $cid = $item['commissary_branch_id'];
+            $pid = $item['product_id'];
+            $qty = $item['quantity'];
+
+            $itemStmt->execute([
+                ':delivery_id' => $deliveryId,
+                ':product_id' => $pid,
+                ':quantity' => $qty,
+                ':unit' => 'pcs',
+                ':unit_cost_snapshot' => 0,
+                ':price_snapshot' => dl_resolveProductPrice($pid, $priceGroupId, $ledgerDate),
+                ':price_group_id' => $priceGroupId,
+                ':remarks' => 'commissary_dispatch',
+            ]);
+
+            // Debit commissary dispatched_qty
+            $stockState = dl_applyCommissaryProductLedgerDelta($db, $cid, $pid, $ledgerDate, 0, $qty, $actorId);
+
+            $resultItems[] = [
+                'product_id' => $pid,
+                'quantity' => $qty,
+                'commissary_branch_id' => $cid,
+                'remaining_qty' => $stockState['remaining_qty'] ?? 0,
+            ];
+        }
+
+        dl_auditLog('commissary_dispatch', $primaryCommissaryId, 'dl_deliveries', (string)$deliveryId, null, [
+            'commissary_branch_id' => $primaryCommissaryId,
+            'destination_branch_id' => $destinationBranchId,
+            'dr_number' => $drNumber,
+            'ledger_date' => $ledgerDate,
+            'destination_name' => $destBranch['name'],
+            'item_count' => count($resultItems),
+            'total_quantity' => array_sum(array_column($resultItems, 'quantity')),
+            'items' => $resultItems,
+        ]);
+
+        $db->commit();
+
+        // Verify all items were actually persisted
+        $verifyStmt = $db->prepare('SELECT COUNT(*) FROM dl_delivery_items WHERE delivery_id = :did');
+        $verifyStmt->execute([':did' => $deliveryId]);
+        $actualItemCount = (int)$verifyStmt->fetchColumn();
+
+        $ctx->json([
+            'ok' => true,
+            'delivery_id' => $deliveryId,
+            'dr_number' => $drNumber,
+            'destination_branch_id' => $destinationBranchId,
+            'expected_items' => count($resultItems),
+            'actual_items' => $actualItemCount,
+            'items' => $resultItems,
+        ]);
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        write_log("apiCommissaryDispatch error: " . $e->getMessage(), 'error');
+        $ctx->json(['ok' => false, 'error' => $e->getMessage()], 422);
+    }
+}
 
 function apiSaveCommissaryMaterial(): void
 {

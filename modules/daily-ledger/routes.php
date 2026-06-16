@@ -120,6 +120,7 @@ return [
         // Commissary API
         '/daily-ledger/api/v1/commissary/run'             => 'daily-ledger:apiSaveProductionRun',
         '/daily-ledger/api/v1/commissary/material'        => 'daily-ledger:apiSaveCommissaryMaterial',
+        '/daily-ledger/api/v1/commissary/dispatch'        => 'daily-ledger:apiCommissaryDispatch',
 
         // Phase A: branch product supply rules
         '/daily-ledger/api/v1/admin/branch-supply-rules'  => 'daily-ledger:apiBranchProductSupplyRuleUpsert',

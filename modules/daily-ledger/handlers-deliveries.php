@@ -328,15 +328,26 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
             'items' => count($desiredItems),
         ]);
     } else {
+        // Resolve commissary for proper origin attribution
+        $commissaryBranchId = null;
+        foreach ($desiredItems as $item) {
+            $supply = dl_resolveProductSupplySource($branchId, (int)$item['product_id']);
+            if ($supply['source'] === 'commissary' && $supply['source_id'] !== null) {
+                $commissaryBranchId = (int)$supply['source_id'];
+                break; // use the first commissary found — all items should share the same supply source
+            }
+        }
+
         $stmt = $db->prepare(
             'INSERT INTO dl_deliveries
                 (origin_type, origin_id, destination_type, destination_id, dr_number,
                  delivery_date, status, created_by, posted_by, posted_at, remarks)
-             VALUES (:origin_type, NULL, :destination_type, :destination_id, :dr_number,
+             VALUES (:origin_type, :origin_id, :destination_type, :destination_id, :dr_number,
                      :delivery_date, "posted", :created_by, :posted_by, NOW(), :remarks)'
         );
         $stmt->execute([
             ':origin_type' => 'commissary',
+            ':origin_id' => $commissaryBranchId,
             ':destination_type' => 'branch',
             ':destination_id' => $branchId,
             ':dr_number' => $drNumber,
@@ -347,11 +358,21 @@ function dl_syncAutoCommissaryDeliveryFromRuns(\Ikabud\Kernel\Contracts\Database
         ]);
         $deliveryId = (int)$db->lastInsertId();
 
+        // Credit commissary production and debit dispatch for each item
+        if ($commissaryBranchId !== null) {
+            foreach ($desiredItems as $item) {
+                $pid = (int)$item['product_id'];
+                $qty = (int)$item['quantity'];
+                dl_applyCommissaryProductLedgerDelta($db, $commissaryBranchId, $pid, $deliveryDate, $qty, $qty, $actorId);
+            }
+        }
+
         dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$deliveryId, null, [
             'dr_number' => $drNumber,
             'status' => 'posted',
             'source' => 'auto_commissary_run',
             'items' => count($desiredItems),
+            'commissary_branch_id' => $commissaryBranchId,
         ]);
     }
 

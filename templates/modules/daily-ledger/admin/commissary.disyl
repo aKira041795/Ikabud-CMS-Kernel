@@ -1,20 +1,15 @@
 {extends "modules/daily-ledger/layouts/app.disyl"}
-
 {block head}
 {/block}
-
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Commissary</h2>
-        <p class="text-sm text-gray-500">Track finished-goods output, branch dispatches, and commissary stock balance.</p>
-    </div>
-    <div class="text-xs text-gray-500">
-        Stock balance here means bread and cakes held by commissary, not raw ingredients.
+        <p class="text-sm text-gray-500">Inventory · Deliveries · Pullouts · Summary</p>
     </div>
 </div>
 
-<form class="card mb-6" method="GET" action="{base_url}/admin/commissary">
+<form class="card mb-4" method="GET" action="{base_url}/admin/commissary">
     <div class="card-body">
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3 items-end">
             <div class="form-group mb-0">
@@ -22,7 +17,7 @@
                 <input type="date" class="form-input" name="date" value="{date}">
             </div>
             <div class="form-group mb-0">
-                <label class="form-label">Branch</label>
+                <label class="form-label">Branch Filter</label>
                 <select class="form-input" name="branch_id">
                     <option value="">All Branches</option>
                     {foreach branches as br}
@@ -33,136 +28,478 @@
             <div class="flex items-center gap-2">
                 <button type="submit" class="btn btn-primary">Apply</button>
                 <a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>
+                <a class="btn btn-outline" href="{base_url}/admin/production-output">Production Output</a>
             </div>
         </div>
     </div>
 </form>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+<!-- Summary stat cards -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
     <div class="card">
-        <div class="card-body">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branch Yield</div>
-            <div class="mt-2 text-3xl font-semibold text-gray-900">{summary.branch_yield_total}</div>
-            <div class="mt-1 text-sm text-gray-500">Finished goods produced for branches on {date}</div>
+        <div class="card-body py-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Produced</div>
+            <div class="mt-1 text-2xl font-semibold text-emerald-700">{totals.total_produced}</div>
         </div>
     </div>
     <div class="card">
-        <div class="card-body">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Branch Dispatches</div>
-            <div class="mt-2 text-3xl font-semibold text-gray-900">{summary.branch_dispatch_total}</div>
-            <div class="mt-1 text-sm text-gray-500">Direct output plus formal branch deliveries on {date}</div>
+        <div class="card-body py-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Dispatched</div>
+            <div class="mt-1 text-2xl font-semibold text-blue-700">{totals.total_dispatched}</div>
         </div>
     </div>
     <div class="card">
-        <div class="card-body">
-            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Commissary On Hand</div>
-            <div class="mt-2 text-3xl font-semibold text-gray-900">{summary.commissary_remaining_total}</div>
-            <div class="mt-1 text-sm text-gray-500">Running finished-goods balance through {date}</div>
+        <div class="card-body py-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Returned</div>
+            <div class="mt-1 text-2xl font-semibold text-amber-700">{totals.total_returned}</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body py-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Remaining</div>
+            <div class="mt-1 text-2xl font-semibold text-gray-900">{totals.total_remaining}</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="card-body py-3">
+            <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Deliveries</div>
+            <div class="mt-1 text-2xl font-semibold text-violet-700">{totals.total_deliveries}</div>
+            <div class="text-xs text-gray-500">+{totals.total_pullouts} pullouts</div>
         </div>
     </div>
 </div>
 
-<div class="card mb-6">
-    <div class="card-header">
-        <span>Yield Trace By Branch</span>
-        <span class="text-sm text-muted">{branch_yield_rows | count} rows</span>
+<!-- Tabs -->
+<div class="border-b border-gray-200 mb-4">
+    <nav class="flex gap-0 -mb-px" role="tablist">
+        <button type="button" id="tab-btn-inventory" onclick="switchCommissaryTab('inventory')"
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-indigo-500 text-indigo-600">1. Inventory</button>
+        <button type="button" id="tab-btn-deliveries" onclick="switchCommissaryTab('deliveries')"
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">2. Deliveries</button>
+        <button type="button" id="tab-btn-pullouts" onclick="switchCommissaryTab('pullouts')"
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">3. Pullouts</button>
+        <button type="button" id="tab-btn-summary" onclick="switchCommissaryTab('summary')"
+            class="px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">4. Summary</button>
+    </nav>
+</div>
+
+<!-- Tab 1: Inventory Ledger -->
+<div id="tab-inventory" class="tab-panel">
+    <!-- Cumulative stock overview -->
+    {if cumulative_stock | count > 0}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+        {foreach cumulative_stock as cs}
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-semibold text-gray-900">{cs.product_name}</span>
+                    <span class="text-xs font-mono text-gray-400">{cs.sku}</span>
+                </div>
+                <div class="mt-1 flex items-baseline gap-2">
+                    <span class="text-lg font-semibold text-emerald-700">{cs.cumulative_remaining}</span>
+                    <span class="text-xs text-gray-500">on hand</span>
+                </div>
+                <div class="text-xs text-gray-500">{cs.commissary_name} · {cs.total_produced} produced · {cs.total_dispatched} dispatched</div>
+            </div>
+        </div>
+        {/foreach}
     </div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Branch</th>
-                    <th>Product</th>
-                    <th class="text-right">Yield</th>
-                    <th>DR #</th>
-                    <th>Baker</th>
-                </tr>
-            </thead>
-            <tbody>
-                {if branch_yield_rows | count == 0}
-                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No branch-directed yield recorded for this date.</td></tr>
-                {/if}
-                {foreach branch_yield_rows as row}
-                <tr>
-                    <td>{row.ledger_date}</td>
-                    <td>{row.branch_name}</td>
-                    <td>{row.product_name}</td>
-                    <td class="text-right font-semibold">{row.yield_qty}</td>
-                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
-                    <td class="text-sm text-muted">{row.baker_name | default:'—'}</td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
+    {/if}
+
+    <div class="card">
+        <div class="card-header">
+            <span>Daily Production — {date}</span>
+            <span class="text-sm text-muted">{inventory_rows | count} products with today activity</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th>Commissary</th>
+                        <th class="text-right">Produced Today</th>
+                        <th class="text-right">Dispatched Today</th>
+                        <th class="text-right">Remaining Today</th>
+                        <th class="text-right">On Hand (All)</th>
+                        <th>Last Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if inventory_rows | count == 0}
+                    <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No production recorded for this date. Go to Production Output to record.</td></tr>
+                    {/if}
+                    {foreach inventory_rows as row}
+                    <tr>
+                        <td class="font-medium">{row.product_name}</td>
+                        <td class="font-mono text-sm text-muted">{row.sku}</td>
+                        <td class="text-sm text-muted">{row.commissary_name}</td>
+                        <td class="text-right font-semibold text-emerald-700">{row.produced_qty}</td>
+                        <td class="text-right font-semibold text-blue-700">{row.dispatched_qty}</td>
+                        <td class="text-right font-semibold {if row.remaining_qty < 0}text-rose-600{elseif row.remaining_qty > 0}text-gray-900{else}text-gray-400{/if}">{row.remaining_qty}</td>
+                        <td class="text-right text-sm text-gray-600">
+                            <span class="font-semibold">{row.cumulative_remaining}</span>
+                        </td>
+                        <td class="text-sm text-muted">{row.updated_at}</td>
+                    </tr>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<div class="card mb-6">
-    <div class="card-header">
-        <span>Deliveries Per Branch</span>
-        <span class="text-sm text-muted">{delivery_rows | count} rows</span>
+<!-- Tab 2: Deliveries -->
+<div id="tab-deliveries" class="tab-panel hidden">
+    {if branch_dispatch_summary | count > 0}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+        {foreach branch_dispatch_summary as bs}
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-semibold text-gray-900">{bs.branch_name}</span>
+                    <span class="text-xs font-mono text-gray-500">{bs.dr_numbers | join:', '}</span>
+                </div>
+                <div class="mt-1 text-lg font-semibold text-blue-700">{bs.total_qty} pcs</div>
+                <div class="text-xs text-gray-500">{bs.delivery_count} delivery(ies)</div>
+            </div>
+        </div>
+        {/foreach}
     </div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Branch</th>
-                    <th>Product</th>
-                    <th class="text-right">Qty</th>
-                    <th>DR #</th>
-                    <th>Source</th>
-                </tr>
-            </thead>
-            <tbody>
-                {if delivery_rows | count == 0}
-                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No commissary deliveries found for this date.</td></tr>
-                {/if}
-                {foreach delivery_rows as row}
-                <tr>
-                    <td>{row.movement_date}</td>
-                    <td>{row.branch_name}</td>
-                    <td>{row.product_name}</td>
-                    <td class="text-right font-semibold">{row.quantity}</td>
-                    <td class="text-sm text-muted">{row.dr_number | default:'—'}</td>
-                    <td class="text-sm text-muted">{row.source_label}</td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
+    {/if}
+    <div class="card">
+        <div class="card-header">
+            <span>Deliveries to Branches — {date}</span>
+            <span class="text-sm text-muted">{delivery_rows | count} line items</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DR #</th>
+                        <th>Date</th>
+                        <th>Branch</th>
+                        <th>Product</th>
+                        <th class="text-right">Qty</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if delivery_rows | count == 0}
+                    <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No deliveries recorded for this date.</td></tr>
+                    {/if}
+                    {foreach delivery_rows as row}
+                    <tr>
+                        <td class="font-mono text-sm font-semibold">{row.dr_number | default:'—'}</td>
+                        <td>{row.delivery_date}</td>
+                        <td class="font-medium">{row.branch_name}</td>
+                        <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
+                        <td class="text-right font-semibold">{row.quantity}</td>
+                        <td>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset
+                                {if row.status == 'posted'}bg-blue-50 text-blue-700 ring-blue-200
+                                {elseif row.status == 'draft'}bg-gray-50 text-gray-600 ring-gray-200
+                                {elseif row.status == 'voided'}bg-rose-50 text-rose-700 ring-rose-200{/if}">
+                                {row.status}
+                            </span>
+                        </td>
+                        <td class="text-sm text-muted max-w-[16ch] truncate">{row.remarks | default:'—'}</td>
+                        <td class="text-sm text-muted">{row.created_by_name} · {row.created_at}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
-        <span>Finished Goods Balance</span>
-        <span class="text-sm text-muted">Produced to commissary minus formal deliveries through {date}</span>
-    </div>
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Product</th>
-                    <th class="text-right">Produced To Commissary</th>
-                    <th class="text-right">Delivered From Commissary</th>
-                    <th class="text-right">Remaining</th>
-                </tr>
-            </thead>
-            <tbody>
-                {if stock_rows | count == 0}
-                <tr><td colspan="4" class="px-4 py-10 text-center text-sm text-gray-500">No commissary stock balance available yet.</td></tr>
-                {/if}
-                {foreach stock_rows as row}
-                <tr>
-                    <td>{row.product_name}</td>
-                    <td class="text-right">{row.produced_qty}</td>
-                    <td class="text-right">{row.dispatched_qty}</td>
-                    <td class="text-right font-semibold">{row.remaining_qty}</td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
+<!-- Tab 3: Pullouts / Returns -->
+<div id="tab-pullouts" class="tab-panel hidden">
+    <div class="card">
+        <div class="card-header">
+            <span>Pullouts &amp; Returns to Commissary — {date}</span>
+            <span class="text-sm text-muted">{pullout_rows | count} line items</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DR #</th>
+                        <th>Date</th>
+                        <th>From Branch</th>
+                        <th>To Commissary</th>
+                        <th>Product</th>
+                        <th class="text-right">Qty</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if pullout_rows | count == 0}
+                    <tr><td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">No pullouts or returns for this date.</td></tr>
+                    {/if}
+                    {foreach pullout_rows as row}
+                    <tr>
+                        <td class="font-mono text-sm font-semibold">{row.dr_number | default:'—'}</td>
+                        <td>{row.delivery_date}</td>
+                        <td class="font-medium">{row.from_branch_name}</td>
+                        <td class="text-sm text-muted">{row.commissary_branch_name}</td>
+                        <td>{row.product_name} <span class="text-muted">({row.sku})</span></td>
+                        <td class="text-right font-semibold text-amber-700">{row.quantity}</td>
+                        <td>
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset
+                                {if row.status == 'posted'}bg-emerald-50 text-emerald-700 ring-emerald-200
+                                {else}bg-gray-50 text-gray-600 ring-gray-200{/if}">
+                                {row.status}
+                            </span>
+                        </td>
+                        <td class="text-sm text-muted max-w-[16ch] truncate">{row.remarks | default:'—'}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+
+<!-- Tab 4: Summary -->
+<div id="tab-summary" class="tab-panel hidden">
+    <div class="card mb-6">
+        <div class="card-header">
+            <span>Per-Product Summary — {date}</span>
+            <span class="text-sm text-muted">Produced − Dispatched + Returned = Net Available</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th class="text-right">Produced</th>
+                        <th class="text-right">Dispatched</th>
+                        <th class="text-right">Returned</th>
+                        <th class="text-right">Remaining</th>
+                        <th class="text-right">Net Available</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {if summary_rows | count == 0}
+                    <tr><td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">No activity to summarize for this date.</td></tr>
+                    {/if}
+                    {foreach summary_rows as row}
+                    <tr>
+                        <td class="font-medium">{row.product_name}</td>
+                        <td class="font-mono text-sm text-muted">{row.sku}</td>
+                        <td class="text-right font-semibold text-emerald-700">{row.produced_qty}</td>
+                        <td class="text-right text-blue-700">{row.dispatched_qty}</td>
+                        <td class="text-right text-amber-700">{row.returned_qty}</td>
+                        <td class="text-right">{row.remaining_qty}</td>
+                        <td class="text-right font-semibold text-gray-900">{row.net_available}</td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+                <tfoot class="border-t-2 border-gray-200 bg-gray-50">
+                    <tr>
+                        <td class="font-semibold">TOTAL</td>
+                        <td></td>
+                        <td class="text-right font-semibold text-emerald-700">{totals.total_produced}</td>
+                        <td class="text-right font-semibold text-blue-700">{totals.total_dispatched}</td>
+                        <td class="text-right font-semibold text-amber-700">{totals.total_returned}</td>
+                        <td class="text-right font-semibold">{totals.total_remaining}</td>
+                        <td class="text-right font-semibold text-gray-900">{totals.total_remaining + totals.total_returned}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Dispatch to Branch -->
+<div class="card mt-6">
+    <div class="card-header">
+        <span>Dispatch to Branch</span>
+        <span class="text-sm text-muted">Select a destination branch, enter DR number, fill quantities for products on hand</span>
+    </div>
+    <div class="card-body">
+        {if cumulative_stock | count == 0}
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No products with remaining stock. Record production output first.
+        </div>
+        {/if}
+        {if cumulative_stock | count > 0}
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3 items-end mb-4">
+            <div class="form-group mb-0">
+                <label class="form-label">Destination Branch</label>
+                <select id="dispatch-dest-branch-id" class="form-input">
+                    <option value="">-- Select Branch --</option>
+                    {foreach branches as br}
+                    <option value="{br.id}">{br.name}</option>
+                    {/foreach}
+                </select>
+            </div>
+            <div class="form-group mb-0">
+                <label class="form-label">DR Number</label>
+                <input type="text" id="dispatch-dr-number" class="form-input" placeholder="e.g. DR-2026-001">
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-primary" id="submit-dispatch" onclick="submitDispatch()">Dispatch to Branch</button>
+                <span id="dispatch-status" class="text-sm text-muted"></span>
+            </div>
+        </div>
+        <div class="border rounded-lg overflow-hidden">
+            <table class="mb-0">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th>Commissary</th>
+                        <th class="text-right">On Hand</th>
+                        <th class="text-right w-32">Qty to Send</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {foreach cumulative_stock as row}
+                    <tr class="hover:bg-gray-50">
+                        <td class="font-medium">{row.product_name}</td>
+                        <td class="font-mono text-sm text-muted">{row.sku}</td>
+                        <td class="text-sm text-muted">{row.commissary_name}</td>
+                        <td class="text-right">
+                            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
+                                {if row.cumulative_remaining >= 20}bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200
+                                {elseif row.cumulative_remaining >= 5}bg-amber-50 text-amber-700 ring-1 ring-amber-200
+                                {else}bg-rose-50 text-rose-700 ring-1 ring-rose-200{/if}">
+                                {row.cumulative_remaining}
+                            </span>
+                        </td>
+                        <td class="text-right">
+                            <input type="number" min="0" max="{row.cumulative_remaining}" step="1"
+                                class="form-input text-right w-24 dispatch-qty-input"
+                                data-commissary-id="{row.commissary_branch_id}"
+                                data-product-id="{row.product_id}"
+                                data-product-name="{row.product_name}"
+                                data-remaining="{row.cumulative_remaining}"
+                                value="" placeholder="0">
+                        </td>
+                    </tr>
+                    {/foreach}
+                </tbody>
+            </table>
+        </div>
+        {/if}
+    </div>
+</div>
+{/block}
+{block scripts}
+<script>
+    function switchCommissaryTab(tab) {
+        var tabs = ['inventory', 'deliveries', 'pullouts', 'summary'];
+        tabs.forEach(function(t) {
+            var panel = document.getElementById('tab-' + t);
+            var btn = document.getElementById('tab-btn-' + t);
+            if (panel) panel.classList.add('hidden');
+            if (btn) {
+                btn.classList.remove('border-indigo-500', 'text-indigo-600');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            }
+        });
+        var activePanel = document.getElementById('tab-' + tab);
+        var activeBtn = document.getElementById('tab-btn-' + tab);
+        if (activePanel) activePanel.classList.remove('hidden');
+        if (activeBtn) {
+            activeBtn.classList.add('border-indigo-500', 'text-indigo-600');
+            activeBtn.classList.remove('border-transparent', 'text-gray-500');
+        }
+        try { localStorage.setItem('commissary_tab', tab); } catch(e) {}
+    }
+    (function() {
+        var saved = '';
+        try { saved = localStorage.getItem('commissary_tab') || ''; } catch(e) {}
+        if (saved && document.getElementById('tab-' + saved)) {
+            switchCommissaryTab(saved);
+        }
+    })();
+
+    function submitDispatch() {
+        var btn = document.getElementById('submit-dispatch');
+        var statusEl = document.getElementById('dispatch-status');
+        if (!btn) return;
+
+        var destBranchId = parseInt((document.getElementById('dispatch-dest-branch-id') || {}).value || '0', 10) || 0;
+        var drNumber = ((document.getElementById('dispatch-dr-number') || {}).value || '').trim();
+
+        if (!destBranchId) { showToast('Select a destination branch', 'error'); return; }
+        if (!drNumber) { showToast('DR number is required', 'error'); return; }
+
+        // Collect all items with quantity > 0
+        var items = [];
+        var inputs = document.querySelectorAll('.dispatch-qty-input');
+        inputs.forEach(function(input) {
+            var qty = parseInt(input.value || '0', 10) || 0;
+            if (qty <= 0) return;
+            var commissaryId = parseInt(input.getAttribute('data-commissary-id') || '0', 10) || 0;
+            var productId = parseInt(input.getAttribute('data-product-id') || '0', 10) || 0;
+            var remaining = parseInt(input.getAttribute('data-remaining') || '0', 10) || 0;
+            if (commissaryId <= 0 || productId <= 0) return;
+            if (qty > remaining) {
+                showToast(input.getAttribute('data-product-name') + ': qty ' + qty + ' exceeds on-hand ' + remaining, 'error');
+                return;
+            }
+            items.push({
+                commissary_branch_id: commissaryId,
+                product_id: productId,
+                quantity: qty
+            });
+        });
+
+        if (items.length === 0) {
+            showToast('Enter at least one product quantity to dispatch', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Dispatching ' + items.length + ' item(s)...';
+        if (statusEl) statusEl.textContent = '';
+
+        fetch('{base_url}/api/v1/commissary/dispatch', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': (window.DL_CSRF || ''),
+                'Authorization': (window.DL_TOKEN ? ('Bearer ' + window.DL_TOKEN) : '')
+            },
+            body: JSON.stringify({
+                destination_branch_id: destBranchId,
+                dr_number: drNumber,
+                ledger_date: '{date}',
+                items: items
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (!res.ok) {
+                showToast(res.error || 'Dispatch failed', 'error');
+                if (statusEl) statusEl.textContent = res.error || '';
+                return;
+            }
+            var totalQty = 0;
+            (res.items || []).forEach(function(i) { totalQty += (i.quantity || 0); });
+            var msg = 'Dispatched ' + totalQty + ' pcs across ' + (res.expected_items || res.items.length) + ' products';
+            if (res.actual_items && res.actual_items !== res.expected_items) {
+                msg += ' (WARNING: expected ' + res.expected_items + ' items but DB has ' + res.actual_items + ')';
+            }
+            msg += ' — DR ' + res.dr_number;
+            showToast(msg, 'success');
+            setTimeout(function() { window.location.reload(); }, 800);
+        })
+        .catch(function() { showToast('Network error', 'error'); })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Dispatch to Branch';
+        });
+    }
+</script>
 {/block}

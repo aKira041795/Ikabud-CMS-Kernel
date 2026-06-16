@@ -69,16 +69,16 @@
     <div class="card-body">
         {if branches | count == 0}
         <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            No branch assignment found for this account.
+            No commissary branch assignment found for this account. Production output must be recorded at a commissary.
         </div>
         {/if}
 
         {if branches | count > 0}
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4 mb-4">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3 mb-4">
             <div class="form-group mb-0">
-                <label class="form-label">Branch</label>
+                <label class="form-label">Commissary</label>
                 <select id="output-branch-id" class="form-input font-semibold">
-                    <option value="">-- Select Branch --</option>
+                    <option value="">-- Select Commissary --</option>
                     {foreach branches as br}
                     <option value="{br.id}">{br.name} ({br.code}){if br.area} · {br.area}{/if}</option>
                     {/foreach}
@@ -91,10 +91,6 @@
             <div class="form-group mb-0">
                 <label class="form-label">Reason</label>
                 <input type="text" id="output-reason" class="form-input" placeholder="Optional output note">
-            </div>
-            <div class="form-group mb-0">
-                <label class="form-label">Delivery Receipt #</label>
-                <input type="text" id="output-dr-number" class="form-input" placeholder="Required for branch-directed output under formal workflow">
             </div>
         </div>
 
@@ -323,9 +319,8 @@
         var ledgerDate = (document.getElementById('output-ledger-date') || {}).value || '';
         var flowMode   = 'production';
         var reason     = ((document.getElementById('output-reason')     || {}).value || '').trim();
-        var drNumber   = ((document.getElementById('output-dr-number')  || {}).value || '').trim();
 
-        if (!branchId)   { showToast('Select a branch first', 'error'); return; }
+        if (!branchId)   { showToast('Select a commissary first', 'error'); return; }
         if (!ledgerDate) { showToast('Ledger date is required', 'error'); return; }
 
         var operations = [];
@@ -351,7 +346,6 @@
                 ledger_date: ledgerDate,
                 quantity: qty,
                 flow_mode: flowMode,
-                dr_number: drNumber,
                 reason: reason,
                 client_op_id: 'out-' + now + '-' + pid + '-' + (idx++)
             });
