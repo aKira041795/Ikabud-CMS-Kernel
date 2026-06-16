@@ -39,7 +39,11 @@
             </span>
         </div>
     </div>
-    <button type="button" class="btn btn-outline print-hide" onclick="printOutputLedger()">Print</button>
+    <div class="flex items-center gap-2">
+        <a class="btn btn-outline" href="{base_url}/admin/usage?date={date}">Open Usage</a>
+        <a class="btn btn-outline" href="{base_url}/admin/commissary?date={date}">Commissary</a>
+        <button type="button" class="btn btn-outline print-hide" onclick="printOutputLedger()">Print</button>
+    </div>
 </div>
 
 <div class="mb-6 grid gap-3 lg:grid-cols-2">

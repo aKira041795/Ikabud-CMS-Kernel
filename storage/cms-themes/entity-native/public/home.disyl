@@ -1,0 +1,78 @@
+{# Entity-Native: Home Page
+   A pure entity-view driven home page.
+   Every section uses governed ikb_* components.
+   No module-specific handler calls. No CMS internals. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{#
+    The home page composes entity views from multiple modules.
+    Each section is capability-aware — if the module or entity
+    type is not available, the section simply renders empty.
+    The theme doesn't know or care which modules are installed.
+#}
+
+{# ── Hero Section ── #}
+<ikb_section padding_y="2xl">
+    <ikb_container max_width="800px" padding="md" style="text-align:center;">
+        <h1 style="font-size:clamp(1.8rem,5vw,3rem);font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin:0 0 var(--spacing-md);">
+            {site_title|default:'Welcome to Ikabud'}
+        </h1>
+        <p style="font-size:1.1rem;color:var(--color-text-secondary);max-width:600px;margin:0 auto var(--spacing-lg);line-height:1.6;">
+            {site_tagline|default:'A governed application platform — modules supply meaning, themes supply presentation.'}
+        </p>
+        <div style="display:flex;gap:0.75rem;justify-content:center;">
+            <ikb_button variant="primary" size="md" href="{base_url}/blog">Read Articles</ikb_button>
+            <ikb_button variant="outline" size="md" href="{base_url}/ecommerce/shop">Browse Products</ikb_button>
+        </div>
+    </ikb_container>
+</ikb_section>
+
+{# ── Recent Articles (CMS Posts) ── #}
+<ikb_section padding_y="lg">
+    <ikb_container max_width="1200px" padding="md">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--spacing-md);">
+            <h2 style="font-size:1.5rem;font-weight:700;margin:0;">Latest Articles</h2>
+            <a href="{base_url}/blog" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;">View all →</a>
+        </div>
+        <ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" />
+    </ikb_container>
+</ikb_section>
+
+{# ── Featured Products (Ecommerce) ── #}
+<ikb_section padding_y="lg" style="background:var(--color-surface-muted);">
+    <ikb_container max_width="1200px" padding="md">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--spacing-md);">
+            <h2 style="font-size:1.5rem;font-weight:700;margin:0;">Featured Products</h2>
+            <a href="{base_url}/ecommerce/shop" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;">Shop all →</a>
+        </div>
+        <ikb_entity_list source="ecommerce_product.featured" view="card_grid" limit="4" />
+    </ikb_container>
+</ikb_section>
+
+{# ── Open Cases (Guidance) — only renders if guidance module is active ── #}
+<ikb_section padding_y="lg">
+    <ikb_container max_width="1200px" padding="md">
+        <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Active Cases</h2>
+        <ikb_entity_list source="guidance_case.open" view="table" limit="5" />
+    </ikb_container>
+</ikb_section>
+
+{# ── Low Stock Alert (WMS) ── #}
+<ikb_section padding_y="lg" style="background:var(--color-surface-muted);">
+    <ikb_container max_width="1200px" padding="md">
+        <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Low Stock Items</h2>
+        <ikb_entity_list source="wms_stock.low" view="card_grid" limit="4" />
+    </ikb_container>
+</ikb_section>
+
+{# ── Bakeshop Products ── #}
+<ikb_section padding_y="lg">
+    <ikb_container max_width="1200px" padding="md">
+        <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Bakeshop Products</h2>
+        <ikb_entity_list source="bakeshop_product.recent" view="card_grid" limit="6" />
+    </ikb_container>
+</ikb_section>
+
+{/block}

@@ -1,0 +1,63 @@
+{# Entity-Native: Entity List Template
+   Pure entity-view rendering — no CMS-specific context injection.
+   Uses governed {ikb_entity_list} for data resolution.
+   Theme owns presentation (grid, cards, spacing).
+   Modules own truth (data, capabilities, actions). #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+<ikb_section padding_y="lg">
+    <ikb_container max_width="1200px" padding="md">
+
+        {# Page title from context — falls back to entity type #}
+        {if page_title}
+            <h1 style="font-size:2rem;font-weight:700;margin:0 0 0.25rem;">{page_title}</h1>
+        {/if}
+        {if page_subtitle}
+            <p style="color:var(--color-text-secondary);margin:0 0 var(--spacing-lg);">{page_subtitle}</p>
+        {/if}
+
+        {# ── Governed entity list — the theme declares intent, the kernel resolves #}
+        {if entity_type}
+            <ikb_entity_list
+                source="{entity_type}.{qualifier|default:'recent'}"
+                view="{entity_view|default:'card_grid'}"
+                limit="{entity_limit|default:12}"
+            />
+        {else}
+            {# Fallback: render all available entity types as sections #}
+            <ikb_section padding_y="md">
+                <ikb_grid columns="2" gap="md">
+                    {# Products — ecommerce or bakeshop #}
+                    <ikb_card padding="md" radius="md">
+                        <h3 style="margin:0 0 0.5rem;">Products</h3>
+                        <p style="color:var(--color-text-secondary);font-size:0.85rem;margin:0 0 1rem;">Browse available products</p>
+                        <a href="{base_url}/ecommerce/shop" class="cms-btn cms-btn-primary" style="font-size:0.85rem;">View Products</a>
+                    </ikb_card>
+
+                    {# Content — CMS posts and pages #}
+                    <ikb_card padding="md" radius="md">
+                        <h3 style="margin:0 0 0.5rem;">Articles</h3>
+                        <p style="color:var(--color-text-secondary);font-size:0.85rem;margin:0 0 1rem;">Read the latest posts</p>
+                        <a href="{base_url}/blog" class="cms-btn cms-btn-outline" style="font-size:0.85rem;">View Articles</a>
+                    </ikb_card>
+                </ikb_grid>
+            </ikb_section>
+
+            {# Recent CMS posts #}
+            <ikb_section padding_y="md">
+                <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Latest Articles</h2>
+                <ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" />
+            </ikb_section>
+
+            {# Featured products from ecommerce #}
+            <ikb_section padding_y="md">
+                <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Featured Products</h2>
+                <ikb_entity_list source="ecommerce_product.featured" view="card_grid" limit="4" />
+            </ikb_section>
+        {/if}
+
+    </ikb_container>
+</ikb_section>
+{/block}

@@ -243,6 +243,8 @@
                 <button type="submit" class="btn btn-outline btn-sm">Search</button>
             </form>
         </div>
+    <div class="flex items-center gap-2">
+        <a class="btn btn-outline" href="{base_url}/admin/sales?date_from={date}&date_to={date}">Sales Summary</a>
     </div>
 
     <!-- Stat cards -->

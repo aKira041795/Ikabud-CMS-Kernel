@@ -1,0 +1,133 @@
+{
+    "name": "entity-native",
+    "version": "1.0.0",
+    "label": "Entity Native",
+    "description": "A pure entity-view theme — all content rendered through governed ikb_* components. No CMS-specific context injection. Themes present meaning; modules own truth.",
+    "author": "Ikabud",
+    "license": "MIT",
+    "tokens": "tokens.json",
+    "shell": "shell.disyl",
+    "sections": "sections/",
+    "entity_views": "entity-views/",
+    "supported_surfaces": [
+        "public",
+        "print",
+        "email"
+    ],
+    "design_language": {
+        "type_scale": "inter",
+        "color_system": "oklch",
+        "grid": "tailwind-v3",
+        "icon_set": "fontawesome-6"
+    },
+    "theme": {
+        "colors": {
+            "primary": {
+                "default": "#2563eb",
+                "dark": "#3b82f6",
+                "light": "#eff6ff"
+            },
+            "surface": {
+                "default": "#ffffff",
+                "muted": "#f8fafc",
+                "raised": "#ffffff"
+            },
+            "text": {
+                "primary": "#0f172a",
+                "secondary": "#475569",
+                "muted": "#94a3b8"
+            },
+            "border": {
+                "default": "#e2e8f0",
+                "subtle": "#f1f5f9"
+            },
+            "status": {
+                "success": "#16a34a",
+                "warning": "#ca8a04",
+                "danger": "#dc2626",
+                "info": "#0ea5e9"
+            }
+        },
+        "typography": {
+            "font_family": "Inter, system-ui, -apple-system, sans-serif",
+            "heading_weight": "700",
+            "body_size": "16px",
+            "line_height": "1.6"
+        },
+        "spacing": {
+            "none": "0",
+            "sm": "0.75rem",
+            "md": "1.25rem",
+            "lg": "2rem",
+            "xl": "3rem",
+            "2xl": "5rem"
+        },
+        "radius": {
+            "none": "0",
+            "sm": "0.375rem",
+            "md": "0.75rem",
+            "lg": "1rem"
+        },
+        "shadows": {
+            "sm": "0 1px 2px rgba(0,0,0,0.05)",
+            "md": "0 4px 6px rgba(0,0,0,0.07)",
+            "lg": "0 10px 25px rgba(0,0,0,0.08)"
+        }
+    },
+    "layout": {
+        "max_width": "1200px",
+        "gutter": "1rem",
+        "header": {
+            "height": "64px",
+            "sticky": true
+        },
+        "footer": {
+            "columns": 3,
+            "show_branding": true
+        }
+    },
+    "components": {
+        "ikb_container": {
+            "defaults": {
+                "max_width": "1200px",
+                "padding": "md"
+            }
+        },
+        "ikb_section": {
+            "defaults": {
+                "padding_y": "lg"
+            }
+        },
+        "ikb_card": {
+            "defaults": {
+                "radius": "md",
+                "shadow": "sm",
+                "padding": "md"
+            }
+        },
+        "ikb_grid": {
+            "defaults": {
+                "columns": 3,
+                "gap": "md"
+            }
+        },
+        "ikb_entity_list": {
+            "defaults": {
+                "view": "card_grid",
+                "limit": 12,
+                "empty_state": "Nothing here yet."
+            }
+        },
+        "ikb_entity_detail": {
+            "defaults": {
+                "view": "full"
+            }
+        },
+        "ikb_button": {
+            "defaults": {
+                "variant": "primary",
+                "size": "md"
+            }
+        }
+    }
+}

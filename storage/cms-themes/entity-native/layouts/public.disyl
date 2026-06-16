@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en" class="entity-native">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title|default:'Ikabud'}</title>
+
+    {# Entity-native theme: uses only governed components + design tokens.
+       No CMS-specific context injection. Theme presents meaning; modules own truth. #}
+
+    {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
+    {if colors_style}{colors_style|raw}{/if}
+    {if theme_layout_style}{theme_layout_style|raw}{/if}
+    {if custom_css}{custom_css|raw}{/if}
+    {if head_code}{head_code|raw}{/if}
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        :root {
+            /* Customizer overrides via colors_style injection point above.
+               Falls back to these defaults when customizer is not configured. */
+            --color-primary: #2563eb;
+            --color-primary-dark: #1d4ed8;
+            --color-primary-light: #eff6ff;
+            --color-surface: #fff;
+            --color-surface-muted: #f8fafc;
+            --color-text: #0f172a;
+            --color-text-secondary: #475569;
+            --color-border: #e2e8f0;
+            --font-family: Inter, system-ui, -apple-system, sans-serif;
+            --font-size-base: 16px;
+            --line-height: 1.6;
+            --max-width: 1200px;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.75rem;
+            --radius-lg: 1rem;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+            --spacing-sm: 0.75rem;
+            --spacing-md: 1.25rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 3rem;
+            --header-height: 64px;
+        }
+            --color-surface-muted: #f8fafc;
+            --color-text: #0f172a;
+            --color-text-secondary: #475569;
+            --color-border: #e2e8f0;
+            --font-family: Inter, system-ui, -apple-system, sans-serif;
+            --font-size-base: 16px;
+            --line-height: 1.6;
+            --max-width: 1200px;
+            --radius-sm: 0.375rem;
+            --radius-md: 0.75rem;
+            --radius-lg: 1rem;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+            --spacing-sm: 0.75rem;
+            --spacing-md: 1.25rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 3rem;
+            --header-height: 64px;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-family);
+            font-size: var(--font-size-base);
+            line-height: var(--line-height);
+            color: var(--color-text);
+            background: var(--color-surface);
+            margin: 0;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Entity-Native Layout ── */
+        .en-header {
+            height: var(--header-height);
+            border-bottom: 1px solid var(--color-border);
+            background: var(--color-surface);
+            display: flex; align-items: center;
+            position: sticky; top: 0; z-index: 100;
+            padding: 0 var(--spacing-md);
+        }
+        .en-header__inner {
+            max-width: var(--max-width); width: 100%; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .en-header__brand {
+            font-size: 1.25rem; font-weight: 700; color: var(--color-text);
+            text-decoration: none; letter-spacing: -0.02em;
+        }
+        .en-header__nav { display: flex; gap: 0.25rem; align-items: center; }
+        .en-header__nav a {
+            color: var(--color-text-secondary); text-decoration: none;
+            font-size: 0.875rem; font-weight: 500; padding: 0.35rem 0.75rem;
+            border-radius: var(--radius-sm); transition: all 0.12s;
+        }
+        .en-header__nav a:hover { color: var(--color-primary); background: var(--color-primary-light); }
+        /* CMS renders primary_menu as <ul> — inline it to match flex nav */
+        .en-header__nav ul { list-style: none; display: flex; gap: 0.25rem; padding: 0; margin: 0; }
+        .en-header__nav li { display: flex; }
+        }
+        .en-header__nav a:hover { color: var(--color-primary); background: var(--color-primary-light); }
+
+        .en-main {
+            max-width: var(--max-width); margin: 0 auto;
+            padding: var(--spacing-lg) var(--spacing-md);
+            min-height: calc(100vh - var(--header-height) - 200px);
+        }
+
+        .en-footer {
+            border-top: 1px solid var(--color-border);
+            padding: var(--spacing-xl) var(--spacing-md);
+            background: var(--color-surface-muted);
+            font-size: 0.875rem; color: var(--color-text-secondary);
+        }
+        .en-footer__inner {
+            max-width: var(--max-width); margin: 0 auto;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--spacing-lg);
+        }
+        .en-footer__col h4 {
+            font-weight: 600; color: var(--color-text); margin: 0 0 var(--spacing-sm);
+        }
+        .en-footer__col a {
+            display: block; color: var(--color-text-secondary); text-decoration: none;
+            padding: 0.2rem 0; transition: color 0.12s;
+        }
+        .en-footer__col a:hover { color: var(--color-primary); }
+        .en-footer__bottom {
+            max-width: var(--max-width); margin: var(--spacing-md) auto 0;
+            padding-top: var(--spacing-md); border-top: 1px solid var(--color-border);
+            text-align: center; font-size: 0.8rem;
+        }
+
+        /* ── Entity grid cards ── */
+        .en-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--spacing-md);
+        }
+        .en-card {
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: box-shadow 0.15s, transform 0.15s;
+        }
+        .en-card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
+        .en-card__image {
+            width: 100%; height: 180px; object-fit: cover;
+            background: var(--color-surface-muted);
+        }
+        .en-card__body { padding: var(--spacing-md); }
+        .en-card__title {
+            font-size: 1.05rem; font-weight: 600; margin: 0 0 0.35rem;
+            color: var(--color-text);
+        }
+        .en-card__meta { font-size: 0.8rem; color: var(--color-text-secondary); margin: 0 0 0.5rem; }
+        .en-card__price { font-weight: 700; color: var(--color-primary); font-size: 1.1rem; }
+        .en-card__status {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px;
+            font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .en-card__status--published { background: #dcfce7; color: #166534; }
+        .en-card__status--draft { background: #fef3c7; color: #92400e; }
+        .en-card__status--open { background: #dbeafe; color: #1e40af; }
+        .en-card__status--closed { background: #f1f5f9; color: #64748b; }
+        .en-card__status--low { background: #fee2e2; color: #991b1b; }
+        .en-card__status--in_stock { background: #dcfce7; color: #166534; }
+        .en-card__actions { margin-top: var(--spacing-sm); display: flex; gap: 0.5rem; }
+
+        /* ── Entity detail ── */
+        .en-detail { max-width: 800px; }
+        .en-detail__title { font-size: 2rem; font-weight: 700; margin: 0 0 var(--spacing-sm); letter-spacing: -0.02em; }
+        .en-detail__meta { color: var(--color-text-secondary); font-size: 0.875rem; margin-bottom: var(--spacing-lg); }
+        .en-detail__body { line-height: 1.75; }
+        .en-detail__body img { max-width: 100%; border-radius: var(--radius-md); margin: var(--spacing-md) 0; }
+        .en-detail__section { margin: var(--spacing-lg) 0; }
+
+        /* ── Utility ── */
+        .en-empty { text-align: center; padding: var(--spacing-xl); color: var(--color-text-secondary); }
+        .en-empty__icon { font-size: 2.5rem; margin-bottom: var(--spacing-sm); }
+        .en-empty__text { font-size: 1rem; }
+
+        @media (max-width: 768px) {
+            .en-footer__inner { grid-template-columns: 1fr; }
+            .en-card-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+{block header}
+<header class="en-header">
+    <div class="en-header__inner">
+        <a href="{base_url}/" class="en-header__brand">{site_title|default:app_name|default:'Ikabud'}</a>
+        <nav class="en-header__nav">
+            {if customized_header}{customized_header|raw}{else}
+            {if primary_menu}{primary_menu|raw}{/if}
+            {if social_links}
+                {for link in social_links}
+                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}">
+                        <span style="font-size:1rem;">{link.icon|raw}</span>
+                    </a>
+                {/for}
+            {/if}
+            {/if}
+            {if user}
+                <span style="font-size:0.8rem;color:var(--color-text-secondary);margin-left:0.5rem;padding-left:0.75rem;border-left:1px solid var(--color-border);">{user.username}</span>
+            {/if}
+        </nav>
+    </div>
+</header>
+{/block}
+
+<main class="en-main">
+{block content}
+    {# Default: render whatever the handler provides #}
+    {if body}{body|raw}{/if}
+{/block}
+</main>
+
+<footer class="en-footer">
+    {if customized_footer}{customized_footer|raw}{else}
+    <div class="en-footer__inner">
+        <div class="en-footer__col">
+            <h4>{site_title|default:'Ikabud'}</h4>
+            <p style="margin:0;font-size:0.8rem;">A governed application platform.</p>
+        </div>
+        <div class="en-footer__col">
+            <h4>Navigate</h4>
+            {if footer_menu}{footer_menu|raw}{/if}
+        </div>
+        <div class="en-footer__col">
+            <h4>Info</h4>
+            <p style="margin:0;font-size:0.8rem;">© {current_year|default:'2026'} {site_title|default:'Ikabud'}.</p>
+        </div>
+    </div>
+    {/if}
+    <div class="en-footer__bottom">
+        Built on Ikabud Kernel OS + DiSyL · Entity-Native Theme
+    </div>
+</footer>
+
+{if body_end_code}{body_end_code|raw}{/if}
+
+{block scripts}{/block}
+</body>
+</html>

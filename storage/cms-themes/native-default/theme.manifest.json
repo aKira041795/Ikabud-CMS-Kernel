@@ -1,5 +1,4 @@
 {
-    "$schema": "https://ikabud.dev/schemas/theme-manifest-v1.json",
     "name": "native-default",
     "version": "1.0.0",
     "label": "Native Default",

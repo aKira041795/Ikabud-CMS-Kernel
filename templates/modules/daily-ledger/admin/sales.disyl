@@ -46,9 +46,12 @@
             </span>
         </div>
     </div>
-    {if user_role == 'admin'}
-    <button type="button" class="btn btn-outline print-hide" onclick="printSalesSummary()">Print</button>
-    {/if}
+    <div class="flex items-center gap-2">
+        <a class="btn btn-outline" href="{base_url}/admin/variances?date={date_from}">View Variances</a>
+        {if user_role == 'admin'}
+        <button type="button" class="btn btn-outline print-hide" onclick="printSalesSummary()">Print</button>
+        {/if}
+    </div>
 </div>
 
 <form class="card mb-6 print-hide" action="{base_url}/admin/sales" method="GET">
