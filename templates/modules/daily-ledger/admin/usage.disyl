@@ -7,13 +7,20 @@
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
         <h2 class="text-lg font-semibold text-gray-900">Usage & Ingredients</h2>
-        <p class="text-sm text-gray-500">Record branch-traceable production inputs and raw-material counts.</p>
+        <p class="text-sm text-gray-500">Production runs (input side) — record baker, yield, kilo, and egg per product. Complements Production Output.</p>
     </div>
-    <div>
+    <div class="flex items-center gap-2">
         <form class="flex items-center gap-2" method="GET" action="{base_url}/admin/usage">
             <input type="date" class="form-input" name="date" value="{date}" onchange="this.form.submit()">
-            <input type="hidden" name="branch_id" value="{global_branch_id}">
+            <select class="form-input" name="branch_id" onchange="this.form.submit()">
+                <option value="0">All Branches</option>
+                {foreach branches as br}
+                <option value="{br.id}" {if br.id == global_branch_id}selected{/if}>{br.name}</option>
+                {/foreach}
+            </select>
         </form>
+        <a class="btn btn-outline" href="{base_url}/admin/production-output?date={date}">Production Output</a>
+        <a class="btn btn-outline" href="{base_url}/admin/commissary?date={date}">Commissary</a>
     </div>
 </div>
 
