@@ -4,8 +4,11 @@
 {block content}
 <div class="flex items-center justify-between mb-6">
     <div>
-        <h2 class="text-lg font-semibold text-gray-900">{account.name} <span class="text-sm font-normal text-gray-500">— Selling Account</span></h2>
-        <p class="text-sm text-gray-500">{account.account_type|default:'Account'} · Assigned to branch via delivery workflow</p>
+        <h2 class="text-lg font-semibold text-violet-900">
+            <span class="inline-flex items-center rounded-full bg-violet-100 px-2.5 py-0.5 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-200 mr-2">Selling Account</span>
+            {account.name}
+        </h2>
+        <p class="text-sm text-gray-500">{account.account_type|default:'Account'} · Attached to branch via delivery workflow</p>
         <p class="text-xs text-gray-500 mt-1">
             Business date: <span class="font-medium text-gray-700">{business_date_label}</span>
             · Cutoff: <span class="font-medium text-gray-700">{close_of_day_time}</span>

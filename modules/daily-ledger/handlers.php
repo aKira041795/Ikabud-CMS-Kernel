@@ -2197,6 +2197,24 @@ function handleCashierLedger(array $params = []): void
             $commissaryBranchName = $commNameStmt->fetchColumn() ?: null;
         }
     }
+
+    // Load cashier's assigned selling accounts
+    $assignedSellingAccounts = [];
+    if ($role === 'cashier' && dl_areSellingAccountsEnabled()) {
+        $userId = (int)($user['id'] ?? 0);
+        if ($userId > 0) {
+            $saStmt = $ctx->db()->prepare(
+                'SELECT sa.id, sa.name, sa.account_type
+                   FROM dl_user_selling_accounts usa
+                   INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
+                  WHERE usa.user_id = :uid AND sa.is_active = 1
+                  ORDER BY sa.name'
+            );
+            $saStmt->execute([':uid' => $userId]);
+            $assignedSellingAccounts = $saStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
+    }
+
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -2223,6 +2241,7 @@ function handleCashierLedger(array $params = []): void
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
+        'assigned_selling_accounts' => $assignedSellingAccounts,
     ]);
 }
 
