@@ -126,7 +126,7 @@
             </select>
         </div>
         <div class="form-group" id="add-branch-group">
-            <label class="form-label">Assign to Branch <span class="font-normal text-gray-500">(cashiers only)</span></label>
+             <label class="form-label">Assign to Branch <span class="font-normal text-gray-500">(cashiers only, optional if selling account assigned)</span></label>
             <select class="form-input" id="add-branch">
                 <option value="">— Select Branch —</option>
                 {foreach branches as br}
@@ -182,7 +182,7 @@
             </select>
         </div>
         <div class="form-group" id="edit-branch-group">
-            <label class="form-label">Assign to Branch <span class="font-normal text-gray-500">(cashiers only)</span></label>
+             <label class="form-label">Assign to Branch <span class="font-normal text-gray-500">(cashiers only, optional if selling account assigned)</span></label>
             <select class="form-input" id="edit-branch">
                 <option value="">— Select Branch —</option>
                 {foreach branches as br}
@@ -366,10 +366,6 @@
         var role = document.getElementById('add-role').value;
         var branchId = parseInt(document.getElementById('add-branch').value) || 0;
         var branchIds = selectedValues(document.getElementById('add-branches'));
-        if (role === 'cashier' && !branchId) {
-            showToast('Cashiers must be assigned to a branch');
-            return;
-        }
         if ((role === 'supervisor' || role === 'production_in_charge') && branchIds.length === 0) {
             showToast('Select at least one branch');
             return;
@@ -407,10 +403,6 @@
         var role = document.getElementById('edit-role').value;
         var branchId = parseInt(document.getElementById('edit-branch').value) || 0;
         var branchIds = selectedValues(document.getElementById('edit-branches'));
-        if (role === 'cashier' && !branchId) {
-            showToast('Cashiers must be assigned to a branch');
-            return;
-        }
         if ((role === 'supervisor' || role === 'production_in_charge') && branchIds.length === 0) {
             showToast('Select at least one branch');
             return;

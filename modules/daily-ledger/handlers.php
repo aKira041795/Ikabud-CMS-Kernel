@@ -6424,11 +6424,16 @@ function apiCreateUser(array $params = []): void
         return $v > 0;
     })));
 
-    // Cashiers MUST have a branch; admin/supervisor don't need one
+    // Cashiers: branch is optional when selling accounts are assigned
     if ($role === 'cashier' && $branchId <= 0) {
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
-        $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
-        return;
+        $sellingAccountIds = $input['selling_account_ids'] ?? [];
+        if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
+        $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
+        if (empty($sellingAccountIds)) {
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
+            $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
+            return;
+        }
     }
 
     if (in_array($role, ['supervisor', 'production_in_charge'], true) && count($branchIds) === 0) {
@@ -6597,9 +6602,14 @@ function apiUpdateUser(array $params = []): void
         })));
 
         if ($role === 'cashier' && $branchId <= 0) {
-            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch', 'type' => 'error']]));
-            $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch'], 422);
-            return;
+            $sellingAccountIds = $input['selling_account_ids'] ?? [];
+            if (!is_array($sellingAccountIds)) { $sellingAccountIds = []; }
+            $sellingAccountIds = array_values(array_unique(array_filter(array_map('intval', $sellingAccountIds), static fn($v) => $v > 0)));
+            if (empty($sellingAccountIds)) {
+                header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cashiers must be assigned to a branch or at least one selling account', 'type' => 'error']]));
+                $ctx->json(['ok' => false, 'error' => 'Cashiers must be assigned to a branch or at least one selling account'], 422);
+                return;
+            }
         }
 
         if (in_array($role, ['supervisor', 'production_in_charge'], true) && count($branchIds) === 0) {
