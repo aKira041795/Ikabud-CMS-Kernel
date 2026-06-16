@@ -28,6 +28,7 @@ return [
 
         '/daily-ledger/admin/users'                => 'daily-ledger:handleAdminUsers',
         '/daily-ledger/admin/activity'             => 'daily-ledger:handleAdminActivity',
+        '/daily-ledger/admin/withdrawals'          => 'daily-ledger:handleAdminWithdrawals',
         '/daily-ledger/admin/settings'             => 'daily-ledger:handleAdminSettings',
         '/daily-ledger/admin/branch-summary'        => 'daily-ledger:handleAdminBranchSummary',
 

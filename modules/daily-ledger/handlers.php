@@ -8160,7 +8160,55 @@ function apiDailyLedgerMe(array $params = []): void
             'close_of_day_time' => $clockLabel['close_of_day_time'],
             'operating_timezone' => $clockLabel['operating_timezone'],
             'operating_region' => $clockLabel['operating_region'],
-        'all_branches' => $allBranches,
         ],
+        'all_branches' => $allBranches,
+    ]);
+}
+
+function handleAdminWithdrawals(): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); return; }
+    $user = dlCurrentUser(['admin', 'supervisor']);
+    $db = $ctx->db();
+    $input = $ctx->input();
+    $date = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
+    $branchId = (int)($input['branch_id'] ?? 0);
+
+    $sql = 'SELECT cw.id, cw.ledger_date, cw.withdrawal_type, cw.reason_code,
+                   cw.quantity, cw.dr_number,
+                   p.name AS product_name,
+                   b.name AS branch_name,
+                   u.full_name AS cashier_name
+              FROM dl_cashier_withdrawals cw
+              JOIN dl_products p ON p.id = cw.product_id
+              JOIN dl_branches b ON b.id = cw.branch_id
+              LEFT JOIN dl_users u ON u.id = cw.encoded_by
+             WHERE cw.ledger_date = :d';
+    $bind = [':d' => $date];
+    if ($branchId > 0) {
+        $sql .= ' AND cw.branch_id = :bid';
+        $bind[':bid'] = $branchId;
+    }
+    $sql .= ' ORDER BY cw.created_at DESC LIMIT 500';
+    $stmt = $db->prepare($sql);
+    $stmt->execute($bind);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $branches = $db->query('SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $role = (string)($user['role'] ?? '');
+    $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
+    echo dlRender('modules/daily-ledger/admin/withdrawals.disyl', [
+        'page_title' => 'Withdrawals',
+        'user_name' => $userName,
+        'user_role' => $role,
+        'current_page' => 'withdrawals',
+        'base_url' => dlGetBaseUrl(),
+        'dl_token' => (string)kernelCookie(dlCookieName(), ''),
+        'withdrawals' => $rows,
+        'branches' => $branches,
+        'branch_id' => $branchId,
+        'date' => $date,
     ]);
 }
