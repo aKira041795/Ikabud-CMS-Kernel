@@ -47,31 +47,24 @@
                             <input type="text" x-model="form.dr_number" placeholder="Enter paper DR number" class="form-input mt-0 w-full border-emerald-300 bg-emerald-50 font-mono text-base font-semibold uppercase tracking-[0.18em]">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Receiving Branch / Selling Account <span class="text-rose-500">*</span></label>
-                            <select x-model="form.destination_type" class="form-input mt-0 w-full mb-2">
-                                <option value="">-- Select destination type --</option>
-                                <option value="branch">Branch</option>
-                                {if assigned_selling_accounts | count > 0}
-                                <option value="selling_account">Selling Account</option>
-                                {/if}
-                            </select>
-                            <select x-model="form.destination_id" class="form-input mt-0 w-full" x-show="form.destination_type === 'branch' || !form.destination_type">
-                                <option value="">-- Select branch --</option>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Receiving Branch <span class="text-rose-500">*</span></label>
+                            <select x-model="form.destination_id" class="form-input mt-0 w-full" @change="onDestinationChange($event)">
+                                <option value="">-- Select destination --</option>
+                                <optgroup label="Branches">
                                 {foreach all_branches as b}
                                 {if b.id != branch_id}
                                 <option value="{b.id}" data-type="branch">{b.code} — {b.name}</option>
                                 {/if}
                                 {/foreach}
-                            </select>
-                            {if assigned_selling_accounts | count > 0}
-                            <select x-model="form.destination_id" class="form-input mt-0 w-full" x-show="form.destination_type === 'selling_account'">
-                                <option value="">-- Select selling account --</option>
+                                </optgroup>
+                                {if assigned_selling_accounts | count > 0}
+                                <optgroup label="Selling Accounts">
                                 {foreach assigned_selling_accounts as sa}
                                 <option value="{sa.id}" data-type="selling_account">{sa.name}</option>
                                 {/foreach}
+                                </optgroup>
+                                {/if}
                             </select>
-                            {/if}
-                        </div>
                     </div>
 
                     <div class="mb-3 bg-gray-50 rounded-lg p-3">
@@ -136,13 +129,13 @@ function dispatchModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        form: { delivery_date: '', dr_number: '', destination_type: '', destination_id: '' },
+        form: { delivery_date: '', dr_number: '', destination_type: 'branch', destination_id: '' },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.form = { delivery_date: LEDGER_DATE, dr_number: '', destination_type: '', destination_id: '' };
+            this.form = { delivery_date: LEDGER_DATE, dr_number: '', destination_type: 'branch', destination_id: '' };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -151,6 +144,10 @@ function dispatchModal() {
         closeModal() { this.isOpen = false; },
 
         addEmptyLine() { this.lines.push({ product_id: '', quantity: '' }); },
+        onDestinationChange(event) {
+            var sel = event.target.selectedOptions[0];
+            this.form.destination_type = sel ? (sel.getAttribute('data-type') || 'branch') : 'branch';
+        },
 
         loadProducts() {
             this.products = [];
@@ -176,7 +173,7 @@ function dispatchModal() {
                 this.errorMsg = 'Paper DR number is required.';
                 return false;
             }
-            if (!this.form.destination_type || !this.form.destination_id) {
+            if (!this.form.destination_id) {
                 this.errorMsg = 'Receiving destination is required.';
                 return false;
             }

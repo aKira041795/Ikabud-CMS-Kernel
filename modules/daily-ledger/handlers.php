@@ -1689,24 +1689,6 @@ function dlAuthenticatedHomeRedirect(): ?string
 
     $role = (string)($user['role'] ?? '');
     if ($role === 'cashier') {
-        // If the cashier has selling account assignments, go directly to the first selling account ledger
-        $userId = dl_getActorUserId($user);
-        if ($userId > 0) {
-            $ctx = module();
-            if ($ctx) {
-                $saStmt = $ctx->db()->prepare(
-                    'SELECT sa.id FROM dl_user_selling_accounts usa
-                      INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
-                     WHERE usa.user_id = :uid AND sa.is_active = 1
-                     ORDER BY sa.name LIMIT 1'
-                );
-                $saStmt->execute([':uid' => $userId]);
-                $saId = $saStmt->fetchColumn();
-                if ($saId) {
-                    return '/daily-ledger/selling-account/ledger?id=' . (int)$saId;
-                }
-            }
-        }
         return '/daily-ledger/ledger';
     }
 
