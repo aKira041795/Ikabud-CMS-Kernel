@@ -2849,16 +2849,14 @@ function apiGetIncomingDeliveries(array $params = []): void
     if (dl_isFormalDeliveryEnabled()) {
         $formalSql = 'SELECT d.id AS delivery_id, d.dr_number, d.delivery_date,
                              d.origin_id AS origin_branch_id,
-                             CASE
-                                 WHEN d.origin_type = "commissary" THEN "Commissary"
-                                 ELSE COALESCE(ob.name, d.origin_type)
-                             END AS origin_branch_name,
+                             COALESCE(ob.name, cb.name, d.origin_type) AS origin_branch_name,
                              di.id AS delivery_item_id,
                              di.product_id, p.name AS product_name, di.quantity
                       FROM dl_deliveries d
                       INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
                       INNER JOIN dl_products p ON p.id = di.product_id
-                      LEFT JOIN dl_branches ob ON ob.id = d.origin_id
+                      LEFT JOIN dl_branches ob ON ob.id = d.origin_id AND d.origin_type = "branch"
+                      LEFT JOIN dl_branches cb ON cb.id = d.origin_id AND d.origin_type = "commissary"
                       WHERE d.destination_type = "branch"
                         AND d.destination_id = :bid
                         AND d.status = "posted"
