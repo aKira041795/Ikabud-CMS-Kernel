@@ -275,54 +275,6 @@
       "roles": [
         "supervisor"
       ]
-    },
-    {
-      "label": "Products",
-      "url": "/admin/products",
-      "icon": "package",
-      "roles": [
-        "admin"
-      ]
-    },
-    {
-      "label": "Branches",
-      "url": "/admin/branches",
-      "icon": "git-branch",
-      "roles": [
-        "admin"
-      ]
-    },
-    {
-      "label": "Users",
-      "url": "/admin/users",
-      "icon": "users",
-      "roles": [
-        "admin"
-      ]
-    },
-    {
-      "label": "Price Groups",
-      "url": "/admin/price-groups",
-      "icon": "tag",
-      "roles": [
-        "admin"
-      ]
-    },
-    {
-      "label": "Selling Accounts",
-      "url": "/admin/selling-accounts",
-      "icon": "store",
-      "roles": [
-        "admin"
-      ]
-    },
-    {
-      "label": "Settings",
-      "url": "/admin/settings",
-      "icon": "shield",
-      "roles": [
-        "admin"
-      ]
     }
   ],
   "routes": "routes.php",
