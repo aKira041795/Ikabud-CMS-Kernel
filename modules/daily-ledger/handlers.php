@@ -6296,14 +6296,7 @@ function handleAdminUsers(array $params = []): void
                       WHERE ub.user_id = u.id) AS branch_names,
                    (SELECT GROUP_CONCAT(ub.branch_id ORDER BY ub.branch_id SEPARATOR ',')
                       FROM dl_user_branches ub
-                      WHERE ub.user_id = u.id) AS branch_ids_csv,
-                   (SELECT GROUP_CONCAT(sa.name ORDER BY sa.name SEPARATOR ', ')
-                      FROM dl_user_selling_accounts usa
-                      INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
-                      WHERE usa.user_id = u.id) AS selling_account_names,
-                   (SELECT GROUP_CONCAT(usa.selling_account_id ORDER BY usa.selling_account_id SEPARATOR ',')
-                      FROM dl_user_selling_accounts usa
-                      WHERE usa.user_id = u.id) AS selling_account_ids_csv
+                      WHERE ub.user_id = u.id) AS branch_ids_csv
             FROM dl_users u
             WHERE 1=1" . $statusSql;
     $bind = [];
@@ -6334,9 +6327,7 @@ function handleAdminUsers(array $params = []): void
     ];
 
     $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $sellingAccounts = dl_areSellingAccountsEnabled()
-        ? $ctx->db()->query('SELECT id, name, account_type, assigned_branch_id FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: []
-        : [];
+    $sellingAccounts = []; // SA tables dropped — selling accounts are now branches
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
