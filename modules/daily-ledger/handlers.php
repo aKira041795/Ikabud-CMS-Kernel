@@ -210,20 +210,7 @@ function dl_getUserBranchId(): ?int
     );
     $stmt->execute([':id' => $userId]);
     $bid = (int)($stmt->fetchColumn() ?: 0);
-    if ($bid > 0) {
-        return $bid;
-    }
-
-    // Fallback: selling account as branch
-    $saStmt = $ctx->db()->prepare(
-        'SELECT sa.id FROM dl_user_selling_accounts usa
-          INNER JOIN dl_selling_accounts sa ON sa.id = usa.selling_account_id
-         WHERE usa.user_id = :id AND sa.is_active = 1
-         ORDER BY sa.name LIMIT 1'
-    );
-    $saStmt->execute([':id' => $userId]);
-    $saId = (int)($saStmt->fetchColumn() ?: 0);
-    return $saId > 0 ? $saId : null;
+    return $bid > 0 ? $bid : null;
 }
 
 function dlCurrentUser(array $roles = ['cashier', 'supervisor', 'admin', 'production_in_charge']): array
@@ -2158,16 +2145,11 @@ function handleCashierLedger(array $params = []): void
 
     $dayStatus  = $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open';
 
-    // For supervisor/admin: get list of all branches + selling accounts for switcher
+    // For supervisor/admin: get list of all branches for switcher
     $branches = [];
     if (in_array($role, ['admin', 'supervisor'], true)) {
         $stmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name');
         $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        // Merge selling accounts
-        $saRows = $ctx->db()->query('SELECT id, name FROM dl_selling_accounts WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($saRows as $sa) {
-            $branches[] = ['id' => (int)$sa['id'], 'code' => 'SA', 'name' => $sa['name']];
-        }
     }
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
