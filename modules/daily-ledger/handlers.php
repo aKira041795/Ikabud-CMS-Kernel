@@ -2848,6 +2848,10 @@ function apiCreateCashierDispatch(array $params = []): void
             dl_applyLedgerDelta($originBranchId, (int)$item['product_id'], $deliveryDate, (int)$item['quantity'], $actorId, 'withdraw');
         }
 
+        if ($destType === 'selling_account') {
+            dl_postDeliveryToSellingAccount($deliveryId);
+        }
+
         $ctx->db()->commit();
         dl_auditLog('create_delivery', $originBranchId, 'dl_deliveries', (string)$deliveryId, null, [
             'destination_type' => $destType,
