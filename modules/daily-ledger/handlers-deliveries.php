@@ -1629,7 +1629,7 @@ function handleAdminDeliveries(array $params = []): void
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
 
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $accounts = $ctx->db()->query('SELECT id, name, account_type, NULL AS assigned_branch_id FROM dl_branches WHERE is_active = 1 AND account_type IS NOT NULL ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $accounts = []; // selling accounts not yet migrated to dl_branches — account_type column does not exist
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');

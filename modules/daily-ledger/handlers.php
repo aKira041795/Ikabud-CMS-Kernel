@@ -2151,7 +2151,7 @@ function handleCashierLedger(array $params = []): void
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
     // All active branches (including former selling accounts) for dispatch dropdown
-    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary, COALESCE(account_type, 'branch') AS type FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
