@@ -2560,6 +2560,25 @@ function apiSaveCashierWithdrawals(array $params = []): void
                     $ctx->db(), $targetBranchId, $returnDeliveryId, $actorId, $date, null
                 );
 
+                // Credit commissary product ledger for saleable returned goods.
+                // Damaged/consumed goods (spoilage, damage, staff_meal, sampling,
+                // testing, promo, donation) are NOT credited back to inventory.
+                $unsaleableReasons = ['spoilage', 'damage', 'staff_meal', 'sampling', 'testing', 'promo', 'donation'];
+                $isSaleableReturn = $reasonCode === null || !in_array($reasonCode, $unsaleableReasons, true);
+                if ($isSaleableReturn) {
+                    foreach ($validLines as $line) {
+                        dl_applyCommissaryProductLedgerDelta(
+                            $ctx->db(),
+                            $targetBranchId,
+                            (int)$line['product_id'],
+                            $date,
+                            (int)$line['quantity'],  // credit produced_qty (treat return as addition to stock)
+                            0,
+                            $actorId
+                        );
+                    }
+                }
+
                 dl_auditLog('create_delivery', $branchId, 'dl_deliveries', (string)$returnDeliveryId, null, [
                     'dr_number' => $returnDr,
                     'status' => 'posted',
