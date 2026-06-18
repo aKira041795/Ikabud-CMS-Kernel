@@ -22,7 +22,6 @@
         {/if}
 
         <form method="post" action="/attendance-wage/auth/login" class="space-y-4">
-            {csrf_field /}
             <div>
                 <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username or Email</label>
                 <input type="text" name="username" id="username" required autofocus
