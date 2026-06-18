@@ -6,22 +6,22 @@ declare(strict_types=1);
  * Attendance page handlers.
  */
 
-use Ikabud\Kernel\Contracts\ModuleContext;
 
-function attendancePageClock(ModuleContext $ctx): string
+
+function attendancePageClock(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.clock@1');
-    return $ctx->render('modules/attendance-wage/attendance/clock');
+    echo app()->render('modules/attendance-wage/attendance/clock');
 }
 
-function attendancePageHistory(ModuleContext $ctx): string
+function attendancePageHistory(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.clock@1');
-    return $ctx->render('modules/attendance-wage/attendance/history');
+    echo app()->render('modules/attendance-wage/attendance/history');
 }
 
-function attendancePageReport(ModuleContext $ctx): string
+function attendancePageReport(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.manage@1');
-    return $ctx->render('modules/attendance-wage/attendance/report');
+    echo app()->render('modules/attendance-wage/attendance/report');
 }

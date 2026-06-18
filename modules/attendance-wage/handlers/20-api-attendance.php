@@ -6,30 +6,30 @@ declare(strict_types=1);
  * Attendance API handlers — clock-in/out, records, photos.
  */
 
-use Ikabud\Kernel\Contracts\ModuleContext;
 
-function attendanceApiClockIn(ModuleContext $ctx): array
+
+function attendanceApiClockIn(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.clock@1');
     // TODO: Implement clock-in logic (photo, location, store validation)
-    return ['ok' => true, 'message' => 'Clock-in recorded'];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Clock-in recorded']); return;
 }
 
-function attendanceApiClockOut(ModuleContext $ctx): array
+function attendanceApiClockOut(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.clock@1');
     // TODO: Implement clock-out logic
-    return ['ok' => true, 'message' => 'Clock-out recorded'];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Clock-out recorded']); return;
 }
 
-function attendanceApiRecords(ModuleContext $ctx): array
+function attendanceApiRecords(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.read@1');
     // TODO: Return attendance records with filters
-    return ['ok' => true, 'data' => []];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => []]); return;
 }
 
-function attendanceApiPhoto(ModuleContext $ctx, string $file): void
+function attendanceApiPhoto(array $params = [], string $file = ''): void
 {
     attendanceWageGuard('attendance_wage.read@1');
     // TODO: Serve attendance photo from private storage

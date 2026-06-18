@@ -6,25 +6,25 @@ declare(strict_types=1);
  * Salary adjustment API handlers.
  */
 
-use Ikabud\Kernel\Contracts\ModuleContext;
 
-function wageApiAdjustmentsList(ModuleContext $ctx): array
+
+function wageApiAdjustmentsList(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.manage@1');
     // TODO: List salary adjustments
-    return ['ok' => true, 'data' => []];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => []]); return;
 }
 
-function wageApiAdjustmentCreate(ModuleContext $ctx): array
+function wageApiAdjustmentCreate(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.manage@1');
     // TODO: Create adjustment (bonus, allowance, penalty, deduction, 13th month, holiday bonus, correction)
-    return ['ok' => true, 'message' => 'Adjustment created'];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Adjustment created']); return;
 }
 
-function wageApiAdjustmentApprove(ModuleContext $ctx): array
+function wageApiAdjustmentApprove(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.approve@1');
     // TODO: Approve a salary adjustment
-    return ['ok' => true, 'message' => 'Adjustment approved'];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Adjustment approved']); return;
 }

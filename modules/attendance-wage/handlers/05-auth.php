@@ -114,14 +114,29 @@ function attendanceApiForgotPassword(): void
     $email = trim((string)($input['email'] ?? ''));
     if ($email === '') awJson(['ok' => false, 'error' => 'Email is required'], 422);
     try {
-        $stmt = aw_db()->prepare('SELECT id, full_name FROM attendance_wage_users WHERE email = :email AND is_active = 1 LIMIT 1');
+        $stmt = aw_db()->prepare('SELECT id, username, email, full_name FROM attendance_wage_users WHERE email = :email AND is_active = 1 LIMIT 1');
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!is_array($user)) awJson(['ok' => true, 'message' => 'If the email exists, a reset link has been sent.']);
         $token = bin2hex(random_bytes(32));
         $stmt = aw_db()->prepare('INSERT INTO attendance_wage_password_resets (user_id, token_hash, requester_ip, expires_at) VALUES (:uid, :hash, :ip, :exp)');
         $stmt->execute([':uid' => $user['id'], ':hash' => awPasswordResetTokenHash($token), ':ip' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1', ':exp' => date('Y-m-d H:i:s', strtotime('+1 hour'))]);
-        write_log('Password reset for ' . $email . ': ' . awBaseUrl() . '/attendance-wage/reset-password?token=' . urlencode($token), 'info');
+
+        // Send reset email
+        $userEmail = trim((string)($user['email'] ?? ''));
+        if ($userEmail !== '' && filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
+            $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
+            $resetUrl = awBaseUrl() . '/attendance-wage/reset-password?token=' . urlencode($token);
+            $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
+                . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your Attendance &amp; Wage password.</p>'
+                . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>';
+            $body = buildEmailTemplate('Reset Your ZAP Password', $content, 'Reset Password', $resetUrl);
+            $sent = sendEmail($userEmail, 'ZAP Attendance & Wage — Password Reset', $body);
+            if (!$sent) {
+                write_log('attendance-wage forgot-password email dispatch failed for user_id=' . $user['id'], 'error');
+            }
+        }
+
         awJson(['ok' => true, 'message' => 'If the email exists, a reset link has been sent.']);
     } catch (\Throwable $e) { awJson(['ok' => false, 'error' => 'An error occurred.'], 500); }
 }

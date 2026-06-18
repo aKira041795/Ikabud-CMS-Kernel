@@ -6,25 +6,25 @@ declare(strict_types=1);
  * Cash advance API handlers.
  */
 
-use Ikabud\Kernel\Contracts\ModuleContext;
 
-function wageApiCashAdvancesList(ModuleContext $ctx): array
+
+function wageApiCashAdvancesList(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.read@1');
     // TODO: List cash advances for current user or all (admin)
-    return ['ok' => true, 'data' => []];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => []]); return;
 }
 
-function wageApiCashAdvanceCreate(ModuleContext $ctx): array
+function wageApiCashAdvanceCreate(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.read@1');
     // TODO: Create cash advance request (checks max amount, max active count)
-    return ['ok' => true, 'message' => 'Cash advance request submitted'];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Cash advance request submitted']); return;
 }
 
-function wageApiCashAdvanceApprove(ModuleContext $ctx): array
+function wageApiCashAdvanceApprove(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.approve@1');
     // TODO: Approve/reject cash advance, set up repayment schedule
-    return ['ok' => true, 'message' => 'Cash advance approved'];
+    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Cash advance approved']); return;
 }
