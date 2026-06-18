@@ -449,7 +449,6 @@ function dlNormalizeCashierLedgerRenderContext(array $context, string $template,
         'formal_delivery_enabled' => false,
         'commissary_branch_id' => null,
         'commissary_branch_name' => null,
-        'assigned_selling_accounts' => [],
     ], ['page_title', 'user_name', 'user_role', 'current_page', 'base_url', 'branch_id', 'branch_name', 'ledger_date', 'today', 'day_status', 'branches', 'is_cashier'], $missingKeys, $typeMismatches);
 }
 

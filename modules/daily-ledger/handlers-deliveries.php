@@ -3,15 +3,16 @@
 declare(strict_types=1);
 
 /**
- * Daily Ledger — Supply / Pricing / Delivery / Receiving / Selling-Account helpers + handlers.
+ * Daily Ledger — Supply / Pricing / Delivery / Receiving helpers + handlers.
  *
- * Implements Phases A–F of the Daily Ledger inventory spec:
+ * Implements Phases A–D,F of the Daily Ledger inventory spec:
  *   A. Branch supply mode + per-product supply rules
  *   B. Formal deliveries + branch receivings with draft/posted/voided status
  *   C. Reason-coded cashier withdrawals  (handled in apiSaveCashierWithdrawals)
  *   D. Price groups + product_prices (with effective windows)
- *   E. Selling accounts + selling-account ledger
  *   F. Branch consolidated summary + delivery variance flags
+ *
+ * Note: Phase E (Selling accounts) removed — see commit cc5f07e.
  *
  * Loaded from handlers.php via require_once.
  */
@@ -1441,7 +1442,7 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
 {
     $ctx = module();
     if (!$ctx) {
-        return ['regular_sales' => 0.0, 'regular_qty' => 0, 'selling_accounts' => [], 'total_sales' => 0.0];
+        return ['regular_sales' => 0.0, 'regular_qty' => 0, 'total_sales' => 0.0];
     }
 
     $regStmt = $ctx->db()->prepare(
@@ -1456,8 +1457,6 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
         'date' => $date,
         'regular_sales' => (float)$reg['amt'],
         'regular_qty' => (int)$reg['qty'],
-        'selling_accounts' => [],
-        'selling_accounts_total' => 0.0,
         'total_sales' => (float)$reg['amt'],
     ];
 }
@@ -1491,7 +1490,6 @@ function handleAdminDeliveries(array $params = []): void
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
 
     $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $accounts = []; // selling accounts not yet migrated to dl_branches — account_type column does not exist
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
@@ -1505,7 +1503,6 @@ function handleAdminDeliveries(array $params = []): void
         'base_url'     => dlGetBaseUrl(),
         'dl_token'     => (string)kernelCookie(dlCookieName(), ''),
         'branches'     => $branches,
-        'selling_accounts' => $accounts,
         'products'     => $products,
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'can_create_delivery_docs' => in_array($role, ['admin', 'supervisor'], true),

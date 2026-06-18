@@ -29,6 +29,7 @@
                             <select x-model="header.withdrawal_type" class="form-input mt-0 w-full">
                                 <option value="charge">Charge (cashier)</option>
                                 <option value="pullout">Pullout (past saleable)</option>
+                                <option value="adjustment_add">Add Stock (variance resolution)</option>
                             </select>
                         </div>
                         <div>
@@ -46,6 +47,17 @@
                         </select>
                         <p class="mt-1 text-xs text-gray-500">Required for branch-side adjustments. Branch-to-branch transfers now go through Send to Branch.</p>
                         </div>
+                    </div>
+
+                    <div class="mb-4" x-show="header.withdrawal_type === 'adjustment_add'">
+                        <label class="block text-xs font-medium text-gray-700 mb-1">Charge to <span class="text-rose-500">*</span></label>
+                        <select x-model="header.liable_user_id" class="form-input mt-0 w-full">
+                            <option value="">-- Select liable person --</option>
+                            <template x-for="lp in (window.LIABLE_PERSONS || [])" :key="lp.id">
+                                <option :value="lp.id" x-text="lp.name + ' (' + lp.role + ')'"></option>
+                            </template>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500">Person financially liable for the missing items. Items are added back to branch sales; payment is charged to this person.</p>
                     </div>
 
                     <div class="mb-3 bg-gray-50 rounded-lg p-3">
@@ -117,13 +129,13 @@ function withdrawalModal() {
         isOpen: false,
         saving: false,
         errorMsg: '',
-        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment' },
+        header: { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '' },
         lines: [],
         products: [],
 
         openModal() {
             this.errorMsg = '';
-            this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment' };
+            this.header = { withdrawal_type: 'charge', reason_code: 'manual_adjustment', liable_user_id: '' };
             this.lines = [{ product_id: '', quantity: '' }];
             this.loadProducts();
             this.isOpen = true;
@@ -157,6 +169,10 @@ function withdrawalModal() {
                 this.errorMsg = 'Reason code is required.';
                 return false;
             }
+            if (this.header.withdrawal_type === 'adjustment_add' && (!this.header.liable_user_id || String(this.header.liable_user_id).trim() === '')) {
+                this.errorMsg = 'Charge to (liable person) is required for Add Stock adjustments.';
+                return false;
+            }
             var validLines = this.lines.filter(function(l) { return l.product_id && parseInt(l.quantity) > 0; });
             if (validLines.length === 0) {
                 this.errorMsg = 'Add at least one product with a quantity greater than 0.';
@@ -174,7 +190,8 @@ function withdrawalModal() {
                 date: LEDGER_DATE,
                 header: {
                     withdrawal_type: this.header.withdrawal_type,
-                    reason_code: this.header.reason_code || 'manual_adjustment'
+                    reason_code: this.header.reason_code || 'manual_adjustment',
+                    liable_user_id: this.header.withdrawal_type === 'adjustment_add' ? parseInt(this.header.liable_user_id) || null : null
                 },
                 lines: validLines.map(function(l) {
                     return { product_id: parseInt(l.product_id), quantity: parseInt(l.quantity) };
@@ -200,15 +217,23 @@ function withdrawalModal() {
                 this.saving = false;
                 if (data.ok) {
                     var msg = 'Adjustment saved';
-                    if (data.delivery_id && data.receiving_id) {
+                     if (this.header.withdrawal_type === 'adjustment_add') {
+                         msg = 'Stock added — charged to liable person';
+                     } else if (data.delivery_id && data.receiving_id) {
                         msg = 'Pullout recorded and returned to commissary';
                     }
                     showToast(msg, 'success');
-                    (data.totals || []).forEach(function(t) {
-                        var row = document.querySelector('tr[data-product-id="' + t.product_id + '"]');
-                        if (!row) return;
-                        var span = row.querySelector('[data-field="withdraw"]');
-                        if (span) span.textContent = t.total;
+                     var isAddtl = (this.header.withdrawal_type === 'adjustment_add');
+                     (data.totals || []).forEach(function(t) {
+                         var row = document.querySelector('tr[data-product-id="' + t.product_id + '"]');
+                         if (!row) return;
+                         if (isAddtl) {
+                             var span = row.querySelector('[data-field="addtl"]');
+                             if (span) span.textContent = t.addtl;
+                         } else {
+                             var span = row.querySelector('[data-field="withdraw"]');
+                             if (span) span.textContent = t.total;
+                         }
                         if (typeof computeSales === 'function') computeSales(t.product_id);
                     });
                     this.closeModal();

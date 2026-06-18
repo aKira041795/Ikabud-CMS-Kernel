@@ -200,7 +200,6 @@ function dl_getUserBranchId(): ?int
     }
 
     // Cashier: locked to assigned branch (single row in dl_user_branches).
-    // If no branch, fall back to first assigned selling account.
     $stmt = $ctx->db()->prepare(
         'SELECT ub.branch_id
          FROM dl_user_branches ub
@@ -2149,7 +2148,7 @@ function handleCashierLedger(array $params = []): void
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
-    // All active branches (including former selling accounts) for dispatch dropdown
+    // All active branches for dispatch dropdown
     $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
     // Pending incoming deliveries (count of distinct DR groups for this branch)
@@ -2198,6 +2197,16 @@ function handleCashierLedger(array $params = []): void
         }
     }
 
+    // Liable persons: production incharge + supervisors for charge-to dropdown
+    $liablePersons = $ctx->db()->query(
+        "SELECT id, COALESCE(NULLIF(full_name, ''), username, CONCAT('User #', id)) AS name, role
+           FROM dl_users
+          WHERE is_active = 1
+            AND deleted_at IS NULL
+            AND role IN ('production_in_charge', 'supervisor', 'admin')
+          ORDER BY role = 'production_in_charge' DESC, name ASC"
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     echo dlRender('modules/daily-ledger/cashier/ledger.disyl', [
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
@@ -2224,6 +2233,8 @@ function handleCashierLedger(array $params = []): void
         'formal_delivery_enabled' => dl_isFormalDeliveryEnabled(),
         'commissary_branch_id' => $commissaryBranchId,
         'commissary_branch_name' => $commissaryBranchName,
+        'liable_persons' => $liablePersons,
+        'liable_persons_json' => json_encode($liablePersons, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP),
     ]);
 }
 
@@ -2404,20 +2415,26 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
 
     $type = (string)($header['withdrawal_type'] ?? 'charge');
-    if (!in_array($type, ['charge', 'pullout'], true)) {
+    if (!in_array($type, ['charge', 'pullout', 'adjustment_add'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid withdrawal type']);
         return;
     }
     $drNumber = isset($header['dr_number']) && $header['dr_number'] !== '' ? (string)$header['dr_number'] : null;
     $targetBranchId = !empty($header['target_branch_id']) ? (int)$header['target_branch_id'] : null;
     $reasonCode = isset($header['reason_code']) && $header['reason_code'] !== '' ? (string)$header['reason_code'] : null;
+    $liableUserId = !empty($header['liable_user_id']) ? (int)$header['liable_user_id'] : null;
     $allowedReasons = ['spoilage','staff_meal','sampling','testing','promo','donation','damage','manual_adjustment','other'];
     if ($reasonCode !== null && !in_array($reasonCode, $allowedReasons, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid reason_code'], 422);
         return;
     }
-    if (in_array($type, ['charge','pullout'], true) && $reasonCode === null) {
+    if (in_array($type, ['charge','pullout','adjustment_add'], true) && $reasonCode === null) {
         $reasonCode = 'manual_adjustment';
+    }
+    // adjustment_add requires a liable user
+    if ($type === 'adjustment_add' && $liableUserId === null) {
+        $ctx->json(['ok' => false, 'error' => 'adjustment_add requires a liable_user_id (charge to person).'], 422);
+        return;
     }
 
     // Filter to valid product+qty pairs
@@ -2451,24 +2468,38 @@ function apiSaveCashierWithdrawals(array $params = []): void
     $ctx->db()->beginTransaction();
     try {
         $stmtIns = $ctx->db()->prepare(
-            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, dr_number, target_branch_id, quantity, encoded_by)
-             VALUES (:bid, :pid, :d, :typ, :rc, :dr, :tbid, :qty, :uid)'
+            'INSERT INTO dl_cashier_withdrawals (branch_id, product_id, ledger_date, withdrawal_type, reason_code, dr_number, target_branch_id, quantity, encoded_by, liable_user_id)
+             VALUES (:bid, :pid, :d, :typ, :rc, :dr, :tbid, :qty, :uid, :luid)'
         );
         $stmtSum = $ctx->db()->prepare(
             'SELECT COALESCE(SUM(quantity), 0) FROM dl_cashier_withdrawals
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d AND withdrawal_type <> :excludeType'
         );
         $stmtCheck = $ctx->db()->prepare(
             'SELECT id FROM dl_daily_ledger WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d FOR UPDATE'
         );
-        $stmtUpd = $ctx->db()->prepare(
-            'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
-             WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
-        );
-        $stmtInit = $ctx->db()->prepare(
-            'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, withdraw, encoded_by, updated_by)
-             VALUES (:bid, :pid, :d, :prc, :wdr, :uid_enc, :uid_upd)'
-        );
+        // adjustment_add increases addtl (branch gets stock back); charge/pullout increase withdraw
+        $isAddtl = ($type === 'adjustment_add');
+        if ($isAddtl) {
+            // addtl accumulates from multiple sources — use increment, not replace
+            $stmtUpd = $ctx->db()->prepare(
+                'UPDATE dl_daily_ledger SET addtl = addtl + :qty, updated_by = :uid
+                 WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+            );
+            $stmtInit = $ctx->db()->prepare(
+                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, addtl, encoded_by, updated_by)
+                 VALUES (:bid, :pid, :d, :prc, :qty, :uid_enc, :uid_upd)'
+            );
+        } else {
+            $stmtUpd = $ctx->db()->prepare(
+                'UPDATE dl_daily_ledger SET withdraw = :wdr, updated_by = :uid
+                 WHERE branch_id = :bid AND product_id = :pid AND ledger_date = :d'
+            );
+            $stmtInit = $ctx->db()->prepare(
+                'INSERT INTO dl_daily_ledger (branch_id, product_id, ledger_date, price_snapshot, withdraw, encoded_by, updated_by)
+                 VALUES (:bid, :pid, :d, :prc, :wdr, :uid_enc, :uid_upd)'
+            );
+        }
 
         foreach ($validLines as $line) {
             $pid = $line['product_id'];
@@ -2484,34 +2515,61 @@ function apiSaveCashierWithdrawals(array $params = []): void
                 ':tbid' => $targetBranchId,
                 ':qty' => $qty,
                 ':uid' => $userId,
+                ':luid' => $liableUserId,
             ]);
 
-            $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
-            $newTotal = (int)$stmtSum->fetchColumn();
-
-            $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
-            if ($stmtCheck->fetch()) {
-                $stmtUpd->execute([
-                    ':wdr' => $newTotal,
-                    ':uid' => $userId,
-                    ':bid' => $branchId,
-                    ':pid' => $pid,
-                    ':d' => $date,
-                ]);
+            if ($isAddtl) {
+                // adjustment_add: increment addtl by qty (adds stock back to branch)
+                $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+                if ($stmtCheck->fetch()) {
+                    $stmtUpd->execute([
+                        ':qty' => $qty,
+                        ':uid' => $userId,
+                        ':bid' => $branchId,
+                        ':pid' => $pid,
+                        ':d' => $date,
+                    ]);
+                } else {
+                    $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
+                    $stmtInit->execute([
+                        ':bid' => $branchId,
+                        ':pid' => $pid,
+                        ':d' => $date,
+                        ':prc' => $price,
+                        ':qty' => $qty,
+                        ':uid_enc' => $userId,
+                        ':uid_upd' => $userId,
+                    ]);
+                }
+                $totals[] = ['product_id' => $pid, 'addtl' => $qty];
             } else {
-                $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
-                $stmtInit->execute([
-                    ':bid' => $branchId,
-                    ':pid' => $pid,
-                    ':d' => $date,
-                    ':prc' => $price,
-                    ':wdr' => $newTotal,
-                    ':uid_enc' => $userId,
-                    ':uid_upd' => $userId,
-                ]);
-            }
+                // charge/pullout: recalc withdraw from sum of all withdrawals
+                $stmtSum->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date, ':excludeType' => 'adjustment_add']);
+                $newTotal = (int)$stmtSum->fetchColumn();
 
-            $totals[] = ['product_id' => $pid, 'total' => $newTotal];
+                $stmtCheck->execute([':bid' => $branchId, ':pid' => $pid, ':d' => $date]);
+                if ($stmtCheck->fetch()) {
+                    $stmtUpd->execute([
+                        ':wdr' => $newTotal,
+                        ':uid' => $userId,
+                        ':bid' => $branchId,
+                        ':pid' => $pid,
+                        ':d' => $date,
+                    ]);
+                } else {
+                    $price = dl_resolveBranchProductPrice($branchId, $pid, $date);
+                    $stmtInit->execute([
+                        ':bid' => $branchId,
+                        ':pid' => $pid,
+                        ':d' => $date,
+                        ':prc' => $price,
+                        ':wdr' => $newTotal,
+                        ':uid_enc' => $userId,
+                        ':uid_upd' => $userId,
+                    ]);
+                }
+                $totals[] = ['product_id' => $pid, 'total' => $newTotal];
+            }
         }
 
         // ── Pullout return to commissary ──────────────────────────────
@@ -7241,8 +7299,8 @@ function handleAdminCommissary(): void
                    INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
                    INNER JOIN dl_products p ON p.id = di.product_id
                    LEFT JOIN dl_branches ob ON ob.id = d.origin_id
-                   LEFT JOIN dl_branches cb ON cb.id = d.destination_id
-                   WHERE d.destination_type = 'commissary'
+                   INNER JOIN dl_branches cb ON cb.id = d.destination_id AND cb.is_commissary = 1
+                   WHERE d.destination_type = 'branch'
                      AND d.origin_type = 'branch'
                      AND d.status = 'posted'
                      AND d.delivery_date = :date";
@@ -7291,7 +7349,8 @@ function handleAdminCommissary(): void
                SELECT di.product_id, SUM(di.quantity) AS returned_qty
                  FROM dl_deliveries d
                  INNER JOIN dl_delivery_items di ON di.delivery_id = d.id
-                WHERE d.destination_type = 'commissary'
+                 INNER JOIN dl_branches cb ON cb.id = d.destination_id AND cb.is_commissary = 1
+                WHERE d.destination_type = 'branch'
                   AND d.origin_type = 'branch'
                   AND d.status = 'posted'
                   AND d.delivery_date = :date2";
@@ -8041,7 +8100,7 @@ function handleAdminWithdrawals(): void
     $branchId = (int)($input['branch_id'] ?? 0);
 
     $sql = 'SELECT cw.id, cw.ledger_date, cw.withdrawal_type, cw.reason_code,
-                   cw.quantity, cw.dr_number,
+                   cw.quantity, cw.dr_number, cw.liable_user_id,
                    p.name AS product_name,
                    b.name AS branch_name,
                    COALESCE(
@@ -8053,11 +8112,13 @@ function handleAdminWithdrawals(): void
                          LIMIT 1),
                        NULLIF(u.username, ""),
                        "Unknown"
-                   ) AS cashier_name
+                   ) AS cashier_name,
+                   NULLIF(lu.full_name, lu.username) AS liable_user_name
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id
               LEFT JOIN dl_users u ON u.id = cw.encoded_by AND cw.encoded_by > 0
+              LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
              WHERE cw.ledger_date = :d';
     $bind = [':d' => $date];
     if ($branchId > 0) {
