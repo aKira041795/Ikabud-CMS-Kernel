@@ -1,20 +1,12 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
-
-{* Salary Computations — Entity List *}
-
-
-
-<div class="admin-shell">
-  <div class="ikb-toolbar">
-    <h1>💵 Salary Computations</h1>
-    <form method="post" action="/api/v1/wage/compute/bulk" class="ikb-inline-form" onsubmit="return confirm('Compute salaries for all employees in this period?')">
-      {csrf_field /}
-      <button type="submit" class="ikb-btn ikb-btn-primary">Bulk Compute</button>
-    </form>
-  </div>
-
-  {ikb_entity_list source="salary_computation.recent" view="table" limit="25" empty="No salary computations yet. Click 'Bulk Compute' to process payroll for the active period." /}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">💵 Salary Computations</h1>
+        <form method="post" action="/api/v1/wage/compute/bulk" class="inline"><button type="submit" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Bulk Compute</button></form>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {ikb_entity_list source="salary_computation.recent" view="table" limit="25" empty="No salary computations yet." /}
+    </div>
 </div>
-
 {/block}

@@ -1,28 +1,21 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
-
-{* Holidays — Entity List *}
-
-
-
-<div class="admin-shell">
-  <div class="ikb-toolbar">
-    <h1>🏖️ Holidays</h1>
-    <form method="post" action="/api/v1/wage/holidays" class="ikb-inline-form">
-      {csrf_field /}
-      <input type="text" name="holiday_name" placeholder="Holiday name" required />
-      <input type="date" name="holiday_date" required />
-      <select name="holiday_type">
-        <option value="regular">Regular Holiday (2.00×)</option>
-        <option value="special_non_working">Special Non-Working (1.30×)</option>
-        <option value="special_working">Special Working (1.00×)</option>
-      </select>
-      <label><input type="checkbox" name="is_recurring" value="1" /> Recurring yearly</label>
-      <button type="submit" class="ikb-btn ikb-btn-primary">Add Holiday</button>
-    </form>
-  </div>
-
-  {ikb_entity_list source="holiday.this_year" view="table" limit="30" empty="No holidays configured." /}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🏖️ Holidays</h1>
+        <form method="post" action="/api/v1/wage/holidays" class="flex items-center gap-2">
+            <input type="text" name="holiday_name" placeholder="Holiday name" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+            <input type="date" name="holiday_date" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+            <select name="holiday_type" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                <option value="regular">Regular (2.00×)</option>
+                <option value="special_non_working">Special Non-Working (1.30×)</option>
+                <option value="special_working">Special Working (1.00×)</option>
+            </select>
+            <button type="submit" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">Add Holiday</button>
+        </form>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {ikb_entity_list source="holiday.this_year" view="table" limit="30" empty="No holidays configured." /}
+    </div>
 </div>
-
 {/block}

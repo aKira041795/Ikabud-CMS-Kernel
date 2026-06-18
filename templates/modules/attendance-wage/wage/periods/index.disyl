@@ -1,17 +1,12 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
-
-{* Payroll Periods — Entity List *}
-
-
-
-<div class="admin-shell">
-  <div class="ikb-toolbar">
-    <h1>📅 Payroll Periods</h1>
-    <a href="/admin/wage/periods/create" class="ikb-btn ikb-btn-primary">+ New Period</a>
-  </div>
-
-  {ikb_entity_list source="payroll_period.all" view="table" limit="12" empty="No payroll periods yet. Create your first period to start processing payroll." /}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">📅 Payroll Periods</h1>
+        <a href="/admin/wage/periods/create" class="inline-flex items-center px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">+ New Period</a>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {ikb_entity_list source="payroll_period.all" view="table" limit="12" empty="No payroll periods yet." /}
+    </div>
 </div>
-
 {/block}

@@ -1,17 +1,9 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
-
-{* Payroll Reports — Entity List *}
-
-
-
-<div class="admin-shell">
-  <h1>📄 Payroll Reports</h1>
-
-  <div class="ikb-section">
-    <h2>Completed Periods</h2>
-    {ikb_entity_list source="payroll_period.completed" view="table" limit="12" empty="No completed payroll periods yet." /}
-  </div>
+<div class="px-6 py-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">📄 Payroll Reports</h1>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {ikb_entity_list source="payroll_period.completed" view="table" limit="12" empty="No completed payroll periods yet." /}
+    </div>
 </div>
-
 {/block}

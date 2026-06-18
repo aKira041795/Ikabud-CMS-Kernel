@@ -1,16 +1,9 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
-
-{* Attendance Report — Entity List with filters *}
-
-
-
-<div class="admin-shell">
-  <h1>📋 Attendance Report</h1>
-
-  <div class="ikb-section">
-    {ikb_entity_list source="attendance_record.recent" view="table" limit="30" empty="No attendance records found for the selected period." /}
-  </div>
+<div class="px-6 py-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">📋 Attendance Report</h1>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        {ikb_entity_list source="attendance_record.recent" view="table" limit="30" empty="No attendance records found." /}
+    </div>
 </div>
-
 {/block}
