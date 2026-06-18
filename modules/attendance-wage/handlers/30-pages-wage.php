@@ -452,3 +452,13 @@ function wagePageLocationForm(array $params = []): void
     }
     echo app()->render('modules/attendance-wage/wage/locations/form', $vars);
 }
+
+function wagePageSettings(array $params = []): void
+{
+    $settings = getModuleSettings('attendance-wage');
+    echo app()->render('modules/attendance-wage/wage/settings', [
+        'success' => $_GET['success'] ?? '',
+        'error'   => $_GET['error'] ?? '',
+        'google_maps_api_key' => $settings['google_maps_api_key'] ?? '',
+    ]);
+}

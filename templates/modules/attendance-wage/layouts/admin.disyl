@@ -68,6 +68,7 @@
             </a>
         </nav>
         <div class="px-4 py-3 border-t border-brand-800 text-xs text-brand-400">
+            <a href="/admin/wage/settings" class="block hover:text-brand-200 transition-colors mb-1">⚙️ Settings</a>
             <a href="/attendance-wage/logout" class="hover:text-brand-200 transition-colors">Sign out</a>
         </div>
     </aside>

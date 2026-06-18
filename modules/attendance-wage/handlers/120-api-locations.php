@@ -185,3 +185,40 @@ function wageApiLocationDelete(array $params = []): void
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
 }
+
+// ── Module settings ──
+
+function wageApiSettingsSave(array $params = []): void
+{
+    attendanceWageGuard('attendance_wage.admin@1');
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
+    $isFormPost = !str_contains($contentType, 'application/json');
+    $base = awBaseUrl();
+
+    $data = [];
+    if (isset($input['google_maps_api_key'])) {
+        $data['google_maps_api_key'] = trim((string)$input['google_maps_api_key']);
+    }
+
+    if (empty($data)) {
+        if ($isFormPost) { header('Location: ' . $base . '/admin/wage/settings?error=' . urlencode('No settings to save.')); exit; }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'No settings to save.']);
+        return;
+    }
+
+    try {
+        saveModuleSettings('attendance-wage', $data);
+        if ($isFormPost) {
+            header('Location: ' . $base . '/admin/wage/settings?success=' . urlencode('Settings saved.'));
+            exit;
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => true, 'message' => 'Settings saved.']);
+    } catch (\Throwable $e) {
+        if ($isFormPost) { header('Location: ' . $base . '/admin/wage/settings?error=' . urlencode($e->getMessage())); exit; }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}

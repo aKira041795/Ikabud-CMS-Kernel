@@ -126,6 +126,7 @@ $expectedTemplates = [
     'wage/holidays/index.disyl', 'wage/schedules/index.disyl',
     'wage/reports/index.disyl', 'wage/reports/detail.disyl',
     'wage/locations/index.disyl', 'wage/locations/form.disyl',
+    'wage/settings.disyl',
 ];
 foreach ($expectedTemplates as $et) {
     test("{$et}", is_file($tplBase . '/' . $et));
