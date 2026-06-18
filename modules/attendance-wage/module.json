@@ -515,6 +515,13 @@
             "label": "Max Active Cash Advances",
             "default": "2",
             "description": "Maximum number of active (unpaid) cash advances per employee."
+        },
+        {
+            "key": "google_maps_api_key",
+            "type": "text",
+            "label": "Google Maps API Key",
+            "default": "",
+            "description": "API key for Google Maps (Maps JavaScript API + Geocoding API). Required for the office locations map picker."
         }
     ]
 }

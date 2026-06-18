@@ -84,7 +84,8 @@
 </div>
 
 <!-- Google Maps API -->
-<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+{if maps_api_key}
+<script src="https://maps.googleapis.com/maps/api/js?key={maps_api_key}&libraries=places"></script>
 <script>
     function locationForm() {
         return {
@@ -161,4 +162,23 @@
         };
     }
 </script>
+{else}
+<div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700 mt-4">
+    ⚠️ <strong>Google Maps API key not configured.</strong> Set it in <em>Superadmin → Modules → Attendance &amp; Wage → Settings → Google Maps API Key</em> to enable the interactive map picker. Coordinates can still be entered manually.
+</div>
+<script>
+    function locationForm() {
+        return {
+            name: '{name|default:''}',
+            address: '{address|default:''}',
+            latitude: {latitude|default:0},
+            longitude: {longitude|default:0},
+            radius: {radius_meters|default:100},
+            searchQuery: '',
+            initMap() {},
+            searchPlace() {},
+        };
+    }
+</script>
+{/if}
 {/block}

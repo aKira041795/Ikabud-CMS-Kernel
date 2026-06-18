@@ -435,7 +435,8 @@ function wagePageLocations(array $params = []): void
 function wagePageLocationForm(array $params = []): void
 {
     $editId = (int)($params['id'] ?? 0);
-    $vars = ['id' => $editId, 'radius_meters' => 100];
+    $settings = getModuleSettings('attendance-wage');
+    $vars = ['id' => $editId, 'radius_meters' => 100, 'maps_api_key' => $settings['google_maps_api_key'] ?? ''];
     if ($editId > 0) {
         try {
             $db = aw_db();
