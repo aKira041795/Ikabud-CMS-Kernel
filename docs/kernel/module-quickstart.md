@@ -229,6 +229,8 @@ return [
 
 Route format is always `'module-id:functionName'`. The kernel resolves the module, loads its handlers, and calls the function.
 
+**Important**: Routes MUST use the nested format shown above (`'GET' => [...], 'POST' => [...]`). The inline format `'GET /path' => 'handler'` is NOT supported by the module route loader — routes in that format are silently ignored.
+
 ---
 
 ## Step 7: Emit and Listen to Events

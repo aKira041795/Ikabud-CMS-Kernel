@@ -327,11 +327,40 @@ Consumers:
 
 ### Onboarding a new auth-owning module
 
-1. Add `auth_owned` to your `module.json` (and include the users table in `owns_tables`).
-2. Implement a `kernel.auth.authenticate@1` provider that reads from your `users_table` using the spec's columns.
-3. If you set `blocked_password_hashes`, make your auth provider reject those hashes early.
-4. (Optional) Set `requires_named_admin_on_provision: true` if your module must never be provisioned with auto-generated credentials.
-5. Define a module login context helper named `<moduleId>LoginPageContext()` in `helpers.php` so kernel `/login`, `/forgot-password`, and `/reset-password` render the module-branded layout whenever the tenant entry module points at your module.
+**Complete checklist** (every item required — missing any one breaks tenant login):
+
+1. **`module.json` — `auth_owned` block**: Declare `users_table`, `username_column`, `email_column`, `password_column`, `name_column`, `active_column`, `admin_roles`, `default_admin_role`, `blocked_password_hashes`, `touch_updated_at`. See schema above.
+
+2. **`module.json` — `owns_tables`**: Include the users table AND the password_resets table in `owns_tables`. The `auth_owned.users_table` declaration alone is NOT sufficient for ModuleDB sandboxing.
+
+3. **`module.json` — `auth_cookie`**: Set a unique cookie name (e.g. `"my_module_token"`).
+
+4. **`module.json` — `capabilities.exposes`**: Register `kernel.auth.authenticate@1` with `"priority": 560`, `"modes": ["pipeline"]`. This tells the kernel to route auth requests through your module.
+
+5. **`helpers.php` — `<module>_capability_handlers()`**: Map `'kernel.auth.authenticate@1' => '<module>_cap_auth_1'`.
+
+6. **`helpers.php` — authenticate handler**: Implement the handler. It receives `['username' => '@module-id:actualuser', 'password' => '...']`. Strip the `@module-id:` prefix, query your users table, verify password, block any `blocked_password_hashes`, and return `['user' => [...], 'source' => 'module-id']` or `null`.
+
+7. **`handlers/05-auth.php`** — Login page handler + POST handler. The POST handler calls the authenticate function directly (NOT through CapabilityBus), generates a JWT with `app()->jwt()->generate()`, sets the auth cookie, and redirects.
+
+8. **`handlers/05-auth.php`** — Forgot password + Reset password handlers. Follow the standard self-service password reset contract above.
+
+9. **`database/migrations/`** — Users table migration + bootstrap admin migration + password_resets table migration.
+
+10. **`routes.php`** — Use the **nested format**: `'GET' => ['/path' => 'handler'], 'POST' => ['/path' => 'handler']`. The inline `'GET /path'` format is NOT supported by the module route loader. Must include: `/module-id/login`, `/module-id/forgot-password`, `/module-id/reset-password`, `/module-id/auth/login`, `/api/v1/module-id/auth/forgot-password`, `/api/v1/module-id/auth/reset-password`.
+
+11. **Templates** — `auth/login.disyl`, `auth/forgot-password.disyl`, `auth/reset-password.disyl` with proper error/message handling.
+
+12. **`helpers.php`** — Call `app()->registerAuthTable('module-id', 'users_table_name')` at the top.
+
+**Reference implementation**: `modules/attendance-wage/` — complete working example of all 12 items.
+
+**Common mistakes** (from real debugging):
+- ❌ Users table not in `owns_tables` → ModuleDB blocks queries → login fails silently
+- ❌ Inline route format `'GET /path'` → routes silently ignored → 404 on all pages
+- ❌ Calling `app()->capabilities()->call()` in login handler → method doesn't exist → 500
+- ❌ Using `app()->jwt()->encode()` instead of `app()->jwt()->generate()` → JWT not issued
+- ❌ Missing `kernel.auth.authenticate@1` in capabilities.exposes → kernel skips module during auth → can't login
 
 No kernel changes are required.
 
