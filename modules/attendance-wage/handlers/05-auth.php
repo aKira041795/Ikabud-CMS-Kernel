@@ -50,13 +50,13 @@ function awRedirect(string $url): void { header('Location: ' . $url); exit; }
 
 // ── Pages ──
 
-function attendancePageLogin(): void { app()->render('modules/attendance-wage/auth/login'); }
-function attendancePageForgotPassword(): void { app()->render('modules/attendance-wage/auth/forgot-password'); }
+function attendancePageLogin(): void { echo app()->render('modules/attendance-wage/auth/login'); }
+function attendancePageForgotPassword(): void { echo app()->render('modules/attendance-wage/auth/forgot-password'); }
 function attendancePageResetPassword(): void
 {
     $token = trim((string)($_GET['token'] ?? ''));
     if ($token === '' || !awResetTokenIsValid($token)) awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?error=invalid_token');
-    app()->render('modules/attendance-wage/auth/reset-password', ['reset_token' => $token]);
+    echo app()->render('modules/attendance-wage/auth/reset-password', ['reset_token' => $token]);
 }
 
 // ── POST: Login ──
