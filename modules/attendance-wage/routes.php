@@ -44,6 +44,7 @@ return [
     ],
     'POST' => [
         '/attendance-wage/auth/login'                    => 'attendance-wage:attendanceAuthLogin',
+        '/attendance-wage/auth/forgot-password'          => 'attendance-wage:attendanceAuthForgotPassword',
         '/api/v1/attendance-wage/auth/forgot-password'   => 'attendance-wage:attendanceApiForgotPassword',
         '/api/v1/attendance-wage/auth/reset-password'    => 'attendance-wage:attendanceApiResetPassword',
         '/api/v1/attendance/clock-in'        => 'attendance-wage:attendanceApiClockIn',

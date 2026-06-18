@@ -77,9 +77,41 @@ function attendanceAuthLogin(): void
 
 // ── POST: Forgot Password ──
 
-function attendanceApiForgotPassword(): void
+function attendanceAuthForgotPassword(): void
 {
     $email = trim((string)($_POST['email'] ?? ''));
+    if ($email === '') awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?error=missing_fields');
+    try {
+        $stmt = aw_db()->prepare('SELECT id, full_name FROM attendance_wage_users WHERE email = :email AND is_active = 1 LIMIT 1');
+        $stmt->execute([':email' => $email]);
+        $user = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (is_array($user)) {
+            $token = bin2hex(random_bytes(32));
+            $stmt = aw_db()->prepare('INSERT INTO attendance_wage_password_resets (user_id, token_hash, requester_ip, expires_at) VALUES (:uid, :hash, :ip, :exp)');
+            $stmt->execute([':uid' => $user['id'], ':hash' => awPasswordResetTokenHash($token), ':ip' => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1', ':exp' => date('Y-m-d H:i:s', strtotime('+1 hour'))]);
+            write_log('Password reset for ' . $email . ': ' . awBaseUrl() . '/attendance-wage/reset-password?token=' . urlencode($token), 'info');
+        }
+        awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?message=sent');
+    } catch (\Throwable $e) { awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?error=system'); }
+}
+
+function awInput(): array
+{
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (str_contains($contentType, 'application/json')) {
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        return is_array($data) ? $data : [];
+    }
+    return $_POST;
+}
+
+// ── POST: Forgot Password (API endpoint — returns JSON) ──
+
+function attendanceApiForgotPassword(): void
+{
+    $input = awInput();
+    $email = trim((string)($input['email'] ?? ''));
     if ($email === '') awJson(['ok' => false, 'error' => 'Email is required'], 422);
     try {
         $stmt = aw_db()->prepare('SELECT id, full_name FROM attendance_wage_users WHERE email = :email AND is_active = 1 LIMIT 1');
@@ -98,9 +130,10 @@ function attendanceApiForgotPassword(): void
 
 function attendanceApiResetPassword(): void
 {
-    $token = trim((string)($_POST['token'] ?? ''));
-    $password = (string)($_POST['password'] ?? '');
-    $confirm = (string)($_POST['password_confirm'] ?? '');
+    $input = awInput();
+    $token = trim((string)($input['token'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $confirm = (string)($input['password_confirm'] ?? '');
     if ($token === '' || $password === '' || $confirm === '') awJson(['ok' => false, 'error' => 'All fields are required'], 422);
     if ($password !== $confirm) awJson(['ok' => false, 'error' => 'Passwords do not match'], 422);
     if (strlen($password) < 8) awJson(['ok' => false, 'error' => 'Password must be at least 8 characters'], 422);
