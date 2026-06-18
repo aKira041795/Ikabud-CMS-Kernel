@@ -6,6 +6,8 @@
     "author": "Ikabud Kernel Team",
     "owns_tables": [
         "attendance_records",
+        "attendance_wage_users",
+        "attendance_wage_password_resets",
         "employee_profiles",
         "employee_schedules",
         "payroll_periods",
@@ -27,6 +29,12 @@
     "handlers": "handlers.php",
     "capabilities": {
         "exposes": [
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 560,
+                "modes": ["pipeline"],
+                "description": "Authenticate attendance-wage users via @attendance-wage: prefix"
+            },
             {
                 "id": "attendance_wage.clock@1",
                 "priority": 50,
@@ -103,7 +111,8 @@
         "database/migrations/011_create_cash_advance_repayments.sql",
         "database/migrations/012_create_payroll_settings.sql",
         "database/migrations/013_create_attendance_wage_users.sql",
-        "database/migrations/014_bootstrap_attendance_wage_admin.sql"
+        "database/migrations/014_bootstrap_attendance_wage_admin.sql",
+        "database/migrations/015_create_attendance_wage_password_resets.sql"
     ],
     "settings_fields": [
         {

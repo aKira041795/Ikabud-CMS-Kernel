@@ -14,6 +14,8 @@ app()->registerAuthTable('attendance-wage', 'attendance_wage_users');
 function attendance_wage_capability_handlers(): array
 {
     return [
+        // Auth capability (pipeline — kernel calls this for authentication)
+        'kernel.auth.authenticate@1'         => 'aw_cap_kernel_auth_authenticate_1',
         // Module capabilities
         'attendance_wage.clock@1'            => 'aw_cap_clock_1',
         'attendance_wage.read@1'             => 'aw_cap_read_1',
@@ -50,6 +52,52 @@ function aw_cap_read_1(mixed $payload): array   { return ['granted' => true]; }
 function aw_cap_manage_1(mixed $payload): array { return ['granted' => true]; }
 function aw_cap_approve_1(mixed $payload): array { return ['granted' => true]; }
 function aw_cap_admin_1(mixed $payload): array  { return ['granted' => true]; }
+
+// Auth capability (kernel.auth.authenticate@1 — pipeline provider)
+function aw_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId = '', string $providerId = ''): ?array
+{
+    if (!is_array($payload)) return null;
+    $username = trim((string)($payload['username'] ?? ''));
+    $password = (string)($payload['password'] ?? '');
+    if ($username === '' || $password === '') return null;
+
+    $prefix = '@attendance-wage:';
+    if (!str_starts_with($username, $prefix)) return null;
+    $username = trim(substr($username, strlen($prefix)));
+    if ($username === '') return null;
+
+    try {
+        $stmt = aw_db()->prepare(
+            "SELECT id, username, email, password_hash, full_name, role, is_active FROM attendance_wage_users WHERE (username = :u OR email = :e) AND is_active = 1 LIMIT 1"
+        );
+        $stmt->execute([':u' => $username, ':e' => $username]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!is_array($row)) return null;
+
+        // Block bootstrap passwords (force reset)
+        $hash = (string)($row['password_hash'] ?? '');
+        $blocked = ['!attendance-wage-bootstrap-password-reset-required!'];
+        foreach ($blocked as $b) {
+            if ($hash === $b || password_verify($b, $hash)) return null;
+        }
+
+        if (!password_verify($password, $hash)) return null;
+
+        return [
+            'user' => [
+                'id' => (int)($row['id'] ?? 0),
+                'username' => (string)($row['username'] ?? ''),
+                'email' => (string)($row['email'] ?? ''),
+                'full_name' => (string)($row['full_name'] ?? ''),
+                'role' => (string)($row['role'] ?? 'employee'),
+                'sub' => 'attendance-wage:' . (int)($row['id'] ?? 0),
+            ],
+            'source' => 'attendance-wage',
+        ];
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
 
 function aw_db(): \PDO
 {

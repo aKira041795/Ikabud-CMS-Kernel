@@ -27,6 +27,9 @@ use Ikabud\Kernel\Contracts\ModuleContext;
 // ── Bootstrap helpers ──
 require_once __DIR__ . '/handlers/00-bootstrap.php';
 
+// ── Auth handlers ──
+require_once __DIR__ . '/handlers/05-auth.php';
+
 // ── Page handlers ──
 require_once __DIR__ . '/handlers/10-pages-attendance.php';
 require_once __DIR__ . '/handlers/30-pages-wage.php';
