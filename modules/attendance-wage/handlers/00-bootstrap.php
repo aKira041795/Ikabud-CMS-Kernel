@@ -27,6 +27,10 @@ function attendanceWageGuard(string $capability = ''): ?array
         echo json_encode(['ok' => false, 'error' => 'Authentication required']);
         exit;
     }
+    // CSRF enforcement for all authenticated POST requests
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        app()->csrfEnforce();
+    }
     return $user;
 }
 

@@ -11,8 +11,37 @@ declare(strict_types=1);
 function wageApiPayslip(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.read@1');
-    // TODO: Generate payslip data for a computation
-    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => null]); return;
+    $computationId = (int)($params['computationId'] ?? 0);
+    if ($computationId <= 0) {
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => false, 'error' => 'Missing computation ID']);
+        return;
+    }
+    try {
+        $db = aw_db();
+        $stmt = $db->prepare(
+            "SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    ep.employee_number, ep.position, ep.department, ep.salary_type, ep.hire_date,
+                    ep.sss_number, ep.philhealth_number, ep.pagibig_number, ep.tin_number,
+                    pp.period_name, pp.start_date AS period_start, pp.end_date AS period_end, pp.pay_date
+             FROM salary_computations sc
+             JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+             WHERE sc.computation_id = :id LIMIT 1"
+        );
+        $stmt->execute([':id' => $computationId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$row) {
+            header("Content-Type: application/json; charset=utf-8");
+            echo json_encode(['ok' => false, 'error' => 'Computation not found']);
+            return;
+        }
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => true, 'data' => $row]);
+    } catch (\Throwable $e) {
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
 }
 
 function wageApiReportExportAll(array $params = []): void
@@ -140,17 +169,76 @@ function wageApiReportExport(array $params = []): void
 function wageApiBenefitsCalculate(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.read@1');
-    // TODO: Calculate SSS/PhilHealth/Pag-IBIG for a given salary
-    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => [
-        'sss' => ['employee' => 0, 'employer' => 0],
-        'philhealth' => ['employee' => 0, 'employer' => 0],
-        'pagibig' => ['employee' => 0, 'employer' => 0],
-    ]]); return;
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
+    $salary = (float)($input['salary'] ?? $input['gross_pay'] ?? 0);
+    if ($salary <= 0) {
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => false, 'error' => 'Salary amount is required']);
+        return;
+    }
+    try {
+        $benefits = aw_calculateBenefits($salary);
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => true, 'data' => [
+            'gross_salary' => $salary,
+            'sss' => ['employee' => $benefits['sss']['employee'], 'employer' => $benefits['sss']['employer']],
+            'philhealth' => ['employee' => $benefits['philhealth']['employee'], 'employer' => $benefits['philhealth']['employer']],
+            'pagibig' => ['employee' => $benefits['pagibig']['employee'], 'employer' => $benefits['pagibig']['employer']],
+            'total_employee' => round($benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'], 2),
+            'total_employer' => round($benefits['sss']['employer'] + $benefits['philhealth']['employer'] + $benefits['pagibig']['employer'], 2),
+        ]]);
+    } catch (\Throwable $e) {
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
 }
 
 function wageApiMigrationBulk(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.admin@1');
-    // TODO: Bulk create employee profiles from users table
-    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Migration started']); return;
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $isFormPost = !str_contains($contentType, 'application/json');
+    $base = awBaseUrl();
+
+    try {
+        $db = aw_db();
+        // Find attendance_wage_users without employee_profiles and create profiles
+        $stmt = $db->query(
+            "SELECT u.id AS user_id, u.full_name, u.username, u.email
+             FROM attendance_wage_users u
+             WHERE u.is_active = 1
+             AND u.id NOT IN (SELECT COALESCE(user_id, 0) FROM employee_profiles WHERE user_id > 0)"
+        );
+        $users = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $created = 0;
+        foreach ($users as $user) {
+            $parts = explode(' ', trim((string)($user['full_name'] ?? '')), 2);
+            $firstName = $parts[0] ?? 'Employee';
+            $lastName = $parts[1] ?? $firstName;
+            $db->prepare(
+                "INSERT INTO employee_profiles (tenant_id, user_id, first_name, last_name, employee_number, position, salary_type, basic_salary, is_active)
+                 VALUES (:tid, :uid, :fn, :ln, :en, 'Staff', 'daily', 0, 1)
+                 ON DUPLICATE KEY UPDATE is_active = 1"
+            )->execute([
+                ':tid' => app()->tenant()->current() ?? '',
+                ':uid' => (int)$user['user_id'],
+                ':fn' => $firstName, ':ln' => $lastName,
+                ':en' => 'AUTO-' . str_pad((string)$user['user_id'], 4, '0', STR_PAD_LEFT),
+            ]);
+            $created++;
+        }
+
+        if ($isFormPost) {
+            header('Location: ' . $base . '/admin/wage/migration?success=' . urlencode("{$created} employee profile(s) created."));
+            exit;
+        }
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => true, 'message' => "{$created} employee profile(s) created.", 'created' => $created]);
+    } catch (\Throwable $e) {
+        if ($isFormPost) { header('Location: ' . $base . '/admin/wage/migration?error=' . urlencode($e->getMessage())); exit; }
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
 }

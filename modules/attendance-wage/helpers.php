@@ -48,12 +48,27 @@ function attendance_wage_capability_handlers(): array
     ];
 }
 
-// Module capabilities
-function aw_cap_clock_1(mixed $payload): array  { return ['granted' => true]; }
-function aw_cap_read_1(mixed $payload): array   { return ['granted' => true]; }
-function aw_cap_manage_1(mixed $payload): array { return ['granted' => true]; }
-function aw_cap_approve_1(mixed $payload): array { return ['granted' => true]; }
-function aw_cap_admin_1(mixed $payload): array  { return ['granted' => true]; }
+// Module capabilities — check authenticated user role
+function aw_cap_clock_1(mixed $payload): array   { return ['granted' => aw_userHasRole(['admin','supervisor','employee'])]; }
+function aw_cap_read_1(mixed $payload): array    { return ['granted' => aw_userHasRole(['admin','supervisor','employee'])]; }
+function aw_cap_manage_1(mixed $payload): array  { return ['granted' => aw_userHasRole(['admin','supervisor'])]; }
+function aw_cap_approve_1(mixed $payload): array { return ['granted' => aw_userHasRole(['admin'])]; }
+function aw_cap_admin_1(mixed $payload): array   { return ['granted' => aw_userHasRole(['admin'])]; }
+
+function aw_userHasRole(array $roles): bool
+{
+    $user = app()->user();
+    if (!is_array($user) || (($user['source'] ?? '') !== 'attendance-wage')) return false;
+    $userRole = (string)($user['role'] ?? '');
+    return in_array($userRole, $roles, true);
+}
+
+function aw_csrfGuard(): void
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        app()->csrfEnforce();
+    }
+}
 
 // Auth capability (kernel.auth.authenticate@1 — pipeline provider)
 function aw_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId = '', string $providerId = ''): ?array
@@ -289,7 +304,26 @@ function aw_cap_entity_get_salary_computation_1(mixed $payload): array
 function aw_cap_entity_get_salary_adjustment_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM salary_adjustments WHERE adjustment_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_employee_deduction_1(mixed $payload): array
-{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM employee_deductions WHERE deduction_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+{
+    $id=(int)($payload['id']??0); if($id<=0)return[];
+    $db=aw_db();
+    // Try manual deduction first
+    $s=$db->prepare('SELECT d.*, \'manual\' AS source FROM employee_deductions d WHERE d.deduction_id=:id LIMIT 1');
+    $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC);
+    if (is_array($r)) return $r;
+    // Fallback: check if this is a cash advance repayment
+    $s=$db->prepare(
+        "SELECT car.repayment_id AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                car.amount, CONCAT('Cash Advance #', ca.advance_id, ' — ', ca.repayment_type) AS description,
+                IF(car.status='deducted','completed',car.status) AS status, car.created_at AS deduction_date, 'cash_advance' AS source
+         FROM cash_advance_repayments car
+         JOIN cash_advances ca ON ca.advance_id = car.advance_id
+         LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id
+         WHERE car.repayment_id = :id LIMIT 1"
+    );
+    $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC);
+    return is_array($r)?$r:[];
+}
 function aw_cap_entity_get_holiday_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM holidays WHERE holiday_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_cash_advance_1(mixed $payload): array
@@ -430,7 +464,7 @@ function aw_computeSimpleSalary(array $profile, int $periodId, int $computedBy):
     $data = [
         'tenant_id' => app()->tenant()->current() ?? '',
         'user_id' => (int)($profile['user_id'] ?? 0) > 0 ? (int)$profile['user_id'] : -(int)$profile['profile_id'], 'payroll_period_id' => $periodId, 'employee_profile_id' => $profile['profile_id'],
-        'basic_salary' => $basicSalary, 'regular_hours' => 0, 'overtime_hours' => 0,
+        'basic_salary' => (float)($profile['basic_salary'] ?? 0), 'regular_hours' => 0, 'overtime_hours' => 0,
         'double_overtime_hours' => 0, 'holiday_hours' => 0, 'night_shift_hours' => 0, 'rest_day_hours' => 0,
         'regular_pay' => $gross, 'overtime_pay' => 0, 'double_overtime_pay' => 0,
         'holiday_pay' => 0, 'night_shift_pay' => 0, 'rest_day_pay' => 0, 'rest_day_premium' => 0,
@@ -503,9 +537,22 @@ function aw_calculateBenefits(float $grossPay): array
         if($rate){
             $e=$rate['employee_fixed']??($grossPay*(float)$rate['employee_share_pct']); $e=max((float)($rate['min_contribution']??0),min($e,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employee']=round($e,2);
             $er=$rate['employer_fixed']??($grossPay*(float)$rate['employer_share_pct']); $er=max((float)($rate['min_contribution']??0),min($er,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employer']=round($er,2);
+        } else {
+            // Fallback: use default PH statutory rates when no rate row configured
+            $r[$t] = aw_defaultBenefitsRate($t, $grossPay);
         }
     }
     return $r;
+}
+
+function aw_defaultBenefitsRate(string $type, float $grossPay): array
+{
+    return match ($type) {
+        'sss' => ['employee' => round(max(0, min($grossPay * 0.045, 1350.00)), 2), 'employer' => round(max(0, min($grossPay * 0.095, 2850.00)), 2)],
+        'philhealth' => ['employee' => round(max(0, min($grossPay * 0.025, 2500.00) / 2), 2), 'employer' => round(max(0, min($grossPay * 0.025, 2500.00) / 2), 2)],
+        'pagibig' => ['employee' => round(max(0, min($grossPay * 0.02, 100.00)), 2), 'employer' => round(max(0, min($grossPay * 0.02, 100.00)), 2)],
+        default => ['employee' => 0.0, 'employer' => 0.0],
+    };
 }
 
 function aw_calculateTax(float $grossPay, float $deductions, array $profile): float
@@ -525,20 +572,37 @@ function aw_workingDaysInPeriod(string $startDate, string $endDate): int {
     $count=0; $tz=new \DateTimeZone('Asia/Manila');
     $s=new \DateTimeImmutable($startDate,$tz); $e=new \DateTimeImmutable($endDate,$tz); $c=$s;
     while($c<=$e){ if((int)$c->format('N')<7) $count++; $c=$c->modify('+1 day'); }
-    return $count;
+    return max(1, $count);
 }
 function aw_nightShiftOverlap(\DateTime $ci, \DateTime $co): float {
     $ns=(clone $ci)->setTime(22,0,0); $ne=(clone $ci)->setTime(6,0,0)->modify('+1 day');
     if($co<=$ns||$ci>=$ne)return 0.0; $os=max($ci,$ns); $oe=min($co,$ne); return ($oe->getTimestamp()-$os->getTimestamp())/3600.0;
 }
 function aw_effectiveHourlyRate(array $profile): float {
+    $settings = aw_payrollSettings();
+    $hoursPerDay = (float)($settings['working_hours_per_day'] ?? $profile['max_daily_hours'] ?? 8);
+    $daysPerMonth = (int)($settings['working_days_per_month'] ?? 22);
     return match($profile['salary_type']??'daily'){
         'hourly'=>(float)(((float)$profile['hourly_rate'] > 0) ? $profile['hourly_rate'] : $profile['basic_salary']),
-        'daily'=>(float)(((float)$profile['daily_rate'] > 0) ? $profile['daily_rate'] : ($profile['basic_salary']/((float)($profile['max_daily_hours']??8)))),
-        'monthly'=>(float)(((float)$profile['monthly_rate'] > 0) ? $profile['monthly_rate'] : ($profile['basic_salary']/22/((float)($profile['max_daily_hours']??8)))),
-        'fixed'=>(float)($profile['basic_salary']/22/((float)($profile['max_daily_hours']??8))),
-        default=>(float)($profile['basic_salary']/22/8)
+        'daily'=>(float)(((float)$profile['daily_rate'] > 0) ? $profile['daily_rate'] : ($profile['basic_salary'] / max(1, $hoursPerDay))),
+        'monthly'=>(float)(((float)$profile['monthly_rate'] > 0) ? $profile['monthly_rate'] : ($profile['basic_salary'] / max(1, $daysPerMonth) / max(1, $hoursPerDay))),
+        'fixed'=>(float)($profile['basic_salary'] / max(1, $daysPerMonth) / max(1, $hoursPerDay)),
+        default=>(float)($profile['basic_salary'] / max(1, $daysPerMonth) / max(1, $hoursPerDay)),
     };
+}
+
+function aw_payrollSettings(): array
+{
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try {
+        $db = aw_db();
+        $s = $db->prepare('SELECT * FROM payroll_settings WHERE tenant_id = :tid LIMIT 1');
+        $s->execute([':tid' => app()->tenant()->current() ?? '']);
+        $row = $s->fetch(\PDO::FETCH_ASSOC);
+        $cache = is_array($row) ? $row : [];
+        return $cache;
+    } catch (\Throwable $e) { return []; }
 }
 function aw_getAdjustmentsForPeriod(int $userId, int $periodId): array {
     $db=aw_db();

@@ -5,6 +5,7 @@
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🏖️ Holidays</h1>
         {if edit_holiday}
         <form method="post" action="/api/v1/wage/holidays/{edit_holiday.holiday_id}" class="flex items-center gap-2">
+            <input type="hidden" name="_token" value="{csrf_token}">
             <input type="text" name="holiday_name" value="{edit_holiday.holiday_name|default:''}" required class="px-3 py-2 border border-brand-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
             <input type="date" name="holiday_date" value="{edit_holiday.holiday_date|default:''}" required class="px-3 py-2 border border-brand-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
             <select name="holiday_type" class="px-3 py-2 border border-brand-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
@@ -20,6 +21,7 @@
         </form>
         {else}
         <form method="post" action="/api/v1/wage/holidays" class="flex items-center gap-2">
+            <input type="hidden" name="_token" value="{csrf_token}">
             <input type="text" name="holiday_name" placeholder="Holiday name" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
             <input type="date" name="holiday_date" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
             <select name="holiday_type" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">

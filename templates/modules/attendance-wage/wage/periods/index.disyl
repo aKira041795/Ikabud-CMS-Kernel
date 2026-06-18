@@ -45,6 +45,7 @@
                 </div>
                 <p class="text-xs text-gray-400 mb-4">employees paid monthly</p>
                 <form method="post" action="/api/v1/wage/compute/bulk" onsubmit="return confirm('Create payroll for {stats.monthly|default:0} monthly employees?')">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="salary_type" value="monthly">
                     <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Prepare Payroll</button>
                 </form>
@@ -57,6 +58,7 @@
                 </div>
                 <p class="text-xs text-gray-400 mb-4">employees paid daily</p>
                 <form method="post" action="/api/v1/wage/compute/bulk" onsubmit="return confirm('Create payroll for {stats.daily|default:0} daily employees?')">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="salary_type" value="daily">
                     <button type="submit" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors">Prepare Payroll</button>
                 </form>
@@ -69,6 +71,7 @@
                 </div>
                 <p class="text-xs text-gray-400 mb-4">employees paid hourly</p>
                 <form method="post" action="/api/v1/wage/compute/bulk" onsubmit="return confirm('Create payroll for {stats.hourly|default:0} hourly employees?')">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="salary_type" value="hourly">
                     <button type="submit" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-lg transition-colors">Prepare Payroll</button>
                 </form>
@@ -81,6 +84,7 @@
                 </div>
                 <p class="text-xs text-gray-400 mb-4">employees on fixed rate</p>
                 <form method="post" action="/api/v1/wage/compute/bulk" onsubmit="return confirm('Create payroll for {stats.fixed|default:0} fixed-rate employees?')">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="salary_type" value="fixed">
                     <button type="submit" class="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors">Prepare Payroll</button>
                 </form>
@@ -139,6 +143,7 @@
                                 {/if}
                                 {if p.status=='draft' || p.status=='processing'}
                                 <form method="post" action="/api/v1/wage/periods/{p.period_id}/delete" class="inline" onsubmit="return confirm('Delete this period and all its computations?')">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
                                     <button type="submit" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors">Delete</button>
                                 </form>
                                 {/if}

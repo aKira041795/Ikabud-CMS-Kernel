@@ -63,6 +63,7 @@ function attendancePageResetPassword(): void
 
 function attendanceAuthLogin(): void
 {
+    app()->csrfEnforce();
     $username = trim((string)($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     if ($username === '' || $password === '') awRedirect(awBaseUrl() . '/attendance-wage/login?error=missing_fields');
@@ -79,6 +80,7 @@ function attendanceAuthLogin(): void
 
 function attendanceAuthForgotPassword(): void
 {
+    app()->csrfEnforce();
     $email = trim((string)($_POST['email'] ?? ''));
     if ($email === '') awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?error=missing_fields');
     try {
@@ -110,6 +112,7 @@ function awInput(): array
 
 function attendanceApiForgotPassword(): void
 {
+    app()->csrfEnforce();
     $input = awInput();
     $email = trim((string)($input['email'] ?? ''));
     if ($email === '') awJson(['ok' => false, 'error' => 'Email is required'], 422);
@@ -145,6 +148,7 @@ function attendanceApiForgotPassword(): void
 
 function attendanceApiResetPassword(): void
 {
+    app()->csrfEnforce();
     $input = awInput();
     $token = trim((string)($input['token'] ?? ''));
     $password = (string)($input['password'] ?? '');

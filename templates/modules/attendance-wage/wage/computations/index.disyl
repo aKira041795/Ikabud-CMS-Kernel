@@ -61,6 +61,7 @@
             <div class="flex items-center gap-2">
                 {if can_approve}
                 <form method="POST" action="/api/v1/wage/computations/batch/approve" class="inline">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="period_id" value="{selectedPeriodId}">
                     <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors shadow-sm">✅ Approve All</button>
                 </form>
@@ -69,6 +70,7 @@
                 {/if}
                 {if can_pay}
                 <form method="POST" action="/api/v1/wage/computations/batch/pay" class="inline">
+                    <input type="hidden" name="_token" value="{csrf_token}">
                     <input type="hidden" name="period_id" value="{selectedPeriodId}">
                     <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm">💰 Mark All Paid</button>
                 </form>
@@ -113,11 +115,13 @@
                             <div class="flex items-center justify-end gap-1.5">
                                 {if c.status=='computed' && can_approve}
                                 <form method="POST" action="/api/v1/wage/computations/{c.computation_id}/approve" class="inline">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
                                     <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-green-50 text-green-700 hover:bg-green-100">Approve</button>
                                 </form>
                                 {/if}
                                 {if c.status=='approved' && can_pay}
                                 <form method="POST" action="/api/v1/wage/computations/{c.computation_id}/pay" class="inline">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
                                     <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">Mark Paid</button>
                                 </form>
                                 {/if}

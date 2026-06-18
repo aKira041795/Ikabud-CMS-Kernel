@@ -11,22 +11,87 @@ declare(strict_types=1);
 function wageApiComputationsList(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.manage@1');
-    // TODO: List salary computations for a period
-    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => []]); return;
+    try {
+        $db = aw_db();
+        $periodId = (int)($params['period_id'] ?? $_GET['period_id'] ?? 0);
+        if ($periodId > 0) {
+            $stmt = $db->prepare(
+                "SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                        ep.position, ep.department, ep.salary_type, pp.period_name
+                 FROM salary_computations sc
+                 JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+                 JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+                 WHERE sc.payroll_period_id = :pid
+                 ORDER BY ep.last_name ASC, ep.first_name ASC"
+            );
+            $stmt->execute([':pid' => $periodId]);
+        } else {
+            $limit = min((int)($params['limit'] ?? 50), 200);
+            $stmt = $db->query(
+                "SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                        ep.position, ep.department, ep.salary_type, pp.period_name
+                 FROM salary_computations sc
+                 JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+                 JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+                 ORDER BY sc.created_at DESC LIMIT {$limit}"
+            );
+        }
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        awJsonOut(['ok' => true, 'data' => $rows]);
+    } catch (\Throwable $e) {
+        awJsonOut(['ok' => false, 'error' => $e->getMessage()], 500);
+    }
 }
 
 function wageApiComputationGet(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.read@1');
-    // TODO: Get single computation with breakdown
-    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'data' => null]); return;
+    $id = (int)($params['id'] ?? 0);
+    if ($id <= 0) { awJsonOut(['ok' => false, 'error' => 'Missing computation ID'], 422); return; }
+    try {
+        $db = aw_db();
+        $stmt = $db->prepare(
+            "SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    ep.position, ep.department, ep.employee_number, ep.salary_type,
+                    pp.period_name, pp.start_date AS period_start, pp.end_date AS period_end, pp.pay_date
+             FROM salary_computations sc
+             JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+             WHERE sc.computation_id = :id LIMIT 1"
+        );
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        awJsonOut(['ok' => true, 'data' => $row ?: null]);
+    } catch (\Throwable $e) {
+        awJsonOut(['ok' => false, 'error' => $e->getMessage()], 500);
+    }
 }
 
 function wageApiComputeEmployee(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.admin@1');
-    // TODO: Compute salary for one employee (attendance → hours → pay → benefits → tax → net)
-    header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok' => true, 'message' => 'Salary computed']); return;
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
+    $userId = (int)($input['user_id'] ?? $input['employee_id'] ?? 0);
+    $periodId = (int)($input['period_id'] ?? $params['period_id'] ?? 0);
+    $isFormPost = !str_contains($contentType, 'application/json');
+    if ($userId <= 0 || $periodId <= 0) {
+        $msg = 'Employee ID and period ID are required.';
+        if ($isFormPost) { header('Location: ' . awBaseUrl() . '/admin/wage/computations?error=' . urlencode($msg)); exit; }
+        awJsonOut(['ok' => false, 'error' => $msg], 422); return;
+    }
+    try {
+        $computedBy = aw_currentUserId();
+        $result = aw_computeSalary($userId, $periodId, $computedBy);
+        if ($isFormPost) {
+            header('Location: ' . awBaseUrl() . '/admin/wage/computations?period_id=' . $periodId . '&success=' . urlencode('Salary computed: net pay ₱' . number_format((float)($result['net_pay'] ?? 0), 2)));
+            exit;
+        }
+        awJsonOut(['ok' => true, 'message' => 'Salary computed', 'computation' => $result]);
+    } catch (\Throwable $e) {
+        if ($isFormPost) { header('Location: ' . awBaseUrl() . '/admin/wage/computations?error=' . urlencode($e->getMessage())); exit; }
+        awJsonOut(['ok' => false, 'error' => $e->getMessage()], 500);
+    }
 }
 
 function wageApiBulkCompute(array $params = []): void

@@ -17,6 +17,7 @@
     {/if}
     <div id="scheduleForm" class="hidden mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
         <form method="post" action="/api/v1/wage/schedules" class="space-y-5">
+            <input type="hidden" name="_token" value="{csrf_token}">
             <input type="hidden" name="bulk" value="1" />
             <input type="hidden" name="replace" value="1" />
             <div id="editLabel" class="hidden text-sm font-semibold text-brand-700 mb-1"></div>
