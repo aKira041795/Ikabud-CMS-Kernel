@@ -37,5 +37,21 @@ function attendanceWageGuard(string $capability = ''): ?array
 function aw_currentUserId(): int
 {
     $user = attendanceWageUser();
-    return (int)($user['id'] ?? 0);
+    return aw_extractUserId($user);
+}
+
+/**
+ * Extract numeric user ID from the user array, handling both JWT (sub-only)
+ * and full auth result (has id) formats.
+ */
+function aw_extractUserId(?array $user): int
+{
+    if (!is_array($user)) return 0;
+    $id = (int)($user['id'] ?? 0);
+    if ($id > 0) return $id;
+    $sub = (string)($user['sub'] ?? '');
+    if (str_starts_with($sub, 'attendance-wage:')) {
+        return (int)substr($sub, strlen('attendance-wage:'));
+    }
+    return 0;
 }

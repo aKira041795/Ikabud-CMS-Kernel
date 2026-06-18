@@ -20,9 +20,15 @@ function wagePageDashboard(array $params = []): void
         'ca_active_count' => 0,
         'ca_outstanding' => '0.00',
         'location_count' => 0,
+        'today_clocked_in' => 0,
+        'today_records' => 0,
+        'today_onsite_count' => 0,
+        'today_office_count' => 0,
+        'today_attendance' => [],
     ];
     try {
         $db = aw_db();
+        $tid = app()->tenant()->current() ?? '';
         $data['employee_count'] = (int)$db->query("SELECT COUNT(*) FROM employee_profiles WHERE is_active = 1")->fetchColumn();
         $current = $db->query("SELECT period_name FROM payroll_periods WHERE status IN ('draft','processing') ORDER BY start_date DESC LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
         if ($current) { $data['current_period_name'] = $current['period_name']; }
@@ -34,10 +40,44 @@ function wagePageDashboard(array $params = []): void
         $data['ca_pending_amount'] = number_format((float)$db->query("SELECT COALESCE(SUM(amount),0) FROM cash_advances WHERE status = 'pending'")->fetchColumn(), 2);
         $data['ca_active_count'] = (int)$db->query("SELECT COUNT(*) FROM cash_advances WHERE status IN ('approved','active')")->fetchColumn();
         $data['ca_outstanding'] = number_format((float)$db->query("SELECT COALESCE(SUM(balance),0) FROM cash_advances WHERE status IN ('approved','active')")->fetchColumn(), 2);
-        $data['location_count'] = (int)$db->query("SELECT COUNT(*) FROM office_locations WHERE is_active = 1")->fetchColumn();
+        $locCount = $db->prepare("SELECT COUNT(*) FROM office_locations WHERE tenant_id = :tid AND is_active = 1");
+        $locCount->execute([':tid' => $tid]);
+        $data['location_count'] = (int)$locCount->fetchColumn();
+
+        // ── Attendance stats ──
+        // Today's clocked-in (active, no clock-out yet)
+        $data['today_clocked_in'] = (int)$db->query(
+            "SELECT COUNT(*) FROM attendance_records WHERE DATE(clock_in) = CURDATE() AND clock_out IS NULL"
+        )->fetchColumn();
+
+        // Today's total records
+        $data['today_records'] = (int)$db->query(
+            "SELECT COUNT(*) FROM attendance_records WHERE DATE(clock_in) = CURDATE()"
+        )->fetchColumn();
+
+        // On-site vs office breakdown for today
+        $data['today_onsite_count'] = (int)$db->query(
+            "SELECT COUNT(*) FROM attendance_records WHERE DATE(clock_in) = CURDATE() AND location_in LIKE 'On-site%'"
+        )->fetchColumn();
+        $data['today_office_count'] = $data['today_records'] - $data['today_onsite_count'];
+
+        // Today's attendance detail: employee name, clock in, clock out, location, status
+        $attStmt = $db->prepare(
+            "SELECT ar.attendance_id, ar.clock_in, ar.clock_out, ar.location_in, ar.location_out, ar.status,
+                    CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    ep.position, ep.employee_number, ep.onsite_attendance
+             FROM attendance_records ar
+             JOIN attendance_wage_users u ON u.id = ar.user_id
+             JOIN employee_profiles ep ON ep.user_id = u.id
+             WHERE DATE(ar.clock_in) = CURDATE()
+             ORDER BY ar.clock_in DESC
+             LIMIT 15"
+        );
+        $attStmt->execute();
+        $data['today_attendance'] = $attStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {}
 
-    echo app()->render('modules/attendance-wage/wage/dashboard', $data);
+    echo app()->render('modules/attendance-wage/wage/dashboard', $data + ['active_nav' => 'dashboard', 'current_user_role' => (attendanceWageUser()['role'] ?? '')]);
 }
 
 function wagePageEmployees(array $params = []): void
@@ -431,14 +471,16 @@ function wagePageLocations(array $params = []): void
     $locations = [];
     try {
         $db = aw_db();
-        $stmt = $db->prepare("SELECT * FROM office_locations ORDER BY name ASC");
-        $stmt->execute();
+        $tid = app()->tenant()->current() ?? '';
+        $stmt = $db->prepare("SELECT * FROM office_locations WHERE tenant_id = :tid ORDER BY name ASC");
+        $stmt->execute([':tid' => $tid]);
         $locations = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {}
     echo app()->render('modules/attendance-wage/wage/locations/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
         'locations' => $locations,
+        'active_nav' => 'locations',
     ]);
 }
 
@@ -446,12 +488,13 @@ function wagePageLocationForm(array $params = []): void
 {
     $editId = (int)($params['id'] ?? 0);
     $settings = getModuleSettings('attendance-wage');
-    $vars = ['id' => $editId, 'radius_meters' => 100, 'maps_api_key' => $settings['google_maps_api_key'] ?? ''];
+    $tid = app()->tenant()->current() ?? '';
+    $vars = ['id' => $editId, 'radius_meters' => 100, 'maps_api_key' => $settings['google_maps_api_key'] ?? '', 'active_nav' => 'locations'];
     if ($editId > 0) {
         try {
             $db = aw_db();
-            $stmt = $db->prepare("SELECT * FROM office_locations WHERE location_id = :id");
-            $stmt->execute([':id' => $editId]);
+            $stmt = $db->prepare("SELECT * FROM office_locations WHERE location_id = :id AND tenant_id = :tid");
+            $stmt->execute([':id' => $editId, ':tid' => $tid]);
             $row = $stmt->fetch(\PDO::FETCH_ASSOC);
             if (is_array($row)) {
                 foreach ($row as $k => $v) {
@@ -463,12 +506,54 @@ function wagePageLocationForm(array $params = []): void
     echo app()->render('modules/attendance-wage/wage/locations/form', $vars);
 }
 
+function wagePageProfile(array $params = []): void
+{
+    $user = attendanceWageUser();
+    if (!$user) {
+        header('Location: ' . awBaseUrl() . '/attendance-wage/login');
+        exit;
+    }
+    // Read fresh user data from DB (not session/JWT) so edits show immediately.
+    $userId = aw_extractUserId($user);
+    $dbUser = $user;
+    if ($userId > 0) {
+        try {
+            $db = aw_db();
+            $stmt = $db->prepare("SELECT username, email, full_name, role FROM attendance_wage_users WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $userId]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($row) { $dbUser = $row; }
+        } catch (\Throwable $e) {}
+    }
+    echo app()->render('modules/attendance-wage/wage/profile', [
+        'success'           => $_GET['success'] ?? '',
+        'error'             => $_GET['error'] ?? '',
+        'active_nav'        => 'profile',
+        'current_user_role' => $dbUser['role'] ?? '',
+        'user_full_name'    => $dbUser['full_name'] ?? '',
+        'user_username'     => $dbUser['username'] ?? '',
+        'user_email'        => $dbUser['email'] ?? '',
+        'user_role'         => $dbUser['role'] ?? '',
+    ]);
+}
+
 function wagePageSettings(array $params = []): void
 {
+    attendanceWageGuard('attendance_wage.admin@1');
     $settings = getModuleSettings('attendance-wage');
+    $currentUser = attendanceWageUser();
+    $users = [];
+    try {
+        $db = aw_db();
+        $users = $db->query("SELECT id, username, email, full_name, role, is_active, created_at FROM attendance_wage_users ORDER BY role ASC, full_name ASC")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {}
     echo app()->render('modules/attendance-wage/wage/settings', [
-        'success' => $_GET['success'] ?? '',
-        'error'   => $_GET['error'] ?? '',
-        'google_maps_api_key' => $settings['google_maps_api_key'] ?? '',
+        'success'              => $_GET['success'] ?? '',
+        'error'                => $_GET['error'] ?? '',
+        'google_maps_api_key'  => $settings['google_maps_api_key'] ?? '',
+        'users'                => $users,
+        'current_user_id'      => (int)($currentUser['id'] ?? 0),
+        'current_user_name'    => $currentUser['full_name'] ?? $currentUser['username'] ?? '',
+        'current_user_role'    => $currentUser['role'] ?? '',
     ]);
 }

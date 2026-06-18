@@ -15,29 +15,204 @@
     </div>
     {/if}
 
-    <form method="post" action="/api/v1/wage/settings" class="space-y-6 max-w-2xl">
-        <input type="hidden" name="_token" value="{csrf_token}">
+    <div class="space-y-8">
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
-            <h2 class="text-lg font-bold text-gray-900">Google Maps</h2>
-            <p class="text-sm text-gray-500">Configure the Google Maps API key used for the office location map picker and geo-fence setup.</p>
+        <!-- Google Maps API -->
+        <form method="post" action="/api/v1/wage/settings" class="space-y-6 max-w-3xl">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+                <h2 class="text-lg font-bold text-gray-900">🗺️ Google Maps</h2>
+                <p class="text-sm text-gray-500">Configure the Google Maps API key used for the office location map picker and geo-fence setup.</p>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Google Maps API Key</label>
+                    <input type="text" name="google_maps_api_key" value="{google_maps_api_key|default:''}"
+                           class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 font-mono text-sm"
+                           placeholder="AIzaSy...">
+                    <p class="text-xs text-gray-400 mt-1">
+                        Requires <strong>Maps JavaScript API</strong> and <strong>Geocoding API</strong> enabled.
+                        <a href="https://console.cloud.google.com/apis/library" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">Google Cloud Console →</a>
+                    </p>
+                </div>
+            </div>
+            <button type="submit"
+                    class="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                💾 Save Settings
+            </button>
+        </form>
 
-            <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1">Google Maps API Key</label>
-                <input type="text" name="google_maps_api_key" value="{google_maps_api_key|default:''}"
-                       class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 font-mono text-sm"
-                       placeholder="AIzaSy...">
-                <p class="text-xs text-gray-400 mt-1">
-                    Requires <strong>Maps JavaScript API</strong> and <strong>Geocoding API</strong> enabled.
-                    <a href="https://console.cloud.google.com/apis/library" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">Google Cloud Console →</a>
-                </p>
+        <!-- Change Password -->
+        <form method="post" action="/api/v1/wage/settings/change-password" class="space-y-6 max-w-3xl">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+                <h2 class="text-lg font-bold text-gray-900">🔐 Change Password</h2>
+                <p class="text-sm text-gray-500">Signed in as <strong>{current_user_name}</strong> ({current_user_role})</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Current Password</label>
+                        <input type="password" name="current_password" required autocomplete="current-password"
+                               class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                               placeholder="Enter current password">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">New Password</label>
+                        <input type="password" name="new_password" required autocomplete="new-password" minlength="8"
+                               class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                               placeholder="Min 8 characters">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">Confirm New Password</label>
+                        <input type="password" name="new_password_confirm" required autocomplete="new-password" minlength="8"
+                               class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                               placeholder="Re-enter new password">
+                    </div>
+                </div>
+            </div>
+            <button type="submit"
+                    class="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                🔒 Update Password
+            </button>
+        </form>
+
+        <!-- User Management -->
+        <div class="max-w-5xl">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-bold text-gray-900">👥 Users</h2>
+                        <p class="text-sm text-gray-500 mt-1">Manage user accounts and assign roles.</p>
+                    </div>
+                    <button type="button" onclick="document.getElementById('add-user-form').classList.toggle('hidden')"
+                            class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                        + Add User
+                    </button>
+                </div>
+
+                <!-- Add User Form -->
+                <div id="add-user-form" class="hidden border border-brand-200 rounded-xl bg-brand-50/50 p-5 space-y-4">
+                    <h3 class="text-base font-bold text-gray-900">New User</h3>
+                    <form method="post" action="/api/v1/wage/settings/add-user" class="space-y-4">
+                        <input type="hidden" name="_token" value="{csrf_token}">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Full Name <span class="text-red-500">*</span></label>
+                                <input type="text" name="full_name" required
+                                       class="w-full px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm"
+                                       placeholder="Juan Dela Cruz">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Username <span class="text-red-500">*</span></label>
+                                <input type="text" name="username" required
+                                       class="w-full px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm"
+                                       placeholder="juandc">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Email <span class="text-red-500">*</span></label>
+                                <input type="email" name="email" required
+                                       class="w-full px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm"
+                                       placeholder="juan@example.com">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Password <span class="text-red-500">*</span></label>
+                                <input type="password" name="password" required minlength="8"
+                                       class="w-full px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm"
+                                       placeholder="Min 8 characters">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Role <span class="text-red-500">*</span></label>
+                                <select name="role" required
+                                        class="w-full px-3 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 text-sm bg-white">
+                                    <option value="employee">Employee</option>
+                                    <option value="supervisor">Supervisor</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="flex items-end pb-0.5">
+                                <button type="submit"
+                                        class="w-full px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+                                    ✅ Create User
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Users Table -->
+                {if users|count > 0}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 border-b border-gray-200">
+                                <th class="py-3 px-4 text-left font-semibold text-gray-600">Name</th>
+                                <th class="py-3 px-4 text-left font-semibold text-gray-600">Username</th>
+                                <th class="py-3 px-4 text-left font-semibold text-gray-600">Email</th>
+                                <th class="py-3 px-4 text-center font-semibold text-gray-600">Role</th>
+                                <th class="py-3 px-4 text-center font-semibold text-gray-600">Status</th>
+                                <th class="py-3 px-4 text-right font-semibold text-gray-600">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {for u in users}
+                            <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                                <td class="py-3 px-4 font-medium text-gray-900">{u.full_name}</td>
+                                <td class="py-3 px-4 text-gray-600 font-mono text-xs">{u.username}</td>
+                                <td class="py-3 px-4 text-gray-600 text-xs">{u.email}</td>
+                                <td class="py-3 px-4 text-center">
+                                    {if u.role == 'admin'}
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">Admin</span>
+                                    {else if u.role == 'supervisor'}
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Supervisor</span>
+                                    {else}
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Employee</span>
+                                    {/if}
+                                </td>
+                                <td class="py-3 px-4 text-center">
+                                    {if u.is_active}
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
+                                    {else}
+                                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactive</span>
+                                    {/if}
+                                </td>
+                                <td class="py-3 px-4 text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        {if u.id != current_user_id}
+                                        <form method="post" action="/api/v1/wage/settings/update-role" class="inline-flex items-center gap-1">
+                                            <input type="hidden" name="_token" value="{csrf_token}">
+                                            <input type="hidden" name="user_id" value="{u.id}">
+                                            <select name="role" onchange="this.form.submit()"
+                                                    class="px-2 py-1 text-xs rounded border border-gray-200 bg-white focus:ring-1 focus:ring-brand-500">
+                                                <option value="employee"{if u.role=='employee'} selected{/if}>Employee</option>
+                                                <option value="supervisor"{if u.role=='supervisor'} selected{/if}>Supervisor</option>
+                                                <option value="admin"{if u.role=='admin'} selected{/if}>Admin</option>
+                                            </select>
+                                        </form>
+                                        <form method="post" action="/api/v1/wage/settings/toggle-user" class="inline" onsubmit="return confirm('{if u.is_active}Deactivate{else}Activate{/if} {u.full_name}?')">
+                                            <input type="hidden" name="_token" value="{csrf_token}">
+                                            <input type="hidden" name="user_id" value="{u.id}">
+                                            <button type="submit"
+                                                    class="px-2 py-1 text-xs font-medium rounded {if u.is_active}bg-red-50 text-red-600 hover:bg-red-100{else}bg-green-50 text-green-600 hover:bg-green-100{/if} transition-colors">
+                                                {if u.is_active}Deactivate{else}Activate{/if}
+                                            </button>
+                                        </form>
+                                        {else}
+                                        <span class="text-xs text-gray-400">You</span>
+                                        {/if}
+                                    </div>
+                                </td>
+                            </tr>
+                            {/for}
+                        </tbody>
+                    </table>
+                </div>
+                {else}
+                <p class="text-sm text-gray-400 text-center py-4">No users found.</p>
+                {/if}
             </div>
         </div>
 
-        <button type="submit"
-                class="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
-            💾 Save Settings
-        </button>
-    </form>
+    </div>
 </div>
 {/block}

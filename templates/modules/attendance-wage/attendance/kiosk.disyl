@@ -1,0 +1,447 @@
+{extends "modules/attendance-wage/layouts/kiosk.disyl"}
+
+{block main}
+<div class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 flex flex-col items-center px-4 py-8" x-data="kioskWidget()">
+    <!-- Header -->
+    <div class="text-center mb-8">
+        <h1 class="text-4xl font-extrabold text-white tracking-tight">ZAP</h1>
+        <p class="mt-2 text-slate-400 text-sm">Attendance &amp; Wage</p>
+    </div>
+
+    <!-- Clock -->
+    <div class="text-center mb-8">
+        <div class="text-6xl font-bold text-white font-mono" x-text="timeDisplay">--:--</div>
+        <div class="text-slate-400 text-sm mt-1" x-text="dateDisplay"></div>
+    </div>
+
+    <!-- Main Card -->
+    <div class="w-full max-w-lg bg-white/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        <!-- Step 0: Welcome / Get Attendance -->
+        <div x-show="step === 0" class="p-8 text-center">
+            <div class="text-6xl mb-4">🕐</div>
+            <h2 class="text-xl font-bold text-slate-900 mb-2">Welcome!</h2>
+            <p class="text-slate-500 text-sm mb-6">Tap the button below to record your attendance.</p>
+            <button @click="startAttendance()"
+                    class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg">
+                📋 Get Attendance
+            </button>
+        </div>
+
+        <!-- Step 1: Search Employee -->
+        <div x-show="step === 1" class="p-8">
+            <h2 class="text-lg font-bold text-slate-900 mb-4">Find Your Name</h2>
+            <div class="relative mb-4">
+                <input type="text" x-model="searchQuery" @input.debounce.300ms="searchEmployees()"
+                       placeholder="Type your name or employee number..."
+                       class="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                       autofocus>
+                <div x-show="searching" class="absolute right-4 top-1/2 -translate-y-1/2">
+                    <span class="animate-spin text-slate-400">⏳</span>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div x-show="searchResults.length > 0" class="space-y-2 max-h-64 overflow-y-auto">
+                <template x-for="emp in searchResults" :key="emp.profile_id">
+                    <button @click="selectEmployee(emp)"
+                            class="w-full text-left px-4 py-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 transition-colors flex items-center justify-between">
+                        <div>
+                            <div class="font-semibold text-slate-900" x-text="emp.full_name"></div>
+                            <div class="text-xs text-slate-500" x-text="emp.position + (emp.department ? ' · ' + emp.department : '')"></div>
+                        </div>
+                        <div class="text-slate-400 text-lg">→</div>
+                    </button>
+                </template>
+            </div>
+
+            <!-- No Results -->
+            <div x-show="searchQuery.length >= 2 && searchResults.length === 0 && !searching" class="text-center py-6 text-slate-400 text-sm">
+                No employees found matching "<span x-text="searchQuery"></span>"
+            </div>
+
+            <button @click="step = 0"
+                    class="mt-4 w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors">
+                ← Back
+            </button>
+        </div>
+
+        <!-- Step 2: Confirm Employee + Location Check -->
+        <div x-show="step === 2" class="p-8 text-center">
+            <div class="text-5xl mb-4" x-text="selectedEmployee ? '👤' : '📍'"></div>
+            <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="selectedEmployee?.full_name || ''"></h2>
+            <p class="text-sm text-slate-500 mb-1" x-text="selectedEmployee?.position || ''"></p>
+            <p class="text-xs text-slate-400 mb-6" x-text="selectedEmployee?.department || ''"></p>
+
+            <!-- Location Status -->
+            <div x-show="locationChecked">
+                <div x-show="locationOK" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700">
+                    ✅ Location verified — within office geo-fence
+                    <span x-show="locationName" x-text="' (' + locationName + ')'"></span>
+                </div>
+                <div x-show="!locationOK && !onsiteMode" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700">
+                    ❌ <span x-text="locationError"></span>
+                </div>
+                <div x-show="onsiteMode" class="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700">
+                    🏗️ On-site attendance — location check skipped
+                </div>
+            </div>
+
+            <!-- Auto-detected on-site place (read-only, filled by GPS reverse-geocode) -->
+            <div x-show="onsiteMode && onsitePlace" class="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
+                <span class="font-semibold">📍 Detected:</span> <span x-text="onsitePlace"></span>
+            </div>
+            <div x-show="onsiteMode && !onsitePlace && locationChecked" class="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-600">
+                ⚠️ Could not detect place name — recording as on-site attendance.
+            </div>
+
+            <!-- Camera / Photo Capture -->
+            <div x-show="!photoTaken && (locationOK || onsiteMode)">
+                <div class="mb-4">
+                    <video x-ref="camera" autoplay playsinline
+                           class="w-full rounded-xl border border-slate-200 bg-black max-h-64 object-cover"></video>
+                    <canvas x-ref="canvas" class="hidden"></canvas>
+                </div>
+                <button @click="takePhoto()"
+                        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm">
+                    📸 Take Photo
+                </button>
+            </div>
+
+            <!-- Photo Preview -->
+            <div x-show="photoTaken && (locationOK || onsiteMode)" class="mb-6">
+                <img :src="photoData" class="w-full rounded-xl border border-slate-200 max-h-64 object-cover mb-3" alt="Attendance photo">
+                <p class="text-xs text-green-600 font-medium">✓ Photo captured</p>
+            </div>
+
+            <!-- Clock In/Out Button -->
+            <div x-show="photoTaken && (locationOK || onsiteMode)">
+                <div x-show="!submitting">
+                    <button @click="submitAttendance()"
+                            x-text="currentlyClockedIn ? '🕐 Clock Out' : '✅ Clock In'"
+                            :class="currentlyClockedIn
+                                ? 'w-full py-4 px-6 bg-red-600 hover:bg-red-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg'
+                                : 'w-full py-4 px-6 bg-green-600 hover:bg-green-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg'">
+                    </button>
+                    <p class="text-xs text-slate-400 mt-2" x-show="currentlyClockedIn">You are currently clocked in. Tap to clock out.</p>
+                </div>
+                <div x-show="submitting" class="text-center py-4">
+                    <span class="animate-spin text-2xl">⏳</span>
+                    <p class="text-sm text-slate-500 mt-2">Processing...</p>
+                </div>
+            </div>
+
+            <!-- Location pending -->
+            <div x-show="!locationChecked && !locationOK" class="mb-6">
+                <button @click="checkLocation()"
+                        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm">
+                    📍 Verify Location
+                </button>
+                <p class="text-xs text-slate-400 mt-2">Your location will be checked against office geo-fences.</p>
+            </div>
+
+            <button @click="resetSearch()" :disabled="submitting"
+                    class="mt-4 w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors disabled:opacity-50">
+                ← Choose Different Employee
+            </button>
+        </div>
+
+        <!-- Step 3: Success / Done -->
+        <div x-show="step === 3" class="p-8 text-center">
+            <div class="text-6xl mb-4" x-text="lastAction === 'clock_in' ? '✅' : '👋'"></div>
+            <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="lastMessage"></h2>
+            <p class="text-sm text-slate-500 mb-1" x-text="lastEmployee"></p>
+            <p class="text-xs text-slate-400 mb-6" x-text="lastTime"></p>
+
+            <button @click="done()"
+                    class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg">
+                ✅ Done — Next Employee
+            </button>
+        </div>
+    </div>
+
+    <!-- Error toast -->
+    <div x-show="errorMsg" @click="errorMsg = ''"
+         class="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-red-600 text-white text-sm font-medium rounded-xl shadow-lg cursor-pointer z-50 max-w-md text-center"
+         x-text="errorMsg"></div>
+</div>
+
+<script>
+function kioskWidget() {
+    return {
+        step: 0,
+        searchQuery: '',
+        searchResults: [],
+        searching: false,
+        selectedEmployee: null,
+        onsiteMode: false,
+        onsitePlace: '',
+        locationChecked: false,
+        locationOK: false,
+        locationError: '',
+        locationName: '',
+        photoTaken: false,
+        photoData: '',
+        currentlyClockedIn: false,
+        submitting: false,
+        errorMsg: '',
+        lastAction: '',
+        lastMessage: '',
+        lastEmployee: '',
+        lastTime: '',
+        timeDisplay: '--:--',
+        dateDisplay: '',
+        stream: null,
+
+        init() {
+            this.updateClock();
+            setInterval(() => this.updateClock(), 1000);
+        },
+
+        updateClock() {
+            const n = new Date();
+            this.timeDisplay = n.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            this.dateDisplay = n.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        },
+
+        startAttendance() {
+            this.step = 1;
+            this.searchQuery = '';
+            this.searchResults = [];
+            this.resetState();
+        },
+
+        async searchEmployees() {
+            const q = this.searchQuery.trim();
+            if (q.length < 2) { this.searchResults = []; return; }
+            this.searching = true;
+            try {
+                const r = await fetch('/api/v1/kiosk/search?q=' + encodeURIComponent(q));
+                const d = await r.json();
+                this.searchResults = d.ok ? (d.data || []) : [];
+            } catch (e) {
+                this.searchResults = [];
+            }
+            this.searching = false;
+        },
+
+        selectEmployee(emp) {
+            this.selectedEmployee = emp;
+            this.onsiteMode = !!(emp.onsite_attendance);
+            this.step = 2;
+            // Auto-check location immediately
+            this.checkLocation();
+        },
+
+        async checkLocation() {
+            this.locationChecked = false;
+            this.locationOK = false;
+            this.locationError = '';
+
+            if (!navigator.geolocation) {
+                if (this.onsiteMode) {
+                    this.locationChecked = true;
+                    this.locationOK = true;
+                    this.startCamera();
+                    return;
+                }
+                this.locationChecked = true;
+                this.locationOK = false;
+                this.locationError = 'Geolocation is not supported by this device.';
+                return;
+            }
+
+            try {
+                const pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 30000,
+                    });
+                });
+                this._lat = pos.coords.latitude;
+                this._lng = pos.coords.longitude;
+
+                if (this.onsiteMode) {
+                    // On-site: skip geo-fence, but reverse-geocode for place name
+                    this.locationChecked = true;
+                    this.locationOK = true;
+                    this.reverseGeocode(this._lat, this._lng);
+                    this.startCamera();
+                    return;
+                }
+
+                // Verify against server geo-fence
+                const r = await fetch('/api/v1/kiosk/verify-location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: this._lat, longitude: this._lng }),
+                });
+                const d = await r.json();
+                this.locationChecked = true;
+                if (d.no_locations) {
+                    // No office locations configured — auto-pass for everyone
+                    this.locationOK = true;
+                    this.locationName = '';
+                } else {
+                    this.locationOK = d.ok;
+                    this.locationName = d.location_name || '';
+                    this.locationError = d.error || 'Unable to verify location.';
+                }
+
+                if (this.locationOK) {
+                    this.startCamera();
+                }
+            } catch (geoErr) {
+                this.locationChecked = true;
+                if (this.onsiteMode) {
+                    // On-site: GPS failed but still allow clock-in without place detection
+                    this.locationOK = true;
+                    this.locationError = '';
+                    this.startCamera();
+                    return;
+                }
+                this.locationOK = false;
+                this.locationError = 'Location unavailable. Please enable GPS and try again.';
+            }
+        },
+
+        async reverseGeocode(lat, lng) {
+            // Try server-side reverse geocode first (supports Google Maps if API key set)
+            try {
+                const r = await fetch('/api/v1/kiosk/reverse-geocode?lat=' + lat + '&lng=' + lng);
+                const d = await r.json();
+                if (d.ok && d.place) {
+                    this.onsitePlace = d.place;
+                    return;
+                }
+            } catch (e) { /* fall through to client-side */ }
+
+            // Fallback: OpenStreetMap Nominatim (free, no API key)
+            try {
+                const r = await fetch(
+                    'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=18&addressdetails=1',
+                    { headers: { 'Accept-Language': 'en' } }
+                );
+                const d = await r.json();
+                if (d && d.display_name) {
+                    this.onsitePlace = d.display_name;
+                }
+            } catch (e) {
+                console.warn('Reverse geocode failed:', e.message);
+            }
+        },
+
+        async startCamera() {
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
+                });
+                const video = this.$refs.camera;
+                if (video) {
+                    video.srcObject = this.stream;
+                    await video.play();
+                }
+            } catch (e) {
+                // Camera not available — allow clock without photo
+                console.warn('Camera unavailable:', e.message);
+            }
+        },
+
+        takePhoto() {
+            const video = this.$refs.camera;
+            const canvas = this.$refs.canvas;
+            if (!video || !canvas) return;
+
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            this.photoData = canvas.toDataURL('image/jpeg', 0.85);
+            this.photoTaken = true;
+
+            // Stop camera stream
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
+            }
+
+            // Also check clock-in status
+            this.checkClockStatus();
+        },
+
+        async checkClockStatus() {
+            if (!this.selectedEmployee) return;
+            try {
+                const r = await fetch('/api/v1/kiosk/status?profile_id=' + this.selectedEmployee.profile_id);
+                const d = await r.json();
+                this.currentlyClockedIn = d.ok ? d.clocked_in : false;
+            } catch (e) { /* ignore */ }
+        },
+
+        async submitAttendance() {
+            if (!this.selectedEmployee || this.submitting) return;
+            this.submitting = true;
+
+            const body = {
+                profile_id: this.selectedEmployee.profile_id,
+                latitude: this._lat || 0,
+                longitude: this._lng || 0,
+                photo_data: this.photoData || '',
+                onsite_place: this.onsitePlace || '',
+            };
+
+            try {
+                const r = await fetch('/api/v1/kiosk/clock', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                const d = await r.json();
+                if (d.ok) {
+                    this.lastAction = d.action;
+                    this.lastMessage = d.message;
+                    this.lastEmployee = d.employee;
+                    this.lastTime = d.time;
+                    this.step = 3;
+                } else {
+                    this.errorMsg = d.error || 'Failed to record attendance';
+                }
+            } catch (e) {
+                this.errorMsg = 'Network error. Please try again.';
+            }
+            this.submitting = false;
+        },
+
+        resetSearch() {
+            this.step = 1;
+            this.selectedEmployee = null;
+            this.resetState();
+        },
+
+        resetState() {
+            this.locationChecked = false;
+            this.locationOK = false;
+            this.locationError = '';
+            this.locationName = '';
+            this.onsitePlace = '';
+            this.photoTaken = false;
+            this.photoData = '';
+            this.currentlyClockedIn = false;
+            this._lat = 0;
+            this._lng = 0;
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
+            }
+        },
+
+        done() {
+            this.step = 0;
+            this.searchQuery = '';
+            this.searchResults = [];
+            this.resetState();
+        },
+    };
+}
+</script>
+{/block}

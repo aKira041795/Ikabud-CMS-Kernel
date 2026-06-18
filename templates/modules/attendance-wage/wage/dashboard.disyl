@@ -37,12 +37,86 @@
             <div class="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">Office Locations</div>
             <div class="text-3xl font-bold text-blue-700">{location_count|default:0}</div>
         </div>
+        <div class="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
+            <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-2">Clocked In Now</div>
+            <div class="text-3xl font-bold text-emerald-700">{today_clocked_in|default:0}</div>
+            <div class="text-xs text-emerald-500 mt-1">{today_records|default:0} records today</div>
+        </div>
+    </div>
+
+    <!-- Today's Attendance Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Today</div>
+            <div class="text-2xl font-bold text-gray-900">{today_records|default:0}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-green-200 p-5">
+            <div class="text-xs font-semibold text-green-600 uppercase tracking-wider mb-1">Office Clock-ins</div>
+            <div class="text-2xl font-bold text-green-700">{today_office_count|default:0}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-5">
+            <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">On-Site Clock-ins</div>
+            <div class="text-2xl font-bold text-amber-700">{today_onsite_count|default:0}</div>
+        </div>
     </div>
     <div class="mb-10">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">🕐 Today's Attendance</h2>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {ikb_entity_list source="attendance_record" view="table" use="tailwind" limit="10" empty="No attendance records today." /}
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">🕐 Today's Attendance</h2>
+            <a href="/admin/attendance" class="text-sm text-brand-600 hover:text-brand-700 font-medium">View All →</a>
         </div>
+        {if today_attendance|count > 0}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Employee</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Position</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock In</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock Out</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Type</th>
+                            <th class="py-3 px-4 text-center font-semibold text-gray-600">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for row in today_attendance}
+                        <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                            <td class="py-3 px-4">
+                                <div class="font-medium text-gray-900">{row.employee_name}</div>
+                                <div class="text-xs text-gray-400">{row.employee_number|default:'—'}</div>
+                            </td>
+                            <td class="py-3 px-4 text-gray-600 text-xs">{row.position|default:'—'}</td>
+                            <td class="py-3 px-4 text-gray-700 font-mono text-xs">{row.clock_in|substr:11:8|default:'—'}</td>
+                            <td class="py-3 px-4 text-gray-700 font-mono text-xs">
+                                {if row.clock_out}{row.clock_out|substr:11:8}{else}<span class="text-amber-600 font-medium">—</span>{/if}
+                            </td>
+                            <td class="py-3 px-4">
+                                {if row.onsite_attendance}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">🏗️ On-site</span>
+                                {else}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">🏢 Office</span>
+                                {/if}
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                {if row.status == 'active'}
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Active
+                                </span>
+                                {else}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Done</span>
+                                {/if}
+                            </td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {else}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p class="text-gray-400 text-sm">No attendance records for today yet.</p>
+        </div>
+        {/if}
     </div>
 
     <div class="mb-10">

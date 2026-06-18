@@ -66,10 +66,28 @@
             <a href="/admin/wage/reports" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'reports'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
                 <span class="w-5 mr-3 text-center">📄</span> Reports
             </a>
+            {if current_user_role == 'admin'}
+            <div class="pt-3 mt-3 border-t border-brand-800"></div>
+            <a href="/admin/wage/migration" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'migration'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
+                <span class="w-5 mr-3 text-center">🔄</span> Migration
+            </a>
+            <a href="/admin/wage/benefits-calculator" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'benefits'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
+                <span class="w-5 mr-3 text-center">🧮</span> Benefits Calc
+            </a>
+            {/if}
         </nav>
-        <div class="px-4 py-3 border-t border-brand-800 text-xs text-brand-400">
-            <a href="/admin/wage/settings" class="block hover:text-brand-200 transition-colors mb-1">⚙️ Settings</a>
-            <a href="/attendance-wage/logout" class="hover:text-brand-200 transition-colors">Sign out</a>
+        <div class="px-5 py-4 border-t border-brand-800 space-y-2">
+            <a href="/admin/wage/profile" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors">
+                <span>👤</span> My Profile
+            </a>
+            {if current_user_role == 'admin'}
+            <a href="/admin/wage/settings" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors">
+                <span>⚙️</span> Settings
+            </a>
+            {/if}
+            <a href="/attendance-wage/logout" class="flex items-center gap-2 text-sm font-medium text-brand-300 hover:text-white transition-colors">
+                <span>🚪</span> Sign out
+            </a>
         </div>
     </aside>
 

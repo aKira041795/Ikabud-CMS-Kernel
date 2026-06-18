@@ -279,7 +279,8 @@
         "database/migrations/016_add_employee_name_columns.sql",
         "database/migrations/017_fix_salary_computations_user_id.sql",
         "database/migrations/018_add_cash_advances_profile_id.sql",
-        "database/migrations/019_create_office_locations.sql"
+        "database/migrations/019_create_office_locations.sql",
+        "database/migrations/020_add_onsite_attendance.sql"
     ],
     "nav": [
         {

@@ -18,18 +18,26 @@ function attendanceApiClockIn(array $params = []): void
         $stmt->execute([':uid'=>$userId]);
         if ($stmt->fetch()) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Already clocked in']); return; }
 
-        // Geo-fence check: if lat/lng provided, verify within an office location radius
+        // Geo-fence check: if lat/lng provided, verify within an office location radius.
+        // If no office locations exist at all, skip geo-fence (auto-pass).
         $locationName = null;
         $locationId   = null;
         if ($latitude !== 0.0 && $longitude !== 0.0) {
-            $matched = aw_findLocationByGeo($latitude, $longitude);
-            if ($matched) {
-                $locationName = $matched['name'] ?? null;
-                $locationId   = (int)($matched['location_id'] ?? 0);
+            $tid = app()->tenant()->current() ?? '';
+            $locCount = (int)$db->query("SELECT COUNT(*) FROM office_locations WHERE tenant_id = '{$tid}' AND is_active = 1")->fetchColumn();
+            if ($locCount === 0) {
+                // No office locations configured — allow clock-in without geo-fence
+                $locationName = null;
             } else {
-                header("Content-Type: application/json; charset=utf-8");
-                echo json_encode(['ok'=>false,'error'=>'You are outside all office locations. Clock-in requires you to be within an office geo-fence.']);
-                return;
+                $matched = aw_findLocationByGeo($latitude, $longitude);
+                if ($matched) {
+                    $locationName = $matched['name'] ?? null;
+                    $locationId   = (int)($matched['location_id'] ?? 0);
+                } else {
+                    header("Content-Type: application/json; charset=utf-8");
+                    echo json_encode(['ok'=>false,'error'=>'You are outside all office locations. Clock-in requires you to be within an office geo-fence.']);
+                    return;
+                }
             }
         }
 

@@ -47,4 +47,5 @@ require_once __DIR__ . '/handlers/100-api-holidays.php';
 require_once __DIR__ . '/handlers/110-api-schedules.php';
 require_once __DIR__ . '/handlers/110-api-reports.php';
 require_once __DIR__ . '/handlers/120-api-locations.php';
+require_once __DIR__ . '/handlers/130-api-kiosk.php';
 

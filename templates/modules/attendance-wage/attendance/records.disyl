@@ -1,0 +1,187 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+
+{block main}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">📋 Attendance Records</h1>
+        <span class="text-sm text-gray-400">{today}</span>
+    </div>
+
+    {if success}
+    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
+        <span class="text-lg">✅</span> {success}
+    </div>
+    {/if}
+    {if error}
+    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
+        <span class="text-lg">❌</span> {error}
+    </div>
+    {/if}
+
+    <!-- Employee detail view (when selected) -->
+    {if selected_employee}
+    <div class="mb-6">
+        <a href="/admin/attendance" class="inline-flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700 font-medium mb-4">
+            ← Back to All Employees
+        </a>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900">{selected_employee.full_name}</h2>
+                    <p class="text-sm text-gray-500">{selected_employee.position}{if selected_employee.department} · {selected_employee.department}{/if}</p>
+                    <p class="text-xs text-gray-400">Employee #{selected_employee.employee_number|default:'—'}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold bg-brand-100 text-brand-700">
+                    {selected_records|count} records
+                </span>
+            </div>
+        </div>
+
+        {if selected_records|count > 0}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Date</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock In</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock Out</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Location In</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Location Out</th>
+                            <th class="py-3 px-4 text-center font-semibold text-gray-600">Status</th>
+                            <th class="py-3 px-4 text-center font-semibold text-gray-600">Photos</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for r in selected_records}
+                        <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                            <td class="py-3 px-4 text-gray-900 font-medium">
+                                {r.clock_in|substr:0:10}
+                            </td>
+                            <td class="py-3 px-4 text-gray-700 font-mono text-xs">
+                                {r.clock_in|substr:11:8|default:'—'}
+                            </td>
+                            <td class="py-3 px-4 text-gray-700 font-mono text-xs">
+                                {if r.clock_out}
+                                    {r.clock_out|substr:11:8}
+                                {else}
+                                    <span class="text-amber-600 font-medium">—</span>
+                                {/if}
+                            </td>
+                            <td class="py-3 px-4 text-gray-600 text-xs max-w-[180px] truncate" title="{r.location_in|default:''}">
+                                {r.location_in|default:'—'}
+                            </td>
+                            <td class="py-3 px-4 text-gray-600 text-xs max-w-[180px] truncate" title="{r.location_out|default:''}">
+                                {r.location_out|default:'—'}
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                {if r.status == 'active'}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Active</span>
+                                {else if r.status == 'completed'}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Completed</span>
+                                {else}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{r.status}</span>
+                                {/if}
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                    {if r.photo_in}
+                                    <a href="/api/v1/attendance/photo/{r.photo_in}" target="_blank" class="text-xs text-brand-600 hover:text-brand-700">📷 In</a>
+                                    {/if}
+                                    {if r.photo_out}
+                                    <a href="/api/v1/attendance/photo/{r.photo_out}" target="_blank" class="text-xs text-brand-600 hover:text-brand-700">📷 Out</a>
+                                    {/if}
+                                    {if !r.photo_in && !r.photo_out}
+                                    <span class="text-xs text-gray-300">—</span>
+                                    {/if}
+                                </div>
+                            </td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {else}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+            <p class="text-gray-400 text-sm">No attendance records found for this employee.</p>
+        </div>
+        {/if}
+    </div>
+
+    {else}
+    <!-- Employee list with today's attendance summary -->
+    {if records|count > 0}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Employee</th>
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Position</th>
+                        <th class="py-3 px-4 text-center font-semibold text-gray-600">On-Site</th>
+                        <th class="py-3 px-4 text-center font-semibold text-gray-600">Today Status</th>
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock In</th>
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock Out</th>
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Location</th>
+                        <th class="py-3 px-4 text-center font-semibold text-gray-600">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for emp in records}
+                    <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                        <td class="py-3 px-4">
+                            <div class="font-medium text-gray-900">{emp.full_name}</div>
+                            <div class="text-xs text-gray-400">{emp.employee_number|default:'—'}</div>
+                        </td>
+                        <td class="py-3 px-4 text-gray-600">
+                            <div>{emp.position|default:'—'}</div>
+                            <div class="text-xs text-gray-400">{emp.department|default:''}</div>
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            {if emp.onsite_attendance}
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">🏗️ On-site</span>
+                            {else}
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400">Office</span>
+                            {/if}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            {if emp.clock_in && !emp.clock_out}
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Clocked In
+                            </span>
+                            {else if emp.clock_in && emp.clock_out}
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Completed</span>
+                            {else}
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400">Not yet</span>
+                            {/if}
+                        </td>
+                        <td class="py-3 px-4 text-gray-700 font-mono text-xs">
+                            {emp.clock_in|substr:11:8|default:'—'}
+                        </td>
+                        <td class="py-3 px-4 text-gray-700 font-mono text-xs">
+                            {if emp.clock_out}{emp.clock_out|substr:11:8}{else}—{/if}
+                        </td>
+                        <td class="py-3 px-4 text-gray-600 text-xs max-w-[160px] truncate" title="{emp.location_in|default:''}">
+                            {emp.location_in|default:'—'}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <a href="/admin/attendance?employee_id={emp.profile_id}"
+                               class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 transition-colors">
+                                📋 View Records
+                            </a>
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {else}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+        <p class="text-gray-400 text-sm">No active employees found. Add employees in <a href="/admin/wage/employees" class="text-brand-600 hover:text-brand-700 underline">Wage → Employees</a>.</p>
+    </div>
+    {/if}
+    {/if}
+</div>
+{/block}

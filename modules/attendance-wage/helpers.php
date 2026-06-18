@@ -666,8 +666,9 @@ function aw_cap_entity_get_office_location_1(mixed $payload): array
     $id = (int)($payload['id'] ?? 0);
     if ($id <= 0) return [];
     $db = aw_db();
-    $s = $db->prepare('SELECT * FROM office_locations WHERE location_id = :id LIMIT 1');
-    $s->execute([':id' => $id]);
+    $tid = app()->tenant()->current() ?? '';
+    $s = $db->prepare('SELECT * FROM office_locations WHERE location_id = :id AND tenant_id = :tid LIMIT 1');
+    $s->execute([':id' => $id, ':tid' => $tid]);
     $r = $s->fetch(\PDO::FETCH_ASSOC);
     return is_array($r) ? $r : [];
 }
