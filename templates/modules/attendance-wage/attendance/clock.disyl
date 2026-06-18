@@ -58,11 +58,37 @@ function clockWidget() {
             this.loading = true;
             const ep = this.clockedIn ? '/api/v1/attendance/clock-out' : '/api/v1/attendance/clock-in';
             try {
-                const r = await fetch(ep, {method:'POST', headers:{'Content-Type':'application/json'}});
+                const body = {};
+
+                // Geolocation stub — wire to browser GPS when clocking in
+                if (!this.clockedIn && navigator.geolocation) {
+                    try {
+                        const pos = await new Promise((resolve, reject) => {
+                            navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                enableHighAccuracy: true,
+                                timeout: 8000,
+                                maximumAge: 30000,
+                            });
+                        });
+                        body.latitude  = pos.coords.latitude;
+                        body.longitude = pos.coords.longitude;
+                    } catch (geoErr) {
+                        // Geolocation denied/unavailable — server will reject if
+                        // office locations are configured, or allow if none exist.
+                        console.warn('Geolocation unavailable:', geoErr.message);
+                    }
+                }
+
+                const r = await fetch(ep, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body),
+                });
                 const d = await r.json();
                 if (d.ok) {
                     this.clockedIn = !this.clockedIn;
                     this.statusText = this.clockedIn ? 'Just clocked in' : 'Just clocked out';
+                    if (d.location) { this.statusText += ' @ ' + d.location; }
                     this.success = d.message;
                 } else {
                     this.error = d.error || 'Failed';
