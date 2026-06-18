@@ -168,3 +168,13 @@ function attendanceApiResetPassword(): void
         awJson(['ok' => false, 'error' => 'An error occurred.'], 500);
     }
 }
+
+// ── Logout ──
+
+function attendanceLogout(): void
+{
+    if (!headers_sent()) {
+        setcookie(awCookieName(), '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'secure' => is_https(), 'samesite' => config('cookie.samesite', 'Lax')]);
+    }
+    awRedirect(awBaseUrl() . '/attendance-wage/login');
+}

@@ -7,6 +7,7 @@ return [
         '/attendance-wage/login'           => 'attendance-wage:attendancePageLogin',
         '/attendance-wage/forgot-password' => 'attendance-wage:attendancePageForgotPassword',
         '/attendance-wage/reset-password'  => 'attendance-wage:attendancePageResetPassword',
+        '/attendance-wage/logout'          => 'attendance-wage:attendanceLogout',
         '/admin/attendance'              => 'attendance-wage:attendancePageClock',
         '/admin/attendance/history'      => 'attendance-wage:attendancePageHistory',
         '/admin/attendance/report'       => 'attendance-wage:attendancePageReport',
