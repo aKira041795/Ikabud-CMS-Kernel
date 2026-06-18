@@ -1,7 +1,7 @@
 {* Attendance Report — Entity List with filters *}
-{extends "layouts/admin.disyl"}
+{extends "layouts/app.disyl"}
 
-{block main}
+{block content}
 <div class="admin-shell">
   <h1>📋 Attendance Report</h1>
 

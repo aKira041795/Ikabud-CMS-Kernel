@@ -1,7 +1,7 @@
 {* Salary Computations — Entity List *}
-{extends "layouts/admin.disyl"}
+{extends "layouts/app.disyl"}
 
-{block main}
+{block content}
 <div class="admin-shell">
   <div class="ikb-toolbar">
     <h1>💵 Salary Computations</h1>

@@ -1,7 +1,7 @@
 {* Employee Profiles — Entity List *}
-{extends "layouts/admin.disyl"}
+{extends "layouts/app.disyl"}
 
-{block main}
+{block content}
 <div class="admin-shell">
   <div class="ikb-toolbar">
     <h1>👥 Employee Profiles</h1>

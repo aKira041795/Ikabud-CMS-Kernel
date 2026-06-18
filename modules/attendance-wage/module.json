@@ -114,6 +114,19 @@
         "database/migrations/014_bootstrap_attendance_wage_admin.sql",
         "database/migrations/015_create_attendance_wage_password_resets.sql"
     ],
+    "nav": [
+        { "label": "Dashboard", "url": "/admin/wage", "icon": "dashboard", "roles": ["*"] },
+        { "label": "Attendance", "url": "/admin/attendance", "icon": "clock", "roles": ["*"] },
+        { "label": "Employees", "url": "/admin/wage/employees", "icon": "users", "roles": ["admin"] },
+        { "label": "Payroll Periods", "url": "/admin/wage/periods", "icon": "calendar", "roles": ["admin"] },
+        { "label": "Computations", "url": "/admin/wage/computations", "icon": "calculator", "roles": ["admin"] },
+        { "label": "Adjustments", "url": "/admin/wage/adjustments", "icon": "sliders", "roles": ["admin"] },
+        { "label": "Deductions", "url": "/admin/wage/deductions", "icon": "minus-circle", "roles": ["admin"] },
+        { "label": "Cash Advances", "url": "/admin/wage/cash-advances", "icon": "dollar-sign", "roles": ["*"] },
+        { "label": "---", "url": "#", "icon": "separator", "roles": ["admin"] },
+        { "label": "Holidays", "url": "/admin/wage/holidays", "icon": "sun", "roles": ["admin"] },
+        { "label": "Reports", "url": "/admin/wage/reports", "icon": "file-text", "roles": ["admin"] }
+    ],
     "settings_fields": [
         {
             "key": "default_rest_day",

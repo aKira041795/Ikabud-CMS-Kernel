@@ -1,43 +1,53 @@
-{* Wage & Attendance Dashboard *}
-{extends "layouts/admin.disyl"}
+{extends "layouts/app.disyl"}
 
-{block main}
-<div class="admin-shell">
-  <h1>📊 Wage & Attendance Dashboard</h1>
+{block head}
+<style>
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; box-shadow: var(--shadow); }
+    .stat-card .label { font-size: var(--font-size-small); color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; margin-bottom: 6px; }
+    .stat-card .value { font-size: var(--font-size-h2); font-weight: 800; color: var(--text); }
+    .section { margin-top: 24px; }
+    .section h2 { font-size: var(--font-size-h2); font-weight: 700; margin-bottom: 12px; }
+    .grid-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) { .grid-2col { grid-template-columns: 1fr; } }
+</style>
+{/block}
 
-  <div class="ikb-grid ikb-grid-4col">
-    <div class="ikb-card">
-      <div class="ikb-stat-label">Active Employees</div>
-      <div class="ikb-stat-value">{employee_count|default:0}</div>
-    </div>
-    <div class="ikb-card">
-      <div class="ikb-stat-label">Current Period</div>
-      <div class="ikb-stat-value">{current_period_name|default:'No active period'}</div>
-    </div>
-    <div class="ikb-card">
-      <div class="ikb-stat-label">Pending Approvals</div>
-      <div class="ikb-stat-value">{pending_approvals|default:0}</div>
-    </div>
-    <div class="ikb-card">
-      <div class="ikb-stat-label">Total Net Pay (Period)</div>
-      <div class="ikb-stat-value">₱{total_net_pay|default:'0.00'}</div>
-    </div>
-  </div>
+{block content}
+<h1 style="font-size: var(--font-size-h1); font-weight: 800; margin-bottom: 24px;">📊 Dashboard</h1>
 
-  <div class="ikb-section">
+<div class="stat-grid">
+    <div class="stat-card">
+        <div class="label">Active Employees</div>
+        <div class="value">{employee_count|default:0}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Current Period</div>
+        <div class="value" style="font-size: var(--font-size-base);">{current_period_name|default:'No active period'}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Pending Approvals</div>
+        <div class="value">{pending_approvals|default:0}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Total Net Pay</div>
+        <div class="value">₱{total_net_pay|default:'0.00'}</div>
+    </div>
+</div>
+
+<div class="section">
     <h2>🕐 Today's Attendance</h2>
     {ikb_entity_list source="attendance_record.recent" view="compact" limit="10" empty="No attendance records today." /}
-  </div>
+</div>
 
-  <div class="ikb-grid ikb-grid-2col">
-    <div class="ikb-section">
-      <h2>💵 Salary Computations</h2>
-      {ikb_entity_list source="salary_computation.pending" view="compact" limit="5" empty="No pending computations." /}
+<div class="grid-2col section">
+    <div>
+        <h2>💵 Salary Computations</h2>
+        {ikb_entity_list source="salary_computation.pending" view="compact" limit="5" empty="No pending computations." /}
     </div>
-    <div class="ikb-section">
-      <h2>💸 Cash Advances</h2>
-      {ikb_entity_list source="cash_advance.active" view="compact" limit="5" empty="No active cash advances." /}
+    <div>
+        <h2>💸 Cash Advances</h2>
+        {ikb_entity_list source="cash_advance.active" view="compact" limit="5" empty="No active cash advances." /}
     </div>
-  </div>
 </div>
 {/block}
