@@ -1,7 +1,7 @@
 {* Attendance Report — Entity List with filters *}
-{extends "layouts/app.disyl"}
 
-{block content}
+
+
 <div class="admin-shell">
   <h1>📋 Attendance Report</h1>
 
@@ -9,4 +9,4 @@
     {ikb_entity_list source="attendance_record.recent" view="table" limit="30" empty="No attendance records found for the selected period." /}
   </div>
 </div>
-{/block}
+

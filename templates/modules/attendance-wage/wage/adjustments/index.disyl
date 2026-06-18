@@ -1,7 +1,7 @@
 {* Salary Adjustments — Entity List *}
-{extends "layouts/app.disyl"}
 
-{block content}
+
+
 <div class="admin-shell">
   <div class="ikb-toolbar">
     <h1>🔧 Salary Adjustments</h1>
@@ -10,4 +10,4 @@
 
   {ikb_entity_list source="salary_adjustment.recent" view="table" limit="20" empty="No salary adjustments yet." /}
 </div>
-{/block}
+

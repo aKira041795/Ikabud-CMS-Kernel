@@ -1,7 +1,7 @@
 {* Payroll Reports — Entity List *}
-{extends "layouts/app.disyl"}
 
-{block content}
+
+
 <div class="admin-shell">
   <h1>📄 Payroll Reports</h1>
 
@@ -10,4 +10,4 @@
     {ikb_entity_list source="payroll_period.completed" view="table" limit="12" empty="No completed payroll periods yet." /}
   </div>
 </div>
-{/block}
+
