@@ -423,3 +423,31 @@ function wagePageMigrationWizard(array $params = []): void
     
     echo app()->render('modules/attendance-wage/wage/migration-wizard');
 }
+
+function wagePageLocations(array $params = []): void
+{
+    echo app()->render('modules/attendance-wage/wage/locations/index', [
+        'success' => $_GET['success'] ?? '',
+        'error' => $_GET['error'] ?? '',
+    ]);
+}
+
+function wagePageLocationForm(array $params = []): void
+{
+    $editId = (int)($params['id'] ?? 0);
+    $vars = ['id' => $editId, 'radius_meters' => 100];
+    if ($editId > 0) {
+        try {
+            $db = aw_db();
+            $stmt = $db->prepare("SELECT * FROM office_locations WHERE location_id = :id");
+            $stmt->execute([':id' => $editId]);
+            $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if (is_array($row)) {
+                foreach ($row as $k => $v) {
+                    if (!is_array($v) && $v !== null) { $vars[$k] = $v; }
+                }
+            }
+        } catch (\Throwable $e) {}
+    }
+    echo app()->render('modules/attendance-wage/wage/locations/form', $vars);
+}

@@ -1,0 +1,164 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+
+{block main}
+<div class="px-6 py-8" x-data="locationForm()" x-init="initMap()">
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">
+        {if id}Edit Location{else}Add Office Location{/if}
+    </h1>
+
+    <form method="post" action="/api/v1/wage/locations{if id}/{id}{/if}" class="space-y-6 max-w-3xl">
+        <input type="hidden" name="_token" value="{csrf_token}">
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+            <h2 class="text-lg font-bold text-gray-900">Location Details</h2>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Office Name <span class="text-red-500">*</span></label>
+                <input type="text" name="name" x-model="name" required
+                       class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                       placeholder="e.g. DC Main Office, Julies Bakeshop - Branch A">
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
+                <input type="text" name="address" x-model="address"
+                       class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                       placeholder="Full street address">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Latitude <span class="text-red-500">*</span></label>
+                    <input type="number" step="any" name="latitude" x-model="latitude" required
+                           class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                           placeholder="14.5995" x-ref="latInput">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Longitude <span class="text-red-500">*</span></label>
+                    <input type="number" step="any" name="longitude" x-model="longitude" required
+                           class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                           placeholder="120.9842" x-ref="lngInput">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">
+                    Geo-fence Radius (meters) <span class="text-red-500">*</span>
+                </label>
+                <input type="number" name="radius_meters" x-model="radius" required min="10" max="10000"
+                       class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                       placeholder="100">
+                <p class="text-xs text-gray-400 mt-1">Employees must be within this distance to clock in. Range: 10–10,000 meters.</p>
+            </div>
+        </div>
+
+        <!-- Google Map Picker -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+            <h2 class="text-lg font-bold text-gray-900">Pin Location on Map</h2>
+            <p class="text-sm text-gray-500">Click the map to set the office location, or drag the marker.</p>
+
+            <div class="flex gap-3">
+                <input type="text" x-model="searchQuery" @keyup.enter="searchPlace()"
+                       class="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
+                       placeholder="Search for an address...">
+                <button type="button" @click="searchPlace()"
+                        class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
+                    🔍 Search
+                </button>
+            </div>
+
+            <div id="location-map" class="w-full h-80 rounded-lg border border-gray-200 bg-gray-100"></div>
+            <p class="text-xs text-gray-400" x-show="latitude && longitude" x-text="'Selected: ' + latitude.toFixed(6) + ', ' + longitude.toFixed(6)"></p>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <button type="submit"
+                    class="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">
+                {if id}Update Location{else}Create Location{/if}
+            </button>
+            <a href="/admin/wage/locations" class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+<script>
+    function locationForm() {
+        return {
+            name: '{name|default:''}',
+            address: '{address|default:''}',
+            latitude: {latitude|default:0},
+            longitude: {longitude|default:0},
+            radius: {radius_meters|default:100},
+            searchQuery: '',
+            map: null,
+            marker: null,
+
+            initMap() {
+                const lat = this.latitude || 14.5995;
+                const lng = this.longitude || 120.9842;
+                const mapEl = document.getElementById('location-map');
+                if (!mapEl || typeof google === 'undefined') return;
+
+                this.map = new google.maps.Map(mapEl, {
+                    center: { lat, lng },
+                    zoom: 15,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                });
+
+                this.marker = new google.maps.Marker({
+                    position: { lat, lng },
+                    map: this.map,
+                    draggable: true,
+                    title: this.name || 'Office Location',
+                });
+
+                this.marker.addListener('dragend', () => {
+                    const pos = this.marker.getPosition();
+                    this.latitude = pos.lat();
+                    this.longitude = pos.lng();
+                });
+
+                this.map.addListener('click', (e) => {
+                    const pos = e.latLng;
+                    this.marker.setPosition(pos);
+                    this.latitude = pos.lat();
+                    this.longitude = pos.lng();
+                });
+
+                // Draw geo-fence circle
+                new google.maps.Circle({
+                    strokeColor: '#3b82f6',
+                    strokeOpacity: 0.3,
+                    strokeWeight: 2,
+                    fillColor: '#3b82f6',
+                    fillOpacity: 0.08,
+                    map: this.map,
+                    center: { lat, lng },
+                    radius: parseInt(this.radius) || 100,
+                });
+            },
+
+            searchPlace() {
+                if (!this.searchQuery || typeof google === 'undefined') return;
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({ address: this.searchQuery }, (results, status) => {
+                    if (status === 'OK' && results[0]) {
+                        const loc = results[0].geometry.location;
+                        this.latitude = loc.lat();
+                        this.longitude = loc.lng();
+                        this.address = results[0].formatted_address;
+                        this.map.setCenter(loc);
+                        this.map.setZoom(17);
+                        this.marker.setPosition(loc);
+                    }
+                });
+            },
+        };
+    }
+</script>
+{/block}

@@ -68,6 +68,7 @@ echo "\n4. Entity views\n";
 $requiredEntities = [
     'attendance_record', 'employee_profile', 'payroll_period', 'salary_computation',
     'salary_adjustment', 'employee_deduction', 'holiday', 'cash_advance', 'employee_schedule',
+    'office_location',
 ];
 foreach ($requiredEntities as $entity) {
     $hasList = in_array("entity.list.{$entity}@1", $capIds);
@@ -100,7 +101,7 @@ $handlerFiles = [
     '00-bootstrap.php', '05-auth.php', '10-pages-attendance.php', '20-api-attendance.php',
     '30-pages-wage.php', '40-api-employees.php', '50-api-periods.php', '60-api-computations.php',
     '70-api-adjustments.php', '80-api-deductions.php', '90-api-cash-advances.php',
-    '100-api-holidays.php', '110-api-schedules.php', '110-api-reports.php',
+    '100-api-holidays.php', '110-api-schedules.php', '110-api-reports.php', '120-api-locations.php',
 ];
 foreach ($handlerFiles as $hf) {
     $path = $handlerDir . '/' . $hf;
@@ -124,6 +125,7 @@ $expectedTemplates = [
     'wage/cash-advances/index.disyl', 'wage/cash-advances/form.disyl',
     'wage/holidays/index.disyl', 'wage/schedules/index.disyl',
     'wage/reports/index.disyl', 'wage/reports/detail.disyl',
+    'wage/locations/index.disyl', 'wage/locations/form.disyl',
 ];
 foreach ($expectedTemplates as $et) {
     test("{$et}", is_file($tplBase . '/' . $et));

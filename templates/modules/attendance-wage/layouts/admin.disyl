@@ -60,6 +60,9 @@
             <a href="/admin/wage/schedules" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'schedules'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
                 <span class="w-5 mr-3 text-center">📋</span> Schedules
             </a>
+            <a href="/admin/wage/locations" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'locations'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
+                <span class="w-5 mr-3 text-center">📍</span> Locations
+            </a>
             <a href="/admin/wage/reports" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'reports'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
                 <span class="w-5 mr-3 text-center">📄</span> Reports
             </a>

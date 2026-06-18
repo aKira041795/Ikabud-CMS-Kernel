@@ -41,6 +41,8 @@ function attendance_wage_capability_handlers(): array
         'entity.get.cash_advance@1'          => 'aw_cap_entity_get_cash_advance_1',
         'entity.list.employee_schedule@1'    => 'aw_cap_entity_list_employee_schedule_1',
         'entity.get.employee_schedule@1'     => 'aw_cap_entity_get_employee_schedule_1',
+        'entity.list.office_location@1'      => 'aw_cap_entity_list_office_location_1',
+        'entity.get.office_location@1'       => 'aw_cap_entity_get_office_location_1',
         'attendance_wage.read@1'             => 'aw_cap_read_1',
         'attendance_wage.manage@1'           => 'aw_cap_manage_1',
         'attendance_wage.approve@1'          => 'aw_cap_approve_1',
@@ -639,4 +641,76 @@ function aw_getCashAdvanceRepayment(int $userId, int $periodId): float {
         $db->prepare("UPDATE cash_advance_repayments car JOIN cash_advances ca ON ca.advance_id=car.advance_id SET car.status='deducted' WHERE (ca.user_id=:uid OR (ca.user_id=0 AND ca.employee_profile_id=(SELECT profile_id FROM employee_profiles WHERE user_id=:uid2 LIMIT 1))) AND car.payroll_period_id=:pid AND car.status='pending'")->execute([':uid'=>$userId,':uid2'=>$userId,':pid'=>$periodId]);
     }
     return $amount;
+}
+
+// ── Office Location entity handlers ──
+
+function aw_cap_entity_list_office_location_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 30), 50);
+    try {
+        $db = aw_db();
+        $tid = app()->tenant()->current() ?? '';
+        $stmt = $db->prepare("SELECT location_id AS id, name, address, latitude, longitude, radius_meters, is_active FROM office_locations WHERE tenant_id = :tid AND is_active = 1 ORDER BY name ASC LIMIT " . (int)$limit);
+        $stmt->execute([':tid' => $tid]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $cnt = $db->prepare("SELECT COUNT(*) FROM office_locations WHERE tenant_id = :tid AND is_active = 1");
+        $cnt->execute([':tid' => $tid]);
+        $total = (int)$cnt->fetchColumn();
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
+}
+
+function aw_cap_entity_get_office_location_1(mixed $payload): array
+{
+    $id = (int)($payload['id'] ?? 0);
+    if ($id <= 0) return [];
+    $db = aw_db();
+    $s = $db->prepare('SELECT * FROM office_locations WHERE location_id = :id LIMIT 1');
+    $s->execute([':id' => $id]);
+    $r = $s->fetch(\PDO::FETCH_ASSOC);
+    return is_array($r) ? $r : [];
+}
+
+// ── Geo-fence helpers ──
+
+/**
+ * Calculate the Haversine distance in meters between two lat/lng points.
+ */
+function aw_haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float
+{
+    $earthRadius = 6371000; // meters
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLng = deg2rad($lng2 - $lng1);
+    $a = sin($dLat / 2) * sin($dLat / 2)
+       + cos(deg2rad($lat1)) * cos(deg2rad($lat2))
+       * sin($dLng / 2) * sin($dLng / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+    return $earthRadius * $c;
+}
+
+/**
+ * Check if a given (lat,lng) falls within any active office location's geo-fence.
+ * Returns the matching location row or null.
+ */
+function aw_findLocationByGeo(float $latitude, float $longitude): ?array
+{
+    try {
+        $db = aw_db();
+        $tid = app()->tenant()->current() ?? '';
+        $stmt = $db->prepare("SELECT * FROM office_locations WHERE tenant_id = :tid AND is_active = 1");
+        $stmt->execute([':tid' => $tid]);
+        $locations = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($locations as $loc) {
+            $dist = aw_haversineDistance($latitude, $longitude, (float)$loc['latitude'], (float)$loc['longitude']);
+            if ($dist <= (float)($loc['radius_meters'] ?? 100)) {
+                $loc['distance_meters'] = round($dist, 1);
+                return $loc;
+            }
+        }
+        return null;
+    } catch (\Throwable $e) {
+        return null;
+    }
 }

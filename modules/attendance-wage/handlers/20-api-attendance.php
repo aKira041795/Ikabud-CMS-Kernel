@@ -6,15 +6,38 @@ function attendanceApiClockIn(array $params = []): void
     $user = app()->user();
     $userId = is_array($user) ? (int)($user['id'] ?? 0) : 0;
     if (!$userId) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Not authenticated']); return; }
+
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
+    $latitude  = (float)($input['latitude'] ?? 0);
+    $longitude = (float)($input['longitude'] ?? 0);
+
     try {
         $db = aw_db();
         $stmt = $db->prepare("SELECT attendance_id FROM attendance_records WHERE user_id=:uid AND DATE(clock_in)=CURDATE() AND clock_out IS NULL LIMIT 1");
         $stmt->execute([':uid'=>$userId]);
         if ($stmt->fetch()) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Already clocked in']); return; }
-        $stmt = $db->prepare("INSERT INTO attendance_records (tenant_id, user_id, clock_in, status) VALUES (:tid, :uid, NOW(), 'active')");
-        $stmt->execute([':tid'=>app()->tenant()->current()??'', ':uid'=>$userId]);
+
+        // Geo-fence check: if lat/lng provided, verify within an office location radius
+        $locationName = null;
+        $locationId   = null;
+        if ($latitude !== 0.0 && $longitude !== 0.0) {
+            $matched = aw_findLocationByGeo($latitude, $longitude);
+            if ($matched) {
+                $locationName = $matched['name'] ?? null;
+                $locationId   = (int)($matched['location_id'] ?? 0);
+            } else {
+                header("Content-Type: application/json; charset=utf-8");
+                echo json_encode(['ok'=>false,'error'=>'You are outside all office locations. Clock-in requires you to be within an office geo-fence.']);
+                return;
+            }
+        }
+
+        $locationIn = $locationName ? ($locationName . ' (' . $latitude . ',' . $longitude . ')') : null;
+        $stmt = $db->prepare("INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in) VALUES (:tid, :uid, NOW(), 'active', :loc)");
+        $stmt->execute([':tid'=>app()->tenant()->current()??'', ':uid'=>$userId, ':loc'=>$locationIn]);
         header("Content-Type: application/json; charset=utf-8");
-        echo json_encode(['ok'=>true,'message'=>'Clocked in','id'=>(int)$db->lastInsertId()]);
+        echo json_encode(['ok'=>true,'message'=>'Clocked in','id'=>(int)$db->lastInsertId(),'location'=>$locationName]);
     } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
 }
 

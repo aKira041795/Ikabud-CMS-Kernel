@@ -18,7 +18,8 @@
         "holidays",
         "cash_advances",
         "cash_advance_repayments",
-        "payroll_settings"
+        "payroll_settings",
+        "office_locations"
     ],
     "reads_tables": [
         "stores",
@@ -220,6 +221,22 @@
                     "first"
                 ],
                 "description": "Get single employee schedule"
+            },
+            {
+                "id": "entity.list.office_location@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List office locations with geo-fence"
+            },
+            {
+                "id": "entity.get.office_location@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single office location"
             }
         ],
         "depends": []
@@ -261,7 +278,8 @@
         "database/migrations/015_create_attendance_wage_password_resets.sql",
         "database/migrations/016_add_employee_name_columns.sql",
         "database/migrations/017_fix_salary_computations_user_id.sql",
-        "database/migrations/018_add_cash_advances_profile_id.sql"
+        "database/migrations/018_add_cash_advances_profile_id.sql",
+        "database/migrations/019_create_office_locations.sql"
     ],
     "nav": [
         {
@@ -340,6 +358,14 @@
             "label": "Holidays",
             "url": "/admin/wage/holidays",
             "icon": "sun",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Locations",
+            "url": "/admin/wage/locations",
+            "icon": "map-pin",
             "roles": [
                 "admin"
             ]
