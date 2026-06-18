@@ -87,6 +87,14 @@
 {if maps_api_key}
 <script src="https://maps.googleapis.com/maps/api/js?key={maps_api_key}&libraries=places"></script>
 <script>
+    // Google Maps API error handler — catches billing, auth, and quota errors
+    function gm_authFailure() {
+        const el = document.getElementById('location-map');
+        if (el) {
+            el.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-red-600 font-semibold text-sm mb-1">⚠️ Google Maps failed to load</p><p class="text-red-500 text-xs">Authentication error — check that billing is enabled on your Google Cloud project and the API key has Maps JavaScript API + Geocoding API enabled.</p><p class="text-gray-400 text-xs mt-2"><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">Google Cloud Console →</a></p></div></div>';
+        }
+    }
+
     function locationForm() {
         return {
             name: '{name|default:''}',
@@ -97,55 +105,67 @@
             searchQuery: '',
             map: null,
             marker: null,
+            mapError: false,
 
             initMap() {
                 const lat = this.latitude || 14.5995;
                 const lng = this.longitude || 120.9842;
                 const mapEl = document.getElementById('location-map');
-                if (!mapEl || typeof google === 'undefined') return;
+                if (!mapEl || typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                    if (mapEl) {
+                        mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-amber-600 font-semibold text-sm mb-1">⚠️ Google Maps could not be loaded</p><p class="text-amber-500 text-xs">Verify the API key in Settings → Google Maps API Key, and ensure Maps JavaScript API + Geocoding API are enabled with billing on your Google Cloud project.</p><p class="text-gray-400 text-xs mt-2"><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">Google Cloud Console →</a></p></div></div>';
+                    }
+                    return;
+                }
 
-                this.map = new google.maps.Map(mapEl, {
-                    center: { lat, lng },
-                    zoom: 15,
-                    mapTypeControl: false,
-                    streetViewControl: false,
-                });
+                try {
+                    this.map = new google.maps.Map(mapEl, {
+                        center: { lat, lng },
+                        zoom: 15,
+                        mapTypeControl: false,
+                        streetViewControl: false,
+                    });
 
-                this.marker = new google.maps.Marker({
-                    position: { lat, lng },
-                    map: this.map,
-                    draggable: true,
-                    title: this.name || 'Office Location',
-                });
+                    this.marker = new google.maps.Marker({
+                        position: { lat, lng },
+                        map: this.map,
+                        draggable: true,
+                        title: this.name || 'Office Location',
+                    });
 
-                this.marker.addListener('dragend', () => {
-                    const pos = this.marker.getPosition();
-                    this.latitude = pos.lat();
-                    this.longitude = pos.lng();
-                });
+                    this.marker.addListener('dragend', () => {
+                        const pos = this.marker.getPosition();
+                        this.latitude = pos.lat();
+                        this.longitude = pos.lng();
+                    });
 
-                this.map.addListener('click', (e) => {
-                    const pos = e.latLng;
-                    this.marker.setPosition(pos);
-                    this.latitude = pos.lat();
-                    this.longitude = pos.lng();
-                });
+                    this.map.addListener('click', (e) => {
+                        const pos = e.latLng;
+                        this.marker.setPosition(pos);
+                        this.latitude = pos.lat();
+                        this.longitude = pos.lng();
+                    });
 
-                // Draw geo-fence circle
-                new google.maps.Circle({
-                    strokeColor: '#3b82f6',
-                    strokeOpacity: 0.3,
-                    strokeWeight: 2,
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.08,
-                    map: this.map,
-                    center: { lat, lng },
-                    radius: parseInt(this.radius) || 100,
-                });
+                    // Draw geo-fence circle
+                    new google.maps.Circle({
+                        strokeColor: '#3b82f6',
+                        strokeOpacity: 0.3,
+                        strokeWeight: 2,
+                        fillColor: '#3b82f6',
+                        fillOpacity: 0.08,
+                        map: this.map,
+                        center: { lat, lng },
+                        radius: parseInt(this.radius) || 100,
+                    });
+                } catch (e) {
+                    if (mapEl) {
+                        mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-red-600 font-semibold text-sm mb-1">⚠️ Map Error</p><p class="text-red-500 text-xs">' + (e.message || 'Unknown error') + '</p></div></div>';
+                    }
+                }
             },
 
             searchPlace() {
-                if (!this.searchQuery || typeof google === 'undefined') return;
+                if (!this.searchQuery || typeof google === 'undefined' || typeof google.maps === 'undefined') return;
                 const geocoder = new google.maps.Geocoder();
                 geocoder.geocode({ address: this.searchQuery }, (results, status) => {
                     if (status === 'OK' && results[0]) {
