@@ -117,10 +117,7 @@ function myModuleGlobalHelper(): string
         "exposes": [
             { "id": "payments.gateway.charge@1", "priority": 50, "modes": ["first"] }
         ],
-        "depends": [
-            "kernel.auth.user@1",
-            "kernel.audit.record@1"
-        ]
+        "depends": []
     },
     "nav": [
         {
@@ -234,6 +231,29 @@ Common examples:
 - `kernel.audit.record@1`
 - `kernel.http.request_context@1`
 - `kernel.render.context@1`
+
+### ⚠️ Critical: `depends` Rules (Read Before Adding Dependencies)
+
+**Rule**: `capabilities.depends` must **only** list capabilities **provided by other modules** that your module genuinely needs. Do NOT list kernel-native capabilities.
+
+**Why**: `tenantProvisionModulePlan()` walks `depends` to build the tenant migration plan. Every capability in `depends` causes the plan to include **every module that exposes that capability** — and transitively, every module THEY depend on. Listing kernel-native capabilities that are also exposed by other modules (e.g. `kernel.auth.authenticate@1`) causes massive tenant bloat.
+
+**Safe to depend on (kernel-only, no module exposes these)**:
+- `kernel.auth.user@1`
+- `kernel.audit.record@1`
+- `kernel.http.request_context@1`
+- `kernel.render.context@1`
+
+**NEVER depend on** (kernel-native but also exposed by modules):
+- `kernel.auth.authenticate@1` — exposed by `bakeshop` and `cms` in pipeline mode. Depending on this pulls those modules + all their dependencies into the tenant plan.
+
+**Recommended practice**: Start with `"depends": []`. Only add a dependency when you have a concrete runtime call to that capability from another module. For kernel services, use the kernel API directly (`app()->auth()`, `app()->db()`, `app()->audit()`) instead of capability dependencies.
+
+**Reference implementation**: See `modules/attendance-wage/module.json` — `"depends": []`.
+
+**Valid inter-module dependency examples** (from real modules):
+- `cms` depends on `ai.text.generate@1`, `workflow.state.get@1`, `tinymce.*` — genuine inter-module contracts
+- `guidance` depends on `tinymce.*` — genuine dependency on the tinymce module
 
 ### Nav Item Format
 

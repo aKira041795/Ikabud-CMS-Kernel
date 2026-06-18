@@ -1,0 +1,247 @@
+{
+    "id": "attendance-wage",
+    "name": "Attendance & Wage",
+    "version": "0.1.0",
+    "description": "Employee attendance tracking, payroll computation, government benefits, cash advances, holiday management, and reporting.",
+    "author": "Ikabud Kernel Team",
+    "owns_tables": [
+        "attendance_records",
+        "employee_profiles",
+        "employee_schedules",
+        "payroll_periods",
+        "salary_computations",
+        "salary_adjustments",
+        "employee_deductions",
+        "benefits_contribution_rates",
+        "holidays",
+        "cash_advances",
+        "cash_advance_repayments",
+        "payroll_settings"
+    ],
+    "reads_tables": [
+        "users",
+        "stores",
+        "user_stores",
+        "audit_logs"
+    ],
+    "routes": "routes.php",
+    "handlers": "handlers.php",
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "attendance_wage.clock@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Clock in/out and view own attendance history"
+            },
+            {
+                "id": "attendance_wage.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View own payslips, cash advance status, and salary details"
+            },
+            {
+                "id": "attendance_wage.manage@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage team attendance, approve overtime, create deductions"
+            },
+            {
+                "id": "attendance_wage.approve@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Approve salary computations, adjustments, and cash advances"
+            },
+            {
+                "id": "attendance_wage.admin@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Full administrative access: settings, benefits rates, holidays, all data"
+            }
+        ],
+        "depends": []
+    },
+    "auth_cookie": "attendance_wage_token",
+    "auth_owned": {
+        "users_table": "attendance_wage_users",
+        "username_column": "username",
+        "email_column": "email",
+        "password_column": "password_hash",
+        "name_column": "full_name",
+        "active_column": "is_active",
+        "admin_roles": [
+            "admin"
+        ],
+        "default_admin_role": "admin",
+        "requires_named_admin_on_provision": true,
+        "blocked_password_hashes": [
+            "!attendance-wage-bootstrap-password-reset-required!"
+        ],
+        "touch_updated_at": true
+    },
+    "hooks": [],
+    "migrations": [
+        "database/migrations/001_create_attendance_records.sql",
+        "database/migrations/002_create_employee_profiles.sql",
+        "database/migrations/003_create_employee_schedules.sql",
+        "database/migrations/004_create_payroll_periods.sql",
+        "database/migrations/005_create_salary_computations.sql",
+        "database/migrations/006_create_salary_adjustments.sql",
+        "database/migrations/007_create_employee_deductions.sql",
+        "database/migrations/008_create_benefits_contribution_rates.sql",
+        "database/migrations/009_create_holidays.sql",
+        "database/migrations/010_create_cash_advances.sql",
+        "database/migrations/011_create_cash_advance_repayments.sql",
+        "database/migrations/012_create_payroll_settings.sql",
+        "database/migrations/013_create_attendance_wage_users.sql",
+        "database/migrations/014_bootstrap_attendance_wage_admin.sql"
+    ],
+    "settings_fields": [
+        {
+            "key": "default_rest_day",
+            "type": "select",
+            "label": "Default Rest Day",
+            "default": "sunday",
+            "description": "Default weekly rest day for employees without an individual schedule.",
+            "options": [
+                {
+                    "label": "Sunday",
+                    "value": "sunday"
+                },
+                {
+                    "label": "Monday",
+                    "value": "monday"
+                },
+                {
+                    "label": "Tuesday",
+                    "value": "tuesday"
+                },
+                {
+                    "label": "Wednesday",
+                    "value": "wednesday"
+                },
+                {
+                    "label": "Thursday",
+                    "value": "thursday"
+                },
+                {
+                    "label": "Friday",
+                    "value": "friday"
+                },
+                {
+                    "label": "Saturday",
+                    "value": "saturday"
+                }
+            ]
+        },
+        {
+            "key": "working_days_per_month",
+            "type": "number",
+            "label": "Working Days Per Month",
+            "default": "22",
+            "description": "Used for monthly salary pro-rating."
+        },
+        {
+            "key": "working_hours_per_day",
+            "type": "number",
+            "label": "Working Hours Per Day",
+            "default": "8",
+            "description": "Standard working hours per day for daily rate calculations."
+        },
+        {
+            "key": "overtime_calculation",
+            "type": "select",
+            "label": "Overtime Calculation Mode",
+            "default": "both",
+            "description": "How overtime limits are enforced.",
+            "options": [
+                {
+                    "label": "Daily Only",
+                    "value": "daily"
+                },
+                {
+                    "label": "Weekly Only",
+                    "value": "weekly"
+                },
+                {
+                    "label": "Both Daily + Weekly",
+                    "value": "both"
+                }
+            ]
+        },
+        {
+            "key": "round_hours_to",
+            "type": "select",
+            "label": "Round Hours To",
+            "default": "0.25",
+            "description": "Round worked hours to the nearest increment.",
+            "options": [
+                {
+                    "label": "No Rounding",
+                    "value": "none"
+                },
+                {
+                    "label": "15 Minutes (0.25)",
+                    "value": "0.25"
+                },
+                {
+                    "label": "30 Minutes (0.5)",
+                    "value": "0.5"
+                },
+                {
+                    "label": "1 Hour",
+                    "value": "1.0"
+                }
+            ]
+        },
+        {
+            "key": "pay_frequency",
+            "type": "select",
+            "label": "Default Pay Frequency",
+            "default": "semi_monthly",
+            "description": "Default payroll period type for new periods.",
+            "options": [
+                {
+                    "label": "Semi-Monthly",
+                    "value": "semi_monthly"
+                },
+                {
+                    "label": "Monthly",
+                    "value": "monthly"
+                },
+                {
+                    "label": "Weekly",
+                    "value": "weekly"
+                },
+                {
+                    "label": "Bi-Weekly",
+                    "value": "bi_weekly"
+                }
+            ]
+        },
+        {
+            "key": "max_cash_advance_pct",
+            "type": "number",
+            "label": "Max Cash Advance (% of monthly salary)",
+            "default": "50",
+            "description": "Maximum cash advance amount as percentage of employee monthly basic salary."
+        },
+        {
+            "key": "max_active_advances",
+            "type": "number",
+            "label": "Max Active Cash Advances",
+            "default": "2",
+            "description": "Maximum number of active (unpaid) cash advances per employee."
+        }
+    ]
+}

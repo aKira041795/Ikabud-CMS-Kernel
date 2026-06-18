@@ -1,0 +1,13 @@
+{* Salary Adjustments — Entity List *}
+{extends "layouts/admin.disyl"}
+
+{block main}
+<div class="admin-shell">
+  <div class="ikb-toolbar">
+    <h1>🔧 Salary Adjustments</h1>
+    <a href="/admin/wage/adjustments/create" class="ikb-btn ikb-btn-primary">+ New Adjustment</a>
+  </div>
+
+  {ikb_entity_list source="salary_adjustment.recent" view="table" limit="20" empty="No salary adjustments yet." /}
+</div>
+{/block}

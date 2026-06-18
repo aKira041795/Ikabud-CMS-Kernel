@@ -1,0 +1,13 @@
+{* Payroll Periods — Entity List *}
+{extends "layouts/admin.disyl"}
+
+{block main}
+<div class="admin-shell">
+  <div class="ikb-toolbar">
+    <h1>📅 Payroll Periods</h1>
+    <a href="/admin/wage/periods/create" class="ikb-btn ikb-btn-primary">+ New Period</a>
+  </div>
+
+  {ikb_entity_list source="payroll_period.all" view="table" limit="12" empty="No payroll periods yet. Create your first period to start processing payroll." /}
+</div>
+{/block}

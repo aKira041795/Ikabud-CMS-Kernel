@@ -285,6 +285,15 @@ final class EntityViewResolver
             'wms_location' => ['fields' => ['id', 'name', 'type', 'is_staging'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No locations.'],
             'ecommerce_product' => ['fields' => ['id', 'name', 'price', 'image', 'stock_status'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
             'ecommerce_order' => ['fields' => ['id', 'order_number', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No orders yet.'],
+            // Phase 3 — attendance-wage entity-view adoption (June 2026)
+            'attendance_record' => ['fields' => ['id', 'employee_name', 'store_name', 'clock_in', 'clock_out', 'status'], 'actions' => ['view', 'edit'], 'limit' => 30, 'empty_state' => 'No attendance records found.'],
+            'employee_profile' => ['fields' => ['id', 'name', 'position', 'department', 'salary_type', 'employment_status'], 'actions' => ['view', 'edit'], 'limit' => 25, 'empty_state' => 'No employee profiles yet.'],
+            'payroll_period' => ['fields' => ['id', 'period_name', 'start_date', 'end_date', 'status', 'total_net_pay'], 'actions' => ['view', 'process'], 'limit' => 12, 'empty_state' => 'No payroll periods yet.'],
+            'salary_computation' => ['fields' => ['id', 'employee_name', 'period_name', 'gross_pay', 'total_deductions', 'net_pay', 'status'], 'actions' => ['view', 'approve'], 'limit' => 25, 'empty_state' => 'No salary computations found.'],
+            'salary_adjustment' => ['fields' => ['id', 'employee_name', 'adjustment_type', 'amount', 'status', 'effective_date'], 'actions' => ['view', 'approve'], 'limit' => 20, 'empty_state' => 'No salary adjustments found.'],
+            'employee_deduction' => ['fields' => ['id', 'employee_name', 'amount', 'description', 'status', 'deduction_date'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No employee deductions found.'],
+            'holiday' => ['fields' => ['id', 'holiday_name', 'holiday_date', 'holiday_type', 'pay_multiplier'], 'actions' => ['edit', 'delete'], 'limit' => 30, 'empty_state' => 'No holidays configured.'],
+            'cash_advance' => ['fields' => ['id', 'employee_name', 'amount', 'balance', 'status', 'request_date'], 'actions' => ['view', 'approve'], 'limit' => 20, 'empty_state' => 'No cash advance requests.'],
         ];
 
         $base = $compactDefaults[$entityType] ?? ['fields' => '*', 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No records found.'];

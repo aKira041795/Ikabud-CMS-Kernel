@@ -1,0 +1,13 @@
+{* Payroll Reports — Entity List *}
+{extends "layouts/admin.disyl"}
+
+{block main}
+<div class="admin-shell">
+  <h1>📄 Payroll Reports</h1>
+
+  <div class="ikb-section">
+    <h2>Completed Periods</h2>
+    {ikb_entity_list source="payroll_period.completed" view="table" limit="12" empty="No completed payroll periods yet." /}
+  </div>
+</div>
+{/block}

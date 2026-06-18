@@ -108,10 +108,7 @@ Edit `modules/notes/module.json` — add the table to `owns_tables`:
     ],
     "capabilities": {
         "exposes": [],
-        "depends": [
-            "kernel.auth.user@1",
-            "kernel.audit.record@1"
-        ]
+        "depends": []
     },
     "events": [
         {
@@ -135,7 +132,7 @@ Key points:
 - **`owns_tables`** — tables this module has full CRUD access to. The kernel enforces this at runtime via `ModuleDB`.
 - **`reads_tables`** — tables you only SELECT from (e.g., `users`, `audit_logs`).
 - **`migrations`** — paths relative to the module directory.
-- **`capabilities.depends`** — kernel capabilities your module needs. These are validated at boot.
+- **`capabilities.depends`** — leave empty (`[]`) unless your module genuinely depends on capabilities provided by other modules. Kernel-native capabilities (`kernel.*`) are always available and must NOT be listed. See the [module development guide](module-development-guide.md#%EF%B8%8F-critical-depends-rules-read-before-adding-dependencies) for the full rules.
 - **`events`** — events your module fires. Other modules can listen to these. `available_vars` documents the payload shape.
 
 ---

@@ -1,0 +1,15 @@
+{* Employee Profiles — Entity List *}
+{extends "layouts/admin.disyl"}
+
+{block main}
+<div class="admin-shell">
+  <div class="ikb-toolbar">
+    <h1>👥 Employee Profiles</h1>
+    <a href="/admin/wage/employees/create" class="ikb-btn ikb-btn-primary">+ Add Employee</a>
+  </div>
+
+  <div class="ikb-section">
+    {ikb_entity_list source="employee_profile.all" view="table" limit="25" empty="No employee profiles yet. Use the Migration Wizard to bulk-create from existing users, or add employees individually." /}
+  </div>
+</div>
+{/block}

@@ -1,0 +1,28 @@
+-- Migration 006: Salary adjustments (bonuses, allowances, penalties, 13th month, etc.)
+CREATE TABLE IF NOT EXISTS `salary_adjustments` (
+    `adjustment_id`     INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `tenant_id`         VARCHAR(36) NOT NULL,
+    `user_id`           INT UNSIGNED NOT NULL,
+    `payroll_period_id` INT UNSIGNED DEFAULT NULL,
+    `adjustment_type`   ENUM('bonus','allowance','penalty','deduction','correction','thirteenth_month','holiday_bonus') NOT NULL,
+    `category`          ENUM('taxable','non_taxable') DEFAULT 'taxable',
+    `amount`            DECIMAL(12,2) NOT NULL,
+    `description`       VARCHAR(500) DEFAULT NULL,
+    `reference_number`  VARCHAR(100) DEFAULT NULL,
+    `effective_date`    DATE DEFAULT NULL,
+    `is_recurring`      TINYINT(1) DEFAULT 0,
+    `recurrence_type`   ENUM('monthly','quarterly','annually') DEFAULT NULL,
+    `status`            ENUM('pending','approved','applied','cancelled') DEFAULT 'pending',
+    `created_by`        INT UNSIGNED DEFAULT NULL,
+    `approved_by`       INT UNSIGNED DEFAULT NULL,
+    `applied_by`        INT UNSIGNED DEFAULT NULL,
+    `approval_date`     DATETIME DEFAULT NULL,
+    `applied_date`      DATETIME DEFAULT NULL,
+    `notes`             TEXT DEFAULT NULL,
+    `created_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`adjustment_id`),
+    INDEX `idx_tenant_user` (`tenant_id`, `user_id`),
+    INDEX `idx_period` (`payroll_period_id`),
+    INDEX `idx_status` (`tenant_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
