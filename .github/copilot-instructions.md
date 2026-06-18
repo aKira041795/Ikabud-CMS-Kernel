@@ -66,7 +66,7 @@
 - If behavior changes affect persistence schema/format, update docs in [docs/page-builder/page-builder-technical-spec.md](../docs/page-builder/page-builder-technical-spec.md) or related builder docs.
 
 ## Security hardening — CSP rules (must check during every hardening review)
-- The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com`
+- The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://maps.googleapis.com`
 - **`'unsafe-eval'` is mandatory.** Alpine.js v3 (CDN) uses `new Function()` for directive evaluation; Tailwind CSS CDN (JIT mode) uses eval-based class scanning. Dropping `'unsafe-eval'` silently breaks all Tailwind utility classes and every Alpine-driven component, including login forms.
 - **Never add a `nonce-XXXX` to `script-src` while `'unsafe-inline'` is still present.** Per CSP Level 2/3, a nonce in `script-src` causes browsers to ignore `'unsafe-inline'` entirely — any inline `<script>` without the matching `nonce="..."` attribute is blocked. No templates in this repo apply nonce attributes, so adding a nonce immediately breaks all inline scripts.
 - When transitioning to nonce-only CSP (future): (1) add `nonce="{csp_nonce}"` to every inline `<script>` in all Disyl/PHP templates, (2) remove `'unsafe-inline'` from `script-src`, (3) then add the nonce. These steps must not be reordered.
