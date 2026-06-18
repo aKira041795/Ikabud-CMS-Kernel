@@ -1,3 +1,6 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+
 {* Employee Deductions — Entity List *}
 
 
@@ -11,3 +14,4 @@
   {ikb_entity_list source="employee_deduction.recent" view="table" limit="20" empty="No employee deductions yet." /}
 </div>
 
+{/block}

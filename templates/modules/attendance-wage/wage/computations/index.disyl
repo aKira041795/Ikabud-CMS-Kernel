@@ -1,3 +1,6 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+
 {* Salary Computations — Entity List *}
 
 
@@ -14,3 +17,4 @@
   {ikb_entity_list source="salary_computation.recent" view="table" limit="25" empty="No salary computations yet. Click 'Bulk Compute' to process payroll for the active period." /}
 </div>
 
+{/block}

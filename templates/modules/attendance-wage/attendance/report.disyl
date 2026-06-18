@@ -1,3 +1,6 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+
 {* Attendance Report — Entity List with filters *}
 
 
@@ -10,3 +13,4 @@
   </div>
 </div>
 
+{/block}

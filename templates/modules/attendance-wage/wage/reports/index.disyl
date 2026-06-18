@@ -1,3 +1,6 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+
 {* Payroll Reports — Entity List *}
 
 
@@ -11,3 +14,4 @@
   </div>
 </div>
 
+{/block}

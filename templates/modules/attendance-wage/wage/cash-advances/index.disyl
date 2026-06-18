@@ -1,3 +1,6 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+
 {* Cash Advances — Entity List *}
 
 
@@ -11,3 +14,4 @@
   {ikb_entity_list source="cash_advance.active" view="table" limit="20" empty="No cash advance requests." /}
 </div>
 
+{/block}

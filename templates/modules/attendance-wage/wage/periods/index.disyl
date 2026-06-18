@@ -1,3 +1,6 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+
 {* Payroll Periods — Entity List *}
 
 
@@ -11,3 +14,4 @@
   {ikb_entity_list source="payroll_period.all" view="table" limit="12" empty="No payroll periods yet. Create your first period to start processing payroll." /}
 </div>
 
+{/block}
