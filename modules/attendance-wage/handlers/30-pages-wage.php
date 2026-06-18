@@ -19,6 +19,7 @@ function wagePageDashboard(array $params = []): void
         'ca_pending_amount' => '0.00',
         'ca_active_count' => 0,
         'ca_outstanding' => '0.00',
+        'location_count' => 0,
     ];
     try {
         $db = aw_db();
@@ -33,6 +34,7 @@ function wagePageDashboard(array $params = []): void
         $data['ca_pending_amount'] = number_format((float)$db->query("SELECT COALESCE(SUM(amount),0) FROM cash_advances WHERE status = 'pending'")->fetchColumn(), 2);
         $data['ca_active_count'] = (int)$db->query("SELECT COUNT(*) FROM cash_advances WHERE status IN ('approved','active')")->fetchColumn();
         $data['ca_outstanding'] = number_format((float)$db->query("SELECT COALESCE(SUM(balance),0) FROM cash_advances WHERE status IN ('approved','active')")->fetchColumn(), 2);
+        $data['location_count'] = (int)$db->query("SELECT COUNT(*) FROM office_locations WHERE is_active = 1")->fetchColumn();
     } catch (\Throwable $e) {}
 
     echo app()->render('modules/attendance-wage/wage/dashboard', $data);
