@@ -1,26 +1,76 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
+
 {block main}
 <div class="px-6 py-8">
     <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">🕐 Clock In / Out</h1>
-    <div class="max-w-md mx-auto">
+
+    <div class="max-w-md mx-auto" x-data="clockWidget()" x-init="init()">
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
-            <div class="text-6xl font-bold text-gray-900 mb-2" id="clock-time">--:--</div>
-            <div class="text-sm text-gray-500 mb-1" id="clock-date"></div>
-            <div class="text-xs text-gray-400 mb-6" id="clock-status">Checking...</div>
-            <button id="clock-btn" onclick="toggleClock()" class="w-full py-3 px-6 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition-colors text-lg disabled:opacity-50">Clock In</button>
-            <div id="clock-error" class="mt-3 text-sm text-red-600 hidden"></div>
-            <div id="clock-success" class="mt-3 text-sm text-green-600 hidden"></div>
+            <div class="text-6xl font-bold text-gray-900 mb-2" x-text="timeDisplay">--:--</div>
+            <div class="text-sm text-gray-500 mb-1" x-text="dateDisplay"></div>
+            <div class="text-xs text-gray-400 mb-6" x-text="statusText">Checking...</div>
+
+            <button @click="toggleClock()" :disabled="loading"
+                    :class="clockedIn ? 'w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors text-lg disabled:opacity-50' : 'w-full py-3 px-6 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition-colors text-lg disabled:opacity-50'"
+                    x-text="clockedIn ? 'Clock Out' : 'Clock In'"></button>
+
+            <div x-show="error" x-text="error" class="mt-3 text-sm text-red-600"></div>
+            <div x-show="success" x-text="success" class="mt-3 text-sm text-green-600"></div>
         </div>
     </div>
 </div>
+
 <script>
-let clockedIn = false;
-const btn = document.getElementById('clock-btn');
-const statusEl = document.getElementById('clock-status');
-function updateClock() { const n=new Date(); document.getElementById('clock-time').textContent=n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); document.getElementById('clock-date').textContent=n.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
-updateClock(); setInterval(updateClock,1000);
-async function checkStatus(){try{const r=await fetch('/api/v1/attendance/records?limit=1');const d=await r.json();if(d.ok&&d.data.length>0&&!d.data[0].clock_out){clockedIn=true;btn.textContent='Clock Out';btn.className='w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors text-lg disabled:opacity-50';statusEl.textContent='Clocked in at '+new Date(d.data[0].clock_in).toLocaleTimeString()}else{statusEl.textContent='Not clocked in'}}catch(e){statusEl.textContent='Status unavailable'}}
-checkStatus();
-async function toggleClock(){document.getElementById('clock-error').classList.add('hidden');document.getElementById('clock-success').classList.add('hidden');btn.disabled=true;const ep=clockedIn?'/api/v1/attendance/clock-out':'/api/v1/attendance/clock-in';try{const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'}});const d=await r.json();if(d.ok){clockedIn=!clockedIn;btn.textContent=clockedIn?'Clock Out':'Clock In';btn.className=clockedIn?'w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors text-lg disabled:opacity-50':'w-full py-3 px-6 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition-colors text-lg disabled:opacity-50';statusEl.textContent=clockedIn?'Just clocked in':'Just clocked out';document.getElementById('clock-success').textContent=d.message;document.getElementById('clock-success').classList.remove('hidden')}else{document.getElementById('clock-error').textContent=d.error||'Failed';document.getElementById('clock-error').classList.remove('hidden')}}catch(e){document.getElementById('clock-error').textContent='Network error';document.getElementById('clock-error').classList.remove('hidden')}btn.disabled=false}
+function clockWidget() {
+    return {
+        clockedIn: false,
+        loading: false,
+        error: '',
+        success: '',
+        timeDisplay: '--:--',
+        dateDisplay: '',
+        statusText: 'Checking...',
+        init() {
+            this.updateClock();
+            setInterval(() => this.updateClock(), 1000);
+            this.checkStatus();
+        },
+        updateClock() {
+            const n = new Date();
+            this.timeDisplay = n.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+            this.dateDisplay = n.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+        },
+        async checkStatus() {
+            try {
+                const r = await fetch('/api/v1/attendance/records?limit=1');
+                const d = await r.json();
+                if (d.ok && d.data.length > 0 && !d.data[0].clock_out) {
+                    this.clockedIn = true;
+                    this.statusText = 'Clocked in at ' + new Date(d.data[0].clock_in).toLocaleTimeString();
+                } else {
+                    this.statusText = 'Not clocked in';
+                }
+            } catch(e) { this.statusText = 'Status unavailable'; }
+        },
+        async toggleClock() {
+            this.error = '';
+            this.success = '';
+            this.loading = true;
+            const ep = this.clockedIn ? '/api/v1/attendance/clock-out' : '/api/v1/attendance/clock-in';
+            try {
+                const r = await fetch(ep, {method:'POST', headers:{'Content-Type':'application/json'}});
+                const d = await r.json();
+                if (d.ok) {
+                    this.clockedIn = !this.clockedIn;
+                    this.statusText = this.clockedIn ? 'Just clocked in' : 'Just clocked out';
+                    this.success = d.message;
+                } else {
+                    this.error = d.error || 'Failed';
+                }
+            } catch(e) { this.error = 'Network error'; }
+            this.loading = false;
+        }
+    };
+}
 </script>
 {/block}
