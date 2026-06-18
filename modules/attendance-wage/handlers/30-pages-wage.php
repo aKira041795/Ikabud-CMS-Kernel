@@ -428,9 +428,17 @@ function wagePageMigrationWizard(array $params = []): void
 
 function wagePageLocations(array $params = []): void
 {
+    $locations = [];
+    try {
+        $db = aw_db();
+        $stmt = $db->prepare("SELECT * FROM office_locations ORDER BY name ASC");
+        $stmt->execute();
+        $locations = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {}
     echo app()->render('modules/attendance-wage/wage/locations/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
+        'locations' => $locations,
     ]);
 }
 
