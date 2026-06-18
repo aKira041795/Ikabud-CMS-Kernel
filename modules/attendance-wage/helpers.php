@@ -77,7 +77,7 @@ function aw_cap_entity_list_attendance_record_1(mixed $payload, string $capabili
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ar.attendance_id AS id, CONCAT(u.first_name, ' ', u.last_name) AS employee_name, s.name AS store_name, ar.clock_in, ar.clock_out, ar.status, ar.created_at FROM attendance_records ar JOIN users u ON u.user_id = ar.user_id LEFT JOIN stores s ON s.store_id = ar.store_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT ar.attendance_id AS id, u.full_name AS employee_name, s.name AS store_name, ar.clock_in, ar.clock_out, ar.status, ar.created_at FROM attendance_records ar JOIN attendance_wage_users u ON u.id = ar.user_id LEFT JOIN stores s ON s.store_id = ar.store_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM attendance_records')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -91,7 +91,7 @@ function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilit
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ep.profile_id AS id, CONCAT(u.first_name, ' ', u.last_name) AS name, ep.employee_number, ep.position, ep.department, ep.salary_type, ep.basic_salary, ep.employment_status, ep.hire_date FROM employee_profiles ep JOIN users u ON u.user_id = ep.user_id WHERE ep.is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT ep.profile_id AS id, u.full_name AS name, ep.employee_number, ep.position, ep.department, ep.salary_type, ep.basic_salary, ep.employment_status, ep.hire_date FROM employee_profiles ep JOIN attendance_wage_users u ON u.id = ep.user_id WHERE ep.is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM employee_profiles WHERE is_active = 1')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -119,7 +119,7 @@ function aw_cap_entity_list_salary_computation_1(mixed $payload, string $capabil
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT sc.computation_id AS id, CONCAT(u.first_name, ' ', u.last_name) AS employee_name, pp.period_name, sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status FROM salary_computations sc JOIN users u ON u.user_id = sc.user_id JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT sc.computation_id AS id, u.full_name AS employee_name, pp.period_name, sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status FROM salary_computations sc JOIN attendance_wage_users u ON u.id = sc.user_id JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM salary_computations')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -133,7 +133,7 @@ function aw_cap_entity_list_salary_adjustment_1(mixed $payload, string $capabili
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT sa.adjustment_id AS id, CONCAT(u.first_name, ' ', u.last_name) AS employee_name, sa.adjustment_type, sa.amount, sa.description, sa.status, sa.effective_date FROM salary_adjustments sa JOIN users u ON u.user_id = sa.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT sa.adjustment_id AS id, u.full_name AS employee_name, sa.adjustment_type, sa.amount, sa.description, sa.status, sa.effective_date FROM salary_adjustments sa JOIN attendance_wage_users u ON u.id = sa.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM salary_adjustments')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -174,7 +174,7 @@ function aw_cap_entity_list_cash_advance_1(mixed $payload, string $capabilityId 
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ca.advance_id AS id, CONCAT(u.first_name, ' ', u.last_name) AS employee_name, ca.amount, ca.balance, ca.repayment_type, ca.status, ca.request_date FROM cash_advances ca JOIN users u ON u.user_id = ca.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT ca.advance_id AS id, u.full_name AS employee_name, ca.amount, ca.balance, ca.repayment_type, ca.status, ca.request_date FROM cash_advances ca JOIN attendance_wage_users u ON u.id = ca.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM cash_advances')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -186,11 +186,11 @@ function aw_cap_entity_list_cash_advance_1(mixed $payload, string $capabilityId 
 function aw_cap_entity_get_attendance_record_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM attendance_records WHERE attendance_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_employee_profile_1(mixed $payload): array
-{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ep.*, CONCAT(u.first_name,' ',u.last_name) AS name FROM employee_profiles ep JOIN users u ON u.user_id=ep.user_id WHERE ep.profile_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ep.*, u.full_name AS name FROM employee_profiles ep JOIN attendance_wage_users u ON u.id=ep.user_id WHERE ep.profile_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_payroll_period_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM payroll_periods WHERE period_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_salary_computation_1(mixed $payload): array
-{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT sc.*, CONCAT(u.first_name,' ',u.last_name) AS employee_name, pp.period_name FROM salary_computations sc JOIN users u ON u.user_id=sc.user_id JOIN payroll_periods pp ON pp.period_id=sc.payroll_period_id WHERE sc.computation_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT sc.*, u.full_name AS employee_name, pp.period_name FROM salary_computations sc JOIN attendance_wage_users u ON u.id=sc.user_id JOIN payroll_periods pp ON pp.period_id=sc.payroll_period_id WHERE sc.computation_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_salary_adjustment_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM salary_adjustments WHERE adjustment_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_employee_deduction_1(mixed $payload): array
@@ -198,7 +198,7 @@ function aw_cap_entity_get_employee_deduction_1(mixed $payload): array
 function aw_cap_entity_get_holiday_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM holidays WHERE holiday_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_cash_advance_1(mixed $payload): array
-{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ca.*, CONCAT(u.first_name,' ',u.last_name) AS employee_name FROM cash_advances ca JOIN users u ON u.user_id=ca.user_id WHERE ca.advance_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ca.*, u.full_name AS employee_name FROM cash_advances ca JOIN attendance_wage_users u ON u.id=ca.user_id WHERE ca.advance_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 
 // ── Core salary computation (ported from CI) ──
 

@@ -19,7 +19,6 @@
         "payroll_settings"
     ],
     "reads_tables": [
-        "users",
         "stores",
         "user_stores",
         "audit_logs"
