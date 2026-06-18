@@ -1,7 +1,7 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 
 {block main}
-<div class="px-6 py-8" x-data="locationForm()" x-init="initMap()">
+<div class="px-6 py-8">
     <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">
         {if id}Edit Location{else}Add Office Location{/if}
     </h1>
@@ -14,14 +14,14 @@
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Office Name <span class="text-red-500">*</span></label>
-                <input type="text" name="name" x-model="name" required
+                <input type="text" name="name" value="{name|default:''}" required
                        class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                        placeholder="e.g. DC Main Office, Julies Bakeshop - Branch A">
             </div>
 
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Address</label>
-                <input type="text" name="address" x-model="address"
+                <input type="text" name="address" value="{address|default:''}"
                        class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                        placeholder="Full street address">
             </div>
@@ -29,15 +29,15 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Latitude <span class="text-red-500">*</span></label>
-                    <input type="number" step="any" name="latitude" x-model="latitude" required
+                    <input type="number" step="any" name="latitude" value="{latitude|default:''}" required
                            class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                           placeholder="14.5995" x-ref="latInput">
+                           placeholder="14.5995" id="loc-lat">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Longitude <span class="text-red-500">*</span></label>
-                    <input type="number" step="any" name="longitude" x-model="longitude" required
+                    <input type="number" step="any" name="longitude" value="{longitude|default:''}" required
                            class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
-                           placeholder="120.9842" x-ref="lngInput">
+                           placeholder="120.9842" id="loc-lng">
                 </div>
             </div>
 
@@ -45,30 +45,30 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-1">
                     Geo-fence Radius (meters) <span class="text-red-500">*</span>
                 </label>
-                <input type="number" name="radius_meters" x-model="radius" required min="10" max="10000"
+                <input type="number" name="radius_meters" value="{radius_meters|default:100}" required min="10" max="10000"
                        class="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                        placeholder="100">
                 <p class="text-xs text-gray-400 mt-1">Employees must be within this distance to clock in. Range: 10–10,000 meters.</p>
             </div>
         </div>
 
-        <!-- Google Map Picker -->
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+        <!-- Google Map Picker (self-contained, does not block form submission) -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4" x-data="locationMap()" x-init="init()">
             <h2 class="text-lg font-bold text-gray-900">Pin Location on Map</h2>
-            <p class="text-sm text-gray-500">Click the map to set the office location, or drag the marker.</p>
+            <p class="text-sm text-gray-500">Click the map to set coordinates, or type them above.</p>
 
             <div class="flex gap-3">
-                <input type="text" x-model="searchQuery" @keyup.enter="searchPlace()"
+                <input type="text" x-model="query" @keyup.enter="search()"
                        class="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500"
                        placeholder="Search for an address...">
-                <button type="button" @click="searchPlace()"
+                <button type="button" @click="search()"
                         class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
                     🔍 Search
                 </button>
             </div>
 
             <div id="location-map" class="w-full h-80 rounded-lg border border-gray-200 bg-gray-100"></div>
-            <p class="text-xs text-gray-400" x-show="latitude && longitude" x-text="'Selected: ' + latitude.toFixed(6) + ', ' + longitude.toFixed(6)"></p>
+            <p class="text-xs text-gray-400" x-show="coords" x-text="coords"></p>
         </div>
 
         <div class="flex items-center gap-4">
@@ -87,118 +87,72 @@
 {if maps_api_key}
 <script src="https://maps.googleapis.com/maps/api/js?key={maps_api_key}&libraries=places"></script>
 <script>
-    // Google Maps API error handler — catches billing, auth, and quota errors
     function gm_authFailure() {
-        const el = document.getElementById('location-map');
-        if (el) {
-            el.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-red-600 font-semibold text-sm mb-1">⚠️ Google Maps failed to load</p><p class="text-red-500 text-xs">Authentication error — check that billing is enabled on your Google Cloud project and the API key has Maps JavaScript API + Geocoding API enabled.</p><p class="text-gray-400 text-xs mt-2"><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">Google Cloud Console →</a></p></div></div>';
-        }
+        var el = document.getElementById('location-map');
+        if (el) el.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-red-600 font-semibold text-sm mb-1">⚠️ Google Maps failed to load</p><p class="text-red-500 text-xs">Check billing + Maps JavaScript API in Google Cloud Console.</p></div></div>';
     }
 
-    function locationForm() {
-        return {
-            name: '{name|default:''}',
-            address: '{address|default:''}',
-            latitude: {latitude|default:0},
-            longitude: {longitude|default:0},
-            radius: {radius_meters|default:100},
-            searchQuery: '',
-            map: null,
-            marker: null,
-            mapError: false,
+    document.addEventListener('alpine:init', function () {
+        Alpine.data('locationMap', function () {
+            return {
+                query: '',
+                coords: '',
+                map: null,
+                marker: null,
 
-            initMap() {
-                const lat = this.latitude || 14.5995;
-                const lng = this.longitude || 120.9842;
-                const mapEl = document.getElementById('location-map');
-                if (!mapEl || typeof google === 'undefined' || typeof google.maps === 'undefined') {
-                    if (mapEl) {
-                        mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-amber-600 font-semibold text-sm mb-1">⚠️ Google Maps could not be loaded</p><p class="text-amber-500 text-xs">Verify the API key in Settings → Google Maps API Key, and ensure Maps JavaScript API + Geocoding API are enabled with billing on your Google Cloud project.</p><p class="text-gray-400 text-xs mt-2"><a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="text-brand-600 hover:text-brand-700 underline">Google Cloud Console →</a></p></div></div>';
+                init() {
+                    var mapEl = document.getElementById('location-map');
+                    if (!mapEl || typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                        if (mapEl) mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6 text-sm text-gray-400">Map unavailable — enter coordinates manually above.</div>';
+                        return;
                     }
-                    return;
-                }
+                    var latEl = document.getElementById('loc-lat');
+                    var lngEl = document.getElementById('loc-lng');
+                    var lat = latEl ? parseFloat(latEl.value) || 14.5995 : 14.5995;
+                    var lng = lngEl ? parseFloat(lngEl.value) || 120.9842 : 120.9842;
 
-                try {
-                    this.map = new google.maps.Map(mapEl, {
-                        center: { lat, lng },
-                        zoom: 15,
-                        mapTypeControl: false,
-                        streetViewControl: false,
-                    });
-
-                    this.marker = new google.maps.Marker({
-                        position: { lat, lng },
-                        map: this.map,
-                        draggable: true,
-                        title: this.name || 'Office Location',
-                    });
-
-                    this.marker.addListener('dragend', () => {
-                        const pos = this.marker.getPosition();
-                        this.latitude = pos.lat();
-                        this.longitude = pos.lng();
-                    });
-
-                    this.map.addListener('click', (e) => {
-                        const pos = e.latLng;
-                        this.marker.setPosition(pos);
-                        this.latitude = pos.lat();
-                        this.longitude = pos.lng();
-                    });
-
-                    // Draw geo-fence circle
-                    new google.maps.Circle({
-                        strokeColor: '#3b82f6',
-                        strokeOpacity: 0.3,
-                        strokeWeight: 2,
-                        fillColor: '#3b82f6',
-                        fillOpacity: 0.08,
-                        map: this.map,
-                        center: { lat, lng },
-                        radius: parseInt(this.radius) || 100,
-                    });
-                } catch (e) {
-                    if (mapEl) {
-                        mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6"><div><p class="text-red-600 font-semibold text-sm mb-1">⚠️ Map Error</p><p class="text-red-500 text-xs">' + (e.message || 'Unknown error') + '</p></div></div>';
+                    try {
+                        this.map = new google.maps.Map(mapEl, { center: { lat: lat, lng: lng }, zoom: 15, mapTypeControl: false, streetViewControl: false });
+                        this.marker = new google.maps.Marker({ position: { lat: lat, lng: lng }, map: this.map, draggable: true });
+                        var self = this;
+                        this.marker.addListener('dragend', function () { var p = self.marker.getPosition(); self.setCoords(p.lat(), p.lng()); });
+                        this.map.addListener('click', function (e) { self.marker.setPosition(e.latLng); self.setCoords(e.latLng.lat(), e.latLng.lng()); });
+                        new google.maps.Circle({ strokeColor: '#3b82f6', strokeOpacity: 0.3, strokeWeight: 2, fillColor: '#3b82f6', fillOpacity: 0.08, map: this.map, center: { lat: lat, lng: lng }, radius: parseInt(document.querySelector('[name=radius_meters]')?.value) || 100 });
+                        this.coords = 'Selected: ' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+                    } catch (e) {
+                        if (mapEl) mapEl.innerHTML = '<div class="flex items-center justify-center h-full text-center p-6 text-sm text-red-500">Map error: ' + (e.message || '') + '</div>';
                     }
-                }
-            },
+                },
 
-            searchPlace() {
-                if (!this.searchQuery || typeof google === 'undefined' || typeof google.maps === 'undefined') return;
-                const geocoder = new google.maps.Geocoder();
-                geocoder.geocode({ address: this.searchQuery }, (results, status) => {
-                    if (status === 'OK' && results[0]) {
-                        const loc = results[0].geometry.location;
-                        this.latitude = loc.lat();
-                        this.longitude = loc.lng();
-                        this.address = results[0].formatted_address;
-                        this.map.setCenter(loc);
-                        this.map.setZoom(17);
-                        this.marker.setPosition(loc);
-                    }
-                });
-            },
-        };
-    }
+                setCoords(lat, lng) {
+                    var latEl = document.getElementById('loc-lat');
+                    var lngEl = document.getElementById('loc-lng');
+                    if (latEl) latEl.value = lat.toFixed(7);
+                    if (lngEl) lngEl.value = lng.toFixed(7);
+                    this.coords = 'Selected: ' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+                },
+
+                search() {
+                    if (!this.query || typeof google === 'undefined') return;
+                    var self = this;
+                    new google.maps.Geocoder().geocode({ address: this.query }, function (results, status) {
+                        if (status === 'OK' && results[0]) {
+                            var loc = results[0].geometry.location;
+                            self.map.setCenter(loc); self.map.setZoom(17);
+                            self.marker.setPosition(loc);
+                            self.setCoords(loc.lat(), loc.lng());
+                            var addrEl = document.querySelector('[name=address]');
+                            if (addrEl && !addrEl.value) addrEl.value = results[0].formatted_address;
+                        }
+                    });
+                },
+            };
+        });
+    });
 </script>
 {else}
 <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-700 mt-4">
-    ⚠️ <strong>Google Maps API key not configured.</strong> Set it in <em>Superadmin → Modules → Attendance &amp; Wage → Settings → Google Maps API Key</em> to enable the interactive map picker. Coordinates can still be entered manually.
+    ⚠️ <strong>Google Maps API key not configured.</strong> Set it in <a href="/admin/wage/settings" class="text-brand-600 hover:text-brand-700 underline">Settings → Google Maps API Key</a>. Coordinates can still be entered manually.
 </div>
-<script>
-    function locationForm() {
-        return {
-            name: '{name|default:''}',
-            address: '{address|default:''}',
-            latitude: {latitude|default:0},
-            longitude: {longitude|default:0},
-            radius: {radius_meters|default:100},
-            searchQuery: '',
-            initMap() {},
-            searchPlace() {},
-        };
-    }
-</script>
 {/if}
 {/block}
