@@ -22,26 +22,35 @@
             <div class="text-3xl font-bold text-gray-900">₱{total_net_pay|default:'0.00'}</div>
         </div>
     </div>
-
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+        <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-6">
+            <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">Pending CAs</div>
+            <div class="text-2xl font-bold text-amber-700">{ca_pending_count|default:0}</div>
+            <div class="text-xs text-amber-500 mt-1">₱ {ca_pending_amount|default:'0.00'}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-red-200 p-6">
+            <div class="text-xs font-semibold text-red-600 uppercase tracking-wider mb-2">Active CAs</div>
+            <div class="text-2xl font-bold text-red-700">{ca_active_count|default:0}</div>
+            <div class="text-xs text-red-500 mt-1">₱ {ca_outstanding|default:'0.00'} outstanding</div>
+        </div>
+    </div>
     <div class="mb-10">
         <h2 class="text-xl font-bold text-gray-900 mb-4">🕐 Today's Attendance</h2>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            {ikb_entity_list source="attendance_record.recent" view="compact" limit="10" empty="No attendance records today." /}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {ikb_entity_list source="attendance_record" view="table" use="tailwind" limit="10" empty="No attendance records today." /}
         </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div>
-            <h2 class="text-xl font-bold text-gray-900 mb-4">💵 Salary Computations</h2>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                {ikb_entity_list source="salary_computation.pending" view="compact" limit="5" empty="No pending computations." /}
-            </div>
+    <div class="mb-10">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">💸 Recent Cash Advances</h2>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {ikb_entity_list source="cash_advance" view="table" use="tailwind" limit="5" empty="No cash advances yet." /}
         </div>
-        <div>
-            <h2 class="text-xl font-bold text-gray-900 mb-4">💸 Cash Advances</h2>
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                {ikb_entity_list source="cash_advance.active" view="compact" limit="5" empty="No active cash advances." /}
-            </div>
+    </div>
+    <div class="mb-10">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">💵 Recent Computations</h2>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {ikb_entity_list source="salary_computation" view="table" use="tailwind" limit="5" empty="No computations yet. Run payroll from the Periods page first." /}
         </div>
     </div>
 </div>

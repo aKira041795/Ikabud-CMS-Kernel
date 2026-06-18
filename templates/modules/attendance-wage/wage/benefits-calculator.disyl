@@ -1,0 +1,79 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🧮 Benefits Calculator</h1>
+        <a href="/admin/wage" class="inline-flex items-center px-4 py-2.5 text-sm font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">← Dashboard</a>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">🏛️ SSS Contribution</h2>
+            <form class="space-y-4" x-data="benefitCalc('sss')" @submit.prevent="calculate()">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Monthly Salary (₱)</label>
+                    <input type="number" step="0.01" x-model="salary" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="0.00">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Calculate</button>
+                <div x-show="result !== null" class="pt-3 border-t border-gray-100">
+                    <p class="text-sm text-gray-500">Employee Share</p>
+                    <p class="text-2xl font-extrabold text-gray-900" x-text="format(result.employee)"></p>
+                    <p class="text-sm text-gray-500 mt-2">Employer Share</p>
+                    <p class="text-2xl font-extrabold text-brand-600" x-text="format(result.employer)"></p>
+                    <p class="text-sm text-gray-500 mt-2">Total</p>
+                    <p class="text-xl font-bold text-gray-700" x-text="format(result.total)"></p>
+                </div>
+            </form>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">🏥 PhilHealth</h2>
+            <form class="space-y-4" x-data="benefitCalc('philhealth')" @submit.prevent="calculate()">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Monthly Salary (₱)</label>
+                    <input type="number" step="0.01" x-model="salary" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="0.00">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Calculate</button>
+                <div x-show="result !== null" class="pt-3 border-t border-gray-100">
+                    <p class="text-sm text-gray-500">Employee Share (50%)</p>
+                    <p class="text-2xl font-extrabold text-gray-900" x-text="format(result.employee)"></p>
+                    <p class="text-sm text-gray-500 mt-2">Employer Share (50%)</p>
+                    <p class="text-2xl font-extrabold text-brand-600" x-text="format(result.employer)"></p>
+                </div>
+            </form>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-4">🏠 Pag-IBIG</h2>
+            <form class="space-y-4" x-data="benefitCalc('pagibig')" @submit.prevent="calculate()">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Monthly Salary (₱)</label>
+                    <input type="number" step="0.01" x-model="salary" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="0.00">
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">Calculate</button>
+                <div x-show="result !== null" class="pt-3 border-t border-gray-100">
+                    <p class="text-sm text-gray-500">Employee Share</p>
+                    <p class="text-2xl font-extrabold text-gray-900" x-text="format(result.employee)"></p>
+                    <p class="text-sm text-gray-500 mt-2">Employer Share</p>
+                    <p class="text-2xl font-extrabold text-brand-600" x-text="format(result.employer)"></p>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+function benefitCalc(type) {
+    return {
+        salary: 0,
+        result: null,
+        format(v) { return '₱ ' + Number(v || 0).toLocaleString('en-PH', {minimumFractionDigits:2}); },
+        async calculate() {
+            const r = await fetch('/api/v1/wage/benefits/calculate', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({type: type, salary: Number(this.salary)})
+            });
+            const d = await r.json();
+            this.result = d.ok ? d.data : {employee:0, employer:0, total:0};
+        }
+    };
+}
+</script>
+{/block}

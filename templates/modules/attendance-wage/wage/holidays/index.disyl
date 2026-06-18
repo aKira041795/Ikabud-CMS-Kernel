@@ -3,6 +3,22 @@
 <div class="px-6 py-8">
     <div class="flex items-center justify-between mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🏖️ Holidays</h1>
+        {if edit_holiday}
+        <form method="post" action="/api/v1/wage/holidays/{edit_holiday.holiday_id}" class="flex items-center gap-2">
+            <input type="text" name="holiday_name" value="{edit_holiday.holiday_name|default:''}" required class="px-3 py-2 border border-brand-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+            <input type="date" name="holiday_date" value="{edit_holiday.holiday_date|default:''}" required class="px-3 py-2 border border-brand-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
+            <select name="holiday_type" class="px-3 py-2 border border-brand-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                <option value="regular" {if edit_holiday.holiday_type=='regular'}selected{/if}>Regular (2.00×)</option>
+                <option value="special_non_working" {if edit_holiday.holiday_type=='special_non_working'}selected{/if}>Special Non-Working (1.30×)</option>
+                <option value="special_working" {if edit_holiday.holiday_type=='special_working'}selected{/if}>Special Working (1.00×)</option>
+            </select>
+            <label class="flex items-center gap-1 text-xs text-gray-500">
+                <input type="checkbox" name="is_recurring" value="1" {if edit_holiday.is_recurring}checked{/if} class="rounded" /> Yearly
+            </label>
+            <button type="submit" class="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">Update</button>
+            <a href="/admin/wage/holidays" class="px-3 py-2.5 text-sm text-gray-500 hover:text-gray-700">Cancel</a>
+        </form>
+        {else}
         <form method="post" action="/api/v1/wage/holidays" class="flex items-center gap-2">
             <input type="text" name="holiday_name" placeholder="Holiday name" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
             <input type="date" name="holiday_date" required class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" />
@@ -11,11 +27,25 @@
                 <option value="special_non_working">Special Non-Working (1.30×)</option>
                 <option value="special_working">Special Working (1.00×)</option>
             </select>
+            <label class="flex items-center gap-1 text-xs text-gray-500">
+                <input type="checkbox" name="is_recurring" value="1" class="rounded" /> Yearly
+            </label>
             <button type="submit" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm whitespace-nowrap">Add Holiday</button>
         </form>
+        {/if}
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        {ikb_entity_list source="holiday.this_year" view="table" limit="30" empty="No holidays configured." /}
+    {if success}
+    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
+        <span class="text-lg">✅</span> {success}
+    </div>
+    {/if}
+    {if error}
+    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
+        <span class="text-lg">❌</span> {error}
+    </div>
+    {/if}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {ikb_entity_list source="holiday" view="table" use="tailwind" limit="30" empty="No holidays configured." /}
     </div>
 </div>
 {/block}

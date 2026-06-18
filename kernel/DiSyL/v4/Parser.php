@@ -353,17 +353,17 @@ final class Parser
         return new TextNode([], $raw);
     }
 
-    /** {if condition}...{elseif condition}...{else}...{/if} */
+    /** {if condition}...{elseif condition}...{else if condition}...{else}...{/if} */
     private function parseIf(): ControlNode
     {
         $tag = $this->readTagContent();            // "if condition"
         $condition = trim(substr($tag, 2));         // strip "if"
 
-        $body = $this->parseChildren(['{/if}', '{elseif ', '{else}']);
+        $body = $this->parseChildren(['{/if}', '{elseif ', '{else if ', '{else}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{elseif ')) {
-            // Desugar elseif as nested if inside else
+        if ($this->lookingAt('{elseif ') || $this->lookingAt('{else if ')) {
+            // Desugar elseif / else if as nested if inside else
             $elseDoc = new DocumentNode([], [$this->parseElseIf()]);
         } elseif ($this->lookingAt('{else}')) {
             $this->consumeExact('{else}');
@@ -381,16 +381,22 @@ final class Parser
         );
     }
 
-    /** Parse an {elseif ...} as a nested ControlNode('if'). */
+    /** Parse an {elseif ...} or {else if ...} as a nested ControlNode('if'). */
     private function parseElseIf(): ControlNode
     {
-        $tag = $this->readTagContent();             // "elseif condition"
-        $condition = trim(substr($tag, 6));          // strip "elseif"
+        $tag = $this->readTagContent();             // "elseif condition" or "else if condition"
 
-        $body = $this->parseChildren(['{/if}', '{elseif ', '{else}']);
+        // Handle both {elseif cond} (6-char prefix) and {else if cond} (7-char prefix)
+        if (str_starts_with($tag, 'else if ')) {
+            $condition = trim(substr($tag, 7));      // strip "else if"
+        } else {
+            $condition = trim(substr($tag, 6));      // strip "elseif"
+        }
+
+        $body = $this->parseChildren(['{/if}', '{elseif ', '{else if ', '{else}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{elseif ')) {
+        if ($this->lookingAt('{elseif ') || $this->lookingAt('{else if ')) {
             $elseDoc = new DocumentNode([], [$this->parseElseIf()]);
         } elseif ($this->lookingAt('{else}')) {
             $this->consumeExact('{else}');
@@ -724,8 +730,8 @@ final class Parser
 
     private function parseCompExpr(string $expr): AbstractNode
     {
-        // Try longest operators first
-        $split = $this->findLastBinaryOp($expr, [' === ', ' !== ', ' == ', ' != ', ' >= ', ' <= ', ' > ', ' < ']);
+        // Try longest operators first. Match with or without surrounding spaces.
+        $split = $this->findLastBinaryOp($expr, ['===', '!==', '==', '!=', '>=', '<=', '>', '<']);
         if ($split !== false) {
             return new BinaryOpNode(
                 [],

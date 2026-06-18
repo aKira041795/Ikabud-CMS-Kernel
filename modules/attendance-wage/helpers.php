@@ -39,6 +39,8 @@ function attendance_wage_capability_handlers(): array
         'entity.get.employee_deduction@1'    => 'aw_cap_entity_get_employee_deduction_1',
         'entity.get.holiday@1'               => 'aw_cap_entity_get_holiday_1',
         'entity.get.cash_advance@1'          => 'aw_cap_entity_get_cash_advance_1',
+        'entity.list.employee_schedule@1'    => 'aw_cap_entity_list_employee_schedule_1',
+        'entity.get.employee_schedule@1'     => 'aw_cap_entity_get_employee_schedule_1',
         'attendance_wage.read@1'             => 'aw_cap_read_1',
         'attendance_wage.manage@1'           => 'aw_cap_manage_1',
         'attendance_wage.approve@1'          => 'aw_cap_approve_1',
@@ -135,11 +137,11 @@ function aw_cap_entity_list_attendance_record_1(mixed $payload, string $capabili
 function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 25), 100);
-    $sortField = aw_allowedSort($payload, 'hire_date', ['profile_id', 'employee_number', 'position', 'department', 'hire_date']);
+    $sortField = aw_allowedSort($payload, 'last_name', ['profile_id', 'last_name', 'first_name', 'employee_number', 'position', 'department', 'hire_date']);
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ep.profile_id AS id, u.full_name AS name, ep.employee_number, ep.position, ep.department, ep.salary_type, ep.basic_salary, ep.employment_status, ep.hire_date FROM employee_profiles ep JOIN attendance_wage_users u ON u.id = ep.user_id WHERE ep.is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT profile_id AS id, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS name, employee_number, position, department, salary_type, basic_salary, employment_status, hire_date FROM employee_profiles WHERE is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM employee_profiles WHERE is_active = 1')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -167,7 +169,7 @@ function aw_cap_entity_list_salary_computation_1(mixed $payload, string $capabil
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT sc.computation_id AS id, u.full_name AS employee_name, pp.period_name, sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status FROM salary_computations sc JOIN attendance_wage_users u ON u.id = sc.user_id JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT sc.computation_id AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name, pp.period_name, sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status FROM salary_computations sc LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id LEFT JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM salary_computations')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -181,7 +183,7 @@ function aw_cap_entity_list_salary_adjustment_1(mixed $payload, string $capabili
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT sa.adjustment_id AS id, u.full_name AS employee_name, sa.adjustment_type, sa.amount, sa.description, sa.status, sa.effective_date FROM salary_adjustments sa JOIN attendance_wage_users u ON u.id = sa.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT sa.adjustment_id AS id, u.full_name AS employee_name, sa.adjustment_type, sa.amount, sa.description, sa.status, sa.effective_date, sa.approval_date, sa.applied_date FROM salary_adjustments sa JOIN attendance_wage_users u ON u.id = sa.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM salary_adjustments')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -191,13 +193,26 @@ function aw_cap_entity_list_salary_adjustment_1(mixed $payload, string $capabili
 function aw_cap_entity_list_employee_deduction_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 20), 50);
-    $sortField = aw_allowedSort($payload, 'deduction_date', ['deduction_id', 'amount', 'status', 'deduction_date']);
+    $sortField = aw_allowedSort($payload, 'deduction_date', ['id', 'amount', 'status', 'deduction_date']);
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT deduction_id AS id, employee_name, amount, description, status, deduction_date FROM employee_deductions ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        // Combine manual deductions + cash advance repayments
+        $sql = "
+            (SELECT d.deduction_id AS id, d.employee_name, d.amount, d.description, d.status, d.deduction_date, 'manual' AS source
+             FROM employee_deductions d)
+            UNION ALL
+            (SELECT car.repayment_id AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    car.amount, CONCAT('Cash Advance #', ca.advance_id, ' — ', ca.repayment_type) AS description,
+                    IF(car.status='deducted','completed',car.status) AS status, car.created_at AS deduction_date, 'cash_advance' AS source
+             FROM cash_advance_repayments car
+             JOIN cash_advances ca ON ca.advance_id = car.advance_id
+             LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id)
+            ORDER BY {$sortField} {$sortDir} LIMIT {$limit}
+        ";
+        $stmt = $db->query($sql);
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $total = (int)($db->query('SELECT COUNT(*) FROM employee_deductions')->fetchColumn());
+        $total = (int)($db->query('SELECT COUNT(*) FROM (SELECT 1 FROM employee_deductions UNION ALL SELECT 1 FROM cash_advance_repayments) t')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
 }
@@ -222,9 +237,41 @@ function aw_cap_entity_list_cash_advance_1(mixed $payload, string $capabilityId 
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ca.advance_id AS id, u.full_name AS employee_name, ca.amount, ca.balance, ca.repayment_type, ca.status, ca.request_date FROM cash_advances ca JOIN attendance_wage_users u ON u.id = ca.user_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT ca.advance_id AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name, ca.amount, ca.balance, ca.repayment_type, ca.status, ca.request_date, ca.approved_at FROM cash_advances ca LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM cash_advances')->fetchColumn());
+        return ['rows' => $rows, 'total' => $total];
+    } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
+}
+
+function aw_cap_entity_list_employee_schedule_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $limit = min((int)($payload['limit'] ?? 30), 100);
+    $sortField = aw_allowedSort($payload, 'last_name', ['id', 'employee_name', 'shift_type']);
+    $sortDir = aw_sortDir($payload);
+    try {
+        $db = aw_db();
+        // Aggregate schedules per employee: collect days into CSV and compute min/max times
+        $stmt = $db->query(
+            "SELECT ep.profile_id AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    ep.position, ep.department,
+                    GROUP_CONCAT(DISTINCT CONCAT(UCASE(LEFT(es.day_of_week,1)), SUBSTRING(es.day_of_week,2,2)) ORDER BY FIELD(es.day_of_week, 'monday','tuesday','wednesday','thursday','friday','saturday','sunday') SEPARATOR ', ') AS days_label,
+                    GROUP_CONCAT(DISTINCT es.day_of_week ORDER BY FIELD(es.day_of_week, 'monday','tuesday','wednesday','thursday','friday','saturday','sunday')) AS days_csv,
+                    MAX(es.shift_type) AS shift_type,
+                    MIN(NULLIF(es.start_time, '')) AS min_start,
+                    MAX(NULLIF(es.end_time, '')) AS max_end,
+                    SUM(es.is_dayoff) AS dayoff_count,
+                    COUNT(*) AS total_days
+             FROM employee_schedules es
+             JOIN employee_profiles ep ON ep.user_id = es.user_id
+             WHERE ep.is_active = 1
+             GROUP BY ep.profile_id, ep.first_name, ep.middle_name, ep.last_name, ep.suffix, ep.position, ep.department
+             ORDER BY {$sortField} {$sortDir} LIMIT {$limit}"
+        );
+        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+        $total = (int)($db->query(
+            "SELECT COUNT(DISTINCT ep.profile_id) FROM employee_profiles ep JOIN employee_schedules es ON es.user_id = ep.user_id WHERE ep.is_active = 1"
+        )->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
 }
@@ -238,7 +285,7 @@ function aw_cap_entity_get_employee_profile_1(mixed $payload): array
 function aw_cap_entity_get_payroll_period_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM payroll_periods WHERE period_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_salary_computation_1(mixed $payload): array
-{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT sc.*, u.full_name AS employee_name, pp.period_name FROM salary_computations sc JOIN attendance_wage_users u ON u.id=sc.user_id JOIN payroll_periods pp ON pp.period_id=sc.payroll_period_id WHERE sc.computation_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name, pp.period_name FROM salary_computations sc JOIN employee_profiles ep ON ep.profile_id=sc.employee_profile_id JOIN payroll_periods pp ON pp.period_id=sc.payroll_period_id WHERE sc.computation_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_salary_adjustment_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM salary_adjustments WHERE adjustment_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_employee_deduction_1(mixed $payload): array
@@ -246,9 +293,35 @@ function aw_cap_entity_get_employee_deduction_1(mixed $payload): array
 function aw_cap_entity_get_holiday_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare('SELECT * FROM holidays WHERE holiday_id=:id LIMIT 1'); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_cash_advance_1(mixed $payload): array
-{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ca.*, u.full_name AS employee_name FROM cash_advances ca JOIN attendance_wage_users u ON u.id=ca.user_id WHERE ca.advance_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ca.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name FROM cash_advances ca LEFT JOIN employee_profiles ep ON ep.user_id = ca.user_id WHERE ca.advance_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+function aw_cap_entity_get_employee_schedule_1(mixed $payload): array
+{ $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT es.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name, ep.position, ep.department FROM employee_schedules es JOIN employee_profiles ep ON ep.user_id = es.user_id WHERE es.schedule_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 
 // ── Core salary computation (ported from CI) ──
+
+/**
+ * Get the salary types applicable to a given payroll period type.
+ * Returns an array of salary_type values that should be computed in this period.
+ */
+function aw_salaryTypesForPeriod(string $periodType): array
+{
+    return match ($periodType) {
+        'weekly'      => ['hourly', 'daily'],
+        'bi_weekly'   => ['hourly', 'daily'],
+        'semi_monthly' => ['monthly', 'fixed', 'daily'],
+        'monthly'     => ['monthly', 'fixed'],
+        default       => ['monthly', 'fixed', 'daily', 'hourly'],
+    };
+}
+
+/**
+ * Get a human-readable label for which salary types a period covers.
+ */
+function aw_salaryTypesLabel(string $periodType): string
+{
+    $types = aw_salaryTypesForPeriod($periodType);
+    return implode(', ', array_map('ucfirst', $types));
+}
 
 function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
 {
@@ -258,10 +331,27 @@ function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
     $s=$db->prepare('SELECT * FROM payroll_periods WHERE period_id=:pid LIMIT 1'); $s->execute([':pid'=>$periodId]); $period=$s->fetch(\PDO::FETCH_ASSOC);
     if(!$period) throw new \RuntimeException('Payroll period not found');
 
+    $salaryType = $profile['salary_type'] ?? 'daily';
     $hours = aw_calculateAttendanceHours($userId, $period['start_date'], $period['end_date'], $profile);
     $hr = aw_effectiveHourlyRate($profile);
 
-    $regPay   = $hours['regular_hours'] * $hr;
+    // In the absence of attendance data, assume complete working days for the period
+    $daysWorked = $hours['days_worked'] ?? 0;
+    $regularHours = $hours['regular_hours'];
+    if ($daysWorked <= 0 && ($salaryType === 'daily' || $salaryType === 'hourly')) {
+        $daysWorked = aw_workingDaysInPeriod($period['start_date'], $period['end_date']);
+        $regularHours = (float)$daysWorked * (float)($profile['max_daily_hours'] ?? 8);
+    }
+
+    // Compute base pay according to salary type
+    $regPay = match($salaryType) {
+        'monthly' => (float)(((float)$profile['monthly_rate'] > 0) ? $profile['monthly_rate'] : $profile['basic_salary']),
+        'fixed'   => (float)($profile['basic_salary']),
+        'daily'   => (float)(((float)$profile['daily_rate'] > 0) ? $profile['daily_rate'] : $profile['basic_salary']) * max(1, $daysWorked),
+        'hourly'  => $regularHours * $hr,
+        default   => $regularHours * $hr,
+    };
+
     $otPay    = $hours['overtime_hours'] * $hr * (float)$profile['overtime_rate'];
     $dotPay   = $hours['double_overtime_hours'] * $hr * (float)$profile['double_overtime_rate'];
     $holPay   = $hours['holiday_hours'] * $hr;
@@ -283,6 +373,7 @@ function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
     $erCost = $gross + $benefits['sss']['employer'] + $benefits['philhealth']['employer'] + $benefits['pagibig']['employer'];
 
     $data = [
+        'tenant_id' => app()->tenant()->current() ?? '',
         'user_id' => $userId, 'payroll_period_id' => $periodId, 'employee_profile_id' => $profile['profile_id'],
         'basic_salary' => $profile['basic_salary'], 'regular_hours' => $hours['regular_hours'], 'overtime_hours' => $hours['overtime_hours'],
         'double_overtime_hours' => $hours['double_overtime_hours'], 'holiday_hours' => $hours['holiday_hours'],
@@ -300,16 +391,70 @@ function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
         'status' => 'computed', 'computed_by' => $computedBy, 'computation_date' => date('Y-m-d H:i:s'),
     ];
 
-    $s = $db->prepare('SELECT computation_id FROM salary_computations WHERE user_id=:uid AND payroll_period_id=:pid LIMIT 1');
-    $s->execute([':uid'=>$userId, ':pid'=>$periodId]); $existing = $s->fetchColumn();
+    $s = $db->prepare('SELECT computation_id FROM salary_computations WHERE employee_profile_id=:eid AND payroll_period_id=:pid LIMIT 1');
+    $s->execute([':eid'=>$profile['profile_id'], ':pid'=>$periodId]); $existing = $s->fetchColumn();
     if ($existing) {
         $sets = implode(', ', array_map(fn($k) => "`$k`=:$k", array_keys($data)));
         $db->prepare("UPDATE salary_computations SET {$sets} WHERE computation_id=:cid")->execute(array_merge($data, [':cid'=>(int)$existing]));
-        return array_merge(['computation_id'=>(int)$existing], $data);
+        return array_merge(['ok' => true, 'computation_id'=>(int)$existing, 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
     }
     $cols = implode(', ', array_keys($data)); $vals = ':'.implode(', :', array_keys($data));
     $db->prepare("INSERT INTO salary_computations ({$cols}) VALUES ({$vals})")->execute($data);
-    return array_merge(['computation_id'=>(int)$db->lastInsertId()], $data);
+    return array_merge(['ok' => true, 'computation_id'=>(int)$db->lastInsertId(), 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
+}
+
+function aw_computeSimpleSalary(array $profile, int $periodId, int $computedBy): array
+{
+    $db = aw_db();
+    $s = $db->prepare('SELECT * FROM payroll_periods WHERE period_id=:pid LIMIT 1');
+    $s->execute([':pid'=>$periodId]); $period = $s->fetch(\PDO::FETCH_ASSOC);
+    if (!$period) throw new \RuntimeException('Payroll period not found');
+
+    $salaryType = $profile['salary_type'] ?? 'daily';
+    $daysInPeriod = aw_workingDaysInPeriod($period['start_date'], $period['end_date']);
+    $gross = match ($salaryType) {
+        'monthly' => (float)(((float)$profile['monthly_rate'] > 0) ? $profile['monthly_rate'] : $profile['basic_salary']),
+        'fixed'   => (float)($profile['basic_salary']),
+        'hourly'  => (float)(((float)$profile['hourly_rate'] > 0) ? $profile['hourly_rate'] : $profile['basic_salary']) * 8 * max(1, $daysInPeriod),
+        'daily'   => (float)(((float)$profile['daily_rate'] > 0) ? $profile['daily_rate'] : $profile['basic_salary']) * max(1, $daysInPeriod),
+        default   => (float)($profile['basic_salary']) * max(1, $daysInPeriod),
+    };
+
+    $benefits = aw_calculateBenefits($gross);
+    $totDed = $benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'];
+    $tax = aw_calculateTax($gross, $totDed, $profile);
+    $totDed += $tax;
+    $netPay = $gross - $totDed;
+    $erCost = $gross + $benefits['sss']['employer'] + $benefits['philhealth']['employer'] + $benefits['pagibig']['employer'];
+
+    $data = [
+        'tenant_id' => app()->tenant()->current() ?? '',
+        'user_id' => (int)($profile['user_id'] ?? 0) > 0 ? (int)$profile['user_id'] : -(int)$profile['profile_id'], 'payroll_period_id' => $periodId, 'employee_profile_id' => $profile['profile_id'],
+        'basic_salary' => $basicSalary, 'regular_hours' => 0, 'overtime_hours' => 0,
+        'double_overtime_hours' => 0, 'holiday_hours' => 0, 'night_shift_hours' => 0, 'rest_day_hours' => 0,
+        'regular_pay' => $gross, 'overtime_pay' => 0, 'double_overtime_pay' => 0,
+        'holiday_pay' => 0, 'night_shift_pay' => 0, 'rest_day_pay' => 0, 'rest_day_premium' => 0,
+        'gross_pay' => $gross,
+        'sss_employee' => $benefits['sss']['employee'], 'philhealth_employee' => $benefits['philhealth']['employee'],
+        'pagibig_employee' => $benefits['pagibig']['employee'], 'income_tax' => $tax,
+        'sss_employer' => $benefits['sss']['employer'], 'philhealth_employer' => $benefits['philhealth']['employer'],
+        'pagibig_employer' => $benefits['pagibig']['employer'],
+        'salary_deductions' => 0, 'cash_advance_deduction' => 0, 'other_deductions' => 0,
+        'total_deductions' => $totDed, 'total_additions' => 0,
+        'net_pay' => $netPay, 'total_employer_cost' => $erCost,
+        'status' => 'computed', 'computed_by' => $computedBy, 'computation_date' => date('Y-m-d H:i:s'),
+    ];
+
+    $s = $db->prepare('SELECT computation_id FROM salary_computations WHERE employee_profile_id=:eid AND payroll_period_id=:pid LIMIT 1');
+    $s->execute([':eid'=>$profile['profile_id'], ':pid'=>$periodId]); $existing = $s->fetchColumn();
+    if ($existing) {
+        $sets = implode(', ', array_map(fn($k) => "`$k`=:$k", array_keys($data)));
+        $db->prepare("UPDATE salary_computations SET {$sets} WHERE computation_id=:cid")->execute(array_merge($data, [':cid'=>(int)$existing]));
+        return array_merge(['ok' => true, 'computation_id'=>(int)$existing, 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
+    }
+    $cols = implode(', ', array_keys($data)); $vals = ':'.implode(', :', array_keys($data));
+    $db->prepare("INSERT INTO salary_computations ({$cols}) VALUES ({$vals})")->execute($data);
+    return array_merge(['ok' => true, 'computation_id'=>(int)$db->lastInsertId(), 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
 }
 
 function aw_calculateAttendanceHours(int $userId, string $startDate, string $endDate, array $profile): array
@@ -339,7 +484,14 @@ function aw_calculateAttendanceHours(int $userId, string $startDate, string $end
             else{$wot=min($dailyOT,$remW);$ot+=$wot;$weekly[$wk]+=$wot;if($dailyOT>$wot)$dot+=($dailyOT-$wot);}
         }
     }
-    return ['regular_hours'=>round($reg,2),'overtime_hours'=>round($ot,2),'double_overtime_hours'=>round($dot,2),'holiday_hours'=>round($hol,2),'night_shift_hours'=>round($ns,2),'rest_day_hours'=>round($rd,2)];
+    // Count distinct days with attendance
+    $daysWorked = 0;
+    $seenDays = [];
+    foreach ($records as $rec) {
+        $d = substr($rec['clock_in'] ?? '', 0, 10);
+        if ($d !== '' && !isset($seenDays[$d])) { $seenDays[$d] = true; $daysWorked++; }
+    }
+    return ['regular_hours'=>round($reg,2),'overtime_hours'=>round($ot,2),'double_overtime_hours'=>round($dot,2),'holiday_hours'=>round($hol,2),'night_shift_hours'=>round($ns,2),'rest_day_hours'=>round($rd,2),'days_worked'=>$daysWorked];
 }
 
 function aw_calculateBenefits(float $grossPay): array
@@ -369,22 +521,58 @@ function aw_isRestDay(int $userId, string $date, array $profile): bool {
     $dn=strtolower(date('l',strtotime($date))); $db=aw_db(); $s=$db->prepare('SELECT is_dayoff FROM employee_schedules WHERE user_id=:uid AND day_of_week=:dow LIMIT 1'); $s->execute([':uid'=>$userId,':dow'=>$dn]); $sc=$s->fetch(\PDO::FETCH_ASSOC);
     if($sc) return (bool)($sc['is_dayoff']??false); return $dn===strtolower($profile['rest_day_schedule']??'sunday');
 }
+function aw_workingDaysInPeriod(string $startDate, string $endDate): int {
+    $count=0; $tz=new \DateTimeZone('Asia/Manila');
+    $s=new \DateTimeImmutable($startDate,$tz); $e=new \DateTimeImmutable($endDate,$tz); $c=$s;
+    while($c<=$e){ if((int)$c->format('N')<7) $count++; $c=$c->modify('+1 day'); }
+    return $count;
+}
 function aw_nightShiftOverlap(\DateTime $ci, \DateTime $co): float {
     $ns=(clone $ci)->setTime(22,0,0); $ne=(clone $ci)->setTime(6,0,0)->modify('+1 day');
     if($co<=$ns||$ci>=$ne)return 0.0; $os=max($ci,$ns); $oe=min($co,$ne); return ($oe->getTimestamp()-$os->getTimestamp())/3600.0;
 }
 function aw_effectiveHourlyRate(array $profile): float {
-    return match($profile['salary_type']??'daily'){'hourly'=>(float)($profile['hourly_rate']?:$profile['basic_salary']),'daily'=>(float)($profile['daily_rate']?:($profile['basic_salary']/((float)($profile['max_daily_hours']??8)))),'monthly'=>(float)($profile['monthly_rate']?:($profile['basic_salary']/22/((float)($profile['max_daily_hours']??8)))),'fixed'=>(float)($profile['basic_salary']/22/((float)($profile['max_daily_hours']??8))),default=>(float)($profile['basic_salary']/22/8)};
+    return match($profile['salary_type']??'daily'){
+        'hourly'=>(float)(((float)$profile['hourly_rate'] > 0) ? $profile['hourly_rate'] : $profile['basic_salary']),
+        'daily'=>(float)(((float)$profile['daily_rate'] > 0) ? $profile['daily_rate'] : ($profile['basic_salary']/((float)($profile['max_daily_hours']??8)))),
+        'monthly'=>(float)(((float)$profile['monthly_rate'] > 0) ? $profile['monthly_rate'] : ($profile['basic_salary']/22/((float)($profile['max_daily_hours']??8)))),
+        'fixed'=>(float)($profile['basic_salary']/22/((float)($profile['max_daily_hours']??8))),
+        default=>(float)($profile['basic_salary']/22/8)
+    };
 }
 function aw_getAdjustmentsForPeriod(int $userId, int $periodId): array {
-    $db=aw_db(); $s=$db->prepare("SELECT SUM(CASE WHEN adjustment_type IN('bonus','allowance','thirteenth_month','holiday_bonus') THEN amount ELSE 0 END) AS additions, SUM(CASE WHEN adjustment_type IN('penalty','deduction','correction') THEN amount ELSE 0 END) AS deductions FROM salary_adjustments WHERE user_id=:uid AND payroll_period_id=:pid AND status='applied'");
-    $s->execute([':uid'=>$userId,':pid'=>$periodId]); $r=$s->fetch(\PDO::FETCH_ASSOC); return ['additions'=>(float)($r['additions']??0),'deductions'=>(float)($r['deductions']??0)];
+    $db=aw_db();
+    // Get period date range for NULL-period fallback
+    $p = $db->prepare("SELECT start_date, end_date FROM payroll_periods WHERE period_id=:pid LIMIT 1");
+    $p->execute([':pid'=>$periodId]); $period = $p->fetch(\PDO::FETCH_ASSOC);
+    $start = $period['start_date'] ?? ''; $end = $period['end_date'] ?? '';
+
+    $s=$db->prepare("SELECT
+        SUM(CASE WHEN adjustment_type IN('bonus','allowance','thirteenth_month','holiday_bonus') THEN amount ELSE 0 END) AS additions,
+        SUM(CASE WHEN adjustment_type IN('penalty','deduction','correction') THEN amount ELSE 0 END) AS deductions
+        FROM salary_adjustments
+        WHERE user_id=:uid
+        AND status IN('approved','applied')
+        AND (payroll_period_id=:pid OR (payroll_period_id IS NULL AND effective_date BETWEEN :start AND :end))");
+    $s->execute([':uid'=>$userId,':pid'=>$periodId,':start'=>$start,':end'=>$end]);
+    $r=$s->fetch(\PDO::FETCH_ASSOC);
+    // Mark approved adjustments as applied
+    $db->prepare("UPDATE salary_adjustments SET status='applied', applied_date=NOW() WHERE user_id=:uid AND payroll_period_id=:pid AND status='approved'")->execute([':uid'=>$userId,':pid'=>$periodId]);
+    return ['additions'=>(float)($r['additions']??0),'deductions'=>(float)($r['deductions']??0)];
 }
 function aw_getDeductionsForPeriod(int $userId, string $startDate, string $endDate): float {
     $db=aw_db(); $s=$db->prepare("SELECT COALESCE(SUM(amount),0) FROM employee_deductions WHERE user_id=:uid AND status='processed' AND deduction_date BETWEEN :start AND :end");
     $s->execute([':uid'=>$userId,':start'=>$startDate,':end'=>$endDate]); return (float)$s->fetchColumn();
 }
 function aw_getCashAdvanceRepayment(int $userId, int $periodId): float {
-    $db=aw_db(); $s=$db->prepare("SELECT COALESCE(SUM(car.amount),0) FROM cash_advance_repayments car JOIN cash_advances ca ON ca.advance_id=car.advance_id WHERE ca.user_id=:uid AND car.payroll_period_id=:pid AND car.status IN('pending','deducted')");
-    $s->execute([':uid'=>$userId,':pid'=>$periodId]); return (float)$s->fetchColumn();
+    $db=aw_db();
+    // Match by user_id OR by employee_profile_id (for unlinked employees)
+    $s=$db->prepare("SELECT COALESCE(SUM(car.amount),0) FROM cash_advance_repayments car JOIN cash_advances ca ON ca.advance_id=car.advance_id WHERE (ca.user_id=:uid OR (ca.user_id=0 AND ca.employee_profile_id=(SELECT profile_id FROM employee_profiles WHERE user_id=:uid2 LIMIT 1))) AND car.payroll_period_id=:pid AND car.status IN('pending','deducted')");
+    $s->execute([':uid'=>$userId,':uid2'=>$userId,':pid'=>$periodId]);
+    $amount = (float)$s->fetchColumn();
+    // Mark repayments as deducted after computing
+    if ($amount > 0) {
+        $db->prepare("UPDATE cash_advance_repayments car JOIN cash_advances ca ON ca.advance_id=car.advance_id SET car.status='deducted' WHERE (ca.user_id=:uid OR (ca.user_id=0 AND ca.employee_profile_id=(SELECT profile_id FROM employee_profiles WHERE user_id=:uid2 LIMIT 1))) AND car.payroll_period_id=:pid AND car.status='pending'")->execute([':uid'=>$userId,':uid2'=>$userId,':pid'=>$periodId]);
+    }
+    return $amount;
 }

@@ -3,7 +3,7 @@
 <div class="px-6 py-8">
     <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">📋 Attendance Report</h1>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        {ikb_entity_list source="attendance_record.recent" view="table" limit="30" empty="No attendance records found." /}
+        {ikb_entity_list source="attendance_record.recent" view="table" use="tailwind" limit="30" empty="No attendance records found." /}
     </div>
 </div>
 {/block}

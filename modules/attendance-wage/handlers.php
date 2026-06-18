@@ -19,6 +19,7 @@ declare(strict_types=1);
  *   80-api-deductions.php   — Employee deductions CRUD
  *   90-api-cash-advances.php — Cash advance requests, repayments
  *   100-api-holidays.php    — Holiday calendar CRUD
+ *   110-api-schedules.php  — Employee schedule CRUD
  *   110-api-reports.php     — Payroll reports, payslips
  */
 
@@ -43,5 +44,6 @@ require_once __DIR__ . '/handlers/70-api-adjustments.php';
 require_once __DIR__ . '/handlers/80-api-deductions.php';
 require_once __DIR__ . '/handlers/90-api-cash-advances.php';
 require_once __DIR__ . '/handlers/100-api-holidays.php';
+require_once __DIR__ . '/handlers/110-api-schedules.php';
 require_once __DIR__ . '/handlers/110-api-reports.php';
 

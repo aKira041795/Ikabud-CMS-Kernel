@@ -876,7 +876,8 @@ class TemplateEngine
     /**
      * Process {set var = expression} statements.
      * Removes the tag from output and adds the computed value to context.
-     * Supports: {set x = 5}, {set total = items | count}, {set next = page + 1}
+     * Supports: {set x = 5}, {set total = items | count}, {set next = page + 1},
+     *           {set locked = status != 'pending'}, {set ok = count > 0}
      */
     private function processSetStatements(string $content, array &$context): string
     {
@@ -888,26 +889,107 @@ class TemplateEngine
                 
                 // Try arithmetic first
                 $value = $this->evaluateArithmetic($expr, $context);
-                if ($value === null) {
-                    // Try quoted string literal
-                    if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
-                        $value = $qm[1];
-                    }
-                    // Try numeric literal
-                    elseif (is_numeric($expr)) {
-                        $value = $expr + 0;
-                    }
-                    else {
-                        // Fall back to variable with filters
-                        $value = $this->resolveValueWithFilters($expr, $context);
-                    }
+                if ($value !== null) {
+                    $context[$varName] = $value;
+                    return '';
+                }
+
+                // Try boolean/comparison expression
+                $value = $this->evaluateComparison($expr, $context);
+                if ($value !== null) {
+                    $context[$varName] = $value;
+                    return '';
                 }
                 
-                $context[$varName] = $value;
+                // Try quoted string literal
+                if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
+                    $context[$varName] = $qm[1];
+                    return '';
+                }
+
+                // Try numeric literal
+                if (is_numeric($expr)) {
+                    $context[$varName] = $expr + 0;
+                    return '';
+                }
+                
+                // Fall back to variable with filters
+                $context[$varName] = $this->resolveValueWithFilters($expr, $context);
                 return ''; // Remove the {set} tag from output
             },
             $content
         );
+    }
+
+    /**
+     * Evaluate comparison/boolean expressions for {set} statements.
+     * Supports: var op "string", var op num, !var, cond && cond, cond || cond
+     * Returns null if not a recognized comparison.
+     */
+    private function evaluateComparison(string $expr, array $context): ?bool
+    {
+        // Handle boolean operators: && and ||
+        if (preg_match('/^(.*?)\s*\|\|\s*(.*)$/', $expr, $m)) {
+            $left = $this->evaluateComparison(trim($m[1]), $context);
+            $right = $this->evaluateComparison(trim($m[2]), $context);
+            if ($left !== null && $right !== null) { return $left || $right; }
+        }
+        if (preg_match('/^(.*?)\s*&&\s*(.*)$/', $expr, $m)) {
+            $left = $this->evaluateComparison(trim($m[1]), $context);
+            $right = $this->evaluateComparison(trim($m[2]), $context);
+            if ($left !== null && $right !== null) { return $left && $right; }
+        }
+
+        // Handle negation: !var or !(expr)
+        if (str_starts_with($expr, '!')) {
+            $inner = trim(substr($expr, 1));
+            if ($inner !== '' && $inner[0] === '(' && $inner[-1] === ')') {
+                $inner = trim(substr($inner, 1, -1));
+            }
+            $val = $this->evaluateComparison($inner, $context);
+            return $val !== null ? !$val : null;
+        }
+
+        // Handle truthy check: bare variable without operator
+        if (preg_match('/^(\w[\w.]*)$/', $expr, $m)) {
+            $val = $this->resolveValue($m[1], $context);
+            return $val !== null ? (bool)$val : null;
+        }
+
+        // Supported operators
+        $ops = ['!=', '==', '>=', '<=', '>', '<'];
+        foreach ($ops as $op) {
+            $parts = explode($op, $expr, 2);
+            if (count($parts) !== 2) continue;
+            $left = trim($parts[0]);
+            $right = trim($parts[1]);
+
+            // Resolve left side — must be a variable path
+            if (!preg_match('/^(\w[\w.]*)$/', $left, $lm)) continue;
+            $leftVal = $this->resolveValue($lm[1], $context);
+
+            // Resolve right side — quoted string, numeric, or variable
+            if (preg_match('/^["\'](.*)["\']$/', $right, $rm)) {
+                $rightVal = $rm[1];
+            } elseif (is_numeric($right)) {
+                $rightVal = $right + 0;
+            } elseif (preg_match('/^(\w[\w.]*)$/', $right, $rm)) {
+                $rightVal = $this->resolveValue($rm[1], $context);
+            } else {
+                continue;
+            }
+
+            return match($op) {
+                '!=' => $leftVal != $rightVal,
+                '==' => $leftVal == $rightVal,
+                '>=' => $leftVal >= $rightVal,
+                '<=' => $leftVal <= $rightVal,
+                '>'  => $leftVal > $rightVal,
+                '<'  => $leftVal < $rightVal,
+                default => null,
+            };
+        }
+        return null;
     }
     
     /**
@@ -3060,8 +3142,8 @@ class TemplateEngine
                 $currentContent .= substr($content, $pos, $nextPos - $pos);
                 $branches[] = ['type' => $currentType, 'condition' => $currentCondition, 'content' => $currentContent];
                 
-                // Extract the condition from {elseif condition}
-                preg_match('/\{elseif\s+([^}]+)\}/', $content, $m, 0, $nextPos);
+                // Extract the condition from {elseif cond} or {else if cond}
+                preg_match('/\{else(?:\s+if|if)\s+([^}]+)\}/', $content, $m, 0, $nextPos);
                 $currentType = 'elseif';
                 $currentCondition = $m[1];
                 $currentContent = '';
@@ -3094,19 +3176,33 @@ class TemplateEngine
      */
     private function findElseIfAt(string $content, int $pos): int|false
     {
-        $search = '{elseif ';
-        $found = strpos($content, $search, $pos);
-        return $found;
+        // Support both {elseif cond} and {else if cond}
+        $a = strpos($content, '{elseif ', $pos);
+        $b = strpos($content, '{else if ', $pos);
+        if ($a === false) return $b;
+        if ($b === false) return $a;
+        return min($a, $b);
     }
     
     /**
      * Find standalone {else} at or after position.
-     * Must match exactly {else} not {elseif}.
+     * Must match exactly {else} not {elseif} or {else if}.
      */
     private function findElseAt(string $content, int $pos): int|false
     {
         $offset = $pos;
         while (($found = strpos($content, '{else}', $offset)) !== false) {
+            // Ensure it's not {elseif or {else if
+            $after = substr($content, $found + 5, 1);
+            $after2 = substr($content, $found + 5, 4);
+            if ($after === ' ' && str_starts_with($after2, ' if')) {
+                $offset = $found + 6;
+                continue;
+            }
+            if ($after === 'i' && str_starts_with(substr($content, $found + 6, 1), 'f')) {
+                $offset = $found + 8;
+                continue;
+            }
             return $found;
         }
         return false;
@@ -4896,11 +4992,110 @@ class TemplateEngine
     }
 
     /**
+     * Resolve CSS classes for entity list styling based on the chosen framework preset.
+     *
+     * @param string $element Element key (e.g. 'wrapper', 'th', 'td', 'tr', 'action', 'actionWrapper')
+     * @param string $context  Context key (e.g. 'table', 'compact', 'card_grid', or action name like 'view')
+     * @param string $use      Framework preset: 'tailwind', 'bootstrap', 'legacy'
+     */
+    private function entityStyle(string $element, string $context, string $use = 'tailwind'): string
+    {
+        $presets = [
+            // ── Tailwind ──────────────────────────────────────────────
+            'tailwind' => [
+                'wrapper' => [
+                    'table'     => 'ikb-entity-list ikb-entity-list--table w-full overflow-x-auto',
+                    'compact'   => 'ikb-entity-list ikb-entity-list--compact divide-y divide-gray-100',
+                    'card_grid' => 'ikb-entity-list ikb-entity-list--grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3',
+                ],
+                'thead'   => ['table' => 'bg-gray-50 border-b border-gray-200'],
+                'th'      => ['table' => 'py-3 px-4 text-left font-semibold text-gray-600 text-xs uppercase tracking-wider whitespace-nowrap'],
+                'tr'      => ['table' => 'border-b border-gray-100 hover:bg-gray-50/50 transition-colors'],
+                'td'      => ['table' => 'py-3 px-4 text-gray-700 whitespace-nowrap'],
+                'row'     => ['compact' => 'ikb-entity-row flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition'],
+                'title'   => ['compact' => 'text-sm font-semibold text-gray-900', 'card_grid' => 'font-semibold text-gray-900'],
+                'subtitle'=> ['compact' => 'text-sm text-gray-500', 'card_grid' => 'text-sm text-gray-500 mt-1'],
+                'card'    => ['card_grid' => 'ikb-entity-card bg-white rounded-lg shadow border border-gray-100 overflow-hidden hover:shadow-md transition'],
+                'actionWrapper' => ['actions' => 'flex items-center justify-end gap-2'],
+                'action'  => [
+                    'view'    => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-brand-700 bg-brand-50 hover:bg-brand-100',
+                    'edit'    => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-gray-600 bg-gray-100 hover:bg-gray-200',
+                    'delete'  => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-red-700 bg-red-50 hover:bg-red-100',
+                    'approve' => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-green-700 bg-green-50 hover:bg-green-100',
+                    'process' => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-blue-700 bg-blue-50 hover:bg-blue-100',
+                    'cancel'  => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-orange-700 bg-orange-50 hover:bg-orange-100',
+                ],
+            ],
+            // ── Bootstrap 5 ──────────────────────────────────────────
+            'bootstrap' => [
+                'wrapper' => [
+                    'table'     => 'ikb-entity-list ikb-entity-list--table table-responsive',
+                    'compact'   => 'ikb-entity-list ikb-entity-list--compact list-group',
+                    'card_grid' => 'ikb-entity-list ikb-entity-list--grid row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3',
+                ],
+                'thead'   => ['table' => 'table-light'],
+                'th'      => ['table' => 'px-3 py-2 text-muted small fw-semibold text-uppercase'],
+                'tr'      => ['table' => ''],
+                'td'      => ['table' => 'px-3 py-2 align-middle'],
+                'row'     => ['compact' => 'ikb-entity-row list-group-item d-flex justify-content-between align-items-center px-3 py-2'],
+                'title'   => ['compact' => 'small fw-semibold mb-0', 'card_grid' => 'fw-semibold'],
+                'subtitle'=> ['compact' => 'small text-muted mb-0', 'card_grid' => 'small text-muted mt-1'],
+                'card'    => ['card_grid' => 'ikb-entity-card card shadow-sm h-100'],
+                'actionWrapper' => ['actions' => 'd-flex gap-1 justify-content-end'],
+                'action'  => [
+                    'view'    => 'ikb-row-action btn btn-sm btn-outline-primary',
+                    'edit'    => 'ikb-row-action btn btn-sm btn-outline-secondary',
+                    'delete'  => 'ikb-row-action btn btn-sm btn-outline-danger',
+                    'approve' => 'ikb-row-action btn btn-sm btn-outline-success',
+                    'process' => 'ikb-row-action btn btn-sm btn-outline-info',
+                    'cancel'  => 'ikb-row-action btn btn-sm btn-outline-warning',
+                ],
+            ],
+            // ── Legacy (no framework) ─────────────────────────────────
+            'legacy' => [
+                'wrapper' => [
+                    'table'     => 'ikb-entity-list ikb-entity-list--table',
+                    'compact'   => 'ikb-entity-list ikb-entity-list--compact',
+                    'card_grid' => 'ikb-entity-list ikb-entity-list--grid',
+                ],
+                'thead'   => ['table' => ''],
+                'th'      => ['table' => 'px-4 py-2 font-semibold text-gray-600'],
+                'tr'      => ['table' => 'hover:bg-gray-50'],
+                'td'      => ['table' => 'px-4 py-2 text-sm text-gray-700'],
+                'row'     => ['compact' => 'ikb-entity-row'],
+                'title'   => ['compact' => 'text-sm font-semibold text-gray-900', 'card_grid' => 'font-semibold text-gray-900'],
+                'subtitle'=> ['compact' => 'text-sm text-gray-500', 'card_grid' => 'text-sm text-gray-500 mt-1'],
+                'card'    => ['card_grid' => 'ikb-entity-card bg-white rounded-lg shadow border border-gray-100 overflow-hidden'],
+                'actionWrapper' => ['actions' => 'flex items-center justify-end gap-1'],
+                'action'  => [
+                    'view'    => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100 transition',
+                    'edit'    => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100 transition',
+                    'delete'  => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-red-600 hover:bg-red-50 transition',
+                    'approve' => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-green-600 hover:bg-green-50 transition',
+                    'process' => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-blue-600 hover:bg-blue-50 transition',
+                    'cancel'  => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-orange-600 hover:bg-orange-50 transition',
+                ],
+            ],
+        ];
+
+        // Default action style for unknown actions
+        $defaultAction = match ($use) {
+            'bootstrap' => 'ikb-row-action btn btn-sm btn-outline-secondary',
+            'tailwind'  => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-gray-600 bg-gray-100 hover:bg-gray-200',
+            default     => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100 transition',
+        };
+
+        $use = isset($presets[$use]) ? $use : 'legacy';
+        return $presets[$use][$element][$context] ?? $presets[$use][$element]['table'] ?? $defaultAction;
+    }
+
+    /**
      * Render an entity list from a source/view declaration.
      *
      * Attributes:
      *   source   — entity source string (e.g. "orders.recent", "products.featured")
      *   view     — view preset (compact, detailed, card_grid, table, admin_row)
+     *   use      — CSS framework preset: "tailwind" (default), "bootstrap", "legacy"
      *   limit    — max rows (overrides view contract default)
      *   empty    — custom empty-state message
      *   actions  — comma-separated allowed action names
@@ -4910,6 +5105,7 @@ class TemplateEngine
     {
         $source = (string)($attrs['source'] ?? '');
         $view = (string)($attrs['view'] ?? 'compact');
+        $use = (string)($attrs['use'] ?? 'tailwind');
         $limit = isset($attrs['limit']) ? (int)$attrs['limit'] : null;
         $emptyMessage = (string)($attrs['empty'] ?? '');
         $actions = isset($attrs['actions']) ? array_map('trim', explode(',', (string)$attrs['actions'])) : null;
@@ -4961,6 +5157,11 @@ class TemplateEngine
         $fields = is_array($contract['fields'] ?? null) ? $contract['fields'] : ['*'];
         $viewMode = $contract['view'] ?? $view;
         $viewActions = $contract['actions'] ?? [];
+        $actionUrls = $contract['action_urls'] ?? [];
+        $actionMethods = $contract['action_methods'] ?? [];
+        $actionConfirm = $contract['action_confirm'] ?? [];
+        $actionShowIf = $contract['action_show_if'] ?? [];
+        $actionLabels = $contract['action_labels'] ?? [];
 
         // Expand '*' fields to actual keys from the first row
         if ($fields === ['*'] || $fields === '*') {
@@ -4968,7 +5169,7 @@ class TemplateEngine
             $fields = array_values(array_filter(array_keys($firstRow), fn($k) => !str_starts_with($k, '_')));
         }
 
-        return $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children);
+        return $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
     }
 
     /**
@@ -4978,53 +5179,57 @@ class TemplateEngine
      * @param array<int, string> $fields
      * @param array<int, string> $actions
      */
-    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children): string
+    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
     {
         $hasCustomSlot = trim($children) !== '';
 
         $out = '';
         foreach ($rows as $row) {
             if ($hasCustomSlot) {
-                // User-defined template: bind row data and render children
                 $out .= $this->renderWithRowContext($children, $row);
                 continue;
             }
 
             $out .= match ($viewMode) {
-                'card_grid' => $this->renderCardGridRow($row, $fields, $actions),
-                'table' => $this->renderTableRow($row, $fields, $actions),
-                'compact', 'default' => $this->renderCompactRow($row, $fields, $actions),
-                default => $this->renderCompactRow($row, $fields, $actions),
+                'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
+                'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
+                'compact', 'default' => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
+                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf),
             };
         }
 
-        $wrapperClass = match ($viewMode) {
-            'card_grid' => 'ikb-entity-list ikb-entity-list--grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3',
-            'table' => 'ikb-entity-list ikb-entity-list--table',
-            default => 'ikb-entity-list ikb-entity-list--compact divide-y divide-gray-100',
-        };
+        $wrapperClass = $this->entityStyle('wrapper', $viewMode, $use);
 
-        return "<div class=\"{$wrapperClass} {$class}\">{$out}</div>";
+        if ($viewMode === 'table' && !$hasCustomSlot) {
+            $tableHeader = $this->renderTableHeader($fields, $actions, $use);
+            $out = "<div class=\"{$wrapperClass} {$class}\"><table class=\"w-full text-sm\">{$tableHeader}<tbody>{$out}</tbody></table></div>";
+        } else {
+            $out = "<div class=\"{$wrapperClass} {$class}\">{$out}</div>";
+        }
+
+        return $out;
     }
 
     /**
      * Compact row: one field per line, minimal chrome.
      */
-    private function renderCompactRow(array $row, array $fields, array $actions): string
+    private function renderCompactRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
     {
+        $rowClass = $this->entityStyle('row', 'compact', $use);
+        $titleClass = $this->entityStyle('title', 'compact', $use);
+        $subClass = $this->entityStyle('subtitle', 'compact', $use);
         $titleField = $fields[0] ?? 'id';
         $subField = $fields[1] ?? null;
         $title = htmlspecialchars((string)($row[$titleField] ?? $titleField), ENT_QUOTES, 'UTF-8');
         $sub = $subField ? htmlspecialchars((string)($row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
 
-        $actionHtml = $this->renderRowActions($row, $actions);
-
-        $subHtml = $sub !== '' ? "<p class=\"text-sm text-gray-500\">{$sub}</p>" : '';
+        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
 
         return <<<HTML
-        <div class="ikb-entity-row flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition">
+        <div class="{$rowClass}">
             <div class="min-w-0 flex-1">
-                <p class="text-sm font-semibold text-gray-900">{$title}</p>
+                <p class="{$titleClass}">{$title}</p>
                 {$subHtml}
             </div>
             {$actionHtml}
@@ -5035,8 +5240,12 @@ class TemplateEngine
     /**
      * Card grid row: image + title + subtitle in a card.
      */
-    private function renderCardGridRow(array $row, array $fields, array $actions): string
+    private function renderCardGridRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
     {
+        $cardClass = $this->entityStyle('card', 'card_grid', $use);
+        $titleClass = $this->entityStyle('title', 'card_grid', $use);
+        $subClass = $this->entityStyle('subtitle', 'card_grid', $use);
+
         $titleField = $fields[0] ?? 'name';
         $subField = $fields[1] ?? null;
         $imageField = in_array('image', $fields, true) ? 'image' : (in_array('thumbnail', $fields, true) ? 'thumbnail' : null);
@@ -5049,14 +5258,14 @@ class TemplateEngine
             $imageHtml = "<img src=\"{$imgSrc}\" alt=\"{$title}\" class=\"w-full h-40 object-cover rounded-t-lg\" loading=\"lazy\">";
         }
 
-        $actionHtml = $this->renderRowActions($row, $actions);
-        $subHtml = $sub !== '' ? "<p class=\"text-sm text-gray-500 mt-1\">{$sub}</p>" : '';
+        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
 
         return <<<HTML
-        <div class="ikb-entity-card bg-white rounded-lg shadow border border-gray-100 overflow-hidden hover:shadow-md transition">
+        <div class="{$cardClass}">
             {$imageHtml}
             <div class="p-4">
-                <h3 class="font-semibold text-gray-900">{$title}</h3>
+                <h3 class="{$titleClass}">{$title}</h3>
                 {$subHtml}
                 <div class="mt-3 flex gap-2">{$actionHtml}</div>
             </div>
@@ -5065,60 +5274,121 @@ class TemplateEngine
     }
 
     /**
+     * Render table header from field names.
+     */
+    private function renderTableHeader(array $fields, array $actions, string $use = 'tailwind'): string
+    {
+        $thClass = $this->entityStyle('th', 'table', $use);
+        $theadClass = $this->entityStyle('thead', 'table', $use);
+        $cells = '';
+        foreach ($fields as $field) {
+            if ($field === '*') { continue; }
+            $label = htmlspecialchars(ucfirst(str_replace('_', ' ', $field)), ENT_QUOTES, 'UTF-8');
+            $cells .= "<th class=\"{$thClass}\">{$label}</th>";
+        }
+        if (!empty($actions)) {
+            $cells .= "<th class=\"{$thClass} text-right\">Actions</th>";
+        }
+        return "<thead><tr class=\"{$theadClass}\">{$cells}</tr></thead>";
+    }
+
+    /**
      * Table row: one row in a striped table.
      */
-    private function renderTableRow(array $row, array $fields, array $actions): string
+    private function renderTableRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
     {
+        $tdClass = $this->entityStyle('td', 'table', $use);
+        $trClass = $this->entityStyle('tr', 'table', $use);
         $cells = '';
         foreach ($fields as $field) {
             if ($field === '*') { continue; }
             $value = htmlspecialchars((string)($row[$field] ?? ''), ENT_QUOTES, 'UTF-8');
-            $cells .= "<td class=\"px-4 py-2 text-sm text-gray-700\">{$value}</td>";
+            $cells .= "<td class=\"{$tdClass}\">{$value}</td>";
         }
 
-        $actionHtml = $this->renderRowActions($row, $actions);
-        $cells .= "<td class=\"px-4 py-2 text-right\">{$actionHtml}</td>";
+        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        if ($actionHtml !== '') {
+            $cells .= "<td class=\"{$tdClass} text-right whitespace-nowrap\">{$actionHtml}</td>";
+        }
 
-        return "<tr class=\"hover:bg-gray-50\">{$cells}</tr>";
+        return "<tr class=\"{$trClass}\">{$cells}</tr>";
     }
 
     /**
-     * Render action buttons for a row (view, edit, delete, etc.).
+     * Render action links for a row (view, edit, delete, etc.).
      */
-    private function renderRowActions(array $row, array $actions): string
+    private function renderRowActions(array $row, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
     {
         if (empty($actions)) {
             return '';
         }
 
         $id = $row['id'] ?? '';
+        $actionWrapperClass = $this->entityStyle('actionWrapper', 'actions', $use);
         $html = '';
 
         foreach ($actions as $action) {
             $action = trim($action);
             if ($action === '') { continue; }
 
-            $label = ucfirst($action);
-            $variant = match ($action) {
-                'view' => 'ghost', 'edit' => 'ghost', 'delete' => 'danger',
-                'add_to_cart', 'buy' => 'primary',
-                default => 'ghost',
-            };
+            // Check action_show_if condition — skip if row doesn't match
+            if (isset($actionShowIf[$action]) && $actionShowIf[$action] !== '') {
+                $condition = $actionShowIf[$action];
+                // Simple $row[field] == "value" parser
+                if (!self::evaluateRowCondition($row, $condition)) {
+                    continue;
+                }
+            }
 
-            $variantClass = match ($variant) {
-                'primary' => 'text-indigo-600 hover:bg-indigo-50',
-                'danger' => 'text-red-600 hover:bg-red-50',
-                default => 'text-gray-600 hover:bg-gray-100',
-            };
-
+            $label = $actionLabels[$action] ?? ucfirst($action);
+            $actionClass = $this->entityStyle('action', $action, $use);
             $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
             $safeId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
 
-            $html .= "<button type=\"button\" data-action=\"{$action}\" data-id=\"{$safeId}\" "
-                  . "class=\"ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md {$variantClass} transition\">{$safeLabel}</button>";
+            // Resolve href from action_urls or fallback
+            $href = isset($actionUrls[$action])
+                ? str_replace('{id}', $safeId, $actionUrls[$action])
+                : "?id={$safeId}&amp;action={$action}";
+
+            $method = $actionMethods[$action] ?? 'get';
+
+            if ($method === 'post') {
+                // Render as inline form for POST actions
+                $confirmMsg = $actionConfirm[$action] ?? '';
+                $onSubmit = $confirmMsg !== ''
+                    ? ' onsubmit="return confirm(' . htmlspecialchars(json_encode($confirmMsg), ENT_QUOTES, 'UTF-8') . ')"'
+                    : '';
+                $html .= "<form method=\"post\" action=\"{$href}\" class=\"inline\"{$onSubmit}>"
+                      . "<input type=\"hidden\" name=\"id\" value=\"{$safeId}\">"
+                      . "<button type=\"submit\" class=\"{$actionClass}\">{$safeLabel}</button>"
+                      . "</form>";
+            } else {
+                // Render as link for GET actions
+                $onClick = '';
+                if (isset($actionConfirm[$action]) && $actionConfirm[$action] !== '') {
+                    $onClick = ' onclick="return confirm(' . htmlspecialchars(json_encode($actionConfirm[$action]), ENT_QUOTES, 'UTF-8') . ')"';
+                }
+                $html .= "<a href=\"{$href}\" class=\"{$actionClass}\"{$onClick}>{$safeLabel}</a>";
+            }
         }
 
-        return $html;
+        return "<div class=\"{$actionWrapperClass}\">{$html}</div>";
+    }
+
+    /**
+     * Evaluate a simple row condition like status == "pending" or balance > 0.
+     */
+    private static function evaluateRowCondition(array $row, string $condition): bool
+    {
+        // Support: field == "value" or field != "value"
+        if (preg_match('/^(\w+)\s*(==|!=)\s*"([^"]*)"$/', trim($condition), $m)) {
+            $field = $m[1];
+            $op = $m[2];
+            $value = $m[3];
+            $rowValue = (string)($row[$field] ?? '');
+            return $op === '==' ? $rowValue === $value : $rowValue !== $value;
+        }
+        return true;
     }
 
     /**

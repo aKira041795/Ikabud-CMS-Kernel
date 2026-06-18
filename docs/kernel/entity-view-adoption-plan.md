@@ -1,6 +1,6 @@
 # Entity-View Adoption Plan — Closing the Gap
 
-> **Status:** Phases 1–2 complete — June 15, 2026. Phase 3 deferred (template migration).
+> **Status:** Phases 1–3 complete — June 18, 2026. Phase 3 deferred (template migration).
 > **Objective:** Extend entity-view contracts to all modules so themes can present module data through governed `{ikb_entity_list}` / `{ikb_entity_detail}` without depending on module internals.
 
 ## Final Adoption State
@@ -14,6 +14,7 @@
 | Guidance | ✅ Full | `entity.list/get.guidance_case@1`, `entity.list/get.guidance_appointment@1` | — | builtinDefaults |
 | Daily Ledger | ✅ Full | `entity.list/get.daily_ledger_entry@1` | — | builtinDefaults |
 | WMS | ✅ Full | `entity.list/get.wms_stock@1`, `entity.list/get.wms_location@1` | — | builtinDefaults |
+| Attendance & Wage | ✅ Full | `entity.list/get.attendance_record@1`, `entity.list/get.employee_profile@1`, `entity.list/get.payroll_period@1`, `entity.list/get.salary_computation@1`, `entity.list/get.salary_adjustment@1`, `entity.list/get.employee_deduction@1`, `entity.list/get.holiday@1`, `entity.list/get.cash_advance@1`, `entity.list/get.employee_schedule@1` | — | builtinDefaults |
 
 ## Plan
 
@@ -68,6 +69,29 @@ Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_det
 | `ecommerce.order` | `entity.list.ecommerce_order@1` | `ec_cap_entity_list_order_1` | `ec_orders` by created_at desc |
 | `ecommerce.order` | `entity.get.ecommerce_order@1` | `ec_cap_entity_get_order_1` | Single order with `ec_order_items` |
 
+### Attendance & Wage (Phase 3 — June 2026)
+
+| Entity | capability ID | Handler | Source |
+|--------|-------------|---------|--------|
+| `attendance_record` | `entity.list.attendance_record@1` | `aw_cap_entity_list_attendance_record_1` | `attendance_records` JOIN `attendance_wage_users`, `stores` |
+| `attendance_record` | `entity.get.attendance_record@1` | `aw_cap_entity_get_attendance_record_1` | Single record by attendance_id |
+| `employee_profile` | `entity.list.employee_profile@1` | `aw_cap_entity_list_employee_profile_1` | `employee_profiles` WHERE is_active=1 |
+| `employee_profile` | `entity.get.employee_profile@1` | `aw_cap_entity_get_employee_profile_1` | Single profile JOIN `attendance_wage_users` |
+| `payroll_period` | `entity.list.payroll_period@1` | `aw_cap_entity_list_payroll_period_1` | `payroll_periods` all |
+| `payroll_period` | `entity.get.payroll_period@1` | `aw_cap_entity_get_payroll_period_1` | Single period by period_id |
+| `salary_computation` | `entity.list.salary_computation@1` | `aw_cap_entity_list_salary_computation_1` | `salary_computations` JOIN `employee_profiles`, `payroll_periods` |
+| `salary_computation` | `entity.get.salary_computation@1` | `aw_cap_entity_get_salary_computation_1` | Single computation with employee + period names |
+| `salary_adjustment` | `entity.list.salary_adjustment@1` | `aw_cap_entity_list_salary_adjustment_1` | `salary_adjustments` JOIN `attendance_wage_users` |
+| `salary_adjustment` | `entity.get.salary_adjustment@1` | `aw_cap_entity_get_salary_adjustment_1` | Single adjustment by adjustment_id |
+| `employee_deduction` | `entity.list.employee_deduction@1` | `aw_cap_entity_list_employee_deduction_1` | UNION `employee_deductions` + `cash_advance_repayments` |
+| `employee_deduction` | `entity.get.employee_deduction@1` | `aw_cap_entity_get_employee_deduction_1` | Single deduction by deduction_id |
+| `holiday` | `entity.list.holiday@1` | `aw_cap_entity_list_holiday_1` | `holidays` WHERE is_active=1, current year + recurring |
+| `holiday` | `entity.get.holiday@1` | `aw_cap_entity_get_holiday_1` | Single holiday by holiday_id |
+| `cash_advance` | `entity.list.cash_advance@1` | `aw_cap_entity_list_cash_advance_1` | `cash_advances` LEFT JOIN `employee_profiles` |
+| `cash_advance` | `entity.get.cash_advance@1` | `aw_cap_entity_get_cash_advance_1` | Single advance with employee name |
+| `employee_schedule` | `entity.list.employee_schedule@1` | `aw_cap_entity_list_employee_schedule_1` | `employee_schedules` GROUP BY employee, DAY aggregation |
+| `employee_schedule` | `entity.get.employee_schedule@1` | `aw_cap_entity_get_employee_schedule_1` | Single schedule entry by schedule_id |
+
 ---
 
 ## EntityViewResolver builtinDefaults (Implemented)
@@ -83,6 +107,16 @@ All entries in `kernel/EntityContext/EntityViewResolver.php`:
 'wms_location'          => ['fields' => ['id','name','type','is_staging'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No locations.'],
 'ecommerce_product'     => ['fields' => ['id','name','price','image','stock_status'], 'actions' => ['view','add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
 'ecommerce_order'       => ['fields' => ['id','order_number','status','total','created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No orders yet.'],
+// Phase 3 — attendance-wage (June 2026)
+'attendance_record'     => ['fields' => ['id','employee_name','store_name','clock_in','clock_out','status'], 'actions' => ['view','edit'], 'limit' => 30, 'empty_state' => 'No attendance records found.'],
+'employee_profile'      => ['fields' => ['id','name','position','department','salary_type','employment_status'], 'actions' => ['edit'], 'limit' => 25, 'empty_state' => 'No employee profiles yet.'],
+'payroll_period'        => ['fields' => ['id','period_name','start_date','end_date','status','total_net_pay'], 'actions' => ['edit','process'], 'limit' => 12, 'empty_state' => 'No payroll periods yet.'],
+'salary_computation'    => ['fields' => ['id','employee_name','period_name','gross_pay','total_deductions','net_pay','status'], 'actions' => ['view','approve'], 'limit' => 25, 'empty_state' => 'No salary computations found.'],
+'salary_adjustment'     => ['fields' => ['id','employee_name','adjustment_type','amount','status','effective_date'], 'actions' => ['view','approve'], 'limit' => 20, 'empty_state' => 'No salary adjustments found.'],
+'employee_deduction'    => ['fields' => ['id','employee_name','amount','description','status','deduction_date','source'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No employee deductions found.'],
+'holiday'               => ['fields' => ['id','holiday_name','holiday_date','holiday_type','pay_multiplier'], 'actions' => ['edit','delete'], 'limit' => 30, 'empty_state' => 'No holidays configured.'],
+'cash_advance'          => ['fields' => ['id','employee_name','amount','balance','status','request_date','approved_at'], 'actions' => ['view','approve'], 'limit' => 20, 'empty_state' => 'No cash advance requests.'],
+'employee_schedule'     => ['fields' => ['id','employee_name','position','department','days_label','shift_type','dayoff_count','total_days'], 'actions' => ['edit'], 'limit' => 30, 'empty_state' => 'No employee schedules yet.'],
 ```
 
 ---
@@ -106,6 +140,12 @@ All entries in `kernel/EntityContext/EntityViewResolver.php`:
 {# Daily ledger entries — qualifier: sales / expense #}
 <ikb_entity_list source="daily_ledger_entry.sales" view="table" />
 
+{# Attendance & Wage — employee roster, payroll periods, holidays #}
+<ikb_entity_list source="employee_profile.active" view="table" />
+<ikb_entity_list source="payroll_period.draft" view="compact" />
+<ikb_entity_list source="holiday.upcoming" view="card_grid" />
+<ikb_entity_list source="employee_schedule.all" view="compact" />
+
 {# Single entity detail #}
 <ikb_entity_detail source="guidance_appointment" id="42" view="detail" />
 ```
@@ -126,8 +166,15 @@ Zero handler code. Zero module-internal knowledge. The theme declares intent. Th
 | `modules/wms/helpers/10-core.php` | 4 entity capability handler functions |
 | `modules/ecommerce/helpers/00-init.php` | 4 entity capabilities + handler functions + `ec_capability_handlers_entity()` map |
 | `docs/kernel/entity-view-adoption-plan.md` | This plan |
+| `modules/attendance-wage/module.json` | 18 entity capabilities exposed (Phase 3 — June 2026) |
+| `modules/attendance-wage/helpers.php` | 18 entity capability handler functions + map |
+| `modules/attendance-wage/handlers/110-api-schedules.php` | 2 API handlers: list + get schedules |
+| `modules/attendance-wage/routes.php` | 2 GET routes: `/api/v1/wage/schedules`, `/api/v1/wage/schedules/\{id\}` |
+| `kernel/DiSyL/v4/Parser.php` | `{else if}` (space-separated) syntax support in v4 compiler |
+| `templates/modules/attendance-wage/wage/schedules/index.disyl` | Fixed duplicate/broken `<script>` block |
+| `templates/modules/attendance-wage/wage/periods/index.disyl` | Fixed corrupted Unicode character |
 
-**8 files, +438 lines, 16 new capability handlers, 8 new entity types.**
+**14 files, +210 lines, 20 new capability handlers, 10 new entity types.**
 
 ---
 
@@ -155,5 +202,6 @@ Individual module templates still use module-specific render paths. Migration pa
 | Daily Ledger | `dlRender('pages/entries.disyl')` | `{ikb_entity_list source="daily_ledger_entry"}` in CMS theme |
 | WMS | `wmsRender('pages/stock.disyl')` | `{ikb_entity_list source="wms_stock"}` in CMS theme |
 | Ecommerce | Mix of direct handlers + context injection | `{ikb_entity_list source="ecommerce_product.featured"}` in storefront |
+| Attendance & Wage | `aw_render('wage/dashboard.disyl')` | `{ikb_entity_list source="employee_schedule.all"}` in CMS theme |
 
 **Template migration is zero-risk for the capability layer.** The capabilities exist and are tested. Templates can adopt them incrementally without breaking existing render paths.

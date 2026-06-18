@@ -1,10 +1,217 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
-
 {block main}
 <div class="px-6 py-8">
-    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">📋 Schedules</h1>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <p class="text-gray-500">Employee schedules will appear here.</p>
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🌋 Schedules</h1>
+        <button onclick="toggleScheduleForm()" class="inline-flex items-center px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">+ Add Schedule</button>
+    </div>
+    {if success}
+    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
+        <span class="text-lg">✅</span> {success}
+    </div>
+    {/if}
+    {if error}
+    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
+        <span class="text-lg">✌</span> {error}
+    </div>
+    {/if}
+    <div id="scheduleForm" class="hidden mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+        <form method="post" action="/api/v1/wage/schedules" class="space-y-5">
+            <input type="hidden" name="bulk" value="1" />
+            <input type="hidden" name="replace" value="1" />
+            <div id="editLabel" class="hidden text-sm font-semibold text-brand-700 mb-1"></div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Employee</label>
+                    <select name="employee_id" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="">Select employee…</option>
+                        {for e in employees}
+                        <option value="{e.profile_id}">{e.full_name|default:'—'}</option>
+                        {/for}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Shift Type</label>
+                    <select name="shift_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                        <option value="day">Day</option>
+                        <option value="night">Night</option>
+                        <option value="rotating">Rotating</option>
+                    </select>
+                </div>
+            </div>
+            <div class="overflow-hidden rounded-lg border border-gray-200">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="py-2.5 px-4 text-left font-semibold text-gray-600 w-20">Day</th>
+                            <th class="py-2.5 px-4 text-left font-semibold text-gray-600">Start Time</th>
+                            <th class="py-2.5 px-4 text-left font-semibold text-gray-600">End Time</th>
+                            <th class="py-2.5 px-4 text-center font-semibold text-gray-600 w-24">Day Off</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Mon</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[monday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[monday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[monday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Tue</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[tuesday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[tuesday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[tuesday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Wed</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[wednesday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[wednesday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[wednesday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Thu</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[thursday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[thursday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[thursday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Fri</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[friday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[friday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[friday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Sat</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[saturday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[saturday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[saturday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                        <tr class="border-b border-gray-100 last:border-b-0 hover:bg-gray-50/50">
+                            <td class="py-2.5 px-4 font-medium text-gray-700">Sun</td>
+                            <td class="py-2.5 px-4"><input type="time" name="start[sunday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4"><input type="time" name="end[sunday]" class="w-full max-w-[140px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" /></td>
+                            <td class="py-2.5 px-4 text-center"><input type="checkbox" name="dayoff[sunday]" value="1" class="rounded w-4 h-4 text-brand-600 focus:ring-brand-500" /></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" onclick="closeScheduleForm()" class="inline-flex items-center px-4 py-2.5 border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Save Schedule</button>
+            </div>
+        </form>
+    </div>
+    <div id="employeeTable" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {if employees|count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="py-3 px-5 text-left font-semibold text-gray-600">Employee</th>
+                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for e in employees}
+                    <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                        <td class="py-3 px-5">
+                            <p class="font-medium text-gray-900">{e.full_name|default:'—'}</p>
+                            {if e.position || e.department}
+                            <p class="text-xs text-gray-400">{e.position|default:''}{if e.position && e.department} &middot; {/if}{e.department|default:''}</p>
+                            {/if}
+                            {if e.employee_number}
+                            <span class="inline-flex mt-1 px-1.5 py-0.5 rounded text-xs font-mono bg-gray-100 text-gray-500">#{e.employee_number}</span>
+                            {/if}
+                        </td>
+                        <td class="py-3 px-5 text-right">
+                            <button data-profile="{e.profile_id}" data-name="{e.full_name|default:''}" data-shift="day" onclick="editEmployeeSchedule(this)" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100">Schedule</button>
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="py-16 text-center">
+            <p class="text-4xl mb-3">👥</p>
+            <p class="text-gray-500 font-medium">No active employees found.</p>
+            <p class="text-sm text-gray-400 mt-1">Add employees first before configuring their schedules.</p>
+        </div>
+        {/if}
     </div>
 </div>
+<script>
+ function showScheduleForm() {
+     var form = document.getElementById('scheduleForm');
+     var table = document.getElementById('employeeTable');
+     form.classList.remove('hidden');
+     if (table) table.classList.add('hidden');
+ }
+ function closeScheduleForm() {
+     var form = document.getElementById('scheduleForm');
+     var table = document.getElementById('employeeTable');
+     form.classList.add('hidden');
+     if (table) table.classList.remove('hidden');
+ }
+ function toggleScheduleForm() {
+     var form = document.getElementById('scheduleForm');
+     if (form.classList.contains('hidden')) {
+         showScheduleForm();
+     } else {
+         closeScheduleForm();
+     }
+ }
+ function editEmployeeSchedule(btn) {
+     var profileId = btn.getAttribute('data-profile');
+     var name = btn.getAttribute('data-name');
+     var shiftType = btn.getAttribute('data-shift') || 'day';
+     showScheduleForm();
+     var form = document.getElementById('scheduleForm');
+     form.scrollIntoView({behavior: 'smooth'});
+     var empSelect = form.querySelector('select[name="employee_id"]');
+     if (empSelect) empSelect.value = profileId;
+     var shiftSelect = form.querySelector('select[name="shift_type"]');
+     if (shiftSelect && shiftType) shiftSelect.value = shiftType;
+     // Reset all per-day fields
+     var days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+     days.forEach(function(d) {
+         var si = form.querySelector('input[name="start[' + d + ']"]');
+         if (si) si.value = '';
+         var ei = form.querySelector('input[name="end[' + d + ']"]');
+         if (ei) ei.value = '';
+         var cb = form.querySelector('input[name="dayoff[' + d + ']"]');
+         if (cb) cb.checked = false;
+     });
+     var label = document.getElementById('editLabel');
+     label.textContent = '✏️ Editing: ' + name;
+     label.classList.remove('hidden');
+     // Fetch per-day schedule data
+     fetch('/api/v1/wage/schedules/employee/' + profileId)
+         .then(function(r) { return r.json(); })
+         .then(function(data) {
+             if (data.ok && data.rows) {
+                 data.rows.forEach(function(row) {
+                     var d = row.day_of_week;
+                     if (row.start_time) {
+                         var si = form.querySelector('input[name="start[' + d + ']"]');
+                         if (si) si.value = row.start_time.substring(0,5);
+                     }
+                     if (row.end_time) {
+                         var ei = form.querySelector('input[name="end[' + d + ']"]');
+                         if (ei) ei.value = row.end_time.substring(0,5);
+                     }
+                     if (parseInt(row.is_dayoff) === 1) {
+                         var cb = form.querySelector('input[name="dayoff[' + d + ']"]');
+                         if (cb) cb.checked = true;
+                     }
+                 });
+                 // Set shift_type from first row if available
+                 if (data.rows.length > 0 && data.rows[0].shift_type) {
+                     var shiftSelect = form.querySelector('select[name="shift_type"]');
+                     if (shiftSelect) shiftSelect.value = data.rows[0].shift_type;
+                 }
+             }
+         });
+ }
+ </script>
 {/block}

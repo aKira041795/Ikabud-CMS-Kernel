@@ -76,6 +76,150 @@
                     "first"
                 ],
                 "description": "Full administrative access: settings, benefits rates, holidays, all data"
+            },
+            {
+                "id": "entity.list.attendance_record@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List attendance records"
+            },
+            {
+                "id": "entity.list.employee_profile@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List employee profiles"
+            },
+            {
+                "id": "entity.list.payroll_period@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List payroll periods"
+            },
+            {
+                "id": "entity.list.salary_computation@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List salary computations"
+            },
+            {
+                "id": "entity.list.salary_adjustment@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List salary adjustments"
+            },
+            {
+                "id": "entity.list.employee_deduction@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List employee deductions"
+            },
+            {
+                "id": "entity.list.holiday@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List holidays"
+            },
+            {
+                "id": "entity.list.cash_advance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List cash advances"
+            },
+            {
+                "id": "entity.get.attendance_record@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single attendance record"
+            },
+            {
+                "id": "entity.get.employee_profile@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single employee profile"
+            },
+            {
+                "id": "entity.get.payroll_period@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single payroll period"
+            },
+            {
+                "id": "entity.get.salary_computation@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single salary computation"
+            },
+            {
+                "id": "entity.get.salary_adjustment@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single salary adjustment"
+            },
+            {
+                "id": "entity.get.employee_deduction@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single employee deduction"
+            },
+            {
+                "id": "entity.get.holiday@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single holiday"
+            },
+            {
+                "id": "entity.get.cash_advance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single cash advance"
+            },
+            {
+                "id": "entity.list.employee_schedule@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List employee schedules"
+            },
+            {
+                "id": "entity.get.employee_schedule@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single employee schedule"
             }
         ],
         "depends": []
@@ -114,7 +258,10 @@
         "database/migrations/012_create_payroll_settings.sql",
         "database/migrations/013_create_attendance_wage_users.sql",
         "database/migrations/014_bootstrap_attendance_wage_admin.sql",
-        "database/migrations/015_create_attendance_wage_password_resets.sql"
+        "database/migrations/015_create_attendance_wage_password_resets.sql",
+        "database/migrations/016_add_employee_name_columns.sql",
+        "database/migrations/017_fix_salary_computations_user_id.sql",
+        "database/migrations/018_add_cash_advances_profile_id.sql"
     ],
     "nav": [
         {

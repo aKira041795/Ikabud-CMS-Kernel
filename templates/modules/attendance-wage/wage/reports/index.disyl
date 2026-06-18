@@ -3,7 +3,7 @@
 <div class="px-6 py-8">
     <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">📄 Payroll Reports</h1>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        {ikb_entity_list source="payroll_period.completed" view="table" limit="12" empty="No completed payroll periods yet." /}
+        {ikb_entity_list source="payroll_period.completed" view="table" use="tailwind" limit="12" empty="No completed payroll periods yet." /}
     </div>
 </div>
 {/block}

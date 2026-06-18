@@ -1,0 +1,101 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+{set is_locked = status != 'pending'}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🔧 {if id}{if is_locked}View{else}Edit{/if}{else}New{/if} Adjustment</h1>
+        <a href="/admin/wage/adjustments" class="inline-flex items-center px-4 py-2.5 text-sm font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">← Back to Adjustments</a>
+    </div>
+    {if success}
+    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700">{success}</div>
+    {/if}
+    {if error}
+    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700">{error}</div>
+    {/if}
+    {if id && status}
+    <div class="mb-6 px-5 py-4 bg-gray-50 border border-gray-200 rounded-xl text-sm">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Status Timeline</p>
+        <div class="flex items-center gap-2 text-xs flex-wrap">
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium {if status=='pending'}bg-amber-100 text-amber-700{else}bg-green-100 text-green-700{/if}">Created</span>
+            <span class="text-gray-300">→</span>
+            {if approval_date}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-green-100 text-green-700">Approved {approval_date}</span>
+            {else}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-400">Awaiting Approval</span>
+            {/if}
+            <span class="text-gray-300">→</span>
+            {if applied_date}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-700">Applied {applied_date}</span>
+            {else}
+            <span class="inline-flex items-center px-2.5 py-1 rounded-full font-medium bg-gray-100 text-gray-400">Awaiting Payroll</span>
+            {/if}
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Adjustments take effect when the next payroll computation runs for the assigned period.</p>
+    </div>
+    {/if}
+    {if is_locked}
+    <div class="mb-6 px-5 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-center gap-2">
+        <span>🔒</span> This adjustment has been <strong>{status}</strong> and is no longer editable.
+    </div>
+    {/if}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <form method="post" action="/api/v1/wage/adjustments{if id}/{id}{/if}" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="user_id" class="block text-sm font-semibold text-gray-700 mb-1.5">Employee</label>
+                    <select id="user_id" name="user_id" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" {if is_locked}disabled{/if}>
+                        <option value="">Select employee…</option>
+                        {for emp in employees}
+                        <option value="{emp.user_id}" {if user_id == emp.user_id}selected{/if}>{emp.full_name|default:'—'}{if emp.position} — {emp.position}{/if}</option>
+                        {/for}
+                    </select>
+                </div>
+                <div>
+                    <label for="adjustment_type" class="block text-sm font-semibold text-gray-700 mb-1.5">Adjustment Type</label>
+                    <select id="adjustment_type" name="adjustment_type" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" {if is_locked}disabled{/if}>
+                        <option value="bonus" {if adjustment_type=='bonus'}selected{/if}>Bonus</option>
+                        <option value="allowance" {if adjustment_type=='allowance'}selected{/if}>Allowance</option>
+                        <option value="penalty" {if adjustment_type=='penalty'}selected{/if}>Penalty</option>
+                        <option value="deduction" {if adjustment_type=='deduction'}selected{/if}>Deduction</option>
+                        <option value="correction" {if adjustment_type=='correction'}selected{/if}>Correction</option>
+                        <option value="thirteenth_month" {if adjustment_type=='thirteenth_month'}selected{/if}>13th Month Pay</option>
+                        <option value="holiday_bonus" {if adjustment_type=='holiday_bonus'}selected{/if}>Holiday Bonus</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="category" class="block text-sm font-semibold text-gray-700 mb-1.5">Category</label>
+                    <select id="category" name="category" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" {if is_locked}disabled{/if}>
+                        <option value="taxable" {if category=='taxable' || !category}selected{/if}>Taxable</option>
+                        <option value="non_taxable" {if category=='non_taxable'}selected{/if}>Non-Taxable</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="effective_date" class="block text-sm font-semibold text-gray-700 mb-1.5">Effective Date</label>
+                    <input type="date" id="effective_date" name="effective_date" value="{effective_date|default:''}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" {if is_locked}disabled{/if}>
+                </div>
+                <div>
+                    <label for="amount" class="block text-sm font-semibold text-gray-700 mb-1.5">Amount (₱)</label>
+                    <input type="number" step="0.01" id="amount" name="amount" value="{amount|default:'0.00'}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="0.00" {if is_locked}disabled{/if}>
+                </div>
+            </div>
+            {if current_period}
+            <input type="hidden" name="payroll_period_id" value="{payroll_period_id|default:''}">
+            <div class="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+                <span class="text-blue-600 font-semibold">📅</span>
+                <span class="text-blue-800">This adjustment applies to <strong>{current_period_name|default:'—'}</strong>{if current_period_pay_date} &middot; Pay date: {current_period_pay_date}{/if}</span>
+            </div>
+            {/if}
+            <div>
+                <label for="description" class="block text-sm font-semibold text-gray-700 mb-1.5">Description</label>
+                <textarea id="description" name="description" rows="3" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="Reason for this adjustment..." {if is_locked}disabled{/if}>{description|default:''}</textarea>
+            </div>
+            <div class="flex items-center gap-3 pt-4 border-t border-gray-100">
+                {if !is_locked}
+                <button type="submit" class="inline-flex items-center px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">{if id}Update{else}Save{/if} Adjustment</button>
+                {/if}
+                <a href="/admin/wage/adjustments" class="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors">← Back</a>
+            </div>
+        </form>
+    </div>
+</div>
+{/block}

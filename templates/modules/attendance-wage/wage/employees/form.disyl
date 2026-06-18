@@ -1,143 +1,181 @@
-{* Employee Profile Form *}
-{extends "layouts/admin.disyl"}
-
+{extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
-<div class="admin-shell">
-  <h1>{if id}Edit Employee{else}New Employee{/if}</h1>
-
-  <form method="post" action="/api/v1/wage/employees{if id}/{id}{/if}" class="ikb-form">
-    {csrf_field /}
-
-    <fieldset class="ikb-fieldset">
-      <legend>Basic Information</legend>
-      <div class="ikb-grid ikb-grid-2col">
-        <div class="ikb-field">
-          <label for="user_id">User</label>
-          <select name="user_id" id="user_id" required>
-            <option value="">Select user...</option>
-          </select>
-        </div>
-        <div class="ikb-field">
-          <label for="employee_number">Employee Number</label>
-          <input type="text" name="employee_number" id="employee_number" value="{employee_number|default:''}" maxlength="20" />
-        </div>
-        <div class="ikb-field">
-          <label for="position">Position</label>
-          <input type="text" name="position" id="position" value="{position|default:''}" required />
-        </div>
-        <div class="ikb-field">
-          <label for="department">Department</label>
-          <input type="text" name="department" id="department" value="{department|default:''}" />
-        </div>
-        <div class="ikb-field">
-          <label for="hire_date">Hire Date</label>
-          <input type="date" name="hire_date" id="hire_date" value="{hire_date|default:''}" required />
-        </div>
-        <div class="ikb-field">
-          <label for="employment_status">Status</label>
-          <select name="employment_status" id="employment_status" required>
-            <option value="probationary"{if employment_status=='probationary'} selected{/if}>Probationary</option>
-            <option value="regular"{if employment_status=='regular'} selected{/if}>Regular</option>
-            <option value="contractual"{if employment_status=='contractual'} selected{/if}>Contractual</option>
-            <option value="part_time"{if employment_status=='part_time'} selected{/if}>Part-Time</option>
-          </select>
-        </div>
-      </div>
-    </fieldset>
-
-    <fieldset class="ikb-fieldset">
-      <legend>💰 Salary Settings</legend>
-      <div class="ikb-grid ikb-grid-3col">
-        <div class="ikb-field">
-          <label for="salary_type">Salary Type</label>
-          <select name="salary_type" id="salary_type" required>
-            <option value="hourly"{if salary_type=='hourly'} selected{/if}>Hourly</option>
-            <option value="daily"{if salary_type=='daily'} selected{/if}>Daily</option>
-            <option value="monthly"{if salary_type=='monthly'} selected{/if}>Monthly</option>
-            <option value="fixed"{if salary_type=='fixed'} selected{/if}>Fixed</option>
-          </select>
-        </div>
-        <div class="ikb-field">
-          <label for="basic_salary">Basic Salary (₱)</label>
-          <input type="number" step="0.01" name="basic_salary" id="basic_salary" value="{basic_salary|default:'0.00'}" required />
-        </div>
-        <div class="ikb-field">
-          <label for="hourly_rate">Hourly Rate (₱)</label>
-          <input type="number" step="0.01" name="hourly_rate" id="hourly_rate" value="{hourly_rate|default:'0.00'}" />
-        </div>
-      </div>
-    </fieldset>
-
-    <fieldset class="ikb-fieldset">
-      <legend>⏰ Overtime Policy</legend>
-      <div class="ikb-grid ikb-grid-4col">
-        <div class="ikb-field ikb-field-check">
-          <label><input type="checkbox" name="overtime_allowed" value="1"{if overtime_allowed|default:1} checked{/if} /> Overtime Allowed</label>
-        </div>
-        <div class="ikb-field">
-          <label for="overtime_rate">OT Rate (×)</label>
-          <input type="number" step="0.01" name="overtime_rate" id="overtime_rate" value="{overtime_rate|default:'1.25'}" />
-        </div>
-        <div class="ikb-field">
-          <label for="max_daily_hours">Max Daily Hours</label>
-          <input type="number" step="0.01" name="max_daily_hours" id="max_daily_hours" value="{max_daily_hours|default:'8.00'}" />
-        </div>
-        <div class="ikb-field">
-          <label for="max_weekly_hours">Max Weekly Hours</label>
-          <input type="number" step="0.01" name="max_weekly_hours" id="max_weekly_hours" value="{max_weekly_hours|default:'40.00'}" />
-        </div>
-      </div>
-    </fieldset>
-
-    <fieldset class="ikb-fieldset">
-      <legend>🔘 Premium Toggles</legend>
-      <div class="ikb-grid ikb-grid-4col">
-        <div class="ikb-field ikb-field-check"><label><input type="checkbox" name="holiday_pay_enabled" value="1"{if holiday_pay_enabled|default:1} checked{/if} /> Holiday Pay</label></div>
-        <div class="ikb-field ikb-field-check"><label><input type="checkbox" name="rest_day_pay_enabled" value="1"{if rest_day_pay_enabled|default:1} checked{/if} /> Rest Day Premium</label></div>
-        <div class="ikb-field ikb-field-check"><label><input type="checkbox" name="night_diff_enabled" value="1"{if night_diff_enabled|default:1} checked{/if} /> Night Differential</label></div>
-        <div class="ikb-field ikb-field-check"><label><input type="checkbox" name="cash_advance_allowed" value="1"{if cash_advance_allowed|default:1} checked{/if} /> Cash Advances</label></div>
-      </div>
-    </fieldset>
-
-    <fieldset class="ikb-fieldset">
-      <legend>📋 Government IDs & Benefits</legend>
-      <div class="ikb-grid ikb-grid-3col">
-        <div class="ikb-field">
-          <label for="sss_number">SSS Number</label>
-          <input type="text" name="sss_number" id="sss_number" value="{sss_number|default:''}" maxlength="20" />
-          <label><input type="checkbox" name="sss_applicable" value="1"{if sss_applicable|default:1} checked{/if} /> Applicable</label>
-        </div>
-        <div class="ikb-field">
-          <label for="philhealth_number">PhilHealth Number</label>
-          <input type="text" name="philhealth_number" id="philhealth_number" value="{philhealth_number|default:''}" maxlength="20" />
-          <label><input type="checkbox" name="philhealth_applicable" value="1"{if philhealth_applicable|default:1} checked{/if} /> Applicable</label>
-        </div>
-        <div class="ikb-field">
-          <label for="pagibig_number">Pag-IBIG Number</label>
-          <input type="text" name="pagibig_number" id="pagibig_number" value="{pagibig_number|default:''}" maxlength="20" />
-          <label><input type="checkbox" name="pagibig_applicable" value="1"{if pagibig_applicable|default:1} checked{/if} /> Applicable</label>
-        </div>
-      </div>
-      <div class="ikb-grid ikb-grid-2col">
-        <div class="ikb-field">
-          <label for="tin_number">TIN Number</label>
-          <input type="text" name="tin_number" id="tin_number" value="{tin_number|default:''}" maxlength="20" />
-        </div>
-        <div class="ikb-field">
-          <label for="tax_exemption_status">Tax Status</label>
-          <select name="tax_exemption_status" id="tax_exemption_status">
-            <option value="single"{if tax_exemption_status=='single'} selected{/if}>Single</option>
-            <option value="married"{if tax_exemption_status=='married'} selected{/if}>Married</option>
-            <option value="head_of_family"{if tax_exemption_status=='head_of_family'} selected{/if}>Head of Family</option>
-          </select>
-        </div>
-      </div>
-    </fieldset>
-
-    <div class="ikb-form-actions">
-      <button type="submit" class="ikb-btn ikb-btn-primary">Save Employee</button>
-      <a href="/admin/wage/employees" class="ikb-btn ikb-btn-ghost">Cancel</a>
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">{if id}✏️ Edit Employee{else}👤 New Employee{/if}</h1>
+        <a href="/admin/wage/employees" class="inline-flex items-center px-4 py-2.5 text-sm font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">← Back to Employees</a>
     </div>
-  </form>
+    <form method="post" action="/api/v1/wage/employees{if id}/{id}{/if}" class="space-y-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">📋 Basic Information</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                    <label for="last_name" class="block text-sm font-semibold text-gray-700 mb-1.5">Last Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="last_name" id="last_name" value="{last_name|default:''}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. Dela Cruz">
+                </div>
+                <div>
+                    <label for="first_name" class="block text-sm font-semibold text-gray-700 mb-1.5">First Name <span class="text-red-500">*</span></label>
+                    <input type="text" name="first_name" id="first_name" value="{first_name|default:''}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. Juan">
+                </div>
+                <div>
+                    <label for="middle_name" class="block text-sm font-semibold text-gray-700 mb-1.5">Middle Name</label>
+                    <input type="text" name="middle_name" id="middle_name" value="{middle_name|default:''}" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. Santos">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-5 mt-5">
+                <div>
+                    <label for="suffix" class="block text-sm font-semibold text-gray-700 mb-1.5">Suffix</label>
+                    <select name="suffix" id="suffix" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                        <option value="">None</option>
+                        <option value="Jr."{if suffix=='Jr.'} selected{/if}>Jr.</option>
+                        <option value="Sr."{if suffix=='Sr.'} selected{/if}>Sr.</option>
+                        <option value="II"{if suffix=='II'} selected{/if}>II</option>
+                        <option value="III"{if suffix=='III'} selected{/if}>III</option>
+                        <option value="IV"{if suffix=='IV'} selected{/if}>IV</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="employee_number" class="block text-sm font-semibold text-gray-700 mb-1.5">Employee Number</label>
+                    <input type="text" name="employee_number" id="employee_number" value="{employee_number|default:''}" maxlength="20" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. EMP-001">
+                </div>
+                <div>
+                    <label for="hire_date" class="block text-sm font-semibold text-gray-700 mb-1.5">Hire Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="hire_date" id="hire_date" value="{hire_date|default:''}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+                <div>
+                    <label for="employment_status" class="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+                    <select name="employment_status" id="employment_status" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                        <option value="probationary"{if employment_status=='probationary'} selected{/if}>Probationary</option>
+                        <option value="regular"{if employment_status=='regular'} selected{/if}>Regular</option>
+                        <option value="contractual"{if employment_status=='contractual'} selected{/if}>Contractual</option>
+                        <option value="part_time"{if employment_status=='part_time'} selected{/if}>Part-Time</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                <div>
+                    <label for="position" class="block text-sm font-semibold text-gray-700 mb-1.5">Position <span class="text-red-500">*</span></label>
+                    <input type="text" name="position" id="position" value="{position|default:''}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. Baker">
+                </div>
+                <div>
+                    <label for="department" class="block text-sm font-semibold text-gray-700 mb-1.5">Department</label>
+                    <input type="text" name="department" id="department" value="{department|default:''}" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="e.g. Production">
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">💰 Salary Settings</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div>
+                    <label for="salary_type" class="block text-sm font-semibold text-gray-700 mb-1.5">Salary Type</label>
+                    <select name="salary_type" id="salary_type" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                        <option value="hourly"{if salary_type=='hourly'} selected{/if}>Hourly</option>
+                        <option value="daily"{if salary_type=='daily'} selected{/if}>Daily</option>
+                        <option value="monthly"{if salary_type=='monthly'} selected{/if}>Monthly</option>
+                        <option value="fixed"{if salary_type=='fixed'} selected{/if}>Fixed</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="basic_salary" class="block text-sm font-semibold text-gray-700 mb-1.5">Basic Salary (₱)</label>
+                    <input type="number" step="0.01" name="basic_salary" id="basic_salary" value="{basic_salary|default:'0.00'}" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="0.00">
+                </div>
+                <div>
+                    <label for="hourly_rate" class="block text-sm font-semibold text-gray-700 mb-1.5">Hourly Rate (₱)</label>
+                    <input type="number" step="0.01" name="hourly_rate" id="hourly_rate" value="{hourly_rate|default:'0.00'}" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="0.00">
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">⏰ Overtime Policy</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+                <div class="flex items-center h-full pt-6">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="overtime_allowed" value="1"{if overtime_allowed|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        <span class="text-sm font-semibold text-gray-700">Overtime Allowed</span>
+                    </label>
+                </div>
+                <div>
+                    <label for="overtime_rate" class="block text-sm font-semibold text-gray-700 mb-1.5">OT Rate (×)</label>
+                    <input type="number" step="0.01" name="overtime_rate" id="overtime_rate" value="{overtime_rate|default:'1.25'}" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="1.25">
+                </div>
+                <div>
+                    <label for="max_daily_hours" class="block text-sm font-semibold text-gray-700 mb-1.5">Max Daily Hours</label>
+                    <input type="number" step="0.01" name="max_daily_hours" id="max_daily_hours" value="{max_daily_hours|default:'8.00'}" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="8.00">
+                </div>
+                <div>
+                    <label for="max_weekly_hours" class="block text-sm font-semibold text-gray-700 mb-1.5">Max Weekly Hours</label>
+                    <input type="number" step="0.01" name="max_weekly_hours" id="max_weekly_hours" value="{max_weekly_hours|default:'40.00'}" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="40.00">
+                </div>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">🔘 Premium Toggles</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <label class="inline-flex items-center gap-2.5 cursor-pointer bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 hover:border-brand-300 transition-colors">
+                    <input type="checkbox" name="holiday_pay_enabled" value="1"{if holiday_pay_enabled|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-sm font-medium text-gray-700">Holiday Pay</span>
+                </label>
+                <label class="inline-flex items-center gap-2.5 cursor-pointer bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 hover:border-brand-300 transition-colors">
+                    <input type="checkbox" name="rest_day_pay_enabled" value="1"{if rest_day_pay_enabled|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-sm font-medium text-gray-700">Rest Day Premium</span>
+                </label>
+                <label class="inline-flex items-center gap-2.5 cursor-pointer bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 hover:border-brand-300 transition-colors">
+                    <input type="checkbox" name="night_diff_enabled" value="1"{if night_diff_enabled|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-sm font-medium text-gray-700">Night Differential</span>
+                </label>
+                <label class="inline-flex items-center gap-2.5 cursor-pointer bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 hover:border-brand-300 transition-colors">
+                    <input type="checkbox" name="cash_advance_allowed" value="1"{if cash_advance_allowed|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-sm font-medium text-gray-700">Cash Advances</span>
+                </label>
+            </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">🏛️ Government IDs &amp; Benefits</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <label for="sss_number" class="block text-sm font-semibold text-gray-700 mb-1.5">SSS Number</label>
+                    <input type="text" name="sss_number" id="sss_number" value="{sss_number|default:''}" maxlength="20" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white mb-3" placeholder="00-0000000-0">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="sss_applicable" value="1"{if sss_applicable|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        <span class="text-xs font-medium text-gray-600">Applicable</span>
+                    </label>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <label for="philhealth_number" class="block text-sm font-semibold text-gray-700 mb-1.5">PhilHealth Number</label>
+                    <input type="text" name="philhealth_number" id="philhealth_number" value="{philhealth_number|default:''}" maxlength="20" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white mb-3" placeholder="00-000000000-0">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="philhealth_applicable" value="1"{if philhealth_applicable|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        <span class="text-xs font-medium text-gray-600">Applicable</span>
+                    </label>
+                </div>
+                <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <label for="pagibig_number" class="block text-sm font-semibold text-gray-700 mb-1.5">Pag-IBIG Number</label>
+                    <input type="text" name="pagibig_number" id="pagibig_number" value="{pagibig_number|default:''}" maxlength="20" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white mb-3" placeholder="0000-0000-0000">
+                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="pagibig_applicable" value="1"{if pagibig_applicable|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                        <span class="text-xs font-medium text-gray-600">Applicable</span>
+                    </label>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-3 border-t border-gray-100">
+                <div>
+                    <label for="tin_number" class="block text-sm font-semibold text-gray-700 mb-1.5">TIN Number</label>
+                    <input type="text" name="tin_number" id="tin_number" value="{tin_number|default:''}" maxlength="20" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500" placeholder="000-000-000-000">
+                </div>
+                <div>
+                    <label for="tax_exemption_status" class="block text-sm font-semibold text-gray-700 mb-1.5">Tax Status</label>
+                    <select name="tax_exemption_status" id="tax_exemption_status" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                        <option value="single"{if tax_exemption_status=='single'} selected{/if}>Single</option>
+                        <option value="married"{if tax_exemption_status=='married'} selected{/if}>Married</option>
+                        <option value="head_of_family"{if tax_exemption_status=='head_of_family'} selected{/if}>Head of Family</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+            <button type="submit" class="inline-flex items-center px-5 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Save Employee</button>
+            <a href="/admin/wage/employees" class="px-5 py-3 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors">Cancel</a>
+        </div>
+    </form>
 </div>
 {/block}

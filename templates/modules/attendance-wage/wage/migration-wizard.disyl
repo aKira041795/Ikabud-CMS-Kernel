@@ -1,0 +1,73 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+<div class="px-6 py-8">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🔄 Migration Wizard</h1>
+        <a href="/admin/wage" class="inline-flex items-center px-4 py-2.5 text-sm font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">← Dashboard</a>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-2">Bulk Import from BakeshopApp</h2>
+        <p class="text-sm text-gray-500 mb-6">Migrate employees, attendance records, and payroll data from the legacy CodeIgniter system.</p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">1</span>
+                    <span class="font-semibold text-gray-800">Employees</span>
+                </div>
+                <p class="text-xs text-gray-400">Import user accounts &amp; profiles</p>
+            </div>
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">2</span>
+                    <span class="font-semibold text-gray-800">Attendance</span>
+                </div>
+                <p class="text-xs text-gray-400">Import clock-in/out records</p>
+            </div>
+            <div class="border border-gray-200 rounded-lg p-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-bold">3</span>
+                    <span class="font-semibold text-gray-800">Payroll</span>
+                </div>
+                <p class="text-xs text-gray-400">Import historical payroll data</p>
+            </div>
+        </div>
+        <div x-data="migrationWizard()">
+            <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center mb-4">
+                <p class="text-gray-500 mb-3">Drop a CSV file here or click to browse</p>
+                <input type="file" accept=".csv" @change="handleFile($event)" class="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+            </div>
+            <div x-show="status" class="mb-4">
+                <div class="bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div class="bg-brand-600 h-2 rounded-full transition-all duration-300" :style="'width:' + progress + '%'"></div>
+                </div>
+                <p class="text-sm text-gray-500 mt-2" x-text="status"></p>
+            </div>
+            <button @click="runMigration()" :disabled="!ready || running"
+                    class="inline-flex items-center px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm disabled:opacity-50">
+                <span x-show="!running">Start Bulk Migration</span>
+                <span x-show="running">Migrating...</span>
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+function migrationWizard() {
+    return {
+        ready: false, running: false, progress: 0, status: '',
+        handleFile(e) {
+            const f = e.target.files[0];
+            this.ready = !!f;
+            this.status = f ? 'File ready: ' + f.name : '';
+        },
+        async runMigration() {
+            this.running = true; this.progress = 10; this.status = 'Importing...';
+            const r = await fetch('/api/v1/wage/migration/bulk', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+            const d = await r.json();
+            this.progress = 100;
+            this.status = d.ok ? 'Migration complete!' : 'Migration failed: ' + (d.error || 'unknown');
+            this.running = false;
+        }
+    };
+}
+</script>
+{/block}

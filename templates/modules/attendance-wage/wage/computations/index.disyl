@@ -3,10 +3,184 @@
 <div class="px-6 py-8">
     <div class="flex items-center justify-between mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">💵 Salary Computations</h1>
-        <form method="post" action="/api/v1/wage/compute/bulk" class="inline"><button type="submit" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">Bulk Compute</button></form>
+        <a href="/admin/wage/periods" class="inline-flex items-center px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">← Prepare Payroll</a>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        {ikb_entity_list source="salary_computation.recent" view="table" limit="25" empty="No salary computations yet." /}
+    {if success}
+    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
+        <span class="text-lg">✅</span> {success}
     </div>
+    {/if}
+    {if error}
+    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
+        <span class="text-lg">❌</span> {error}
+    </div>
+    {/if}
+
+    {if selectedPeriodId > 0}
+    <!-- Computations for selected period -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Gross Pay</p>
+            <p class="mt-1 text-lg font-extrabold text-gray-900">₱ {total_gross|default:'0.00'}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">+ Additions</p>
+            <p class="mt-1 text-lg font-extrabold text-green-600">₱ {total_additions|default:'0.00'}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Deductions</p>
+            <p class="mt-1 text-lg font-extrabold text-red-600">₱ {total_deductions|default:'0.00'}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Adj. Deduct</p>
+            <p class="mt-1 text-lg font-extrabold text-orange-600">₱ {total_adj_deductions|default:'0.00'}</p>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Net Pay</p>
+            <p class="mt-1 text-lg font-extrabold text-green-600">₱ {total_net|default:'0.00'}</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-3 mb-6">
+        <a href="/admin/wage/computations" class="text-sm text-brand-600 hover:text-brand-700 font-medium">← All periods</a>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {if period_status || period_pay_date}
+        <div class="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-4 text-sm">
+                <span class="text-gray-500">Period Status: <span class="font-semibold capitalize {if period_status=='processing'}text-blue-600{else if period_status=='approved'}text-green-600{else if period_status=='completed'}text-green-700{else}text-gray-600{/if}">{period_status|default:'draft'}</span></span>
+                {if period_pay_date}
+                <span class="text-gray-400">|</span>
+                <span class="text-gray-500">Pay Date: <span class="font-semibold text-gray-700">{period_pay_date}</span></span>
+                {if today < period_pay_date}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700">⏳ Payday not yet reached</span>
+                {else}
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">✅ Payday reached</span>
+                {/if}
+                {/if}
+            </div>
+            <div class="flex items-center gap-2">
+                {if can_approve}
+                <form method="POST" action="/api/v1/wage/computations/batch/approve" class="inline">
+                    <input type="hidden" name="period_id" value="{selectedPeriodId}">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors shadow-sm">✅ Approve All</button>
+                </form>
+                {else if period_status && period_pay_date && today < period_pay_date}
+                <span class="text-xs text-gray-400 italic">Approve available after {period_pay_date}</span>
+                {/if}
+                {if can_pay}
+                <form method="POST" action="/api/v1/wage/computations/batch/pay" class="inline">
+                    <input type="hidden" name="period_id" value="{selectedPeriodId}">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm">💰 Mark All Paid</button>
+                </form>
+                {/if}
+            </div>
+        </div>
+        {/if}
+        {if computations|count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="py-3 px-5 text-left font-semibold text-gray-600">Employee</th>
+                        <th class="py-3 px-5 text-left font-semibold text-gray-600">Type</th>
+                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Gross</th>
+                        <th class="py-3 px-5 text-right font-semibold text-gray-600">+ Additions</th>
+                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Deductions</th>
+                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Net Pay</th>
+                        <th class="py-3 px-5 text-center font-semibold text-gray-600">Status</th>
+                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for c in computations}
+                    <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                        <td class="py-3 px-5 font-medium text-gray-900">{c.employee_name|default:'—'}</td>
+                        <td class="py-3 px-5"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 capitalize">{c.salary_type|default:'—'}</span></td>
+                        <td class="py-3 px-5 text-right text-gray-900 font-medium">₱ {c.gross_pay|number_format:2}</td>
+                        <td class="py-3 px-5 text-right">
+                            {if c.total_additions > 0}
+                            <span class="text-green-600 font-medium">₱ {c.total_additions|number_format:2}</span>
+                            {else}
+                            <span class="text-gray-300">—</span>
+                            {/if}
+                        </td>
+                        <td class="py-3 px-5 text-right text-red-600">₱ {c.total_deductions|number_format:2}</td>
+                        <td class="py-3 px-5 text-right text-green-700 font-semibold">₱ {c.net_pay|number_format:2}</td>
+                        <td class="py-3 px-5 text-center">
+                            <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {if c.status=='approved'}bg-green-100 text-green-700{else if c.status=='paid'}bg-blue-100 text-blue-700{else}bg-amber-100 text-amber-700{/if}">{c.status|default:'computed'}</span>
+                        </td>
+                        <td class="py-3 px-5 text-right">
+                            <div class="flex items-center justify-end gap-1.5">
+                                {if c.status=='computed' && can_approve}
+                                <form method="POST" action="/api/v1/wage/computations/{c.computation_id}/approve" class="inline">
+                                    <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-green-50 text-green-700 hover:bg-green-100">Approve</button>
+                                </form>
+                                {/if}
+                                {if c.status=='approved' && can_pay}
+                                <form method="POST" action="/api/v1/wage/computations/{c.computation_id}/pay" class="inline">
+                                    <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-blue-50 text-blue-700 hover:bg-blue-100">Mark Paid</button>
+                                </form>
+                                {/if}
+                            </div>
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="py-16 text-center">
+            <p class="text-4xl mb-3">💵</p>
+            <p class="text-gray-500 font-medium">No computations for this period.</p>
+        </div>
+        {/if}
+    </div>
+    {else}
+    <!-- Period list -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {if periods|count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="py-3.5 px-5 text-left font-semibold text-gray-600">Period</th>
+                        <th class="py-3.5 px-5 text-left font-semibold text-gray-600">Type</th>
+                        <th class="py-3.5 px-5 text-left font-semibold text-gray-600">Dates</th>
+                        <th class="py-3.5 px-5 text-center font-semibold text-gray-600">Employees</th>
+                        <th class="py-3.5 px-5 text-right font-semibold text-gray-600">Gross</th>
+                        <th class="py-3.5 px-5 text-right font-semibold text-gray-600">Net Pay</th>
+                        <th class="py-3.5 px-5 text-center font-semibold text-gray-600">Status</th>
+                        <th class="py-3.5 px-5 text-right font-semibold text-gray-600">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for p in periods}
+                    <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                        <td class="py-3 px-5 font-medium text-gray-900">{p.period_name|default:'—'}</td>
+                        <td class="py-3 px-5"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 capitalize">{p.period_type|replace:'_':' '|default:'—'}</span></td>
+                        <td class="py-3 px-5 text-gray-500 text-xs">{p.start_date|default:'—'} → {p.end_date|default:'—'}</td>
+                        <td class="py-3 px-5 text-center font-medium">{p.comp_count|default:0}</td>
+                        <td class="py-3 px-5 text-right text-gray-700">₱ {p.total_gross|number_format:2|default:'0.00'}</td>
+                        <td class="py-3 px-5 text-right text-gray-900 font-semibold">₱ {p.total_net|number_format:2|default:'0.00'}</td>
+                        <td class="py-3 px-5 text-center">
+                            <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {if p.status=='completed'}bg-green-100 text-green-700{else if p.status=='processing'}bg-blue-100 text-blue-700{else if p.status=='cancelled'}bg-red-100 text-red-700{else}bg-amber-100 text-amber-700{/if}">{p.status|default:'draft'}</span>
+                        </td>
+                        <td class="py-3 px-5 text-right">
+                            <a href="/admin/wage/computations?period_id={p.period_id}" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100">View</a>
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="py-16 text-center">
+            <p class="text-4xl mb-3">💵</p>
+            <p class="text-gray-500 font-medium">No payroll periods yet.</p>
+            <a href="/admin/wage/periods" class="mt-3 inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-brand-600 hover:bg-brand-700 text-white transition-colors">Go to Prepare Payroll</a>
+        </div>
+        {/if}
+    </div>
+    {/if}
 </div>
 {/block}
