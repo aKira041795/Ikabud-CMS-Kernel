@@ -8098,11 +8098,14 @@ function handleAdminWithdrawals(): void
     $input = $ctx->input();
     $date = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
     $branchId = (int)($input['branch_id'] ?? 0);
+    $commissaryId = (int)($input['commissary_id'] ?? 0);
 
-    $sql = 'SELECT cw.id, cw.ledger_date, cw.withdrawal_type, cw.reason_code,
+    $sql = 'SELECT cw.id, cw.ledger_date, cw.created_at, cw.withdrawal_type, cw.reason_code,
                    cw.quantity, cw.dr_number, cw.liable_user_id,
                    p.name AS product_name,
                    b.name AS branch_name,
+                   b.area AS branch_area,
+                   COALESCE(cb.name, \'—\') AS commissary_name,
                    COALESCE(
                        NULLIF(u.full_name, ""),
                        (SELECT NULLIF(uc.full_name, "")
@@ -8117,6 +8120,7 @@ function handleAdminWithdrawals(): void
               FROM dl_cashier_withdrawals cw
               JOIN dl_products p ON p.id = cw.product_id
               JOIN dl_branches b ON b.id = cw.branch_id
+              LEFT JOIN dl_branches cb ON cb.id = b.assigned_commissary_id AND cb.is_commissary = 1
               LEFT JOIN dl_users u ON u.id = cw.encoded_by AND cw.encoded_by > 0
               LEFT JOIN dl_users lu ON lu.id = cw.liable_user_id
              WHERE cw.ledger_date = :d';
@@ -8125,32 +8129,40 @@ function handleAdminWithdrawals(): void
         $sql .= ' AND cw.branch_id = :bid';
         $bind[':bid'] = $branchId;
     }
+    if ($commissaryId > 0) {
+        $sql .= ' AND b.assigned_commissary_id = :cid';
+        $bind[':cid'] = $commissaryId;
+    }
     $sql .= ' ORDER BY cw.created_at DESC LIMIT 500';
     $stmt = $db->prepare($sql);
     $stmt->execute($bind);
     $allRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    // Hide rows where cashier couldn't be resolved
+    // Hide rows where cashier couldn't be resolved; format time for display
     $rows = [];
     foreach ($allRows as $row) {
         if (($row['cashier_name'] ?? 'Unknown') !== 'Unknown') {
+            $row['created_time'] = !empty($row['created_at']) ? date('H:i', strtotime($row['created_at'])) : '';
             $rows[] = $row;
         }
     }
 
     $branches = $db->query('SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $commissaries = $db->query("SELECT id, name, area FROM dl_branches WHERE is_commissary = 1 AND is_active = 1 ORDER BY COALESCE(area, ''), name")->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     echo dlRender('modules/daily-ledger/admin/withdrawals.disyl', [
-        'page_title' => 'Withdrawals',
+        'page_title' => 'Stock Adjustments',
         'user_name' => $userName,
         'user_role' => $role,
-        'current_page' => 'withdrawals',
+        'current_page' => 'stock-adjustments',
         'base_url' => dlGetBaseUrl(),
         'dl_token' => (string)kernelCookie(dlCookieName(), ''),
         'withdrawals' => $rows,
         'branches' => $branches,
+        'commissaries' => $commissaries,
         'branch_id' => $branchId,
+        'commissary_id' => $commissaryId,
         'date' => $date,
     ]);
 }

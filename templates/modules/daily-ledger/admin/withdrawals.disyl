@@ -4,15 +4,21 @@
 {block content}
 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
     <div>
-        <h2 class="text-lg font-semibold text-gray-900">Withdrawals</h2>
-        <p class="text-sm text-gray-500">Stock adjustments: charges, pullouts, spoilage, and other branch-side corrections.</p>
+        <h2 class="text-lg font-semibold text-gray-900">Stock Adjustments</h2>
+        <p class="text-sm text-gray-500">All branch-side stock corrections: charges, pullouts, variance resolutions, spoilage, and other adjustments.</p>
     </div>
     <div class="flex items-center gap-2">
-        <input type="date" class="form-input w-44" value="{date}" onchange="window.location.href='{base_url}/admin/withdrawals?date='+this.value{if branch_id > 0}+'&branch_id={branch_id}'{/if}">
-        <select class="form-input w-48" onchange="window.location.href='{base_url}/admin/withdrawals?date={date}&branch_id='+this.value">
+        <input type="date" class="form-input w-44" value="{date}" onchange="window.location.href='{base_url}/admin/withdrawals?date='+this.value{if branch_id > 0}+'&branch_id={branch_id}'{/if}{if commissary_id > 0}+'&commissary_id={commissary_id}'{/if}">
+        <select class="form-input w-40" onchange="window.location.href='{base_url}/admin/withdrawals?date={date}&branch_id='+this.value{if commissary_id > 0}+'&commissary_id={commissary_id}'{/if}">
             <option value="0">All Branches</option>
             {foreach branches as br}
             <option value="{br.id}" {if br.id == branch_id}selected{/if}>{br.name}</option>
+            {/foreach}
+        </select>
+        <select class="form-input w-40" onchange="window.location.href='{base_url}/admin/withdrawals?date={date}{if branch_id > 0}&branch_id={branch_id}{/if}&commissary_id='+this.value">
+            <option value="0">All Commissaries</option>
+            {foreach commissaries as com}
+            <option value="{com.id}" {if com.id == commissary_id}selected{/if}>{com.name}{if com.area} ({com.area}){/if}</option>
             {/foreach}
         </select>
     </div>
@@ -23,33 +29,40 @@
         <table>
             <thead>
                 <tr>
-                    <th>Date</th>
+                    <th>Date &amp; Time</th>
                     <th>Branch</th>
+                    <th>Area</th>
+                    <th>Commissary</th>
                     <th>Product</th>
                     <th class="text-right">Qty</th>
                     <th>Type</th>
-                    <th>Cashier</th>
+                    <th>Liable</th>
+                    <th>Encoded By</th>
                 </tr>
             </thead>
             <tbody>
                 {if withdrawals | length == 0}
-                <tr><td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">No withdrawals for this date.</td></tr>
+                <tr><td colspan="9" class="px-4 py-10 text-center text-sm text-gray-500">No stock adjustments for this date.</td></tr>
                 {/if}
                 {foreach withdrawals as w}
                 <tr>
-                    <td class="text-sm text-gray-600">{w.ledger_date}</td>
+                    <td class="text-sm text-gray-600 whitespace-nowrap">{w.ledger_date}<br><span class="text-xs text-gray-400">{w.created_time}</span></td>
                     <td class="font-medium text-gray-900">{w.branch_name}</td>
+                    <td class="text-sm text-gray-500">{if w.branch_area}{w.branch_area}{else}—{/if}</td>
+                    <td class="text-sm text-gray-600">{w.commissary_name}</td>
                     <td>{w.product_name}</td>
                     <td class="text-right font-mono">{w.quantity}</td>
                     <td>
                         <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset
                             {if w.withdrawal_type == 'charge'}bg-amber-50 text-amber-700 ring-amber-200{/if}
                             {if w.withdrawal_type == 'pullout'}bg-rose-50 text-rose-700 ring-rose-200{/if}
+                            {if w.withdrawal_type == 'adjustment_add'}bg-emerald-50 text-emerald-700 ring-emerald-200{/if}
                         ">
-                            {w.withdrawal_type}
+                            {if w.withdrawal_type == 'adjustment_add'}add stock{else}{w.withdrawal_type}{/if}
                             {if w.reason_code} — {w.reason_code}{/if}
                         </span>
                     </td>
+                    <td class="text-sm text-gray-600">{if w.liable_user_name}{w.liable_user_name}{else}—{/if}</td>
                     <td class="text-sm text-gray-600">{w.cashier_name|default:'—'}</td>
                 </tr>
                 {/foreach}

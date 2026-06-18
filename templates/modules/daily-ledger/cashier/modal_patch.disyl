@@ -223,20 +223,16 @@ function withdrawalModal() {
                         msg = 'Pullout recorded and returned to commissary';
                     }
                     showToast(msg, 'success');
-                     var isAddtl = (this.header.withdrawal_type === 'adjustment_add');
-                     (data.totals || []).forEach(function(t) {
-                         var row = document.querySelector('tr[data-product-id="' + t.product_id + '"]');
-                         if (!row) return;
-                         if (isAddtl) {
-                             var span = row.querySelector('[data-field="addtl"]');
-                             if (span) span.textContent = t.addtl;
+                     this.closeModal();
+                     // Refresh the ledger table via HTMX (same pattern as receive modal)
+                     var body = document.getElementById('ledger-body');
+                     if (body) {
+                         if (typeof htmx !== 'undefined') {
+                             htmx.trigger(body, 'load');
                          } else {
-                             var span = row.querySelector('[data-field="withdraw"]');
-                             if (span) span.textContent = t.total;
+                             window.location.reload();
                          }
-                        if (typeof computeSales === 'function') computeSales(t.product_id);
-                    });
-                    this.closeModal();
+                     }
                 } else {
                     this.errorMsg = data.error || 'Failed to save adjustment.';
                 }
