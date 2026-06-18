@@ -1,0 +1,40 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+
+{block main}
+<div class="px-6 py-8">
+    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">🕐 Clock In / Out</h1>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 max-w-md mx-auto text-center">
+        <div class="text-5xl font-bold text-gray-900 mb-2" id="clock-time">--:--</div>
+        <div class="text-sm text-gray-500 mb-6" id="clock-date"></div>
+        <button id="clock-btn" class="w-full py-3 px-6 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition-colors text-lg">
+            Clock In
+        </button>
+        <div class="mt-4 text-sm text-gray-500" id="clock-status">Not clocked in today</div>
+    </div>
+</div>
+<script>
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock-time').textContent = now.toLocaleTimeString();
+        document.getElementById('clock-date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    updateClock();
+    setInterval(updateClock, 30000);
+    document.getElementById('clock-btn').addEventListener('click', async function() {
+        const btn = this;
+        const isClockingIn = btn.textContent.trim() === 'Clock In';
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+        try {
+            const res = await fetch('/api/v1/attendance/clock-' + (isClockingIn ? 'in' : 'out'), { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+            const data = await res.json();
+            if (data.ok) {
+                btn.textContent = isClockingIn ? 'Clock Out' : 'Clock In';
+                btn.className = isClockingIn ? 'w-full py-3 px-6 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors text-lg' : 'w-full py-3 px-6 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition-colors text-lg';
+                document.getElementById('clock-status').textContent = isClockingIn ? 'Clocked in' : 'Clocked out';
+            }
+        } catch(e) {}
+        btn.disabled = false;
+    });
+</script>
+{/block}
