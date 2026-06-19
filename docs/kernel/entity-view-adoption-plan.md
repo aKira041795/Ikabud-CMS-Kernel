@@ -1,6 +1,7 @@
 # Entity-View Adoption Plan — Closing the Gap
 
-> **Status:** Phases 1–3 complete — June 18, 2026. Phase 3 deferred (template migration).
+> **Status:** Phases 1–3 complete — June 19, 2026.
+> **Latest:** All 8 modules have exposed `entity.list`/`entity.get` handlers in module.json. Ecommerce product handlers rewritten to query `cms_content` (type=product) instead of non-existent `ec_products`. WMS stock handlers fixed to use `wms_stocks` (plural). EntityViewResolver result normalisation hardened (June 19 kernel commit `3746aca`).
 > **Objective:** Extend entity-view contracts to all modules so themes can present module data through governed `{ikb_entity_list}` / `{ikb_entity_detail}` without depending on module internals.
 
 ## Final Adoption State
@@ -20,9 +21,20 @@
 
 ### Phase 1 — Register Capabilities ✅ Complete
 ### Phase 2 — View Contracts (builtinDefaults) ✅ Complete
-### Phase 3 — Template Migration 🔴 Deferred (future)
+### Phase 3 — Template Migration � In Progress (June 19, 2026)
 
 Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_detail}` in templates. Zero-code change for the capability layer — templates just need to adopt the new components.
+
+**Adopted so far:**
+- `templates/_cms_active_theme/public/home.disyl` — `ecommerce_product.featured`, `wms_stock.low`
+- `templates/_cms_active_theme/public/entity.list.disyl` — `ecommerce_product.featured`
+- `templates/modules/attendance-wage/wage/dashboard.disyl` — `office_location`, `cash_advance`, `attendance_record` (partially; recent_computations uses custom table pending cache fix)
+- `templates/modules/attendance-wage/attendance/history.disyl` — `attendance_record.recent`
+- `templates/modules/attendance-wage/attendance/report.disyl` — `attendance_record.recent`
+- `templates/modules/guidance/pages/dashboard.disyl` — `ikb_entity_list`
+- `templates/modules/cms/admin/dashboard.disyl` — `ikb_entity_list`
+
+**Note:** Some dashboard sections use custom tables as a workaround for stale Disyl compiled cache. Once cache invalidation reliability is proven, these will switch back to `ikb_entity_list`.
 
 ---
 

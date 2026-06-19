@@ -74,6 +74,13 @@ See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-eva
 **Proven:** `tests/cms_integration_poc.php` — 25/25 assertions covering full
 pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 
+**Hardened (June 19, 2026):**
+- Result normalisation: `resolve()` now accepts `rows`, `data` envelope, and bare array-of-arrays (not just `rows` key) — `isListOfAssocArrays()` helper added
+- All 8 modules now expose `entity.list`/`entity.get` in `module.json` (Bakeshop, Guidance, Daily Ledger, Ecommerce, WMS were missing)
+- Ecommerce product handlers rewritten to query `cms_content` (type=product); WMS stock handlers fixed to use `wms_stocks` (plural)
+- `renderEntityList` logs zero-row diagnostic when data resolves but returns empty
+- TemplateEngine default view fallthrough fixed: missing `$actionLabels` parameter restored
+
 ---
 
 ## Phase 4 — Theme & Design Tokens ✅
