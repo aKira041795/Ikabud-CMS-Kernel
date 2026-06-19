@@ -202,9 +202,7 @@ function wagePagePeriodForm(array $params = []): void
 function wagePageComputations(array $params = []): void
 {
     attendanceWageGuard();
-    $periods = [];
     $selectedPeriodId = (int)($_GET['period_id'] ?? 0);
-    $computations = [];
     $totals = ['gross' => 0, 'deductions' => 0, 'net' => 0, 'additions' => 0, 'adj_deductions' => 0];
     $canApprove = false;
     $canPay = false;
@@ -213,28 +211,28 @@ function wagePageComputations(array $params = []): void
     $now = date('Y-m-d');
     try {
         $db = aw_db();
-        // Fetch all periods with computations
-        $periods = $db->query("SELECT pp.*, COUNT(sc.computation_id) AS comp_count, COALESCE(SUM(sc.gross_pay),0) AS total_gross, COALESCE(SUM(sc.net_pay),0) AS total_net FROM payroll_periods pp LEFT JOIN salary_computations sc ON sc.payroll_period_id = pp.period_id GROUP BY pp.period_id ORDER BY pp.start_date DESC LIMIT 15")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
-        // If a period is selected, show its computations
+        // If a period is selected, aggregate totals + determine approve/pay eligibility
         if ($selectedPeriodId > 0) {
-            $comp = $db->prepare(
-                "SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
-                        ep.position, ep.department, ep.salary_type
-                 FROM salary_computations sc
-                 JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-                 WHERE sc.payroll_period_id = :pid
-                 ORDER BY ep.last_name ASC, ep.first_name ASC"
+            $agg = $db->prepare(
+                "SELECT COALESCE(SUM(gross_pay),0) AS gross, COALESCE(SUM(total_deductions),0) AS deductions,
+                        COALESCE(SUM(net_pay),0) AS net, COALESCE(SUM(total_additions),0) AS additions,
+                        COALESCE(SUM(other_deductions),0) AS adj_deductions,
+                        COUNT(*) AS total_rows,
+                        SUM(CASE WHEN status = 'computed' THEN 1 ELSE 0 END) AS computed_count,
+                        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_count
+                 FROM salary_computations WHERE payroll_period_id = :pid"
             );
-            $comp->execute([':pid' => $selectedPeriodId]);
-            $computations = $comp->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-            foreach ($computations as $c) {
-                $totals['gross'] += (float)($c['gross_pay'] ?? 0);
-                $totals['deductions'] += (float)($c['total_deductions'] ?? 0);
-                $totals['net'] += (float)($c['net_pay'] ?? 0);
-                $totals['additions'] += (float)($c['total_additions'] ?? 0);
-                $totals['adj_deductions'] += (float)($c['other_deductions'] ?? 0);
+            $agg->execute([':pid' => $selectedPeriodId]);
+            $row = $agg->fetch(\PDO::FETCH_ASSOC);
+            if ($row) {
+                $totals['gross'] = (float)$row['gross'];
+                $totals['deductions'] = (float)$row['deductions'];
+                $totals['net'] = (float)$row['net'];
+                $totals['additions'] = (float)$row['additions'];
+                $totals['adj_deductions'] = (float)$row['adj_deductions'];
             }
+
             // Fetch period details for payday-gated approve
             $ps = $db->prepare("SELECT status, pay_date FROM payroll_periods WHERE period_id = :pid LIMIT 1");
             $ps->execute([':pid' => $selectedPeriodId]);
@@ -243,8 +241,8 @@ function wagePageComputations(array $params = []): void
                 $periodStatus = $pinfo['status'] ?? '';
                 $periodPayDate = $pinfo['pay_date'] ?? '';
                 $payDatePassed = ($periodPayDate !== '' && $periodPayDate <= $now);
-                $hasComputed = !empty(array_filter($computations, fn($c) => ($c['status'] ?? '') === 'computed'));
-                $hasApproved = !empty(array_filter($computations, fn($c) => ($c['status'] ?? '') === 'approved'));
+                $hasComputed = ($row['computed_count'] ?? 0) > 0;
+                $hasApproved = ($row['approved_count'] ?? 0) > 0;
                 $canApprove = $payDatePassed && $hasComputed && in_array($periodStatus, ['processing', 'draft']);
                 $canPay = $payDatePassed && $hasApproved && in_array($periodStatus, ['approved', 'processing']);
             }
@@ -253,9 +251,7 @@ function wagePageComputations(array $params = []): void
 
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/computations/index', [
-        'periods' => $periods,
         'selectedPeriodId' => $selectedPeriodId,
-        'computations' => $computations,
         'total_gross' => number_format($totals['gross'], 2),
         'total_deductions' => number_format($totals['deductions'], 2),
         'total_net' => number_format($totals['net'], 2),

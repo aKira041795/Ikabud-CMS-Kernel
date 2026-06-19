@@ -168,11 +168,20 @@ function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilit
 function aw_cap_entity_list_payroll_period_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 12), 50);
-    $sortField = aw_allowedSort($payload, 'start_date', ['period_id', 'period_name', 'start_date', 'end_date', 'status']);
+    $sortField = aw_allowedSort($payload, 'start_date', ['period_id', 'period_name', 'start_date', 'end_date', 'status', 'total_gross', 'total_net']);
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT period_id AS id, period_name, period_type, start_date, end_date, pay_date, status, total_employees, total_gross_pay, total_deductions, total_net_pay FROM payroll_periods ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query(
+            "SELECT pp.period_id AS id, pp.period_name, pp.period_type,
+                    pp.start_date, pp.end_date, pp.pay_date, pp.status,
+                    COALESCE(pp.total_gross_pay, 0) AS total_gross,
+                    COALESCE(pp.total_net_pay, 0) AS total_net,
+                    (SELECT COUNT(*) FROM salary_computations sc WHERE sc.payroll_period_id = pp.period_id) AS comp_count
+             FROM payroll_periods pp
+             ORDER BY {$sortField} {$sortDir}
+             LIMIT {$limit}"
+        );
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM payroll_periods')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -182,13 +191,46 @@ function aw_cap_entity_list_payroll_period_1(mixed $payload, string $capabilityI
 function aw_cap_entity_list_salary_computation_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 25), 100);
-    $sortField = aw_allowedSort($payload, 'created_at', ['computation_id', 'gross_pay', 'net_pay', 'status', 'created_at']);
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $sortField = aw_allowedSort($payload, 'created_at', ['computation_id', 'gross_pay', 'net_pay', 'status', 'created_at', 'employee_name']);
     $sortDir = aw_sortDir($payload);
+
+    // Resolve period_id from qualifier (e.g. "by_period" reads from GET) or payload filters
+    $periodId = 0;
+    if (is_array($payload['filters'] ?? null) && isset($payload['filters']['period_id'])) {
+        $periodId = (int)$payload['filters']['period_id'];
+    } elseif ($qualifier === 'by_period' || $qualifier === '') {
+        $periodId = (int)($_GET['period_id'] ?? 0);
+    }
+
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT sc.computation_id AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name, pp.period_name, sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status FROM salary_computations sc LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id LEFT JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
-        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $total = (int)($db->query('SELECT COUNT(*) FROM salary_computations')->fetchColumn());
+        $where = '';
+        $params = [];
+        if ($periodId > 0) {
+            $where = 'WHERE sc.payroll_period_id = :pid';
+            $params[':pid'] = $periodId;
+        }
+
+        $stmt = $db->prepare(
+            "SELECT sc.computation_id AS id, sc.user_id, sc.payroll_period_id,
+                    CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    ep.position, ep.department, ep.salary_type,
+                    sc.gross_pay, sc.total_additions, sc.total_deductions, sc.other_deductions,
+                    sc.net_pay, sc.status, sc.created_at
+             FROM salary_computations sc
+             JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             {$where}
+             ORDER BY {$sortField} {$sortDir}
+             LIMIT {$limit}"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $countSql = 'SELECT COUNT(*) FROM salary_computations sc'
+            . ($periodId > 0 ? ' WHERE sc.payroll_period_id = ' . (int)$periodId : '');
+        $total = (int)$db->query($countSql)->fetchColumn();
+
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
 }
