@@ -146,7 +146,7 @@
         </div>
 
         <!-- Step 3: Success / Done -->
-        <div x-show="step === 3" class="p-8 text-center" x-init="autoReturnTimer = setTimeout(() => done(), 20000)" @click="clearTimeout(autoReturnTimer)">
+        <div x-show="step === 3" class="p-8 text-center" x-init="autoReturnTimer = setTimeout(() => done(), 5000)" @click="clearTimeout(autoReturnTimer)">
             <div class="text-6xl mb-4" x-text="lastAction === 'clock_in' ? '✅' : '👋'"></div>
             <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="lastMessage"></h2>
             <p class="text-sm text-slate-500 mb-1" x-text="lastEmployee"></p>
@@ -164,7 +164,7 @@
                class="block w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 text-sm font-medium transition-colors">
                 🔐 Return to Login
             </a>
-            <p class="text-xs text-slate-400 mt-2">Auto-returns in 20s</p>
+            <p class="text-xs text-slate-400 mt-2">Auto-returns in 5s</p>
         </div>
 
         <!-- Step 4: My Attendance Records -->

@@ -192,32 +192,34 @@ final class Parser
         }
 
         // Control structures (order matters: foreach before for)
+        // Each control block is wrapped in try/catch for per-block error
+        // recovery — a single malformed block won't kill the entire template.
         if (preg_match('/^foreach[\s}]/', $peek)) {
-            return $this->parseForeach();
+            return $this->recoverableParse($this->parseForeach(...), 'foreach', $savedPos);
         }
         if (preg_match('/^for[\s}]/', $peek)) {
-            return $this->parseFor();
+            return $this->recoverableParse($this->parseFor(...), 'for', $savedPos);
         }
         if (preg_match('/^each[\s}]/', $peek)) {
-            return $this->parseEach();
+            return $this->recoverableParse($this->parseEach(...), 'each', $savedPos);
         }
         if (preg_match('/^if[\s}]/', $peek)) {
-            return $this->parseIf();
+            return $this->recoverableParse($this->parseIf(...), 'if', $savedPos);
         }
         if (preg_match('/^set\s/', $peek)) {
-            return $this->parseSetTag();
+            return $this->recoverableParse($this->parseSetTag(...), 'set', $savedPos);
         }
         if (preg_match('/^include\s/', $peek)) {
-            return $this->parseIncludeTag();
+            return $this->recoverableParse($this->parseIncludeTag(...), 'include', $savedPos);
         }
         if (preg_match('/^extends\s/', $peek)) {
-            return $this->parseExtendsTag();
+            return $this->recoverableParse($this->parseExtendsTag(...), 'extends', $savedPos);
         }
         if (preg_match('/^block\s/', $peek)) {
-            return $this->parseBlockTag();
+            return $this->recoverableParse($this->parseBlockTag(...), 'block', $savedPos);
         }
         if (preg_match('/^slot[\s}]/', $peek)) {
-            return $this->parseSlotTag();
+            return $this->recoverableParse($this->parseSlotTag(...), 'slot', $savedPos);
         }
 
         // Expression / variable
@@ -351,6 +353,64 @@ final class Parser
         $raw = substr($this->source, $this->pos, $end - $this->pos);
         $this->pos = $end + strlen('{/literal}');
         return new TextNode([], $raw);
+    }
+
+    /**
+     * Per-block error recovery wrapper.
+     *
+     * Wraps a control-structure parse call so that a single malformed block
+     * does not abort the entire template render. On failure the parser
+     * advances past the offending block body and emits a comment node with
+     * the error message.
+     *
+     * @param callable $parser      Bound parse* method (e.g. $this->parseIf(...))
+     * @param string   $blockName   Human-readable block type for diagnostics
+     * @param int      $savedPos    Position before the opening `{` was consumed
+     */
+    private function recoverableParse(callable $parser, string $blockName, int $savedPos): AbstractNode
+    {
+        try {
+            return $parser();
+        } catch (\Throwable $e) {
+            // Log the parse error if write_log is available
+            if (\function_exists('write_log')) {
+                \write_log("DiSyL parse error in {$this->name}: {block}={$blockName} — {$e->getMessage()}", 'warning');
+            }
+
+            // Advance past the offending block: consume until a matching close
+            // tag (e.g. {/if}, {/for}, {/foreach}, {/block}) or end-of-source.
+            $closeTag = match ($blockName) {
+                'if' => '{/if}',
+                'for' => '{/for}',
+                'foreach' => '{/foreach}',
+                'each' => '{/each}',
+                'block' => '{/block}',
+                'slot' => '{/slot}',
+                'set' => '{/set}',
+                default => null,
+            };
+
+            if ($closeTag !== null) {
+                $end = strpos($this->source, $closeTag, $savedPos);
+                if ($end !== false) {
+                    $this->pos = $end + strlen($closeTag);
+                } else {
+                    $this->pos = $this->len;
+                }
+            } else {
+                // For set/include/extends — consume to end of tag
+                $end = strpos($this->source, '}', $savedPos);
+                if ($end !== false) {
+                    $this->pos = $end + 1;
+                } else {
+                    $this->pos = $this->len;
+                }
+            }
+
+            // Emit an HTML comment so developers can spot the failure
+            $safeMsg = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+            return new CommentNode([], " DiSyL parse error ({$blockName}): {$safeMsg} ");
+        }
     }
 
     /** {if condition}...{elseif condition}...{else if condition}...{else}...{/if} */
