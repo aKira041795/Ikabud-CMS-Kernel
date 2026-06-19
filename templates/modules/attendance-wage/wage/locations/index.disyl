@@ -18,63 +18,6 @@
     </div>
     {/if}
 
-    {if locations|count > 0}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="bg-gray-50 border-b border-gray-200">
-                        <th class="py-3 px-5 text-left font-semibold text-gray-600">Name</th>
-                        <th class="py-3 px-5 text-left font-semibold text-gray-600">Address</th>
-                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Latitude</th>
-                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Longitude</th>
-                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Radius (m)</th>
-                        <th class="py-3 px-5 text-center font-semibold text-gray-600">Status</th>
-                        <th class="py-3 px-5 text-right font-semibold text-gray-600">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {for loc in locations}
-                    <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
-                        <td class="py-3 px-5 font-medium text-gray-900">{loc.name|default:'—'}</td>
-                        <td class="py-3 px-5 text-gray-600 max-w-xs truncate">{loc.address|default:'—'}</td>
-                        <td class="py-3 px-5 text-right text-gray-600 font-mono text-xs">{loc.latitude|default:'—'}</td>
-                        <td class="py-3 px-5 text-right text-gray-600 font-mono text-xs">{loc.longitude|default:'—'}</td>
-                        <td class="py-3 px-5 text-right text-gray-600">{loc.radius_meters|default:100}</td>
-                        <td class="py-3 px-5 text-center">
-                            {if loc.is_active}
-                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>
-                            {else}
-                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>
-                            {/if}
-                        </td>
-                        <td class="py-3 px-5 text-right">
-                            <div class="flex items-center justify-end gap-2">
-                                <a href="/admin/wage/locations/{loc.location_id}"
-                                   class="px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 transition-colors">
-                                    ✏️ Edit
-                                </a>
-                                <form method="post" action="/api/v1/wage/locations/{loc.location_id}/delete"
-                                      class="inline" onsubmit="return confirm('Delete {loc.name|default:'this location'}?')">
-                                    <input type="hidden" name="_token" value="{csrf_token}">
-                                    <button type="submit"
-                                            class="px-3 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
-                                        🗑️ Delete
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {/for}
-                </tbody>
-            </table>
-        </div>
-    </div>
-    {else}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-        <p class="text-gray-400 text-sm">No office locations configured yet.</p>
-        <a href="/admin/wage/locations/create" class="inline-flex items-center mt-4 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">+ Add Location</a>
-    </div>
-    {/if}
+    {ikb_entity_list source="office_location" view="table" use="tailwind" limit="50" empty="No office locations configured yet." /}
 </div>
 {/block}

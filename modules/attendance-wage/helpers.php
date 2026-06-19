@@ -651,10 +651,10 @@ function aw_cap_entity_list_office_location_1(mixed $payload, string $capability
     try {
         $db = aw_db();
         $tid = app()->tenant()->current() ?? '';
-        $stmt = $db->prepare("SELECT location_id AS id, name, address, latitude, longitude, radius_meters, is_active FROM office_locations WHERE tenant_id = :tid AND is_active = 1 ORDER BY name ASC LIMIT " . (int)$limit);
+        $stmt = $db->prepare("SELECT location_id AS id, name, address, latitude, longitude, radius_meters, is_active FROM office_locations WHERE tenant_id = :tid ORDER BY name ASC LIMIT " . (int)$limit);
         $stmt->execute([':tid' => $tid]);
         $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-        $cnt = $db->prepare("SELECT COUNT(*) FROM office_locations WHERE tenant_id = :tid AND is_active = 1");
+        $cnt = $db->prepare("SELECT COUNT(*) FROM office_locations WHERE tenant_id = :tid");
         $cnt->execute([':tid' => $tid]);
         $total = (int)$cnt->fetchColumn();
         return ['rows' => $rows, 'total' => $total];

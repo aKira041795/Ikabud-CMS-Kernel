@@ -481,18 +481,10 @@ function wagePageMigrationWizard(array $params = []): void
 
 function wagePageLocations(array $params = []): void
 {
-    $locations = [];
-    try {
-        $db = aw_db();
-        $tid = app()->tenant()->current() ?? '';
-        $stmt = $db->prepare("SELECT * FROM office_locations WHERE tenant_id = :tid ORDER BY name ASC");
-        $stmt->execute([':tid' => $tid]);
-        $locations = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {}
+    // Entity view (ikb_entity_list) handles data — page only passes context
     echo app()->render('modules/attendance-wage/wage/locations/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
-        'locations' => $locations,
         'active_nav' => 'locations',
     ]);
 }
