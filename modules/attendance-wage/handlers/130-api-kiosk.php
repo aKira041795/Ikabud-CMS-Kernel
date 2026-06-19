@@ -456,3 +456,48 @@ function kioskApiStatus(array $params = []): void
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
 }
+
+/**
+ * Fetch recent attendance records for a given employee (by profile_id).
+ * Used by the kiosk "View My Attendance" feature after clock-in/out.
+ */
+function kioskApiMyRecords(array $params = []): void
+{
+    $profileId = (int)($_GET['profile_id'] ?? $params['profile_id'] ?? 0);
+
+    if ($profileId <= 0) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Missing profile_id']);
+        return;
+    }
+
+    try {
+        $db = aw_db();
+        $stmt = $db->prepare("SELECT user_id FROM employee_profiles WHERE profile_id = :pid LIMIT 1");
+        $stmt->execute([':pid' => $profileId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $userId = (int)($row['user_id'] ?? 0);
+
+        $records = [];
+        if ($userId > 0) {
+            $recStmt = $db->prepare(
+                "SELECT attendance_id, clock_in, clock_out, location_in, status
+                 FROM attendance_records
+                 WHERE user_id = :uid
+                 ORDER BY clock_in DESC
+                 LIMIT 10"
+            );
+            $recStmt->execute([':uid' => $userId]);
+            $records = $recStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        }
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok'      => true,
+            'records' => $records,
+        ]);
+    } catch (\Throwable $e) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}

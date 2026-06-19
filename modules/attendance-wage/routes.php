@@ -63,6 +63,7 @@ return [
         '/api/v1/kiosk/reverse-geocode'       => 'attendance-wage:kioskApiReverseGeocode',
         '/api/v1/kiosk/verify-location'       => 'attendance-wage:kioskApiVerifyLocation',
         '/api/v1/kiosk/status'                => 'attendance-wage:kioskApiStatus',
+        '/api/v1/kiosk/my-records'            => 'attendance-wage:kioskApiMyRecords',
     ],
     'POST' => [
         '/attendance-wage/auth/login'                    => 'attendance-wage:attendanceAuthLogin',
