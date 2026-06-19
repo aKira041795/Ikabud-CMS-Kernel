@@ -84,6 +84,9 @@ class TemplateEngine
     /** @var string|null Template path being rendered (set during top-level render) */
     private ?string $currentTemplatePath = null;
 
+    /** @var string|null Expression currently being evaluated (for error context) */
+    private ?string $currentExpression = null;
+
     /** @var string Directory for cross-request extends resolution cache */
     private string $extendsCacheDir;
     
@@ -4347,6 +4350,10 @@ class TemplateEngine
         $path = trim($path);
         if ($path === '') return null;
 
+        // v4.8: track current expression for error context
+        $prevExpr = $this->currentExpression;
+        $this->currentExpression = $path;
+
         // Boolean and null literals
         $lower = strtolower($path);
         if ($lower === 'true') return true;
@@ -4764,9 +4771,27 @@ class TemplateEngine
      */
     private function logError(string $message): void
     {
-        $this->errors[] = $message;
+        // v4.8: always tag errors with template path + expression context
+        $ctx = '';
+        if ($this->currentTemplatePath !== null) {
+            $ctx .= ' in ' . $this->currentTemplatePath;
+        }
+        if ($this->currentExpression !== null) {
+            $ctx .= ' near {' . $this->currentExpression . '}';
+        }
+        $fullMessage = $message . $ctx;
+
+        $this->errors[] = $fullMessage;
         if ($this->debug) {
-            error_log("[DiSyL] {$message}");
+            error_log("[DiSyL] {$fullMessage}");
+        }
+        // Also emit to app log when strict mode is on (v4.8+)
+        if ($this->strictMode && function_exists('write_log')) {
+            \write_log('disyl.strict.' . strtok($message, ':'), 'warning', [
+                'template' => $this->currentTemplatePath,
+                'expression' => $this->currentExpression,
+                'message' => $message,
+            ]);
         }
     }
     
