@@ -4,7 +4,10 @@
 <div class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 flex flex-col items-center px-4 py-8" x-data="kioskWidget()">
     <!-- Header -->
     <div class="text-center mb-8">
-        <h1 class="text-4xl font-extrabold text-white tracking-tight">ZAP</h1>
+        {if logo_url}
+        <img src="{logo_url}" alt="{app_name|default:'ZAP'}" class="h-10 w-auto mx-auto mb-2">
+        {/if}
+        <h1 class="text-4xl font-extrabold text-white tracking-tight">{app_name|default:'ZAP'}</h1>
         <p class="mt-2 text-slate-400 text-sm">Attendance &amp; Wage</p>
     </div>
 
