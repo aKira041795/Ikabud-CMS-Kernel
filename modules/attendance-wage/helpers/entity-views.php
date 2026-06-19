@@ -284,4 +284,69 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No schedules configured.',
         'capability' => 'entity.list.employee_schedule@1',
     ]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Employee Deduction — table view
+    // ═══════════════════════════════════════════════════════════════
+    $views->registerView('employee_deduction', 'table', [
+        'fields' => [
+            'employee_name', 'amount', 'description', 'status',
+            'deduction_date', 'source',
+        ],
+        'actions' => ['view'],
+        'action_urls' => [
+            'view' => '/admin/wage/deductions/create',
+        ],
+        'renderers' => [
+            'amount'         => 'money:2',
+            'status'         => 'badge:{"pending":"Pending|amber","completed":"Completed|green","cancelled":"Cancelled|red","deducted":"Deducted|blue"}',
+            'deduction_date' => 'datetime:date',
+            'source'         => 'badge:{"manual":"Manual|gray","cash_advance":"Cash Advance|blue"}',
+        ],
+        'limit' => 20,
+        'sort' => ['field' => 'deduction_date', 'direction' => 'desc'],
+        'empty_state' => 'No employee deductions yet.',
+        'capability' => 'entity.list.employee_deduction@1',
+    ]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Salary Adjustment — table view
+    // ═══════════════════════════════════════════════════════════════
+    $views->registerView('salary_adjustment', 'table', [
+        'fields' => [
+            'employee_name', 'adjustment_type', 'amount', 'description',
+            'status', 'effective_date',
+        ],
+        'actions' => ['view', 'approve'],
+        'action_urls' => [
+            'view'    => '/admin/wage/adjustments/create',
+            'approve' => '/api/v1/wage/adjustments/{id}/approve',
+        ],
+        'action_methods' => [
+            'approve' => 'post',
+        ],
+        'action_labels' => [
+            'view'    => 'View',
+            'approve' => '✅ Approve',
+        ],
+        'action_confirm' => [
+            'approve' => 'Approve this adjustment?',
+        ],
+        'action_show_if' => [
+            'approve' => 'status == "pending"',
+        ],
+        'action_roles' => [
+            'approve' => ['admin'],
+        ],
+        'renderers' => [
+            'amount'          => 'money:2',
+            'adjustment_type' => 'badge',
+            'status'          => 'badge:{"pending":"Pending|amber","approved":"Approved|green","applied":"Applied|blue","rejected":"Rejected|red"}',
+            'effective_date'  => 'datetime:date',
+        ],
+        'limit' => 20,
+        'sort' => ['field' => 'effective_date', 'direction' => 'desc'],
+        'empty_state' => 'No salary adjustments yet.',
+        'capability' => 'entity.list.salary_adjustment@1',
+    ]);
 }
