@@ -606,9 +606,9 @@ trait EntityRenderingTrait
             $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
             $safeId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
 
-            // Resolve href from action_urls or fallback
+            // Resolve href from action_urls with full {field} substitution
             $href = isset($actionUrls[$action])
-                ? str_replace('{id}', $safeId, $actionUrls[$action])
+                ? $this->renderWithRowContext($actionUrls[$action], $row)
                 : "?id={$safeId}&amp;action={$action}";
 
             $method = $actionMethods[$action] ?? 'get';
@@ -625,8 +625,18 @@ trait EntityRenderingTrait
                     $csrfValue = htmlspecialchars((string)\csrf_token(), ENT_QUOTES, 'UTF-8');
                     $csrfInput = "<input type=\"hidden\" name=\"_token\" value=\"{$csrfValue}\">";
                 }
+
+                // Build hidden inputs from row fields referenced in the action URL
+                $hiddenInputs = "<input type=\"hidden\" name=\"id\" value=\"{$safeId}\">";
+                foreach ($row as $key => $value) {
+                    if ($key === 'id' || !is_scalar($value)) { continue; }
+                    $safeKey = htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8');
+                    $safeVal = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+                    $hiddenInputs .= "<input type=\"hidden\" name=\"{$safeKey}\" value=\"{$safeVal}\">";
+                }
+
                 $html .= "<form method=\"post\" action=\"{$href}\" class=\"inline\"{$onSubmit}>"
-                      . "<input type=\"hidden\" name=\"id\" value=\"{$safeId}\">"
+                      . $hiddenInputs
                       . $csrfInput
                       . "<button type=\"submit\" class=\"{$actionClass}\">{$safeLabel}</button>"
                       . "</form>";

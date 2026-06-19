@@ -84,9 +84,9 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         ],
         'actions' => ['view', 'compute', 'export'],
         'action_urls' => [
-            'view'    => '/admin/wage/computations?period_id={period_id}',
+            'view'    => '/admin/wage/computations?period_id={id}',
             'compute' => '/api/v1/wage/compute/bulk',
-            'export'  => '/api/v1/wage/reports/{period_id}/export?format=csv',
+            'export'  => '/api/v1/wage/reports/{id}/export?format=csv',
         ],
         'action_methods' => [
             'compute' => 'post',

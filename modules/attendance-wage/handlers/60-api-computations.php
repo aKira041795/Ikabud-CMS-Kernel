@@ -73,7 +73,7 @@ function wageApiComputeEmployee(array $params = []): void
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
     $userId = (int)($input['user_id'] ?? $input['employee_id'] ?? 0);
-    $periodId = (int)($input['period_id'] ?? $params['period_id'] ?? 0);
+    $periodId = (int)($input['period_id'] ?? $input['payroll_period_id'] ?? $params['period_id'] ?? 0);
     $isFormPost = !str_contains($contentType, 'application/json');
     if ($userId <= 0 || $periodId <= 0) {
         $msg = 'Employee ID and period ID are required.';
@@ -101,7 +101,7 @@ function wageApiBulkCompute(array $params = []): void
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
     $salaryType = trim((string)($input['salary_type'] ?? ''));
-    $periodId = (int)($input['period_id'] ?? $input['id'] ?? $params['period_id'] ?? $_GET['period_id'] ?? 0);
+    $periodId = (int)($input['period_id'] ?? $input['payroll_period_id'] ?? $input['id'] ?? $params['period_id'] ?? $_GET['period_id'] ?? 0);
     $isFormPost = !str_contains($contentType, 'application/json');
 
     // Auto-create period when salary_type is provided (quick prepare flow)
