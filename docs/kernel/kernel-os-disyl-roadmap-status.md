@@ -25,7 +25,9 @@ or any language that speaks HTTP+JSON.
 | Component | Version | File |
 |---|---|---|
 | Kernel OS | `6.0.0` (ecosystem) | `kernel/App.php` |
-| DiSyL | `4.0.0` | `kernel/DiSyL/Grammar.php` |
+| DiSyL | `4.7.0` | `kernel/DiSyL/Grammar.php` |
+| TemplateEngine | `4.7.0` | `kernel/DiSyL/TemplateEngine.php` (5799 lines; entity rendering in `EntityRenderingTrait`) |
+| Parser (v4) | `4.7.0` | `kernel/DiSyL/v4/Parser.php` (per-block error recovery) |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
 | EntityViewResolver | `1.0.0` | `kernel/EntityContext/EntityViewResolver.php` |
 | ServiceProxy | `1.0.0` | `kernel/Capabilities/ServiceProxy.php` |
@@ -34,9 +36,14 @@ or any language that speaks HTTP+JSON.
 
 ## Phase 1 — Kernel + DiSyL Foundation ✅
 
-All April 2026 audit items resolved. Compiled mode is production default. Linter
-scans 398 templates with 0 errors. JWT algorithm validation, event caching, and
-dead code cleanup complete.
+All April 2026 audit items resolved. Compiled mode is now the **default** (v4.7+) with lazy one-shot boot; component-tag templates auto-fallback to interpreted. Linter scans 398 templates with 0 errors. JWT algorithm validation, event caching, and dead code cleanup complete.
+
+**DiSyL 4.7 improvements (June 19, 2026):**
+- Compiled mode default (was opt-in `enableCompiledMode()`)
+- Per-block parser error recovery (`recoverableParse()` wrapper on all 9 control structures)
+- TemplateEngine split: `EntityRenderingTrait` extracted (679 lines, 18 methods)
+- Grammar v11 dead code removed → archived to `docs/kernel/disyl-grammar-v11-planned-types.md`
+- Grammar.php: 199 → 135 lines (-64)
 
 See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-evaluation-2026-04-15.md)
 
@@ -75,11 +82,16 @@ See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-eva
 pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 
 **Hardened (June 19, 2026):**
-- Result normalisation: `resolve()` now accepts `rows`, `data` envelope, and bare array-of-arrays (not just `rows` key) — `isListOfAssocArrays()` helper added
-- All 8 modules now expose `entity.list`/`entity.get` in `module.json` (Bakeshop, Guidance, Daily Ledger, Ecommerce, WMS were missing)
-- Ecommerce product handlers rewritten to query `cms_content` (type=product); WMS stock handlers fixed to use `wms_stocks` (plural)
+- Result normalisation: `resolve()` now accepts `rows`, `data` envelope, and bare array-of-arrays — `isListOfAssocArrays()` helper added
+- All 8 modules now expose `entity.list`/`entity.get` in `module.json`
+- Ecommerce product handlers rewritten to `cms_content` (type=product); WMS stock handlers fixed to `wms_stocks` (plural)
 - `renderEntityList` logs zero-row diagnostic when data resolves but returns empty
 - TemplateEngine default view fallthrough fixed: missing `$actionLabels` parameter restored
+- Custom cell renderers: `badge`, `badge:map`, `money:N`, `datetime`, `boolean`
+- DELETE actions via POST with auto-injected CSRF tokens
+- Header slot for inline forms/filters above entity lists
+- `action_show_if` conditions + `action_labels` for row actions
+- Entity rendering extracted to `EntityRenderingTrait` (TemplateEngine: 6478 → 5799 lines)
 
 ---
 

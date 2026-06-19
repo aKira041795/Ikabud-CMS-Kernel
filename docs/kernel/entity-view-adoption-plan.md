@@ -1,7 +1,7 @@
 # Entity-View Adoption Plan — Closing the Gap
 
 > **Status:** Phases 1–3 complete — June 19, 2026.
-> **Latest:** All 8 modules have exposed `entity.list`/`entity.get` handlers in module.json. Ecommerce product handlers rewritten to query `cms_content` (type=product) instead of non-existent `ec_products`. WMS stock handlers fixed to use `wms_stocks` (plural). EntityViewResolver result normalisation hardened (June 19 kernel commit `3746aca`).
+> **Latest (June 19):** All 8 modules expose `entity.list`/`entity.get` handlers. Ecommerce product handlers rewritten to `cms_content` (type=product); WMS stock handlers fixed to `wms_stocks` (plural). EntityViewResolver result normalisation hardened. TemplateEngine refactored: 18 entity rendering methods extracted to `EntityRenderingTrait` (679 lines out). Compiled mode now default (v4.7+), fixing stale-cache workarounds. Parser per-block error recovery shipped. Grammar v11 dead code archived to `docs/kernel/disyl-grammar-v11-planned-types.md`.
 > **Objective:** Extend entity-view contracts to all modules so themes can present module data through governed `{ikb_entity_list}` / `{ikb_entity_detail}` without depending on module internals.
 
 ## Final Adoption State
@@ -23,18 +23,29 @@
 ### Phase 2 — View Contracts (builtinDefaults) ✅ Complete
 ### Phase 3 — Template Migration � In Progress (June 19, 2026)
 
-Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_detail}` in templates. Zero-code change for the capability layer — templates just need to adopt the new components.
+Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_detail}` in templates.
 
-**Adopted so far:**
+**Adoption status: 13 templates across 2 modules (attendance-wage: 31%)**
+
+**Adopted:**
 - `templates/_cms_active_theme/public/home.disyl` — `ecommerce_product.featured`, `wms_stock.low`
 - `templates/_cms_active_theme/public/entity.list.disyl` — `ecommerce_product.featured`
-- `templates/modules/attendance-wage/wage/dashboard.disyl` — `office_location`, `cash_advance`, `attendance_record` (partially; recent_computations uses custom table pending cache fix)
+- `templates/modules/attendance-wage/wage/dashboard.disyl` — `office_location`, `cash_advance`, `attendance_record`
+- `templates/modules/attendance-wage/wage/locations/index.disyl` — `office_location` (replaced 80-line custom table → 20 lines)
 - `templates/modules/attendance-wage/attendance/history.disyl` — `attendance_record.recent`
 - `templates/modules/attendance-wage/attendance/report.disyl` — `attendance_record.recent`
+- `templates/modules/attendance-wage/attendance/records.disyl` — per-employee attendance records
 - `templates/modules/guidance/pages/dashboard.disyl` — `ikb_entity_list`
 - `templates/modules/cms/admin/dashboard.disyl` — `ikb_entity_list`
 
-**Note:** Some dashboard sections use custom tables as a workaround for stale Disyl compiled cache. Once cache invalidation reliability is proven, these will switch back to `ikb_entity_list`.
+**Stale-cache workaround resolved:** Compiled mode is now default. Versioned extends cache keys (`md5(path|mtime)`) prevent stale output. `?disyl_nocache=1` escape hatch available. Custom table workarounds (e.g., recent_computations) can now migrate back to `ikb_entity_list`.
+
+**New entity view features (June 19):**
+- Custom cell renderers: `badge`, `badge:map`, `money:N`, `datetime`, `boolean`
+- DELETE actions via POST forms with auto-injected CSRF tokens
+- Header slot (`header="..."`) for inline forms/filters above entity lists
+- `action_show_if` conditions (e.g., `status == "pending"`) to toggle row actions
+- `action_labels` for custom action button text
 
 ---
 
