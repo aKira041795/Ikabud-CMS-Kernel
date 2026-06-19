@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 function attendancePageClock(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/attendance/clock', [
         'active_nav'        => 'attendance',
@@ -19,6 +20,7 @@ function attendancePageClock(array $params = []): void
 
 function attendancePageRecords(array $params = []): void
 {
+    attendanceWageGuard();
     $records = [];
     $selectedEmployee = null;
     $selectedRecords = [];
@@ -93,6 +95,7 @@ function attendancePageRecords(array $params = []): void
 
 function attendancePageHistory(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/attendance/history', [
         'active_nav'        => 'attendance',
@@ -102,6 +105,7 @@ function attendancePageHistory(array $params = []): void
 
 function attendancePageReport(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/attendance/report', [
         'active_nav'        => 'attendance',

@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 function wagePageDashboard(array $params = []): void
 {
+    attendanceWageGuard();
     $data = [
         'employee_count' => 0,
         'current_period_name' => '—',
@@ -95,6 +96,7 @@ function wagePageDashboard(array $params = []): void
 
 function wagePageEmployees(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/employees/index', [
         'success' => $_GET['success'] ?? '',
@@ -106,6 +108,7 @@ function wagePageEmployees(array $params = []): void
 
 function wagePageEmployeeForm(array $params = []): void
 {
+    attendanceWageGuard();
     $editId = (int)($params['id'] ?? 0);
     $vars = ['id' => $editId, 'salary_type' => 'daily'];
     if ($editId > 0) {
@@ -130,6 +133,7 @@ function wagePageEmployeeForm(array $params = []): void
 
 function wagePagePeriods(array $params = []): void
 {
+    attendanceWageGuard();
     // Salary type stats
     $stats = ['hourly' => 0, 'daily' => 0, 'monthly' => 0, 'fixed' => 0, 'total' => 0];
     try {
@@ -174,6 +178,7 @@ function wagePagePeriods(array $params = []): void
 
 function wagePagePeriodForm(array $params = []): void
 {
+    attendanceWageGuard();
     $editId = (int)($params['id'] ?? 0);
     $vars = ['id' => $editId];
     if ($editId > 0) {
@@ -196,6 +201,7 @@ function wagePagePeriodForm(array $params = []): void
 
 function wagePageComputations(array $params = []): void
 {
+    attendanceWageGuard();
     $periods = [];
     $selectedPeriodId = (int)($_GET['period_id'] ?? 0);
     $computations = [];
@@ -269,6 +275,7 @@ function wagePageComputations(array $params = []): void
 
 function wagePageAdjustments(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/adjustments/index', [
         'success' => $_GET['success'] ?? '',
@@ -280,6 +287,7 @@ function wagePageAdjustments(array $params = []): void
 
 function wagePageAdjustmentForm(array $params = []): void
 {
+    attendanceWageGuard();
     $editId = (int)($params['id'] ?? 0);
     $vars = ['id' => $editId, 'effective_date' => date('Y-m-d')];
     $employees = [];
@@ -320,6 +328,7 @@ function wagePageAdjustmentForm(array $params = []): void
 
 function wagePageDeductions(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/deductions/index', [
         'active_nav'        => 'deductions',
@@ -329,6 +338,7 @@ function wagePageDeductions(array $params = []): void
 
 function wagePageDeductionForm(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/deductions/form', [
         'active_nav'        => 'deductions',
@@ -338,6 +348,7 @@ function wagePageDeductionForm(array $params = []): void
 
 function wagePageCashAdvances(array $params = []): void
 {
+    attendanceWageGuard();
     $summary = ['total' => 0, 'pending' => 0, 'approved' => 0, 'active' => 0];
     $selectedCA = null;
     $employeeCAs = [];
@@ -376,6 +387,7 @@ function wagePageCashAdvances(array $params = []): void
 
 function wagePageCashAdvanceForm(array $params = []): void
 {
+    attendanceWageGuard();
     $employees = [];
     try {
         $db = aw_db();
@@ -392,6 +404,7 @@ function wagePageCashAdvanceForm(array $params = []): void
 
 function wagePageHolidays(array $params = []): void
 {
+    attendanceWageGuard();
     $editHoliday = null;
     $editId = (int)($_GET['edit'] ?? 0);
     if ($editId > 0) {
@@ -414,6 +427,7 @@ function wagePageHolidays(array $params = []): void
 
 function wagePageSchedules(array $params = []): void
 {
+    attendanceWageGuard();
     $schedules = [];
     $employees = [];
     try {
@@ -450,6 +464,7 @@ function wagePageSchedules(array $params = []): void
 
 function wagePageReports(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/reports/index', [
         'active_nav'        => 'reports',
@@ -459,6 +474,7 @@ function wagePageReports(array $params = []): void
 
 function wagePageReportDetail(array $params = []): void
 {
+    attendanceWageGuard();
     $periodId = (int)($params['periodId'] ?? 0);
     $period = null;
     $computations = [];
@@ -517,6 +533,7 @@ function wagePageReportDetail(array $params = []): void
 
 function wagePageBenefitsCalc(array $params = []): void
 {
+    attendanceWageGuard('attendance_wage.admin@1');
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/benefits-calculator', [
         'active_nav'        => 'benefits',
@@ -526,6 +543,7 @@ function wagePageBenefitsCalc(array $params = []): void
 
 function wagePageMigrationWizard(array $params = []): void
 {
+    attendanceWageGuard('attendance_wage.admin@1');
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/migration-wizard', [
         'active_nav'        => 'migration',
@@ -535,6 +553,7 @@ function wagePageMigrationWizard(array $params = []): void
 
 function wagePageLocations(array $params = []): void
 {
+    attendanceWageGuard();
     // Entity view (ikb_entity_list) handles data — page only passes context
     echo app()->render('modules/attendance-wage/wage/locations/index', [
         'success' => $_GET['success'] ?? '',
@@ -545,6 +564,7 @@ function wagePageLocations(array $params = []): void
 
 function wagePageLocationForm(array $params = []): void
 {
+    attendanceWageGuard();
     $editId = (int)($params['id'] ?? 0);
     $settings = getModuleSettings('attendance-wage');
     $tid = app()->tenant()->current() ?? '';
@@ -567,6 +587,7 @@ function wagePageLocationForm(array $params = []): void
 
 function wagePageProfile(array $params = []): void
 {
+    attendanceWageGuard();
     $user = attendanceWageUser();
     if (!$user) {
         header('Location: ' . awBaseUrl() . '/attendance-wage/login');
