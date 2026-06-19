@@ -53,6 +53,8 @@ class TemplateEngine
     private bool $strictMode = true;
     /** @var array<string, array{params: array, body: string}> Registered {macro} definitions */
     private array $macros = [];
+    /** @var int Recursion depth for compile() — macros only extracted at depth 0 */
+    private int $compileDepth = 0;
     private ?Compiler\TemplateCache $compiledCache = null;
     private array $components = [];
     private array $filters = [];
@@ -557,7 +559,12 @@ class TemplateEngine
         $compileStartedAt = microtime(true);
         $phases = [];
 
+        // v4.8: track recursion depth — macros only extracted at top level
+        $isTopLevel = ($this->compileDepth === 0);
+        $this->compileDepth++;
+
         if (!str_contains($content, '{') && stripos($content, '<script') === false) {
+            $this->compileDepth--;
             return $content;
         }
 
@@ -584,9 +591,10 @@ class TemplateEngine
         }
 
         // 2.5. Extract {macro}...{/macro} definitions — AFTER extends so
-        //      macros defined in parent layouts are included.  Macros are
-        //      template-scoped: the merged template owns all macro defs.
-        if (str_contains($content, '{macro ')) {
+        //      macros defined in parent layouts are included.  Only run at
+        //      top-level compile (recursive compiles inside {if}/{for} etc.
+        //      must not clear macros already registered).
+        if ($isTopLevel && str_contains($content, '{macro ')) {
             $content = $this->extractMacros($content);
         }
         
@@ -704,7 +712,8 @@ class TemplateEngine
         if (function_exists('log_timing')) {
             log_timing('disyl.compile.phases', $compileStartedAt, $phases);
         }
-        
+
+        $this->compileDepth--;
         return $content;
     }
     
