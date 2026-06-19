@@ -17,11 +17,13 @@ declare(strict_types=1);
  *
  * Entity List:
  *   renderEntityList()    — ikb_entity_list entry point
- *   renderEntityListRows()— dispatch rows by view mode
- *   renderCompactRow()    — compact / default row
- *   renderCardGridRow()   — card grid row
- *   renderTableHeader()   — <thead> from field list
- *   renderTableRow()      — <tr> with renderers
+ *   renderEntityListRows()— dispatch rows by view mode + search/bulk chrome
+ *   renderEntitySearchBar()— Alpine.js search input
+ *   renderEntityBulkBar() — floating bulk action bar
+ *   renderCompactRow()    — compact / default row (supports row-click)
+ *   renderCardGridRow()   — card grid row (supports row-click)
+ *   renderTableHeader()   — <thead> from field list (+ checkbox column for bulk)
+ *   renderTableRow()      — <tr> with renderers (+ checkbox, row-click)
  *
  * Cell Renderers:
  *   renderCell()          — dispatcher (badge/money/datetime/boolean/string)
@@ -31,7 +33,7 @@ declare(strict_types=1);
  *   renderCellBoolean()   — Yes/No badge
  *
  * Actions:
- *   renderRowActions()    — view/edit/delete/approve/etc. with POST+CSRF
+ *   renderRowActions()    — view/edit/delete/approve/etc. with POST+CSRF + auth filtering
  *   evaluateRowCondition()— simple == / != on row fields (static)
  *
  * Entity Detail:
@@ -40,6 +42,7 @@ declare(strict_types=1);
  *
  * Utilities:
  *   renderWithRowContext()— {field} variable substitution
+ *   renderRowClickAttrs() — onclick + cursor for row-click navigation
  *   entityErrorState()    — error banner
  *
  * @package Ikabud\Kernel\DiSyL
@@ -177,6 +180,15 @@ trait EntityRenderingTrait
         $actions = isset($attrs['actions']) ? array_map('trim', explode(',', (string)$attrs['actions'])) : null;
         $class = (string)($attrs['class'] ?? '');
 
+        // v4.8: entity list enhancements
+        $rowClick = (string)($attrs['row-click'] ?? '');
+        $rowClickTarget = (string)($attrs['row-click-target'] ?? '');
+        $search = !empty($attrs['search']) && $attrs['search'] !== 'false';
+        $searchPlaceholder = (string)($attrs['search-placeholder'] ?? 'Search...');
+        $bulkActions = isset($attrs['bulk-actions']) ? array_map('trim', explode(',', (string)$attrs['bulk-actions'])) : [];
+        $bulkActionUrl = (string)($attrs['bulk-action-url'] ?? '');
+        $userRole = (string)($attrs['auth-role'] ?? $context['current_user_role'] ?? '');
+
         if ($source === '') {
             return $this->entityErrorState('Missing source attribute on ikb_entity_list.', $class);
         }
@@ -265,7 +277,12 @@ trait EntityRenderingTrait
             $fields = array_values(array_filter(array_keys($firstRow), fn($k) => !str_starts_with($k, '_')));
         }
 
-        $listHtml = $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers);
+        // v4.8: resolve action roles from contract or explicit attribute
+        $actionRoles = $contract['action_roles'] ?? [];
+        $explicitRoles = isset($attrs['action-roles']) ? json_decode((string)$attrs['action-roles'], true) : null;
+        if (is_array($explicitRoles)) { $actionRoles = $explicitRoles; }
+
+        $listHtml = $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles, $search, $searchPlaceholder, $bulkActions, $bulkActionUrl);
         return $headerHtml . $listHtml;
     }
 
@@ -276,9 +293,11 @@ trait EntityRenderingTrait
      * @param array<int, string> $fields
      * @param array<int, string> $actions
      */
-    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], array $renderers = []): string
+    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], array $renderers = [], string $rowClick = '', string $rowClickTarget = '', string $userRole = '', array $actionRoles = [], bool $search = false, string $searchPlaceholder = 'Search...', array $bulkActions = [], string $bulkActionUrl = ''): string
     {
         $hasCustomSlot = trim($children) !== '';
+        $hasBulk = !empty($bulkActions) && $bulkActionUrl !== '';
+        $listId = $hasBulk ? 'ikb-entity-list-' . bin2hex(random_bytes(4)) : '';
 
         $out = '';
         foreach ($rows as $row) {
@@ -288,20 +307,34 @@ trait EntityRenderingTrait
             }
 
             $out .= match ($viewMode) {
-                'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
-                'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers),
-                'compact', 'default' => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
-                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
+                'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $rowClick, $rowClickTarget, $userRole, $actionRoles),
+                'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles, $hasBulk),
+                'compact', 'default' => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $rowClick, $rowClickTarget, $userRole, $actionRoles),
+                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $rowClick, $rowClickTarget, $userRole, $actionRoles),
             };
+        }
+
+        // Search bar (Alpine.js client-side filter)
+        $searchHtml = '';
+        if ($search && !$hasCustomSlot) {
+            $searchHtml = $this->renderEntitySearchBar($listId, $searchPlaceholder);
+        }
+
+        // Bulk action bar
+        $bulkHtml = '';
+        if ($hasBulk) {
+            $bulkHtml = $this->renderEntityBulkBar($bulkActions, $bulkActionUrl, $listId);
         }
 
         $wrapperClass = $this->entityStyle('wrapper', $viewMode, $use);
 
         if ($viewMode === 'table' && !$hasCustomSlot) {
-            $tableHeader = $this->renderTableHeader($fields, $actions, $use);
-            $out = "<div class=\"{$wrapperClass} {$class}\"><table class=\"w-full text-sm\">{$tableHeader}<tbody>{$out}</tbody></table></div>";
+            $tableHeader = $this->renderTableHeader($fields, $actions, $use, $hasBulk);
+            $bulkCol = $hasBulk ? '<colgroup><col style="width:40px"></colgroup>' : '';
+            $alpine = $search ? ' x-data="{ q:\'\' }"' : '';
+            $out = "<div class=\"{$wrapperClass} {$class}\"{$alpine}>{$searchHtml}{$bulkHtml}<table class=\"w-full text-sm\">{$bulkCol}{$tableHeader}<tbody>{$out}</tbody></table></div>";
         } else {
-            $out = "<div class=\"{$wrapperClass} {$class}\">{$out}</div>";
+            $out = "<div class=\"{$wrapperClass} {$class}\">{$searchHtml}{$out}</div>";
         }
 
         return $out;
@@ -310,7 +343,7 @@ trait EntityRenderingTrait
     /**
      * Compact row: one field per line, minimal chrome.
      */
-    private function renderCompactRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
+    private function renderCompactRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], string $rowClick = '', string $rowClickTarget = '', string $userRole = '', array $actionRoles = []): string
     {
         $rowClass = $this->entityStyle('row', 'compact', $use);
         $titleClass = $this->entityStyle('title', 'compact', $use);
@@ -320,11 +353,12 @@ trait EntityRenderingTrait
         $title = htmlspecialchars((string)($row[$titleField] ?? $titleField), ENT_QUOTES, 'UTF-8');
         $sub = $subField ? htmlspecialchars((string)($row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
 
-        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $userRole, $actionRoles);
         $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
+        $clickAttrs = $this->renderRowClickAttrs($row, $rowClick, $rowClickTarget);
 
         return <<<HTML
-        <div class="{$rowClass}">
+        <div class="{$rowClass}{$clickAttrs['class']}"{$clickAttrs['attrs']}>
             <div class="min-w-0 flex-1">
                 <p class="{$titleClass}">{$title}</p>
                 {$subHtml}
@@ -337,7 +371,7 @@ trait EntityRenderingTrait
     /**
      * Card grid row: image + title + subtitle in a card.
      */
-    private function renderCardGridRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
+    private function renderCardGridRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], string $rowClick = '', string $rowClickTarget = '', string $userRole = '', array $actionRoles = []): string
     {
         $cardClass = $this->entityStyle('card', 'card_grid', $use);
         $titleClass = $this->entityStyle('title', 'card_grid', $use);
@@ -355,11 +389,12 @@ trait EntityRenderingTrait
             $imageHtml = "<img src=\"{$imgSrc}\" alt=\"{$title}\" class=\"w-full h-40 object-cover rounded-t-lg\" loading=\"lazy\">";
         }
 
-        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $userRole, $actionRoles);
         $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
+        $clickAttrs = $this->renderRowClickAttrs($row, $rowClick, $rowClickTarget);
 
         return <<<HTML
-        <div class="{$cardClass}">
+        <div class="{$cardClass}{$clickAttrs['class']}"{$clickAttrs['attrs']}>
             {$imageHtml}
             <div class="p-4">
                 <h3 class="{$titleClass}">{$title}</h3>
@@ -373,11 +408,14 @@ trait EntityRenderingTrait
     /**
      * Render table header from field names.
      */
-    private function renderTableHeader(array $fields, array $actions, string $use = 'tailwind'): string
+    private function renderTableHeader(array $fields, array $actions, string $use = 'tailwind', bool $hasBulk = false): string
     {
         $thClass = $this->entityStyle('th', 'table', $use);
         $theadClass = $this->entityStyle('thead', 'table', $use);
         $cells = '';
+        if ($hasBulk) {
+            $cells .= "<th class=\"{$thClass}\" style=\"width:40px\"><input type=\"checkbox\" class=\"ikb-bulk-select-all\" onclick=\"document.querySelectorAll('.ikb-bulk-row').forEach(cb => cb.checked = this.checked); document.getElementById('ikb-bulk-bar').classList.toggle('hidden', !this.checked)\"></th>";
+        }
         foreach ($fields as $field) {
             if ($field === '*') { continue; }
             $label = htmlspecialchars(ucfirst(str_replace('_', ' ', $field)), ENT_QUOTES, 'UTF-8');
@@ -392,11 +430,16 @@ trait EntityRenderingTrait
     /**
      * Table row: one row in a striped table.
      */
-    private function renderTableRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], array $renderers = []): string
+    private function renderTableRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], array $renderers = [], string $rowClick = '', string $rowClickTarget = '', string $userRole = '', array $actionRoles = [], bool $hasBulk = false): string
     {
         $tdClass = $this->entityStyle('td', 'table', $use);
         $trClass = $this->entityStyle('tr', 'table', $use);
+        $clickAttrs = $this->renderRowClickAttrs($row, $rowClick, $rowClickTarget);
         $cells = '';
+        if ($hasBulk) {
+            $rowId = htmlspecialchars((string)($row['id'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $cells .= "<td class=\"{$tdClass}\"><input type=\"checkbox\" name=\"ids[]\" value=\"{$rowId}\" class=\"ikb-bulk-row\" onclick=\"var any=document.querySelectorAll('.ikb-bulk-row:checked').length>0;document.getElementById('ikb-bulk-bar').classList.toggle('hidden',!any)\"></td>";
+        }
         foreach ($fields as $field) {
             if ($field === '*') { continue; }
             $rawValue = $row[$field] ?? '';
@@ -404,12 +447,12 @@ trait EntityRenderingTrait
             $cells .= "<td class=\"{$tdClass}\">" . $this->renderCell($rawValue, $renderer) . "</td>";
         }
 
-        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $userRole, $actionRoles);
         if ($actionHtml !== '') {
             $cells .= "<td class=\"{$tdClass} text-right whitespace-nowrap\">{$actionHtml}</td>";
         }
 
-        return "<tr class=\"{$trClass}\">{$cells}</tr>";
+        return "<tr class=\"{$trClass}{$clickAttrs['class']}\"{$clickAttrs['attrs']}>{$cells}</tr>";
     }
 
     // ── Cell Renderers ──────────────────────────────────────────────
@@ -528,7 +571,7 @@ trait EntityRenderingTrait
     /**
      * Render action links for a row (view, edit, delete, etc.).
      */
-    private function renderRowActions(array $row, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
+    private function renderRowActions(array $row, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], string $userRole = '', array $actionRoles = []): string
     {
         if (empty($actions)) {
             return '';
@@ -542,10 +585,17 @@ trait EntityRenderingTrait
             $action = trim($action);
             if ($action === '') { continue; }
 
+            // Auth-aware filtering: skip actions the user's role doesn't permit
+            if ($userRole !== '' && isset($actionRoles[$action])) {
+                $allowedRoles = is_array($actionRoles[$action]) ? $actionRoles[$action] : [$actionRoles[$action]];
+                if (!in_array($userRole, $allowedRoles, true)) {
+                    continue;
+                }
+            }
+
             // Check action_show_if condition — skip if row doesn't match
             if (isset($actionShowIf[$action]) && $actionShowIf[$action] !== '') {
                 $condition = $actionShowIf[$action];
-                // Simple $row[field] == "value" parser
                 if (!self::evaluateRowCondition($row, $condition)) {
                     continue;
                 }
@@ -723,6 +773,87 @@ trait EntityRenderingTrait
             }
         }
         return $result;
+    }
+
+    // ── v4.8: Row click, search, bulk actions ─────────────────────────
+
+    /**
+     * Build onclick + cursor CSS for a row when row-click is configured.
+     *
+     * @param array $row Entity row data (for {field} substitution)
+     * @param string $rowClick URL pattern e.g. "/admin/employees/{id}"
+     * @param string $target Optional target e.g. "_blank"
+     * @return array{attrs: string, class: string}
+     */
+    private function renderRowClickAttrs(array $row, string $rowClick, string $target = ''): array
+    {
+        if ($rowClick === '') {
+            return ['attrs' => '', 'class' => ''];
+        }
+        $url = $rowClick;
+        foreach ($row as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $url = str_replace('{' . $key . '}', urlencode((string)$value), $url);
+            }
+        }
+        $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+        $targetAttr = $target !== '' ? ' target="' . htmlspecialchars($target, ENT_QUOTES, 'UTF-8') . '"' : '';
+        return [
+            'attrs' => ' onclick="window.open(\'' . $safeUrl . '\'' . ($target !== '' ? ',\'' . htmlspecialchars($target, ENT_QUOTES, 'UTF-8') . '\'' : '') . ')" style="cursor:pointer"',
+            'class' => ' cursor-pointer hover:bg-blue-50/30',
+        ];
+    }
+
+    /**
+     * Render a client-side search bar using Alpine.js.
+     * Filters rows by text content within the same container.
+     */
+    private function renderEntitySearchBar(string $listId, string $placeholder): string
+    {
+        $safePlaceholder = htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8');
+        $listSelector = $listId !== '' ? '#' . $listId . ' ' : '';
+        return <<<HTML
+        <div class="ikb-entity-search mb-3">
+            <input type="text" x-model="q" placeholder="{$safePlaceholder}"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                @input="document.querySelectorAll('{$listSelector}tbody tr, {$listSelector}.ikb-entity-row, {$listSelector}.ikb-entity-card').forEach(el => {
+                    const visible = !q || el.textContent.toLowerCase().includes(q.toLowerCase());
+                    el.style.display = visible ? '' : 'none';
+                })">
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render a floating bulk action bar (hidden until checkboxes are checked).
+     */
+    private function renderEntityBulkBar(array $bulkActions, string $bulkActionUrl, string $listId): string
+    {
+        $csrfInput = '';
+        if (\function_exists('csrf_token')) {
+            $csrfValue = htmlspecialchars((string)\csrf_token(), ENT_QUOTES, 'UTF-8');
+            $csrfInput = "<input type=\"hidden\" name=\"_token\" value=\"{$csrfValue}\">";
+        }
+        $safeUrl = htmlspecialchars($bulkActionUrl, ENT_QUOTES, 'UTF-8');
+        $buttons = '';
+        foreach ($bulkActions as $ba) {
+            $ba = trim($ba);
+            if ($ba === '') { continue; }
+            $label = htmlspecialchars(ucfirst($ba), ENT_QUOTES, 'UTF-8');
+            $actionClass = $this->entityStyle('action', $ba, 'tailwind');
+            $buttons .= "<button type=\"submit\" name=\"bulk_action\" value=\"{$ba}\" class=\"{$actionClass}\">{$label}</button>";
+        }
+        $barId = $listId !== '' ? 'ikb-bulk-bar-' . $listId : 'ikb-bulk-bar';
+        return <<<HTML
+        <div id="{$barId}" class="ikb-bulk-bar hidden sticky top-0 z-10 mb-3 p-3 bg-brand-50 border border-brand-200 rounded-lg flex items-center gap-3 shadow-sm">
+            <span class="text-sm font-medium text-brand-800 ikb-bulk-count">0 selected</span>
+            <div class="flex-1"></div>
+            <form method="post" action="{$safeUrl}" class="flex items-center gap-2" onsubmit="var ids=[];document.querySelectorAll('.ikb-bulk-row:checked').forEach(cb=>ids.push(cb.value));var inp=document.createElement('input');inp.type='hidden';inp.name='ids';inp.value=ids.join(',');this.appendChild(inp)">
+                {$csrfInput}
+                {$buttons}
+            </form>
+        </div>
+        HTML;
     }
 
     /**

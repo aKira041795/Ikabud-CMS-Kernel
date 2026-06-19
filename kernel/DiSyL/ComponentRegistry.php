@@ -485,6 +485,48 @@ class ComponentRegistry
                     'type' => Grammar::TYPE_STRING,
                     'required' => false,
                     'description' => 'HTML or #blockName rendered above the list (for inline forms, filters)'
+                ],
+                'row-click' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'URL pattern for clickable rows (e.g. /admin/employees/{id})'
+                ],
+                'row-click-target' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Browser target for row-click navigation (e.g. _blank)'
+                ],
+                'search' => [
+                    'type' => Grammar::TYPE_BOOLEAN,
+                    'required' => false,
+                    'default' => false,
+                    'description' => 'Enable client-side search/filter bar (Alpine.js)'
+                ],
+                'search-placeholder' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'default' => 'Search...',
+                    'description' => 'Placeholder text for the search input'
+                ],
+                'bulk-actions' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Comma-separated bulk action names (delete, export, approve)'
+                ],
+                'bulk-action-url' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'POST endpoint for bulk actions'
+                ],
+                'auth-role' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Override user role for auth-aware action visibility'
+                ],
+                'action-roles' => [
+                    'type' => Grammar::TYPE_EXPRESSION,
+                    'required' => false,
+                    'description' => 'JSON map of action → required role(s) (e.g. {"delete":"admin"})'
                 ]
             ],
             'leaf' => false
