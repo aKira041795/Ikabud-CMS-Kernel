@@ -25,6 +25,7 @@ function wagePageDashboard(array $params = []): void
         'today_onsite_count' => 0,
         'today_office_count' => 0,
         'today_attendance' => [],
+        'recent_computations' => [],
     ];
     try {
         $db = aw_db();
@@ -75,6 +76,18 @@ function wagePageDashboard(array $params = []): void
         );
         $attStmt->execute();
         $data['today_attendance'] = $attStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        // Recent computations
+        $compStmt = $db->query(
+            "SELECT sc.computation_id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    pp.period_name, sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status
+             FROM salary_computations sc
+             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             LEFT JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+             ORDER BY sc.created_at DESC
+             LIMIT 5"
+        );
+        $data['recent_computations'] = $compStmt ? $compStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
     } catch (\Throwable $e) {}
 
     echo app()->render('modules/attendance-wage/wage/dashboard', $data + ['active_nav' => 'dashboard', 'current_user_role' => (attendanceWageUser()['role'] ?? '')]);

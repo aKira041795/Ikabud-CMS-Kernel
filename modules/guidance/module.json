@@ -172,6 +172,38 @@
                         }
                     }
                 }
+            },
+            {
+                "id": "entity.list.guidance_case@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List guidance cases"
+            },
+            {
+                "id": "entity.get.guidance_case@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single guidance case"
+            },
+            {
+                "id": "entity.list.guidance_appointment@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List guidance appointments"
+            },
+            {
+                "id": "entity.get.guidance_appointment@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single guidance appointment"
             }
         ],
         "depends": [

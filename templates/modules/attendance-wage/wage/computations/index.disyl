@@ -75,6 +75,11 @@
                     <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm">💰 Mark All Paid</button>
                 </form>
                 {/if}
+                <form method="POST" action="/api/v1/wage/compute/bulk" class="inline" onsubmit="return confirm('Recompute all employees for this period? This will update hours from attendance records.')">
+                    <input type="hidden" name="_token" value="{csrf_token}">
+                    <input type="hidden" name="period_id" value="{selectedPeriodId}">
+                    <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors shadow-sm">🧮 Bulk Compute All</button>
+                </form>
             </div>
         </div>
         {/if}
@@ -113,6 +118,12 @@
                         </td>
                         <td class="py-3 px-5 text-right">
                             <div class="flex items-center justify-end gap-1.5">
+                                <form method="POST" action="/api/v1/wage/compute" class="inline" onsubmit="return confirm('Recompute salary for {c.employee_name|default:'this employee'}? Hours will be recalculated from attendance records.')">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
+                                    <input type="hidden" name="user_id" value="{c.user_id}">
+                                    <input type="hidden" name="period_id" value="{selectedPeriodId}">
+                                    <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100">🔄 Recompute</button>
+                                </form>
                                 {if c.status=='computed' && can_approve}
                                 <form method="POST" action="/api/v1/wage/computations/{c.computation_id}/approve" class="inline">
                                     <input type="hidden" name="_token" value="{csrf_token}">
@@ -170,7 +181,14 @@
                             <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium {if p.status=='completed'}bg-green-100 text-green-700{else if p.status=='processing'}bg-blue-100 text-blue-700{else if p.status=='cancelled'}bg-red-100 text-red-700{else}bg-amber-100 text-amber-700{/if}">{p.status|default:'draft'}</span>
                         </td>
                         <td class="py-3 px-5 text-right">
-                            <a href="/admin/wage/computations?period_id={p.period_id}" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100">View</a>
+                            <div class="flex items-center justify-end gap-1.5">
+                                <form method="POST" action="/api/v1/wage/compute/bulk" class="inline" onsubmit="return confirm('Compute salaries for all employees in {p.period_name|default:'this period'}?')">
+                                    <input type="hidden" name="_token" value="{csrf_token}">
+                                    <input type="hidden" name="period_id" value="{p.period_id}">
+                                    <button type="submit" class="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md bg-amber-50 text-amber-700 hover:bg-amber-100">🧮 Compute</button>
+                                </form>
+                                <a href="/admin/wage/computations?period_id={p.period_id}" class="inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100">View</a>
+                            </div>
                         </td>
                     </tr>
                     {/for}

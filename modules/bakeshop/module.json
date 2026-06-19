@@ -73,6 +73,22 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.list.bakeshop_product@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List bakeshop products"
+            },
+            {
+                "id": "entity.get.bakeshop_product@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single bakeshop product"
             }
         ],
         "depends": [

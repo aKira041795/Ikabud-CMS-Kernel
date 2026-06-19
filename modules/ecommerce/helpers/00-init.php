@@ -865,13 +865,13 @@ function ec_cap_entity_list_product_1(mixed $payload, string $capabilityId = '',
 {
     $limit = min((int)($payload['limit'] ?? 20), 100);
     $qualifier = (string)($payload['qualifier'] ?? '');
-    $filter = '';
-    if ($qualifier === 'featured') { $filter = ' AND p.is_featured = 1'; }
+    $filter = "c.type = 'product'";
+    if ($qualifier === 'featured') { $filter .= ' AND (SELECT 1 FROM cms_content_meta WHERE content_id = c.id AND meta_key = \'_is_featured\' AND meta_value = \'1\' LIMIT 1) IS NOT NULL'; }
     try {
-        $db = ecDb();
-        $stmt = $db->query("SELECT p.id, p.name, p.price, p.stock_status, p.created_at, (SELECT file_path FROM ec_product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as image FROM ec_products p WHERE p.deleted_at IS NULL{$filter} ORDER BY p.created_at DESC LIMIT {$limit}");
+        $db = cmsDb();
+        $stmt = $db->query("SELECT c.id, c.title AS name, (SELECT meta_value FROM cms_content_meta WHERE content_id = c.id AND meta_key = '_price' LIMIT 1) AS price, (SELECT meta_value FROM cms_content_meta WHERE content_id = c.id AND meta_key = '_stock_status' LIMIT 1) AS stock_status, c.created_at, (SELECT m.file_path FROM cms_content_media cm JOIN cms_media m ON m.id = cm.media_id WHERE cm.content_id = c.id AND cm.is_featured = 1 LIMIT 1) AS image FROM cms_content c WHERE {$filter} AND c.status = 'published' AND c.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $countStmt = $db->query("SELECT COUNT(*) FROM ec_products WHERE deleted_at IS NULL{$filter}");
+        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content c WHERE {$filter} AND c.status = 'published' AND c.deleted_at IS NULL");
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) {
@@ -885,8 +885,8 @@ function ec_cap_entity_get_product_1(mixed $payload, string $capabilityId = '', 
     $id = (int)($payload['id'] ?? ($payload['entity_id'] ?? 0));
     if ($id <= 0) return [];
     try {
-        $db = ecDb();
-        $stmt = $db->prepare('SELECT p.*, (SELECT file_path FROM ec_product_images WHERE product_id = p.id AND is_primary = 1 LIMIT 1) as image FROM ec_products p WHERE p.id = :id AND p.deleted_at IS NULL LIMIT 1');
+        $db = cmsDb();
+        $stmt = $db->prepare("SELECT c.*, (SELECT meta_value FROM cms_content_meta WHERE content_id = c.id AND meta_key = '_price' LIMIT 1) AS price, (SELECT meta_value FROM cms_content_meta WHERE content_id = c.id AND meta_key = '_stock_status' LIMIT 1) AS stock_status, (SELECT m.file_path FROM cms_content_media cm JOIN cms_media m ON m.id = cm.media_id WHERE cm.content_id = c.id AND cm.is_featured = 1 LIMIT 1) AS image FROM cms_content c WHERE c.id = :id AND c.type = 'product' AND c.status = 'published' AND c.deleted_at IS NULL LIMIT 1");
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         return is_array($row) ? $row : [];
@@ -900,9 +900,9 @@ function ec_cap_entity_list_order_1(mixed $payload, string $capabilityId = '', s
     $limit = min((int)($payload['limit'] ?? 15), 100);
     try {
         $db = ecDb();
-        $stmt = $db->query("SELECT id, order_number, status, total, created_at FROM ec_orders WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT {$limit}");
+        $stmt = $db->query("SELECT id, order_number, status, total, created_at FROM ec_orders ORDER BY created_at DESC LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $countStmt = $db->query('SELECT COUNT(*) FROM ec_orders WHERE deleted_at IS NULL');
+        $countStmt = $db->query('SELECT COUNT(*) FROM ec_orders');
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) {
@@ -917,7 +917,7 @@ function ec_cap_entity_get_order_1(mixed $payload, string $capabilityId = '', st
     if ($id <= 0) return [];
     try {
         $db = ecDb();
-        $stmt = $db->prepare('SELECT * FROM ec_orders WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt = $db->prepare('SELECT * FROM ec_orders WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!is_array($row)) return [];

@@ -240,6 +240,38 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.list.wms_stock@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List WMS stock items"
+            },
+            {
+                "id": "entity.get.wms_stock@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single WMS stock item"
+            },
+            {
+                "id": "entity.list.wms_location@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List WMS locations"
+            },
+            {
+                "id": "entity.get.wms_location@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single WMS location"
             }
         ],
         "depends": [],

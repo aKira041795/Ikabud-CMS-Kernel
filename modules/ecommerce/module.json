@@ -419,6 +419,38 @@
                         }
                     }
                 }
+            },
+            {
+                "id": "entity.list.ecommerce_product@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List ecommerce products"
+            },
+            {
+                "id": "entity.get.ecommerce_product@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single ecommerce product"
+            },
+            {
+                "id": "entity.list.ecommerce_order@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List ecommerce orders"
+            },
+            {
+                "id": "entity.get.ecommerce_order@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single ecommerce order"
             }
         ],
         "depends": [],

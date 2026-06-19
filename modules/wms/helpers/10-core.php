@@ -448,12 +448,12 @@ function wms_cap_entity_list_stock_1(mixed $payload, string $capabilityId = '', 
     $limit = min((int)($payload['limit'] ?? 30), 100);
     $qualifier = (string)($payload['qualifier'] ?? '');
     $filter = '';
-    if ($qualifier === 'low') { $filter = ' AND s.qty <= 10'; }
+    if ($qualifier === 'low') { $filter = ' AND s.qty_available <= 10'; }
     try {
         $db = wmsDb();
-        $stmt = $db->query("SELECT s.id, s.sku, s.name, s.qty, l.name as location_name, s.updated_at FROM wms_stock s LEFT JOIN wms_locations l ON l.id = s.location_id WHERE s.deleted_at IS NULL{$filter} ORDER BY s.updated_at DESC LIMIT {$limit}");
+        $stmt = $db->query("SELECT s.id, p.sku, p.name, s.qty_on_hand AS qty, l.name as location_name, s.updated_at FROM wms_stocks s JOIN wms_products p ON p.id = s.product_id LEFT JOIN wms_locations l ON l.id = s.location_id WHERE s.qty_on_hand > 0{$filter} ORDER BY s.updated_at DESC LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $countStmt = $db->query("SELECT COUNT(*) FROM wms_stock WHERE deleted_at IS NULL{$filter}");
+        $countStmt = $db->query("SELECT COUNT(*) FROM wms_stocks s WHERE s.qty_on_hand > 0{$filter}");
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) {
@@ -467,7 +467,7 @@ function wms_cap_entity_get_stock_1(mixed $payload, string $capabilityId = '', s
     if ($id <= 0) return [];
     try {
         $db = wmsDb();
-        $stmt = $db->prepare('SELECT s.*, l.name as location_name FROM wms_stock s LEFT JOIN wms_locations l ON l.id = s.location_id WHERE s.id = :id AND s.deleted_at IS NULL LIMIT 1');
+        $stmt = $db->prepare('SELECT s.*, p.sku, p.name, l.name as location_name FROM wms_stocks s JOIN wms_products p ON p.id = s.product_id LEFT JOIN wms_locations l ON l.id = s.location_id WHERE s.id = :id LIMIT 1');
         $stmt->execute([':id' => $id]);
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         return is_array($row) ? $row : [];

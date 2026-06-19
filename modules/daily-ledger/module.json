@@ -119,6 +119,22 @@
             }
           }
         }
+      },
+      {
+        "id": "entity.list.daily_ledger_entry@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "description": "List daily ledger entries"
+      },
+      {
+        "id": "entity.get.daily_ledger_entry@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "description": "Get single daily ledger entry"
       }
     ],
     "depends": [],

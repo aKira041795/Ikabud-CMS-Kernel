@@ -165,6 +165,9 @@ function kioskApiClock(array $params = []): void
                 ($emp['first_name'] ?? '') . ' ' . ($emp['last_name'] ?? '')
             );
 
+            // Auto-recompute salary for current active payroll period
+            kioskAutoRecompute($db, $userId);
+
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([
                 'ok'          => true,

@@ -5202,7 +5202,7 @@ class TemplateEngine
                 'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
                 'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
                 'compact', 'default' => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
-                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf),
+                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
             };
         }
 

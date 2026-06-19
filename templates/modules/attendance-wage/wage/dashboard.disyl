@@ -133,10 +133,54 @@
         </div>
     </div>
     <div class="mb-10">
-        <h2 class="text-xl font-bold text-gray-900 mb-4">💵 Recent Computations</h2>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {ikb_entity_list source="salary_computation" view="table" use="tailwind" limit="5" empty="No computations yet. Run payroll from the Periods page first." /}
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-gray-900">💵 Recent Computations</h2>
+            <a href="/admin/wage/computations" class="text-sm text-brand-600 hover:text-brand-700 font-medium">View All →</a>
         </div>
+        {if recent_computations|count > 0}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Employee</th>
+                            <th class="py-3 px-4 text-left font-semibold text-gray-600">Period</th>
+                            <th class="py-3 px-4 text-right font-semibold text-gray-600">Gross Pay</th>
+                            <th class="py-3 px-4 text-right font-semibold text-gray-600">Deductions</th>
+                            <th class="py-3 px-4 text-right font-semibold text-gray-600">Net Pay</th>
+                            <th class="py-3 px-4 text-center font-semibold text-gray-600">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for c in recent_computations}
+                        <tr class="border-b last:border-b-0 border-gray-100 hover:bg-gray-50/50">
+                            <td class="py-3 px-4 font-medium text-gray-900">{c.employee_name|default:'—'}</td>
+                            <td class="py-3 px-4 text-gray-600 text-xs">{c.period_name|default:'—'}</td>
+                            <td class="py-3 px-4 text-right text-gray-900 font-medium">₱{c.gross_pay|default:'0.00'}</td>
+                            <td class="py-3 px-4 text-right text-red-600">₱{c.total_deductions|default:'0.00'}</td>
+                            <td class="py-3 px-4 text-right text-green-700 font-semibold">₱{c.net_pay|default:'0.00'}</td>
+                            <td class="py-3 px-4 text-center">
+                                {if c.status == 'computed'}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Computed</span>
+                                {else if c.status == 'approved'}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Approved</span>
+                                {else if c.status == 'paid'}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Paid</span>
+                                {else}
+                                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{c.status|default:'—'}</span>
+                                {/if}
+                            </td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {else}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <p class="text-gray-400 text-sm">No computations yet. Run payroll from the Computations page.</p>
+        </div>
+        {/if}
     </div>
 </div>
 {/block}
