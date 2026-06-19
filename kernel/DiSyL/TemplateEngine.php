@@ -1654,12 +1654,29 @@ class TemplateEngine
         if ($raw === '') {
             return $args;
         }
-        // Simple split on commas (args should be pre-resolved by this point)
-        $parts = explode(',', $raw);
+        // Split on commas, respecting quoted strings
+        $parts = $this->splitMacroCallArgs($raw);
         foreach ($parts as $part) {
-            $part = trim($part, " \t\n\r\0\x0B\"'");
+            $part = trim($part);
             if ($part === '') { continue; }
-            // If the arg looks like a variable name (no quotes, no spaces), resolve it
+            // Quoted string literal
+            if ((str_starts_with($part, '"') && str_ends_with($part, '"')) ||
+                (str_starts_with($part, "'") && str_ends_with($part, "'"))) {
+                $args[] = substr($part, 1, -1);
+                continue;
+            }
+            // Filter expression (contains |)
+            if (str_contains($part, '|')) {
+                $resolved = $this->resolveValueWithFilters($part, $context);
+                $args[] = is_scalar($resolved) ? (string)$resolved : $part;
+                continue;
+            }
+            // Numeric literal
+            if (is_numeric($part)) {
+                $args[] = $part;
+                continue;
+            }
+            // Variable name or dotted path
             if (preg_match('/^[a-zA-Z_][\w.]*$/', $part)) {
                 $resolved = $this->resolveValue($part, $context);
                 $args[] = is_scalar($resolved) ? (string)$resolved : $part;
@@ -1668,6 +1685,32 @@ class TemplateEngine
             }
         }
         return $args;
+    }
+
+    /**
+     * Split call arguments on commas, respecting quoted strings.
+     */
+    private function splitMacroCallArgs(string $raw): array
+    {
+        $parts = [];
+        $buf = '';
+        $inSingle = false;
+        $inDouble = false;
+        $len = strlen($raw);
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $raw[$i];
+            if ($ch === '\\' && $i + 1 < $len) { $buf .= $ch . $raw[++$i]; continue; }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $buf .= $ch; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $buf .= $ch; continue; }
+            if ($ch === ',' && !$inSingle && !$inDouble) {
+                $parts[] = $buf;
+                $buf = '';
+                continue;
+            }
+            $buf .= $ch;
+        }
+        if ($buf !== '') { $parts[] = $buf; }
+        return $parts;
     }
     
     /**
