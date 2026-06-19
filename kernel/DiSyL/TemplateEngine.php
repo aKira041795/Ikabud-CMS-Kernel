@@ -5148,6 +5148,14 @@ class TemplateEngine
 
         $rows = $resolved['rows'] ?? [];
         if (empty($rows)) {
+            // Log when entity list resolves successfully but returns zero rows
+            // (helps distinguish "no data" from "rendering failure")
+            if (\function_exists('write_log') && ($resolved['total'] ?? 0) === 0) {
+                \write_log("EntityViewResolver: zero rows for '{$source}.{$view}'", 'info', [
+                    'source' => $source,
+                    'view' => $view,
+                ]);
+            }
             $msg = $emptyMessage ?: $resolved['view']['empty_state'] ?? 'No records found.';
             return "<div class=\"ikb-entity-list--empty text-center py-8 text-gray-500 {$class}\">" . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . "</div>";
         }

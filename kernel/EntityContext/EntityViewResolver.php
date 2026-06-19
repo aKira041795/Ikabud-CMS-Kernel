@@ -208,8 +208,16 @@ final class EntityViewResolver
                     'timeout_ms' => 10000,
                 ]);
                 if (is_array($result)) {
-                    $rows = $result['rows'] ?? $result;
-                    $total = (int)($result['total'] ?? count($rows));
+                    // Normalise capability result: prefer 'rows' key; also accept
+                    // 'data' envelope and bare array-of-arrays.
+                    if (isset($result['rows']) && is_array($result['rows'])) {
+                        $rows = $result['rows'];
+                    } elseif (isset($result['data']) && is_array($result['data'])) {
+                        $rows = $result['data'];
+                    } elseif ($this->isListOfAssocArrays($result)) {
+                        $rows = $result;
+                    }
+                    $total = (int)($result['total'] ?? (is_array($rows) ? count($rows) : 0));
                 }
             }
         } catch (\Throwable $e) {
@@ -331,5 +339,16 @@ final class EntityViewResolver
             'source' => ['entity_type' => '', 'qualifier' => ''],
             'error' => $message,
         ];
+    }
+
+    /**
+     * Check if a value is a list of associative arrays (e.g. rows from a DB query).
+     */
+    private function isListOfAssocArrays(mixed $value): bool
+    {
+        if (!is_array($value) || empty($value)) return false;
+        if (!isset($value[0]) || !is_array($value[0])) return false;
+        // Must be a sequential array (0-indexed)
+        return array_keys($value) === range(0, count($value) - 1);
     }
 }
