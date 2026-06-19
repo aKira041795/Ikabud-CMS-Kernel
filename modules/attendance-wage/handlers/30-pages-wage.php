@@ -153,12 +153,15 @@ function wagePagePeriods(array $params = []): void
         }
     } catch (\Throwable $e) {}
 
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/periods/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
         'stats' => $stats,
         'periods' => $periods,
         'pending_adjustments' => $pendingAdjustments,
+        'active_nav'        => 'periods',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -231,6 +234,7 @@ function wagePageComputations(array $params = []): void
         }
     } catch (\Throwable $e) {}
 
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/computations/index', [
         'periods' => $periods,
         'selectedPeriodId' => $selectedPeriodId,
@@ -247,6 +251,8 @@ function wagePageComputations(array $params = []): void
         'period_status' => $periodStatus,
         'period_pay_date' => $periodPayDate,
         'today' => $now,
+        'active_nav'        => 'computations',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -398,11 +404,14 @@ function wagePageSchedules(array $params = []): void
         )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         $employees = $db->query("SELECT profile_id, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS full_name, position, department, employee_number FROM employee_profiles WHERE is_active = 1 ORDER BY last_name ASC, first_name ASC")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {}
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/schedules/index', [
         'schedules' => $schedules,
         'employees' => $employees,
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
+        'active_nav'        => 'schedules',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 

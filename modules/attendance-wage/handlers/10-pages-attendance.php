@@ -10,8 +10,11 @@ declare(strict_types=1);
 
 function attendancePageClock(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/attendance/clock');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/attendance/clock', [
+        'active_nav'        => 'attendance',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function attendancePageRecords(array $params = []): void
@@ -90,14 +93,20 @@ function attendancePageRecords(array $params = []): void
 
 function attendancePageHistory(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/attendance/history');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/attendance/history', [
+        'active_nav'        => 'attendance',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function attendancePageReport(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/attendance/report');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/attendance/report', [
+        'active_nav'        => 'attendance',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function attendancePageKiosk(array $params = []): void
