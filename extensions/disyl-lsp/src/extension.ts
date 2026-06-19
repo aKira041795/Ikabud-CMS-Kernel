@@ -146,6 +146,13 @@ export function activate(context: vscode.ExtensionContext) {
                     ));
                 }
 
+                // Hover on block keywords (v4.8)
+                if (BLOCK_KEYWORD_DOCS[word]) {
+                    return new vscode.Hover(new vscode.MarkdownString(
+                        `**{${word}}** — DiSyL Block Keyword\n\n${BLOCK_KEYWORD_DOCS[word]}`
+                    ));
+                }
+
                 return null;
             }
         })
@@ -329,9 +336,9 @@ const DISYL_FILTERS: { label: string; detail: string; docs: string }[] = [
     { label: 'escape', detail: 'HTML escape', docs: 'HTML-escapes the value (default behaviour).\n\n`{$html|escape}`' },
     { label: 'url_encode', detail: 'URL encode', docs: 'URL-encodes the value.\n\n`{$slug|url_encode}`' },
     { label: 'strip_tags', detail: 'Strip HTML tags', docs: 'Strips HTML and PHP tags from a string.\n\n`{$html|strip_tags}`' },
-    { label: 'truncate', detail: 'Truncate text', docs: 'Truncates text to a specified length.\n\n`{$body|truncate:100:"..."}`' },
-    { label: 'pluralize', detail: 'Pluralize word', docs: 'Pluralizes a word based on count.\n\n`{$count|pluralize:"item":"items"}`' },
-    { label: 'markdown', detail: 'Parse markdown', docs: 'Parses Markdown text to HTML.\n\n`{$content|markdown}`' },
+    { label: 'truncate', detail: 'Truncate text', docs: 'Truncates text to a specified length. Named arg support (v4.8).\n\n`{$body|truncate:100}` or `{$body|truncate:length=100}`' },
+    { label: 'date', detail: 'Format date', docs: 'Formats a date string/timestamp. Named arg support (v4.8).\n\n`{$created|date:"M d, Y"}` or `{$created|date:format="M d, Y"}`' },
+    { label: 'json_attr', detail: 'JSON + HTML-escape for attributes', docs: 'JSON-encodes then HTML-escapes for safe use in HTML attributes (e.g. x-data).\n\n`{$data|json_attr}`' },
 ];
 
 const GOVERNED_COMPONENTS: string[] = [
@@ -349,14 +356,43 @@ const GOVERNED_COMPONENTS: string[] = [
 const BLOCK_KEYWORDS: string[] = [
     'extends', 'block', '/block', 'parent',
     'if', 'elseif', 'else', '/if',
-    'foreach', '/foreach', 'for', '/for',
+    'foreach', '/foreach', 'for', '/for', 'empty',
     'include', 'set',
     'component', '/component', 'slot', '/slot',
     'verbatim', '/verbatim', 'literal', '/literal',
-    'match', '/match', 'trans', '/trans',
-    'cache', '/cache', 'experiment', '/experiment',
+    'match', '/match', 'when', '/when', 'default',
+    'macro', '/macro', 'call',
+    'await', '/await', 'then', '/then', 'loading', '/loading', 'catch', '/catch',
+    'debug',
+    'trans', '/trans', 'cache', '/cache',
     'sandbox', '/sandbox', 'trusted', '/trusted', 'untrusted', '/untrusted',
-    'parallel', '/parallel', 'await', '/await',
+    'parallel', '/parallel',
     'federated_query', '/federated_query',
     'ai_generate', '/ai_generate', 'ai_query', '/ai_query', 'ai_complete', '/ai_complete',
 ];
+
+const BLOCK_KEYWORD_DOCS: Record<string, string> = {
+    'if': 'Conditional rendering: `{if condition}...{elseif cond}...{else}...{/if}`',
+    'elseif': 'Additional condition branch within `{if}`',
+    'else': 'Fallback branch for `{if}` or `{match}`',
+    'for': 'Loop over iterable: `{for item in list}...{empty}...{/for}`',
+    'foreach': 'Loop with key/value: `{foreach items as key => value}...{/foreach}`',
+    'empty': 'Rendered when a loop has zero items',
+    'match': 'Pattern matching (v4.8): `{match expr}{when "val"}...{/when}{else}...{/match}`',
+    'when': 'Match arm: `{when "value"}...{/when}`. Supports multi-pattern `"a","b"`, wildcard `_`, guards `{when "v" guard cond}`',
+    'default': 'Default match arm (alias: `{else}`)',
+    'macro': 'Define reusable template block (v4.8): `{macro name(params)}...{/macro}`',
+    'call': 'Invoke a macro (v4.8): `{call name(args)}` or `{call name}`',
+    'await': 'Async/sync value rendering (v4.8): `{await expr}{then}...{/then}{loading}...{/loading}{catch}...{/catch}{/await}`',
+    'then': 'Renders when {await} resolves successfully. Binds value as `{value}`',
+    'loading': 'Renders while {await} is pending',
+    'catch': 'Renders on error. Optional `let=e` binds error: `{catch let=e}{e}{/catch}`',
+    'debug': 'Pretty-print any variable (v4.8): `{debug myVar}`',
+    'set': 'Assign variable: `{set name = value}` or typed (v4.8): `{set name: type = value}`',
+    'extends': 'Template inheritance: `{extends "layouts/main.disyl"}`',
+    'block': 'Named block for inheritance: `{block name}...{/block}`',
+    'include': 'Include another template: `{include "partials/header.disyl"}`',
+    'verbatim': 'Raw content — no DiSyL processing',
+    'literal': 'Raw content — no DiSyL processing (alias)',
+    'sandbox': 'Restrict allowed HTML tags for child {untrusted} blocks',
+};
