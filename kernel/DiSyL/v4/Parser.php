@@ -209,6 +209,12 @@ final class Parser
         if (preg_match('/^match[\s}]/', $peek)) {
             return $this->recoverableParse($this->parseMatch(...), 'match', $savedPos);
         }
+        if (preg_match('/^macro\s/', $peek)) {
+            return $this->recoverableParse($this->parseMacro(...), 'macro', $savedPos);
+        }
+        if (preg_match('/^call\s/', $peek)) {
+            return $this->recoverableParse($this->parseCall(...), 'call', $savedPos);
+        }
         if (preg_match('/^set\s/', $peek)) {
             return $this->recoverableParse($this->parseSetTag(...), 'set', $savedPos);
         }
@@ -385,6 +391,7 @@ final class Parser
             $closeTag = match ($blockName) {
                 'if' => '{/if}',
                 'match' => '{/match}',
+                'macro' => '{/macro}',
                 'for' => '{/for}',
                 'foreach' => '{/foreach}',
                 'each' => '{/each}',
@@ -494,6 +501,136 @@ final class Parser
             new DocumentNode([], $body),
             null
         );
+    }
+
+    /** {macro name(param1, param2 = "default")}...{/macro} */
+    private function parseMacro(): ControlNode
+    {
+        $tag = $this->readTagContent();
+        $inner = trim(substr($tag, 5));               // strip "macro"
+
+        // Parse "name(param1, param2 = default)"
+        if (!preg_match('/^(\w+)\s*\((.*)\)\s*$/s', $inner, $m)) {
+            return $this->makeTextFallback('{' . $tag . '}');
+        }
+        $name = $m[1];
+        $paramsRaw = $m[2];
+
+        $params = $this->parseMacroParams($paramsRaw);
+
+        $body = $this->parseChildren(['{/macro}']);
+        $this->consumeExact('{/macro}');
+
+        return new ControlNode(
+            [],
+            'macro',
+            ['name' => $name, 'params' => $params],
+            new DocumentNode([], $body),
+            null
+        );
+    }
+
+    /** Parse macro parameter list: "param1, param2 = default" */
+    private function parseMacroParams(string $raw): array
+    {
+        $params = [];
+        if (trim($raw) === '') {
+            return $params;
+        }
+        $parts = $this->splitCommaTopLevel($raw);
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '') { continue; }
+            if (str_contains($part, '=')) {
+                [$name, $default] = explode('=', $part, 2);
+                $params[trim($name)] = trim($default);
+            } else {
+                $params[$part] = null; // required param (no default)
+            }
+        }
+        return $params;
+    }
+
+    /** {call name(arg1, arg2, ...)} */
+    private function parseCall(): ControlNode
+    {
+        $tag = $this->readTagContent();
+        $inner = trim(substr($tag, 4));               // strip "call"
+
+        // Parse "name(arg1, arg2, ...)"
+        if (!preg_match('/^(\w+)\s*\((.*)\)\s*$/s', $inner, $m)) {
+            // Simple call without parens: {call name}
+            if (preg_match('/^(\w+)$/', $inner, $m2)) {
+                return new ControlNode(
+                    [],
+                    'call',
+                    ['name' => $m2[1], 'args' => []],
+                    null, null
+                );
+            }
+            return $this->makeTextFallback('{' . $tag . '}');
+        }
+        $name = $m[1];
+        $argsRaw = $m[2];
+
+        $args = $this->parseCallArgs($argsRaw);
+
+        return new ControlNode(
+            [],
+            'call',
+            ['name' => $name, 'args' => $args],
+            null, null
+        );
+    }
+
+    /** Parse call arguments: "arg1", expr, 42 */
+    private function parseCallArgs(string $raw): array
+    {
+        $args = [];
+        if (trim($raw) === '') {
+            return $args;
+        }
+        $parts = $this->splitCommaTopLevel($raw);
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '') { continue; }
+            $args[] = $part;
+        }
+        return $args;
+    }
+
+    /** Split on commas not inside quotes or parens. */
+    private function splitCommaTopLevel(string $input): array
+    {
+        $parts = [];
+        $buf = '';
+        $depth = 0;
+        $inSingle = false;
+        $inDouble = false;
+        $len = strlen($input);
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $input[$i];
+            if ($ch === '\\' && $i + 1 < $len) {
+                $buf .= $ch . $input[$i + 1];
+                $i++;
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $buf .= $ch; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $buf .= $ch; continue; }
+            if (!$inSingle && !$inDouble) {
+                if ($ch === '(' || $ch === '[' || $ch === '{') { $depth++; }
+                elseif ($ch === ')' || $ch === ']' || $ch === '}') { $depth--; }
+                elseif ($ch === ',' && $depth === 0) {
+                    $parts[] = trim($buf);
+                    $buf = '';
+                    continue;
+                }
+            }
+            $buf .= $ch;
+        }
+        $tail = trim($buf);
+        if ($tail !== '') { $parts[] = $tail; }
+        return $parts;
     }
 
     /** {for item in list}...{empty}...{/for} */

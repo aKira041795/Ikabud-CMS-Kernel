@@ -179,7 +179,42 @@ check('nested if inside match when', $doc->getChildren()[0] instanceof ControlNo
     && $doc->getChildren()[0]->getTag() === 'match');
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-echo "── 10. Expression parsing ────────────────────────────\n";
+echo "── 10. {macro} / {call} ──────────────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$doc = $parser->parse('{macro greeting(name)}Hello, {name}!{/macro}');
+$macroNode = $doc->getChildren()[0];
+check('macro produces ControlNode', $macroNode instanceof ControlNode
+    && $macroNode->getTag() === 'macro');
+check('macro has name attribute', $macroNode->getAttribute('name') === 'greeting');
+check('macro has params', is_array($macroNode->getAttribute('params'))
+    && array_key_exists('name', $macroNode->getAttribute('params')));
+check('macro has body', $macroNode->getBody() !== null);
+
+$doc = $parser->parse('{macro btn(label, url = "#")}<a href="{url}">{label}</a>{/macro}');
+$btnNode = $doc->getChildren()[0];
+$btnParams = $btnNode->getAttribute('params');
+check('macro with default param', is_array($btnParams)
+    && $btnParams['url'] === '"#"'
+    && $btnParams['label'] === null);
+
+$doc = $parser->parse('{call greeting("World")}');
+$callNode = $doc->getChildren()[0];
+check('call produces ControlNode', $callNode instanceof ControlNode
+    && $callNode->getTag() === 'call');
+check('call has name', $callNode->getAttribute('name') === 'greeting');
+check('call has args', $callNode->getAttribute('args') === ['"World"']);
+
+$doc = $parser->parse('{call btn("Click", "/home")}');
+$btnCall = $doc->getChildren()[0];
+check('call with multiple args', $btnCall->getAttribute('args') === ['"Click"', '"/home"']);
+
+$doc = $parser->parse('{call noargs}');
+check('call without parens', $doc->getChildren()[0]->getAttribute('name') === 'noargs'
+    && $doc->getChildren()[0]->getAttribute('args') === []);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 11. Expression parsing ────────────────────────────\n";
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 $doc = $parser->parse('{a + b}');
