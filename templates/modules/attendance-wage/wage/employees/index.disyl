@@ -16,7 +16,7 @@
     </div>
     {/if}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {ikb_entity_list source="employee_profile.all" view="table" use="tailwind" limit="25" empty="No employee profiles yet." /}
+        {ikb_entity_list source="employee_profile.all" view="table" use="tailwind" limit="25" empty="No employee profiles yet." search="true" search-placeholder="Search employees..." row-click="/admin/wage/employees?id={id}" /}
     </div>
 </div>
 {/block}

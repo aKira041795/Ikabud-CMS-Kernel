@@ -47,7 +47,7 @@
         {if period_status || period_pay_date}
         <div class="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-4 text-sm">
-                <span class="text-gray-500">Period Status: <span class="font-semibold capitalize {if period_status=='processing'}text-blue-600{else if period_status=='approved'}text-green-600{else if period_status=='completed'}text-green-700{else}text-gray-600{/if}">{period_status|default:'draft'}</span></span>
+                <span class="text-gray-500">Period Status: <span class="font-semibold capitalize {match period_status}{when 'processing'}text-blue-600{/when}{when 'approved'}text-green-600{/when}{when 'completed'}text-green-700{/when}{else}text-gray-600{/match}">{period_status|default:'draft'}</span></span>
                 {if period_pay_date}
                 <span class="text-gray-400">|</span>
                 <span class="text-gray-500">Pay Date: <span class="font-semibold text-gray-700">{period_pay_date}</span></span>

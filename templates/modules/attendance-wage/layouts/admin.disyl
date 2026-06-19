@@ -29,51 +29,32 @@
             <p class="text-xs text-brand-400 mt-0.5">Attendance &amp; Wage</p>
         </div>
         <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            <a href="/admin/wage" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'dashboard'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">📊</span> Dashboard
+            {macro navLink(icon, label, url, navId)}
+            <a href="{url}" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == '{navId}'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
+                <span class="w-5 mr-3 text-center">{icon}</span> {label}
             </a>
-            <a href="/admin/attendance" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'attendance'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">🕐</span> Attendance
-            </a>
-            <a href="/admin/wage/employees" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'employees'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">👥</span> Employees
-            </a>
-            <a href="/admin/wage/periods" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'periods'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">📅</span> Payroll Periods
-            </a>
-            <a href="/admin/wage/computations" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'computations'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">💵</span> Computations
-            </a>
-            <a href="/admin/wage/adjustments" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'adjustments'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">🔧</span> Adjustments
-            </a>
-            <a href="/admin/wage/deductions" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'deductions'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">📉</span> Deductions
-            </a>
-            <a href="/admin/wage/cash-advances" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'cash-advances'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">💸</span> Cash Advances
-            </a>
+            {/macro}
+
+            {call navLink("📊", "Dashboard", "/admin/wage", "dashboard")}
+            {call navLink("🕐", "Attendance", "/admin/attendance", "attendance")}
+            {call navLink("👥", "Employees", "/admin/wage/employees", "employees")}
+            {call navLink("📅", "Payroll Periods", "/admin/wage/periods", "periods")}
+            {call navLink("💵", "Computations", "/admin/wage/computations", "computations")}
+            {call navLink("🔧", "Adjustments", "/admin/wage/adjustments", "adjustments")}
+            {call navLink("📉", "Deductions", "/admin/wage/deductions", "deductions")}
+            {call navLink("💸", "Cash Advances", "/admin/wage/cash-advances", "cash-advances")}
+
             <div class="pt-3 mt-3 border-t border-brand-800"></div>
-            <a href="/admin/wage/holidays" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'holidays'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">🏖️</span> Holidays
-            </a>
-            <a href="/admin/wage/schedules" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'schedules'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">📋</span> Schedules
-            </a>
-            <a href="/admin/wage/locations" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'locations'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">📍</span> Locations
-            </a>
-            <a href="/admin/wage/reports" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'reports'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">📄</span> Reports
-            </a>
+
+            {call navLink("🏖️", "Holidays", "/admin/wage/holidays", "holidays")}
+            {call navLink("📋", "Schedules", "/admin/wage/schedules", "schedules")}
+            {call navLink("📍", "Locations", "/admin/wage/locations", "locations")}
+            {call navLink("📄", "Reports", "/admin/wage/reports", "reports")}
+
             {if current_user_role == 'admin'}
             <div class="pt-3 mt-3 border-t border-brand-800"></div>
-            <a href="/admin/wage/migration" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'migration'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">🔄</span> Migration
-            </a>
-            <a href="/admin/wage/benefits-calculator" class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors {if active_nav == 'benefits'}bg-brand-800 text-white{else}text-brand-200 hover:bg-brand-800/50 hover:text-white{/if}">
-                <span class="w-5 mr-3 text-center">🧮</span> Benefits Calc
-            </a>
+            {call navLink("🔄", "Migration", "/admin/wage/migration", "migration")}
+            {call navLink("🧮", "Benefits Calc", "/admin/wage/benefits-calculator", "benefits")}
             {/if}
         </nav>
         <div class="px-5 py-4 border-t border-brand-800 space-y-2">

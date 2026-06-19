@@ -47,7 +47,7 @@
     </div>
     {/if}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {ikb_entity_list source="holiday" view="table" use="tailwind" limit="30" empty="No holidays configured." /}
+        {ikb_entity_list source="holiday" view="table" use="tailwind" limit="30" empty="No holidays configured." search="true" search-placeholder="Search holidays..." /}
     </div>
 </div>
 {/block}
