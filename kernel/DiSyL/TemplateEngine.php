@@ -49,7 +49,8 @@ class TemplateEngine
     private bool $compiledMode = true;
     /** Track whether eager compiled-cache init has been attempted this request. */
     private bool $compiledModeBooted = false;
-    private bool $strictMode = false;
+    /** Strict mode ON by default (v4.8+). Logs undefined vars, type mismatches, |raw usage. */
+    private bool $strictMode = true;
     /** @var array<string, array{params: array, body: string}> Registered {macro} definitions */
     private array $macros = [];
     private ?Compiler\TemplateCache $compiledCache = null;
@@ -663,6 +664,11 @@ class TemplateEngine
             $content = $this->processOnTags($content, $context);
         }
 
+        // 9c. Process {debug expr} — pretty-print any variable for development
+        if (str_contains($content, '{debug ')) {
+            $content = $this->processDebugTags($content, $context);
+        }
+
         // 10. Process remaining variables (including arithmetic and ternary expressions)
         if (str_contains($content, '{')) {
             $t = microtime(true);
@@ -910,7 +916,7 @@ class TemplateEngine
     private function processSetStatements(string $content, array &$context): string
     {
         return preg_replace_callback(
-            '/\{set\s+(\w+)(?:\s*:\s*(\??\w+))?\s*=\s*([^}]+)\}/',
+            '/\{set\s+(\w+)(?:\s*:\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*=\s*([^}]+)\}/',
             function($match) use (&$context) {
                 $varName = trim($match[1]);
                 $varType = isset($match[2]) ? trim($match[2]) : null;
@@ -980,6 +986,25 @@ class TemplateEngine
             $type = substr($type, 1);
             if ($value === null || $value === '') {
                 return null;
+            }
+        }
+
+        // v4.8: literal union types — "open"|"closed"|"pending"
+        if (str_starts_with($type, '"') || str_starts_with($type, "'")) {
+            $allowed = [];
+            $q = $type[0];
+            preg_match_all('/' . preg_quote($q, '/') . '([^' . preg_quote($q, '/') . ']*)' . preg_quote($q, '/') . '/', $type, $matches);
+            $allowed = $matches[1] ?? [];
+
+            if (!empty($allowed)) {
+                $strVal = (string)$value;
+                if (!in_array($strVal, $allowed, true)) {
+                    if ($this->strictMode) {
+                        $this->logError("DISYL_LITERAL_MISMATCH: {set {$varName}} — value '{$strVal}' not in allowed set: " . implode('|', $allowed) . ". Using first allowed: '{$allowed[0]}'");
+                    }
+                    return $allowed[0]; // default to first allowed value
+                }
+                return $strVal;
             }
         }
 
@@ -1455,6 +1480,46 @@ class TemplateEngine
     private function processBlocks(string $content, array $context): string
     {
         return preg_replace('/\{block\s+\w+\}(.*?)\{\/block\}/s', '$1', $content);
+    }
+
+    /**
+     * Process {debug expr} — pretty-print any variable value for development.
+     * Renders as a styled <pre> block with type info and formatted output.
+     */
+    private function processDebugTags(string $content, array $context): string
+    {
+        return preg_replace_callback(
+            '/\{debug\s+([^}]+)\}/',
+            function (array $m) use ($context): string {
+                $expr = trim($m[1]);
+                $value = $this->resolveValue($expr, $context);
+
+                $type = gettype($value);
+                if ($value === null) {
+                    $dump = 'null';
+                } elseif (is_bool($value)) {
+                    $dump = $value ? 'true' : 'false';
+                } elseif (is_array($value)) {
+                    $dump = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                } elseif (is_object($value)) {
+                    $dump = get_class($value) . "\n" . json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                } elseif (is_string($value) && strlen($value) > 500) {
+                    $dump = substr($value, 0, 500) . '... (' . strlen($value) . ' chars)';
+                } else {
+                    $dump = var_export($value, true);
+                }
+
+                $safeExpr = htmlspecialchars($expr, ENT_QUOTES, 'UTF-8');
+                $safeDump = htmlspecialchars($dump, ENT_QUOTES, 'UTF-8');
+                $safeType = htmlspecialchars($type, ENT_QUOTES, 'UTF-8');
+
+                return '<pre class="ikb-debug my-2 p-3 bg-gray-900 text-green-400 text-xs rounded-lg overflow-x-auto font-mono">' . "\n"
+                    . '<span class="text-gray-500">debug</span> <span class="text-yellow-300">' . $safeExpr . '</span> <span class="text-gray-500">:: ' . $safeType . '</span>' . "\n"
+                    . $safeDump . "\n"
+                    . '</pre>';
+            },
+            $content
+        );
     }
 
     // ── v4.8: User-defined macros ──────────────────────────────────
