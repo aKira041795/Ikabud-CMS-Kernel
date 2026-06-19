@@ -1288,13 +1288,25 @@ class TemplateEngine
     /**
      * Retrieve a cached extends-resolved template.
      *
-     * The cache entry contains the merged template string and the mtimes
-     * of every file in the extends chain.  Returns null on miss or stale.
+     * The cache key includes the template's mtime so that any source change
+     * naturally produces a new cache entry — no stale cache can be served.
+     * Deps validation is a secondary safeguard for parent template changes.
+     *
+     * Returns null on miss or stale.
      */
     private function getExtendsCache(string $templatePath): ?string
     {
-        $cacheFile = $this->extendsCacheDir . '/' . md5($templatePath) . '.cache';
+        // Versioned key: template path + current mtime ensures source changes
+        // produce new cache entries. Old entries are cleaned up by TTL-based GC.
+        $mtime = (int)@filemtime($templatePath);
+        $versionedKey = $templatePath . '|' . $mtime;
+        $cacheFile = $this->extendsCacheDir . '/' . md5($versionedKey) . '.cache';
         if (!file_exists($cacheFile)) {
+            // Fallback: try the unversioned key (legacy cache files from before versioning)
+            $legacyFile = $this->extendsCacheDir . '/' . md5($templatePath) . '.cache';
+            if (file_exists($legacyFile)) {
+                @unlink($legacyFile); // clean up legacy entry
+            }
             return null;
         }
 
@@ -1337,7 +1349,11 @@ class TemplateEngine
             @mkdir($this->extendsCacheDir, 0777, true);
         }
 
-        $cacheFile = $this->extendsCacheDir . '/' . md5($templatePath) . '.cache';
+        // Versioned key: template path + mtime ensures source changes produce
+        // new cache entries. Old entries cleaned by TTL-based GC.
+        $mtime = (int)@filemtime($templatePath);
+        $versionedKey = $templatePath . '|' . ($mtime > 0 ? $mtime : time());
+        $cacheFile = $this->extendsCacheDir . '/' . md5($versionedKey) . '.cache';
         $tmpFile = $cacheFile . '.' . getmypid() . '.tmp';
 
         $ok = @file_put_contents($tmpFile, serialize([

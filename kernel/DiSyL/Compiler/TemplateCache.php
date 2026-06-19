@@ -47,23 +47,20 @@ class TemplateCache
         $cachePath = $this->getCachePath($className);
         $freshCompiledCode = null;
         
+        // Developer escape hatch: ?disyl_nocache=1 forces full recompilation
+        $forceRecompile = ($_GET['disyl_nocache'] ?? '') === '1';
+
         // Check in-memory cache first
-        if (isset($this->loaded[$className])) {
+        if (isset($this->loaded[$className]) && !$forceRecompile) {
             return $this->loaded[$className];
         }
-        
+
         // Check if recompilation needed
-        if ($this->needsRecompile($templatePath, $cachePath)) {
-            $freshCompiledCode = $this->compile($templatePath, $className, $cachePath);
-        }
-        
-        // Validate cache file integrity before executing
-        if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
-            // Recompile to regenerate a valid cache file
-            $freshCompiledCode = $this->compile($templatePath, $className, $cachePath);
-            if (file_exists($cachePath) && !$this->validateCacheFile($cachePath)) {
-                throw new \RuntimeException("Template cache validation failed for: {$cachePath}");
+        if ($forceRecompile || $this->needsRecompile($templatePath, $cachePath)) {
+            if ($forceRecompile) {
+                \write_log("Disyl cache: forced recompile via ?disyl_nocache=1 for '{$templatePath}'", 'info');
             }
+            $freshCompiledCode = $this->compile($templatePath, $className, $cachePath);
         }
         
         // Load and instantiate
