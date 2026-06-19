@@ -1,4 +1,12 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
+
+{macro compCard(label, valueText, valueColor = "gray")}
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+    <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+    <p class="mt-1 text-lg font-extrabold text-{valueColor}-600">{valueText}</p>
+</div>
+{/macro}
+
 {block main}
 <div class="px-6 py-8">
     <div class="flex items-center justify-between mb-8">
@@ -19,26 +27,11 @@
     {if selectedPeriodId > 0}
     <!-- Computations for selected period -->
     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-8">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Gross Pay</p>
-            <p class="mt-1 text-lg font-extrabold text-gray-900">₱ {total_gross|default:'0.00'}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">+ Additions</p>
-            <p class="mt-1 text-lg font-extrabold text-green-600">₱ {total_additions|default:'0.00'}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Deductions</p>
-            <p class="mt-1 text-lg font-extrabold text-red-600">₱ {total_deductions|default:'0.00'}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Adj. Deduct</p>
-            <p class="mt-1 text-lg font-extrabold text-orange-600">₱ {total_adj_deductions|default:'0.00'}</p>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Net Pay</p>
-            <p class="mt-1 text-lg font-extrabold text-green-600">₱ {total_net|default:'0.00'}</p>
-        </div>
+        {call compCard("Gross Pay", "₱ {total_gross|default:'0.00'}")}
+        {call compCard("+ Additions", "₱ {total_additions|default:'0.00'}", "green")}
+        {call compCard("Deductions", "₱ {total_deductions|default:'0.00'}", "red")}
+        {call compCard("Adj. Deduct", "₱ {total_adj_deductions|default:'0.00'}", "orange")}
+        {call compCard("Net Pay", "₱ {total_net|default:'0.00'}", "green")}
     </div>
     <div class="flex items-center gap-3 mb-6">
         <a href="/admin/wage/computations" class="text-sm text-brand-600 hover:text-brand-700 font-medium">← All periods</a>

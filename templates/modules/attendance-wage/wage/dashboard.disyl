@@ -1,63 +1,41 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 
+{macro statCard(label, value, color = "gray", subtitle = "")}
+<div class="bg-white rounded-xl shadow-sm border border-{color}-200 p-6 hover:shadow-md transition-shadow">
+    <div class="text-xs font-semibold text-{color}-600 uppercase tracking-wider mb-2">{label}</div>
+    <div class="text-2xl font-bold text-{color}-700">{value}</div>
+    {if subtitle}<div class="text-xs text-{color}-500 mt-1">{subtitle}</div>{/if}
+</div>
+{/macro}
+<div class="bg-white rounded-xl shadow-sm border border-{color}-200 p-6 hover:shadow-md transition-shadow">
+    <div class="text-xs font-semibold text-{color}-600 uppercase tracking-wider mb-2">{label}</div>
+    <div class="text-2xl font-bold text-{color}-700">{value}</div>
+    {if subtitle}<div class="text-xs text-{color}-500 mt-1">{subtitle}</div>{/if}
+</div>
+{/macro}
+
 {block main}
 <div class="px-6 py-8">
     <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight mb-8">📊 Dashboard</h1>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Active Employees</div>
-            <div class="text-3xl font-bold text-gray-900">{employee_count|default:0}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Current Period</div>
-            <div class="text-lg font-bold text-gray-900">{current_period_name|default:'—'}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pending Approvals</div>
-            <div class="text-3xl font-bold text-gray-900">{pending_approvals|default:0}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Net Pay</div>
-            <div class="text-3xl font-bold text-gray-900">₱{total_net_pay|default:'0.00'}</div>
-        </div>
+        {call statCard("Active Employees", employee_count|default:0)}
+        {call statCard("Current Period", current_period_name|default:'—')}
+        {call statCard("Pending Approvals", pending_approvals|default:0)}
+        {call statCard("Total Net Pay", "₱{total_net_pay|default:'0.00'}")}
     </div>
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-        <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-6">
-            <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">Pending CAs</div>
-            <div class="text-2xl font-bold text-amber-700">{ca_pending_count|default:0}</div>
-            <div class="text-xs text-amber-500 mt-1">₱ {ca_pending_amount|default:'0.00'}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-red-200 p-6">
-            <div class="text-xs font-semibold text-red-600 uppercase tracking-wider mb-2">Active CAs</div>
-            <div class="text-2xl font-bold text-red-700">{ca_active_count|default:0}</div>
-            <div class="text-xs text-red-500 mt-1">₱ {ca_outstanding|default:'0.00'} outstanding</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-blue-200 p-6">
-            <div class="text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">Office Locations</div>
-            <div class="text-3xl font-bold text-blue-700">{location_count|default:0}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-emerald-200 p-6">
-            <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-2">Clocked In Now</div>
-            <div class="text-3xl font-bold text-emerald-700">{today_clocked_in|default:0}</div>
-            <div class="text-xs text-emerald-500 mt-1">{today_records|default:0} records today</div>
-        </div>
+        {call statCard("Pending CAs", ca_pending_count|default:0, "amber", "₱ {ca_pending_amount|default:'0.00'}")}
+        {call statCard("Active CAs", ca_active_count|default:0, "red", "₱ {ca_outstanding|default:'0.00'} outstanding")}
+        {call statCard("Office Locations", location_count|default:0, "blue")}
+        {call statCard("Clocked In Now", today_clocked_in|default:0, "emerald", "{today_records|default:0} records today")}
     </div>
 
     <!-- Today's Attendance Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Today</div>
-            <div class="text-2xl font-bold text-gray-900">{today_records|default:0}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-green-200 p-5">
-            <div class="text-xs font-semibold text-green-600 uppercase tracking-wider mb-1">Office Clock-ins</div>
-            <div class="text-2xl font-bold text-green-700">{today_office_count|default:0}</div>
-        </div>
-        <div class="bg-white rounded-xl shadow-sm border border-amber-200 p-5">
-            <div class="text-xs font-semibold text-amber-600 uppercase tracking-wider mb-1">On-Site Clock-ins</div>
-            <div class="text-2xl font-bold text-amber-700">{today_onsite_count|default:0}</div>
-        </div>
+        {call statCard("Total Today", today_records|default:0)}
+        {call statCard("Office Clock-ins", today_office_count|default:0, "green")}
+        {call statCard("On-Site Clock-ins", today_onsite_count|default:0, "amber")}
     </div>
     <div class="mb-10">
         <div class="flex items-center justify-between mb-4">
