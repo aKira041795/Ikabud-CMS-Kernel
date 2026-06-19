@@ -480,6 +480,11 @@ class ComponentRegistry
                     'type' => Grammar::TYPE_STRING,
                     'required' => false,
                     'description' => 'Comma-separated action names (view, edit, delete, add_to_cart)'
+                ],
+                'header' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'HTML or #blockName rendered above the list (for inline forms, filters)'
                 ]
             ],
             'leaf' => false

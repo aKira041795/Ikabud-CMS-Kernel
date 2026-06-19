@@ -5115,7 +5115,11 @@ class TemplateEngine
      *   limit    — max rows (overrides view contract default)
      *   empty    — custom empty-state message
      *   actions  — comma-separated allowed action names
+     *   header   — HTML or #blockName rendered above the list (for inline forms, filters)
      *   class    — additional CSS classes for the wrapper
+     *
+     * Actions support POST (with CSRF token + confirm dialog) via
+     * builtinDefaults action_methods/action_confirm/action_urls.
      */
     private function renderEntityList(array $attrs, string $children, array $context): string
     {
@@ -5163,6 +5167,27 @@ class TemplateEngine
         }
 
         $rows = $resolved['rows'] ?? [];
+        $headerSlot = (string)($attrs['header'] ?? '');
+
+        // Render header slot before the list (supports inline forms, filters, etc.)
+        $headerHtml = '';
+        if ($headerSlot !== '') {
+            // header attribute can be raw HTML or a template block reference.
+            // If it starts with '#', it references a named block in the parent template.
+            // Otherwise it's rendered as-is.
+            if (str_starts_with($headerSlot, '#')) {
+                $blockName = substr($headerSlot, 1);
+                $headerHtml = $context->getBlock($blockName) ?? '';
+            } else {
+                $headerHtml = $headerSlot;
+            }
+        }
+        if ($headerHtml === '' && trim($children) !== '' && !str_contains(trim($children), '{')) {
+            // If children is plain text (no Disyl variables), treat as header
+            $headerHtml = $children;
+            $children = '';
+        }
+
         if (empty($rows)) {
             // Log when entity list resolves successfully but returns zero rows
             // (helps distinguish "no data" from "rendering failure")
@@ -5193,7 +5218,8 @@ class TemplateEngine
             $fields = array_values(array_filter(array_keys($firstRow), fn($k) => !str_starts_with($k, '_')));
         }
 
-        return $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $listHtml = $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        return $headerHtml . $listHtml;
     }
 
     /**
@@ -5377,13 +5403,20 @@ class TemplateEngine
             $method = $actionMethods[$action] ?? 'get';
 
             if ($method === 'post') {
-                // Render as inline form for POST actions
+                // Render as inline POST form with CSRF token + confirmation
                 $confirmMsg = $actionConfirm[$action] ?? '';
                 $onSubmit = $confirmMsg !== ''
                     ? ' onsubmit="return confirm(' . htmlspecialchars(json_encode($confirmMsg), ENT_QUOTES, 'UTF-8') . ')"'
                     : '';
+                // Include CSRF token if the app provides one
+                $csrfInput = '';
+                if (\function_exists('csrf_token')) {
+                    $csrfValue = htmlspecialchars((string)\csrf_token(), ENT_QUOTES, 'UTF-8');
+                    $csrfInput = "<input type=\"hidden\" name=\"_token\" value=\"{$csrfValue}\">";
+                }
                 $html .= "<form method=\"post\" action=\"{$href}\" class=\"inline\"{$onSubmit}>"
                       . "<input type=\"hidden\" name=\"id\" value=\"{$safeId}\">"
+                      . $csrfInput
                       . "<button type=\"submit\" class=\"{$actionClass}\">{$safeLabel}</button>"
                       . "</form>";
             } else {
