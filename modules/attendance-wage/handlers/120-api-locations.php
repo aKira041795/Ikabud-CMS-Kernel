@@ -283,14 +283,16 @@ function saveSettingLogo(array $file): ?string
     $name = $file['name'] ?? '';
     if ($tmp === '' || $file['error'] !== UPLOAD_ERR_OK) return null;
 
+    // Limit logo file size to 1 MB
+    if (($file['size'] ?? 0) > 1 * 1024 * 1024) return null;
+
     $finfo = new \finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->file($tmp);
-    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'], true)) return null;
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) return null;
 
     $ext = match ($mime) {
         'image/png'      => 'png',
         'image/webp'     => 'webp',
-        'image/svg+xml'  => 'svg',
         default          => 'jpg',
     };
 
@@ -315,14 +317,16 @@ function saveSettingLogoFromBase64(string $base64Data): ?string
     $decoded = base64_decode($data, true);
     if ($decoded === false || strlen($decoded) === 0) return null;
 
+    // Limit logo size to 1 MB
+    if (strlen($decoded) > 1 * 1024 * 1024) return null;
+
     $finfo = new \finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->buffer($decoded);
-    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'], true)) return null;
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) return null;
 
     $ext = match ($mime) {
         'image/png'      => 'png',
         'image/webp'     => 'webp',
-        'image/svg+xml'  => 'svg',
         default          => 'jpg',
     };
 

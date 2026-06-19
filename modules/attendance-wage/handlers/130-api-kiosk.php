@@ -292,6 +292,9 @@ function saveKioskPhoto(string $base64Data, int $userId): ?string
     $decoded = base64_decode($data, true);
     if ($decoded === false || strlen($decoded) === 0) return null;
 
+    // Limit photo size to 10 MB to prevent disk exhaustion
+    if (strlen($decoded) > 10 * 1024 * 1024) return null;
+
     // Validate it's actually an image
     $finfo = new \finfo(FILEINFO_MIME_TYPE);
     $mime = $finfo->buffer($decoded);

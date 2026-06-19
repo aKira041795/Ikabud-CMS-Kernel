@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 function attendanceApiClockIn(array $params = []): void
 {
-    $user = app()->user();
-    $userId = is_array($user) ? (int)($user['id'] ?? 0) : 0;
+    $user = attendanceWageUser();
+    $userId = is_array($user) ? aw_extractUserId($user) : 0;
     if (!$userId) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Not authenticated']); return; }
+    // CSRF enforcement
+    app()->csrfEnforce();
 
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
@@ -46,14 +48,15 @@ function attendanceApiClockIn(array $params = []): void
         $stmt->execute([':tid'=>app()->tenant()->current()??'', ':uid'=>$userId, ':loc'=>$locationIn]);
         header("Content-Type: application/json; charset=utf-8");
         echo json_encode(['ok'=>true,'message'=>'Clocked in','id'=>(int)$db->lastInsertId(),'location'=>$locationName]);
-    } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
+    } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Clock-in failed. Please try again.']); }
 }
 
 function attendanceApiClockOut(array $params = []): void
 {
-    $user = app()->user();
-    $userId = is_array($user) ? (int)($user['id'] ?? 0) : 0;
+    $user = attendanceWageUser();
+    $userId = is_array($user) ? aw_extractUserId($user) : 0;
     if (!$userId) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Not authenticated']); return; }
+    app()->csrfEnforce();
     try {
         $db = aw_db();
         $stmt = $db->prepare("SELECT attendance_id FROM attendance_records WHERE user_id=:uid AND DATE(clock_in)=CURDATE() AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1");
@@ -63,11 +66,13 @@ function attendanceApiClockOut(array $params = []): void
         $db->prepare("UPDATE attendance_records SET clock_out=NOW(), status='completed' WHERE attendance_id=:id")->execute([':id'=>(int)$row['attendance_id']]);
         header("Content-Type: application/json; charset=utf-8");
         echo json_encode(['ok'=>true,'message'=>'Clocked out']);
-    } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>$e->getMessage()]); }
+    } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Clock-out failed. Please try again.']); }
 }
 
 function attendanceApiRecords(array $params = []): void
 {
+    $user = attendanceWageUser();
+    if (!$user) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Not authenticated']); return; }
     $db = aw_db();
     $limit = min((int)($params['limit'] ?? 30), 100);
     $stmt = $db->query("SELECT ar.*, au.full_name FROM attendance_records ar JOIN attendance_wage_users au ON au.id=ar.user_id ORDER BY ar.clock_in DESC LIMIT {$limit}");

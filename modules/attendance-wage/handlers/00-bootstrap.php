@@ -27,6 +27,28 @@ function attendanceWageGuard(string $capability = ''): ?array
         echo json_encode(['ok' => false, 'error' => 'Authentication required']);
         exit;
     }
+
+    // Enforce capability check when a specific capability is required
+    if ($capability !== '') {
+        try {
+            if (!app()->capabilities()->check($capability, $user)) {
+                http_response_code(403);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['ok' => false, 'error' => 'Insufficient permissions']);
+                exit;
+            }
+        } catch (\Throwable $e) {
+            // If capability system is unavailable, fall back to role-based check
+            $userRole = $user['role'] ?? '';
+            if ($userRole !== 'admin') {
+                http_response_code(403);
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['ok' => false, 'error' => 'Insufficient permissions']);
+                exit;
+            }
+        }
+    }
+
     // CSRF enforcement for all authenticated POST requests
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         app()->csrfEnforce();
