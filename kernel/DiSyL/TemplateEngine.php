@@ -570,14 +570,6 @@ class TemplateEngine
                 return $key;
             }, $content);
         }
-
-        // 0.5. Extract {macro}...{/macro} definitions — stored in $this->macros,
-        //      removed from template content.  Macros can reference variables
-        //      from the call site, so markers are left in place: {paramName}
-        //      patterns in the body will be substituted at call time.
-        if (str_contains($content, '{macro ')) {
-            $content = $this->extractMacros($content);
-        }
         
         // 1. Remove comments first
         if (str_contains($content, '{!--') || str_contains($content, '{*')) {
@@ -589,6 +581,13 @@ class TemplateEngine
             $t = microtime(true);
             $content = $this->processExtends($content, $context);
             $phases['extends_ms'] = round((microtime(true) - $t) * 1000, 2);
+        }
+
+        // 2.5. Extract {macro}...{/macro} definitions — AFTER extends so
+        //      macros defined in parent layouts are included.  Macros are
+        //      template-scoped: the merged template owns all macro defs.
+        if (str_contains($content, '{macro ')) {
+            $content = $this->extractMacros($content);
         }
         
         // 3. Remove comments again (layout may have comments)
