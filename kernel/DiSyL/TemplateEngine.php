@@ -5211,6 +5211,7 @@ class TemplateEngine
         $actionConfirm = $contract['action_confirm'] ?? [];
         $actionShowIf = $contract['action_show_if'] ?? [];
         $actionLabels = $contract['action_labels'] ?? [];
+        $renderers = $contract['renderers'] ?? [];
 
         // Expand '*' fields to actual keys from the first row
         if ($fields === ['*'] || $fields === '*') {
@@ -5218,7 +5219,7 @@ class TemplateEngine
             $fields = array_values(array_filter(array_keys($firstRow), fn($k) => !str_starts_with($k, '_')));
         }
 
-        $listHtml = $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
+        $listHtml = $this->renderEntityListRows($rows, $fields, $viewMode, $viewActions, $class, $children, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers);
         return $headerHtml . $listHtml;
     }
 
@@ -5229,7 +5230,7 @@ class TemplateEngine
      * @param array<int, string> $fields
      * @param array<int, string> $actions
      */
-    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
+    private function renderEntityListRows(array $rows, array $fields, string $viewMode, array $actions, string $class, string $children, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], array $renderers = []): string
     {
         $hasCustomSlot = trim($children) !== '';
 
@@ -5242,7 +5243,7 @@ class TemplateEngine
 
             $out .= match ($viewMode) {
                 'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
-                'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
+                'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers),
                 'compact', 'default' => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
                 default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels),
             };
@@ -5345,15 +5346,16 @@ class TemplateEngine
     /**
      * Table row: one row in a striped table.
      */
-    private function renderTableRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = []): string
+    private function renderTableRow(array $row, array $fields, array $actions, string $use = 'tailwind', array $actionUrls = [], array $actionMethods = [], array $actionConfirm = [], array $actionShowIf = [], array $actionLabels = [], array $renderers = []): string
     {
         $tdClass = $this->entityStyle('td', 'table', $use);
         $trClass = $this->entityStyle('tr', 'table', $use);
         $cells = '';
         foreach ($fields as $field) {
             if ($field === '*') { continue; }
-            $value = htmlspecialchars((string)($row[$field] ?? ''), ENT_QUOTES, 'UTF-8');
-            $cells .= "<td class=\"{$tdClass}\">{$value}</td>";
+            $rawValue = $row[$field] ?? '';
+            $renderer = $renderers[$field] ?? null;
+            $cells .= "<td class=\"{$tdClass}\">" . $this->renderCell($rawValue, $renderer) . "</td>";
         }
 
         $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels);
@@ -5362,6 +5364,115 @@ class TemplateEngine
         }
 
         return "<tr class=\"{$trClass}\">{$cells}</tr>";
+    }
+
+    /**
+     * Render a single cell value with an optional renderer.
+     *
+     * Supported renderers:
+     *   badge       — colored pill (green/red/gray based on truthy/falsy)
+     *   badge:map   — badge with value→label mapping (JSON: {"1":"Active","0":"Inactive"})
+     *   money       — currency format (₱1,234.56)
+     *   datetime    — "2026-06-19 08:30:00" → "08:30" (time only) or "Jun 19" (date)
+     *   boolean     — "1" → "Yes", "0" → "No"
+     *   string      — plain text (default)
+     */
+    private function renderCell(mixed $value, ?string $renderer): string
+    {
+        $str = (string)$value;
+        if ($renderer === null || $renderer === '' || $renderer === 'string') {
+            return htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+        }
+
+        // Parse renderer: "badge" or "badge:map" or "money:2"
+        $parts = explode(':', $renderer, 2);
+        $type = $parts[0];
+        $arg = $parts[1] ?? '';
+
+        return match ($type) {
+            'badge' => $this->renderCellBadge($value, $arg),
+            'money' => $this->renderCellMoney($value, $arg),
+            'datetime' => $this->renderCellDateTime($value, $arg),
+            'boolean' => $this->renderCellBoolean($value),
+            default => htmlspecialchars($str, ENT_QUOTES, 'UTF-8'),
+        };
+    }
+
+    /**
+     * Render a badge/pill. If arg is a JSON map, use it to lookup label + color.
+     * Otherwise treat value as truthy/falsy for Active/Inactive green/gray.
+     */
+    private function renderCellBadge(mixed $value, string $arg): string
+    {
+        $str = (string)$value;
+        $safe = htmlspecialchars($str, ENT_QUOTES, 'UTF-8');
+
+        // Try JSON map: {"computed":"Computed|amber","approved":"Approved|green","paid":"Paid|blue"}
+        if ($arg !== '') {
+            $map = json_decode($arg, true);
+            if (is_array($map) && isset($map[$str])) {
+                $entry = $map[$str];
+                if (is_string($entry) && str_contains($entry, '|')) {
+                    [$label, $color] = explode('|', $entry, 2);
+                } else {
+                    $label = is_string($entry) ? $entry : $str;
+                    $color = 'gray';
+                }
+                $colors = ['green' => 'bg-green-100 text-green-700', 'red' => 'bg-red-100 text-red-700',
+                    'amber' => 'bg-amber-100 text-amber-700', 'blue' => 'bg-blue-100 text-blue-700',
+                    'purple' => 'bg-purple-100 text-purple-700', 'gray' => 'bg-gray-100 text-gray-500'];
+                $colorClass = $colors[$color] ?? $colors['gray'];
+                $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+                return "<span class=\"inline-flex px-2 py-0.5 rounded-full text-xs font-medium {$colorClass}\">{$safeLabel}</span>";
+            }
+        }
+
+        // Default: truthy → Active/green, falsy → Inactive/gray
+        $isActive = $value && $str !== '0' && $str !== '';
+        if ($isActive) {
+            return '<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>';
+        }
+        return '<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>';
+    }
+
+    /**
+     * Render a monetary value. Arg is decimal places (default 2).
+     */
+    private function renderCellMoney(mixed $value, string $arg): string
+    {
+        $decimals = is_numeric($arg) ? (int)$arg : 2;
+        $num = (float)$value;
+        $formatted = '₱' . number_format($num, $decimals);
+        $class = $num < 0 ? 'text-red-600' : 'text-gray-900';
+        $safe = htmlspecialchars($formatted, ENT_QUOTES, 'UTF-8');
+        return "<span class=\"{$class}\">{$safe}</span>";
+    }
+
+    /**
+     * Render a datetime value. Arg: 'time' (H:i), 'date' (M d), 'full' (M d H:i), empty=full.
+     */
+    private function renderCellDateTime(mixed $value, string $arg): string
+    {
+        $ts = is_numeric($value) ? (int)$value : strtotime((string)$value);
+        if ($ts === false || $ts <= 0) {
+            return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+        }
+        return match ($arg) {
+            'time' => '<span class="font-mono text-xs">' . date('H:i', $ts) . '</span>',
+            'date' => '<span class="text-xs">' . date('M d', $ts) . '</span>',
+            default => '<span class="text-xs">' . date('M d H:i', $ts) . '</span>',
+        };
+    }
+
+    /**
+     * Render a boolean as Yes/No badge.
+     */
+    private function renderCellBoolean(mixed $value): string
+    {
+        $is = $value && (string)$value !== '0';
+        $label = $is ? 'Yes' : 'No';
+        $class = $is ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500';
+        return "<span class=\"inline-flex px-2 py-0.5 rounded-full text-xs font-medium {$class}\">{$label}</span>";
     }
 
     /**
