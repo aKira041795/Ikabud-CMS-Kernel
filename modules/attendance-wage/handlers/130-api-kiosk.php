@@ -96,30 +96,47 @@ function kioskApiClock(array $params = []): void
             return;
         }
 
-        // Geo-fence check (skip if onsite_attendance is enabled, or if no locations exist at all)
+        // ── Location verification (checked first for clarity) ──
+        //   1. If GPS provided → check against office geo-fences
+        //   2. If within a saved office → record with office name
+        //   3. If outside saved offices → check onsite_attendance toggle
+        //   4. If onsite toggle is YES → allow as on-site attendance
+        //   5. If onsite toggle is NO → block (must be within geo-fence)
+        //   6. If no office locations configured → allow everyone
         $locationName = null;
         $locationId   = null;
-        $isOnsite = (bool)($emp['onsite_attendance'] ?? false);
+        $isOnsite     = false;
+        $onsiteToggle = (bool)($emp['onsite_attendance'] ?? false);
 
-        if (!$isOnsite) {
-            // Check if any office locations exist — if none configured, fall back to onsite
-            $locCount = (int)$db->query("SELECT COUNT(*) FROM office_locations WHERE tenant_id = '{$tid}' AND is_active = 1")->fetchColumn();
-            if ($locCount === 0) {
+        // Check if any office locations are configured at all
+        $locCount = (int)$db->query("SELECT COUNT(*) FROM office_locations WHERE tenant_id = '{$tid}' AND is_active = 1")->fetchColumn();
+
+        if ($locCount === 0) {
+            // No offices configured — auto-pass everyone as on-site
+            $isOnsite = true;
+        } elseif ($latitude !== 0.0 || $longitude !== 0.0) {
+            // GPS provided — check against office geo-fences
+            $matched = aw_findLocationByGeo($latitude, $longitude);
+            if ($matched) {
+                // Within a saved office location ✅
+                $locationName = $matched['name'] ?? null;
+                $locationId   = (int)($matched['location_id'] ?? 0);
+            } elseif ($onsiteToggle) {
+                // Outside saved offices, but employee has on-site toggle ✅
                 $isOnsite = true;
-            } elseif ($latitude !== 0.0 && $longitude !== 0.0) {
-                $matched = aw_findLocationByGeo($latitude, $longitude);
-                if ($matched) {
-                    $locationName = $matched['name'] ?? null;
-                    $locationId   = (int)($matched['location_id'] ?? 0);
-                } else {
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['ok' => false, 'error' => 'You are outside all office locations. Attendance requires you to be within an office geo-fence.']);
-                    return;
-                }
             } else {
-                // No coordinates provided, not onsite, and locations exist — require GPS
+                // Outside saved offices, no on-site toggle ❌
                 header('Content-Type: application/json; charset=utf-8');
-                echo json_encode(['ok' => false, 'error' => 'Location is required. Please enable GPS or contact your administrator for on-site attendance setup.']);
+                echo json_encode(['ok' => false, 'error' => 'You are outside all office locations. If you work remotely or on-site, contact your administrator to enable the On-Site Attendance setting for your profile.']);
+                return;
+            }
+        } else {
+            // No GPS — check onsite toggle as fallback
+            if ($onsiteToggle) {
+                $isOnsite = true;
+            } else {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['ok' => false, 'error' => 'Location is required. Please enable GPS or ask your administrator to enable On-Site Attendance for your profile.']);
                 return;
             }
         }

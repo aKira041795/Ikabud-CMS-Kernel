@@ -237,16 +237,17 @@ function kioskWidget() {
             this.locationOK = false;
             this.locationError = '';
 
+            // Step 1: Try to get GPS location
             if (!navigator.geolocation) {
+                // No GPS — check onsite toggle as fallback
+                this.locationChecked = true;
                 if (this.onsiteMode) {
-                    this.locationChecked = true;
                     this.locationOK = true;
                     this.startCamera();
-                    return;
+                } else {
+                    this.locationOK = false;
+                    this.locationError = 'Geolocation not supported on this device. Enable On-Site Attendance for this employee to allow clock-in without GPS.';
                 }
-                this.locationChecked = true;
-                this.locationOK = false;
-                this.locationError = 'Geolocation is not supported by this device.';
                 return;
             }
 
@@ -261,16 +262,7 @@ function kioskWidget() {
                 this._lat = pos.coords.latitude;
                 this._lng = pos.coords.longitude;
 
-                if (this.onsiteMode) {
-                    // On-site: skip geo-fence, but reverse-geocode for place name
-                    this.locationChecked = true;
-                    this.locationOK = true;
-                    this.reverseGeocode(this._lat, this._lng);
-                    this.startCamera();
-                    return;
-                }
-
-                // Verify against server geo-fence
+                // Step 2: Verify location against server geo-fence
                 const r = await fetch('/api/v1/kiosk/verify-location', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -278,30 +270,46 @@ function kioskWidget() {
                 });
                 const d = await r.json();
                 this.locationChecked = true;
+
                 if (d.no_locations) {
-                    // No office locations configured — auto-pass for everyone
+                    // No offices configured — auto-pass for everyone
                     this.locationOK = true;
                     this.locationName = '';
-                } else {
-                    this.locationOK = d.ok;
-                    this.locationName = d.location_name || '';
-                    this.locationError = d.error || 'Unable to verify location.';
-                }
-
-                if (this.locationOK) {
-                    this.startCamera();
-                }
-            } catch (geoErr) {
-                this.locationChecked = true;
-                if (this.onsiteMode) {
-                    // On-site: GPS failed but still allow clock-in without place detection
-                    this.locationOK = true;
-                    this.locationError = '';
                     this.startCamera();
                     return;
                 }
+
+                if (d.ok) {
+                    // Within a saved office location ✅
+                    this.locationOK = true;
+                    this.locationName = d.location_name || '';
+                    this.startCamera();
+                    return;
+                }
+
+                // Step 3: Outside saved offices — check onsite toggle
+                if (this.onsiteMode) {
+                    // On-site attendance enabled ✅
+                    this.locationOK = true;
+                    this.reverseGeocode(this._lat, this._lng);
+                    this.startCamera();
+                    return;
+                }
+
+                // Not within office, no on-site toggle ❌
                 this.locationOK = false;
-                this.locationError = 'Location unavailable. Please enable GPS and try again.';
+                this.locationError = 'You are outside all office locations. If you work remotely, contact your administrator to enable On-Site Attendance.';
+            } catch (geoErr) {
+                // GPS failed (timeout, permission denied)
+                this.locationChecked = true;
+                if (this.onsiteMode) {
+                    // On-site toggle allows clock-in without GPS ✅
+                    this.locationOK = true;
+                    this.startCamera();
+                } else {
+                    this.locationOK = false;
+                    this.locationError = 'Location unavailable. Please enable GPS or ask your administrator to enable On-Site Attendance.';
+                }
             }
         },
 
