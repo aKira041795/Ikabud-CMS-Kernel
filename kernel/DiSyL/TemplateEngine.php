@@ -2719,12 +2719,35 @@ class TemplateEngine
     private function evaluateAwaitBody(string $expr, string $innerContent, array $context): string
     {
         $info = $this->parseAwaitArms($expr, $innerContent);
-        $task = $this->buildAwaitTask($info, $context);
-        require_once __DIR__ . '/Async/Scheduler.php';
-        $sched = new \Ikabud\Kernel\DiSyL\Async\Scheduler();
-        $sched->add($task);
-        $results = $sched->run();
-        return $this->renderAwaitResult($info, $results[0] ?? ['error' => new \RuntimeException('no result')], $context);
+
+        // v4.8: resolve the expression from context. If it's a Promise, await it.
+        // Otherwise render the body immediately (synchronous path).
+        $resolved = $this->resolveValue(trim($expr), $context);
+
+        // If resolved is a Promise, try to get its value
+        if ($resolved instanceof \Ikabud\Kernel\DiSyL\Async\Promise) {
+            try {
+                require_once __DIR__ . '/Async/Scheduler.php';
+                $sched = new \Ikabud\Kernel\DiSyL\Async\Scheduler();
+                $sched->add(fn() => $resolved);
+                $results = $sched->run();
+                $result = $results[0] ?? ['error' => new \RuntimeException('no result')];
+                return $this->renderAwaitResult($info, $result, $context);
+            } catch (\Throwable $e) {
+                return $this->renderAwaitResult($info, ['error' => $e], $context);
+            }
+        }
+
+        // Synchronous path: render body (or {then} block) directly
+        $let = $info['let'] ?? $this->extractLetIdentifier($expr) ?: 'value';
+        if ($info['thenBody'] !== null) {
+            $childCtx = $context;
+            $childCtx[$let] = $resolved;
+            return $this->compile($info['thenBody'], $childCtx);
+        }
+
+        // No then block: render body with value bound
+        return $this->compile($info['body'], $context);
     }
 
     /**
@@ -2777,33 +2800,58 @@ class TemplateEngine
     }
 
     /**
-     * Parse an {await} body into success / loading / catch arms.
+     * Parse an {await} body into success / then / loading / catch arms.
      *
-     * @return array{expr:string, body:string, loading:?string, catch:?string, catchLet:?string}
+     * @return array{expr:string, body:string, thenBody:?string, let:?string, loading:?string, catch:?string, catchLet:?string}
      */
     private function parseAwaitArms(string $expr, string $innerContent): array
     {
-        $loading = null; $catch = null; $catchLet = null;
+        $thenBody = null; $loading = null; $catch = null; $catchLet = null; $let = null;
         $body = $innerContent;
-        // Split on {loading} and {catch ...} markers (single-token separators inside the await body).
-        if (preg_match('/\{loading\}/', $body)) {
+
+        // Extract {then}...{/then} block (v4.8)
+        if (preg_match('/\{then\}(.*?)\{\/then\}/s', $body, $tm)) {
+            $thenBody = $tm[1];
+            $body = str_replace($tm[0], '', $body);
+        }
+
+        // Extract {loading}...{/loading} block (v4.8 paired syntax)
+        if (preg_match('/\{loading\}(.*?)\{\/loading\}/s', $body, $lm)) {
+            $loading = $lm[1];
+            $body = str_replace($lm[0], '', $body);
+        } elseif (preg_match('/\{loading\}/', $body)) {
+            // Legacy open-token syntax: {loading}...{catch ...}
             $parts = preg_split('/\{loading\}/', $body, 2);
             $body = $parts[0];
             $rest = $parts[1] ?? '';
             if (preg_match('/\{catch(?:\s+let=(\w+))?\}/', $rest, $cm, PREG_OFFSET_CAPTURE)) {
                 $loading = substr($rest, 0, (int)$cm[0][1]);
-                $catchLet = $cm[1][1] ?? null;
                 $catchLet = is_array($cm[1] ?? null) ? ($cm[1][0] ?: null) : null;
                 $catch = substr($rest, (int)$cm[0][1] + strlen($cm[0][0]));
             } else {
                 $loading = $rest;
             }
-        } elseif (preg_match('/\{catch(?:\s+let=(\w+))?\}/', $body, $cm, PREG_OFFSET_CAPTURE)) {
+        }
+
+        // Extract {catch let=...}...{/catch} block (v4.8 paired syntax)
+        if ($catch === null && preg_match('/\{catch(?:\s+let=(\w+))?\}(.*?)\{\/catch\}/s', $body, $cm)) {
+            $catchLet = $cm[1] !== '' ? $cm[1] : null;
+            $catch = $cm[2];
+            $body = str_replace($cm[0], '', $body);
+        } elseif ($catch === null && preg_match('/\{catch(?:\s+let=(\w+))?\}/', $body, $cm, PREG_OFFSET_CAPTURE)) {
+            // Legacy open-token
             $catchLet = is_array($cm[1] ?? null) ? ($cm[1][0] ?: null) : null;
             $catch = substr($body, (int)$cm[0][1] + strlen($cm[0][0]));
             $body = substr($body, 0, (int)$cm[0][1]);
         }
-        return ['expr' => $expr, 'body' => $body, 'loading' => $loading, 'catch' => $catch, 'catchLet' => $catchLet];
+
+        // Extract let= from expression
+        $let = $this->extractLetIdentifier($expr) ?: 'value';
+
+        return [
+            'expr' => $expr, 'body' => trim($body), 'thenBody' => $thenBody,
+            'let' => $let, 'loading' => $loading, 'catch' => $catch, 'catchLet' => $catchLet,
+        ];
     }
 
     /**
@@ -4625,14 +4673,24 @@ class TemplateEngine
     {
         $parts = explode(':', $filter, 2);
         $filterName = trim($parts[0]);
-        $args = isset($parts[1])
-            ? array_map(fn($arg) => $this->normalizeFilterArg($filterName, $arg, $context), $this->splitByComma($parts[1]))
-            : [];
-        
-        if (isset($this->filters[$filterName])) {
-            return call_user_func($this->filters[$filterName], $value, $args, $context);
+        $rawArgs = isset($parts[1]) ? $this->splitByComma($parts[1]) : [];
+
+        // v4.8: parse named args (key=value) alongside positional args
+        $positional = [];
+        $named = [];
+        foreach ($rawArgs as $arg) {
+            $arg = trim($arg);
+            if (preg_match('/^(\w+)\s*=\s*(.+)$/s', $arg, $m)) {
+                $named[$m[1]] = $this->normalizeFilterArg($filterName, $m[2], $context);
+            } else {
+                $positional[] = $this->normalizeFilterArg($filterName, $arg, $context);
+            }
         }
-        
+
+        if (isset($this->filters[$filterName])) {
+            return call_user_func($this->filters[$filterName], $value, $positional, $named, $context);
+        }
+
         return $value;
     }
     
@@ -4686,8 +4744,8 @@ class TemplateEngine
             'capitalize' => fn($v) => ucfirst((string) $v),
             'title' => fn($v) => ucwords(str_replace('_', ' ', (string) $v)),
             'trim' => fn($v) => trim((string) $v),
-            'truncate' => fn($v, $a) => mb_strlen((string)$v) > (int)($a[0] ?? 100) 
-                ? mb_substr((string)$v, 0, (int)($a[0] ?? 100)) . '...' 
+            'truncate' => fn($v, $a, $n) => mb_strlen((string)$v) > (int)(($n['length'] ?? $a[0]) ?? 100) 
+                ? mb_substr((string)$v, 0, (int)(($n['length'] ?? $a[0]) ?? 100)) . '...' 
                 : (string)$v,
             'nl2br' => fn($v) => nl2br((string) $v),
             'json' => fn($v) => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
@@ -4699,7 +4757,7 @@ class TemplateEngine
                 ENT_QUOTES,
                 'UTF-8'
             ),
-            'date' => fn($v, $a) => $v ? date($a[0] ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
+            'date' => fn($v, $a, $n) => $v ? date(($n['format'] ?? $a[0]) ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
             'default' => fn($v, $a) => ($v !== null && $v !== '') ? $v : ($a[0] ?? ''),
             'count' => fn($v) => is_countable($v) ? count($v) : 0,
             'join' => fn($v, $a) => is_array($v) ? implode($a[0] ?? ', ', $v) : $v,
