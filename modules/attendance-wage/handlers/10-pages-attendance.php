@@ -112,5 +112,7 @@ function attendancePageReport(array $params = []): void
 function attendancePageKiosk(array $params = []): void
 {
     // No auth required — public kiosk
-    echo app()->render('modules/attendance-wage/attendance/kiosk');
+    echo app()->render('modules/attendance-wage/attendance/kiosk', [
+        'active_nav' => 'attendance',
+    ]);
 }

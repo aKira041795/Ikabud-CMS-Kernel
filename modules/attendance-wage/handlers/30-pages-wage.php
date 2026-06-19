@@ -95,9 +95,12 @@ function wagePageDashboard(array $params = []): void
 
 function wagePageEmployees(array $params = []): void
 {
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/employees/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
+        'active_nav'        => 'employees',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -118,7 +121,11 @@ function wagePageEmployeeForm(array $params = []): void
             }
         } catch (\Throwable $e) {}
     }
-    echo app()->render('modules/attendance-wage/wage/employees/form', $vars);
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/employees/form', $vars + [
+        'active_nav'        => 'employees',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePagePeriods(array $params = []): void
@@ -180,7 +187,11 @@ function wagePagePeriodForm(array $params = []): void
             }
         } catch (\Throwable $e) {}
     }
-    echo app()->render('modules/attendance-wage/wage/periods/form', $vars);
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/periods/form', $vars + [
+        'active_nav'        => 'periods',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageComputations(array $params = []): void
@@ -258,9 +269,12 @@ function wagePageComputations(array $params = []): void
 
 function wagePageAdjustments(array $params = []): void
 {
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/adjustments/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
+        'active_nav'        => 'adjustments',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -295,21 +309,31 @@ function wagePageAdjustmentForm(array $params = []): void
         $vars['current_period_name'] = $currentPeriod['period_name'];
         $vars['current_period_pay_date'] = $currentPeriod['pay_date'] ?? '—';
     }
+    $user = attendanceWageUser();
     $vars['employees'] = $employees;
     $vars['current_period'] = $currentPeriod;
-    echo app()->render('modules/attendance-wage/wage/adjustments/form', $vars);
+    echo app()->render('modules/attendance-wage/wage/adjustments/form', $vars + [
+        'active_nav'        => 'adjustments',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageDeductions(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/wage/deductions/index');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/deductions/index', [
+        'active_nav'        => 'deductions',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageDeductionForm(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/wage/deductions/form');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/deductions/form', [
+        'active_nav'        => 'deductions',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageCashAdvances(array $params = []): void
@@ -338,12 +362,15 @@ function wagePageCashAdvances(array $params = []): void
             }
         }
     } catch (\Throwable $e) {}
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/cash-advances/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
         'summary' => $summary,
         'selectedCA' => $selectedCA,
         'employeeCAs' => $employeeCAs,
+        'active_nav'        => 'cash-advances',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -354,9 +381,12 @@ function wagePageCashAdvanceForm(array $params = []): void
         $db = aw_db();
         $employees = $db->query("SELECT profile_id, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS full_name, position FROM employee_profiles WHERE is_active = 1 ORDER BY last_name ASC, first_name ASC")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
     } catch (\Throwable $e) {}
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/cash-advances/form', [
         'employees' => $employees,
         'today' => date('Y-m-d'),
+        'active_nav'        => 'cash-advances',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -372,10 +402,13 @@ function wagePageHolidays(array $params = []): void
             $editHoliday = $s->fetch(\PDO::FETCH_ASSOC) ?: null;
         } catch (\Throwable $e) {}
     }
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/holidays/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
         'edit_holiday' => $editHoliday,
+        'active_nav'        => 'holidays',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
@@ -417,8 +450,11 @@ function wagePageSchedules(array $params = []): void
 
 function wagePageReports(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/wage/reports/index');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/reports/index', [
+        'active_nav'        => 'reports',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageReportDetail(array $params = []): void
@@ -463,6 +499,7 @@ function wagePageReportDetail(array $params = []): void
     $isFinal = $period && ($period['pay_date'] ?? '') <= $now;
     $payDatePassed = $period ? (($period['pay_date'] ?? '9999-12-31') <= $now) : false;
 
+    $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/reports/detail', [
         'period' => $period,
         'computations' => $computations,
@@ -473,19 +510,27 @@ function wagePageReportDetail(array $params = []): void
         'total_additions' => number_format($totals['additions'], 2),
         'total_adj_deductions' => number_format($totals['adj_deductions'], 2),
         'is_final' => $payDatePassed,
+        'active_nav'        => 'reports',
+        'current_user_role' => $user['role'] ?? '',
     ]);
 }
 
 function wagePageBenefitsCalc(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/wage/benefits-calculator');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/benefits-calculator', [
+        'active_nav'        => 'benefits',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageMigrationWizard(array $params = []): void
 {
-    
-    echo app()->render('modules/attendance-wage/wage/migration-wizard');
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/migration-wizard', [
+        'active_nav'        => 'migration',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
 }
 
 function wagePageLocations(array $params = []): void

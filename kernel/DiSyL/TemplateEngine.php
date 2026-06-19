@@ -184,6 +184,14 @@ class TemplateEngine
     /** Maximum number of ancestor templates allowed in an {extends} chain */
     private const EXTENDS_CHAIN_MAX = 20;
 
+    /**
+     * Bump this version whenever the compiled-eligibility rules change
+     * (e.g. new interpreted-only tags are added to the exclusion list).
+     * Stale eligibility cache files from older versions are automatically
+     * ignored — no manual cache clearing required.
+     */
+    private const COMPILED_ELIGIBILITY_CACHE_VERSION = 2;
+
     /** Maximum output size in bytes (5 MB default — prevents runaway templates) */
     private const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 
@@ -3877,7 +3885,7 @@ class TemplateEngine
             return null;
         }
         $mtime = @filemtime($templatePath);
-        $hash = md5($templatePath . '|' . ($mtime ?: 0));
+        $hash = md5($templatePath . '|' . ($mtime ?: 0) . '|v' . self::COMPILED_ELIGIBILITY_CACHE_VERSION);
         return $this->extendsCacheDir . '/elig_' . $hash . '.json';
     }
 
@@ -3893,7 +3901,15 @@ class TemplateEngine
             return false;
         }
 
+        // Component tags always require interpreted path
         if (str_contains($source, '{ikb_') || str_contains($source, '{island')) {
+            return true;
+        }
+
+        // User-defined macros ({macro}...{/macro} + {call ...}) are not
+        // yet supported by the compiled path (TemplateCompiler). Templates
+        // or layouts that use them must fall back to the interpreted engine.
+        if (str_contains($source, '{macro ') || str_contains($source, '{call ')) {
             return true;
         }
 
