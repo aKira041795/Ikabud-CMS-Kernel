@@ -293,10 +293,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'employee_name', 'amount', 'description', 'status',
             'deduction_date', 'source',
         ],
-        'actions' => ['view'],
-        'action_urls' => [
-            'view' => '/admin/wage/deductions/create',
-        ],
+        'actions' => [],
         'renderers' => [
             'amount'         => 'money:2',
             'status'         => 'badge:{"pending":"Pending|amber","completed":"Completed|green","cancelled":"Cancelled|red","deducted":"Deducted|blue"}',
@@ -317,16 +314,14 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'employee_name', 'adjustment_type', 'amount', 'description',
             'status', 'effective_date',
         ],
-        'actions' => ['view', 'approve'],
+        'actions' => ['approve'],
         'action_urls' => [
-            'view'    => '/admin/wage/adjustments/create',
             'approve' => '/api/v1/wage/adjustments/{id}/approve',
         ],
         'action_methods' => [
             'approve' => 'post',
         ],
         'action_labels' => [
-            'view'    => 'View',
             'approve' => '✅ Approve',
         ],
         'action_confirm' => [
