@@ -910,14 +910,16 @@ class TemplateEngine
     private function processSetStatements(string $content, array &$context): string
     {
         return preg_replace_callback(
-            '/\{set\s+(\w+)\s*=\s*([^}]+)\}/',
+            '/\{set\s+(\w+)(?:\s*:\s*(\??\w+))?\s*=\s*([^}]+)\}/',
             function($match) use (&$context) {
                 $varName = trim($match[1]);
-                $expr = trim($match[2]);
-                
+                $varType = isset($match[2]) ? trim($match[2]) : null;
+                $expr = trim($match[3]);
+
                 // Try arithmetic first
                 $value = $this->evaluateArithmetic($expr, $context);
                 if ($value !== null) {
+                    $value = $this->coerceType($value, $varType, $varName);
                     $context[$varName] = $value;
                     return '';
                 }
@@ -925,28 +927,79 @@ class TemplateEngine
                 // Try boolean/comparison expression
                 $value = $this->evaluateComparison($expr, $context);
                 if ($value !== null) {
+                    $value = $this->coerceType($value, $varType, $varName);
                     $context[$varName] = $value;
                     return '';
                 }
-                
+
                 // Try quoted string literal
                 if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
-                    $context[$varName] = $qm[1];
+                    $value = $qm[1];
+                    $value = $this->coerceType($value, $varType, $varName);
+                    $context[$varName] = $value;
                     return '';
                 }
 
                 // Try numeric literal
                 if (is_numeric($expr)) {
-                    $context[$varName] = $expr + 0;
+                    $value = $expr + 0;
+                    $value = $this->coerceType($value, $varType, $varName);
+                    $context[$varName] = $value;
                     return '';
                 }
-                
+
                 // Fall back to variable with filters
-                $context[$varName] = $this->resolveValueWithFilters($expr, $context);
+                $value = $this->resolveValueWithFilters($expr, $context);
+                $value = $this->coerceType($value, $varType, $varName);
+                $context[$varName] = $value;
                 return ''; // Remove the {set} tag from output
             },
             $content
         );
+    }
+
+    /**
+     * Coerce a value to a declared type annotation.
+     *
+     * Supports: string, int, float, bool, array, mixed (no-op).
+     * Nullable prefix `?` allows null to pass through uncoerced.
+     *
+     * In strict mode, logs a warning on type mismatch but does not coerce.
+     * In non-strict mode (default), coerces the value to the declared type.
+     */
+    private function coerceType(mixed $value, ?string $type, string $varName): mixed
+    {
+        if ($type === null || $type === '' || $type === 'mixed') {
+            return $value;
+        }
+
+        // Nullable: "?string", "?int", etc.
+        $nullable = false;
+        if (str_starts_with($type, '?')) {
+            $nullable = true;
+            $type = substr($type, 1);
+            if ($value === null || $value === '') {
+                return null;
+            }
+        }
+
+        $original = $value;
+
+        $coerced = match ($type) {
+            'string' => (string) $value,
+            'int', 'integer' => (int) $value,
+            'float', 'number' => (float) $value,
+            'bool', 'boolean' => (bool) $value,
+            'array' => is_array($value) ? $value : [$value],
+            default => $value, // unknown type → pass through
+        };
+
+        // Log mismatches in strict mode
+        if ($this->strictMode && $coerced !== $original && !($nullable && $original === null)) {
+            $this->logError("DISYL_TYPE_MISMATCH: {set {$varName}: {$type}} — value coerced from " . gettype($original) . " to " . gettype($coerced));
+        }
+
+        return $coerced;
     }
 
     /**
@@ -978,8 +1031,8 @@ class TemplateEngine
             return $val !== null ? !$val : null;
         }
 
-        // Handle truthy check: bare variable without operator
-        if (preg_match('/^(\w[\w.]*)$/', $expr, $m)) {
+        // Handle truthy check: bare variable without operator (must start with letter)
+        if (preg_match('/^([a-zA-Z_][\w.]*)$/', $expr, $m)) {
             $val = $this->resolveValue($m[1], $context);
             return $val !== null ? (bool)$val : null;
         }

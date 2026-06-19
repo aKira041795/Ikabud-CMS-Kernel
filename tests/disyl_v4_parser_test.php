@@ -141,6 +141,23 @@ $doc = $parser->parse('{set x = 42}');
 check('set produces ControlNode', $doc->getChildren()[0] instanceof ControlNode
     && $doc->getChildren()[0]->getTag() === 'set');
 
+$doc = $parser->parse('{set name: string = "Alice"}');
+$typedSet = $doc->getChildren()[0];
+check('typed set has type attribute', $typedSet->getAttribute('type') === 'string');
+check('typed set has name attribute', $typedSet->getAttribute('name') === 'name');
+
+$doc = $parser->parse('{set count: int = 42}');
+check('typed set int type', $doc->getChildren()[0]->getAttribute('type') === 'int');
+
+$doc = $parser->parse('{set active: bool = true}');
+check('typed set bool type', $doc->getChildren()[0]->getAttribute('type') === 'bool');
+
+$doc = $parser->parse('{set price: float = 9.99}');
+check('typed set float type', $doc->getChildren()[0]->getAttribute('type') === 'float');
+
+$doc = $parser->parse('{set name: ?string = null}');
+check('nullable type annotation', $doc->getChildren()[0]->getAttribute('type') === '?string');
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo "── 7. Raw blocks ─────────────────────────────────────\n";
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

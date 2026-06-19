@@ -744,9 +744,10 @@ final class Parser
     }
 
     /** {set name = expr} */
+    /** {set name[: type] = expr} */
     private function parseSetTag(): ControlNode
     {
-        $tag = $this->readTagContent();              // "set name = expr"
+        $tag = $this->readTagContent();              // "set name = expr" or "set name: type = expr"
         $inner = trim(substr($tag, 3));               // strip "set"
 
         $eqPos = strpos($inner, '=');
@@ -754,13 +755,28 @@ final class Parser
             return $this->makeTextFallback('{' . $tag . '}');
         }
 
-        $name = trim(substr($inner, 0, $eqPos));
+        $namePart = trim(substr($inner, 0, $eqPos));
         $value = trim(substr($inner, $eqPos + 1));
 
-        return new ControlNode([], 'set', [
+        // Parse optional type annotation: "name: type" or just "name"
+        $varType = null;
+        $colonPos = strpos($namePart, ':');
+        if ($colonPos !== false) {
+            $name = trim(substr($namePart, 0, $colonPos));
+            $varType = trim(substr($namePart, $colonPos + 1));
+        } else {
+            $name = $namePart;
+        }
+
+        $attrs = [
             'name' => $name,
             'value' => $this->parseExprValue($value),
-        ]);
+        ];
+        if ($varType !== null) {
+            $attrs['type'] = $varType;
+        }
+
+        return new ControlNode([], 'set', $attrs);
     }
 
     /** {include "template" [with {k: v}]} */

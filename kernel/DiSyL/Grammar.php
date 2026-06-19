@@ -32,6 +32,7 @@ class Grammar
     public const TYPE_NULL = 'null';
     public const TYPE_CALLABLE = 'callable';
     public const TYPE_EXPRESSION = 'expression';
+    public const TYPE_FLOAT = 'float';           // alias for number, more intuitive for templates
 
     // ========== Platform Constants ==========
     public const PLATFORM_UNIVERSAL = 'universal';
@@ -67,14 +68,22 @@ class Grammar
     // ========== Validation ==========
     
     /**
-     * Validate a value against a type
+     * Validate a value against a type. Supports nullable prefix `?`.
      */
     public static function validateType(mixed $value, string $type): bool
     {
+        // Nullable types: ?string, ?int, etc.
+        if (str_starts_with($type, '?')) {
+            if ($value === null || $value === '') {
+                return true;
+            }
+            $type = substr($type, 1);
+        }
+
         return match ($type) {
             self::TYPE_STRING => is_string($value),
             self::TYPE_INTEGER => is_int($value),
-            self::TYPE_NUMBER => is_numeric($value),
+            self::TYPE_NUMBER, self::TYPE_FLOAT => is_numeric($value),
             self::TYPE_BOOLEAN => is_bool($value),
             self::TYPE_ARRAY => is_array($value),
             self::TYPE_OBJECT => is_object($value) || is_array($value),
@@ -95,6 +104,7 @@ class Grammar
             self::TYPE_STRING,
             self::TYPE_INTEGER,
             self::TYPE_NUMBER,
+            self::TYPE_FLOAT,
             self::TYPE_BOOLEAN,
             self::TYPE_ARRAY,
             self::TYPE_OBJECT,
