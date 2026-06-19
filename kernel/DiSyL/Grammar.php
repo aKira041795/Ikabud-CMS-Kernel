@@ -1,17 +1,15 @@
 <?php
 /**
  * DiSyL Grammar v4.0.0
- * 
+ *
  * Defines type constants, platform identifiers, and validation rules
  * for the DiSyL template language.
- * 
- * v4.0.0 (schema version aligned with TemplateEngine and v4 Parser):
- * - Core type system constants
- * - Platform identifiers
- * - v11 planned: advanced type system (generics, union, intersection)
- * - v11 planned: pattern matching, async/await, i18n keywords
- * - v11.1 planned: experimentation, cache, security, federation, AI keywords
- * 
+ *
+ * The v4 type system is intentionally simple: string, integer, number,
+ * boolean, array, object, mixed, null, callable, expression.  Advanced
+ * types (union, generic, intersection, etc.) are planned for v11 — see
+ * docs/kernel/disyl-grammar-v11-planned-types.md and Grammar/Planned.php.
+ *
  * @package Ikabud\Kernel\DiSyL
  * @version 4.0.0
  */
@@ -34,22 +32,7 @@ class Grammar
     public const TYPE_NULL = 'null';
     public const TYPE_CALLABLE = 'callable';
     public const TYPE_EXPRESSION = 'expression';
-    
-    // v11: Advanced Type Constants
-    public const TYPE_NEVER = 'never';
-    public const TYPE_UNKNOWN = 'unknown';
-    public const TYPE_VOID = 'void';
-    public const TYPE_ANY = 'any';
-    public const TYPE_UNION = 'union';
-    public const TYPE_INTERSECTION = 'intersection';
-    public const TYPE_GENERIC = 'generic';
-    public const TYPE_TUPLE = 'tuple';
-    public const TYPE_LITERAL = 'literal';
-    public const TYPE_TEMPLATE_LITERAL = 'template_literal';
-    public const TYPE_CONDITIONAL = 'conditional';
-    public const TYPE_MAPPED = 'mapped';
-    public const TYPE_INFER = 'infer';
-    
+
     // ========== Platform Constants ==========
     public const PLATFORM_UNIVERSAL = 'universal';
     public const PLATFORM_WORDPRESS = 'wordpress';
@@ -146,54 +129,7 @@ class Grammar
         return in_array($platform, self::getPlatforms(), true);
     }
     
-    // ========== v11+ PLANNED keywords ==========
-    // Moved to kernel/DiSyL/Grammar/Planned.php in 4.0.0. Use
-    // \Ikabud\Kernel\DiSyL\Grammar\Planned::* directly.
-    
-    // ========== v11: All Keywords ==========
-    public static function getAllKeywords(): array
-    {
-        return Grammar\Planned::getAllV11Keywords();
-    }
-    
-    // ========== Active Type Operators (none) ==========
-    // v11 type operators are PLANNED — see Grammar\Planned::TYPE_OPERATORS.
-    
-    /**
-     * @deprecated 4.0.0 use \Ikabud\Kernel\DiSyL\Grammar\Planned::isUtilityType()
-     */
-    public static function isUtilityType(string $type): bool
-    {
-        return Grammar\Planned::isUtilityType($type);
-    }
-    
-    /**
-     * Get all advanced types
-     */
-    public static function getAdvancedTypes(): array
-    {
-        return [
-            self::TYPE_NEVER,
-            self::TYPE_UNKNOWN,
-            self::TYPE_VOID,
-            self::TYPE_ANY,
-            self::TYPE_UNION,
-            self::TYPE_INTERSECTION,
-            self::TYPE_GENERIC,
-            self::TYPE_TUPLE,
-            self::TYPE_LITERAL,
-            self::TYPE_TEMPLATE_LITERAL,
-            self::TYPE_CONDITIONAL,
-            self::TYPE_MAPPED,
-            self::TYPE_INFER,
-        ];
-    }
-    
-    /**
-     * Get all v11.1 keywords
-     */
-    public static function getV11Keywords(): array
-    {
-        return Grammar\Planned::getAllV11_1Keywords();
-    }
+    // ========== Planned / Roadmap ==========
+    // v11+ keywords and type operators live in Grammar\Planned.
+    // See docs/kernel/disyl-grammar-v11-planned-types.md for details.
 }
