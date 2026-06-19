@@ -56,6 +56,7 @@ define('PAGE_CACHE_SKIP_PREFIXES', [
     '/cms/auth',
     '/portal',
     '/ehr/queue-monitor',
+    '/attendance-wage/',
 ]);
 
 // ── Instance & TTL ───────────────────────────────────────────────────
