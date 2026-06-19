@@ -583,18 +583,34 @@ class TemplateEngine
             $content = $this->removeComments($content);
         }
         
+        // 1.5. Pre-extends macro extraction — catch {macro} definitions in
+        //      the child template that live OUTSIDE {block} tags.  These
+        //      would be discarded by processExtends() since only {block}
+        //      content is preserved during layout merging.
+        $hasExtends = str_contains($content, '{extends ');
+        if ($isTopLevel && $hasExtends && str_contains($content, '{macro ')) {
+            $this->macros = [];
+            $content = $this->extractMacros($content, merge: false);
+        }
+
         // 2. Process extends/layouts (merges child blocks into layout)
-        if (str_contains($content, '{extends ')) {
+        if ($hasExtends) {
             $t = microtime(true);
             $content = $this->processExtends($content, $context);
             $phases['extends_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
 
-        // 2.5. Extract {macro}...{/macro} definitions — AFTER extends so
-        //      macros defined in parent layouts are included.  Only run at
-        //      top-level compile (recursive compiles inside {if}/{for} etc.
-        //      must not clear macros already registered).
-        if ($isTopLevel && str_contains($content, '{macro ')) {
+        // 2.5. Post-extends macro extraction — catch {macro} definitions
+        //      from the parent layout now in the merged content.  Merge
+        //      mode preserves macros already extracted from the child.
+        if ($isTopLevel && $hasExtends && str_contains($content, '{macro ')) {
+            $content = $this->extractMacros($content, merge: true);
+        }
+
+        // 2.6. Non-extends macro extraction — standalone templates get a
+        //      single clean extraction pass.
+        if ($isTopLevel && !$hasExtends && str_contains($content, '{macro ')) {
+            $this->macros = [];
             $content = $this->extractMacros($content);
         }
         
@@ -1545,11 +1561,12 @@ class TemplateEngine
      * Macro definitions are removed from the template — they produce no
      * output on their own.
      */
-    private function extractMacros(string $content): string
+    private function extractMacros(string $content, bool $merge = false): string
     {
-        // Reset macros for this compile pass (macro definitions are
-        // template-scoped, not request-scoped)
-        $this->macros = [];
+        // Reset or preserve existing macros
+        if (!$merge) {
+            $this->macros = [];
+        }
 
         return preg_replace_callback(
             '/\{macro\s+(\w+)\s*\(([^)]*)\)\}(.*?)\{\/macro\}/s',
