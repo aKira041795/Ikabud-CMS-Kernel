@@ -559,8 +559,13 @@ class TemplateEngine
         $compileStartedAt = microtime(true);
         $phases = [];
 
-        // v4.8: track recursion depth — macros only extracted at top level
+        // v4.8: track recursion depth — macros only extracted at top level.
+        // Always clean-slate macros at the start of a top-level compile
+        // to prevent cross-request state leakage in PHP-FPM.
         $isTopLevel = ($this->compileDepth === 0);
+        if ($isTopLevel) {
+            $this->macros = [];
+        }
         $this->compileDepth++;
 
         if (!str_contains($content, '{') && stripos($content, '<script') === false) {

@@ -797,9 +797,17 @@ trait EntityRenderingTrait
             }
         }
         $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-        $targetAttr = $target !== '' ? ' target="' . htmlspecialchars($target, ENT_QUOTES, 'UTF-8') . '"' : '';
+
+        // Same-tab navigation by default; new tab only with explicit target
+        if ($target !== '') {
+            $safeTarget = htmlspecialchars($target, ENT_QUOTES, 'UTF-8');
+            $attrs = ' onclick="window.open(\'' . $safeUrl . '\',\'' . $safeTarget . '\')" style="cursor:pointer"';
+        } else {
+            $attrs = ' onclick="window.location.href=\'' . $safeUrl . '\'" style="cursor:pointer"';
+        }
+
         return [
-            'attrs' => ' onclick="window.open(\'' . $safeUrl . '\'' . ($target !== '' ? ',\'' . htmlspecialchars($target, ENT_QUOTES, 'UTF-8') . '\'' : '') . ')" style="cursor:pointer"',
+            'attrs' => $attrs,
             'class' => ' cursor-pointer hover:bg-blue-50/30',
         ];
     }
