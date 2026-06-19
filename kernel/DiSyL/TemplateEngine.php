@@ -1667,8 +1667,17 @@ class TemplateEngine
             $rawTag = substr($content, $tagPos + 1, $tagEnd - $tagPos - 1);
             $rawTagTrimmed = ltrim($rawTag);
 
+            // Skip {/when}, {/default}, {/else} close tags — they delimit arms but don't render
+            if ($rawTagTrimmed === '/when' || $rawTagTrimmed === '/default' || $rawTagTrimmed === '/else') {
+                if ($current !== null && $tagPos > $offset) {
+                    $current['content'] .= substr($content, $offset, $tagPos - $offset);
+                }
+                $offset = $tagEnd + 1;
+                continue;
+            }
+
             $isWhen = str_starts_with($rawTagTrimmed, 'when ') || $rawTagTrimmed === 'when';
-            $isDefault = $rawTagTrimmed === 'default';
+            $isDefault = $rawTagTrimmed === 'default' || $rawTagTrimmed === 'else';
 
             if (!$isWhen && !$isDefault) {
                 if ($current !== null) {

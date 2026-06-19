@@ -206,6 +206,9 @@ final class Parser
         if (preg_match('/^if[\s}]/', $peek)) {
             return $this->recoverableParse($this->parseIf(...), 'if', $savedPos);
         }
+        if (preg_match('/^match[\s}]/', $peek)) {
+            return $this->recoverableParse($this->parseMatch(...), 'match', $savedPos);
+        }
         if (preg_match('/^set\s/', $peek)) {
             return $this->recoverableParse($this->parseSetTag(...), 'set', $savedPos);
         }
@@ -381,6 +384,7 @@ final class Parser
             // tag (e.g. {/if}, {/for}, {/foreach}, {/block}) or end-of-source.
             $closeTag = match ($blockName) {
                 'if' => '{/if}',
+                'match' => '{/match}',
                 'for' => '{/for}',
                 'foreach' => '{/foreach}',
                 'each' => '{/each}',
@@ -471,6 +475,24 @@ final class Parser
             ['condition' => $this->parseExprValue($condition)],
             new DocumentNode([], $body),
             $elseDoc
+        );
+    }
+
+    /** {match expr}{when "val"}...{/when}{else}...{/match} */
+    private function parseMatch(): ControlNode
+    {
+        $tag = $this->readTagContent();              // "match expr"
+        $expr = trim(substr($tag, 5));                // strip "match"
+
+        $body = $this->parseChildren(['{/match}']);
+        $this->consumeExact('{/match}');
+
+        return new ControlNode(
+            [],
+            'match',
+            ['expression' => $this->parseExprValue($expr)],
+            new DocumentNode([], $body),
+            null
         );
     }
 
