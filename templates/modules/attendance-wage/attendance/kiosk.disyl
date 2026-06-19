@@ -146,7 +146,7 @@
         </div>
 
         <!-- Step 3: Success / Done -->
-        <div x-show="step === 3" class="p-8 text-center">
+        <div x-show="step === 3" class="p-8 text-center" x-init="autoReturnTimer = setTimeout(() => done(), 20000)" @click="clearTimeout(autoReturnTimer)">
             <div class="text-6xl mb-4" x-text="lastAction === 'clock_in' ? '✅' : '👋'"></div>
             <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="lastMessage"></h2>
             <p class="text-sm text-slate-500 mb-1" x-text="lastEmployee"></p>
@@ -157,9 +157,14 @@
                 📋 View My Attendance
             </button>
             <button @click="done()"
-                    class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg">
+                    class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg mb-3">
                 ✅ Done — Next Employee
             </button>
+            <a href="/attendance-wage/login"
+               class="block w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 text-sm font-medium transition-colors">
+                🔐 Return to Login
+            </a>
+            <p class="text-xs text-slate-400 mt-2">Auto-returns in 20s</p>
         </div>
 
         <!-- Step 4: My Attendance Records -->
@@ -238,6 +243,7 @@ function kioskWidget() {
         stream: null,
         myRecords: [],
         loadingRecords: false,
+        autoReturnTimer: null,
 
         init() {
             this.updateClock();
@@ -491,6 +497,7 @@ function kioskWidget() {
         },
 
         done() {
+            clearTimeout(this.autoReturnTimer);
             this.step = 0;
             this.searchQuery = '';
             this.searchResults = [];
