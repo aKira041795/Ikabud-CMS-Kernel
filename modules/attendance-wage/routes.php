@@ -40,6 +40,7 @@ return [
         '/admin/wage/settings'           => 'attendance-wage:wagePageSettings',
         '/admin/wage/profile'             => 'attendance-wage:wagePageProfile',
         '/api/v1/attendance/photo/{file}' => 'attendance-wage:attendanceApiPhoto',
+        '/api/v1/wage/logo/{file}'       => 'attendance-wage:attendanceApiLogo',
         '/api/v1/attendance/records'      => 'attendance-wage:attendanceApiRecords',
         '/api/v1/wage/employees'          => 'attendance-wage:wageApiEmployeesList',
         '/api/v1/wage/employees/{id}'     => 'attendance-wage:wageApiEmployeeGet',

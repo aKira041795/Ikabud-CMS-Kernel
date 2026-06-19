@@ -609,6 +609,8 @@ function wagePageSettings(array $params = []): void
     echo app()->render('modules/attendance-wage/wage/settings', [
         'success'              => $_GET['success'] ?? '',
         'error'                => $_GET['error'] ?? '',
+        'app_name'             => $settings['app_name'] ?? '',
+        'logo_url'             => $settings['logo_url'] ?? '',
         'google_maps_api_key'  => $settings['google_maps_api_key'] ?? '',
         'users'                => $users,
         'current_user_id'      => (int)($currentUser['id'] ?? 0),

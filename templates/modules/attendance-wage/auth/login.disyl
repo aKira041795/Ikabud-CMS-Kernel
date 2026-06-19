@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZAP — Login</title>
+    <title>{app_name|default:'ZAP'} — Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 flex items-center justify-center px-4">
     <div class="w-full max-w-md">
         <div class="bg-white/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
             <div class="px-8 pt-8 pb-6">
-                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight text-center">Attendance & Wage</h1>
+                <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight text-center">{app_name|default:'Attendance & Wage'}</h1>
                 <p class="mt-2 text-sm text-slate-500 text-center">Sign in to your account</p>
                 {if error}
                 <div class="mt-4 text-sm bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">

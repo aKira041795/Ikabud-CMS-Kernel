@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZAP — {page_title|default:'Attendance & Wage'}</title>
+    <title>{app_name|default:'ZAP'} — {page_title|default:'Attendance & Wage'}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -25,7 +25,10 @@
     <!-- Sidebar -->
     <aside class="w-64 bg-brand-950 text-brand-100 flex flex-col flex-shrink-0 min-h-screen fixed inset-y-0 left-0 z-40">
         <div class="px-6 py-5 border-b border-brand-800">
-            <a href="/admin/wage" class="text-xl font-extrabold tracking-tight text-white">ZAP</a>
+            {if logo_url}
+            <img src="{logo_url}" alt="{app_name|default:'ZAP'}" class="h-8 w-auto mb-2">
+            {/if}
+            <a href="/admin/wage" class="text-xl font-extrabold tracking-tight text-white">{app_name|default:'ZAP'}</a>
             <p class="text-xs text-brand-400 mt-0.5">Attendance &amp; Wage</p>
         </div>
         <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">

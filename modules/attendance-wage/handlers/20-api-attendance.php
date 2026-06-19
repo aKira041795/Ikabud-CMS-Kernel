@@ -110,3 +110,37 @@ function attendanceApiPhoto(array $params = [], string $file = ''): void
     header("Content-Type: application/json; charset=utf-8");
     echo json_encode(['ok'=>false,'error'=>'Photo not found']);
 }
+
+function attendanceApiLogo(array $params = [], string $file = ''): void
+{
+    $file = $file !== '' ? $file : ($params['file'] ?? '');
+    if ($file === '') {
+        http_response_code(404);
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok'=>false,'error'=>'No file specified']);
+        return;
+    }
+    if (!preg_match('/^[a-zA-Z0-9_\-.]+$/', $file)) {
+        http_response_code(400);
+        header("Content-Type: application/json; charset=utf-8");
+        echo json_encode(['ok'=>false,'error'=>'Invalid filename']);
+        return;
+    }
+    $paths = [
+        '/var/www/html/applicationostest/storage/uploads/logos/' . $file,
+        '/var/www/html/applicationostest/public/uploads/logos/' . $file,
+    ];
+    foreach ($paths as $path) {
+        if (is_file($path) && is_readable($path)) {
+            $mime = mime_content_type($path) ?: 'application/octet-stream';
+            header('Content-Type: ' . $mime);
+            header('Content-Length: ' . filesize($path));
+            header('Cache-Control: private, max-age=3600');
+            readfile($path);
+            exit;
+        }
+    }
+    http_response_code(404);
+    header("Content-Type: application/json; charset=utf-8");
+    echo json_encode(['ok'=>false,'error'=>'Logo not found']);
+}

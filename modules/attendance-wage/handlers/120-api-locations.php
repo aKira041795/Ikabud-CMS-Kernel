@@ -237,6 +237,21 @@ function wageApiSettingsSave(array $params = []): void
     if (isset($input['google_maps_api_key'])) {
         $data['google_maps_api_key'] = trim((string)$input['google_maps_api_key']);
     }
+    if (isset($input['app_name'])) {
+        $data['app_name'] = trim((string)$input['app_name']);
+    }
+
+    // Logo upload (multipart file or base64)
+    $logoUrl = null;
+    if (!empty($_FILES['logo']['tmp_name']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+        $logoUrl = saveSettingLogo($_FILES['logo']);
+    } elseif (!empty($input['logo_data'])) {
+        // base64-encoded from camera or pasted image
+        $logoUrl = saveSettingLogoFromBase64((string)$input['logo_data']);
+    }
+    if ($logoUrl !== null) {
+        $data['logo_url'] = $logoUrl;
+    }
 
     if (empty($data)) {
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/settings?error=' . urlencode('No settings to save.')); exit; }
@@ -258,6 +273,66 @@ function wageApiSettingsSave(array $params = []): void
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
+}
+
+// ── Logo upload helpers ──
+
+function saveSettingLogo(array $file): ?string
+{
+    $tmp  = $file['tmp_name'] ?? '';
+    $name = $file['name'] ?? '';
+    if ($tmp === '' || $file['error'] !== UPLOAD_ERR_OK) return null;
+
+    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($tmp);
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'], true)) return null;
+
+    $ext = match ($mime) {
+        'image/png'      => 'png',
+        'image/webp'     => 'webp',
+        'image/svg+xml'  => 'svg',
+        default          => 'jpg',
+    };
+
+    $dir = '/var/www/html/applicationostest/storage/uploads/logos';
+    if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+
+    $filename = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $dest = $dir . '/' . $filename;
+
+    if (!move_uploaded_file($tmp, $dest)) return null;
+    return '/api/v1/wage/logo/' . $filename;
+}
+
+function saveSettingLogoFromBase64(string $base64Data): ?string
+{
+    if ($base64Data === '') return null;
+    $data = $base64Data;
+    if (str_starts_with($data, 'data:image/')) {
+        $commaPos = strpos($data, ',');
+        if ($commaPos !== false) { $data = substr($data, $commaPos + 1); }
+    }
+    $decoded = base64_decode($data, true);
+    if ($decoded === false || strlen($decoded) === 0) return null;
+
+    $finfo = new \finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->buffer($decoded);
+    if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'], true)) return null;
+
+    $ext = match ($mime) {
+        'image/png'      => 'png',
+        'image/webp'     => 'webp',
+        'image/svg+xml'  => 'svg',
+        default          => 'jpg',
+    };
+
+    $dir = '/var/www/html/applicationostest/storage/uploads/logos';
+    if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
+
+    $filename = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $dest = $dir . '/' . $filename;
+    file_put_contents($dest, $decoded);
+    return '/api/v1/wage/logo/' . $filename;
 }
 
 // ── Change Password ──
