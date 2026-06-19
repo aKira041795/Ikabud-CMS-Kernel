@@ -5424,53 +5424,31 @@ class TemplateEngine
             return $this->entityErrorState('Missing id attribute on ikb_entity_detail.', $class);
         }
 
-        // Resolve via capability bus: entity.get.{sanitized_source}
-        $sanitizedSource = str_replace('.', '_', $source);
-        $capabilityId = "entity.get.{$sanitizedSource}";
-        $entity = null;
-        $error = null;
-
+        // Resolve via EntityViewResolver (shared path with ikb_entity_list)
+        $resolved = null;
         try {
-            if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'capabilities')) {
-                $result = $app->cap()->call($capabilityId, [
-                    'entity_type' => $source,
-                    'id' => $entityId,
-                    'view' => $view,
-                ], [
-                    'caller' => ['module' => 'kernel'],
-                    'mode' => 'first',
-                    'timeout_ms' => 10000,
-                ]);
-                if (is_array($result)) {
-                    $entity = $result;
-                }
+            if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
+                $resolved = $app->entityViews()->resolveDetail($source, $entityId, $view);
             }
         } catch (\Throwable $e) {
-            $error = $e->getMessage();
-            if (\function_exists('write_log')) {
-            $level = str_contains($error, 'not found') ? 'info' : 'warning';
-            \write_log("EntityViewResolver: detail fetch failed for '{$capabilityId}' id={$entityId}", $level, [
-                    'source' => $source,
-                    'id' => $entityId,
-                    'error' => $error,
-                ]);
-            }
+            return $this->entityErrorState('Failed to resolve entity detail: ' . $e->getMessage(), $class);
         }
 
-        if ($entity === null) {
-            return $this->entityErrorState($error ?: 'Entity not found.', $class);
+        if ($resolved === null || !empty($resolved['error'])) {
+            $errorMsg = $resolved['error'] ?? 'Entity not found.';
+            return $this->entityErrorState($errorMsg, $class);
+        }
+
+        $entity = $resolved['entity'] ?? null;
+        if ($entity === null || empty($entity)) {
+            return $this->entityErrorState('Entity not found.', $class);
         }
 
         // Get view contract for field visibility
-        $viewContract = null;
-        if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
-            $viewContract = $app->entityViews()->viewContract($source, $view);
-        }
-
+        $viewContract = $resolved['view'] ?? [];
         $fields = $requestedFields ?? $viewContract['fields'] ?? array_keys($entity);
         if ($fields === ['*'] || $fields === '*') {
             $fields = array_keys($entity);
-            // Remove internal keys
             $fields = array_values(array_filter($fields, fn($k) => !str_starts_with($k, '_')));
         }
 

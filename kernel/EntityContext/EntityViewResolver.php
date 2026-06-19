@@ -255,6 +255,83 @@ final class EntityViewResolver
     }
 
     /**
+     * Resolve a single entity detail (ikb_entity_detail path).
+     *
+     * Calls entity.get.{type} via the capability bus, normalises the
+     * result, and returns the entity with its view contract.
+     *
+     * @param array<string, mixed> $overrides
+     * @return array{entity: array|null, view: array, source: array, error: string|null}
+     */
+    public function resolveDetail(string $source, string $entityId, string $view = 'detailed', array $overrides = []): array
+    {
+        $parsed = $this->parseSource($source);
+        $entityType = $parsed['entity_type'];
+
+        if ($entityType === '') {
+            return $this->detailErrorResult('Invalid source: entity type is empty.');
+        }
+
+        $contract = $this->viewContract($entityType, $view);
+        if ($contract === null) {
+            return $this->detailErrorResult("No view contract for '{$entityType}.{$view}'.");
+        }
+
+        $requiredCap = $contract['capability'] ?? null;
+        if ($requiredCap !== null && \function_exists('app')) {
+            $app = \app();
+            if ($app !== null && method_exists($app, 'capabilities') && !$app->capabilities()->has($requiredCap)) {
+                return $this->detailErrorResult("Insufficient permissions for '{$requiredCap}'.");
+            }
+        }
+
+        $sanitizedType = str_replace('.', '_', $entityType);
+        $capabilityId = "entity.get.{$sanitizedType}";
+        $entity = null;
+        $error = null;
+
+        try {
+            if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'cap')) {
+                $result = $app->cap()->call($capabilityId, [
+                    'entity_type' => $entityType,
+                    'id'          => $entityId,
+                    'view'        => $view,
+                ] + $overrides, [
+                    'caller' => ['module' => 'kernel'],
+                    'mode'   => 'first',
+                    'timeout_ms' => 10000,
+                ]);
+                if (is_array($result)) {
+                    // Strip capability envelope keys; keep entity data
+                    $entity = $result;
+                    unset($entity['ok'], $entity['error'], $entity['message']);
+                }
+            }
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+            if (\function_exists('write_log')) {
+                $level = str_contains($error, 'not found') ? 'info' : 'warning';
+                \write_log("EntityViewResolver: detail fetch failed for '{$capabilityId}' id={$entityId}", $level, [
+                    'source' => $source,
+                    'id'     => $entityId,
+                    'error'  => $error,
+                ]);
+            }
+        }
+
+        if ($entity === null || empty($entity)) {
+            return $this->detailErrorResult($error ?? 'Entity not found.');
+        }
+
+        return [
+            'entity' => $entity,
+            'view'   => $contract,
+            'source' => $parsed,
+            'error'  => null,
+        ];
+    }
+
+    /**
      * List all registered view contract keys.
      *
      * @return string[]
@@ -338,6 +415,19 @@ final class EntityViewResolver
             'view' => ['empty_state' => $message, 'error_state' => $message],
             'source' => ['entity_type' => '', 'qualifier' => ''],
             'error' => $message,
+        ];
+    }
+
+    /**
+     * @return array{entity: null, view: array, source: array, error: string}
+     */
+    private function detailErrorResult(string $message): array
+    {
+        return [
+            'entity' => null,
+            'view'   => ['empty_state' => $message, 'error_state' => $message],
+            'source' => ['entity_type' => '', 'qualifier' => ''],
+            'error'  => $message,
         ];
     }
 
