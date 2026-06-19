@@ -274,6 +274,46 @@ function kioskResolveUserId(\PDO $db, int $profileId, array $emp): int
 }
 
 /**
+ * Auto-recompute salary for the current active payroll period after clock-in.
+ * Runs silently — errors are logged but never surfaced to the kiosk user.
+ */
+function kioskAutoRecompute(\PDO $db, int $userId): void
+{
+    try {
+        // Find the current active/draft payroll period
+        $period = $db->query(
+            "SELECT period_id FROM payroll_periods WHERE status IN ('draft','processing') ORDER BY start_date DESC LIMIT 1"
+        )->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$period || (int)($period['period_id'] ?? 0) <= 0) {
+            return; // No active period — nothing to recompute
+        }
+
+        $periodId = (int)$period['period_id'];
+
+        // Check if a computation already exists for this employee in this period
+        $existing = $db->prepare(
+            "SELECT computation_id FROM salary_computations WHERE user_id = :uid AND payroll_period_id = :pid LIMIT 1"
+        );
+        $existing->execute([':uid' => $userId, ':pid' => $periodId]);
+
+        if ($existing->fetch()) {
+            // Recompute existing
+            aw_computeSalary($userId, $periodId, 0);
+        } else {
+            // Create initial computation
+            aw_computeSalary($userId, $periodId, 0);
+        }
+    } catch (\Throwable $e) {
+        if (\function_exists('write_log')) {
+            \write_log('kioskAutoRecompute: failed for user ' . $userId, 'warning', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+}
+
+/**
  * Save a base64-encoded JPEG/PNG photo to the attendance uploads directory.
  */
 function saveKioskPhoto(string $base64Data, int $userId): ?string
