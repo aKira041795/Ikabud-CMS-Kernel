@@ -1,0 +1,50 @@
+{
+    "id": "ikabud-service-reporting",
+    "name": "Ikabud Reporting Service (Python)",
+    "version": "1.0.0",
+    "description": "Polyglot PDF report generation service — Python/FastAPI + ReportLab. First non-PHP capability provider demonstrating the ServiceProxy wire protocol.",
+    "author": "Ikabud Kernel Team",
+    "type": "service-module",
+    "service": {
+        "endpoint": "http://127.0.0.1:5001",
+        "protocol": "http+json",
+        "auth": {
+            "token_env": "REPORTING_SERVICE_TOKEN"
+        },
+        "timeout_ms": 30000
+    },
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "reporting.ledger.daily@1",
+                "modes": ["first"],
+                "priority": 10,
+                "description": "Generate a daily ledger PDF report",
+                "schema": {
+                    "input": {
+                        "date": "string (YYYY-MM-DD)",
+                        "store_id": "int",
+                        "entries": "array",
+                        "summary": "object"
+                    },
+                    "output": {
+                        "pdf_base64": "string",
+                        "filename": "string",
+                        "generated_at": "string (ISO 8601)"
+                    }
+                }
+            }
+        ],
+        "policy": {
+            "default": {
+                "allow_callers": ["daily-ledger", "kernel", "bakeshop"]
+            }
+        }
+    },
+    "events": [],
+    "depends": [],
+    "owns_tables": [],
+    "reads_tables": [],
+    "requires_kernel": "6.0.0",
+    "entity_sources": {}
+}
