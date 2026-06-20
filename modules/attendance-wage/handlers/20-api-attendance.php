@@ -20,7 +20,7 @@ function attendanceApiClockIn(array $params = []): void
         $stmt->execute([':uid'=>$userId]);
         if ($stmt->fetch()) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Already clocked in']); return; }
 
-        // Geo-fence check: if lat/lng provided, verify within an office location radius.
+        // Geo-fence check: if BOTH lat AND lng provided, verify within an office location radius.
         // If no office locations exist at all, skip geo-fence (auto-pass).
         $locationName = null;
         $locationId   = null;

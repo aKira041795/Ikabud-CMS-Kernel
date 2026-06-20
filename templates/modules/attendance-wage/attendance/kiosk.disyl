@@ -75,26 +75,31 @@
             <p class="text-sm text-slate-500 mb-1" x-text="selectedEmployee?.position || ''"></p>
             <p class="text-xs text-slate-400 mb-6" x-text="selectedEmployee?.department || ''"></p>
 
-            <!-- Location Status -->
+            <!-- Location Status — meaningful place name feedback -->
             <div x-show="locationChecked">
-                <div x-show="locationOK" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700">
-                    ✅ Location verified — within office geo-fence
-                    <span x-show="locationName" x-text="' (' + locationName + ')'"></span>
+                <!-- Within office geo-fence -->
+                <div x-show="locationOK && !onsiteMode && locationName" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+                    <div class="font-semibold text-base mb-0.5">📍 You are at <span x-text="locationName"></span></div>
+                    <div class="text-green-600 text-xs">✓ Verified — within office geo-fence</div>
                 </div>
+                <div x-show="locationOK && !onsiteMode && !locationName" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                    ✅ Location verified — within office geo-fence
+                </div>
+
+                <!-- On-site attendance — always show place name when available -->
+                <div x-show="onsiteMode && onsitePlace" class="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+                    <div class="font-semibold text-base mb-0.5">📍 You are at <span x-text="onsitePlace"></span></div>
+                    <div class="text-blue-600 text-xs">🏗️ On-site attendance</div>
+                </div>
+                <div x-show="onsiteMode && !onsitePlace" class="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+                    <div class="font-semibold text-base mb-0.5">📍 On-site Attendance</div>
+                    <div class="text-amber-600 text-xs">⚠️ Could not detect exact place — recording as on-site</div>
+                </div>
+
+                <!-- Location failed — no on-site toggle -->
                 <div x-show="!locationOK && !onsiteMode" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700">
                     ❌ <span x-text="locationError"></span>
                 </div>
-                <div x-show="onsiteMode" class="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm font-medium text-blue-700">
-                    🏗️ On-site attendance — location check skipped
-                </div>
-            </div>
-
-            <!-- Auto-detected on-site place (read-only, filled by GPS reverse-geocode) -->
-            <div x-show="onsiteMode && onsitePlace" class="mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
-                <span class="font-semibold">📍 Detected:</span> <span x-text="onsitePlace"></span>
-            </div>
-            <div x-show="onsiteMode && !onsitePlace && locationChecked" class="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-600">
-                ⚠️ Could not detect place name — recording as on-site attendance.
             </div>
 
             <!-- Camera / Photo Capture -->
@@ -307,39 +312,105 @@ function kioskWidget() {
                 return;
             }
 
+            const GPS_OPTIONS = {
+                enableHighAccuracy: true,
+                timeout: 15000,
+                maximumAge: 5000,  // reject cached positions older than 5s
+            };
+
+            // Try getCurrentPosition first, then watchPosition as fallback
+            let pos = null;
             try {
-                const pos = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 30000,
-                    });
+                pos = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, GPS_OPTIONS);
                 });
+            } catch (firstErr) {
+                // getCurrentPosition failed — try watchPosition for progressive accuracy
+                try {
+                    pos = await new Promise((resolve, reject) => {
+                        let watchId;
+                        const timeoutId = setTimeout(() => {
+                            if (watchId) navigator.geolocation.clearWatch(watchId);
+                            reject(new Error('GPS timeout — could not acquire position'));
+                        }, 20000);
+
+                        watchId = navigator.geolocation.watchPosition(
+                            (p) => {
+                                // Accept position once accuracy is reasonable
+                                if (p.coords.accuracy <= 100) {
+                                    clearTimeout(timeoutId);
+                                    navigator.geolocation.clearWatch(watchId);
+                                    resolve(p);
+                                }
+                            },
+                            (err) => {
+                                clearTimeout(timeoutId);
+                                if (watchId) navigator.geolocation.clearWatch(watchId);
+                                reject(err);
+                            },
+                            GPS_OPTIONS
+                        );
+                    });
+                } catch (secondErr) {
+                    // Both methods failed — fall through to onsite toggle check
+                }
+            }
+
+            if (pos) {
+                // Validate accuracy — reject if position is too uncertain
+                if (pos.coords.accuracy > 150) {
+                    this.locationChecked = true;
+                    if (this.onsiteMode) {
+                        this.locationOK = true;
+                        this.startCamera();
+                    } else {
+                        this.locationOK = false;
+                        this.locationError = 'GPS accuracy too low (' + Math.round(pos.coords.accuracy) + 'm). Please move to an open area or ask your administrator to enable On-Site Attendance.';
+                    }
+                    return;
+                }
+
                 this._lat = pos.coords.latitude;
                 this._lng = pos.coords.longitude;
 
                 // Step 2: Verify location against server geo-fence
-                const r = await fetch('/api/v1/kiosk/verify-location', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ latitude: this._lat, longitude: this._lng }),
-                });
-                const d = await r.json();
-                this.locationChecked = true;
+                try {
+                    const r = await fetch('/api/v1/kiosk/verify-location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ latitude: this._lat, longitude: this._lng }),
+                    });
+                    const d = await r.json();
+                    this.locationChecked = true;
 
-                if (d.no_locations) {
-                    // No offices configured — auto-pass for everyone
-                    this.locationOK = true;
-                    this.locationName = '';
-                    this.startCamera();
-                    return;
-                }
+                    if (d.no_locations) {
+                        // No offices configured — auto-pass for everyone
+                        this.locationOK = true;
+                        this.locationName = '';
+                        this.startCamera();
+                        return;
+                    }
 
-                if (d.ok) {
-                    // Within a saved office location ✅
-                    this.locationOK = true;
-                    this.locationName = d.location_name || '';
-                    this.startCamera();
+                    if (d.ok) {
+                        // Within a saved office location ✅
+                        this.locationOK = true;
+                        this.locationName = d.location_name || '';
+                        this.onsiteMode = false; // office match overrides onsite toggle
+                        this.startCamera();
+                        return;
+                    }
+                } catch (netErr) {
+                    // Network error during geo-fence check — warn but allow if onsite
+                    if (this.onsiteMode) {
+                        this.locationOK = true;
+                        this.locationName = '';
+                        this.reverseGeocode(this._lat, this._lng);
+                        this.startCamera();
+                        return;
+                    }
+                    this.locationChecked = true;
+                    this.locationOK = false;
+                    this.locationError = 'Unable to verify location (network error). Please try again.';
                     return;
                 }
 
@@ -355,7 +426,7 @@ function kioskWidget() {
                 // Not within office, no on-site toggle ❌
                 this.locationOK = false;
                 this.locationError = 'You are outside all office locations. If you work remotely, contact your administrator to enable On-Site Attendance.';
-            } catch (geoErr) {
+            } else {
                 // GPS failed (timeout, permission denied)
                 this.locationChecked = true;
                 if (this.onsiteMode) {
@@ -381,14 +452,34 @@ function kioskWidget() {
             } catch (e) { /* fall through to client-side */ }
 
             // Fallback: OpenStreetMap Nominatim (free, no API key)
+            // Extracts a short meaningful place name: village → town → city → county
             try {
                 const r = await fetch(
-                    'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=18&addressdetails=1',
-                    { headers: { 'Accept-Language': 'en' } }
+                    'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&addressdetails=1',
+                    { headers: { 'Accept-Language': 'en', 'User-Agent': 'Ikabud-Attendance-Kiosk/1.0' } }
                 );
                 const d = await r.json();
+                if (d && d.address) {
+                    const a = d.address;
+                    // Build a short, human-readable place name
+                    const place = a.village || a.town || a.suburb || a.city || a.municipality || a.county || a.state || '';
+                    const district = a.state_district || a.county || '';
+                    const country = a.country || '';
+
+                    if (place) {
+                        this.onsitePlace = district && district !== place
+                            ? place + ', ' + district
+                            : (country ? place + ', ' + country : place);
+                    } else if (d.display_name) {
+                        // Fall back to first 2-3 meaningful parts of display_name
+                        const parts = d.display_name.split(',').map(s => s.trim());
+                        this.onsitePlace = parts.slice(0, Math.min(3, parts.length)).join(', ');
+                    }
+                    return;
+                }
                 if (d && d.display_name) {
-                    this.onsitePlace = d.display_name;
+                    const parts = d.display_name.split(',').map(s => s.trim());
+                    this.onsitePlace = parts.slice(0, 3).join(', ');
                 }
             } catch (e) {
                 console.warn('Reverse geocode failed:', e.message);
@@ -396,19 +487,31 @@ function kioskWidget() {
         },
 
         async startCamera() {
-            try {
-                this.stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }
-                });
-                const video = this.$refs.camera;
-                if (video) {
-                    video.srcObject = this.stream;
-                    await video.play();
+            // Progressive camera fallback: environment → user → any
+            const constraints = [
+                { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } },
+                { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } },
+                { video: true },  // last resort: any available camera
+            ];
+
+            let lastError = '';
+            for (const c of constraints) {
+                try {
+                    this.stream = await navigator.mediaDevices.getUserMedia(c);
+                    const video = this.$refs.camera;
+                    if (video) {
+                        video.srcObject = this.stream;
+                        await video.play();
+                    }
+                    return; // success
+                } catch (e) {
+                    lastError = e.message || 'Unknown camera error';
                 }
-            } catch (e) {
-                // Camera not available — allow clock without photo
-                console.warn('Camera unavailable:', e.message);
             }
+
+            // All camera attempts failed — show visible error
+            console.warn('Camera unavailable:', lastError);
+            this.errorMsg = '📷 Camera not available: ' + lastError + '. You can still clock in without a photo.';
         },
 
         takePhoto() {

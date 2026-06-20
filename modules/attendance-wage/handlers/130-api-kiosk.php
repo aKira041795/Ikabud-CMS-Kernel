@@ -114,13 +114,14 @@ function kioskApiClock(array $params = []): void
         if ($locCount === 0) {
             // No offices configured — auto-pass everyone as on-site
             $isOnsite = true;
-        } elseif ($latitude !== 0.0 || $longitude !== 0.0) {
-            // GPS provided — check against office geo-fences
+        } elseif ($latitude !== 0.0 && $longitude !== 0.0) {
+            // Both coordinates valid — check against office geo-fences
             $matched = aw_findLocationByGeo($latitude, $longitude);
             if ($matched) {
-                // Within a saved office location ✅
+                // Within a saved office location ✅ — always record the office name
                 $locationName = $matched['name'] ?? null;
                 $locationId   = (int)($matched['location_id'] ?? 0);
+                $isOnsite     = false; // explicit: office match takes priority over onsite toggle
             } elseif ($onsiteToggle) {
                 // Outside saved offices, but employee has on-site toggle ✅
                 $isOnsite = true;

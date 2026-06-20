@@ -66,10 +66,16 @@ function clockWidget() {
                         const pos = await new Promise((resolve, reject) => {
                             navigator.geolocation.getCurrentPosition(resolve, reject, {
                                 enableHighAccuracy: true,
-                                timeout: 8000,
-                                maximumAge: 30000,
+                                timeout: 15000,
+                                maximumAge: 5000,
                             });
                         });
+
+                        // Reject low-accuracy positions — prevents wrong geo-fence match
+                        if (pos.coords.accuracy > 150) {
+                            console.warn('GPS accuracy too low:', pos.coords.accuracy + 'm');
+                        }
+
                         body.latitude  = pos.coords.latitude;
                         body.longitude = pos.coords.longitude;
                     } catch (geoErr) {
