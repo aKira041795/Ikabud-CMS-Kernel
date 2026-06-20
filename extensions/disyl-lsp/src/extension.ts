@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as fs from 'fs';
+import { validateDisylDocument } from './validator';
 
 const DIAGNOSTIC_COLLECTION = 'disyl';
 
@@ -19,6 +20,23 @@ export function activate(context: vscode.ExtensionContext) {
                 if (doc.languageId === 'disyl') {
                     lintDocument(doc, diagCollection);
                 }
+            })
+        );
+    }
+
+    // ── Lint on type (EBNF validator only — instant, no PHP) ──
+    const lintOnType = vscode.workspace.getConfiguration('disyl').get<boolean>('lintOnType', true);
+    if (lintOnType) {
+        // Debounce: run EBNF validation 300ms after last keystroke
+        let typeTimer: NodeJS.Timeout | undefined;
+        context.subscriptions.push(
+            vscode.workspace.onDidChangeTextDocument((event) => {
+                if (event.document.languageId !== 'disyl') return;
+                if (typeTimer) clearTimeout(typeTimer);
+                typeTimer = setTimeout(() => {
+                    const ebnfDiagnostics = validateDisylDocument(event.document);
+                    diagCollection.set(event.document.uri, ebnfDiagnostics);
+                }, 300);
             })
         );
     }
@@ -243,23 +261,35 @@ export function deactivate() {
 
 // ── Lint a single document ──
 async function lintDocument(doc: vscode.TextDocument, collection: vscode.DiagnosticCollection) {
+    // Phase 1: EBNF-based structural validation (instant, no PHP required)
+    const ebnfDiagnostics = validateDisylDocument(doc);
+    
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) return;
+    if (!workspaceRoot) {
+        // No workspace — return EBNF results only
+        collection.set(doc.uri, ebnfDiagnostics);
+        return;
+    }
 
+    // Phase 2: PHP-based semantic validation (capabilities, variables, filters)
     const phpCmd = vscode.workspace.getConfiguration('disyl').get<string>('phpCommand', 'php');
     const ikabudPath = resolveIkabudPath(workspaceRoot);
-    if (!ikabudPath) return;
+    if (!ikabudPath) {
+        collection.set(doc.uri, ebnfDiagnostics);
+        return;
+    }
 
     const relativePath = path.relative(workspaceRoot, doc.uri.fsPath);
 
     try {
         const { stdout } = await execCommand(phpCmd, [ikabudPath, 'disyl:lint', relativePath, '--verbose'], { cwd: workspaceRoot });
-        const diagnostics = parseLintOutput(stdout, doc);
-        collection.set(doc.uri, diagnostics);
+        const phpDiagnostics = parseLintOutput(stdout, doc);
+        // Merge: EBNF catches structure, PHP catches semantics
+        collection.set(doc.uri, [...ebnfDiagnostics, ...phpDiagnostics]);
     } catch (err: any) {
         const output = err.stdout || err.stderr || '';
-        const diagnostics = parseLintOutput(output, doc);
-        collection.set(doc.uri, diagnostics);
+        const phpDiagnostics = parseLintOutput(output, doc);
+        collection.set(doc.uri, [...ebnfDiagnostics, ...phpDiagnostics]);
     }
 }
 

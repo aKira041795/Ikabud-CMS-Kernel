@@ -2,7 +2,7 @@
   "name": "disyl-lsp",
   "displayName": "DiSyL Language Support",
   "description": "Syntax highlighting, diagnostics, and autocomplete for DiSyL template files",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "ikabud",
   "license": "MIT",
   "engines": {
@@ -69,8 +69,8 @@
         },
         "disyl.lintOnType": {
           "type": "boolean",
-          "default": false,
-          "description": "Run DiSyL linter as you type (may be slow)"
+          "default": true,
+          "description": "Run EBNF-based structural validation as you type (instant, no PHP required)"
         },
         "disyl.phpCommand": {
           "type": "string",

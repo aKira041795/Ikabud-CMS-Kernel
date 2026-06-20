@@ -30,3 +30,12 @@ Syntax highlighting, diagnostics, autocomplete, and navigation for `.disyl` temp
 
 - `DiSyL: Lint current file` — Lint the active `.disyl` file
 - `DiSyL: Lint all templates` — Lint all templates and show results in output panel
+- `DiSyL: Show cheatsheet` — Quick reference of all DiSyL syntax patterns (select to copy)
+- `DiSyL: Open quickstart guide` — Open the DiSyL in 5 Minutes guide (`docs/disyl/quickstart.md`)
+
+## What's New in v1.1.0
+
+- **EBNF-based structural validator** — Instant in-process validation without PHP. Detects unclosed blocks ({if}/{foreach}/{block}), unbalanced component tags (<ikb_*>), malformed expressions, and string quoting errors.
+- **lintOnType enabled by default** — The EBNF validator runs in ~1ms, so real-time diagnostics as you type are now viable.
+- **Two-phase linting** — Phase 1: EBNF structural validation (instant, offline). Phase 2: PHP semantic validation (capability checks, variable existence, filter validity).
+- **Grammar reference** — The EBNF grammar is now available at `docs/disyl/disyl-grammar-v4.7.ebnf` (56 production rules, ISO/IEC 14977).
