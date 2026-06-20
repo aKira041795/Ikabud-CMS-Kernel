@@ -7,8 +7,11 @@ declare(strict_types=1);
  *
  * Flow:
  *   1. POST /api/v1/kiosk/search       — search employee by name
- *   2. POST /api/v1/kiosk/clock         — clock in/out with photo + geo-fence
- *   3. POST /api/v1/kiosk/upload-photo  — upload photo via multipart
+ *   2. POST /api/v1/kiosk/clock         — clock in/out with photo (base64) + geo-fence
+ *   3. GET  /api/v1/kiosk/reverse-geocode — resolve coordinates to place name
+ *   4. POST /api/v1/kiosk/verify-location — check if coordinates are within office geo-fence
+ *   5. GET  /api/v1/kiosk/status         — check current clock-in status for employee
+ *   6. GET  /api/v1/kiosk/my-records     — fetch recent attendance records
  */
 
 function kioskApiSearch(array $params = []): void
@@ -112,8 +115,16 @@ function kioskApiClock(array $params = []): void
         $locCount = (int)$db->query("SELECT COUNT(*) FROM office_locations WHERE tenant_id = '{$tid}' AND is_active = 1")->fetchColumn();
 
         if ($locCount === 0) {
-            // No offices configured — auto-pass everyone as on-site
-            $isOnsite = true;
+            // No offices configured — require GPS or onsite toggle, don't auto-pass
+            if ($latitude !== 0.0 && $longitude !== 0.0) {
+                $isOnsite = true; // has GPS, allow
+            } elseif ($onsiteToggle) {
+                $isOnsite = true; // no GPS but employee allowed on-site
+            } else {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['ok' => false, 'error' => 'Location is required. Please enable GPS or ask your administrator to enable On-Site Attendance for your profile.']);
+                return;
+            }
         } elseif ($latitude !== 0.0 && $longitude !== 0.0) {
             // Both coordinates valid — check against office geo-fences
             $matched = aw_findLocationByGeo($latitude, $longitude);
@@ -162,21 +173,47 @@ function kioskApiClock(array $params = []): void
         if ($isClockIn) {
             // Clock IN
             if ($isOnsite) {
-                $locStr = 'On-site' . ($onsitePlace !== '' ? ': ' . $onsitePlace : '') . ' — ' . ($emp['position'] ?? 'Employee');
+                $coordPart = ($latitude !== 0.0 && $longitude !== 0.0)
+                    ? ' (' . $latitude . ',' . $longitude . ')'
+                    : '';
+                $locStr = 'On-site' . ($onsitePlace !== '' ? ': ' . $onsitePlace : '') . $coordPart . ' — ' . ($emp['position'] ?? 'Employee');
             } else {
-                $locStr = $locationName ? ($locationName . ' (' . $latitude . ',' . $longitude . ')') : null;
+                // Geo-fenced: office name first, then place name for context
+                $parts = [];
+                if ($locationName !== null && $locationName !== '') { $parts[] = $locationName; }
+                if ($onsitePlace !== '') { $parts[] = $onsitePlace; }
+                $coordPart = ($latitude !== 0.0 && $longitude !== 0.0)
+                    ? ' (' . $latitude . ',' . $longitude . ')'
+                    : '';
+                $locStr = (count($parts) > 0 ? implode(' · ', $parts) . $coordPart : null);
             }
 
-            $ins = $db->prepare(
-                "INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in, photo_in)
-                 VALUES (:tid, :uid, NOW(), 'active', :loc, :photo)"
-            );
-            $ins->execute([
-                ':tid'   => $tid,
-                ':uid'   => $userId,
-                ':loc'   => $locStr,
-                ':photo' => $photoFilename,
-            ]);
+            $hasLatLng = aw_hasColumn($db, 'attendance_records', 'latitude_in');
+            if ($hasLatLng) {
+                $ins = $db->prepare(
+                    "INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in, latitude_in, longitude_in, photo_in)
+                     VALUES (:tid, :uid, NOW(), 'active', :loc, :lat, :lng, :photo)"
+                );
+                $ins->execute([
+                    ':tid'   => $tid,
+                    ':uid'   => $userId,
+                    ':loc'   => $locStr,
+                    ':lat'   => $latitude !== 0.0 ? $latitude : null,
+                    ':lng'   => $longitude !== 0.0 ? $longitude : null,
+                    ':photo' => $photoFilename,
+                ]);
+            } else {
+                $ins = $db->prepare(
+                    "INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in, photo_in)
+                     VALUES (:tid, :uid, NOW(), 'active', :loc, :photo)"
+                );
+                $ins->execute([
+                    ':tid'   => $tid,
+                    ':uid'   => $userId,
+                    ':loc'   => $locStr,
+                    ':photo' => $photoFilename,
+                ]);
+            }
 
             $newId = (int)$db->lastInsertId();
             $empName = trim(
@@ -199,17 +236,49 @@ function kioskApiClock(array $params = []): void
         } else {
             // Clock OUT
             $attId = (int)($activeRecord['attendance_id'] ?? 0);
-            $upd = $db->prepare(
-                "UPDATE attendance_records
-                 SET clock_out = NOW(), status = 'completed',
-                     location_out = :loc, photo_out = :photo
-                 WHERE attendance_id = :id"
-            );
-            $upd->execute([
-                ':loc'   => $isOnsite ? ('On-site' . ($onsitePlace !== '' ? ': ' . $onsitePlace : '')) : ($locationName ?? null),
-                ':photo' => $photoFilename,
-                ':id'    => $attId,
-            ]);
+            
+            // Build location_out with place name + office name + coordinates
+            if ($isOnsite) {
+                $locOut = 'On-site' . ($onsitePlace !== '' ? ': ' . $onsitePlace : '');
+            } else {
+                $parts = [];
+                if ($locationName !== null && $locationName !== '') { $parts[] = $locationName; }
+                if ($onsitePlace !== '') { $parts[] = $onsitePlace; }
+                $coordPart = ($latitude !== 0.0 && $longitude !== 0.0)
+                    ? ' (' . $latitude . ',' . $longitude . ')'
+                    : '';
+                $locOut = count($parts) > 0 ? (implode(' · ', $parts) . $coordPart) : null;
+            }
+            
+            $hasLatLng = aw_hasColumn($db, 'attendance_records', 'latitude_out');
+            if ($hasLatLng) {
+                $upd = $db->prepare(
+                    "UPDATE attendance_records
+                     SET clock_out = NOW(), status = 'completed',
+                         location_out = :loc, latitude_out = :lat, longitude_out = :lng,
+                         photo_out = :photo
+                     WHERE attendance_id = :id"
+                );
+                $upd->execute([
+                    ':loc'   => $locOut,
+                    ':lat'   => $latitude !== 0.0 ? $latitude : null,
+                    ':lng'   => $longitude !== 0.0 ? $longitude : null,
+                    ':photo' => $photoFilename,
+                    ':id'    => $attId,
+                ]);
+            } else {
+                $upd = $db->prepare(
+                    "UPDATE attendance_records
+                     SET clock_out = NOW(), status = 'completed',
+                         location_out = :loc, photo_out = :photo
+                     WHERE attendance_id = :id"
+                );
+                $upd->execute([
+                    ':loc'   => $locOut,
+                    ':photo' => $photoFilename,
+                    ':id'    => $attId,
+                ]);
+            }
 
             $clockInTime = $activeRecord['clock_in'] ?? '';
             $empName = trim(
@@ -347,7 +416,7 @@ function saveKioskPhoto(string $base64Data, int $userId): ?string
         default      => 'jpg',
     };
 
-    $dir = '/var/www/html/applicationostest/storage/uploads/attendance';
+    $dir = STORAGE_PATH . '/uploads/attendance';
     if (!is_dir($dir)) { mkdir($dir, 0755, true); }
 
     $filename = date('Ymd_His') . '_' . $userId . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
@@ -393,8 +462,47 @@ function kioskApiReverseGeocode(array $params = []): void
                 }
             }
         }
+        
+        // Fallback: OpenStreetMap Nominatim (server-side, no CSP issues)
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'header' => "Accept-Language: en\r\nUser-Agent: Ikabud-Kiosk/1.0\r\n",
+                'timeout' => 5,
+            ],
+        ]);
+        $osmUrl = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=16&addressdetails=1";
+        $resp = @file_get_contents($osmUrl, false, $ctx);
+        if ($resp !== false) {
+            $data = json_decode($resp, true);
+            if (is_array($data)) {
+                $place = '';
+                if (!empty($data['address'])) {
+                    $a = $data['address'];
+                    $place = $a['village'] ?? $a['town'] ?? $a['suburb'] ?? $a['city'] ?? $a['municipality'] ?? $a['county'] ?? $a['state'] ?? '';
+                    $district = $a['state_district'] ?? $a['county'] ?? '';
+                    $country = $a['country'] ?? '';
+                    if ($place !== '') {
+                        if ($district !== '' && $district !== $place) {
+                            $place .= ', ' . $district;
+                        } elseif ($country !== '') {
+                            $place .= ', ' . $country;
+                        }
+                    }
+                }
+                if ($place === '' && !empty($data['display_name'])) {
+                    $parts = explode(',', $data['display_name']);
+                    $place = trim(implode(', ', array_slice($parts, 0, min(3, count($parts)))));
+                }
+                if ($place !== '') {
+                    header('Content-Type: application/json; charset=utf-8');
+                    echo json_encode(['ok' => true, 'place' => $place]);
+                    return;
+                }
+            }
+        }
     } catch (\Throwable $e) {
-        // Fall through — client will use OSM Nominatim
+        // Fall through
     }
 
     header('Content-Type: application/json; charset=utf-8');
@@ -443,7 +551,16 @@ function kioskApiVerifyLocation(array $params = []): void
                 'distance_m'    => $matched['distance_meters'] ?? null,
             ]);
         } else {
-            echo json_encode(['ok' => false, 'error' => 'You are outside all office locations.']);
+            // Return closest location + distance so client can apply 2× tolerance
+            $closest = aw_findClosestLocation($lat, $lng);
+            $resp = ['ok' => false, 'error' => 'You are outside all office locations.'];
+            if ($closest) {
+                $resp['closest_location'] = $closest['name'] ?? null;
+                $resp['closest_distance_m'] = $closest['distance_meters'] ?? null;
+                $resp['closest_radius_m'] = (int)($closest['radius_meters'] ?? 100);
+                $resp['within_tolerance'] = ($closest['distance_meters'] ?? 0) <= ($closest['radius_meters'] ?? 100) * 2;
+            }
+            echo json_encode($resp);
         }
     } catch (\Throwable $e) {
         header('Content-Type: application/json; charset=utf-8');
@@ -524,13 +641,28 @@ function kioskApiMyRecords(array $params = []): void
 
         $records = [];
         if ($userId > 0) {
-            $recStmt = $db->prepare(
-                "SELECT attendance_id, clock_in, clock_out, location_in, status
-                 FROM attendance_records
-                 WHERE user_id = :uid
-                 ORDER BY clock_in DESC
-                 LIMIT 10"
-            );
+            $hasLatLng = aw_hasColumn($db, 'attendance_records', 'latitude_in');
+            if ($hasLatLng) {
+                $recStmt = $db->prepare(
+                    "SELECT attendance_id, clock_in, clock_out, location_in, location_out, status,
+                            photo_in, photo_out,
+                            COALESCE(latitude_in, latitude_out) AS latitude,
+                            COALESCE(longitude_in, longitude_out) AS longitude
+                     FROM attendance_records
+                     WHERE user_id = :uid
+                     ORDER BY clock_in DESC
+                     LIMIT 10"
+                );
+            } else {
+                $recStmt = $db->prepare(
+                    "SELECT attendance_id, clock_in, clock_out, location_in, location_out, status,
+                            photo_in, photo_out
+                     FROM attendance_records
+                     WHERE user_id = :uid
+                     ORDER BY clock_in DESC
+                     LIMIT 10"
+                );
+            }
             $recStmt->execute([':uid' => $userId]);
             $records = $recStmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
         }

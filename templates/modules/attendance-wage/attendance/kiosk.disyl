@@ -12,29 +12,42 @@
     </div>
 
     <!-- Clock -->
-    <div class="text-center mb-8">
-        <div class="text-6xl font-bold text-white font-mono" x-text="timeDisplay">--:--</div>
+    <div class="text-center mb-4 transition-all duration-300" :class="cameraReady ? 'mb-2' : 'mb-4'">
+        <div class="font-bold text-white font-mono transition-all duration-300"
+             :class="cameraReady ? 'text-3xl' : 'text-6xl'"
+             x-text="timeDisplay">--:--</div>
         <div class="text-slate-400 text-sm mt-1" x-text="dateDisplay"></div>
     </div>
 
     <!-- Main Card -->
     <div class="w-full max-w-lg bg-white/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
+        <!-- Insecure context warning — GPS & camera blocked on HTTP -->
+        <div x-show="!isSecure" class="px-6 py-4 bg-red-600 text-white text-sm font-medium text-center">
+            ⚠️ This page is served over HTTP — GPS location and camera are blocked by your browser.
+            <span class="block text-red-200 text-xs mt-1">Use HTTPS to enable full features. Clock-in with on-site toggle still works.</span>
+        </div>
+
         <!-- Step 0: Welcome / Get Attendance -->
         <div x-show="step === 0" class="p-8 text-center">
             <div class="text-6xl mb-4">🕐</div>
             <h2 class="text-xl font-bold text-slate-900 mb-2">Welcome!</h2>
             <p class="text-slate-500 text-sm mb-6">Tap the button below to record your attendance.</p>
-            <button @click="startAttendance()"
+            <button @click="startAttendance()" type="button"
                     class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg">
                 📋 Get Attendance
             </button>
         </div>
 
-        <!-- Step 1: Search Employee -->
-        <div x-show="step === 1" class="p-8">
+        <!-- Step 1: Search — no GPS yet, instant access -->
+        <div x-show="step === 1" class="p-8"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100">
+            <p class="text-xs text-slate-400 mb-4 text-center">📍 Location will be verified after selecting your name</p>
             <h2 class="text-lg font-bold text-slate-900 mb-4">Find Your Name</h2>
             <div class="relative mb-4">
                 <input type="text" x-model="searchQuery" @input.debounce.300ms="searchEmployees()"
+                       @keydown.enter.prevent
                        placeholder="Type your name or employee number..."
                        class="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                        autofocus>
@@ -46,7 +59,7 @@
             <!-- Search Results -->
             <div x-show="searchResults.length > 0" class="space-y-2 max-h-64 overflow-y-auto">
                 <template x-for="emp in searchResults" :key="emp.profile_id">
-                    <button @click="selectEmployee(emp)"
+                    <button @click="selectEmployee(emp)" type="button"
                             class="w-full text-left px-4 py-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-blue-200 transition-colors flex items-center justify-between">
                         <div>
                             <div class="font-semibold text-slate-900" x-text="emp.full_name"></div>
@@ -62,69 +75,118 @@
                 No employees found matching "<span x-text="searchQuery"></span>"
             </div>
 
-            <button @click="step = 0"
+            <button @click="step = 0" type="button"
                     class="mt-4 w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors">
                 ← Back
             </button>
         </div>
 
-        <!-- Step 2: Confirm Employee + Location Check -->
-        <div x-show="step === 2" class="p-8 text-center">
-            <div class="text-5xl mb-4" x-text="selectedEmployee ? '👤' : '📍'"></div>
+    <!-- Step 2: Verify Location + Confirm Employee -->
+    <div x-show="step === 2" class="p-8 text-center">
+            <div class="text-5xl mb-4">👤</div>
             <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="selectedEmployee?.full_name || ''"></h2>
             <p class="text-sm text-slate-500 mb-1" x-text="selectedEmployee?.position || ''"></p>
             <p class="text-xs text-slate-400 mb-6" x-text="selectedEmployee?.department || ''"></p>
 
-            <!-- Location Status — meaningful place name feedback -->
-            <div x-show="locationChecked">
-                <!-- Within office geo-fence -->
-                <div x-show="locationOK && !onsiteMode && locationName" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
-                    <div class="font-semibold text-base mb-0.5">📍 You are at <span x-text="locationName"></span></div>
-                    <div class="text-green-600 text-xs">✓ Verified — within office geo-fence</div>
-                </div>
-                <div x-show="locationOK && !onsiteMode && !locationName" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
-                    ✅ Location verified — within office geo-fence
+            <!-- GPS: Verifying location -->
+            <div x-show="locationVerifying" class="text-center py-6"
+                 x-transition:enter="transition ease-out duration-300"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100">
+                <div class="text-4xl mb-3 animate-pulse">📍</div>
+                <p class="text-sm font-medium text-slate-700">Verifying your location…</p>
+                <p class="text-xs text-slate-400 mt-1">Please allow location access when prompted</p>
+                <div class="mt-4 w-8 h-8 mx-auto border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+
+            <!-- GPS: Location verified result -->
+            <div x-show="locationChecked && !locationVerifying">
+                <!-- Inside office geo-fence (always when locationOK, even if onsite toggle is on) -->
+                <div x-show="locationOK" class="mb-6 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+                    <div class="font-semibold text-base mb-0.5">📍 <span x-text="locationName || onsitePlace"></span></div>
+                    <div class="text-green-600 text-xs" x-show="locationName">✓ Verified · office: <span x-text="locationName"></span> · accuracy <span x-text="gpsAccuracy + 'm'"></span></div>
+                    <div class="text-green-600 text-xs" x-show="!locationName">✓ Location verified · accuracy <span x-text="gpsAccuracy + 'm'"></span></div>
                 </div>
 
-                <!-- On-site attendance — always show place name when available -->
-                <div x-show="onsiteMode && onsitePlace" class="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
-                    <div class="font-semibold text-base mb-0.5">📍 You are at <span x-text="onsitePlace"></span></div>
-                    <div class="text-blue-600 text-xs">🏗️ On-site attendance</div>
+                <!-- On-site attendance fallback (only when outside geo-fence but onsite allowed) -->
+                <div x-show="!locationOK && onsiteMode && onsitePlace" class="mb-6 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+                    <div class="font-semibold text-base mb-0.5">📍 <span x-text="onsitePlace"></span></div>
+                    <div class="text-blue-600 text-xs">🏗️ On-site attendance — clocking in from outside office</div>
                 </div>
-                <div x-show="onsiteMode && !onsitePlace" class="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+                <div x-show="!locationOK && onsiteMode && !onsitePlace" class="mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
                     <div class="font-semibold text-base mb-0.5">📍 On-site Attendance</div>
                     <div class="text-amber-600 text-xs">⚠️ Could not detect exact place — recording as on-site</div>
                 </div>
 
-                <!-- Location failed — no on-site toggle -->
+                <!-- Location failed — not near office, no on-site toggle -->
                 <div x-show="!locationOK && !onsiteMode" class="mb-6 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700">
                     ❌ <span x-text="locationError"></span>
+                    <div class="text-red-500 text-xs mt-2 font-normal">You are too far from the office. Please go to your assigned work location or ask your administrator to enable On-Site Attendance for your profile.</div>
                 </div>
             </div>
 
-            <!-- Camera / Photo Capture -->
-            <div x-show="!photoTaken && (locationOK || onsiteMode)">
-                <div class="mb-4">
-                    <video x-ref="camera" autoplay playsinline
-                           class="w-full rounded-xl border border-slate-200 bg-black max-h-64 object-cover"></video>
-                    <canvas x-ref="canvas" class="hidden"></canvas>
+            <!-- Camera / Photo — REQUIRED before clock-in/out -->
+            <div x-show="!photoTaken && (locationOK || (onsiteMode && locationChecked))" class="mb-6">
+                <!-- Camera not started yet — show take photo button -->
+                <div x-show="!cameraReady && !cameraError && !cameraSkipped && !cameraStarted" class="text-center">
+                    <button @click="startCamera()" type="button"
+                            class="w-full px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg">
+                        📸 Take Photo (Required)
+                    </button>
+                    <p class="text-xs text-slate-400 mt-2">Photo is required before clocking in/out</p>
                 </div>
-                <button @click="takePhoto()"
-                        class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm">
+
+                <!-- Camera active — show live preview -->
+                <video id="cameraVideo" x-ref="camera" autoplay playsinline muted
+                       x-show="cameraReady"
+                       class="w-full rounded-xl border border-slate-200 bg-black max-h-64 object-cover mb-3"></video>
+                <canvas id="cameraCanvas" x-ref="canvas" class="hidden"></canvas>
+
+                <button @click="takePhoto()" type="button" x-show="cameraReady"
+                        class="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm">
                     📸 Take Photo
                 </button>
+
+                <!-- Camera starting — waiting for permission prompt -->
+                <div x-show="cameraStarted && !cameraReady && !cameraError" class="text-center">
+                    <div class="text-4xl mb-3 animate-pulse">📷</div>
+                    <p class="text-sm text-slate-500">Starting camera…</p>
+                    <p class="text-xs text-slate-400 mt-1">Allow camera access when prompted</p>
+                </div>
+
+                <!-- Camera denied or unavailable — show fix guidance -->
+                <div x-show="cameraError" class="px-4 py-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                    <div class="font-semibold text-amber-800 mb-2">📷 Camera Unavailable</div>
+                    <div class="text-amber-700 text-xs mb-2" x-text="cameraErrorMessage"></div>
+                    <div x-show="cameraDenied" class="text-amber-600 text-xs mt-2 pt-2 border-t border-amber-200">
+                        <p class="font-semibold mb-1">To fix on mobile:</p>
+                        <p class="mb-0.5">• Tap the lock 🔒 icon in address bar → enable Camera</p>
+                        <p class="mb-0.5">• Or: device Settings → Browser → Camera → Allow</p>
+                        <p>• Or tap below to proceed without photo</p>
+                    </div>
+                    <button @click="skipPhoto()" type="button"
+                            class="mt-3 w-full py-2 px-4 bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-medium rounded-lg transition-colors">
+                        ⏭️ Proceed Without Photo
+                    </button>
+                </div>
             </div>
 
-            <!-- Photo Preview -->
-            <div x-show="photoTaken && (locationOK || onsiteMode)" class="mb-6">
+            <!-- Photo Preview (required — clock button only shows after photo) -->
+            <div x-show="photoTaken && (locationOK || (onsiteMode && locationChecked))" class="mb-6">
                 <img :src="photoData" class="w-full rounded-xl border border-slate-200 max-h-64 object-cover mb-3" alt="Attendance photo">
                 <p class="text-xs text-green-600 font-medium">✓ Photo captured</p>
             </div>
 
-            <!-- Clock In/Out Button -->
-            <div x-show="photoTaken && (locationOK || onsiteMode)">
+            <!-- Clock In/Out Button — only available after photo is taken -->
+            <div x-show="(photoTaken || cameraSkipped) && (locationOK || (onsiteMode && locationChecked))" class="mt-2">
+                <div x-show="!locationOK && onsiteMode && locationChecked" class="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 text-center">
+                    ⚠️ No GPS — clocking in via on-site attendance. Coordinates will not be recorded.
+                </div>
+                <!-- Photo required notice -->
+                <p x-show="!photoTaken && !cameraSkipped" class="text-xs text-slate-400 text-center mb-3">📸 Photo required — take a photo first to enable clock in/out</p>
+                <p x-show="cameraSkipped" class="text-xs text-amber-600 text-center mb-3">⚠️ Proceeding without photo</p>
                 <div x-show="!submitting">
-                    <button @click="submitAttendance()"
+                    <button @click="submitAttendance()" type="button"
                             x-text="currentlyClockedIn ? '🕐 Clock Out' : '✅ Clock In'"
                             :class="currentlyClockedIn
                                 ? 'w-full py-4 px-6 bg-red-600 hover:bg-red-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg'
@@ -138,16 +200,16 @@
                 </div>
             </div>
 
-            <!-- Location pending -->
-            <div x-show="!locationChecked && !locationOK" class="mb-6">
-                <button @click="checkLocation()"
+            <!-- Location re-check (only when previous check failed) -->
+            <div x-show="locationChecked && !locationOK && !locationVerifying && !onsiteMode" class="mb-6">
+                <button @click="verifyLocationForEmployee()" type="button"
                         class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm">
-                    📍 Verify Location
+                    🔄 Retry Location
                 </button>
-                <p class="text-xs text-slate-400 mt-2">Your location will be checked against office geo-fences.</p>
+                <p class="text-xs text-slate-400 mt-2">Your location will be re-checked against office geo-fences.</p>
             </div>
 
-            <button @click="resetSearch()" :disabled="submitting"
+            <button @click="goBackToSearch()" :disabled="submitting" type="button"
                     class="mt-4 w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors disabled:opacity-50">
                 ← Choose Different Employee
             </button>
@@ -160,11 +222,11 @@
             <p class="text-sm text-slate-500 mb-1" x-text="lastEmployee"></p>
             <p class="text-xs text-slate-400 mb-6" x-text="lastTime"></p>
 
-            <button @click="viewMyAttendance()"
+            <button @click="viewMyAttendance()" type="button"
                     class="w-full py-3 px-6 bg-amber-600 hover:bg-amber-700 text-white text-base font-semibold rounded-xl transition-colors shadow-sm mb-3">
                 📋 View My Attendance
             </button>
-            <button @click="done()"
+            <button @click="done()" type="button"
                     class="w-full py-4 px-6 bg-blue-600 hover:bg-blue-700 text-white text-lg font-semibold rounded-xl transition-colors shadow-lg mb-3">
                 ✅ Done — Next Employee
             </button>
@@ -195,7 +257,13 @@
                                     <span class="text-green-600 font-medium"> — Active</span>
                                 </template>
                             </div>
-                            <div class="text-xs text-slate-400 mt-0.5 truncate max-w-[250px]" x-text="r.location_in || '—'"></div>
+                            <div class="text-xs text-slate-500 mt-1" x-text="r.location_in || '—'"></div>
+                            <div class="text-xs text-blue-600 font-medium mt-0.5" x-show="r.location_in"
+                                 x-text="'📍 ' + r.location_in"></div>
+                            <div class="flex gap-2 mt-2" x-show="r.photo_in || r.photo_out">
+                                <button x-show="r.photo_in" @click="viewPhoto(r.photo_in)" class="text-xs text-brand-600 hover:text-brand-700 bg-transparent border-none cursor-pointer">📷 In</button>
+                                <button x-show="r.photo_out" @click="viewPhoto(r.photo_out)" class="text-xs text-brand-600 hover:text-brand-700 bg-transparent border-none cursor-pointer">📷 Out</button>
+                            </div>
                         </div>
                         <div>
                             <span x-show="r.clock_out" class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">Done</span>
@@ -210,7 +278,7 @@
                 No attendance records found.
             </div>
 
-            <button @click="step = 3"
+            <button @click="step = 3" type="button"
                     class="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors">
                 ← Back
             </button>
@@ -221,12 +289,21 @@
     <div x-show="errorMsg" @click="errorMsg = ''"
          class="fixed bottom-6 left-1/2 -translate-x-1/2 px-6 py-3 bg-red-600 text-white text-sm font-medium rounded-xl shadow-lg cursor-pointer z-50 max-w-md text-center"
          x-text="errorMsg"></div>
+
+    <!-- Photo Modal -->
+    <div x-show="photoModalUrl" @click="photoModalUrl = ''" class="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center" x-transition>
+        <button @click="photoModalUrl = ''" class="absolute top-4 right-6 text-white text-3xl bg-transparent border-none cursor-pointer z-10">&times;</button>
+        <img :src="photoModalUrl" class="max-w-[95%] max-h-[95%] object-contain rounded-lg" @click.stop alt="Attendance photo">
+    </div>
 </div>
 
 <script>
 function kioskWidget() {
     return {
         step: 0,
+        locating: false,
+        isSecure: window.isSecureContext || window.location.protocol === 'https:'
+            || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
         searchQuery: '',
         searchResults: [],
         searching: false,
@@ -237,6 +314,9 @@ function kioskWidget() {
         locationOK: false,
         locationError: '',
         locationName: '',
+        locationVerifying: false,
+        gpsAccuracy: 0,
+        geoDistance: 0,
         photoTaken: false,
         photoData: '',
         currentlyClockedIn: false,
@@ -249,9 +329,20 @@ function kioskWidget() {
         timeDisplay: '--:--',
         dateDisplay: '',
         stream: null,
+        cameraReady: false,
+        cameraError: false,
+        cameraDenied: false,
+        cameraErrorMessage: '',
+        cameraSkipped: false,
+        cameraStarted: false,
+        _lat: 0,
+        _lng: 0,
+        _gpsPromise: null,
+        _attendanceInFlight: false,
         myRecords: [],
         loadingRecords: false,
         autoReturnTimer: null,
+        photoModalUrl: '',
 
         init() {
             this.updateClock();
@@ -265,10 +356,29 @@ function kioskWidget() {
         },
 
         startAttendance() {
+            if (this._attendanceInFlight) return;
+            this._attendanceInFlight = true;
             this.step = 1;
             this.searchQuery = '';
             this.searchResults = [];
             this.resetState();
+            this._attendanceInFlight = false;
+        },
+
+        /** Acquire GPS position. Returns position or null. */
+        async acquireGps() {
+            if (!navigator.geolocation) return { error: 'unsupported' };
+            try {
+                return await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 0,
+                    });
+                });
+            } catch (e) {
+                return { error: e.code || 0, message: e.message || '' };
+            }
         },
 
         async searchEmployees() {
@@ -289,159 +399,101 @@ function kioskWidget() {
             this.selectedEmployee = emp;
             this.onsiteMode = !!(emp.onsite_attendance);
             this.step = 2;
-            // Auto-check location immediately
-            this.checkLocation();
+            // Trigger GPS verification now (user gesture ensures permission prompt works)
+            this.verifyLocationForEmployee();
+            this.checkClockStatus();
         },
 
-        async checkLocation() {
+        /** Verify GPS location against office geo-fence when employee is selected. */
+        async verifyLocationForEmployee() {
+            this.locationVerifying = true;
             this.locationChecked = false;
             this.locationOK = false;
             this.locationError = '';
+            this.locationName = '';
+            this.onsitePlace = '';
+            this._lat = 0;
+            this._lng = 0;
+            this.gpsAccuracy = 0;
 
-            // Step 1: Try to get GPS location
-            if (!navigator.geolocation) {
-                // No GPS — check onsite toggle as fallback
+            // Acquire GPS
+            this._gpsPromise = this.acquireGps();
+            const minDelay = new Promise(resolve => setTimeout(resolve, 2000));
+            await Promise.allSettled([this._gpsPromise, minDelay]);
+
+            let result = null;
+            try { result = await this._gpsPromise; } catch (e) {}
+
+            if (!result || result.error) {
+                this.locationVerifying = false;
                 this.locationChecked = true;
-                if (this.onsiteMode) {
-                    this.locationOK = true;
-                    this.startCamera();
+                const code = (result && result.error) ? result.error : 0;
+                if (code === 1 || String(code) === '1') {
+                    this.locationError = 'Location permission was denied. Open your browser settings → Site Settings → Location → Allow for this site, then retry.';
+                } else if (code === 2 || String(code) === '2') {
+                    this.locationError = 'GPS signal unavailable. Ensure location services are ON in your device settings.';
+                } else if (code === 3 || String(code) === '3') {
+                    this.locationError = 'GPS timed out. Move to an area with clear sky view and retry.';
+                } else if (code === 'unsupported') {
+                    this.locationError = 'Geolocation not supported on this device.';
                 } else {
-                    this.locationOK = false;
-                    this.locationError = 'Geolocation not supported on this device. Enable On-Site Attendance for this employee to allow clock-in without GPS.';
+                    this.locationError = 'Location not available. Check that GPS is enabled and location permission is granted.';
                 }
+                if (this.onsiteMode) { this.locationOK = true; }
                 return;
             }
 
-            const GPS_OPTIONS = {
-                enableHighAccuracy: true,
-                timeout: 15000,
-                maximumAge: 5000,  // reject cached positions older than 5s
-            };
-
-            // Try getCurrentPosition first, then watchPosition as fallback
-            let pos = null;
-            try {
-                pos = await new Promise((resolve, reject) => {
-                    navigator.geolocation.getCurrentPosition(resolve, reject, GPS_OPTIONS);
-                });
-            } catch (firstErr) {
-                // getCurrentPosition failed — try watchPosition for progressive accuracy
-                try {
-                    pos = await new Promise((resolve, reject) => {
-                        let watchId;
-                        const timeoutId = setTimeout(() => {
-                            if (watchId) navigator.geolocation.clearWatch(watchId);
-                            reject(new Error('GPS timeout — could not acquire position'));
-                        }, 20000);
-
-                        watchId = navigator.geolocation.watchPosition(
-                            (p) => {
-                                // Accept position once accuracy is reasonable
-                                if (p.coords.accuracy <= 100) {
-                                    clearTimeout(timeoutId);
-                                    navigator.geolocation.clearWatch(watchId);
-                                    resolve(p);
-                                }
-                            },
-                            (err) => {
-                                clearTimeout(timeoutId);
-                                if (watchId) navigator.geolocation.clearWatch(watchId);
-                                reject(err);
-                            },
-                            GPS_OPTIONS
-                        );
-                    });
-                } catch (secondErr) {
-                    // Both methods failed — fall through to onsite toggle check
-                }
-            }
-
-            if (pos) {
-                // Validate accuracy — reject if position is too uncertain
-                if (pos.coords.accuracy > 150) {
-                    this.locationChecked = true;
-                    if (this.onsiteMode) {
-                        this.locationOK = true;
-                        this.startCamera();
-                    } else {
-                        this.locationOK = false;
-                        this.locationError = 'GPS accuracy too low (' + Math.round(pos.coords.accuracy) + 'm). Please move to an open area or ask your administrator to enable On-Site Attendance.';
-                    }
-                    return;
-                }
-
-                this._lat = pos.coords.latitude;
-                this._lng = pos.coords.longitude;
-
-                // Step 2: Verify location against server geo-fence
-                try {
-                    const r = await fetch('/api/v1/kiosk/verify-location', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ latitude: this._lat, longitude: this._lng }),
-                    });
-                    const d = await r.json();
-                    this.locationChecked = true;
-
-                    if (d.no_locations) {
-                        // No offices configured — auto-pass for everyone
-                        this.locationOK = true;
-                        this.locationName = '';
-                        this.startCamera();
-                        return;
-                    }
-
-                    if (d.ok) {
-                        // Within a saved office location ✅
-                        this.locationOK = true;
-                        this.locationName = d.location_name || '';
-                        this.onsiteMode = false; // office match overrides onsite toggle
-                        this.startCamera();
-                        return;
-                    }
-                } catch (netErr) {
-                    // Network error during geo-fence check — warn but allow if onsite
-                    if (this.onsiteMode) {
-                        this.locationOK = true;
-                        this.locationName = '';
-                        this.reverseGeocode(this._lat, this._lng);
-                        this.startCamera();
-                        return;
-                    }
-                    this.locationChecked = true;
-                    this.locationOK = false;
-                    this.locationError = 'Unable to verify location (network error). Please try again.';
-                    return;
-                }
-
-                // Step 3: Outside saved offices — check onsite toggle
-                if (this.onsiteMode) {
-                    // On-site attendance enabled ✅
-                    this.locationOK = true;
-                    this.reverseGeocode(this._lat, this._lng);
-                    this.startCamera();
-                    return;
-                }
-
-                // Not within office, no on-site toggle ❌
-                this.locationOK = false;
-                this.locationError = 'You are outside all office locations. If you work remotely, contact your administrator to enable On-Site Attendance.';
-            } else {
-                // GPS failed (timeout, permission denied)
+            const pos = result;
+            if (pos.coords.accuracy > 200) {
+                this.locationVerifying = false;
                 this.locationChecked = true;
-                if (this.onsiteMode) {
-                    // On-site toggle allows clock-in without GPS ✅
-                    this.locationOK = true;
-                    this.startCamera();
-                } else {
-                    this.locationOK = false;
-                    this.locationError = 'Location unavailable. Please enable GPS or ask your administrator to enable On-Site Attendance.';
-                }
+                this.locationError = 'GPS signal too weak (' + Math.round(pos.coords.accuracy) + 'm accuracy). Move to an open area with clear sky view and retry.';
+                if (this.onsiteMode) { this.locationOK = true; }
+                return;
             }
+
+            this._lat = pos.coords.latitude;
+            this._lng = pos.coords.longitude;
+            this.gpsAccuracy = Math.round(pos.coords.accuracy);
+
+            // Reverse geocode for place name
+            this.reverseGeocode(this._lat, this._lng);
+
+            // Verify against server geo-fence
+            try {
+                const r = await fetch('/api/v1/kiosk/verify-location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ latitude: this._lat, longitude: this._lng }),
+                });
+                const d = await r.json();
+                if (d.no_locations) { this.locationOK = true; }
+                else if (d.ok) { this.locationOK = true; this.locationName = d.location_name || ''; this.geoDistance = d.distance_m || 0; }
+                else if (d.within_tolerance && d.closest_location) {
+                    this.locationOK = true;
+                    this.locationName = d.closest_location + ' (nearby)';
+                    this.geoDistance = d.closest_distance_m || 0;
+                } else if (this.onsiteMode) {
+                    this.locationOK = true;
+                } else {
+                    if (d.closest_distance_m && d.closest_location) {
+                        this.locationError = 'You are ' + Math.round(d.closest_distance_m) + 'm from ' + d.closest_location + ' (max ' + d.closest_radius_m + 'm). Move closer or ask admin to enable On-Site Attendance.';
+                    } else {
+                        this.locationError = 'Outside all office locations.';
+                    }
+                }
+            } catch (e) {
+                // Network error — GPS coords are valid, allow if onsite or just pass through
+                if (this.onsiteMode) { this.locationOK = true; }
+                else { this.locationOK = true; } // server unreachable, allow
+            }
+
+            this.locationVerifying = false;
+            this.locationChecked = true;
         },
 
         async reverseGeocode(lat, lng) {
-            // Try server-side reverse geocode first (supports Google Maps if API key set)
+            // Server-side reverse geocode (Google Maps if API key set, OSM Nominatim fallback)
             try {
                 const r = await fetch('/api/v1/kiosk/reverse-geocode?lat=' + lat + '&lng=' + lng);
                 const d = await r.json();
@@ -449,74 +501,82 @@ function kioskWidget() {
                     this.onsitePlace = d.place;
                     return;
                 }
-            } catch (e) { /* fall through to client-side */ }
+            } catch (e) { /* fall through */ }
 
-            // Fallback: OpenStreetMap Nominatim (free, no API key)
-            // Extracts a short meaningful place name: village → town → city → county
-            try {
-                const r = await fetch(
-                    'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&addressdetails=1',
-                    { headers: { 'Accept-Language': 'en', 'User-Agent': 'Ikabud-Attendance-Kiosk/1.0' } }
-                );
-                const d = await r.json();
-                if (d && d.address) {
-                    const a = d.address;
-                    // Build a short, human-readable place name
-                    const place = a.village || a.town || a.suburb || a.city || a.municipality || a.county || a.state || '';
-                    const district = a.state_district || a.county || '';
-                    const country = a.country || '';
-
-                    if (place) {
-                        this.onsitePlace = district && district !== place
-                            ? place + ', ' + district
-                            : (country ? place + ', ' + country : place);
-                    } else if (d.display_name) {
-                        // Fall back to first 2-3 meaningful parts of display_name
-                        const parts = d.display_name.split(',').map(s => s.trim());
-                        this.onsitePlace = parts.slice(0, Math.min(3, parts.length)).join(', ');
-                    }
-                    return;
-                }
-                if (d && d.display_name) {
-                    const parts = d.display_name.split(',').map(s => s.trim());
-                    this.onsitePlace = parts.slice(0, 3).join(', ');
-                }
-            } catch (e) {
-                console.warn('Reverse geocode failed:', e.message);
-            }
+            // Final fallback: coordinates
+            this.onsitePlace = lat.toFixed(5) + ', ' + lng.toFixed(5);
         },
 
         async startCamera() {
-            // Progressive camera fallback: environment → user → any
-            const constraints = [
-                { video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } } },
-                { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } },
-                { video: true },  // last resort: any available camera
-            ];
+            // Called within user-gesture context (button tap) — triggers browser permission prompt
+            this.cameraStarted = true;
+            this.cameraError = false;
+            this.cameraDenied = false;
+            this.cameraErrorMessage = '';
+            this.cameraReady = false;
 
-            let lastError = '';
-            for (const c of constraints) {
-                try {
-                    this.stream = await navigator.mediaDevices.getUserMedia(c);
-                    const video = this.$refs.camera;
-                    if (video) {
-                        video.srcObject = this.stream;
-                        await video.play();
-                    }
-                    return; // success
-                } catch (e) {
-                    lastError = e.message || 'Unknown camera error';
-                }
+            // Stop any previous stream
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
             }
 
-            // All camera attempts failed — show visible error
-            console.warn('Camera unavailable:', lastError);
-            this.errorMsg = '📷 Camera not available: ' + lastError + '. You can still clock in without a photo.';
+            // Check if mediaDevices API exists
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                this.cameraError = true;
+                this.cameraErrorMessage = 'Camera API not supported on this device/browser.';
+                return;
+            }
+
+            // HTTPS check — camera requires secure context (except localhost)
+            if (!this.isSecure) {
+                this.cameraError = true;
+                this.cameraErrorMessage = 'Camera requires HTTPS. This page is served over HTTP.';
+                return;
+            }
+
+            // Simple constraint matching bakeshop simple_clock.php: { video: true }.
+            // No facingMode — lets the browser pick the default camera reliably.
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                this.cameraReady = true;
+                // Wait for Alpine to render the video container before attaching stream
+                await new Promise(r => requestAnimationFrame(r));
+                const video = this.$refs?.camera || document.getElementById('cameraVideo');
+                if (video) {
+                    video.srcObject = this.stream;
+                    await video.play();
+                }
+                return;
+            } catch (e) {
+                const name = e.name || '';
+                if (name === 'NotAllowedError' || name === 'PermissionDeniedError'
+                    || name === 'SecurityError') {
+                    this.cameraError = true;
+                    this.cameraDenied = true;
+                    this.cameraErrorMessage = 'Camera access was blocked by your browser.';
+                } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+                    this.cameraError = true;
+                    this.cameraErrorMessage = 'No camera found on this device.';
+                } else {
+                    this.cameraError = true;
+                    this.cameraErrorMessage = 'Could not access camera: ' + (e.message || name || 'unknown error');
+                }
+            }
+        },
+
+        /** Stop camera stream when location verification fails — camera not needed if can't clock in. */
+        stopCameraOnFail() {
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
+            }
+            this.cameraReady = false;
         },
 
         takePhoto() {
-            const video = this.$refs.camera;
-            const canvas = this.$refs.canvas;
+            const video = this.$refs?.camera || document.getElementById('cameraVideo');
+            const canvas = this.$refs?.canvas || document.getElementById('cameraCanvas');
             if (!video || !canvas) return;
 
             canvas.width = video.videoWidth || 640;
@@ -536,6 +596,23 @@ function kioskWidget() {
             this.checkClockStatus();
         },
 
+        skipPhoto() {
+            // Proceed without photo
+            this.cameraError = false;
+            this.cameraDenied = false;
+            this.cameraErrorMessage = '';
+            this.cameraReady = false;
+            this.cameraSkipped = true;
+            this.cameraStarted = false;
+            this.photoData = '';
+            this.photoTaken = false;
+            if (this.stream) {
+                this.stream.getTracks().forEach(t => t.stop());
+                this.stream = null;
+            }
+            this.checkClockStatus();
+        },
+
         async checkClockStatus() {
             if (!this.selectedEmployee) return;
             try {
@@ -547,12 +624,14 @@ function kioskWidget() {
 
         async submitAttendance() {
             if (!this.selectedEmployee || this.submitting) return;
+            if (this._attendanceInFlight) return;
             this.submitting = true;
+            this._attendanceInFlight = true;
 
             const body = {
                 profile_id: this.selectedEmployee.profile_id,
-                latitude: this._lat || 0,
-                longitude: this._lng || 0,
+                latitude: (typeof this._lat === 'number' && this._lat !== 0) ? this._lat : 0,
+                longitude: (typeof this._lng === 'number' && this._lng !== 0) ? this._lng : 0,
                 photo_data: this.photoData || '',
                 onsite_place: this.onsitePlace || '',
             };
@@ -577,9 +656,10 @@ function kioskWidget() {
                 this.errorMsg = 'Network error. Please try again.';
             }
             this.submitting = false;
+            this._attendanceInFlight = false;
         },
 
-        resetSearch() {
+        goBackToSearch() {
             this.step = 1;
             this.selectedEmployee = null;
             this.resetState();
@@ -593,7 +673,14 @@ function kioskWidget() {
             this.onsitePlace = '';
             this.photoTaken = false;
             this.photoData = '';
+            this.cameraReady = false;
+            this.cameraError = false;
+            this.cameraDenied = false;
+            this.cameraErrorMessage = '';
+            this.cameraSkipped = false;
+            this.cameraStarted = false;
             this.currentlyClockedIn = false;
+            this.locationVerifying = false;
             this._lat = 0;
             this._lng = 0;
             if (this.stream) {
@@ -608,6 +695,7 @@ function kioskWidget() {
             this.searchQuery = '';
             this.searchResults = [];
             this.myRecords = [];
+            this._attendanceInFlight = false;
             this.resetState();
         },
 
@@ -628,6 +716,10 @@ function kioskWidget() {
             this.loadingRecords = false;
         },
 
+        viewPhoto(filename) {
+            this.photoModalUrl = '/api/v1/attendance/photo/' + filename;
+        },
+
         formatDate(dt) {
             if (!dt) return '—';
             const d = new Date(dt.replace(' ', 'T'));
@@ -642,4 +734,5 @@ function kioskWidget() {
     };
 }
 </script>
+</div>
 {/block}

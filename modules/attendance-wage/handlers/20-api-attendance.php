@@ -44,8 +44,14 @@ function attendanceApiClockIn(array $params = []): void
         }
 
         $locationIn = $locationName ? ($locationName . ' (' . $latitude . ',' . $longitude . ')') : null;
-        $stmt = $db->prepare("INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in) VALUES (:tid, :uid, NOW(), 'active', :loc)");
-        $stmt->execute([':tid'=>app()->tenant()->current()??'', ':uid'=>$userId, ':loc'=>$locationIn]);
+        $hasLatLng = aw_hasColumn($db, 'attendance_records', 'latitude_in');
+        if ($hasLatLng) {
+            $stmt = $db->prepare("INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in, latitude_in, longitude_in) VALUES (:tid, :uid, NOW(), 'active', :loc, :lat, :lng)");
+            $stmt->execute([':tid'=>app()->tenant()->current()??'', ':uid'=>$userId, ':loc'=>$locationIn, ':lat'=>($latitude !== 0.0 ? $latitude : null), ':lng'=>($longitude !== 0.0 ? $longitude : null)]);
+        } else {
+            $stmt = $db->prepare("INSERT INTO attendance_records (tenant_id, user_id, clock_in, status, location_in) VALUES (:tid, :uid, NOW(), 'active', :loc)");
+            $stmt->execute([':tid'=>app()->tenant()->current()??'', ':uid'=>$userId, ':loc'=>$locationIn]);
+        }
         header("Content-Type: application/json; charset=utf-8");
         echo json_encode(['ok'=>true,'message'=>'Clocked in','id'=>(int)$db->lastInsertId(),'location'=>$locationName]);
     } catch (\Throwable $e) { header("Content-Type: application/json; charset=utf-8"); echo json_encode(['ok'=>false,'error'=>'Clock-in failed. Please try again.']); }
@@ -98,8 +104,8 @@ function attendanceApiPhoto(array $params = [], string $file = ''): void
         return;
     }
     $paths = [
-        '/var/www/html/applicationostest/storage/uploads/attendance/' . $file,
-        '/var/www/html/applicationostest/public/uploads/attendance/' . $file,
+        STORAGE_PATH . '/uploads/attendance/' . $file,
+        PUBLIC_PATH . '/uploads/attendance/' . $file,
     ];
     foreach ($paths as $path) {
         if (is_file($path) && is_readable($path)) {
@@ -132,8 +138,8 @@ function attendanceApiLogo(array $params = [], string $file = ''): void
         return;
     }
     $paths = [
-        '/var/www/html/applicationostest/storage/uploads/logos/' . $file,
-        '/var/www/html/applicationostest/public/uploads/logos/' . $file,
+        STORAGE_PATH . '/uploads/logos/' . $file,
+        PUBLIC_PATH . '/uploads/logos/' . $file,
     ];
     foreach ($paths as $path) {
         if (is_file($path) && is_readable($path)) {

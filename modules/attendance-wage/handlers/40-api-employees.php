@@ -163,7 +163,14 @@ function wageApiEmployeeUpdate(array $params = []): void
         if (isset($input[$f])) { $fields[] = "`{$f}` = :{$f}"; $vals[":{$f}"] = (float)$input[$f]; }
     }
     foreach (['overtime_allowed','holiday_pay_enabled','rest_day_pay_enabled','night_diff_enabled','cash_advance_allowed','onsite_attendance','sss_applicable','philhealth_applicable','pagibig_applicable'] as $f) {
-        if (array_key_exists($f, $input)) { $fields[] = "`{$f}` = :{$f}"; $vals[":{$f}"] = $input[$f] ? 1 : 0; }
+        if (array_key_exists($f, $input)) {
+            $fields[] = "`{$f}` = :{$f}";
+            $vals[":{$f}"] = $input[$f] ? 1 : 0;
+        } elseif ($isFormPost) {
+            // HTML forms don't submit unchecked checkboxes — explicitly set to 0
+            $fields[] = "`{$f}` = :{$f}";
+            $vals[":{$f}"] = 0;
+        }
     }
     foreach (['sss_number','philhealth_number','pagibig_number','tin_number','tax_exemption_status'] as $f) {
         if (isset($input[$f])) { $fields[] = "`{$f}` = :{$f}"; $vals[":{$f}"] = trim((string)$input[$f]); }

@@ -10,6 +10,11 @@
     <div class="w-full max-w-md">
         <div class="bg-white/95 backdrop-blur rounded-2xl shadow-2xl border border-white/10 overflow-hidden">
             <div class="px-8 pt-8 pb-6">
+                {if logo_url}
+                <div class="flex justify-center mb-4">
+                    <img src="{logo_url}" alt="{app_name|default:'ZAP'}" class="h-10 w-auto">
+                </div>
+                {/if}
                 <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight text-center">{app_name|default:'Attendance & Wage'}</h1>
                 <p class="mt-2 text-sm text-slate-500 text-center">Sign in to your account</p>
                 {if error}

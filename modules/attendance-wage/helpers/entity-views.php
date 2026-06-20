@@ -120,7 +120,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('employee_profile', 'table', [
         'fields' => [
-            'full_name', 'position', 'department', 'salary_type',
+            'first_name', 'last_name', 'position', 'department', 'salary_type',
             'employment_status', 'hire_date',
         ],
         'actions' => ['view', 'edit'],

@@ -35,6 +35,12 @@
                     {selected_records|count} records
                 </span>
             </div>
+            <div class="flex items-center gap-3 mt-3">
+                <a href="/admin/attendance?employee_id={employee_id}&export=csv"
+                   class="inline-flex items-center gap-1 px-4 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200">
+                    📥 Export CSV
+                </a>
+            </div>
         </div>
 
         {if selected_records|count > 0}
@@ -46,6 +52,7 @@
                             <th class="py-3 px-4 text-left font-semibold text-gray-600">Date</th>
                             <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock In</th>
                             <th class="py-3 px-4 text-left font-semibold text-gray-600">Clock Out</th>
+                            <th class="py-3 px-4 text-center font-semibold text-gray-600">Hours</th>
                             <th class="py-3 px-4 text-left font-semibold text-gray-600">Location In</th>
                             <th class="py-3 px-4 text-left font-semibold text-gray-600">Location Out</th>
                             <th class="py-3 px-4 text-center font-semibold text-gray-600">Status</th>
@@ -68,11 +75,24 @@
                                     <span class="text-amber-600 font-medium">—</span>
                                 {/if}
                             </td>
-                            <td class="py-3 px-4 text-gray-600 text-xs max-w-[180px] truncate" title="{r.location_in|default:''}">
-                                {r.location_in|default:'—'}
+                            <td class="py-3 px-4 text-center text-gray-700 font-mono text-xs">
+                                {if r.clock_out}
+                                    {r.hours_logged}h
+                                {else}
+                                    <span class="text-amber-600 font-medium">{r.hours_logged}h</span>
+                                {/if}
                             </td>
-                            <td class="py-3 px-4 text-gray-600 text-xs max-w-[180px] truncate" title="{r.location_out|default:''}">
-                                {r.location_out|default:'—'}
+                            <td class="py-3 px-4 text-gray-600 text-xs max-w-[180px]" title="{r.location_in|default:''}">
+                                <span class="font-medium">{r.location_in|default:'—'}</span>
+                                {if r.latitude_in}
+                                <span class="block text-blue-600 text-xs mt-0.5">📍 {r.latitude_in},{r.longitude_in}</span>
+                                {/if}
+                            </td>
+                            <td class="py-3 px-4 text-gray-600 text-xs max-w-[180px]" title="{r.location_out|default:''}">
+                                <span class="font-medium">{r.location_out|default:'—'}</span>
+                                {if r.latitude_out}
+                                <span class="block text-blue-600 text-xs mt-0.5">📍 {r.latitude_out},{r.longitude_out}</span>
+                                {/if}
                             </td>
                             <td class="py-3 px-4 text-center">
                                 {if r.status == 'active'}
@@ -86,10 +106,10 @@
                             <td class="py-3 px-4 text-center">
                                 <div class="flex items-center justify-center gap-2">
                                     {if r.photo_in}
-                                    <a href="/api/v1/attendance/photo/{r.photo_in}" target="_blank" class="text-xs text-brand-600 hover:text-brand-700">📷 In</a>
+                                    <button onclick="openPhotoModal('/api/v1/attendance/photo/{r.photo_in}')" class="text-xs text-brand-600 hover:text-brand-700 bg-transparent border-none cursor-pointer">📷 In</button>
                                     {/if}
                                     {if r.photo_out}
-                                    <a href="/api/v1/attendance/photo/{r.photo_out}" target="_blank" class="text-xs text-brand-600 hover:text-brand-700">📷 Out</a>
+                                    <button onclick="openPhotoModal('/api/v1/attendance/photo/{r.photo_out}')" class="text-xs text-brand-600 hover:text-brand-700 bg-transparent border-none cursor-pointer">📷 Out</button>
                                     {/if}
                                     {if !r.photo_in && !r.photo_out}
                                     <span class="text-xs text-gray-300">—</span>
@@ -162,8 +182,11 @@
                         <td class="py-3 px-4 text-gray-700 font-mono text-xs">
                             {if emp.clock_out}{emp.clock_out|substr:11:8}{else}—{/if}
                         </td>
-                        <td class="py-3 px-4 text-gray-600 text-xs max-w-[160px] truncate" title="{emp.location_in|default:''}">
-                            {emp.location_in|default:'—'}
+                        <td class="py-3 px-4 text-gray-600 text-xs max-w-[220px]" title="{emp.location_in|default:''}">
+                            <span class="font-medium">{emp.location_in|default:'—'}</span>
+                            {if emp.latitude_in}
+                            <span class="block text-blue-600 text-xs mt-0.5">📍 {emp.latitude_in},{emp.longitude_in}</span>
+                            {/if}
                         </td>
                         <td class="py-3 px-4 text-center">
                             <a href="/admin/attendance?employee_id={emp.profile_id}"
@@ -184,4 +207,23 @@
     {/if}
     {/if}
 </div>
+
+<!-- Photo Modal -->
+<div id="photoModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.9);" onclick="closePhotoModal()">
+    <button onclick="closePhotoModal()" style="position:absolute; top:16px; right:24px; color:white; font-size:2rem; background:none; border:none; cursor:pointer; z-index:1;">&times;</button>
+    <img id="photoModalImg" src="" style="max-width:95%; max-height:95%; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); object-fit:contain; border-radius:8px;" alt="Attendance photo" onclick="event.stopPropagation()">
+</div>
+<script>
+function openPhotoModal(url) {
+    document.getElementById('photoModalImg').src = url;
+    document.getElementById('photoModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+function closePhotoModal() {
+    document.getElementById('photoModal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closePhotoModal(); });
+</script>
+
 {/block}

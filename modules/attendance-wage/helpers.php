@@ -9,6 +9,27 @@ declare(strict_types=1);
  * Auto-loaded globally when the module is enabled.
  */
 
+/**
+ * Check if a column exists in a table (safe fallback when migration hasn't run yet).
+ * Static cache ensures the check runs only once per column per request.
+ */
+function aw_hasColumn(\PDO $db, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+    try {
+        $db->query("SELECT `{$column}` FROM `{$table}` LIMIT 0");
+        $cache[$key] = true;
+        return true;
+    } catch (\Throwable $e) {
+        $cache[$key] = false;
+        return false;
+    }
+}
+
 app()->registerAuthTable('attendance-wage', 'attendance_wage_users');
 
 function attendance_wage_capability_handlers(): array
@@ -158,7 +179,7 @@ function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilit
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT profile_id AS id, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS name, employee_number, position, department, salary_type, basic_salary, employment_status, hire_date FROM employee_profiles WHERE is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT profile_id AS id, first_name, last_name, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS name, employee_number, position, department, salary_type, basic_salary, employment_status, hire_date FROM employee_profiles WHERE is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM employee_profiles WHERE is_active = 1')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -733,6 +754,39 @@ function aw_haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2
 }
 
 /**
+ * Find the closest active office location to a given coordinate,
+ * even if outside the geo-fence. Returns location with distance.
+ * Used for tolerance-based matching.
+ */
+function aw_findClosestLocation(float $latitude, float $longitude): ?array
+{
+    try {
+        $db = aw_db();
+        $tid = app()->tenant()->current() ?? '';
+        $stmt = $db->prepare("SELECT * FROM office_locations WHERE tenant_id = :tid AND is_active = 1");
+        $stmt->execute([':tid' => $tid]);
+        $locations = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $closest = null;
+        $closestDist = PHP_FLOAT_MAX;
+        foreach ($locations as $loc) {
+            $dist = aw_haversineDistance($latitude, $longitude, (float)$loc['latitude'], (float)$loc['longitude']);
+            if ($dist < $closestDist) {
+                $closestDist = $dist;
+                $closest = $loc;
+                $closest['distance_meters'] = round($dist, 1);
+            }
+        }
+        return $closest;
+    } catch (\Throwable $e) {
+        if (\function_exists('write_log')) {
+            \write_log('geo_fence: findClosest error ' . $e->getMessage(), 'warning');
+        }
+        return null;
+    }
+}
+
+/**
  * Check if a given (lat,lng) falls within any active office location's geo-fence.
  * Returns the matching location row or null.
  */
@@ -745,15 +799,26 @@ function aw_findLocationByGeo(float $latitude, float $longitude): ?array
         $stmt->execute([':tid' => $tid]);
         $locations = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
 
+        if (\function_exists('write_log')) {
+            \write_log('geo_fence: check ' . $latitude . ',' . $longitude . ' against ' . count($locations) . ' locations for tenant ' . ($tid ?: '(none)'), 'info');
+        }
+
         foreach ($locations as $loc) {
             $dist = aw_haversineDistance($latitude, $longitude, (float)$loc['latitude'], (float)$loc['longitude']);
-            if ($dist <= (float)($loc['radius_meters'] ?? 100)) {
+            $radius = (float)($loc['radius_meters'] ?? 100);
+            if (\function_exists('write_log')) {
+                \write_log('geo_fence: ' . ($loc['name'] ?? '?') . ' dist=' . round($dist, 1) . 'm radius=' . $radius . 'm match=' . ($dist <= $radius ? 'YES' : 'no'), 'info');
+            }
+            if ($dist <= $radius) {
                 $loc['distance_meters'] = round($dist, 1);
                 return $loc;
             }
         }
         return null;
     } catch (\Throwable $e) {
+        if (\function_exists('write_log')) {
+            \write_log('geo_fence: error ' . $e->getMessage(), 'warning');
+        }
         return null;
     }
 }

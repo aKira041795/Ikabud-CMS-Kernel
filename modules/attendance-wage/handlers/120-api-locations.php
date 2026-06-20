@@ -296,7 +296,7 @@ function saveSettingLogo(array $file): ?string
         default          => 'jpg',
     };
 
-    $dir = '/var/www/html/applicationostest/storage/uploads/logos';
+    $dir = STORAGE_PATH . '/uploads/logos';
     if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
 
     $filename = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
@@ -330,7 +330,7 @@ function saveSettingLogoFromBase64(string $base64Data): ?string
         default          => 'jpg',
     };
 
-    $dir = '/var/www/html/applicationostest/storage/uploads/logos';
+    $dir = STORAGE_PATH . '/uploads/logos';
     if (!is_dir($dir)) { @mkdir($dir, 0755, true); }
 
     $filename = 'logo_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
