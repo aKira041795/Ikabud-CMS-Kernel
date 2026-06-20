@@ -277,6 +277,27 @@ trait EntityRenderingTrait
             $fields = array_values(array_filter(array_keys($firstRow), fn($k) => !str_starts_with($k, '_')));
         }
 
+        // v5.2: validate declared fields exist in data rows (catches column-name mismatches)
+        $validFields = [];
+        $firstRowKeys = !empty($rows) ? array_keys($rows[0]) : [];
+        foreach ($fields as $field) {
+            if ($field === '*') { continue; }
+            if (in_array($field, $firstRowKeys, true)) {
+                $validFields[] = $field;
+            } else {
+                if (\function_exists('write_log')) {
+                    \write_log(
+                        "EntityView: field '{$field}' not found in data for '{$source}.{$view}'. Available: " . implode(', ', $firstRowKeys),
+                        'warning',
+                        ['source' => $source, 'view' => $view, 'field' => $field, 'available' => $firstRowKeys]
+                    );
+                }
+            }
+        }
+        if (!empty($validFields)) {
+            $fields = $validFields;
+        }
+
         // v4.8: resolve action roles from contract or explicit attribute
         $actionRoles = $contract['action_roles'] ?? [];
         $explicitRoles = isset($attrs['action-roles']) ? json_decode((string)$attrs['action-roles'], true) : null;
