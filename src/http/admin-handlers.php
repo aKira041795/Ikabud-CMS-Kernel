@@ -1194,6 +1194,11 @@ if (!function_exists('kernelHandleApiAiSettingsSave')) {
             $newSettings['search_grounding_max_results'] = max(1, min(10, (int)$settingsIn['search_grounding_max_results']));
         }
 
+        // Encrypt sensitive keys at rest before persistence.
+        if (function_exists('aiEncryptSensitiveSettings')) {
+            $newSettings = aiEncryptSensitiveSettings($newSettings);
+        }
+
         saveModuleSettings('ai', $newSettings);
         adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform']);
 

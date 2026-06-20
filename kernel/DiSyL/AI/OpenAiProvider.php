@@ -7,15 +7,15 @@ namespace Ikabud\Kernel\DiSyL\AI;
 /**
  * OpenAI provider — governed AI backend for ikb_ai_summary / ikb_ai_assist.
  *
- * Reads OPENAI_API_KEY and OPENAI_MODEL from environment.
- * When no API key is set, falls back to EchoAiProvider behavior.
+ * Requires an explicit API key via constructor injection.
+ * Use aiResolvedSettings()['openai_api_key'] to obtain the decrypted key.
  * All calls are governed by Policy (kill switch, model allowlist, cost ceiling).
  *
  * Usage:
- *   $engine->setAiProvider(new OpenAiProvider());
+ *   $apiKey = aiResolvedSettings()['openai_api_key'] ?? '';
+ *   $engine->setAiProvider(new OpenAiProvider($apiKey));
  *
- * Environment:
- *   OPENAI_API_KEY=sk-...       (required for real calls)
+ * Environment (override only — prefer settings store):
  *   OPENAI_MODEL=gpt-4o-mini    (default: gpt-4o-mini)
  *   OPENAI_BASE_URL=...         (optional: custom endpoint / proxy)
  */
@@ -30,8 +30,7 @@ final class OpenAiProvider implements AiProvider
         ?string $model = null,
         ?string $baseUrl = null
     ) {
-        $this->apiKey = $apiKey
-            ?? (string)(getenv('OPENAI_API_KEY') ?: '');
+        $this->apiKey = $apiKey ?? '';
         $this->model = $model
             ?? (string)(getenv('OPENAI_MODEL') ?: 'gpt-4o-mini');
         $this->baseUrl = $baseUrl

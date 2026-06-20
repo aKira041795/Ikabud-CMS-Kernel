@@ -429,9 +429,13 @@ final class AIGovernance
         // Echo is always available
         if ($providerId === 'echo') return true;
 
-        // Check if API key is configured for OpenAI
+        // Check if API key is configured for OpenAI (from encrypted settings store)
         if ($providerId === 'openai') {
-            return (getenv('OPENAI_API_KEY') ?: '') !== '';
+            if (function_exists('aiResolvedSettings')) {
+                $settings = aiResolvedSettings();
+                return ($settings['openai_api_key'] ?? '') !== '';
+            }
+            return false;
         }
 
         return true;

@@ -67,6 +67,12 @@ final class App
     private ?array $currentUser = null;
     private bool $resolvingCurrentUser = false;
     private bool $booted = false;
+
+    // JWT sliding refresh: when a cookie-based token is verified, track the
+    // old token and cookie name so we can rotate it after the response.
+    private ?string $tokenToRotate = null;
+    private ?string $rotateCookieName = null;
+    private bool $tokenRotated = false;
     private ?array $cachedNavItems = null;
     private ?array $cachedGuiContext = null;
     private ?array $cachedGuiDefaults = null;
@@ -994,6 +1000,92 @@ final class App
         }
     }
 
+    /**
+     * Rotate the auth cookie JWT after a successful authenticated request.
+     *
+     * Implements sliding expiration: when the current token is more than halfway
+     * through its lifetime, issue a fresh token with a new expiry. This limits
+     * the window for stolen token reuse without requiring per-request rotation.
+     *
+     * Call this once per request, after the response body has been sent
+     * (or just before sending), typically from public/index.php.
+     */
+    public function rotateAuthCookieIfNeeded(): void
+    {
+        if ($this->tokenRotated || $this->tokenToRotate === null || $this->rotateCookieName === null) {
+            return;
+        }
+
+        // Only rotate if token is more than halfway through its lifetime.
+        // This avoids the cost of rotation on every single request while
+        // still limiting the effective stolen-token window.
+        try {
+            $payload = $this->jwt()->verify($this->tokenToRotate);
+            if ($payload === null) {
+                return;
+            }
+
+            $now = time();
+            $iat = (int)($payload['iat'] ?? 0);
+            $exp = (int)($payload['exp'] ?? 0);
+            $lifetime = $exp - $iat;
+
+            if ($lifetime <= 0) {
+                return;
+            }
+
+            $halfLife = $iat + (int)($lifetime / 2);
+            if ($now < $halfLife) {
+                return; // Not yet halfway — skip rotation this request
+            }
+
+            // Remove old timestamps and issue a fresh token
+            unset($payload['iat'], $payload['exp'], $payload['nbf'], $payload['jti']);
+            $newToken = $this->jwt()->generate($payload);
+
+            $cookieParams = $this->authCookieParams();
+            $expiry = time() + (int)($this->config('app.jwt.expiration', 86400));
+
+            // Use the 'none' hack to set HttpOnly cookie from PHP
+            if (!headers_sent()) {
+                setcookie(
+                    $this->rotateCookieName,
+                    $newToken,
+                    [
+                        'expires' => $expiry,
+                        'path' => '/',
+                        'domain' => $cookieParams['domain'] ?? '',
+                        'secure' => $cookieParams['secure'] ?? true,
+                        'httponly' => true,
+                        'samesite' => $cookieParams['samesite'] ?? 'Lax',
+                    ]
+                );
+            }
+        } catch (\Throwable $e) {
+            // Non-fatal: if rotation fails, the existing token remains valid
+            // until its natural expiry.
+        }
+
+        $this->tokenRotated = true;
+    }
+
+    /**
+     * Resolve auth cookie parameters (secure flag, domain, samesite).
+     *
+     * @return array{secure: bool, domain: string, samesite: string}
+     */
+    public function authCookieParams(): array
+    {
+        $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (int)($_SERVER['SERVER_PORT'] ?? 80) === 443;
+
+        return [
+            'secure' => $isHttps,
+            'domain' => (string)($this->config('app.cookie.domain', '')),
+            'samesite' => (string)($this->config('app.cookie.samesite', 'Lax')),
+        ];
+    }
+
     private function buildRenderBaseContext(string $template = ''): array
     {
         $appUrl = $this->cachedAppUrl ?? external_base_url((string)$this->config('app.url', ''));
@@ -1275,6 +1367,10 @@ final class App
                     $resolvedUser = $resolveVerifiedUser($candidate);
                     if ($resolvedUser !== null) {
                         $this->currentUser = $resolvedUser;
+                        // Track for sliding refresh: rotate on every authenticated request
+                        // when the token is more than halfway through its lifetime.
+                        $this->tokenToRotate = $candidate;
+                        $this->rotateCookieName = $cName;
                         return $this->currentUser;
                     }
                 }

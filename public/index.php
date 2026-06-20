@@ -152,6 +152,17 @@ if (session_status() === PHP_SESSION_NONE) {
 
 register_shutdown_function('kernelFireShutdownHooks');
 
+// ── JWT sliding refresh: rotate auth cookie after each authenticated request ──
+register_shutdown_function(static function (): void {
+    if (function_exists('app')) {
+        try {
+            app()->rotateAuthCookieIfNeeded();
+        } catch (\Throwable $ignored) {
+            // Non-fatal: rotation is best-effort
+        }
+    }
+});
+
 // ── Request timing: log slow requests (>1s) at shutdown ──────────────
 register_shutdown_function(static function (): void {
     $startTime = $_SERVER['REQUEST_TIME_FLOAT'] ?? 0;

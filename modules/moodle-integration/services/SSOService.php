@@ -24,6 +24,19 @@ class SSOService implements ProviderAuthAdapterInterface
         $this->tenantId = $tenantId > 0 ? $tenantId : \moodleIntegrationCurrentTenantId();
     }
 
+    /**
+     * Build the Moodle-side SSO launch URL.
+     *
+     * SECURITY NOTE: The token is currently passed as a URL query parameter.
+     * This means it may be logged in server access logs, browser history, and
+     * HTTP Referer headers. A future iteration should switch to:
+     *   1. Store the token server-side, pass only a short-lived opaque reference
+     *      in the URL, and resolve the token on the Moodle side via back-channel.
+     *   2. Or use a POST-based auto-submit form with the token in a hidden field.
+     *
+     * The token is consume-once with a 60-second expiry, which limits the
+     * exposure window significantly.
+     */
     public function buildLaunchUrl(array $user, array $resource): ?string
     {
         $settings = $this->settings();
@@ -47,6 +60,55 @@ class SSOService implements ProviderAuthAdapterInterface
             return null;
         }
 
+        // Validate JWT structure and algorithm before DB lookup.
+        // This prevents algorithm confusion attacks and malformed tokens
+        // from reaching the database.
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        $header = json_decode($this->base64UrlDecode($parts[0]), true);
+        if (!is_array($header) || ($header['alg'] ?? '') !== 'HS256') {
+            return null;
+        }
+
+        $payload = json_decode($this->base64UrlDecode($parts[1]), true);
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        // Check expiry
+        $now = time();
+        if (isset($payload['exp']) && (int)$payload['exp'] < $now) {
+            return null;
+        }
+
+        // Check issuer
+        if (($payload['iss'] ?? '') !== 'applicationos') {
+            return null;
+        }
+
+        // Check audience
+        if (($payload['aud'] ?? '') !== 'moodle-integration') {
+            return null;
+        }
+
+        // Verify HMAC signature
+        $settings = $this->settings();
+        $secret = trim((string)($settings['sso_secret'] ?? ''));
+        if ($secret === '') {
+            return null;
+        }
+
+        $expectedSig = $this->base64UrlEncode(
+            hash_hmac('sha256', $parts[0] . '.' . $parts[1], $secret, true)
+        );
+        if (!hash_equals($parts[2], $expectedSig)) {
+            return null;
+        }
+
+        // Atomically consume the token (consume-once enforcement)
         $row = \moodleIntegrationConsumeSsoTokenForTenant($tenantId, $token);
         if ($row === null) {
             return null;
@@ -122,5 +184,10 @@ class SSOService implements ProviderAuthAdapterInterface
     private function base64UrlEncode(string $value): string
     {
         return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function base64UrlDecode(string $value): string
+    {
+        return base64_decode(strtr($value, '-_', '+/'));
     }
 }

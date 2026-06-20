@@ -75,6 +75,83 @@ function aiSettingsDefaults(): array
     return $defaults;
 }
 
+/**
+ * Sensitive key names that are stored encrypted at rest.
+ * These keys are encrypted before persistence and decrypted on read.
+ */
+function aiSensitiveKeyNames(): array
+{
+    return ['openai_api_key', 'groq_api_key', 'search_grounding_api_key'];
+}
+
+/**
+ * Encrypt sensitive values in an AI settings array before persistence.
+ * Non-sensitive keys pass through unchanged.
+ */
+function aiEncryptSensitiveSettings(array $settings): array
+{
+    $sensitiveKeys = aiSensitiveKeyNames();
+    foreach ($sensitiveKeys as $key) {
+        if (isset($settings[$key]) && is_string($settings[$key]) && $settings[$key] !== '') {
+            try {
+                $enc = (new \Ikabud\Kernel\Crypto())->encryptString($settings[$key]);
+                $settings[$key] = json_encode($enc, JSON_UNESCAPED_SLASHES);
+            } catch (\Throwable $e) {
+                // If encryption fails, store a placeholder that won't be usable.
+                // The key must be re-entered by the admin.
+                if (function_exists('write_log')) {
+                    write_log('ai: failed to encrypt sensitive setting', 'error', [
+                        'key' => $key,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+                $settings[$key] = '';
+            }
+        }
+    }
+    return $settings;
+}
+
+/**
+ * Decrypt sensitive values in an AI settings array after reading from storage.
+ * Non-sensitive keys and already-plaintext values pass through unchanged.
+ */
+function aiDecryptSensitiveSettings(array $settings): array
+{
+    $sensitiveKeys = aiSensitiveKeyNames();
+    foreach ($sensitiveKeys as $key) {
+        if (!isset($settings[$key]) || !is_string($settings[$key]) || $settings[$key] === '') {
+            continue;
+        }
+        // Detect if value is a JSON-encrypted envelope (starts with '{')
+        $val = $settings[$key];
+        if ($val[0] === '{') {
+            $envelope = json_decode($val, true);
+            if (is_array($envelope) && isset($envelope['ciphertext'], $envelope['iv'], $envelope['tag'])) {
+                try {
+                    $settings[$key] = (new \Ikabud\Kernel\Crypto())->decryptString(
+                        $envelope['ciphertext'],
+                        $envelope['iv'],
+                        $envelope['tag'],
+                        $envelope['key_id'] ?? null
+                    );
+                } catch (\Throwable $e) {
+                    // Decryption failed — likely legacy plaintext or key rotation gap.
+                    // Leave the value as-is (may be legacy plaintext).
+                    if (function_exists('write_log')) {
+                        write_log('ai: failed to decrypt sensitive setting', 'warning', [
+                            'key' => $key,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+            }
+        }
+        // If value doesn't look like an envelope, it's legacy plaintext — leave as-is.
+    }
+    return $settings;
+}
+
 function aiResolvedSettings(): array
 {
     $resolved = aiSettingsDefaults();
@@ -110,7 +187,8 @@ function aiResolvedSettings(): array
         $resolved[$key] = $value;
     }
 
-    return $resolved;
+    // Decrypt any sensitive keys that were stored encrypted at rest.
+    return aiDecryptSensitiveSettings($resolved);
 }
 
 function ai_capability_handlers(): array
