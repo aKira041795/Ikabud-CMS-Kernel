@@ -39,6 +39,9 @@ android/
 *.bak
 *.bak_*
 
+# Debugging artifacts (temporary patches, debug dumps)
+/debugging-files/
+
 # Debug artifacts
 public/debug-opcache.php
 debug_cap_test.php

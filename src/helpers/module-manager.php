@@ -674,6 +674,15 @@ function discoverModules(): array
         $manifest['_path'] = dirname($manifestPath);
         $manifest['_enabled'] = isModuleEnabled($moduleId);
         $result[$moduleId] = $manifest;
+
+        // Register table ownership for ReadContractRegistry
+        $owns = is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [];
+        $coOwns = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
+        foreach (array_merge($owns, $coOwns) as $tableName) {
+            if (is_string($tableName) && trim($tableName) !== '') {
+                \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance()->registerTableOwner(trim($tableName), $moduleId);
+            }
+        }
     }
 
     $GLOBALS['_kernel_discovered_modules'] = $result;
@@ -810,6 +819,10 @@ function getEnabledModules(): array
 
         $safe[$id] = $m;
     }
+
+    // Register read contracts and deprecated reads for enabled modules
+    kernelRegisterModuleReadContracts($safe);
+
     $cached = $safe;
     return $cached;
 }
@@ -1878,6 +1891,9 @@ function loadModuleRoutes(array $routes): array
     if (function_exists('kernelFlushPendingEventRegistrations')) {
         kernelFlushPendingEventRegistrations();
     }
+
+    // Check read contract schema drift after all modules are loaded
+    kernelCheckReadContractDrift();
 
     return $routes;
 }
@@ -3450,4 +3466,76 @@ function updateModuleCapabilityDepends(string $moduleId, array $depends): array
     }
 
     return ['ok' => true, 'module_id' => $moduleId, 'depends' => $depends];
+}
+
+// ─── Read Contract Registry Integration ───────────────────────────────────
+
+/**
+ * Register read contracts and deprecated reads for all enabled modules.
+ * Called from getEnabledModules() after capability validation passes.
+ *
+ * @param array<string, array<string, mixed>> $enabledModules
+ */
+function kernelRegisterModuleReadContracts(array $enabledModules): void
+{
+    $registry = \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance();
+
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+    try {
+        $db = app()->db();
+
+        foreach ($enabledModules as $moduleId => $manifest) {
+            // Register read contracts from reads_tables
+            $readsTables = is_array($manifest['reads_tables'] ?? null) ? $manifest['reads_tables'] : [];
+            foreach ($readsTables as $tableName) {
+                if (is_string($tableName) && trim($tableName) !== '') {
+                    $registry->registerReadContract($moduleId, trim($tableName), $db);
+                }
+            }
+
+            // Register deprecated reads from reads_tables_deprecated
+            $deprecatedReads = is_array($manifest['reads_tables_deprecated'] ?? null) ? $manifest['reads_tables_deprecated'] : [];
+            foreach ($deprecatedReads as $tableName) {
+                if (is_string($tableName) && trim($tableName) !== '') {
+                    $registry->markDeprecatedRead($moduleId, trim($tableName));
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log(
+                'ReadContractRegistry: failed to register read contracts: ' . $e->getMessage(),
+                'warning',
+                ['exception' => get_class($e)]
+            );
+        }
+    } finally {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+    }
+}
+
+/**
+ * Check for schema drift in registered read contracts.
+ * Called from loadModuleRoutes() after all modules are loaded.
+ * Logs warnings for drift; does not throw or crash.
+ */
+function kernelCheckReadContractDrift(): void
+{
+    $registry = \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance();
+
+    \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
+    try {
+        $db = app()->db();
+        $registry->checkDrift($db);
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log(
+                'ReadContractRegistry: drift check failed: ' . $e->getMessage(),
+                'warning',
+                ['exception' => get_class($e)]
+            );
+        }
+    } finally {
+        \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
+    }
 }

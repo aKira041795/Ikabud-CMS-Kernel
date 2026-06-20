@@ -33,6 +33,8 @@ if (!function_exists('kernelCoreRoutes')) {
                 '/api/v1/superadmin/modules' => 'apiSuperadminModules',
                 '/api/v1/superadmin/perf' => 'apiSuperadminPerf',
                 '/api/v1/superadmin/cache' => 'apiSuperadminCache',
+                '/api/v1/kernel/modules' => 'apiKernelModulesCatalog',
+                '/api/v1/kernel/capabilities' => 'apiKernelCapabilityCatalog',
                 '/api/v1/admin/modules' => 'apiListModules',
                 '/api/v1/admin/modules/health' => 'apiModulesHealth',
                 '/api/v1/admin/capabilities' => 'apiListCapabilities',

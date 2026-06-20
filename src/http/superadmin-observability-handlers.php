@@ -10,6 +10,144 @@ declare(strict_types=1);
  */
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Kernel Module Catalog — superadmin-gated manifest summary
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiKernelModulesCatalog(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('X-Request-Id: ' . request_id());
+    kernelRequireSuperadmin();
+
+    $cacheKey = 'api:kernel-modules-catalog:v1';
+    $user = app()->user();
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if ($cached !== null) {
+        echo json_encode($cached);
+        exit;
+    }
+
+    $all = discoverModules();
+    $list = [];
+    foreach ($all as $m) {
+        $capCheck = validateModuleCapabilities($m);
+        $capDepends = (!empty($capCheck['ok']) && is_array($capCheck['depends'] ?? null))
+            ? array_values($capCheck['depends'])
+            : [];
+
+        $providesCaps = [];
+        if (!empty($m['capabilities']) && is_array($m['capabilities'])) {
+            foreach ($m['capabilities'] as $capId => $capDef) {
+                if (is_array($capDef)) {
+                    $providesCaps[] = [
+                        'id' => $capId,
+                        'description' => (string)($capDef['description'] ?? ''),
+                        'version' => (string)($capDef['version'] ?? '1'),
+                    ];
+                } else {
+                    $providesCaps[] = ['id' => $capId];
+                }
+            }
+        }
+
+        $consumesCaps = [];
+        if (!empty($m['consumes_capabilities']) && is_array($m['consumes_capabilities'])) {
+            $consumesCaps = array_values($m['consumes_capabilities']);
+        }
+
+        $list[] = [
+            'id' => (string)($m['id'] ?? ''),
+            'name' => (string)($m['name'] ?? ($m['id'] ?? '')),
+            'version' => (string)($m['version'] ?? '0.0.0'),
+            'description' => (string)($m['description'] ?? ''),
+            'author' => (string)($m['author'] ?? ''),
+            'type' => (string)($m['type'] ?? 'php-module'),
+            'enabled' => !empty($m['_enabled']),
+            'auth_owned' => isset($m['auth_owned']),
+            'auth_cookie' => (string)($m['auth_cookie'] ?? ''),
+            'depends' => is_array($m['depends'] ?? null) ? array_values($m['depends']) : [],
+            'provides_capabilities' => $providesCaps,
+            'consumes_capabilities' => $consumesCaps,
+            'capability_depends' => $capDepends,
+            'owns_tables' => is_array($m['owns_tables'] ?? null) ? array_values($m['owns_tables']) : [],
+            'reads_tables' => is_array($m['reads_tables'] ?? null) ? array_values($m['reads_tables']) : [],
+            'co_owns_tables' => is_array($m['co_owns_tables'] ?? null) ? array_values($m['co_owns_tables']) : [],
+            'entities' => is_array($m['entities'] ?? null) ? $m['entities'] : null,
+            'service' => isset($m['service']) ? [
+                'endpoint' => (string)($m['service']['endpoint'] ?? ''),
+                'protocol' => (string)($m['service']['protocol'] ?? 'http+json'),
+            ] : null,
+        ];
+    }
+
+    $payload = [
+        'ok' => true,
+        'modules' => $list,
+        'total' => count($list),
+        'generated_at' => date('c'),
+        'kernel_version' => \Ikabud\Kernel\App::KERNEL_VERSION,
+        'request_id' => request_id(),
+    ];
+    adminViewCacheSet($cacheKey, $payload, ['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities'], $user);
+    echo json_encode($payload);
+    exit;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Kernel Capability Catalog — superadmin-gated, richer than admin/ capabilities
+// ──────────────────────────────────────────────────────────────────────────────
+
+function kernelHandleApiKernelCapabilityCatalog(): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('X-Request-Id: ' . request_id());
+    kernelRequireSuperadmin();
+
+    $cacheKey = 'api:kernel-capability-catalog:v1';
+    $user = app()->user();
+    $cached = adminViewCacheGet($cacheKey, $user);
+    if ($cached !== null) {
+        echo json_encode($cached);
+        exit;
+    }
+
+    $registry = app()->capabilities();
+    $catalog = new \Ikabud\Kernel\Capabilities\CapabilityCatalog($registry);
+
+    // Enrich each capability with provider metadata
+    $caps = [];
+    foreach ($registry->capabilityIds() as $capId) {
+        $providers = $registry->providers($capId);
+        $providerList = [];
+        foreach ($providers as $p) {
+            $providerList[] = [
+                'provider' => (string)($p['provider'] ?? 'kernel'),
+                'priority' => (int)($p['priority'] ?? 10),
+                'modes' => is_array($p['modes'] ?? null) ? $p['modes'] : ['first'],
+            ];
+        }
+        $caps[] = [
+            'id' => $capId,
+            'providers' => $providerList,
+        ];
+    }
+
+    $payload = [
+        'ok' => true,
+        'summary' => $catalog->summary(),
+        'modules' => $catalog->modules(),
+        'events' => $catalog->events(),
+        'capabilities' => $caps,
+        'total' => count($caps),
+        'generated_at' => date('c'),
+        'request_id' => request_id(),
+    ];
+    adminViewCacheSet($cacheKey, $payload, ['admin:view:capabilities', 'admin:view:platform'], $user);
+    echo json_encode($payload);
+    exit;
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Service Health Dashboard
 // ──────────────────────────────────────────────────────────────────────────────
 

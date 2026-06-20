@@ -493,6 +493,14 @@ if (str_contains($handler, ':')) {
 }
 
 switch ($handler) {
+    case 'apiKernelModulesCatalog':
+        kernelHandleApiKernelModulesCatalog();
+        exit;
+
+    case 'apiKernelCapabilityCatalog':
+        kernelHandleApiKernelCapabilityCatalog();
+        exit;
+
     case 'pageHome':
         kernelHandlePageHome();
         exit;
