@@ -96,6 +96,47 @@ function activate(context) {
             channel.show();
         }
     }));
+    // ── Cheatsheet command ──
+    context.subscriptions.push(vscode.commands.registerCommand('disyl.cheatsheet', () => {
+        const items = [
+            { label: '{var}', description: 'Output variable', detail: '{user.name} → "John"' },
+            { label: '{var|filter}', description: 'Output with filter', detail: '{price|money} → "₱1,234.56"' },
+            { label: '{if cond}…{/if}', description: 'Conditional', detail: '{if user.role == "admin"}…{else}…{/if}' },
+            { label: '{foreach arr as item}…{/foreach}', description: 'Loop over array', detail: '{foreach products as p}…{empty}No items{/foreach}' },
+            { label: '{for i in range(1,n)}…{/for}', description: 'Range loop', detail: '{for i in range(1, 5)}{i}{/for}' },
+            { label: '{set x = expr}', description: 'Computed variable', detail: '{set is_locked = status != "pending"}' },
+            { label: '{extends "layout.disyl"}', description: 'Layout inheritance', detail: 'Child templates override {block} placeholders' },
+            { label: '{block name}…{/block}', description: 'Named block', detail: 'Placeholder in layout, overridden in child' },
+            { label: '{include "partial.disyl"}', description: 'Include partial', detail: 'Inlines another template' },
+            { label: '{ikb_entity_list source="…" view="…"}', description: 'Entity list table/grid', detail: 'Database-driven table from entity views' },
+            { label: '{empty}…', description: 'Empty state for loops', detail: 'Rendered when loop has zero items' },
+            { label: '{!-- … --}', description: 'DiSyL comment', detail: 'Stripped at compile time' },
+        ];
+        vscode.window.showQuickPick(items, {
+            placeHolder: 'DiSyL Cheatsheet — select to copy to clipboard',
+            matchOnDescription: true,
+        }).then((selected) => {
+            if (selected) {
+                vscode.env.clipboard.writeText(selected.label);
+                vscode.window.showInformationMessage(`Copied: ${selected.label}`);
+            }
+        });
+    }));
+    // ── Open Quickstart command ──
+    context.subscriptions.push(vscode.commands.registerCommand('disyl.openQuickstart', () => {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            vscode.window.showErrorMessage('No workspace folder open.');
+            return;
+        }
+        const quickstartPath = path.join(workspaceRoot, 'docs', 'disyl', 'quickstart.md');
+        if (fs.existsSync(quickstartPath)) {
+            vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(quickstartPath));
+        }
+        else {
+            vscode.window.showWarningMessage('DiSyL quickstart guide not found. Run `php ikabud disyl:lint` first.');
+        }
+    }));
     // ── Autocomplete: DiSyL filters ──
     context.subscriptions.push(vscode.languages.registerCompletionItemProvider('disyl', {
         provideCompletionItems(document, position) {
@@ -150,6 +191,10 @@ function activate(context) {
             // Hover on governed components
             if (GOVERNED_COMPONENTS.includes(word)) {
                 return new vscode.Hover(new vscode.MarkdownString(`**${word}** — Governed DiSyL Component\n\nSee [ComponentRegistry docs](https://github.com/aKira041795/Ikabud-CMS-Kernel/blob/master/docs/kernel/disyl-component-system.md) for attribute schemas.`));
+            }
+            // Hover on block keywords (v4.8)
+            if (BLOCK_KEYWORD_DOCS[word]) {
+                return new vscode.Hover(new vscode.MarkdownString(`**{${word}}** — DiSyL Block Keyword\n\n${BLOCK_KEYWORD_DOCS[word]}`));
             }
             return null;
         }
@@ -209,7 +254,20 @@ function parseLintOutput(output, doc) {
     const diagnostics = [];
     const lines = output.split('\n');
     for (const line of lines) {
-        // Pattern: "  ⚠ warn: N unclosed {component_name} component(s) — missing {/component_name}"
+        // Pattern: "  ✗ L42 error: message" or "  ⚠ L15 warn: message" or "  ⚠ warn: message"
+        const diagMatch = line.match(/^\s*[✗⚠]\s*(L(\d+)\s*)?\s*(error|warn):\s+(.+)/);
+        if (diagMatch) {
+            const severity = diagMatch[3] === 'error'
+                ? vscode.DiagnosticSeverity.Error
+                : vscode.DiagnosticSeverity.Warning;
+            const message = diagMatch[4].trim();
+            const lineNum = diagMatch[2] ? parseInt(diagMatch[2], 10) - 1 : 0;
+            const lineText = lineNum < doc.lineCount ? doc.lineAt(lineNum).text : '';
+            const range = new vscode.Range(lineNum, 0, lineNum, lineText.length || 1);
+            diagnostics.push({ message, range, severity, source: 'DiSyL' });
+            continue;
+        }
+        // Legacy pattern: "  ⚠ warn: N unclosed ..."
         const warnMatch = line.match(/warn:\s+(.+)/);
         if (warnMatch) {
             const message = warnMatch[1].trim();
@@ -314,9 +372,9 @@ const DISYL_FILTERS = [
     { label: 'escape', detail: 'HTML escape', docs: 'HTML-escapes the value (default behaviour).\n\n`{$html|escape}`' },
     { label: 'url_encode', detail: 'URL encode', docs: 'URL-encodes the value.\n\n`{$slug|url_encode}`' },
     { label: 'strip_tags', detail: 'Strip HTML tags', docs: 'Strips HTML and PHP tags from a string.\n\n`{$html|strip_tags}`' },
-    { label: 'truncate', detail: 'Truncate text', docs: 'Truncates text to a specified length.\n\n`{$body|truncate:100:"..."}`' },
-    { label: 'pluralize', detail: 'Pluralize word', docs: 'Pluralizes a word based on count.\n\n`{$count|pluralize:"item":"items"}`' },
-    { label: 'markdown', detail: 'Parse markdown', docs: 'Parses Markdown text to HTML.\n\n`{$content|markdown}`' },
+    { label: 'truncate', detail: 'Truncate text', docs: 'Truncates text to a specified length. Named arg support (v4.8).\n\n`{$body|truncate:100}` or `{$body|truncate:length=100}`' },
+    { label: 'date', detail: 'Format date', docs: 'Formats a date string/timestamp. Named arg support (v4.8).\n\n`{$created|date:"M d, Y"}` or `{$created|date:format="M d, Y"}`' },
+    { label: 'json_attr', detail: 'JSON + HTML-escape for attributes', docs: 'JSON-encodes then HTML-escapes for safe use in HTML attributes (e.g. x-data).\n\n`{$data|json_attr}`' },
 ];
 const GOVERNED_COMPONENTS = [
     'ikb_section', 'ikb_container', 'ikb_grid', 'ikb_panel',
@@ -332,15 +390,43 @@ const GOVERNED_COMPONENTS = [
 const BLOCK_KEYWORDS = [
     'extends', 'block', '/block', 'parent',
     'if', 'elseif', 'else', '/if',
-    'foreach', '/foreach', 'for', '/for',
+    'foreach', '/foreach', 'for', '/for', 'empty',
     'include', 'set',
     'component', '/component', 'slot', '/slot',
     'verbatim', '/verbatim', 'literal', '/literal',
-    'match', '/match', 'trans', '/trans',
-    'cache', '/cache', 'experiment', '/experiment',
+    'match', '/match', 'when', '/when', 'default',
+    'macro', '/macro', 'call',
+    'await', '/await', 'then', '/then', 'loading', '/loading', 'catch', '/catch',
+    'debug',
+    'trans', '/trans', 'cache', '/cache',
     'sandbox', '/sandbox', 'trusted', '/trusted', 'untrusted', '/untrusted',
-    'parallel', '/parallel', 'await', '/await',
+    'parallel', '/parallel',
     'federated_query', '/federated_query',
     'ai_generate', '/ai_generate', 'ai_query', '/ai_query', 'ai_complete', '/ai_complete',
 ];
+const BLOCK_KEYWORD_DOCS = {
+    'if': 'Conditional rendering: `{if condition}...{elseif cond}...{else}...{/if}`',
+    'elseif': 'Additional condition branch within `{if}`',
+    'else': 'Fallback branch for `{if}` or `{match}`',
+    'for': 'Loop over iterable: `{for item in list}...{empty}...{/for}`',
+    'foreach': 'Loop with key/value: `{foreach items as key => value}...{/foreach}`',
+    'empty': 'Rendered when a loop has zero items',
+    'match': 'Pattern matching (v4.8): `{match expr}{when "val"}...{/when}{else}...{/match}`',
+    'when': 'Match arm: `{when "value"}...{/when}`. Supports multi-pattern `"a","b"`, wildcard `_`, guards `{when "v" guard cond}`',
+    'default': 'Default match arm (alias: `{else}`)',
+    'macro': 'Define reusable template block (v4.8): `{macro name(params)}...{/macro}`',
+    'call': 'Invoke a macro (v4.8): `{call name(args)}` or `{call name}`',
+    'await': 'Async/sync value rendering (v4.8): `{await expr}{then}...{/then}{loading}...{/loading}{catch}...{/catch}{/await}`',
+    'then': 'Renders when {await} resolves successfully. Binds value as `{value}`',
+    'loading': 'Renders while {await} is pending',
+    'catch': 'Renders on error. Optional `let=e` binds error: `{catch let=e}{e}{/catch}`',
+    'debug': 'Pretty-print any variable (v4.8): `{debug myVar}`',
+    'set': 'Assign variable: `{set name = value}` or typed (v4.8): `{set name: type = value}`',
+    'extends': 'Template inheritance: `{extends "layouts/main.disyl"}`',
+    'block': 'Named block for inheritance: `{block name}...{/block}`',
+    'include': 'Include another template: `{include "partials/header.disyl"}`',
+    'verbatim': 'Raw content — no DiSyL processing',
+    'literal': 'Raw content — no DiSyL processing (alias)',
+    'sandbox': 'Restrict allowed HTML tags for child {untrusted} blocks',
+};
 //# sourceMappingURL=extension.js.map

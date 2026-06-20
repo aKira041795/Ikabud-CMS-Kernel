@@ -174,16 +174,25 @@ function aw_cap_entity_list_attendance_record_1(mixed $payload, string $capabili
 
 function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
-    $limit = min((int)($payload['limit'] ?? 25), 100);
-    $sortField = aw_allowedSort($payload, 'last_name', ['profile_id', 'last_name', 'first_name', 'employee_number', 'position', 'department', 'hire_date']);
-    $sortDir = aw_sortDir($payload);
-    try {
-        $db = aw_db();
-        $stmt = $db->query("SELECT profile_id AS id, first_name, last_name, CONCAT_WS(' ', first_name, middle_name, last_name, suffix) AS name, employee_number, position, department, salary_type, basic_salary, employment_status, hire_date FROM employee_profiles WHERE is_active = 1 ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
-        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $total = (int)($db->query('SELECT COUNT(*) FROM employee_profiles WHERE is_active = 1')->fetchColumn());
-        return ['rows' => $rows, 'total' => $total];
-    } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
+    return \Ikabud\Kernel\EntityContext\EntityListQuery::run(
+        aw_db(),
+        'employee_profiles',
+        [
+            'id'                => 'profile_id',
+            'first_name'        => 'first_name',
+            'last_name'         => 'last_name',
+            'name'              => "CONCAT_WS(' ', first_name, middle_name, last_name, suffix)",
+            'employee_number'   => 'employee_number',
+            'position'          => 'position',
+            'department'        => 'department',
+            'salary_type'       => 'salary_type',
+            'basic_salary'      => 'basic_salary',
+            'employment_status' => 'employment_status',
+            'hire_date'         => 'hire_date',
+        ],
+        $payload,
+        'is_active = 1'
+    );
 }
 
 function aw_cap_entity_list_payroll_period_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array

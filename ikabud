@@ -4505,6 +4505,23 @@ PHP;
                 }
             }
 
+            // ── Check 9: Nested {block} detection ──
+            // The regex-based DiSyL compiler cannot handle {block} tags nested
+            // inside other {block} bodies.  Catch this at lint time.
+            $blockBodies = [];
+            preg_match_all('/\{block\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}(.*?)\{\/block\}/s', $lintContent, $bm, PREG_SET_ORDER);
+            foreach ($bm as $blockMatch) {
+                $innerContent = $blockMatch[2];
+                if (preg_match('/\{block\s+[a-zA-Z_][a-zA-Z0-9_]*\s*\}/', $innerContent)) {
+                    $lineNum = substr_count($content, "\n", 0, $blockMatch[0][1]) + 1;
+                    $issues[] = [
+                        'type' => 'error',
+                        'line' => $lineNum,
+                        'msg'  => "Nested {block} inside '{$blockMatch[1]}' — the DiSyL compiler does not support nested blocks",
+                    ];
+                }
+            }
+
             // ── Report ──
             if (!empty($issues)) {
                 $filesWithIssues++;
@@ -4522,6 +4539,85 @@ PHP;
                 out('');
             } elseif ($verbose) {
                 out('  ' . green('✓') . ' ' . dim($relPath));
+            }
+        }
+
+        // ── Check 10: Entity view ↔ handler field cross-reference ──
+        // After scanning all templates, cross-check entity view field
+        // declarations against EntityListQuery column maps.
+        {
+            $entityViewMap = [];  // "entity_type.view" => ['fields' => [...], 'file' => ...]
+            $handlerColMap = [];  // "entity.list.entity_type" => ['columns' => [...], 'file' => ...]
+
+            // Scan entity-views.php files for registered views
+            foreach (glob(BASE_PATH . '/modules/*/helpers/entity-views.php') as $evFile) {
+                $evContent = file_get_contents($evFile);
+                preg_match_all(
+                    "/'([a-zA-Z_][a-zA-Z0-9_]*)'\s*=>\s*\[(.*?)\]\s*\]/s",
+                    $evContent, $evMatches, PREG_SET_ORDER
+                );
+                foreach ($evMatches as $m) {
+                    $viewName = $m[1];
+                    $viewBlock = $m[2];
+                    if (preg_match("/'fields'\s*=>\s*\[([^\]]*)\]/s", $viewBlock, $fm)) {
+                        preg_match_all("/'([a-zA-Z_][a-zA-Z0-9_]*)'/", $fm[1], $fieldNames);
+                        $fields = $fieldNames[1] ?? [];
+                        if (!empty($fields) && $fields !== ['*']) {
+                            if (preg_match("/function\s+(\w+)_entity_views/", $evContent, $fnMatch)) {
+                                $entityType = str_replace('_', '.', $fnMatch[1]);
+                            } else {
+                                $entityType = basename(dirname(dirname($evFile)));
+                            }
+                            $entityViewMap["{$entityType}.{$viewName}"] = ['fields' => $fields, 'file' => $evFile];
+                        }
+                    }
+                }
+            }
+
+            // Scan helpers.php files for EntityListQuery::run( column maps
+            foreach (glob(BASE_PATH . '/modules/*/helpers.php') as $hlpFile) {
+                $hlpContent = file_get_contents($hlpFile);
+                preg_match_all(
+                    '/EntityListQuery::run\s*\(\s*[^,]+,\s*[^,]+,\s*\[(.*?)\]\s*,/s',
+                    $hlpContent, $qMatches, PREG_SET_ORDER
+                );
+                foreach ($qMatches as $qm) {
+                    $mapBlock = $qm[1];
+                    preg_match_all("/'([a-zA-Z_][a-zA-Z0-9_]*)'\s*=>/", $mapBlock, $colNames);
+                    $columns = $colNames[1] ?? [];
+                    if (preg_match('/function\s+\w+_cap_entity_list_(\w+)_\d+\s*\(/', $hlpContent, $capMatch)) {
+                        $capEntity = str_replace('_', '.', $capMatch[1]);
+                        $handlerColMap["entity.list.{$capEntity}"] = ['columns' => $columns, 'file' => $hlpFile];
+                    }
+                }
+            }
+
+            // Cross-reference: view fields vs handler columns
+            $xrefIssues = [];
+            foreach ($entityViewMap as $evKey => $evInfo) {
+                $parts = explode('.', $evKey, 2);
+                $entityType = $parts[0];
+                $capId = "entity.list.{$entityType}";
+
+                if (isset($handlerColMap[$capId])) {
+                    $handlerCols = $handlerColMap[$capId]['columns'];
+                    $viewFields = $evInfo['fields'];
+                    $missing = array_diff($viewFields, $handlerCols);
+                    if (!empty($missing)) {
+                        $relView = str_replace(BASE_PATH . '/', '', $evInfo['file']);
+                        $relHdlr = str_replace(BASE_PATH . '/', '', $handlerColMap[$capId]['file']);
+                        $xrefIssues[] = "  " . yellow('⚠') . " warn: entity view '{$evKey}' fields [" . implode(', ', $missing) . "] not in handler column map (view: {$relView}, handler: {$relHdlr})";
+                        $totalWarnings++;
+                    }
+                }
+            }
+
+            if (!empty($xrefIssues)) {
+                out('');
+                out('  ' . bold('Entity View ↔ Handler Cross-Reference'));
+                foreach ($xrefIssues as $issue) {
+                    out($issue);
+                }
             }
         }
 

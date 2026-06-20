@@ -76,6 +76,52 @@ export function activate(context: vscode.ExtensionContext) {
         })
     );
 
+    // ── Cheatsheet command ──
+    context.subscriptions.push(
+        vscode.commands.registerCommand('disyl.cheatsheet', () => {
+            const items: vscode.QuickPickItem[] = [
+                { label: '{var}', description: 'Output variable', detail: '{user.name} → "John"' },
+                { label: '{var|filter}', description: 'Output with filter', detail: '{price|money} → "₱1,234.56"' },
+                { label: '{if cond}…{/if}', description: 'Conditional', detail: '{if user.role == "admin"}…{else}…{/if}' },
+                { label: '{foreach arr as item}…{/foreach}', description: 'Loop over array', detail: '{foreach products as p}…{empty}No items{/foreach}' },
+                { label: '{for i in range(1,n)}…{/for}', description: 'Range loop', detail: '{for i in range(1, 5)}{i}{/for}' },
+                { label: '{set x = expr}', description: 'Computed variable', detail: '{set is_locked = status != "pending"}' },
+                { label: '{extends "layout.disyl"}', description: 'Layout inheritance', detail: 'Child templates override {block} placeholders' },
+                { label: '{block name}…{/block}', description: 'Named block', detail: 'Placeholder in layout, overridden in child' },
+                { label: '{include "partial.disyl"}', description: 'Include partial', detail: 'Inlines another template' },
+                { label: '{ikb_entity_list source="…" view="…"}', description: 'Entity list table/grid', detail: 'Database-driven table from entity views' },
+                { label: '{empty}…', description: 'Empty state for loops', detail: 'Rendered when loop has zero items' },
+                { label: '{!-- … --}', description: 'DiSyL comment', detail: 'Stripped at compile time' },
+            ];
+            vscode.window.showQuickPick(items, {
+                placeHolder: 'DiSyL Cheatsheet — select to copy to clipboard',
+                matchOnDescription: true,
+            }).then((selected) => {
+                if (selected) {
+                    vscode.env.clipboard.writeText(selected.label);
+                    vscode.window.showInformationMessage(`Copied: ${selected.label}`);
+                }
+            });
+        })
+    );
+
+    // ── Open Quickstart command ──
+    context.subscriptions.push(
+        vscode.commands.registerCommand('disyl.openQuickstart', () => {
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            if (!workspaceRoot) {
+                vscode.window.showErrorMessage('No workspace folder open.');
+                return;
+            }
+            const quickstartPath = path.join(workspaceRoot, 'docs', 'disyl', 'quickstart.md');
+            if (fs.existsSync(quickstartPath)) {
+                vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(quickstartPath));
+            } else {
+                vscode.window.showWarningMessage('DiSyL quickstart guide not found. Run `php ikabud disyl:lint` first.');
+            }
+        })
+    );
+
     // ── Autocomplete: DiSyL filters ──
     context.subscriptions.push(
         vscode.languages.registerCompletionItemProvider('disyl', {
@@ -223,7 +269,22 @@ function parseLintOutput(output: string, doc: vscode.TextDocument): vscode.Diagn
     const lines = output.split('\n');
 
     for (const line of lines) {
-        // Pattern: "  ⚠ warn: N unclosed {component_name} component(s) — missing {/component_name}"
+        // Pattern: "  ✗ L42 error: message" or "  ⚠ L15 warn: message" or "  ⚠ warn: message"
+        const diagMatch = line.match(/^\s*[✗⚠]\s*(L(\d+)\s*)?\s*(error|warn):\s+(.+)/);
+        if (diagMatch) {
+            const severity = diagMatch[3] === 'error'
+                ? vscode.DiagnosticSeverity.Error
+                : vscode.DiagnosticSeverity.Warning;
+            const message = diagMatch[4].trim();
+            const lineNum = diagMatch[2] ? parseInt(diagMatch[2], 10) - 1 : 0;
+            const lineText = lineNum < doc.lineCount ? doc.lineAt(lineNum).text : '';
+            const range = new vscode.Range(lineNum, 0, lineNum, lineText.length || 1);
+
+            diagnostics.push({ message, range, severity, source: 'DiSyL' });
+            continue;
+        }
+
+        // Legacy pattern: "  ⚠ warn: N unclosed ..."
         const warnMatch = line.match(/warn:\s+(.+)/);
         if (warnMatch) {
             const message = warnMatch[1].trim();

@@ -49,6 +49,14 @@
       {
         "command": "disyl.lintAll",
         "title": "DiSyL: Lint all templates"
+      },
+      {
+        "command": "disyl.cheatsheet",
+        "title": "DiSyL: Show cheatsheet"
+      },
+      {
+        "command": "disyl.openQuickstart",
+        "title": "DiSyL: Open quickstart guide"
       }
     ],
     "configuration": {
