@@ -1,7 +1,8 @@
 # DiSyL Grammar Reference v4.7
 
 > **Status**: Extracted from the parser implementation (`kernel/DiSyL/TemplateEngine.php` v4.7.0, `kernel/DiSyL/v4/Parser.php`).
-> This document describes what the parser accepts. The parser is the authoritative source; this spec is descriptive, not generative.
+> This document is a **human-readable reference** with examples and explanations.
+> For the **formal machine-readable grammar**, see [disyl-grammar-v4.7.ebnf](./disyl-grammar-v4.7.ebnf) — a complete 56-rule EBNF specification suitable for parser generators, linters, and syntax highlighting grammars.
 
 ---
 

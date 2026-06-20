@@ -1,0 +1,138 @@
+(*
+  DiSyL Grammar v4.7 — Formal EBNF Specification
+  ===============================================
+  
+  This is the canonical formal grammar for the DiSyL template language.
+  It is extracted from the parser implementation in:
+    kernel/DiSyL/TemplateEngine.php (v4.7.0)
+    kernel/DiSyL/v4/Parser.php
+  
+  Notation: ISO/IEC 14977 Extended BNF
+    =     definition
+    ;     terminator
+    |     alternation
+    ,     concatenation
+    -     exception
+    [ ]   optional (0 or 1)
+    { }   repetition (0 or more)
+    ( )   grouping
+    ' '   terminal string
+    ? ?   special sequence (regex-like)
+  
+  Terminals not defined here: IDENT, NUMBER, STRING — standard lexical tokens.
+*)
+
+(* ── Top-level ─────────────────────────────────────────────────────────── *)
+
+template       = { fragment } ;
+fragment       = text | expression | control | component_tag | comment ;
+text           = ? [^{]+ | '{{' | '{!' ? ;          (* any text except opening braces, verbatim is pre-extracted *)
+
+(* ── Expressions ──────────────────────────────────────────────────────── *)
+
+expression     = '{' , [ whitespace ] , expr_body , [ whitespace ] , '}' ;
+expr_body      = ternary | arithmetic | set_stmt | variable ;
+variable       = path , { filter } ;
+path           = IDENT , { '.' , IDENT } ;
+filter         = '|' , IDENT , [ ':' , filter_arg ] ;
+filter_arg     = STRING | NUMBER | IDENT | path ;
+
+(* ── Arithmetic ───────────────────────────────────────────────────────── *)
+
+arithmetic     = term , { add_op , term } ;
+term           = factor , { mul_op , factor } ;
+factor         = NUMBER | STRING | path | '(' , [ whitespace ] , arithmetic , [ whitespace ] , ')' ;
+add_op         = '+' | '-' ;
+mul_op         = '*' | '/' | '%' ;
+
+(* ── Ternary ──────────────────────────────────────────────────────────── *)
+
+ternary        = condition , [ whitespace ] , '?' , [ whitespace ] , expr_body , [ whitespace ] , ':' , [ whitespace ] , expr_body ;
+condition      = expr_body , comp_op , expr_body ;
+comp_op        = '==' | '!=' | '>=' | '<=' | '>' | '<' | '&&' | '||' | 'and' | 'or' ;
+
+(* ── Set ──────────────────────────────────────────────────────────────── *)
+
+set_stmt       = 'set' , whitespace , IDENT , [ whitespace ] , '=' , [ whitespace ] , expr_body ;
+
+(* ── Control Structures ───────────────────────────────────────────────────── *)
+
+control        = if_block | foreach_block | for_block | while_block
+               | verbatim_block | literal_block | macro_def | block_def
+               | extends_stmt | include_stmt ;
+
+(* ── If / Elseif / Else ───────────────────────────────────────────────────── *)
+
+if_block       = if_open , template , { elseif_branch } , [ else_branch ] , if_close ;
+if_open        = '{if' , whitespace , condition , [ whitespace ] , '}' ;
+elseif_branch  = '{elseif' , whitespace , condition , [ whitespace ] , '}' , template ;
+else_branch    = '{else}' , template ;
+if_close       = '{/if}' ;
+
+(* ── Foreach ──────────────────────────────────────────────────────────── *)
+
+foreach_block  = foreach_open , template , [ foreachelse_branch ] , foreach_close ;
+foreach_open   = '{foreach' , whitespace , IDENT , whitespace , 'as' , whitespace , IDENT , [ '=>' , IDENT ] , [ whitespace ] , '}' ;
+foreachelse_branch = '{foreachelse}' , template ;
+foreach_close  = '{/foreach}' ;
+
+(* ── For ──────────────────────────────────────────────────────────────── *)
+
+for_block      = for_open , template , for_close ;
+for_open       = '{for' , whitespace , IDENT , whitespace , '=' , whitespace , expr_body , ';' , whitespace , condition , ';' , whitespace , IDENT , ( '++' | '--' ) , [ whitespace ] , '}' ;
+for_close      = '{/for}' ;
+
+(* ── While ────────────────────────────────────────────────────────────── *)
+
+while_block    = while_open , template , while_close ;
+while_open     = '{while' , whitespace , condition , [ whitespace ] , '}' ;
+while_close    = '{/while}' ;
+
+(* ── Verbatim / Literal ───────────────────────────────────────────────────── *)
+
+verbatim_block = '{verbatim}' , ? any characters ? , '{/verbatim}' ;
+literal_block  = '{literal}' , ? any characters ? , '{/literal}' ;
+
+(* ── Block / Extends / Include ────────────────────────────────────────── *)
+
+block_def      = block_open , template , block_close ;
+block_open     = '{block' , whitespace , IDENT , [ whitespace ] , '}' ;
+block_close    = '{/block}' ;
+extends_stmt   = '{extends' , whitespace , STRING , [ whitespace ] , '}' ;
+include_stmt   = '{include' , whitespace , STRING , [ whitespace ] , '}' ;
+
+(* ── Macro ────────────────────────────────────────────────────────────── *)
+
+macro_def      = macro_open , template , macro_close ;
+macro_open     = '{macro' , whitespace , IDENT , '(' , [ param_list ] , ')' , [ whitespace ] , '}' ;
+macro_close    = '{/macro}' ;
+param_list     = IDENT , { ',' , [ whitespace ] , IDENT } ;
+macro_call     = '{' , IDENT , '(' , [ arg_list ] , ')' , '}' ;
+arg_list       = expr_body , { ',' , [ whitespace ] , expr_body } ;
+
+(* ── Component Tags ───────────────────────────────────────────────────── *)
+
+component_tag  = void_component | container_component ;
+void_component = '<' , component_name , { attribute } , [ whitespace ] , '/>' ;
+container_component = '<' , component_name , { attribute } , [ whitespace ] , '>'
+                    , template
+                    , '</' , component_name , [ whitespace ] , '>' ;
+component_name = ? lowercase letter, then letters/digits/underscores ? ;
+               (* e.g. ikb_entity_list, ikb_section, ikb_card *)
+attribute      = IDENT , [ whitespace ] , '=' , [ whitespace ] , attr_value ;
+attr_value     = STRING | braced_expr ;
+braced_expr    = '{' , expr_body , '}' ;
+
+(* ── Comments ──────────────────────────────────────────────────────────── *)
+
+comment        = '{!' , ? any characters except '!}' ? , '!}' ;
+
+(* ── Whitespace ───────────────────────────────────────────────────────── *)
+
+whitespace     = ? one or more space, tab, or newline characters ? ;
+
+(* ── Lexical Tokens ───────────────────────────────────────────────────── *)
+
+(* IDENT:  [a-zA-Z_][a-zA-Z0-9_]*  *)
+(* NUMBER: \d+(\.\d+)?             *)
+(* STRING: "..." or '...'           *)
