@@ -320,7 +320,7 @@ function wageApiApproveComputation(array $params = []): void
         $pc->execute([':pid' => $pid]);
         $pending = (int)$pc->fetchColumn();
         if ($pending === 0) {
-            $db->prepare("UPDATE payroll_periods SET status = 'approved' WHERE period_id = :pid AND status = 'processing'")->execute([':pid' => $pid]);
+            $db->prepare("UPDATE payroll_periods SET status = 'completed' WHERE period_id = :pid AND status = 'processing'")->execute([':pid' => $pid]);
         }
         write_log("approve: success", 'info', ['id' => $id, 'period_id' => $pid, 'request_id' => $reqId]);
         if ($isFormPost) {
@@ -431,7 +431,7 @@ function wageApiBatchApprove(array $params = []): void
         $stmt = $db->prepare("UPDATE salary_computations SET status = 'approved', approved_by = :by, approval_date = NOW() WHERE payroll_period_id = :pid AND status = 'computed'");
         $stmt->execute([':pid' => $periodId, ':by' => $guardUser['id'] ?? null]);
         $count = $stmt->rowCount();
-        $db->prepare("UPDATE payroll_periods SET status = 'approved' WHERE period_id = :pid AND status = 'processing'")->execute([':pid' => $periodId]);
+        $db->prepare("UPDATE payroll_periods SET status = 'completed' WHERE period_id = :pid AND status = 'processing'")->execute([':pid' => $periodId]);
         if ($isFormPost) {
             header('Location: ' . $base . '/admin/wage/computations?period_id=' . $periodId . '&success=' . urlencode("{$count} computation(s) approved."));
             exit;
