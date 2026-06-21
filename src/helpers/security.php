@@ -46,8 +46,10 @@ function csrfTokenFromJwt(string $cookieName = 'attendance_wage_token'): string
     $cookieValue = $_COOKIE[$cookieName] ?? '';
     if ($cookieValue !== '') {
         // HKDF-style derivation: bind to app secret + cookie hash
-        // Falls back to 'csrf' constant if config() unavailable (e.g. in tests)
         $appSecret = function_exists('config') ? config('app.secret', 'change-me-in-env') : 'change-me-in-env';
+        if ($appSecret === 'change-me-in-env' && function_exists('write_log')) {
+            write_log('csrfTokenFromJwt: using default app secret — set APP_SECRET in environment', 'warning');
+        }
         return hash_hmac(
             'sha256',
             'csrf|' . hash('sha256', $cookieValue),

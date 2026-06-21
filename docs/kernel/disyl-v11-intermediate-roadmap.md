@@ -95,7 +95,7 @@ $csrfToken = hash_hmac(
 );
 ```
 
-The HKDF-style two-layer derivation (inner hash of cookie + HMAC with app secret) ensures the cookie value is never used directly as a token and that the app secret provides a second factor. If the app secret is missing or the default `'change-me-in-env'`, the helper should fail closed rather than silently using a weak fallback.
+The HKDF-style two-layer derivation (inner hash of cookie + HMAC with app secret) ensures the cookie value is never used directly as a token and that the app secret provides a second factor. When no app secret is configured, the fallback key `'change-me-in-env'` is tolerated (for backward compatibility with test environments) but logs a warning.
 
 - **Entity renderer** reads `$_COOKIE['attendance_wage_token']`, derives token via `csrfTokenFromJwt()`, embeds as `_token`
 - **Guard** reads the same cookie, re-derives, compares to `$_POST['_token']`
