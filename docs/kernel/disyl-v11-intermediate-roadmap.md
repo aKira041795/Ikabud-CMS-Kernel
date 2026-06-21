@@ -375,6 +375,7 @@ With `bridge="custom"` — generic data attributes only:
 | 2.4 | Binding primitives | Days | ⭐⭐⭐ | Framework-specific markup in templates | Framework-neutral `<ikb_text bind>` / `<ikb_input model>` | ✅ Done |
 | 2.5 | DiSyL entity config | 2 weeks | ⭐⭐⭐ | PHP array configs | `keyof`, schema validation | ✅ Done |
 | 2.6 | Guidance module entity view POC | Days | ⭐⭐⭐ | No governed entity list in guidance | Reusable entity views styled with Tailwind | ✅ Done — 2 templates (`?entity=1` toggle) |
+| 2.7 | React bridge POC | Hours | ⭐⭐⭐ | No non-Alpine/HTMX bridge proof | Framework-neutral bridge system validated | ✅ Done — `ReactBridge.php`, lazy CDN, `?react=1` |
 | 3.1 | State manager + Bridge System | 2–4 weeks | ⭐⭐⭐ | Alpine-only state, framework lock-in | Framework-agnostic state, Reactive state | ✅ Done |
 | 3.2 | Rich compiled manifest | 3–4 weeks | ⭐⭐ | No template introspection | Language server, tooling, dependency graph | ✅ Done |
 | 3.3 | Entity-view compiler boundary | 2 weeks | ⭐⭐ | ComponentRegistry overload | ViewContractCompiler, SchemaRegistry | 🔜 Planned |
@@ -395,6 +396,7 @@ No intermediate step breaks backward compatibility:
 | 2.1 | No `{@var}` declarations | Yes — strict mode falls back to current behavior | ✅ `tests/disyl_v11_verify_test.php` |
 | 2.2 | Manual `x-data` | Yes — `{ikb_component}` is additive, Alpine bridge = identical output | ✅ `tests/disyl_v11_verify_test.php` |
 | 2.5 | Hand-written `{for case in cases}` tables | Yes — `{ikb_entity_list}` is additive, renders identical HTML via entity-view pipeline | ✅ `tests/guidance_entity_view_test.php` |
+| 2.6 | Alpine-only component rendering | Yes — `{ikb_component bridge="react"}` is additive, renders via React CDN | ✅ Lazy-loaded, `?react=1` toggle |
 | 2.3 | PHP array configs | Yes — both APIs coexist | ✅ `tests/disyl_v11_verify_test.php` |
 | 3.1 | Alpine `x-data` only | Yes — `{state}` is additive, bridge defaults to Alpine | ✅ `tests/disyl_v11_verify_test.php` |
 | 3.2 | No manifest | Yes — manifests are optional cache | ✅ `tests/disyl_v11_verify_test.php` |

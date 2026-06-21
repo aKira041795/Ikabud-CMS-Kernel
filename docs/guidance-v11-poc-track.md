@@ -37,6 +37,7 @@
 |---|---|---|---|
 | 4.1 | Implement `{state}` in one template | ⬜ | |
 | 4.2 | Wire compiled manifest v11 format | ⬜ | |
+| 4.3 | React bridge POC — `ReactBridge.php` + lazy CDN + CasesTable | ✅ | `kernel/DiSyL/Bridge/ReactBridge.php`, `?react=1` toggle on cases page |
 
 ## Phase 5: Testing & Validation
 
@@ -46,3 +47,5 @@
 | 5.2 | Check app.log + error.log | ✅ | Both empty (0 lines) |
 | 5.3 | Load all guidance pages in browser | ✅ | Entity view confirmed working (styled table) |
 | 5.4 | Verify no JS errors, no 404s | ⬜ | Need browser testing |
+| 5.5 | Guidance entity view integration tests | ✅ | `tests/guidance_entity_view_test.php` — 44 assertions |
+| 5.6 | React bridge renders via `?react=1` | ✅ | Lazy CDN, styled table with React.createElement |
