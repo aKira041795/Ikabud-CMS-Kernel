@@ -140,12 +140,15 @@ require_once __DIR__ . '/../src/http/auth-handlers.php';
 
 
 if (session_status() === PHP_SESSION_NONE) {
+    $samesite = in_array(strtolower((string)($_ENV['APP_COOKIE_SAMESITE'] ?? 'Strict')), ['lax', 'strict', 'none'], true)
+        ? ucfirst(strtolower($_ENV['APP_COOKIE_SAMESITE']))
+        : 'Strict';
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
         'secure' => is_https(),
         'httponly' => true,
-        'samesite' => 'Strict',
+        'samesite' => $samesite,
     ]);
     session_start();
 }
