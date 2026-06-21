@@ -84,6 +84,7 @@ class BridgeManager
         // Register built-in bridges — Alpine is registered last so it's the fallback
         self::register(new CustomBridge());
         self::register(new HtmxBridge());
+        self::register(new ReactBridge());
         self::register(new AlpineBridge());
     }
 }

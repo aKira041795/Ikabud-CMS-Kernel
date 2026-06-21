@@ -157,10 +157,12 @@
 {block scripts}
 <script>
 (function() {
-    if (window.location.search.indexOf('entity=1') > -1) {
+    var params = new URLSearchParams(window.location.search);
+    if (params.has('entity') || params.has('react')) {
         document.body.addEventListener('htmx:configRequest', function(evt) {
             if (evt.detail.path.indexOf('/api/cases') > -1) {
-                evt.detail.parameters['entity'] = '1';
+                if (params.has('entity')) evt.detail.parameters['entity'] = '1';
+                if (params.has('react')) evt.detail.parameters['react'] = '1';
             }
         });
     }

@@ -46,6 +46,8 @@ class Grammar
     // ── Bridge (frontend framework) identifiers ──
     // These identify which JS framework bridge to use when rendering
     // {ikb_component} and {state} blocks. Each maps to a Bridge class.
+    public const BRIDGE_REACT = 'react';
+
     public const BRIDGE_ALPINE = 'alpine';
     public const BRIDGE_HTMX = 'htmx';
     public const BRIDGE_CUSTOM = 'custom';

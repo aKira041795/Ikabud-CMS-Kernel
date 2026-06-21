@@ -1,0 +1,69 @@
+{!-- Cases Table - React Bridge POC --}
+
+{!-- Summary Stat Pills (server-rendered) --}
+<div class="flex flex-wrap gap-3 mb-5">
+    <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+        <i class="fas fa-folder-open text-blue-500 text-sm"></i>
+        <span class="text-sm font-semibold text-blue-700">{stats.open_count | default:'0'}</span>
+        <span class="text-xs text-blue-600">Open</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+        <i class="fas fa-spinner text-indigo-500 text-sm"></i>
+        <span class="text-sm font-semibold text-indigo-700">{stats.in_progress_count | default:'0'}</span>
+        <span class="text-xs text-indigo-600">In Progress</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
+        <i class="fas fa-pause-circle text-amber-500 text-sm"></i>
+        <span class="text-sm font-semibold text-amber-700">{stats.on_hold_count | default:'0'}</span>
+        <span class="text-xs text-amber-600">On Hold</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-100">
+        <i class="fas fa-check-circle text-green-500 text-sm"></i>
+        <span class="text-sm font-semibold text-green-700">{stats.closed_count | default:'0'}</span>
+        <span class="text-xs text-green-600">Closed</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 ml-auto">
+        <span class="text-xs text-gray-500">Total <strong class="text-gray-700">{stats.total_cases | default:'0'}</strong> cases</span>
+    </div>
+</div>
+
+{!-- React-rendered Cases Table --}
+{ikb_component bridge="react" name="CasesTable" data="caseData" /}
+
+{!-- Pagination (server-rendered) --}
+{if pagination}
+<div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+    <div class="flex-1 flex justify-between sm:hidden">
+        {if pagination.has_prev}
+        <button hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-include="#case-filters"
+                hx-vals='{"page": "{pagination.prev_page}"}'
+                class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Previous</button>
+        {/if}
+        {if pagination.has_next}
+        <button hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-include="#case-filters"
+                hx-vals='{"page": "{pagination.next_page}"}'
+                class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</button>
+        {/if}
+    </div>
+    <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+        <div><p class="text-sm text-gray-700">Showing <span class="font-medium">{pagination.from}</span> to <span class="font-medium">{pagination.to}</span> of <span class="font-medium">{pagination.total}</span> results</p></div>
+        <div>
+            <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                {if pagination.has_prev}
+                <button hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-include="#case-filters"
+                        hx-vals='{"page": "{pagination.prev_page}"}'
+                        class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <i class="fas fa-chevron-left"></i></button>
+                {/if}
+                <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">Page {pagination.current_page} of {pagination.total_pages}</span>
+                {if pagination.has_next}
+                <button hx-get="{base_url}/api/cases" hx-target="#cases-list" hx-include="#case-filters"
+                        hx-vals='{"page": "{pagination.next_page}"}'
+                        class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    <i class="fas fa-chevron-right"></i></button>
+                {/if}
+            </nav>
+        </div>
+    </div>
+</div>
+{/if}

@@ -155,9 +155,20 @@ function apiGuidanceListCases(): void {
         
         if (app()->isHtmx()) {
             $totalPages = (int) ceil($total / $limit);
-            // Use entity-view-powered template when ?entity=1 is set (Phase 3 POC)
-            $template = !empty(app()->input('entity')) ? 'partials/cases-table-entity.disyl' : 'partials/cases-table.disyl';
+            $inputEntity = app()->input('entity');
+            $inputReact = app()->input('react');
+            // Use entity-view-powered template when ?entity=1 (Phase 3 POC)
+            // Use React bridge template when ?react=1 (React bridge POC)
+            if (!empty($inputReact)) {
+                $template = 'partials/cases-table-react.disyl';
+            } elseif (!empty($inputEntity)) {
+                $template = 'partials/cases-table-entity.disyl';
+            } else {
+                $template = 'partials/cases-table.disyl';
+            }
             echo guidanceRender($template, [
+                'cases' => $cases,
+                'caseData' => ['items' => $cases, 'base_url' => '/admin/guidance'],
                 'cases' => $cases,
                 'stats' => $stats,
                 'pagination' => [
