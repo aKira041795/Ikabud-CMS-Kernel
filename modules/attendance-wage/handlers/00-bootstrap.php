@@ -50,9 +50,16 @@ function attendanceWageGuard(string $capability = ''): ?array
         }
     }
 
-    // CSRF enforcement for POST requests (skip API routes — they use JWT auth)
+    // CSRF enforcement for POST requests (skip API routes — they use JWT auth).
+    // Use JWT-derived CSRF token (Double Submit Cookie) when the JWT cookie is
+    // present, falling back to session-based token for legacy forms.
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && !str_starts_with(($_SERVER['REQUEST_URI'] ?? ''), '/api/')) {
-        app()->csrfEnforce();
+        $cookieName = 'attendance_wage_token';
+        if (!empty($_COOKIE[$cookieName])) {
+            csrfEnforceFromJwt($cookieName);
+        } else {
+            app()->csrfEnforce();
+        }
     }
     return $user;
 }

@@ -28,6 +28,49 @@ function csrf_verify(): void
     app()->csrfEnforce();
 }
 
+/**
+ * Derive a CSRF token from a JWT auth cookie (Double Submit Cookie pattern).
+ *
+ * Uses hash_hmac('sha256', cookie_value, 'csrf') so the raw cookie value is
+ * never transmitted in the form body — only a server-side derivation that an
+ * attacker cannot forge without the original cookie.
+ *
+ * Falls back to the session-based token if no JWT cookie is present.
+ *
+ * @param string $cookieName The name of the JWT auth cookie to derive from.
+ * @return string The derived CSRF token, or session token as fallback.
+ */
+function csrfTokenFromJwt(string $cookieName = 'attendance_wage_token'): string
+{
+    $cookieValue = $_COOKIE[$cookieName] ?? '';
+    if ($cookieValue !== '') {
+        return hash_hmac('sha256', $cookieValue, 'csrf');
+    }
+    return csrfToken();
+}
+
+/**
+ * Enforce CSRF token validation using a JWT-derived token.
+ *
+ * Reads the JWT cookie, re-derives the expected hash, and compares
+ * against $_POST['_token'] or X-CSRF-Token header. Falls back to
+ * session-based enforcement when the JWT cookie is absent.
+ *
+ * @param string $cookieName The name of the JWT auth cookie.
+ */
+function csrfEnforceFromJwt(string $cookieName = 'attendance_wage_token'): void
+{
+    $input = app()->input();
+    $token = $input['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if (!is_string($token) || $token === '') {
+        app()->json(['ok' => false, 'error' => 'Missing CSRF token'], 419);
+    }
+    $expected = csrfTokenFromJwt($cookieName);
+    if (!hash_equals($expected, $token)) {
+        app()->json(['ok' => false, 'error' => 'Invalid CSRF token'], 419);
+    }
+}
+
 function clearAuthCookie(string $cookieName): void
 {
     setcookie($cookieName, '', [

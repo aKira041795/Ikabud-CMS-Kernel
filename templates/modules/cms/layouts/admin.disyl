@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/@alpinejs/collapse@3.14.3/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script defer src="{base_url}/assets/js/ikb-components.js"></script>
     <script>
         tailwind.config = {
             theme: {

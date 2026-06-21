@@ -6,6 +6,7 @@
     <title>{page_title|default:"Untitled"}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+    <script defer src="{base_url}/assets/js/ikb-components.js"></script>
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}

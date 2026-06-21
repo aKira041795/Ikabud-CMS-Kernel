@@ -91,6 +91,9 @@ class TemplateEngine
 
     /** @var string Directory for cross-request extends resolution cache */
     private string $extendsCacheDir;
+
+    /** @var array<string, string> {@var} declarations: variable name => type string */
+    private array $declaredVars = [];
     
     public function __construct(string $templateDir, string $cacheDir, bool $cacheEnabled = true)
     {
@@ -161,6 +164,50 @@ class TemplateEngine
     public function setGlobals(array $globals): void
     {
         $this->globals = array_merge($this->globals, $globals);
+    }
+
+    /**
+     * Load DiSyL entity view config files from a module's helpers/views/ directory.
+     *
+     * Scans for *.disyl files, renders each through a temporary TemplateEngine
+     * to process {ikb_entity_view} declarations, which register view contracts
+     * with the EntityViewResolver at runtime.
+     *
+     * Call from a module's helpers bootstrap, e.g.:
+     *   \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/views');
+     *
+     * @param string $viewsDir Absolute path to the views directory
+     * @return int Number of config files loaded
+     */
+    public static function loadViewConfigs(string $viewsDir): int
+    {
+        if (!is_dir($viewsDir)) {
+            return 0;
+        }
+
+        $count = 0;
+        $files = glob($viewsDir . '/*.disyl');
+        if ($files === false || $files === []) {
+            return 0;
+        }
+
+        // Use a temporary engine — the {ikb_entity_view} component handles
+        // EntityViewResolver registration internally.
+        $engine = new self('/tmp', '/tmp/cache');
+        $engine->enableStrictMode(false);
+
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            if ($content === false || $content === '') {
+                continue;
+            }
+            // Render the config file — the component produces no output
+            // but registers views via EntityViewResolver as a side effect.
+            $engine->renderString($content, []);
+            $count++;
+        }
+
+        return $count;
     }
     
     /** @var array In-memory cache of compiled output per request */
@@ -576,7 +623,7 @@ class TemplateEngine
         }
         $this->compileDepth++;
 
-        if (!str_contains($content, '{') && stripos($content, '<script') === false) {
+        if (!str_contains($content, '{') && stripos($content, '<script') === false && stripos($content, '<style') === false) {
             $this->compileDepth--;
             return $content;
         }
@@ -589,6 +636,21 @@ class TemplateEngine
                 $verbatims[$key] = $match[1];
                 return $key;
             }, $content);
+        }
+        
+        // 0a. Extract {@var type $name} declarations — register variable types,
+        //     then remove from output (produce no HTML).
+        if (str_contains($content, '{@var ')) {
+            $content = preg_replace_callback(
+                '/\{@var\s+(\??\w+(?:<[^>]+>)?)\s+\$([a-zA-Z_]\w*)\s*\}/',
+                function($match) {
+                    $type = $match[1];
+                    $name = $match[2];
+                    $this->declaredVars[$name] = $type;
+                    return ''; // {@var} produces no output
+                },
+                $content
+            );
         }
         
         // 1. Remove comments first
@@ -637,9 +699,8 @@ class TemplateEngine
             $content = $this->processBlocks($content, $context);
         }
         
-        // 4b. Extract <script> blocks and process them with full DiSyL support.
-        //     JS curly braces that are NOT DiSyL tags are protected by temporarily
-        //     converting them to markers before control structure processing.
+        // 4b. Extract <script> blocks as raw passthrough — no DiSyL evaluation
+        //     inside script bodies. Variables in tag attributes still resolve.
         $scripts = [];
         if (stripos($content, '<script') !== false) {
             $t = microtime(true);
@@ -647,17 +708,29 @@ class TemplateEngine
                 $attrs = $match[1];
                 $body = $match[2];
                 
-                // Resolve DiSyL variables in tag attributes (e.g. src="{base_url}/...")
+                // Resolve DiSyL variables in tag attributes only (e.g. src="{base_url}/...")
                 $attrs = $this->processVariables($attrs, $context);
-                
-                // Compile the script body with full DiSyL support
-                $body = $this->compileScriptBody($body, $context);
                 
                 $key = '___SCRIPT_' . count($scripts) . '___';
                 $scripts[$key] = '<script' . $attrs . '>' . $body . '</script>';
                 return $key;
             }, $content);
             $phases['scripts_ms'] = round((microtime(true) - $t) * 1000, 2);
+        }
+        
+        // 4c. Extract <style> blocks as raw passthrough — no DiSyL evaluation.
+        //     Variables in tag attributes still resolve (e.g. media="{breakpoint}").
+        $styles = [];
+        if (stripos($content, '<style') !== false) {
+            $t = microtime(true);
+            $content = preg_replace_callback('/<style\b([^>]*)>(.*?)<\/style>/si', function($match) use (&$styles, $context) {
+                $attrs = $this->processVariables($match[1], $context);
+                
+                $key = '___STYLE_' . count($styles) . '___';
+                $styles[$key] = '<style' . $attrs . '>' . $match[2] . '</style>';
+                return $key;
+            }, $content);
+            $phases['styles_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
         // 5. Extract {literal}...{/literal} blocks — after extends/blocks but before
@@ -689,7 +762,7 @@ class TemplateEngine
         }
         
         // 9. Process components
-        if (str_contains($content, '{ikb_') || str_contains($content, '{island')) {
+        if (str_contains($content, '{ikb_') || str_contains($content, '{island') || str_contains($content, '{state')) {
             $content = $this->processComponents($content, $context);
         }
 
@@ -725,14 +798,34 @@ class TemplateEngine
             $content = str_replace(array_keys($literals), array_values($literals), $content);
         }
         
-        // 12. Restore <script> blocks (already fully compiled)
+        // 12. Restore <script> blocks (raw passthrough)
         if (!empty($scripts)) {
             $content = str_replace(array_keys($scripts), array_values($scripts), $content);
+        }
+        
+        // 12b. Restore <style> blocks (raw passthrough)
+        if (!empty($styles)) {
+            $content = str_replace(array_keys($styles), array_values($styles), $content);
         }
         
         // 13. Restore {verbatim} blocks last (completely raw)
         if (!empty($verbatims)) {
             $content = str_replace(array_keys($verbatims), array_values($verbatims), $content);
+        }
+
+        // 14. Emit template manifest for tooling (top-level compile only)
+        if ($isTopLevel && $this->currentTemplatePath !== null) {
+            try {
+                if (class_exists(\Ikabud\Kernel\DiSyL\Compiler\TemplateManifest::class, true)) {
+                    \Ikabud\Kernel\DiSyL\Compiler\TemplateManifest::build(
+                        $this->currentTemplatePath,
+                        $content,
+                        $context
+                    );
+                }
+            } catch (\Throwable $e) {
+                // Manifest emission is non-critical
+            }
         }
 
         // Emit phase breakdown (guarded by APP_TIMING_LOGS)
@@ -3935,7 +4028,7 @@ class TemplateEngine
 
     private function processComponents(string $content, array $context): string
     {
-        if (!str_contains($content, '{ikb_') && !str_contains($content, '{island')) {
+        if (!str_contains($content, '{ikb_') && !str_contains($content, '{island') && !str_contains($content, '{state')) {
             return $content;
         }
 
@@ -3944,7 +4037,7 @@ class TemplateEngine
         
         while ($iteration < $maxIterations) {
             // Find component tag
-            if (!preg_match('/\{(ikb_\w+|island)[\s}]/', $content, $match, PREG_OFFSET_CAPTURE)) {
+            if (!preg_match('/\{(ikb_\w+|island|state)[\s}]/', $content, $match, PREG_OFFSET_CAPTURE)) {
                 break;
             }
             
@@ -3982,8 +4075,13 @@ class TemplateEngine
                 $children = substr($content, $tagEnd + 1, $closePos - $tagEnd - 1);
                 $attrs = $this->parseAttributes($attrString, $context);
                 
-                // Compile children with nesting depth guard
-                if ($this->componentDepth >= self::COMPONENT_MAX_DEPTH) {
+                // Compile children with nesting depth guard.
+                // Config-only components (ikb_entity_view) keep children raw
+                // to preserve {field} and {action} sub-tags as-is.
+                $skipCompile = in_array($componentName, ['ikb_entity_view', 'state'], true);
+                if ($skipCompile) {
+                    $compiledChildren = $children;
+                } elseif ($this->componentDepth >= self::COMPONENT_MAX_DEPTH) {
                     $this->logError("Component nesting depth limit (" . self::COMPONENT_MAX_DEPTH . ") exceeded for: {$componentName}");
                     $compiledChildren = '';
                 } else {
@@ -4235,8 +4333,10 @@ class TemplateEngine
                     }
                     $value = $resolveCache[$expr];
 
-                    // Strict mode: warn when a variable resolves to null (undefined in context).
-                    if ($this->strictMode && $value === null) {
+                    // Strict mode: warn when a variable resolves to null (undefined in context),
+                    // but skip the warning if the variable root is declared via {@var}.
+                    $varRoot = strtok($expr, '.');
+                    if ($this->strictMode && $value === null && ($varRoot === false || !array_key_exists($varRoot, $this->declaredVars))) {
                         $this->logError("[strict] Undefined variable: {$expr}");
                     }
 
@@ -4257,8 +4357,10 @@ class TemplateEngine
                 }
                 $value = $resolveCache[$varPath];
 
-                // Strict mode: warn when filtered variable is undefined.
-                if ($this->strictMode && $value === null) {
+                // Strict mode: warn when filtered variable is undefined,
+                // but skip if the variable root is declared via {@var}.
+                $filteredVarRoot = strtok($varPath, '.');
+                if ($this->strictMode && $value === null && ($filteredVarRoot === false || !array_key_exists($filteredVarRoot, $this->declaredVars))) {
                     $this->logError("[strict] Undefined variable: {$varPath}");
                 }
 
@@ -5117,6 +5219,9 @@ class TemplateEngine
             'ikb_modal' => $this->renderModal($attrs, $children),
             'ikb_alert' => $this->renderAlert($attrs, $children),
             'ikb_spinner' => $this->renderSpinner($attrs),
+            'ikb_component' => $this->renderIkbComponent($attrs, $children, $context),
+            'ikb_entity_view' => $this->renderEntityViewConfig($attrs, $children, $context),
+            'state' => $this->renderStateDeclaration($attrs, $children, $context),
             'ikb_entity_list' => $this->renderEntityList($attrs, $children, $context),
             'ikb_entity_detail' => $this->renderEntityDetail($attrs, $children, $context),
             'ikb_export_button' => $this->renderExportButton($attrs, $children),
@@ -6245,6 +6350,396 @@ class TemplateEngine
             {$slotHtml}
         </div>
         HTML;
+    }
+
+    /**
+     * Render {ikb_entity_view} — DiSyL entity view configuration.
+     *
+     * Registers an entity view contract with EntityViewResolver using
+     * a declarative DiSyL syntax instead of PHP arrays.
+     *
+     * Usage in .disyl config files:
+     *   {ikb_entity_view name="employee_profile" view="table"}
+     *     {field name="first_name" type="string" renderer="text"}
+     *     {field name="last_name"  type="string" renderer="text"}
+     *     {field name="salary_type" type="enum" renderer="badge:{hourly|Daily}"}
+     *     {field name="employment_status" type="enum" renderer="badge:{regular|Regular|green}"}
+     *     {action name="view" url="/admin/wage/employees/{id}/view"}
+     *     {action name="edit" url="/admin/wage/employees/{id}"}
+     *   {/ikb_entity_view}
+     *
+     * Produces no output — only registers the view contract at runtime.
+     *
+     * @param array $attrs Component attributes
+     * @param string $children Raw child content (not compiled — preserves {field}/{action} tags)
+     * @param array $context Template rendering context
+     * @return string Empty string (config-only, no output)
+     */
+    private function renderEntityViewConfig(array $attrs, string $children, array $context): string
+    {
+        $name = $attrs['name'] ?? '';
+        $view = $attrs['view'] ?? 'table';
+        $renderer = $attrs['renderer'] ?? '';
+        $class = $attrs['class'] ?? '';
+
+        if ($name === '') {
+            return '';
+        }
+
+        // Parse {field name="..." type="..." renderer="..."} from raw children
+        $fields = [];
+        if (preg_match_all('/\{field\s+((?:[^{}]|\{[^{}]*\})*)\}/', $children, $fieldMatches)) {
+            foreach ($fieldMatches[1] as $fieldStr) {
+                $fieldAttrs = $this->parseSimpleAttrs($fieldStr);
+                $fieldName = $fieldAttrs['name'] ?? '';
+                if ($fieldName !== '') {
+                    $fields[] = $fieldName;
+                }
+            }
+        }
+
+        // Parse {action name="..." url="..." method="..." ...} from raw children
+        $actions = [];
+        $actionUrls = [];
+        $actionMethods = [];
+        $actionLabels = [];
+        $actionConfirm = [];
+        $actionShowIf = [];
+        $actionRoles = [];
+
+        if (preg_match_all('/\{action\s+((?:[^{}]|\{[^{}]*\})*)\}/', $children, $actionMatches)) {
+            foreach ($actionMatches[1] as $actionStr) {
+                $actionAttrs = $this->parseSimpleAttrs($actionStr);
+                $actionName = $actionAttrs['name'] ?? '';
+                if ($actionName === '') {
+                    continue;
+                }
+                $actions[] = $actionName;
+
+                if (!empty($actionAttrs['url'])) {
+                    $actionUrls[$actionName] = $actionAttrs['url'];
+                }
+                if (!empty($actionAttrs['method'])) {
+                    $actionMethods[$actionName] = $actionAttrs['method'];
+                }
+                if (!empty($actionAttrs['label'])) {
+                    $actionLabels[$actionName] = $actionAttrs['label'];
+                }
+                if (!empty($actionAttrs['confirm'])) {
+                    $actionConfirm[$actionName] = $actionAttrs['confirm'];
+                }
+                if (!empty($actionAttrs['show_if'])) {
+                    $actionShowIf[$actionName] = $actionAttrs['show_if'];
+                }
+                if (!empty($actionAttrs['roles'])) {
+                    $actionRoles[$actionName] = explode(',', $actionAttrs['roles']);
+                }
+            }
+        }
+
+        // Build contract
+        $contract = [
+            'fields' => $fields,
+            'actions' => $actions,
+        ];
+
+        if (!empty($actionUrls)) { $contract['action_urls'] = $actionUrls; }
+        if (!empty($actionMethods)) { $contract['action_methods'] = $actionMethods; }
+        if (!empty($actionLabels)) { $contract['action_labels'] = $actionLabels; }
+        if (!empty($actionConfirm)) { $contract['action_confirm'] = $actionConfirm; }
+        if (!empty($actionShowIf)) { $contract['action_show_if'] = $actionShowIf; }
+        if (!empty($actionRoles)) { $contract['action_roles'] = $actionRoles; }
+        if ($renderer !== '') { $contract['renderer'] = $renderer; }
+        if ($class !== '') { $contract['class'] = $class; }
+
+        // Register with EntityViewResolver
+        try {
+            if (class_exists(\Ikabud\Kernel\EntityContext\EntityViewResolver::class, true)) {
+                $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
+                $resolver->registerView($name, $view, $contract);
+            }
+        } catch (\Throwable $e) {
+            $this->logError("Failed to register entity view {$name}/{$view}: " . $e->getMessage());
+        }
+
+        return ''; // No output
+    }
+
+    /**
+     * Render {state} — declarative state manager bridge.
+     *
+     * Declares a state namespace with typed variables, default values,
+     * and an optional server-side source handler. Renders as an Alpine
+     * x-data container with computed initial state.
+     *
+     * Usage:
+     *   {state name="kiosk" source="attendance-wage/kiosk-state"}
+     *     {variable name="step" type="int" default="0"}
+     *     {variable name="searchQuery" type="string" default=""}
+     *     {variable name="selectedEmployee" type="?object"}
+     *     <div class="kiosk-content">
+     *       <span x-text="step"></span>
+     *     </div>
+     *   {/state}
+     *
+     * Generates:
+     *   <div x-data="ikbComponent({&quot;step&quot;:0,&quot;searchQuery&quot;:&quot;&quot;,&quot;selectedEmployee&quot;:null})">
+     *     <div class="kiosk-content">...</div>
+     *   </div>
+     *
+     * @param array $attrs Component attributes
+     * @param string $children Raw child content with {variable} tags
+     * @param array $context Template rendering context
+     * @return string HTML with x-data attribute
+     */
+    private function renderStateDeclaration(array $attrs, string $children, array $context): string
+    {
+        $name = $attrs['name'] ?? 'app';
+        $source = $attrs['source'] ?? '';
+        $class = $attrs['class'] ?? '';
+
+        // Parse {variable name="..." type="..." default="..."} from raw children
+        $variables = $this->parseStateVariables($children);
+
+        // Build initial state from defaults
+        $initialState = [];
+        foreach ($variables as $var) {
+            $varName = $var['name'];
+            $default = $var['default'];
+            $type = $var['type'];
+
+            // Coerce default value to the declared type
+            if ($default === null) {
+                $initialState[$varName] = null;
+            } elseif (str_starts_with($type, '?')) {
+                // Nullable: use the raw default
+                $initialState[$varName] = $this->coerceValue($default, substr($type, 1));
+            } else {
+                $initialState[$varName] = $this->coerceValue($default, $type);
+            }
+        }
+
+        // Allow source handler to override initial state
+        if ($source !== '') {
+            try {
+                $handlerState = $this->resolveStateSource($source, $name, $context);
+                if (is_array($handlerState)) {
+                    $initialState = array_merge($initialState, $handlerState);
+                }
+            } catch (\Throwable $e) {
+                $this->logError("State source {$source} failed: " . $e->getMessage());
+            }
+        }
+
+        // Serialize as JSON for Alpine
+        $json = htmlspecialchars(
+            json_encode($initialState, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            ENT_QUOTES,
+            'UTF-8'
+        );
+
+        // Strip {variable} tags from children before rendering
+        $body = preg_replace('/\{variable\s+((?:[^{}]|\{[^{}]*\})*)\}/', '', $children);
+        $body = trim($body);
+
+        $classAttr = $class !== '' ? " class=\"{$class}\"" : '';
+        return "<div data-state=\"{$name}\" x-data=\"ikbComponent({$json})\"{$classAttr}>{$body}</div>";
+    }
+
+    /**
+     * Parse {variable} declarations from raw child content.
+     *
+     * @param string $children Raw children containing {variable ...} tags
+     * @return array<int, array{name: string, type: string, default: mixed}>
+     */
+    private function parseStateVariables(string $children): array
+    {
+        $variables = [];
+        if (preg_match_all('/\{variable\s+((?:[^{}]|\{[^{}]*\})*)\}/', $children, $matches)) {
+            foreach ($matches[1] as $varStr) {
+                $attrs = $this->parseSimpleAttrs($varStr);
+                $varName = $attrs['name'] ?? '';
+                if ($varName === '') {
+                    continue;
+                }
+                $type = $attrs['type'] ?? 'string';
+                $defaultStr = $attrs['default'] ?? '';
+                $default = $this->parseDefaultValue($defaultStr, $type);
+                $variables[] = [
+                    'name' => $varName,
+                    'type' => $type,
+                    'default' => $default,
+                ];
+            }
+        }
+        return $variables;
+    }
+
+    /**
+     * Parse a default value string to the appropriate PHP type.
+     */
+    private function parseDefaultValue(string $value, string $type): mixed
+    {
+        $baseType = ltrim($type, '?');
+
+        // Empty string means null for non-string types
+        if ($value === '') {
+            return match ($baseType) {
+                'string' => '',
+                'int', 'integer' => 0,
+                'float', 'number' => 0.0,
+                'bool', 'boolean' => false,
+                'array' => [],
+                default => null,
+            };
+        }
+
+        return match ($baseType) {
+            'int', 'integer' => (int)$value,
+            'float', 'number' => (float)$value,
+            'bool', 'boolean' => in_array(strtolower($value), ['true', '1', 'yes'], true),
+            'array' => explode(',', $value),
+            default => $value,
+        };
+    }
+
+    /**
+     * Coerce a value to the specified type.
+     */
+    private function coerceValue(mixed $value, string $type): mixed
+    {
+        return match ($type) {
+            'int', 'integer' => (int)$value,
+            'float', 'number' => (float)$value,
+            'bool', 'boolean' => (bool)$value,
+            'string' => (string)$value,
+            'array' => is_array($value) ? $value : [],
+            default => $value,
+        };
+    }
+
+    /**
+     * Resolve state from a source handler.
+     *
+     * The source format is "module-id/handler-name", e.g. "attendance-wage/kiosk-state".
+     * The handler is called via the capability bus or a direct function lookup.
+     *
+     * @param string $source Source identifier
+     * @param string $stateName State namespace name
+     * @param array $context Template rendering context
+     * @return array|null Computed state or null if unavailable
+     */
+    private function resolveStateSource(string $source, string $stateName, array $context): ?array
+    {
+        // Support module-level state handler functions: moduleId_state_handler()
+        $parts = explode('/', $source);
+        if (count($parts) === 2) {
+            $moduleId = str_replace('-', '_', $parts[0]);
+            $handler = str_replace('-', '_', $parts[1]);
+            $fnName = $moduleId . '_' . $handler;
+            if (function_exists($fnName)) {
+                $result = $fnName($stateName, $context);
+                return is_array($result) ? $result : null;
+            }
+        }
+
+        // Fallback: try capability-based resolution via the app
+        if (function_exists('app') && ($app = @app()) !== null) {
+            try {
+                if (method_exists($app, 'capabilities')) {
+                    $caps = $app->capabilities();
+                    if (method_exists($caps, 'call')) {
+                        $result = $caps->call("state.{$source}", [
+                            'state_name' => $stateName,
+                            'context' => $context,
+                        ]);
+                        return is_array($result) ? $result : null;
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Capability not available — return null
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse simple key="value" attributes from a string without resolving
+     * template variables — used by renderEntityViewConfig for {field}/{action}.
+     *
+     * @param string $str Attribute string like name="view" url="/test/{id}"
+     * @return array<string, string> Parsed attribute key => value map
+     */
+    private function parseSimpleAttrs(string $str): array
+    {
+        $attrs = [];
+        preg_match_all('/([\w-]+)="([^"]*)"/', $str, $matches, PREG_SET_ORDER);
+        foreach ($matches as $m) {
+            $attrs[$m[1]] = $m[2];
+        }
+        return $attrs;
+    }
+
+    /**
+     * Render {ikb_component} — server-rendered Alpine component bridge.
+     *
+     * Standardizes the pattern of PHP-rendered data into Alpine.js x-data.
+     *
+     * Usage:
+     *   {ikb_component name="employee-profile" data="selectedEmployee"}
+     *     <div class="...">{name}</div>
+     *     <div class="...">{position}</div>
+     *   {/ikb_component}
+     *
+     * Generates:
+     *   <div x-data="ikbComponent({...json...})">
+     *     <div class="...">Noah Omamalin</div>
+     *     <div class="...">Baker</div>
+     *   </div>
+     *
+     * @param array $attrs Component attributes: name, data, class
+     * @param string $children Compiled child content
+     * @param array $context Template rendering context
+     * @return string HTML with x-data attribute
+     */
+    private function renderIkbComponent(array $attrs, string $children, array $context): string
+    {
+        $name = $attrs['name'] ?? 'component';
+        $dataVar = $attrs['data'] ?? '';
+        $class = $attrs['class'] ?? '';
+
+        // Resolve the data variable from template context
+        $data = [];
+        if ($dataVar !== '' && isset($context[$dataVar])) {
+            $data = $context[$dataVar];
+        } elseif ($dataVar !== '') {
+            // Support dot-path for nested data
+            $segments = explode('.', $dataVar);
+            $current = $context;
+            foreach ($segments as $seg) {
+                if (is_array($current) && isset($current[$seg])) {
+                    $current = $current[$seg];
+                } else {
+                    $current = [];
+                    break;
+                }
+            }
+            if (is_array($current)) {
+                $data = $current;
+            }
+        }
+
+        // Serialize data as JSON for Alpine
+        $json = htmlspecialchars(
+            json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            ENT_QUOTES,
+            'UTF-8'
+        );
+
+        $classAttr = $class !== '' ? " class=\"{$class}\"" : '';
+
+        return "<div data-ikb-component=\"{$name}\" x-data=\"ikbComponent({$json})\"{$classAttr}>{$children}</div>";
     }
 
     private function renderIsland(array $attrs, string $children): string

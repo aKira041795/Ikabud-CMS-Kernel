@@ -31,6 +31,9 @@ require_once __DIR__ . '/handlers/00-bootstrap.php';
 // ── Entity view contracts (rich action support for {ikb_entity_list}) ──
 require_once __DIR__ . '/helpers/entity-views.php';
 
+// ── DiSyL entity view configs (declarative alternative to PHP arrays) ──
+\Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+
 // ── Inject branding settings into render context for all attendance-wage templates ──
 app()->hooks()->on('kernel.render_context', function (array $context, string $template) {
     // Only inject for attendance-wage templates (skip non-attendance-wage pages)

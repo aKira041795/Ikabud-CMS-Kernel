@@ -43,6 +43,9 @@ class Grammar
     public const PLATFORM_IKABUD = 'ikabud';
     public const PLATFORM_STATIC = 'static';
     
+    // ========== Declaration Keywords ==========
+    public const KEYWORD_VAR = '@var';  // {@var type $name} — variable type declaration (v4.9+)
+
     // ========== Component Categories ==========
     public const COMPONENT_CATEGORIES = [
         'structural',
@@ -65,6 +68,37 @@ class Grammar
     public const FILTER_CATEGORY_ESCAPE = 'escape';
     public const FILTER_CATEGORY_FORMAT = 'format';
     
+    /**
+     * Get all declaration keywords
+     */
+    public static function getKeywords(): array
+    {
+        return [
+            self::KEYWORD_VAR,
+        ];
+    }
+
+    /**
+     * Validate a {@var} declaration type string.
+     *
+     * Accepts PHP-style type hints: string, ?string, int, float, bool,
+     * array, array<K,V>, object, mixed, null, callable.
+     */
+    public static function validateVarDeclaration(string $type, string $name): bool
+    {
+        if (!preg_match('/^[a-zA-Z_]\w*$/', $name)) {
+            return false;
+        }
+        // Strip nullable prefix and generic suffix for base type check
+        $base = ltrim($type, '?');
+        $base = preg_replace('/<.*>$/', '', $base);
+        return in_array($base, [
+            'string', 'int', 'integer', 'float', 'number',
+            'bool', 'boolean', 'array', 'object', 'mixed',
+            'null', 'callable', 'expression',
+        ], true);
+    }
+
     // ========== Validation ==========
     
     /**
