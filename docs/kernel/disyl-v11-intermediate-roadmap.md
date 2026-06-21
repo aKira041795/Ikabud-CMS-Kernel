@@ -28,13 +28,14 @@ The v11 planned features (type operators, island hydration, reactive state, Fibe
 
 Per architectural review, the intermediate work maps to a cleaner release sequence:
 
-| Version | Identity | Features |
-|---------|----------|----------|
+| **Current DiSyL** | `6.0` (stable release) | Compiled-mode default, per-block error recovery, entity rendering trait |
 | **v7** | Declaration and parser safety | Raw script/style modes, `{@var}`, strict-mode cleanup |
 | **v8** | Component Bridge | `ikb_component`, BridgeManager, Alpine/HTMX/Custom output, capability contracts |
 | **v9** | Contract Compiler | DiSyL entity-view config, schema registry, compiled manifests v1 |
 | **v10** | State and Islands Foundation | State contracts, bridge capability matrix, island descriptors, asset manifest |
 | **v11** | Typed Interface Runtime | Type operators, validated component props, island hydration, controlled reactive bindings |
+
+**Release status:** Current stable is DiSyL 6.0. The v7–v10 features described above are implemented on the development branch (`v11-incubation`) and are available in the current codebase. They will be released as DiSyL 7.0 when the contract conformance gate passes — they will not bump through four separate major versions.
 
 Fibers are removed from the DiSyL headline — they belong under **Kernel runtime concurrency and resolver optimization**.
 
@@ -61,7 +62,7 @@ The following items were addressed after the initial implementation, based on ar
 
 **Problem:** Content inside `<script>` and `<style>` tags is parsed for `{...}` template expressions. This causes hundreds of `disyl.strict` warnings for JavaScript code, corrupts inline scripts (see: the entity list AJAX handler that had to be removed), and makes it impossible to embed JS without triggering errors.
 
-**Solution:** In the DiSyL lexer/tokenizer, when entering a `<script>` or `<style>` tag, switch to raw-text mode until the closing `</script>` or `</style>` tag. No `{...}` expressions are evaluated inside these blocks.
+**Solution:** Script and style bodies are protected as raw blocks during compilation using regex extraction, not a parser state machine. When the compiler encounters `<script>` or `<style>`, the body content is extracted and replaced with a placeholder before template-variable processing. After all `{...}` resolution is complete, the original bodies are restored verbatim.
 
 **Location:** `kernel/DiSyL/TemplateEngine.php`
 
@@ -70,6 +71,8 @@ The following items were addressed after the initial implementation, based on ar
 - Step 4b (line 653): script extraction no longer calls `compileScriptBody()` — body is raw passthrough. Tag attributes still resolve variables (e.g. `src="{base_url}"`)
 - Step 4c (line 668): added `<style>` block extraction as raw passthrough
 - Step 12b (line 743): added `<style>` block restoration after all processing
+
+**Note on parser architecture:** The current implementation uses regex extraction, not a true lexer state. A future parser refactor should introduce dedicated `SCRIPT_RAW` / `STYLE_RAW` lexer modes. The behavior is already correct and valuable — it simply should not be mistaken for the final parser architecture.
 
 **Impact:**
 - Eliminates all `disyl.strict` warnings for JS code
@@ -82,15 +85,21 @@ The following items were addressed after the initial implementation, based on ar
 
 **Problem:** The session-based CSRF token (`$_SESSION['_csrf_token']`)  causes 419 errors on shared hosting where the PHP session cookie isn't reliably sent. The entity list POST forms embed the session token, but `attendanceWageGuard()` compares it against a session that may be empty or different.
 
-**Solution:** Derive the CSRF token from the JWT auth cookie instead of the PHP session:
+**Solution:** Derive the CSRF token from the JWT auth cookie bound to the application secret:
 
 ```
-csrf_token = hash_hmac('sha256', jwt_cookie_value, 'csrf')
+$csrfToken = hash_hmac(
+    'sha256',
+    'csrf|' . hash('sha256', $jwtCookieValue),
+    $applicationSecret
+);
 ```
 
-- **Entity renderer** reads `$_COOKIE['attendance_wage_token']`, hashes it, embeds as `_token`
-- **Guard** reads the same cookie, re-derives the hash, compares to `$_POST['_token']`
-- No session dependency — both values come from the same browser cookie
+The HKDF-style two-layer derivation (inner hash of cookie + HMAC with app secret) ensures the cookie value is never used directly as a token and that the app secret provides a second factor. If the app secret is missing or the default `'change-me-in-env'`, the helper should fail closed rather than silently using a weak fallback.
+
+- **Entity renderer** reads `$_COOKIE['attendance_wage_token']`, derives token via `csrfTokenFromJwt()`, embeds as `_token`
+- **Guard** reads the same cookie, re-derives, compares to `$_POST['_token']`
+- No PHP session dependency — both values come from the same browser cookie + app secret
 
 **Location:**
 - `kernel/DiSyL/EntityRenderingTrait.php` — token generation (delegates to `entity_csrf_token()`)
@@ -98,14 +107,14 @@ csrf_token = hash_hmac('sha256', jwt_cookie_value, 'csrf')
 - `src/helpers/security.php` — `csrfTokenFromJwt()` helper + `csrfEnforceFromJwt()` validator
 
 **Changes:**
-- `src/helpers/security.php`: added `csrfTokenFromJwt($cookieName)` — derives token via `hash_hmac('sha256', $cookieValue, 'csrf')` with session-based fallback. Added `csrfEnforceFromJwt($cookieName)` — validates POST `_token` against JWT-derived hash
+- `src/helpers/security.php`: added `csrfTokenFromJwt($cookieName)` — derives token via `hash_hmac('sha256', 'csrf|' . hash('sha256', $cookieValue), $appSecret)` with session-based fallback. Added `csrfEnforceFromJwt($cookieName)` — validates POST `_token` against JWT-derived hash
 - `modules/attendance-wage/helpers.php`: `entity_csrf_token()` now returns `csrfTokenFromJwt('attendance_wage_token')` instead of raw cookie value
 - `modules/attendance-wage/handlers/00-bootstrap.php`: guard uses `csrfEnforceFromJwt()` when JWT cookie is present, falls back to `app()->csrfEnforce()` when absent
 
 **Impact:**
-- Permanent fix for 419 CSRF errors on entity list POST actions
-- No session dependency for CSRF
-- Works across all environments (shared hosting, load-balanced, serverless)
+- Removes PHP session affinity from JWT-authenticated CSRF validation and resolves the observed shared-hosting 419 failures
+- Supports stateless and load-balanced deployments where authentication cookies and application secrets are consistently configured
+- Cookie expiration, JWT rotation, stale forms, incorrect domain settings, reverse-proxy behavior, and missing secrets can still cause validation failures — this is not a universal fix
 
 **Effort:** ~2–3 hours
 
@@ -138,7 +147,7 @@ csrf_token = hash_hmac('sha256', jwt_cookie_value, 'csrf')
 
 **Impact:**
 - Eliminates 90% of strict mode log noise
-- First working piece of DiSyL type system
+- Typed declaration metadata used by strict mode and manifests — establishes expected variable shape but does not yet enforce types at runtime
 - Gradual adoption — templates without `{@var}` work exactly as before (runtime warnings remain)
 
 **Effort:** ~3–5 days
@@ -267,22 +276,26 @@ Modules choose per-template:
   {variable name="step" type="int" default="0"}
   {variable name="searchQuery" type="string" default=""}
   {variable name="selectedEmployee" type="?object"}
+
   <div class="kiosk-content">
-    <span x-text="step"></span>
-    <input x-model="searchQuery">
+    <ikb_text bind="step" />
+    <ikb_input model="searchQuery" />
   </div>
 {/state}
 ```
 
-With `bridge="alpine"` (default) — emits `x-data="ikbComponent({...})"`:
+With `bridge="alpine"` (default) — the Alpine bridge translates `bind` to `x-text` and `model` to `x-model`:
 
 ```html
 <div data-state="kiosk" x-data="ikbComponent({&quot;step&quot;:0,&quot;searchQuery&quot;:&quot;&quot;})" class="kiosk-wrapper">
-  <div class="kiosk-content">...Alpine bindings work...</div>
+  <div class="kiosk-content">
+    <span x-text="step"></span>
+    <input x-model="searchQuery">
+  </div>
 </div>
 ```
 
-With `bridge="htmx"` — emits `data-ikb-data` + `hx-vals` instead:
+With `bridge="htmx"` — the HTMX bridge emits `data-ikb-data` + `hx-vals`:
 
 ```html
 <div data-state="kiosk" data-ikb-data='{"step":0,"searchQuery":""}' hx-vals='{"ikb_state":"kiosk","data":{"step":0,...}}'>
@@ -300,8 +313,7 @@ With `bridge="custom"` — generic data attributes only:
 
 - **On page load:** DiSyL renders initialState as JSON via the selected bridge
 - **On interaction:** Client framework manages local state (no server round-trip)
-- **On navigation/refresh:** State is optionally persisted via `sessionStorage` or API call
-- **Server side:** The `source` handler can compute initial state, validate state mutations, and authorize access
+- **On navigation/refresh:** State persistence should be governed — distinguish initial state, local UI state, and business mutations. Plain `sessionStorage` or arbitrary API calls for persistence are not sufficient for governed business state; mutations should go through capability calls.
 
 **Bridge reuse:** `{state}` uses the same `BridgeInterface` as `{ikb_component}`, so all bridges work for both without duplication.
 
