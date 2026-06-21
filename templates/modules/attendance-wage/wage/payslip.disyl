@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payslip — {employee_name|default:'Employee'}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print { @page { margin: 0.5in; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
+        body { font-family: 'Inter', system-ui, sans-serif; background: #f3f4f6; }
+        .payslip-card { max-width: 800px; margin: 2rem auto; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow: hidden; }
+        .print-btn { position: fixed; top: 1rem; right: 1rem; z-index: 50; }
+    </style>
+</head>
+<body>
+    <button onclick="window.print()" class="print-btn no-print px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg shadow-lg transition-colors">🖨️ Print</button>
+
+    <div class="payslip-card">
+        <!-- Header -->
+        <div class="bg-brand-950 text-white px-8 py-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-extrabold tracking-tight">{app_name|default:'ZAP'} — Payslip</h1>
+                    <p class="text-brand-300 text-sm mt-1">Payroll Period: <strong>{period_name|default:'—'}</strong></p>
+                </div>
+                <div class="text-right text-sm text-brand-300">
+                    <p>Pay Date: <strong class="text-white">{pay_date|default:'—'}</strong></p>
+                    <p>Period: {period_start|default:'—'} → {period_end|default:'—'}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Employee Info -->
+        <div class="px-8 py-5 border-b border-gray-100">
+            <div class="flex items-center gap-4">
+                {if photo_url}
+                <img src="{photo_url}" alt="" class="w-14 h-14 rounded-full object-cover border border-gray-200">
+                {/if}
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900">{employee_name|default:'—'}</h2>
+                    <p class="text-sm text-gray-500">{position|default:'—'} · {department|default:'—'}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">
+                        Employee #: {employee_number|default:'—'} ·
+                        TIN: {tin_number|default:'—'} ·
+                        SSS: {sss_number|default:'—'}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Earnings -->
+        <div class="px-8 py-5 border-b border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">💰 Earnings</h3>
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-50">
+                    <tr><td class="py-2 text-gray-600">Basic Salary</td><td class="py-2 text-right font-medium text-gray-900">₱ {basic_pay|number_format:2|default:'0.00'}</td></tr>
+                    {if overtime_pay > 0}<tr><td class="py-2 text-gray-600">Overtime Pay ({overtime_hours|default:'0'} hrs)</td><td class="py-2 text-right font-medium text-gray-900">₱ {overtime_pay|number_format:2}</td></tr>{/if}
+                    {if double_overtime_pay > 0}<tr><td class="py-2 text-gray-600">Double OT Pay ({double_overtime_hours|default:'0'} hrs)</td><td class="py-2 text-right font-medium text-gray-900">₱ {double_overtime_pay|number_format:2}</td></tr>{/if}
+                    {if holiday_pay > 0}<tr><td class="py-2 text-gray-600">Holiday Pay</td><td class="py-2 text-right font-medium text-gray-900">₱ {holiday_pay|number_format:2}</td></tr>{/if}
+                    {if night_shift_pay > 0}<tr><td class="py-2 text-gray-600">Night Differential</td><td class="py-2 text-right font-medium text-gray-900">₱ {night_shift_pay|number_format:2}</td></tr>{/if}
+                    {if rest_day_pay > 0}<tr><td class="py-2 text-gray-600">Rest Day Pay</td><td class="py-2 text-right font-medium text-gray-900">₱ {rest_day_pay|number_format:2}</td></tr>{/if}
+                    <tr class="border-t-2 border-gray-200"><td class="py-2 font-semibold text-gray-900">Gross Pay</td><td class="py-2 text-right font-bold text-gray-900 text-base">₱ {gross_pay|number_format:2}</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Deductions -->
+        <div class="px-8 py-5 border-b border-gray-100">
+            <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">📉 Deductions</h3>
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-50">
+                    <tr><td class="py-2 text-gray-600">SSS</td><td class="py-2 text-right font-medium text-gray-900">{sss_employee|default:'0.00'}</td></tr>
+                    <tr><td class="py-2 text-gray-600">PhilHealth</td><td class="py-2 text-right font-medium text-gray-900">{philhealth_employee|default:'0.00'}</td></tr>
+                    <tr><td class="py-2 text-gray-600">Pag-IBIG</td><td class="py-2 text-right font-medium text-gray-900">{pagibig_employee|default:'0.00'}</td></tr>
+                    {if total_adjustments > 0}<tr><td class="py-2 text-gray-600">Adjustments</td><td class="py-2 text-right font-medium text-gray-900">{total_adjustments|number_format:2}</td></tr>{/if}
+                    {if total_deductions > 0}<tr><td class="py-2 text-gray-600">Employee Deductions</td><td class="py-2 text-right font-medium text-gray-900">{total_deductions|number_format:2}</td></tr>{/if}
+                    <tr class="border-t-2 border-gray-200"><td class="py-2 font-semibold text-gray-900">Total Deductions</td><td class="py-2 text-right font-medium text-red-600">₱ {total_deductions_formatted|default:'0.00'}</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Net Pay -->
+        <div class="px-8 py-6 bg-green-50">
+            <div class="flex items-center justify-between">
+                <span class="text-lg font-bold text-gray-900">NET PAY</span>
+                <span class="text-3xl font-extrabold text-green-700">₱ {net_pay|number_format:2|default:'0.00'}</span>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-8 py-4 text-center text-xs text-gray-400 border-t border-gray-100">
+            <p>This is a computer-generated payslip. {app_name|default:'ZAP'} — Attendance &amp; Wage Module</p>
+            <p class="mt-0.5">Generated on {generated_at|default:''}</p>
+        </div>
+    </div>
+</body>
+</html>

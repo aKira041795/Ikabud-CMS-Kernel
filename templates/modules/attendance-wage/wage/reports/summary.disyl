@@ -1,0 +1,134 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+{block main}
+<div class="px-6 py-8" x-data="summaryReport()">
+    <div class="flex items-center justify-between mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">📊 Summary Report</h1>
+        <a href="/admin/wage/reports" class="inline-flex items-center px-4 py-2.5 text-sm font-semibold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors">← Reports</a>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Period</label>
+                <select x-model="periodId" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                    <option value="">All periods</option>
+                    <template x-for="p in periods" :key="p.id">
+                        <option x-text="p.period_name" :value="p.id"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Department</label>
+                <select x-model="department" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                    <option value="">All departments</option>
+                    <template x-for="d in departments" :key="d">
+                        <option x-text="d" :value="d"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Status</label>
+                <select x-model="status" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 bg-white">
+                    <option value="">All statuses</option>
+                    <option value="computed">Computed</option>
+                    <option value="approved">Approved</option>
+                    <option value="paid">Paid</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="flex items-end gap-2">
+                <button @click="loadReport()" class="flex-1 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors">🔍 Generate</button>
+                <button @click="printReport()" class="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors">🖨️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary table -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden" x-show="rows.length > 0">
+        <div class="overflow-x-auto" id="report-content">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Employee</th>
+                        <th class="py-3 px-4 text-left font-semibold text-gray-600">Department</th>
+                        <th class="py-3 px-4 text-right font-semibold text-gray-600">Gross Pay</th>
+                        <th class="py-3 px-4 text-right font-semibold text-gray-600">Overtime</th>
+                        <th class="py-3 px-4 text-right font-semibold text-gray-600">Deductions</th>
+                        <th class="py-3 px-4 text-right font-semibold text-gray-600">Net Pay</th>
+                        <th class="py-3 px-4 text-center font-semibold text-gray-600">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="r in rows" :key="r.id">
+                        <tr class="border-b border-gray-100 hover:bg-gray-50/50">
+                            <td class="py-3 px-4 font-medium text-gray-900" x-text="r.employee_name"></td>
+                            <td class="py-3 px-4 text-gray-500" x-text="r.department"></td>
+                            <td class="py-3 px-4 text-right text-gray-900" x-text="'₱ ' + fmt(r.gross_pay)"></td>
+                            <td class="py-3 px-4 text-right text-gray-700" x-text="'₱ ' + fmt(r.overtime_pay)"></td>
+                            <td class="py-3 px-4 text-right text-gray-700" x-text="'₱ ' + fmt(r.total_deductions)"></td>
+                            <td class="py-3 px-4 text-right font-semibold text-gray-900" x-text="'₱ ' + fmt(r.net_pay)"></td>
+                            <td class="py-3 px-4 text-center">
+                                <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium"
+                                      :class="{'bg-green-100 text-green-700': r.status=='paid','bg-blue-100 text-blue-700': r.status=='approved','bg-amber-100 text-amber-700': r.status=='computed','bg-red-100 text-red-700': r.status=='cancelled'}">
+                                    <span x-text="r.status"></span>
+                                </span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+                <tfoot x-show="totals.gross > 0">
+                    <tr class="bg-gray-50 border-t-2 border-gray-200 font-semibold">
+                        <td class="py-3 px-4 text-gray-900" colspan="2">Totals</td>
+                        <td class="py-3 px-4 text-right text-gray-900" x-text="'₱ ' + fmt(totals.gross)"></td>
+                        <td class="py-3 px-4 text-right text-gray-900" x-text="'₱ ' + fmt(totals.overtime)"></td>
+                        <td class="py-3 px-4 text-right text-red-600" x-text="'₱ ' + fmt(totals.deductions)"></td>
+                        <td class="py-3 px-4 text-right text-green-700" x-text="'₱ ' + fmt(totals.net)"></td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <div x-show="loaded && rows.length === 0" class="py-16 text-center text-gray-500">
+        <p class="text-4xl mb-3">📊</p>
+        <p class="font-medium">No results found for the selected filters.</p>
+    </div>
+</div>
+
+<script>
+function summaryReport() {
+    return {
+        periodId: '', department: '', status: '',
+        periods: [], departments: [], rows: [], totals: {gross:0, overtime:0, deductions:0, net:0},
+        loaded: false,
+        fmt(v) { return Number(v||0).toLocaleString('en-PH', {minimumFractionDigits:2}); },
+        init() {
+            fetch('/api/v1/wage/periods').then(r=>r.json()).then(d=>{if(d.ok) this.periods=d.data;});
+            fetch('/api/v1/wage/reports/summary-filters').then(r=>r.json()).then(d=>{if(d.ok){this.departments=d.departments;}});
+        },
+        async loadReport() {
+            const p = new URLSearchParams({period_id:this.periodId, department:this.department, status:this.status});
+            const r = await fetch('/api/v1/wage/reports/summary?'+p);
+            const d = await r.json();
+            if (d.ok) {
+                this.rows = d.rows || [];
+                this.totals = d.totals || {gross:0,overtime:0,deductions:0,net:0};
+                this.loaded = true;
+            }
+        },
+        printReport() {
+            const w = window.open('', '_blank');
+            w.document.write('<html><head><title>Summary Report</title><style>@media print{@page{margin:0.3in}}body{font-family:Inter,sans-serif;font-size:12px}table{width:100%;border-collapse:collapse}th,td{padding:6px 8px;text-align:left;border-bottom:1px solid #e5e7eb}th{background:#f9fafb;font-weight:600}.totals{font-weight:700;border-top:2px solid #000}</style></head><body>');
+            w.document.write('<h2 style="margin-bottom:4px">Summary Report</h2>');
+            w.document.write('<p style="color:#666;font-size:11px;margin-bottom:16px">Period: '+ (this.periodId || 'All') + ' · Dept: ' + (this.department || 'All') + ' · Status: ' + (this.status || 'All') + '</p>');
+            w.document.write(document.getElementById('report-content').innerHTML);
+            w.document.write('</body></html>');
+            w.document.close();
+            setTimeout(() => w.print(), 300);
+        }
+    };
+}
+</script>
+{/block}

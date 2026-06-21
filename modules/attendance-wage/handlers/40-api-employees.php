@@ -31,7 +31,7 @@ function wageApiEmployeesList(array $params = []): void
     try {
         $db = aw_db();
         $limit = min((int)($params['limit'] ?? 25), 100);
-        $stmt = $db->query("SELECT profile_id AS id, last_name, first_name, middle_name, suffix, employee_number, position, department, hire_date, employment_status, salary_type, basic_salary, overtime_allowed, holiday_pay_enabled, night_diff_enabled, sss_number, philhealth_number, pagibig_number, tin_number, tax_exemption_status, dependents_count, is_active FROM employee_profiles ORDER BY last_name ASC, first_name ASC LIMIT {$limit}");
+        $stmt = $db->query("SELECT profile_id AS id, last_name, first_name, middle_name, suffix, employee_number, position, department, hire_date, employment_status, salary_type, basic_salary, hourly_rate, daily_rate, monthly_rate, overtime_allowed, holiday_pay_enabled, night_diff_enabled, sss_number, philhealth_number, pagibig_number, tin_number, tax_exemption_status, dependents_count, photo_url, is_active FROM employee_profiles ORDER BY last_name ASC, first_name ASC LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         awJsonOut(['ok' => true, 'data' => $rows]);
     } catch (\Throwable $e) {
@@ -89,6 +89,14 @@ function wageApiEmployeeCreate(array $params = []): void
     $tinNum      = trim((string)($input['tin_number'] ?? ''));
     $taxStatus   = trim((string)($input['tax_exemption_status'] ?? 'single'));
 
+    // Handle photo upload (file upload or base64)
+    $photoUrl = null;
+    if (!empty($_FILES['photo']['tmp_name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+        $photoUrl = aw_saveEmployeePhoto($_FILES['photo']);
+    } elseif (!empty($input['photo_data'])) {
+        $photoUrl = aw_saveEmployeePhotoFromBase64((string)$input['photo_data']);
+    }
+
     if ($lastName === '' || $firstName === '' || $position === '') {
         awJsonOut(['ok' => false, 'error' => 'Last name, first name, and position are required'], 422);
     }
@@ -102,14 +110,14 @@ function wageApiEmployeeCreate(array $params = []): void
                  overtime_allowed, overtime_rate, max_daily_hours, max_weekly_hours,
                  holiday_pay_enabled, rest_day_pay_enabled, night_diff_enabled, cash_advance_allowed, onsite_attendance,
                  sss_number, sss_applicable, philhealth_number, philhealth_applicable,
-                 pagibig_number, pagibig_applicable, tin_number, tax_exemption_status)
+                 pagibig_number, pagibig_applicable, tin_number, tax_exemption_status, photo_url)
              VALUES
                 (:tid, :fn, :ln, :mn, :sx, :en, :pos, :dept,
                  :hd, :es, :st, :bs, :hr,
                  :oa, :or, :mdh, :mwh,
                  :hp, :rdp, :nd, :ca, :osa,
                  :sss, :sssa, :ph, :pha,
-                 :pag, :paga, :tin, :tx)"
+                 :pag, :paga, :tin, :tx, :photo)"
         );
         $stmt->execute([
             ':tid' => app()->tenant()->current() ?? '',
@@ -121,6 +129,7 @@ function wageApiEmployeeCreate(array $params = []): void
             ':osa' => isset($input['onsite_attendance']) ? 1 : 0,
             ':sss' => $sssNum, ':sssa' => $sssApp, ':ph' => $phNum, ':pha' => $phApp,
             ':pag' => $pagNum, ':paga' => $pagApp, ':tin' => $tinNum, ':tx' => $taxStatus,
+            ':photo' => $photoUrl,
         ]);
         $id = (int)$db->lastInsertId();
         $isFormPost = !str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json');
@@ -176,6 +185,20 @@ function wageApiEmployeeUpdate(array $params = []): void
         if (isset($input[$f])) { $fields[] = "`{$f}` = :{$f}"; $vals[":{$f}"] = trim((string)$input[$f]); }
     }
 
+    // Handle photo upload on update
+    if (!empty($_FILES['photo']['tmp_name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+        $photoUrl = aw_saveEmployeePhoto($_FILES['photo']);
+        $fields[] = '`photo_url` = :photo';
+        $vals[':photo'] = $photoUrl;
+    } elseif (!empty($input['photo_data'])) {
+        $photoUrl = aw_saveEmployeePhotoFromBase64((string)$input['photo_data']);
+        $fields[] = '`photo_url` = :photo';
+        $vals[':photo'] = $photoUrl;
+    } elseif (isset($input['photo_remove']) && $input['photo_remove']) {
+        $fields[] = '`photo_url` = :photo';
+        $vals[':photo'] = null;
+    }
+
     if (empty($fields)) {
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/employees/' . $id . '?error=' . urlencode('No fields to update')); exit; }
         awJsonOut(['ok' => false, 'error' => 'No fields to update'], 422); return;
@@ -190,4 +213,48 @@ function wageApiEmployeeUpdate(array $params = []): void
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/employees/' . $id . '?error=' . urlencode($e->getMessage())); exit; }
         awJsonOut(['ok' => false, 'error' => $e->getMessage()], 500);
     }
+}
+
+/**
+ * Save an uploaded employee photo file and return its URL.
+ */
+function aw_saveEmployeePhoto(array $file): ?string
+{
+    $allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mime = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+
+    if (!in_array($mime, $allowedMime, true)) return null;
+    if ($file['size'] > 5 * 1024 * 1024) return null;
+
+    $ext = match ($mime) {
+        'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', default => 'jpg',
+    };
+    $filename = 'emp_' . bin2hex(random_bytes(8)) . '.' . $ext;
+    $dir = defined('STORAGE_PATH') ? STORAGE_PATH . '/uploads/employee-photos' : (defined('BASE_PATH') ? BASE_PATH . '/storage/uploads/employee-photos' : sys_get_temp_dir() . '/employee-photos');
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $dest = $dir . '/' . $filename;
+    return move_uploaded_file($file['tmp_name'], $dest)
+        ? (function_exists('external_base_url') ? external_base_url() . '/storage/uploads/employee-photos/' . rawurlencode($filename) : '/storage/uploads/employee-photos/' . rawurlencode($filename))
+        : null;
+}
+
+/**
+ * Save a base64-encoded employee photo and return its URL.
+ */
+function aw_saveEmployeePhotoFromBase64(string $data): ?string
+{
+    if (!preg_match('/^data:image\/(jpeg|png|webp);base64,(.+)$/', $data, $m)) return null;
+    $ext = $m[1] === 'jpeg' ? 'jpg' : $m[1];
+    $binary = base64_decode(str_replace(' ', '+', $m[2]), true);
+    if ($binary === false || strlen($binary) > 5 * 1024 * 1024) return null;
+
+    $filename = 'emp_' . bin2hex(random_bytes(8)) . '.' . $ext;
+    $dir = defined('STORAGE_PATH') ? STORAGE_PATH . '/uploads/employee-photos' : (defined('BASE_PATH') ? BASE_PATH . '/storage/uploads/employee-photos' : sys_get_temp_dir() . '/employee-photos');
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $dest = $dir . '/' . $filename;
+    return file_put_contents($dest, $binary) !== false
+        ? (function_exists('external_base_url') ? external_base_url() . '/storage/uploads/employee-photos/' . rawurlencode($filename) : '/storage/uploads/employee-photos/' . rawurlencode($filename))
+        : null;
 }

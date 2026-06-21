@@ -64,6 +64,33 @@
                 </div>
             </div>
         </div>
+        <!-- Employee Photo -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">📸 Employee Photo</h2>
+            <div class="flex items-start gap-6">
+                <div class="flex-shrink-0">
+                    {if photo_url}
+                    <img src="{photo_url}" alt="Employee photo" class="w-32 h-32 rounded-lg object-cover border border-gray-200 shadow-sm" id="photo-preview">
+                    {else}
+                    <div class="w-32 h-32 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-sm" id="photo-preview">No Photo</div>
+                    {/if}
+                </div>
+                <div class="flex-1 space-y-3">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1.5">Upload Photo</label>
+                        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" capture="environment"
+                               onchange="const f=this.files[0];if(f){const r=new FileReader;r.onload=e=>document.getElementById('photo-preview').outerHTML=`<img src=\x24{e.target.result} class='w-32 h-32 rounded-lg object-cover border border-gray-200 shadow-sm'>`;r.readAsDataURL(f)}"
+                               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                        <p class="text-xs text-gray-400 mt-1">JPEG, PNG, or WebP. Max 5 MB. On tablets, the back camera will be used.</p>
+                    </div>
+                    {if photo_url}
+                    <label class="inline-flex items-center gap-2 text-sm text-red-600 cursor-pointer">
+                        <input type="checkbox" name="photo_remove" value="1"> Remove current photo
+                    </label>
+                    {/if}
+                </div>
+            </div>
+        </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 class="text-lg font-bold text-gray-900 mb-5 pb-3 border-b border-gray-100">💰 Salary Settings</h2>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
