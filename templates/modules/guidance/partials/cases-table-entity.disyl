@@ -42,4 +42,4 @@
 </div>
 
 {!-- Entity List Table — resolved via entity.list.guidance_case capability --}
-{ikb_entity_list source="guidance.case" view="table"}
+{ikb_entity_list source="guidance_case" view="table"}
