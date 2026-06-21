@@ -216,7 +216,7 @@
         </div>
 
         <!-- Step 3: Success / Done -->
-        <div x-show="step === 3" class="p-8 text-center" x-init="autoReturnTimer = setTimeout(() => done(), 5000)" @click="clearTimeout(autoReturnTimer)">
+        <div x-show="step === 3" class="p-8 text-center" @click="clearTimeout(autoReturnTimer)">
             <div class="text-6xl mb-4" x-text="lastAction === 'clock_in' ? '✅' : '👋'"></div>
             <h2 class="text-xl font-bold text-slate-900 mb-1" x-text="lastMessage"></h2>
             <p class="text-sm text-slate-500 mb-1" x-text="lastEmployee"></p>
@@ -649,6 +649,8 @@ function kioskWidget() {
                     this.lastEmployee = d.employee;
                     this.lastTime = d.time;
                     this.step = 3;
+                    clearTimeout(this.autoReturnTimer);
+                    this.autoReturnTimer = setTimeout(() => this.done(), 5000);
                 } else {
                     this.errorMsg = d.error || 'Failed to record attendance';
                 }
