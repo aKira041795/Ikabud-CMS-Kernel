@@ -1776,6 +1776,15 @@ function executeModuleHandler(string $handler, array $params = []): void
     ]);
 
     if (in_array($requestMethod, ['POST', 'PUT', 'DELETE'], true) && !$isApiRoute && !$isModuleLogin) {
+        if (function_exists('write_log')) {
+            write_log('executeModuleHandler: CSRF enforcement triggered', 'warning', [
+                'module' => $moduleId,
+                'method' => $requestMethod,
+                'uri' => $requestUri,
+                'is_api' => $isApiRoute,
+                'is_login' => $isModuleLogin,
+            ]);
+        }
         app()->csrfEnforce();
     }
 
