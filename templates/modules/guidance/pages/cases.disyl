@@ -153,3 +153,17 @@
 {/ikb_section}
 
 {/block}
+
+{block scripts}
+<script>
+(function() {
+    if (window.location.search.indexOf('entity=1') > -1) {
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+            if (evt.detail.path.indexOf('/api/cases') > -1) {
+                evt.detail.parameters['entity'] = '1';
+            }
+        });
+    }
+})();
+</script>
+{/block}
