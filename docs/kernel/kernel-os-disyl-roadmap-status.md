@@ -16,7 +16,7 @@ external services → entity-view resolver → DiSyL rendering → governed expo
 PHP is the kernel host. Capabilities can live anywhere — Python, Node, Go, Rust,
 or any language that speaks HTTP+JSON.
 
-**385 tests pass, 0 linter errors, 398 templates scanned, 22 superadmin APIs.**
+**429 tests pass (385 kernel + 44 entity view integration), 0 linter errors, 400 templates scanned, 22 superadmin APIs.**
 
 ---
 
@@ -77,6 +77,7 @@ See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-eva
 | Built-in defaults for orders/products/cases/ledger/appointments/tickets | ✅ |
 | Capability ID normalization (`cms.post` → `cms_post`) | ✅ |
 | `entity.list` + `entity.get` handlers in CMS | ✅ |
+| **Guidance module entity view POC** — 2 templates, source naming fix, HTMX forwarding | ✅ |
 
 **Proven:** `tests/cms_integration_poc.php` — 25/25 assertions covering full
 pipeline: DB → capability bus → entity resolver → DiSyL rendering.

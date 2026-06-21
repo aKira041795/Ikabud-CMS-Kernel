@@ -21,11 +21,11 @@
 
 ### Phase 1 — Register Capabilities ✅ Complete
 ### Phase 2 — View Contracts (builtinDefaults) ✅ Complete
-### Phase 3 — Template Migration � In Progress (June 19, 2026)
+### Phase 3 — Template Migration ✅ Guidance POC Complete (June 21, 2026)
 
 Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_detail}` in templates.
 
-**Adoption status: 13 templates across 2 modules (attendance-wage: 31%)**
+**Adoption status: 15 templates across 3 modules (attendance-wage: 31%, guidance: POC done)**
 
 **Adopted:**
 - `templates/_cms_active_theme/public/home.disyl` — `ecommerce_product.featured`, `wms_stock.low`
@@ -36,7 +36,16 @@ Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_det
 - `templates/modules/attendance-wage/attendance/report.disyl` — `attendance_record.recent`
 - `templates/modules/attendance-wage/attendance/records.disyl` — per-employee attendance records
 - `templates/modules/guidance/pages/dashboard.disyl` — `ikb_entity_list`
+- `templates/modules/guidance/partials/cases-table-entity.disyl` — `{ikb_entity_list source="guidance_case" view="table"}` (toggle via `?entity=1`)
+- `templates/modules/guidance/partials/recent-cases-entity.disyl` — `{ikb_entity_list source="guidance_case" view="compact"}` (toggle via `?entity=1`)
 - `templates/modules/cms/admin/dashboard.disyl` — `ikb_entity_list`
+
+**Guidance POC highlights (June 21):**
+- Entity view configs for `guidance_case` (table: 8 fields + 3 actions, compact: 4 fields, detailed: 7 fields)
+- Capability handler `entity.list.guidance_case@1` returns rich data with college enrichment
+- Source naming convention verified: `guidance_case` (no dot) → `entity.list.guidance_case@1` resolution
+- HTMX forwarding via `htmx:configRequest` passes `?entity=1` from page URL to API calls
+- Full Tailwind styling via `EntityRenderingTrait` presets
 
 **Stale-cache workaround resolved:** Compiled mode is now default. Versioned extends cache keys (`md5(path|mtime)`) prevent stale output. `?disyl_nocache=1` escape hatch available. Custom table workarounds (e.g., recent_computations) can now migrate back to `ikb_entity_list`.
 

@@ -2,7 +2,7 @@
 
 > **Goal:** Narrow the gap between current DiSyL (v6.0) and the v11 vision (type operators, Islands, reactive, Fibers) through incremental, high-impact intermediate steps.
 >
-> **Status:** Intermediate roadmap implementation complete. Active hardening: bridge capability contracts, binding primitives, JWT CSRF hardening, manifest schema v1. See [`tests/disyl_v11_verify_test.php`](../../tests/disyl_v11_verify_test.php) for automated verification (64 tests).
+> **Status:** Intermediate roadmap implementation complete. Active hardening + guidance module POC pilot: bridge capability contracts, binding primitives, JWT CSRF hardening, manifest schema v1, entity view integration. See [`tests/disyl_v11_verify_test.php`](../../tests/disyl_v11_verify_test.php) for v11 features (64 tests) and [`tests/guidance_entity_view_test.php`](../../tests/guidance_entity_view_test.php) for entity view integration (44 tests).
 >
 > **Architecture highlight:** The **Bridge System** (`kernel/DiSyL/Bridge/`) is a pluggable output abstraction that makes `{ikb_component}` and `{state}` framework-agnostic. Bridges now declare capability contracts (`supports()` + `capabilities()`) so the compiler can catch incompatible template usage at compile time. Binding primitives (`bind`/`model` attributes on `ikb_text`/`ikb_input`) let templates express intent in a framework-neutral way.
 >
@@ -362,6 +362,7 @@ With `bridge="custom"` — generic data attributes only:
 | 2.3 | Bridge capability contracts | Days | ⭐⭐⭐ | Silent bridge incompatibility | Compile-time feature checking | ✅ Done |
 | 2.4 | Binding primitives | Days | ⭐⭐⭐ | Framework-specific markup in templates | Framework-neutral `<ikb_text bind>` / `<ikb_input model>` | ✅ Done |
 | 2.5 | DiSyL entity config | 2 weeks | ⭐⭐⭐ | PHP array configs | `keyof`, schema validation | ✅ Done |
+| 2.6 | Guidance module entity view POC | Days | ⭐⭐⭐ | No governed entity list in guidance | Reusable entity views styled with Tailwind | ✅ Done — 2 templates (`?entity=1` toggle) |
 | 3.1 | State manager + Bridge System | 2–4 weeks | ⭐⭐⭐ | Alpine-only state, framework lock-in | Framework-agnostic state, Reactive state | ✅ Done |
 | 3.2 | Rich compiled manifest | 3–4 weeks | ⭐⭐ | No template introspection | Language server, tooling, dependency graph | ✅ Done |
 | 3.3 | Entity-view compiler boundary | 2 weeks | ⭐⭐ | ComponentRegistry overload | ViewContractCompiler, SchemaRegistry | 🔜 Planned |
@@ -381,6 +382,7 @@ No intermediate step breaks backward compatibility:
 | 1.2 | Session CSRF token | Yes — both methods validated | ✅ `tests/disyl_v11_verify_test.php` + smoke tests |
 | 2.1 | No `{@var}` declarations | Yes — strict mode falls back to current behavior | ✅ `tests/disyl_v11_verify_test.php` |
 | 2.2 | Manual `x-data` | Yes — `{ikb_component}` is additive, Alpine bridge = identical output | ✅ `tests/disyl_v11_verify_test.php` |
+| 2.5 | Hand-written `{for case in cases}` tables | Yes — `{ikb_entity_list}` is additive, renders identical HTML via entity-view pipeline | ✅ `tests/guidance_entity_view_test.php` |
 | 2.3 | PHP array configs | Yes — both APIs coexist | ✅ `tests/disyl_v11_verify_test.php` |
 | 3.1 | Alpine `x-data` only | Yes — `{state}` is additive, bridge defaults to Alpine | ✅ `tests/disyl_v11_verify_test.php` |
 | 3.2 | No manifest | Yes — manifests are optional cache | ✅ `tests/disyl_v11_verify_test.php` |
