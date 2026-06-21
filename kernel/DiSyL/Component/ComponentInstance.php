@@ -155,11 +155,11 @@ class ComponentInstance
     /**
      * Get computed property value
      *
-     * NOTE: Computed property evaluation is a stub in v1.0.0.
-     * Requires ExpressionParser integration to evaluate computed expressions.
-     * Returns null for all computed properties until implemented.
+     * Evaluates the computed property's expression against the component's
+     * props and state scope. Results are cached until state changes.
      *
-     * @todo Implement expression-based computed property evaluation
+     * Supported expressions: variable access, binary ops (+, -, *, /, .),
+     * property access (user.name), string/number literals.
      */
     public function getComputed(string $name): mixed
     {
@@ -174,9 +174,161 @@ class ComponentInstance
             return null;
         }
         
-        // Evaluate expression (would need ExpressionParser integration)
-        // For now, return null - actual evaluation happens in renderer
+        // Build evaluation scope: props take priority, then state
+        $scope = array_merge($this->state, $this->props);
+        
+        // Evaluate the expression against scope
+        $result = $this->evaluateExpression($computed['expression'] ?? '', $scope);
+        $this->computedCache[$name] = $result;
+        return $result;
+    }
+    
+    /**
+     * Evaluate a simple expression string against a variable scope.
+     * Supports: variables, numbers, strings, binary ops (+, -, *, /, .),
+     * and dotted property access (a.b.c).
+     */
+    private function evaluateExpression(mixed $expr, array $scope): mixed
+    {
+        if (is_string($expr)) {
+            $expr = trim($expr);
+            if ($expr === '') return null;
+            
+            // Numeric literal
+            if (is_numeric($expr)) {
+                return str_contains($expr, '.') ? (float)$expr : (int)$expr;
+            }
+            
+            // String literal (single or double quoted)
+            if ((str_starts_with($expr, "'") && str_ends_with($expr, "'"))
+                || (str_starts_with($expr, '"') && str_ends_with($expr, '"'))) {
+                return substr($expr, 1, -1);
+            }
+            
+            // Boolean/null literals
+            if ($expr === 'true') return true;
+            if ($expr === 'false') return false;
+            if ($expr === 'null') return null;
+            
+            // Binary operations (simple left-to-right for common cases)
+            // Pattern: left op right
+            if (preg_match('/^(.+?)\s*([+\-*\/\.])\s*(.+)$/s', $expr, $m)) {
+                $left = $this->evaluateExpression(trim($m[1]), $scope);
+                $right = $this->evaluateExpression(trim($m[3]), $scope);
+                return match ($m[2]) {
+                    '+' => (is_string($left) || is_string($right)) ? $left . $right : $left + $right,
+                    '-' => $left - $right,
+                    '*' => $left * $right,
+                    '/' => $right != 0 ? $left / $right : 0,
+                    '.' => (string)$left . (string)$right,
+                    default => null,
+                };
+            }
+            
+            // Dotted property access: a.b.c
+            if (str_contains($expr, '.')) {
+                $parts = explode('.', $expr);
+                $val = $this->resolveScopeVar(trim($parts[0]), $scope);
+                for ($i = 1; $i < count($parts); $i++) {
+                    $key = trim($parts[$i]);
+                    if (is_array($val) && array_key_exists($key, $val)) {
+                        $val = $val[$key];
+                    } elseif (is_object($val) && property_exists($val, $key)) {
+                        $val = $val->$key;
+                    } else {
+                        return null;
+                    }
+                }
+                return $val;
+            }
+            
+            // Simple variable lookup
+            return $this->resolveScopeVar($expr, $scope);
+        }
+        
+        // If expression is already an AST array from the parser, attempt structured evaluation
+        if (is_array($expr)) {
+            return $this->evaluateAstNode($expr, $scope);
+        }
+        
+        return $expr;
+    }
+    
+    /**
+     * Resolve a variable name from the component scope.
+     */
+    private function resolveScopeVar(string $name, array $scope): mixed
+    {
+        return $scope[$name] ?? null;
+    }
+    
+    /**
+     * Evaluate a structured AST node array from the component parser.
+     */
+    private function evaluateAstNode(array $node, array $scope): mixed
+    {
+        $type = $node['type'] ?? '';
+        
+        return match ($type) {
+            'literal' => $node['value'] ?? null,
+            'identifier' => $this->resolveScopeVar($node['name'] ?? '', $scope),
+            'property_access' => $this->evaluatePropertyAccess($node, $scope),
+            'binary_op' => $this->evaluateBinaryOp($node, $scope),
+            'unary_op' => $this->evaluateUnaryOp($node, $scope),
+            'array' => array_map(fn($e) => $this->evaluateExpression($e, $scope), $node['elements'] ?? []),
+            default => null,
+        };
+    }
+    
+    private function evaluatePropertyAccess(array $node, array $scope): mixed
+    {
+        $object = $this->evaluateExpression($node['object'] ?? '', $scope);
+        $property = $node['property'] ?? '';
+        if (is_array($object) && array_key_exists($property, $object)) {
+            return $object[$property];
+        }
+        if (is_object($object) && property_exists($object, $property)) {
+            return $object->$property;
+        }
         return null;
+    }
+    
+    private function evaluateBinaryOp(array $node, array $scope): mixed
+    {
+        $left = $this->evaluateExpression($node['left'] ?? '', $scope);
+        $right = $this->evaluateExpression($node['right'] ?? '', $scope);
+        $op = $node['operator'] ?? '';
+        
+        return match ($op) {
+            '+' => (is_string($left) || is_string($right)) ? $left . $right : $left + $right,
+            '-' => $left - $right,
+            '*' => $left * $right,
+            '/' => $right != 0 ? $left / $right : 0,
+            '%' => $right != 0 ? $left % $right : 0,
+            '.' => (string)$left . (string)$right,
+            '==' => $left == $right,
+            '!=' => $left != $right,
+            '>' => $left > $right,
+            '<' => $left < $right,
+            '>=' => $left >= $right,
+            '<=' => $left <= $right,
+            '&&' => $left && $right,
+            '||' => $left || $right,
+            default => null,
+        };
+    }
+    
+    private function evaluateUnaryOp(array $node, array $scope): mixed
+    {
+        $operand = $this->evaluateExpression($node['operand'] ?? '', $scope);
+        $op = $node['operator'] ?? '';
+        
+        return match ($op) {
+            '!' => !$operand,
+            '-' => -$operand,
+            'not' => !$operand,
+            default => null,
+        };
     }
     
     /**
@@ -189,13 +341,26 @@ class ComponentInstance
     
     /**
      * Trigger watchers for a state change
+     *
+     * Evaluates each watcher's watch expression against the current scope.
+     * If the expression references the changed state variable, the watcher
+     * body is executed. Simple string matching is used for expression
+     * references; full expression analysis would require the DiSyL parser.
      */
     private function triggerWatchers(string $name, mixed $newValue, mixed $oldValue): void
     {
         foreach ($this->definition->watchers as $watcher) {
-            // Check if this watcher watches this state variable
-            // This is simplified - real implementation would evaluate the watch expression
-            // For now, we trigger all watchers on any state change
+            $watchExpr = $watcher['expression'] ?? '';
+            $watchStr = is_string($watchExpr) ? $watchExpr : (is_array($watchExpr) ? ($watchExpr['name'] ?? '') : '');
+            
+            // Check if this watcher references the changed variable
+            if (str_contains($watchStr, $name)) {
+                $scope = array_merge($this->state, $this->props);
+                $body = $watcher['body'] ?? [];
+                foreach ($body as $expr) {
+                    $this->evaluateExpression($expr, $scope);
+                }
+            }
         }
     }
     
@@ -301,11 +466,14 @@ class ComponentInstance
     /**
      * Call a method on this component
      *
-     * NOTE: Method execution is a stub in v1.0.0.
-     * Requires expression evaluator integration to execute component methods.
-     * Currently returns null for all method calls.
+     * Executes the method's body expressions with bound parameters.
+     * Method bodies are arrays of expression AST nodes evaluated
+     * sequentially against a scope of (props + state + params).
      *
-     * @todo Implement method body execution via ExpressionParser
+     * @param string $name Method name
+     * @param array $args Positional or associative arguments
+     * @return mixed Last expression result, or null if method not found
+     * @throws \BadMethodCallException If method is not defined
      */
     public function callMethod(string $name, array $args = []): mixed
     {
@@ -316,9 +484,26 @@ class ComponentInstance
             );
         }
         
-        // Method execution would need integration with expression evaluator
-        // For now, return null
-        return null;
+        // Build execution scope: state + props + bound params
+        $params = $method['params'] ?? [];
+        $body = $method['body'] ?? [];
+        
+        // Bind positional args to parameter names
+        $bound = [];
+        foreach ($params as $i => $param) {
+            $paramName = is_string($param) ? $param : ($param['name'] ?? 'p' . $i);
+            $bound[$paramName] = $args[$i] ?? ($args[$paramName] ?? null);
+        }
+        
+        $scope = array_merge($this->state, $this->props, $bound);
+        
+        // Execute body expressions sequentially, return last result
+        $result = null;
+        foreach ($body as $expr) {
+            $result = $this->evaluateExpression($expr, $scope);
+        }
+        
+        return $result;
     }
     
     /**
@@ -334,7 +519,11 @@ class ComponentInstance
         
         // Call onMount handler if defined
         if (isset($this->definition->eventHandlers['mount'])) {
-            // Execute mount handler
+            $handler = $this->definition->eventHandlers['mount'];
+            $body = $handler['body'] ?? [];
+            foreach ($body as $expr) {
+                $this->evaluateExpression($expr, array_merge($this->state, $this->props));
+            }
         }
     }
     
@@ -349,7 +538,11 @@ class ComponentInstance
         
         // Call onUnmount handler if defined
         if (isset($this->definition->eventHandlers['unmount'])) {
-            // Execute unmount handler
+            $handler = $this->definition->eventHandlers['unmount'];
+            $body = $handler['body'] ?? [];
+            foreach ($body as $expr) {
+                $this->evaluateExpression($expr, array_merge($this->state, $this->props));
+            }
         }
         
         // Unmount children

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ikabud\Kernel\Capabilities;
 
+use Ikabud\Kernel\Contracts\CapabilityProviderContract;
 use Ikabud\Kernel\Contracts\CapabilityRegistryContract;
 
 final class CapabilityRegistry implements CapabilityRegistryContract
@@ -16,6 +17,41 @@ final class CapabilityRegistry implements CapabilityRegistryContract
     private array $providers = [];
 
     private int $registrationCounter = 0;
+
+    /**
+     * Register a capability provider from a CapabilityProviderContract instance.
+     *
+     * This bridges the interface-based contract with the runtime's callable-based
+     * dispatch. The provider's getCapabilityId(), getInputSchema(), getOutputSchema()
+     * are used to populate the registration metadata automatically.
+     *
+     * @param CapabilityProviderContract $provider The provider instance
+     * @param string $providerId Module/provider identifier
+     * @param int $priority Priority (higher = runs first)
+     * @param array $modes Dispatch modes ('first', 'pipeline', 'fanout')
+     */
+    public function registerProvider(
+        CapabilityProviderContract $provider,
+        string $providerId,
+        int $priority = 10,
+        array $modes = ['first']
+    ): void {
+        $capabilityId = $provider->getCapabilityId();
+        $handler = \Closure::fromCallable([$provider, 'handle']);
+        $meta = [
+            'schema' => [
+                'input' => $provider->getInputSchema(),
+                'output' => $provider->getOutputSchema(),
+            ],
+            'origin' => [
+                'type' => 'capability_provider_contract',
+                'provider' => $providerId,
+                'class' => get_class($provider),
+            ],
+        ];
+
+        $this->register($capabilityId, $providerId, $handler, $priority, $modes, $meta);
+    }
 
     public function register(
         string $capabilityId,

@@ -10,10 +10,13 @@ namespace Ikabud\Kernel\Contracts;
  * Defines the Phase 3B interface for modules exporting managed capabilities
  * back to the Ikabud Application Kernel OS.
  *
- * NOTE: This interface is currently NOT adopted by the runtime.
- * The CapabilityBus uses raw callable $handler + meta['schema'] instead.
- * See CapabilityRegistry::register() and CapabilityBus::callProvider().
- * This interface is retained for future phased adoption (see docs/architecture/decisions/).
+ * Usage: Implement this interface and register via:
+ *   $registry->registerProvider(new MyProvider(), 'my-module');
+ *
+ * The CapabilityRegistry::registerProvider() method wraps the contract into
+ * a callable handler with auto-extracted input/output schema metadata.
+ *
+ * @see \Ikabud\Kernel\Capabilities\CapabilityRegistry::registerProvider()
  */
 interface CapabilityProviderContract
 {

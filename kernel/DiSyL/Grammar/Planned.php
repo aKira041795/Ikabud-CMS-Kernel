@@ -2,15 +2,29 @@
 /**
  * DiSyL Grammar — PLANNED keywords / type system extensions
  *
- * Holds constants that describe future DiSyL surface area (v11 / v11.1).
- * Most keywords here are NOT yet parsed or executed by the v4 TemplateEngine.
+ * Holds constants that describe future DiSyL surface area (v11 / v11.1),
+ * as well as keyword groups that have been IMPLEMENTED in the runtime.
  *
- * NOTE: TemplateEngine::evaluateStructureBody() has dispatch entries for
- * several v11.1 keywords ({sandbox}, {trans}, {cache}, {experiment},
- * {parallel}, {await}, {suspense}, {federated_query}, {ai_generate},
- * {ai_query}, {ai_complete}) but their evaluator methods are stubs that
- * either no-op or return placeholder content. They are wired in the
- * parser/dispatch layer but NOT yet functional at runtime.
+ * IMPLEMENTED in TemplateEngine::evaluateStructureBody():
+ *   - {cache}        → FragmentStore::tryGet/put with deps + TTL        (v4.3)
+ *   - {sandbox}      → Sandbox::pushSandbox/pushTrusted/pushUntrusted   (v4.4)
+ *   - {experiment}   → Bucketer::assign/expose with variant arms        (v4.3)
+ *   - {trans}        → i18n\Catalog::translate with plural + when arms (v4.7)
+ *   - {parallel}     → Scheduler with concurrent await task resolution  (v4.5)
+ *   - {await}        → Promise resolution + synchronous fallback        (v4.5)
+ *   - {suspense}     → Try/catch render with fallback attribute         (v4.5)
+ *   - {federated_query} → ServiceRegistry + remote/aggregate sub-blocks (v4.6)
+ *   - {ai_generate}  → AiProvider::complete + Policy cost ceiling       (v4.6)
+ *   - {ai_query}     → JSON-decoded AI response binding                (v4.6)
+ *   - {ai_complete}  → AI text completion binding                      (v4.6)
+ *
+ * REMAINING PLANNED (parser dispatch exists, evaluator needed):
+ *   - (none — all keywords with dispatch entries have implementations)
+ *
+ * Still truly PLANNED (no parser or evaluator code yet):
+ *   - Type operators: union (|), intersection (&), keyof, typeof, infer
+ *   - Utility types: Record, Exclude, Extract, NonNullable, ReturnType etc.
+ *   - Template-level Fibers-based I/O multiplexing (scheduled for 4.5.1)
  *
  * Split out of `kernel/DiSyL/Grammar.php` in kernel 4.0.0 so that the live
  * grammar surface stays focused on what the runtime actually understands.
