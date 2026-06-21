@@ -1,0 +1,45 @@
+{!-- Cases Table - Entity View Powered (Phase 3 POC) --}
+
+{!-- Summary Stat Pills --}
+<div class="flex flex-wrap gap-3 mb-5">
+    <div class="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+        <i class="fas fa-folder-open text-blue-500 text-sm"></i>
+        <span class="text-sm font-semibold text-blue-700">{stats.open_count | default:'0'}</span>
+        <span class="text-xs text-blue-600">Open</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-indigo-50 rounded-lg border border-indigo-100">
+        <i class="fas fa-spinner text-indigo-500 text-sm"></i>
+        <span class="text-sm font-semibold text-indigo-700">{stats.in_progress_count | default:'0'}</span>
+        <span class="text-xs text-indigo-600">In Progress</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-amber-50 rounded-lg border border-amber-100">
+        <i class="fas fa-pause-circle text-amber-500 text-sm"></i>
+        <span class="text-sm font-semibold text-amber-700">{stats.on_hold_count | default:'0'}</span>
+        <span class="text-xs text-amber-600">On Hold</span>
+    </div>
+    <div class="flex items-center gap-2 px-3 py-2 bg-green-50 rounded-lg border border-green-100">
+        <i class="fas fa-check-circle text-green-500 text-sm"></i>
+        <span class="text-sm font-semibold text-green-700">{stats.closed_count | default:'0'}</span>
+        <span class="text-xs text-green-600">Closed</span>
+    </div>
+    {if stats.urgent_count > 0}
+    <div class="flex items-center gap-2 px-3 py-2 bg-red-50 rounded-lg border border-red-100">
+        <i class="fas fa-exclamation-triangle text-red-500 text-sm"></i>
+        <span class="text-sm font-semibold text-red-700">{stats.urgent_count}</span>
+        <span class="text-xs text-red-600">Urgent</span>
+    </div>
+    {/if}
+    {if stats.high_severity_count > 0}
+    <div class="flex items-center gap-2 px-3 py-2 bg-orange-50 rounded-lg border border-orange-100">
+        <i class="fas fa-arrow-up text-orange-500 text-sm"></i>
+        <span class="text-sm font-semibold text-orange-700">{stats.high_severity_count}</span>
+        <span class="text-xs text-orange-600">High/Critical</span>
+    </div>
+    {/if}
+    <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 ml-auto">
+        <span class="text-xs text-gray-500">Total <strong class="text-gray-700">{stats.total_cases | default:'0'}</strong> cases</span>
+    </div>
+</div>
+
+{!-- Entity List Table — resolved via entity.list.guidance_case capability --}
+{ikb_entity_list source="guidance.case" view="table"}

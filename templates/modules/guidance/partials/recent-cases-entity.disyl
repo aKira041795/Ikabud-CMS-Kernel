@@ -1,0 +1,2 @@
+{!-- Recent Cases - Entity View Powered (Phase 3 POC demo 2) --}
+{ikb_entity_list source="guidance.case" view="compact" limit="5" empty="No recently updated students." /}

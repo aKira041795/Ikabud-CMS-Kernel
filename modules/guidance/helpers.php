@@ -1684,15 +1684,45 @@ function rateLimit(string $key, int $maxAttempts = 5, int $windowSeconds = 300):
 function gm_cap_entity_list_case_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 15), 100);
+    $offset = (int)($payload['offset'] ?? 0);
+    $sortField = (string)($payload['sort']['field'] ?? 'c.updated_at');
+    $sortDir = strtoupper((string)($payload['sort']['direction'] ?? 'DESC'));
+    $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
     $qualifier = (string)($payload['qualifier'] ?? '');
     $statusFilter = '';
     if ($qualifier === 'open') { $statusFilter = " AND c.status = 'open'"; }
     elseif ($qualifier === 'closed') { $statusFilter = " AND c.status = 'closed'"; }
+    elseif ($qualifier === 'active') { $statusFilter = " AND c.status NOT IN ('closed')"; }
 
     try {
         $db = guidanceDb();
-        $stmt = $db->query("SELECT c.id, c.student_name, c.status, c.created_at, c.updated_at, u.full_name as counselor_name FROM gm_cases c LEFT JOIN gm_users u ON u.id = c.counselor_id WHERE c.deleted_at IS NULL{$statusFilter} ORDER BY c.updated_at DESC LIMIT {$limit}");
+        $stmt = $db->query("SELECT c.id, c.student_name, c.case_number, c.status, c.severity, c.category, c.college_code, c.student_status, c.is_urgent, c.created_at, c.updated_at, c.deleted_at, c.counselor_id, CONCAT(u.first_name, ' ', u.last_name) as counselor_name FROM gm_cases c LEFT JOIN gm_users u ON u.id = c.counselor_id WHERE c.deleted_at IS NULL{$statusFilter} ORDER BY {$sortField} {$sortDir} LIMIT {$limit} OFFSET {$offset}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        // Enrich with college codes
+        $counselorIds = array_unique(array_filter(array_column($rows, 'counselor_id')));
+        $counselorCollegeMap = [];
+        if (!empty($counselorIds)) {
+            $ph = implode(',', array_fill(0, count($counselorIds), '?'));
+            $caStmt = $db->prepare("
+                SELECT ca.counselor_id, GROUP_CONCAT(col.code ORDER BY col.sort_order SEPARATOR ', ') as codes
+                FROM gm_counselor_assignments ca
+                JOIN gm_colleges col ON ca.college_id = col.id AND col.is_active = 1
+                WHERE ca.counselor_id IN ({$ph}) AND ca.is_active = 1
+                GROUP BY ca.counselor_id
+            ");
+            $caStmt->execute(array_values($counselorIds));
+            foreach ($caStmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+                $counselorCollegeMap[$row['counselor_id']] = $row['codes'];
+            }
+        }
+        foreach ($rows as &$caseRow) {
+            if (empty($caseRow['college_code']) && !empty($caseRow['counselor_id']) && isset($counselorCollegeMap[$caseRow['counselor_id']])) {
+                $caseRow['college_code'] = $counselorCollegeMap[$caseRow['counselor_id']];
+            }
+        }
+        unset($caseRow);
+
         $countStmt = $db->query("SELECT COUNT(*) FROM gm_cases WHERE deleted_at IS NULL{$statusFilter}");
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
         return ['rows' => $rows, 'total' => $total];

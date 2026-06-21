@@ -25,10 +25,11 @@
 
 | Step | Action | Status | Notes |
 |---|---|---|---|
-| 3.1 | Expand view configs with all modes | ⬜ | `helpers/views/` |
-| 3.2 | Migrate `cases-table.disyl` to `{view guidance_case}` | ⬜ | |
-| 3.3 | Migrate one modal to entity view | ⬜ | |
-| 3.4 | Add entity view tests | ⬜ | |
+| 3.1 | Expand view configs with all modes | ✅ | `guidance_case` table view expanded to 8 fields + 3 actions |
+| 3.2 | Expand `entity.list.guidance_case` capability handler | ✅ | Includes all fields, college enrichment, sorting, pagination |
+| 3.3 | Create entity-view-powered template | ✅ | `partials/cases-table-entity.disyl` uses `{ikb_entity_list source="guidance.case" view="table"}` |
+| 3.4 | Wire handler for entity mode | ✅ | `?entity=1` switches to entity-powered template in `20-cases.php` |
+| 3.5 | Add entity view tests | ⬜ | |
 
 ## Phase 4: State Manager + Bridge Demo (P2)
 

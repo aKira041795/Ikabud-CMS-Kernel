@@ -12436,7 +12436,8 @@ function apiGuidanceRecentCases(): void
     $cases = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     header('Content-Type: text/html; charset=utf-8');
-    echo guidanceRender('modules/guidance/partials/recent-cases.disyl', [
+    $template = !empty(guidanceInput('entity')) ? 'modules/guidance/partials/recent-cases-entity.disyl' : 'modules/guidance/partials/recent-cases.disyl';
+    echo guidanceRender($template, [
         'cases' => $cases,
         'base_url' => '/admin/guidance',
     ]);

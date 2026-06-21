@@ -155,7 +155,9 @@ function apiGuidanceListCases(): void {
         
         if (app()->isHtmx()) {
             $totalPages = (int) ceil($total / $limit);
-            echo guidanceRender('partials/cases-table.disyl', [
+            // Use entity-view-powered template when ?entity=1 is set (Phase 3 POC)
+            $template = !empty(app()->input('entity')) ? 'partials/cases-table-entity.disyl' : 'partials/cases-table.disyl';
+            echo guidanceRender($template, [
                 'cases' => $cases,
                 'stats' => $stats,
                 'pagination' => [
