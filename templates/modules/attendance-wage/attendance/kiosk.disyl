@@ -46,11 +46,11 @@
             <p class="text-xs text-slate-400 mb-4 text-center">📍 Location will be verified after selecting your name</p>
             <h2 class="text-lg font-bold text-slate-900 mb-4">Find Your Name</h2>
             <div class="relative mb-4">
-                <input type="text" x-model="searchQuery" @input.debounce.300ms="searchEmployees()"
+                <input type="text" x-model="searchQuery" @keyup.debounce.300ms="searchEmployees()"
                        @keydown.enter.prevent
                        placeholder="Type your name or employee number..."
                        class="w-full px-4 py-3.5 rounded-xl border border-slate-200 bg-white text-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                       autofocus>
+                       autocomplete="off">
                 <div x-show="searching" class="absolute right-4 top-1/2 -translate-y-1/2">
                     <span class="animate-spin text-slate-400">⏳</span>
                 </div>

@@ -625,11 +625,11 @@ function kioskExtractShortPlaceFromNominatim(array $data): ?string
 
     $street = $road !== '' ? ($houseNum !== '' ? "{$houseNum} {$road}" : $road) : '';
 
-    // Build short name: "Street, Village" or "Street, City" or "Village, County"
+    // Build short name: "Street, City" — prefer city/municipality over village/barangay
     $parts = [];
     if ($street !== '')  $parts[] = $street;
-    if ($village !== '') $parts[] = $village;
-    elseif ($city !== '') $parts[] = $city;
+    if ($city !== '')    $parts[] = $city;
+    elseif ($village !== '') $parts[] = $village;
     if (empty($parts) && $county !== '') $parts[] = $county;
 
     return !empty($parts) ? implode(', ', $parts) : null;
