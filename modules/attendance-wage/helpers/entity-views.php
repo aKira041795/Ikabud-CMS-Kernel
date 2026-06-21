@@ -80,7 +80,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     $views->registerView('payroll_period', 'table', [
         'fields' => [
             'period_name', 'period_type', 'start_date', 'end_date',
-            'total_employees', 'total_gross', 'total_net', 'status',
+            'comp_count', 'total_gross', 'total_net', 'status',
         ],
         'actions' => ['view', 'compute', 'export', 'edit', 'report', 'delete'],
         'action_urls' => [
