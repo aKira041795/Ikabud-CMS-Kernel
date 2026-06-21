@@ -31,7 +31,7 @@ function wageApiEmployeesList(array $params = []): void
     try {
         $db = aw_db();
         $limit = min((int)($params['limit'] ?? 25), 100);
-        $stmt = $db->query("SELECT profile_id AS id, last_name, first_name, middle_name, suffix, employee_number, position, department, hire_date, employment_status, salary_type, basic_salary, is_active FROM employee_profiles ORDER BY last_name ASC, first_name ASC LIMIT {$limit}");
+        $stmt = $db->query("SELECT profile_id AS id, last_name, first_name, middle_name, suffix, employee_number, position, department, hire_date, employment_status, salary_type, basic_salary, overtime_allowed, holiday_pay_enabled, night_diff_enabled, sss_number, philhealth_number, pagibig_number, tin_number, tax_exemption_status, dependents_count, is_active FROM employee_profiles ORDER BY last_name ASC, first_name ASC LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         awJsonOut(['ok' => true, 'data' => $rows]);
     } catch (\Throwable $e) {

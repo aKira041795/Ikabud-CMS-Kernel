@@ -142,15 +142,38 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'edit' => '/admin/wage/employees/{id}',
         ],
         'renderers' => [
-            'salary_type'        => 'badge',
-            'employment_status'  => 'badge:{"regular":"Regular|green","probationary":"Probationary|amber","contractual":"Contractual|blue","part_time":"Part-Time|gray"}',
-            'hire_date'          => 'datetime:date',
+            'salary_type'          => 'badge',
+            'employment_status'    => 'badge:{"regular":"Regular|green","probationary":"Probationary|amber","contractual":"Contractual|blue","part_time":"Part-Time|gray"}',
+            'hire_date'            => 'datetime:date',
+            'overtime_allowed'     => 'badge:{"1":"Yes|green","0":"No|gray"}',
+            'holiday_pay_enabled'  => 'badge:{"1":"Yes|green","0":"No|gray"}',
+            'night_diff_enabled'   => 'badge:{"1":"Yes|green","0":"No|gray"}',
         ],
         'limit' => 25,
         'sort' => ['field' => 'last_name', 'direction' => 'asc'],
         'empty_state' => 'No employee profiles yet.',
         'exportable' => true,
         'capability' => 'entity.list.employee_profile@1',
+    ]);
+
+    // ═══════════════════════════════════════════════════════════════
+    // Employee Profile — detail view (single employee)
+    // ═══════════════════════════════════════════════════════════════
+    $views->registerView('employee_profile', 'detailed', [
+        'fields' => [
+            'employee_number', 'position', 'department', 'hire_date',
+            'salary_type', 'basic_salary', 'employment_status',
+            'overtime_allowed', 'overtime_rate', 'max_daily_hours', 'max_weekly_hours',
+            'sss_number', 'philhealth_number', 'pagibig_number', 'tin_number',
+            'tax_exemption_status', 'dependents_count',
+        ],
+        'renderers' => [
+            'salary_type'          => 'badge',
+            'employment_status'    => 'badge',
+            'basic_salary'         => 'money:2',
+            'overtime_allowed'     => 'badge:{"1":"Yes|green","0":"No|gray"}',
+        ],
+        'capability' => 'entity.get.employee_profile@1',
     ]);
 
     // ═══════════════════════════════════════════════════════════════

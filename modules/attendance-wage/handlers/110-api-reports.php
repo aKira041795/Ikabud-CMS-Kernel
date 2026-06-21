@@ -22,7 +22,7 @@ function wageApiPayslip(array $params = []): void
         $stmt = $db->prepare(
             "SELECT sc.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
                     ep.employee_number, ep.position, ep.department, ep.salary_type, ep.hire_date,
-                    ep.sss_number, ep.philhealth_number, ep.pagibig_number, ep.tin_number,
+                    ep.sss_number, ep.philhealth_number, ep.pagibig_number, ep.tin_number, ep.dependents_count,
                     pp.period_name, pp.start_date AS period_start, pp.end_date AS period_end, pp.pay_date
              FROM salary_computations sc
              JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
