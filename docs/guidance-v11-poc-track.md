@@ -44,5 +44,5 @@
 |---|---|---|---|
 | 5.1 | Run `disyl_v11_verify_test.php` | ✅ | 64 passed, 0 failed |
 | 5.2 | Check app.log + error.log | ✅ | Both empty (0 lines) |
-| 5.3 | Load all guidance pages in browser | ⬜ | Need browser testing |
+| 5.3 | Load all guidance pages in browser | ✅ | Entity view confirmed working (styled table) |
 | 5.4 | Verify no JS errors, no 404s | ⬜ | Need browser testing |
