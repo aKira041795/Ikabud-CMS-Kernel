@@ -50,8 +50,8 @@ function attendanceWageGuard(string $capability = ''): ?array
         }
     }
 
-    // CSRF enforcement for all authenticated POST requests
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF enforcement for POST requests (skip API routes — they use JWT auth)
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !str_starts_with(($_SERVER['REQUEST_URI'] ?? ''), '/api/')) {
         app()->csrfEnforce();
     }
     return $user;
