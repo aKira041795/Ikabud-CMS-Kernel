@@ -10,7 +10,7 @@
  * Modules register hook listeners during their bootstrap phase.
  * 
  * @package Ikabud\Kernel
- * @version 4.0.0
+ * @version 6.0.0
  */
 
 namespace Ikabud\Kernel;

@@ -10,6 +10,8 @@ declare(strict_types=1);
  * they reference only each other and global helpers (app(), write_log(),
  * csrf_token()).
  *
+ * @version 1.1.0
+ *
  * ## Methods inventory
  *
  * Styling:

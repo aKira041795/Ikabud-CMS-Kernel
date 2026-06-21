@@ -19,7 +19,7 @@ namespace Ikabud\Kernel\EntityContext;
  * View format:     compact | detailed | card_grid | table | admin_row | etc.
  *
  * @package Ikabud\Kernel\EntityContext
- * @version 1.0.0
+ * @version 1.1.0
  */
 final class EntityViewResolver
 {
