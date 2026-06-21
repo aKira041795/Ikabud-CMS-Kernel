@@ -84,7 +84,7 @@ if FAIL → fix and recheck
 ### Phase 3 — Tech Debt (COMPLETED ✅)
 | ID | Status | Change |
 |---|---|---|
-| D1 | ✅ Done | Added `@deprecated` notice to `ConnectionPool` referencing `DatabaseManager` |
+| D1 | ✅ Done | Refactored `ConnectionPool` into a proper generic pool (v2.1.0) — delegates tenant connections to `DatabaseManager` via `setDatabaseManager()`, keeps direct management for ad-hoc named connections. Removed `@deprecated`, added clear role distinction docblock. |
 | D2 | ✅ Done | Extracted route pattern utilities + `loadModuleRoutes()` (~516 lines) into new `src/helpers/module-routes.php` |
 | D3 | ✅ Done | Added `@see` cross-reference docblock on `moduleRegistryDefaultEnabledState()` |
 | D4 | ✅ Done | Added class docblock to `CapabilityBus` noting additional public methods beyond contract |
