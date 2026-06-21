@@ -271,9 +271,11 @@ function wageApiBulkCompute(array $params = []): void
 function wageApiApproveComputation(array $params = []): void
 {
     $reqId = request_id();
-    write_log("approve: start", 'info', ['id' => $params['id'] ?? 0, 'method' => $_SERVER['REQUEST_METHOD'], 'content_type' => $_SERVER['CONTENT_TYPE'] ?? '', 'request_id' => $reqId]);
+    write_log("approve: start", 'info', ['id' => $params['id'] ?? 0, 'method' => $_SERVER['REQUEST_METHOD'], 'content_type' => $_SERVER['CONTENT_TYPE'] ?? '', 'uri' => $_SERVER['REQUEST_URI'] ?? '', 'request_id' => $reqId]);
 
+    write_log("approve: before guard", 'info', ['request_id' => $reqId]);
     attendanceWageGuard('attendance_wage.approve@1');
+    write_log("approve: after guard", 'info', ['request_id' => $reqId]);
     $id = (int)($params['id'] ?? 0);
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $isFormPost = !str_contains($contentType, 'application/json') && $_SERVER['REQUEST_METHOD'] === 'POST';
