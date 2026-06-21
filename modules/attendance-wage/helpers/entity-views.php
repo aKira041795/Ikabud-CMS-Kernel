@@ -138,7 +138,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         ],
         'actions' => ['view', 'edit'],
         'action_urls' => [
-            'view' => '/admin/wage/employees?id={id}',
+            'view' => '/admin/wage/employees/{id}',
             'edit' => '/admin/wage/employees/{id}',
         ],
         'renderers' => [
