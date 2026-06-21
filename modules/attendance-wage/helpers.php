@@ -675,8 +675,54 @@ function aw_payrollSettings(): array
         $s->execute([':tid' => app()->tenant()->current() ?? '']);
         $row = $s->fetch(\PDO::FETCH_ASSOC);
         $cache = is_array($row) ? $row : [];
+
+        // Merge module-level settings (timezone, branding) on top
+        $moduleSettings = function_exists('getModuleSettings') ? getModuleSettings('attendance-wage') : [];
+        $cache['timezone'] = $moduleSettings['timezone'] ?? 'Asia/Manila';
+
         return $cache;
     } catch (\Throwable $e) { return []; }
+}
+
+/**
+ * Format a datetime string or timestamp to the configured timezone.
+ *
+ * @param string|int|null $datetime DateTime string, Unix timestamp, or null (uses now)
+ * @param string $format PHP date format (default: 'Y-m-d h:i A')
+ * @return string Formatted datetime string
+ */
+function aw_formatDateTime(string|int|null $datetime = null, string $format = 'Y-m-d h:i A'): string
+{
+    $settings = aw_payrollSettings();
+    $tz = new \DateTimeZone($settings['timezone'] ?? 'Asia/Manila');
+
+    if ($datetime === null) {
+        $dt = new \DateTime('now', $tz);
+    } elseif (is_numeric($datetime)) {
+        $dt = new \DateTime('@' . (int)$datetime);
+        $dt->setTimezone($tz);
+    } else {
+        try {
+            $dt = new \DateTime($datetime);
+            $dt->setTimezone($tz);
+        } catch (\Throwable $e) {
+            return (string)$datetime;
+        }
+    }
+
+    return $dt->format($format);
+}
+
+/**
+ * Convert a UTC datetime string to the configured timezone and return a DateTime.
+ */
+function aw_inTimezone(string $utcDatetime): \DateTime
+{
+    $settings = aw_payrollSettings();
+    $tz = new \DateTimeZone($settings['timezone'] ?? 'Asia/Manila');
+    $dt = new \DateTime($utcDatetime, new \DateTimeZone('UTC'));
+    $dt->setTimezone($tz);
+    return $dt;
 }
 function aw_getAdjustmentsForPeriod(int $userId, int $periodId): array {
     $db=aw_db();

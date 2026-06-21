@@ -44,6 +44,11 @@ app()->hooks()->on('kernel.render_context', function (array $context, string $te
         if (!empty($settings['logo_url'])) {
             $context['logo_url'] = $settings['logo_url'];
         }
+        // Timezone for attendance clock-in/out display
+        $context['timezone'] = $settings['timezone'] ?? 'Asia/Manila';
+        if (!empty($settings['google_maps_api_key'])) {
+            $context['google_maps_api_key'] = $settings['google_maps_api_key'];
+        }
         // Also provide as aw_app_name for templates that need explicit control
         $context['aw_app_name'] = $context['app_name'];
     } catch (\Throwable $e) {
@@ -60,6 +65,7 @@ require_once __DIR__ . '/handlers/10-pages-attendance.php';
 require_once __DIR__ . '/handlers/30-pages-wage.php';
 
 // ── API handlers ──
+require_once __DIR__ . '/handlers/130-api-kiosk.php';
 require_once __DIR__ . '/handlers/20-api-attendance.php';
 require_once __DIR__ . '/handlers/40-api-employees.php';
 require_once __DIR__ . '/handlers/50-api-periods.php';
@@ -71,5 +77,7 @@ require_once __DIR__ . '/handlers/100-api-holidays.php';
 require_once __DIR__ . '/handlers/110-api-schedules.php';
 require_once __DIR__ . '/handlers/110-api-reports.php';
 require_once __DIR__ . '/handlers/120-api-locations.php';
-require_once __DIR__ . '/handlers/130-api-kiosk.php';
+
+// ── Settings (page + API) ──
+require_once __DIR__ . '/handlers/95-api-settings.php';
 

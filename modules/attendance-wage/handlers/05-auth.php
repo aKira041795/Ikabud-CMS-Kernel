@@ -64,6 +64,13 @@ function attendancePageResetPassword(): void
 function attendanceAuthLogin(): void
 {
     app()->csrfEnforce();
+
+    // Rate limiting
+    $rateLimit = kernelConsumeLoginRateLimit('attendance-wage');
+    if ($rateLimit['blocked'] ?? false) {
+        awRedirect(awBaseUrl() . '/attendance-wage/login?error=too_many_attempts');
+    }
+
     $username = trim((string)($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     if ($username === '' || $password === '') awRedirect(awBaseUrl() . '/attendance-wage/login?error=missing_fields');
@@ -81,6 +88,14 @@ function attendanceAuthLogin(): void
 function attendanceAuthForgotPassword(): void
 {
     app()->csrfEnforce();
+
+    // Rate limiting: max 3 forgot-password requests per 15 minutes
+    $rlId = 'attendance-wage:forgot:' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1');
+    $rateLimit = kernelRateLimit($rlId, 3, 900);
+    if ($rateLimit['blocked'] ?? false) {
+        awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?error=too_many_attempts');
+    }
+
     $email = trim((string)($_POST['email'] ?? ''));
     if ($email === '') awRedirect(awBaseUrl() . '/attendance-wage/forgot-password?error=missing_fields');
     try {
