@@ -61,6 +61,18 @@ function kioskApiClock(array $params = []): void
     $photoData = (string)($input['photo_data'] ?? ''); // base64-encoded image
     $onsitePlace = trim((string)($input['onsite_place'] ?? ''));
 
+    // Auto-resolve place name from GPS if client didn't provide one
+    if ($onsitePlace === '' && $latitude !== 0.0 && $longitude !== 0.0) {
+        try {
+            $resolved = kioskResolvePlaceName($latitude, $longitude);
+            if ($resolved !== null) {
+                $onsitePlace = $resolved;
+            }
+        } catch (\Throwable $e) {
+            // Non-fatal: proceed without auto-resolved place
+        }
+    }
+
     if ($profileId <= 0) {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => 'Employee profile required']);
@@ -431,6 +443,87 @@ function saveKioskPhoto(string $base64Data, int $userId): ?string
  * Reverse-geocode coordinates to a human-readable place name.
  * Uses Google Maps Geocoding API if key is configured, otherwise returns null
  * (client-side falls back to OSM Nominatim).
+/**
+ * Resolve coordinates to a short, human-readable place name.
+ * Uses FragmentStore cache (24h TTL) and dual-provider resolution.
+ *
+ * @return string|null Short place name (e.g. "123 Main St, Makati") or null
+ */
+function kioskResolvePlaceName(float $lat, float $lng): ?string
+{
+    $cacheLat = round($lat, 5);
+    $cacheLng = round($lng, 5);
+    $cacheKey = "reverse_geo_{$cacheLat}_{$cacheLng}";
+    $tenantId = function_exists('app') && app()->tenant() !== null
+        ? (app()->tenant()->current() ?? '_global')
+        : '_global';
+
+    // Try cache
+    try {
+        $store = new \Ikabud\Kernel\DiSyL\Cache\FragmentStore();
+        $cached = $store->tryGet($cacheKey, ['reverse_geo'], $tenantId);
+        if ($cached !== null) return $cached;
+    } catch (\Throwable $e) {}
+
+    $place = null;
+
+    try {
+        $settings = function_exists('getModuleSettings') ? getModuleSettings('attendance-wage') : [];
+        $apiKey = trim((string)($settings['google_maps_api_key'] ?? ''));
+
+        // Tier 1: Google
+        if ($apiKey !== '') {
+            $url = "https://maps.googleapis.com/maps/api/geocode/json?latlng={$lat},{$lng}&key=" . urlencode($apiKey);
+            $resp = @file_get_contents($url);
+            if ($resp !== false) {
+                $data = json_decode($resp, true);
+                if (is_array($data) && ($data['status'] ?? '') === 'OK' && !empty($data['results'])) {
+                    $place = kioskExtractShortPlaceFromGoogle($data['results'][0]);
+                }
+            }
+        }
+
+        // Tier 2: OpenStreetMap
+        if ($place === null) {
+            $ctx = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'header' => "Accept-Language: en\r\nUser-Agent: Ikabud-Kiosk/1.0\r\n",
+                    'timeout' => 5,
+                ],
+            ]);
+            $resp = @file_get_contents(
+                "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=18&addressdetails=1",
+                false, $ctx
+            );
+            if ($resp !== false) {
+                $data = json_decode($resp, true);
+                if (is_array($data)) $place = kioskExtractShortPlaceFromNominatim($data);
+            }
+        }
+    } catch (\Throwable $e) {}
+
+    // Cache result
+    if ($place !== null) {
+        try {
+            $store = new \Ikabud\Kernel\DiSyL\Cache\FragmentStore();
+            $store->put($cacheKey, $place, ['reverse_geo'], 86400, $tenantId);
+        } catch (\Throwable $e) {}
+    }
+
+    return $place;
+}
+
+/**
+ * Resolve coordinates to a short, human-readable place name.
+ *
+ * Strategy (tiered):
+ *   1. FragmentStore cache hit → instant return
+ *   2. Google Geocoding API → short name from address_components
+ *   3. OpenStreetMap Nominatim → road + village/city fallback
+ *   4. FragmentStore cache write → subsequent requests skip API
+ *
+ * Returns: {ok: true, place: "123 Main St, Makati"} or {ok: false}
  */
 function kioskApiReverseGeocode(array $params = []): void
 {
@@ -438,75 +531,108 @@ function kioskApiReverseGeocode(array $params = []): void
     $lng = (float)($_GET['lng'] ?? $params['lng'] ?? 0);
 
     if ($lat === 0.0 && $lng === 0.0) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok' => false, 'error' => 'Coordinates required']);
+        awJson(['ok' => false, 'error' => 'Coordinates required']);
         return;
     }
 
-    try {
-        $settings = getModuleSettings('attendance-wage');
-        $apiKey = trim((string)($settings['google_maps_api_key'] ?? ''));
+    $place = kioskResolvePlaceName($lat, $lng);
 
-        if ($apiKey !== '') {
-            $url = "https://maps.googleapis.com/maps/api/geocode/json?latlng={$lat},{$lng}&key=" . urlencode($apiKey);
-            $resp = @file_get_contents($url);
-            if ($resp !== false) {
-                $data = json_decode($resp, true);
-                if (is_array($data) && ($data['status'] ?? '') === 'OK' && !empty($data['results'])) {
-                    $place = $data['results'][0]['formatted_address'] ?? '';
-                    if ($place !== '') {
-                        header('Content-Type: application/json; charset=utf-8');
-                        echo json_encode(['ok' => true, 'place' => $place]);
-                        return;
-                    }
-                }
-            }
+    if ($place !== null) {
+        awJson(['ok' => true, 'place' => $place]);
+    } else {
+        awJson(['ok' => false, 'error' => 'Could not resolve location.']);
+    }
+}
+
+/**
+ * Extract a short, readable place name from a Google Geocoding API result.
+ * Prefers: street address + barangay/suburb, falls back to city-level.
+ */
+function kioskExtractShortPlaceFromGoogle(array $result): ?string
+{
+    $components = $result['address_components'] ?? [];
+    if (empty($components)) {
+        // Fallback to formatted_address truncated
+        $full = $result['formatted_address'] ?? '';
+        if ($full !== '') {
+            $parts = explode(',', $full);
+            return trim(implode(',', array_slice($parts, 0, min(2, count($parts)))));
         }
-        
-        // Fallback: OpenStreetMap Nominatim (server-side, no CSP issues)
-        $ctx = stream_context_create([
-            'http' => [
-                'method' => 'GET',
-                'header' => "Accept-Language: en\r\nUser-Agent: Ikabud-Kiosk/1.0\r\n",
-                'timeout' => 5,
-            ],
-        ]);
-        $osmUrl = "https://nominatim.openstreetmap.org/reverse?format=json&lat={$lat}&lon={$lng}&zoom=16&addressdetails=1";
-        $resp = @file_get_contents($osmUrl, false, $ctx);
-        if ($resp !== false) {
-            $data = json_decode($resp, true);
-            if (is_array($data)) {
-                $place = '';
-                if (!empty($data['address'])) {
-                    $a = $data['address'];
-                    $place = $a['village'] ?? $a['town'] ?? $a['suburb'] ?? $a['city'] ?? $a['municipality'] ?? $a['county'] ?? $a['state'] ?? '';
-                    $district = $a['state_district'] ?? $a['county'] ?? '';
-                    $country = $a['country'] ?? '';
-                    if ($place !== '') {
-                        if ($district !== '' && $district !== $place) {
-                            $place .= ', ' . $district;
-                        } elseif ($country !== '') {
-                            $place .= ', ' . $country;
-                        }
-                    }
-                }
-                if ($place === '' && !empty($data['display_name'])) {
-                    $parts = explode(',', $data['display_name']);
-                    $place = trim(implode(', ', array_slice($parts, 0, min(3, count($parts)))));
-                }
-                if ($place !== '') {
-                    header('Content-Type: application/json; charset=utf-8');
-                    echo json_encode(['ok' => true, 'place' => $place]);
-                    return;
-                }
-            }
-        }
-    } catch (\Throwable $e) {
-        // Fall through
+        return null;
     }
 
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['ok' => false]);
+    // Extract useful components
+    $road      = '';
+    $streetNum = '';
+    $barangay  = '';
+    $city      = '';
+    $town      = '';
+    $suburb    = '';
+
+    foreach ($components as $c) {
+        $types = $c['types'] ?? [];
+        $long  = $c['long_name'] ?? '';
+        if (in_array('street_number', $types, true))   { $streetNum = $long; }
+        if (in_array('route', $types, true))            { $road = $long; }
+        if (in_array('sublocality', $types, true) || in_array('sublocality_level_1', $types, true)) { $barangay = $long; }
+        if (in_array('locality', $types, true))         { $city = $long; }
+        if (in_array('town', $types, true))             { $town = $long; }
+        if (in_array('administrative_area_level_3', $types, true) || in_array('administrative_area_level_4', $types, true)) { $suburb = $long; }
+    }
+
+    // Build short name: "Road, Barangay" or "Road, City" or "Barangay, City"
+    $street = $road !== '' ? ($streetNum !== '' ? "{$streetNum} {$road}" : $road) : '';
+    $neighborhood = $barangay ?: $suburb ?: '';
+    $locality     = $city ?: $town ?: '';
+
+    if ($street !== '' && $neighborhood !== '') {
+        return "{$street}, {$neighborhood}";
+    }
+    if ($street !== '' && $locality !== '') {
+        return "{$street}, {$locality}";
+    }
+    if ($neighborhood !== '' && $locality !== '') {
+        return "{$neighborhood}, {$locality}";
+    }
+    if ($street !== '')   return $street;
+    if ($neighborhood !== '') return $neighborhood;
+    if ($locality !== '') return $locality;
+
+    return null;
+}
+
+/**
+ * Extract a short place name from an OpenStreetMap Nominatim response.
+ * Includes road/street name for precision.
+ */
+function kioskExtractShortPlaceFromNominatim(array $data): ?string
+{
+    $a = $data['address'] ?? [];
+    if (empty($a)) {
+        $display = $data['display_name'] ?? '';
+        if ($display !== '') {
+            $parts = explode(',', $display);
+            return trim(implode(', ', array_slice($parts, 0, min(2, count($parts)))));
+        }
+        return null;
+    }
+
+    $road       = $a['road'] ?? $a['pedestrian'] ?? $a['path'] ?? $a['street'] ?? '';
+    $houseNum   = $a['house_number'] ?? '';
+    $village    = $a['village'] ?? $a['town'] ?? $a['suburb'] ?? $a['neighbourhood'] ?? $a['hamlet'] ?? '';
+    $city       = $a['city'] ?? $a['municipality'] ?? '';
+    $county     = $a['county'] ?? $a['state_district'] ?? '';
+
+    $street = $road !== '' ? ($houseNum !== '' ? "{$houseNum} {$road}" : $road) : '';
+
+    // Build short name: "Street, Village" or "Street, City" or "Village, County"
+    $parts = [];
+    if ($street !== '')  $parts[] = $street;
+    if ($village !== '') $parts[] = $village;
+    elseif ($city !== '') $parts[] = $city;
+    if (empty($parts) && $county !== '') $parts[] = $county;
+
+    return !empty($parts) ? implode(', ', $parts) : null;
 }
 
 /**

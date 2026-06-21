@@ -166,14 +166,33 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'view' => '/admin/attendance?employee_id={user_id}',
         ],
         'renderers' => [
-            'clock_in'  => 'datetime:full',
-            'clock_out' => 'datetime:full',
-            'status'    => 'badge:{"active":"Active|green","completed":"Completed|gray"}',
+            'clock_in'    => 'datetime:full',
+            'clock_out'   => 'datetime:full',
+            'location_in' => 'badge',
+            'location_out' => 'badge',
+            'status'      => 'badge:{"active":"Active|green","completed":"Completed|gray"}',
         ],
         'limit' => 30,
         'sort' => ['field' => 'clock_in', 'direction' => 'desc'],
         'empty_state' => 'No attendance records found.',
         'exportable' => true,
+        'capability' => 'entity.list.attendance_record@1',
+    ]);
+
+    // Attendance Record — compact view for kiosk (employee-facing)
+    $views->registerView('attendance_record', 'compact', [
+        'fields' => [
+            'employee_name', 'clock_in', 'clock_out', 'location_in', 'status',
+        ],
+        'renderers' => [
+            'clock_in'    => 'datetime:time',
+            'clock_out'   => 'datetime:time',
+            'location_in' => 'badge',
+            'status'      => 'badge:{"active":"Active|green","completed":"Completed|gray"}',
+        ],
+        'limit' => 10,
+        'sort' => ['field' => 'clock_in', 'direction' => 'desc'],
+        'empty_state' => 'No recent records.',
         'capability' => 'entity.list.attendance_record@1',
     ]);
 
