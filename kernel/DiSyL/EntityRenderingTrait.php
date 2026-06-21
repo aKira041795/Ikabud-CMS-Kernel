@@ -668,11 +668,13 @@ trait EntityRenderingTrait
                     $hiddenInputs .= "<input type=\"hidden\" name=\"{$safeKey}\" value=\"{$safeVal}\">";
                 }
 
-                $html .= "<form method=\"post\" action=\"{$href}\" class=\"inline\"{$onSubmit}>"
+                $formId = 'ikb-form-' . bin2hex(random_bytes(4));
+                $html .= "<form id=\"{$formId}\" method=\"post\" action=\"{$href}\" class=\"inline\"{$onSubmit}>"
                       . $hiddenInputs
                       . $csrfInput
                       . "<button type=\"submit\" class=\"{$actionClass}\">{$safeLabel}</button>"
-                      . "</form>";
+                      . "</form>"
+                      . "<script>(function(){var f=document.getElementById('{$formId}');f.addEventListener('submit',function(e){e.preventDefault();var d=new FormData(f);fetch(f.action,{method:'POST',body:d}).then(function(r){return r.json().catch(function(){return{ok:false,error:'Invalid response'}})}).then(function(j){if(j.ok&&j.message){var u=new URL(window.location.href);u.searchParams.set('success',j.message);window.location.href=u.toString()}else if(j.error){var u2=new URL(window.location.href);u2.searchParams.set('error',j.error);window.location.href=u2.toString()}else{window.location.reload()}}).catch(function(){window.location.reload()})})})();</script>";
             } else {
                 // Render as link for GET actions
                 $onClick = '';
