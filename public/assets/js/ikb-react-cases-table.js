@@ -72,7 +72,7 @@
                                 colSpan: headers.length,
                                 className: 'px-6 py-12 text-center text-gray-500'
                             }, 'No cases found.')
-                          )
+                        )
                         : items.map(function (row, idx) {
                             return h('tr', {
                                 key: row.id || idx,
@@ -86,8 +86,8 @@
                                 }
                             }, fields.map(function (f) {
                                 var val = f === '_status' ? statusBadge(row.status)
-                                      : f === '_severity' ? severityBadge(row.severity)
-                                      : row[f] || '\u2014';
+                                    : f === '_severity' ? severityBadge(row.severity)
+                                        : row[f] || '\u2014';
                                 return h('td', {
                                     key: f,
                                     className: 'px-6 py-4 whitespace-nowrap text-gray-700'

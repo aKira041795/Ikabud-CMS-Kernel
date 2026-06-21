@@ -42,11 +42,8 @@
     
     {!-- DiSyL ikb-component bridge — required for {ikb_component} and {state} tags --}
     <script src="/assets/js/ikb-components.js"></script>
-    {!-- React Bridge POC — loaded unconditionally, stays idle unless data-react-component found --}
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    {!-- React Bridge — CDN loaded lazily by ikb-react.js when data-react-component elements are found --}
     <script src="/assets/js/ikb-react.js"></script>
-    <script src="/assets/js/ikb-react-cases-table.js"></script>
     
     {!-- Application Stylesheet --}
     <link rel="stylesheet" href="/assets/guidance/css/app.css">
