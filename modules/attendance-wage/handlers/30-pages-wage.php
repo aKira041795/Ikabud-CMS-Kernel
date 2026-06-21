@@ -91,7 +91,7 @@ function wagePageDashboard(array $params = []): void
         $data['recent_computations'] = $compStmt ? $compStmt->fetchAll(\PDO::FETCH_ASSOC) : [];
     } catch (\Throwable $e) {}
 
-    echo app()->render('modules/attendance-wage/wage/dashboard', $data + ['active_nav' => 'dashboard', 'current_user_role' => (attendanceWageUser()['role'] ?? '')]);
+    echo app()->render('modules/attendance-wage/wage/dashboard', $data + ['page_title' => 'Dashboard', 'active_nav' => 'dashboard', 'current_user_role' => (attendanceWageUser()['role'] ?? '')]);
 }
 
 function wagePageEmployees(array $params = []): void
