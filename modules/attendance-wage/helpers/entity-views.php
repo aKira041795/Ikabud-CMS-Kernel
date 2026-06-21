@@ -80,27 +80,40 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     $views->registerView('payroll_period', 'table', [
         'fields' => [
             'period_name', 'period_type', 'start_date', 'end_date',
-            'comp_count', 'total_gross', 'total_net', 'status',
+            'total_employees', 'total_gross', 'total_net', 'status',
         ],
-        'actions' => ['view', 'compute', 'export'],
+        'actions' => ['view', 'compute', 'export', 'edit', 'report', 'delete'],
         'action_urls' => [
             'view'    => '/admin/wage/computations?period_id={id}',
             'compute' => '/api/v1/wage/compute/bulk',
             'export'  => '/api/v1/wage/reports/{id}/export?format=csv',
+            'edit'    => '/admin/wage/periods/{id}',
+            'report'  => '/admin/wage/reports/{id}',
+            'delete'  => '/api/v1/wage/periods/{id}/delete',
         ],
         'action_methods' => [
             'compute' => 'post',
+            'delete'  => 'post',
         ],
         'action_labels' => [
             'view'    => 'View',
             'compute' => '🧮 Compute',
             'export'  => '📥 CSV',
+            'edit'    => 'Edit',
+            'report'  => 'Report',
+            'delete'  => 'Delete',
         ],
         'action_confirm' => [
             'compute' => 'Compute salaries for all employees in this period?',
+            'delete'  => 'Delete this period and all its computations?',
         ],
         'action_show_if' => [
             'compute' => 'status != "completed"',
+            'report'  => 'status != "completed" && status != "cancelled"',
+            'delete'  => 'status == "draft" || status == "processing"',
+        ],
+        'action_roles' => [
+            'delete' => ['admin'],
         ],
         'renderers' => [
             'total_gross' => 'money:2',

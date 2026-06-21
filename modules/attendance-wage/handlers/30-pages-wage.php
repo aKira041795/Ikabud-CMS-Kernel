@@ -145,13 +145,6 @@ function wagePagePeriods(array $params = []): void
         }
     } catch (\Throwable $e) {}
 
-    // Existing payroll periods with computed totals
-    $periods = [];
-    try {
-        $db = aw_db();
-        $periods = $db->query("SELECT * FROM payroll_periods ORDER BY start_date DESC LIMIT 20")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {}
-
     // Pending adjustments summary
     $pendingAdjustments = ['count' => 0, 'additions' => 0, 'deductions' => 0];
     try {
@@ -169,7 +162,6 @@ function wagePagePeriods(array $params = []): void
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
         'stats' => $stats,
-        'periods' => $periods,
         'pending_adjustments' => $pendingAdjustments,
         'active_nav'        => 'periods',
         'current_user_role' => $user['role'] ?? '',
