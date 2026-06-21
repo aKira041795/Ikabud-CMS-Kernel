@@ -22,8 +22,6 @@
         "office_locations"
     ],
     "reads_tables": [
-        "stores",
-        "user_stores",
         "audit_logs"
     ],
     "routes": "routes.php",
