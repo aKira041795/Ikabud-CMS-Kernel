@@ -13,6 +13,9 @@ namespace Ikabud\Kernel\Services;
  *
  * Supported formats: pdf, docx, xlsx, csv
  *
+ * NOTE: All methods are static with internal static state. Tests should
+ * call reset() between test cases to avoid state leakage.
+ *
  * @package Ikabud\Kernel\Services
  * @version 1.0.0
  */

@@ -77,9 +77,8 @@ class TurboStreamResponse
             return "<turbo-stream action=\"{$safeAction}\" target=\"{$safeTarget}\"></turbo-stream>";
         }
 
-        // Content goes inside <template> which the browser treats as inert, but
-        // we still escape to prevent breaking out of the turbo-stream tag.
-        $safeContent = htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
-        return "<turbo-stream action=\"{$safeAction}\" target=\"{$safeTarget}\"><template>{$safeContent}</template></turbo-stream>";
+        // Content goes inside <template> which the browser parses as HTML.
+        // Content is expected to be pre-escaped safe HTML; do not double-escape.
+        return "<turbo-stream action=\"{$safeAction}\" target=\"{$safeTarget}\"><template>{$content}</template></turbo-stream>";
     }
 }

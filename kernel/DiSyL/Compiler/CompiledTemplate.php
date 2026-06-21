@@ -152,22 +152,30 @@ abstract class CompiledTemplate
     
     /**
      * Render a block
+     *
+     * NOTE: In compiled mode, DocumentNode content is rendered via the
+     * interpreted fallback pipeline. If a DocumentNode is received here,
+     * it means the compiled template's block resolution didn't inline it,
+     * and we delegate to string conversion as a best-effort fallback.
      */
     protected function renderBlock(mixed $block, RenderContext $ctx): string
     {
         if ($block instanceof DocumentNode) {
-            return "<!-- block content -->";
+            return (string)$block;
         }
         return (string)$block;
     }
-    
+
     /**
      * Render a slot
+     *
+     * NOTE: Same DocumentNode constraint as renderBlock(). Slot content
+     * that remains as AST nodes falls back to string conversion.
      */
     protected function renderSlot(mixed $slot, RenderContext $ctx): string
     {
         if ($slot instanceof DocumentNode) {
-            return "<!-- slot content -->";
+            return (string)$slot;
         }
         return (string)$slot;
     }

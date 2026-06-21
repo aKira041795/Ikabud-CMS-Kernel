@@ -1,3 +1,5 @@
+<?php
+
 /**
  * Architectural POC Validation — Verifies all Phase A-F enhancements.
  *

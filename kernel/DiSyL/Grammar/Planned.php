@@ -3,7 +3,14 @@
  * DiSyL Grammar — PLANNED keywords / type system extensions
  *
  * Holds constants that describe future DiSyL surface area (v11 / v11.1).
- * None of these are currently parsed or executed by the v4 TemplateEngine.
+ * Most keywords here are NOT yet parsed or executed by the v4 TemplateEngine.
+ *
+ * NOTE: TemplateEngine::evaluateStructureBody() has dispatch entries for
+ * several v11.1 keywords ({sandbox}, {trans}, {cache}, {experiment},
+ * {parallel}, {await}, {suspense}, {federated_query}, {ai_generate},
+ * {ai_query}, {ai_complete}) but their evaluator methods are stubs that
+ * either no-op or return placeholder content. They are wired in the
+ * parser/dispatch layer but NOT yet functional at runtime.
  *
  * Split out of `kernel/DiSyL/Grammar.php` in kernel 4.0.0 so that the live
  * grammar surface stays focused on what the runtime actually understands.

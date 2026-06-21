@@ -154,6 +154,12 @@ class ComponentInstance
     
     /**
      * Get computed property value
+     *
+     * NOTE: Computed property evaluation is a stub in v1.0.0.
+     * Requires ExpressionParser integration to evaluate computed expressions.
+     * Returns null for all computed properties until implemented.
+     *
+     * @todo Implement expression-based computed property evaluation
      */
     public function getComputed(string $name): mixed
     {
@@ -294,6 +300,12 @@ class ComponentInstance
     
     /**
      * Call a method on this component
+     *
+     * NOTE: Method execution is a stub in v1.0.0.
+     * Requires expression evaluator integration to execute component methods.
+     * Currently returns null for all method calls.
+     *
+     * @todo Implement method body execution via ExpressionParser
      */
     public function callMethod(string $name, array $args = []): mixed
     {

@@ -104,6 +104,9 @@ class EventHandler
         }
         // Restrict handler to safe JS expression characters: alphanumeric, common
         // punctuation used in method calls / assignments. Block < > ' " ` backtick.
+        // Restrict to safe JS tokens. Quotes (' ") are allowed because the
+        // handler is embedded in a function body (not a string literal).
+        // Explicitly excluding: <> (HTML injection) and backtick (template literal escape).
         if (!preg_match('/^[a-zA-Z0-9_()\[\].;,=\+\-\*\/\!\s\{\}&|?:\'"%]+$/', $handler)) {
             return '// DiSyL: handler rejected (disallowed characters)';
         }

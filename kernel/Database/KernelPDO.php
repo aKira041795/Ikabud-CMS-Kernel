@@ -216,7 +216,7 @@ final class KernelPDO extends PDO
                 }
 
                 if ($cacheKey !== '') {
-                    if (count(self::$moduleOriginCache) >= 256) {
+                    if (count(self::$moduleOriginCache) >= 1024) {
                         self::$moduleOriginCache = [];
                     }
                     self::$moduleOriginCache[$cacheKey] = $moduleOrigin;

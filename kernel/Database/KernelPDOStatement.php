@@ -20,9 +20,9 @@ class KernelPDOStatement extends PDOStatement
         $start = microtime(true);
         try {
             $result = parent::execute($params);
-        } catch (\Throwable $e) {
-            if (!KernelPDO::tryRepairCurrentConnectionForSql($this->queryString, $e)) {
-                throw $e;
+        } catch (\Throwable $repairError) {
+            if (!KernelPDO::tryRepairCurrentConnectionForSql($this->queryString, $repairError)) {
+                throw $repairError;
             }
             $start = microtime(true);
             $result = parent::execute($params);
@@ -35,7 +35,9 @@ class KernelPDOStatement extends PDOStatement
                     'duration_ms' => (microtime(true) - $start) * 1000,
                     'source'      => 'pdo_statement',
                 ]);
-            } catch (\Throwable $e) { write_log('db_event_error', 'warning', ['error' => $e->getMessage(), 'source' => 'pdo_statement']); }
+            } catch (\Throwable $eventError) {
+                write_log('db_event_error', 'warning', ['error' => $eventError->getMessage(), 'source' => 'pdo_statement']);
+            }
         }
 
         return $result;

@@ -16,6 +16,12 @@ namespace Ikabud\Kernel\Contracts;
  * It is an OBSERVABILITY layer: schema drift warnings, deprecation notices,
  * and contract introspection for superadmin tooling.
  *
+ * IMPORTANT: The registry is populated during module route loading, NOT during
+ * module discovery. Calling registerReadContract() only happens if modules are
+ * fully enabled and their routes loaded. If the registry appears empty, verify
+ * that getEnabledModules() has been called and loadModuleRoutes() has executed
+ * for the relevant modules.
+ *
  * Usage (called from module-manager.php during module discovery):
  *   $registry = ReadContractRegistry::getInstance();
  *   $registry->registerReadContract($readerModuleId, $tableName, $db);

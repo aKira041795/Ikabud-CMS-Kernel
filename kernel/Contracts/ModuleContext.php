@@ -28,10 +28,10 @@ final class ModuleContext implements AuthContract, LogContract
 {
     private App $app;
     private string $moduleId;
-    private ModuleDB $db;
+    private DatabaseContract $db;
     private array $manifest;
 
-    public function __construct(App $app, string $moduleId, ModuleDB $db, array $manifest = [])
+    public function __construct(App $app, string $moduleId, DatabaseContract $db, array $manifest = [])
     {
         $this->app = $app;
         $this->moduleId = $moduleId;
@@ -55,7 +55,7 @@ final class ModuleContext implements AuthContract, LogContract
      * Get the scoped database gateway.
      * This enforces table ownership — modules can only touch declared tables.
      */
-    public function db(): ModuleDB
+    public function db(): DatabaseContract
     {
         return $this->db;
     }

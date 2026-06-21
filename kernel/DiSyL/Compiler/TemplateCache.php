@@ -70,6 +70,9 @@ class TemplateCache
             if ($freshCompiledCode === null) {
                 $freshCompiledCode = $this->compile($templatePath, $className, null);
             }
+            // SECURITY NOTE: eval() is safe here because compiled code
+            // is generated from template source by TemplateCompiler,
+            // not from user input.
             eval("?>" . $freshCompiledCode);
         }
         $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
@@ -115,6 +118,9 @@ class TemplateCache
         } else {
             $ast = $this->parser->parse($source, $name);
             $code = $this->compiler->compile($ast, $className);
+            // SECURITY NOTE: eval() is safe here because compiled code
+            // is generated from template source by TemplateCompiler,
+            // not from user input.
             eval("?>" . $code);
         }
         $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";

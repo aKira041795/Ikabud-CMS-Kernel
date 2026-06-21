@@ -6,6 +6,18 @@ namespace Ikabud\Kernel\Capabilities;
 
 use Ikabud\Kernel\Contracts\CapabilityBusContract;
 
+/**
+ * Ikabud Kernel — CapabilityBus
+ *
+ * Central dispatch for capability invocation with policy enforcement,
+ * circuit breaking, metrics, and schema validation.
+ *
+ * NOTE: This class implements CapabilityBusContract (call/flushRuntimeState)
+ * and extends the surface with additional public methods (resolveSchemaMode,
+ * manualTrip, manualReset, healthForProvider, healthAll) that are NOT part
+ * of the contract interface. Consumers depending on CapabilityBusContract
+ * must type-narrow to CapabilityBus to access these extras.
+ */
 final class CapabilityBus implements CapabilityBusContract
 {
     /** @var array<string, array<string, mixed>>|null */

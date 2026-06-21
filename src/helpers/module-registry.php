@@ -353,6 +353,16 @@ function moduleRegistryRuntimeDefaultModulesForTenant(int $tenantId): array
     return $cache[$tenantId];
 }
 
+/**
+ * Resolve the default enabled state for a module.
+ *
+ * NOTE: This function duplicates logic from getEnabledModules() (module-manager.php)
+ * and tenantProvisionModulePlan(). Changes to dependency-closure or capability
+ * resolution logic should be applied consistently across all three.
+ *
+ * @see getEnabledModules()
+ * @see tenantProvisionModulePlan()
+ */
 function moduleRegistryDefaultEnabledState(string $moduleId, ?int $tenantId = null): bool
 {
     $moduleId = trim($moduleId);

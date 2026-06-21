@@ -9,6 +9,8 @@
 namespace Ikabud\Kernel\DiSyL\Compiler;
 
 class IncrementalCompiler
+// TODO: Add cache file GC (stale compiled templates accumulate)
+
 {
     private string $cacheDir;
     private string $manifestFile;

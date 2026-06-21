@@ -6,8 +6,14 @@
  * The primary connection is managed by App::db(). This pool is available
  * for modules or features that need additional database connections.
  * 
+ * NOTE: This class has been superseded by DatabaseManager (kernel/Services/)
+ * which provides APCu caching, SSL support, encrypted password decryption,
+ * retry logic with exponential backoff, and unified connection lifecycle.
+ * ConnectionPool remains for legacy test compatibility.
+ *
  * @package Ikabud\Kernel\Database
  * @version 2.0.0
+ * @deprecated Use Ikabud\Kernel\Services\DatabaseManager instead
  */
 
 namespace Ikabud\Kernel\Database;

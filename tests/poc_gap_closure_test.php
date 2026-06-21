@@ -1,3 +1,5 @@
+<?php
+
 /**
  * POC Validation — Gap Closure Tests (G1, G2, G3)
  *
