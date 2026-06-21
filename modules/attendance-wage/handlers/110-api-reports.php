@@ -172,6 +172,7 @@ function wageApiBenefitsCalculate(array $params = []): void
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $input = str_contains($contentType, 'application/json') ? (json_decode(file_get_contents('php://input'), true) ?: []) : $_POST;
     $salary = (float)($input['salary'] ?? $input['gross_pay'] ?? 0);
+    $type = trim((string)($input['type'] ?? ''));
     if ($salary <= 0) {
         header("Content-Type: application/json; charset=utf-8");
         echo json_encode(['ok' => false, 'error' => 'Salary amount is required']);
@@ -179,15 +180,28 @@ function wageApiBenefitsCalculate(array $params = []): void
     }
     try {
         $benefits = aw_calculateBenefits($salary);
-        header("Content-Type: application/json; charset=utf-8");
-        echo json_encode(['ok' => true, 'data' => [
-            'gross_salary' => $salary,
-            'sss' => ['employee' => $benefits['sss']['employee'], 'employer' => $benefits['sss']['employer']],
-            'philhealth' => ['employee' => $benefits['philhealth']['employee'], 'employer' => $benefits['philhealth']['employer']],
-            'pagibig' => ['employee' => $benefits['pagibig']['employee'], 'employer' => $benefits['pagibig']['employer']],
-            'total_employee' => round($benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'], 2),
-            'total_employer' => round($benefits['sss']['employer'] + $benefits['philhealth']['employer'] + $benefits['pagibig']['employer'], 2),
-        ]]);
+
+        if ($type !== '' && isset($benefits[$type])) {
+            // Return single benefit type (used by individual calculator cards)
+            $b = $benefits[$type];
+            header("Content-Type: application/json; charset=utf-8");
+            echo json_encode(['ok' => true, 'data' => [
+                'employee' => $b['employee'],
+                'employer' => $b['employer'],
+                'total'    => round($b['employee'] + $b['employer'], 2),
+            ]]);
+        } else {
+            // Return all benefits (used by summary views)
+            header("Content-Type: application/json; charset=utf-8");
+            echo json_encode(['ok' => true, 'data' => [
+                'gross_salary' => $salary,
+                'sss' => ['employee' => $benefits['sss']['employee'], 'employer' => $benefits['sss']['employer']],
+                'philhealth' => ['employee' => $benefits['philhealth']['employee'], 'employer' => $benefits['philhealth']['employer']],
+                'pagibig' => ['employee' => $benefits['pagibig']['employee'], 'employer' => $benefits['pagibig']['employer']],
+                'total_employee' => round($benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'], 2),
+                'total_employer' => round($benefits['sss']['employer'] + $benefits['philhealth']['employer'] + $benefits['pagibig']['employer'], 2),
+            ]]);
+        }
     } catch (\Throwable $e) {
         header("Content-Type: application/json; charset=utf-8");
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
