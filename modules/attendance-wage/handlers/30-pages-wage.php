@@ -605,25 +605,3 @@ function wagePageProfile(array $params = []): void
     ]);
 }
 
-function wagePageSettings(array $params = []): void
-{
-    attendanceWageGuard('attendance_wage.admin@1');
-    $settings = getModuleSettings('attendance-wage');
-    $currentUser = attendanceWageUser();
-    $users = [];
-    try {
-        $db = aw_db();
-        $users = $db->query("SELECT id, username, email, full_name, role, is_active, created_at FROM attendance_wage_users ORDER BY role ASC, full_name ASC")->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-    } catch (\Throwable $e) {}
-    echo app()->render('modules/attendance-wage/wage/settings', [
-        'success'              => $_GET['success'] ?? '',
-        'error'                => $_GET['error'] ?? '',
-        'app_name'             => $settings['app_name'] ?? '',
-        'logo_url'             => $settings['logo_url'] ?? '',
-        'google_maps_api_key'  => $settings['google_maps_api_key'] ?? '',
-        'users'                => $users,
-        'current_user_id'      => (int)($currentUser['id'] ?? 0),
-        'current_user_name'    => $currentUser['full_name'] ?? $currentUser['username'] ?? '',
-        'current_user_role'    => $currentUser['role'] ?? '',
-    ]);
-}
