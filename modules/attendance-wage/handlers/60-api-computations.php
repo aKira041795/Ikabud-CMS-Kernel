@@ -271,6 +271,7 @@ function wageApiBulkCompute(array $params = []): void
 function wageApiApproveComputation(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.approve@1');
+    aw_csrfGuard();
     $id = (int)($params['id'] ?? 0);
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $isFormPost = !str_contains($contentType, 'application/json') && $_SERVER['REQUEST_METHOD'] === 'POST';
