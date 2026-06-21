@@ -270,6 +270,9 @@ function wageApiBulkCompute(array $params = []): void
 
 function wageApiApproveComputation(array $params = []): void
 {
+    $reqId = request_id();
+    write_log("approve: start", 'info', ['id' => $params['id'] ?? 0, 'method' => $_SERVER['REQUEST_METHOD'], 'content_type' => $_SERVER['CONTENT_TYPE'] ?? '', 'request_id' => $reqId]);
+
     attendanceWageGuard('attendance_wage.approve@1');
     $id = (int)($params['id'] ?? 0);
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
@@ -277,6 +280,7 @@ function wageApiApproveComputation(array $params = []): void
     $base = awBaseUrl();
     if ($id <= 0) {
         $msg = 'Missing computation ID';
+        write_log("approve: missing id", 'warning', ['id' => $id, 'request_id' => $reqId]);
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($msg)); exit; }
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $msg]);
@@ -289,6 +293,7 @@ function wageApiApproveComputation(array $params = []): void
         $comp = $s->fetch(\PDO::FETCH_ASSOC);
         if (!$comp) {
             $msg = 'Computation not found or already processed.';
+            write_log("approve: not found", 'warning', ['id' => $id, 'request_id' => $reqId]);
             if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($msg)); exit; }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => $msg]);
@@ -298,6 +303,7 @@ function wageApiApproveComputation(array $params = []): void
         $payDate = $comp['pay_date'] ?? '9999-12-31';
         if ($payDate > $now) {
             $msg = 'Cannot approve before pay date (' . $payDate . ').';
+            write_log("approve: pay date in future", 'warning', ['id' => $id, 'pay_date' => $payDate, 'request_id' => $reqId]);
             if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?period_id=' . ((int)$comp['payroll_period_id']) . '&error=' . urlencode($msg)); exit; }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['ok' => false, 'error' => $msg]);
@@ -314,6 +320,7 @@ function wageApiApproveComputation(array $params = []): void
         if ($pending === 0) {
             $db->prepare("UPDATE payroll_periods SET status = 'approved' WHERE period_id = :pid AND status = 'processing'")->execute([':pid' => $pid]);
         }
+        write_log("approve: success", 'info', ['id' => $id, 'period_id' => $pid, 'request_id' => $reqId]);
         if ($isFormPost) {
             header('Location: ' . $base . '/admin/wage/computations?period_id=' . $pid . '&success=' . urlencode('Computation approved.'));
             exit;
@@ -321,6 +328,7 @@ function wageApiApproveComputation(array $params = []): void
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => true, 'message' => 'Computation approved.', 'status' => 'approved']);
     } catch (\Throwable $e) {
+        write_log("approve: exception", 'error', ['id' => $id, 'error' => $e->getMessage(), 'request_id' => $reqId]);
         if ($isFormPost) { header('Location: ' . $base . '/admin/wage/computations?error=' . urlencode($e->getMessage())); exit; }
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
