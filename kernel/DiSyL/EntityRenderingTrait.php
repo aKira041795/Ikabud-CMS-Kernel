@@ -261,7 +261,9 @@ trait EntityRenderingTrait
 
         // Render using the view's field definitions
         $contract = $resolved['view'] ?? [];
-        $fields = is_array($contract['fields'] ?? null) ? $contract['fields'] : ['*'];
+        // Use display_fields from resolver if available (includes key_field filtering);
+        // fall back to contract fields for backward compatibility.
+        $fields = $resolved['display_fields'] ?? $contract['fields'] ?? ['*'];
         $viewMode = $contract['view'] ?? $view;
         $viewActions = $contract['actions'] ?? [];
         $actionUrls = $contract['action_urls'] ?? [];

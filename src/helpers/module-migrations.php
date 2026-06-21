@@ -760,21 +760,14 @@ function syncTenantCliMigrationsForTenant(int $tenantId, ?string $moduleId = nul
         }
 
         if ($requestedModuleId !== '') {
-            if (!in_array($requestedModuleId, $plannedModules, true)) {
-                return [
-                    'ok' => true,
-                    'tenant_id' => $tenantId,
-                    'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
-                    'modules' => $results,
-                    'skipped' => 'module_not_in_plan',
-                ];
-            }
-
+            // When a specific module is explicitly requested, bypass the
+            // dependency-resolved plan check — the user knows what they want.
+            // Just verify the module exists and has migrations.
             $manifest = $allModules[$requestedModuleId] ?? null;
             if (!is_array($manifest)) {
                 return [
                     'ok' => false,
-                    'error' => 'Module manifest unavailable',
+                    'error' => 'Module manifest unavailable or module not found',
                     'tenant_id' => $tenantId,
                     'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
                     'modules' => $results,

@@ -17,7 +17,9 @@
         "exposes": [
             {
                 "id": "reporting.ledger.daily@1",
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "priority": 10,
                 "description": "Generate a daily ledger PDF report",
                 "schema": {
@@ -37,7 +39,11 @@
         ],
         "policy": {
             "default": {
-                "allow_callers": ["daily-ledger", "kernel", "bakeshop"]
+                "allow_callers": [
+                    "daily-ledger",
+                    "kernel",
+                    "bakeshop"
+                ]
             }
         }
     },

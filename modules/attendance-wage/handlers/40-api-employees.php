@@ -31,7 +31,16 @@ function wageApiEmployeesList(array $params = []): void
     try {
         $db = aw_db();
         $limit = min((int)($params['limit'] ?? 25), 100);
-        $stmt = $db->query("SELECT profile_id AS id, last_name, first_name, middle_name, suffix, employee_number, position, department, hire_date, employment_status, salary_type, basic_salary, hourly_rate, daily_rate, monthly_rate, overtime_allowed, holiday_pay_enabled, night_diff_enabled, sss_number, philhealth_number, pagibig_number, tin_number, tax_exemption_status, dependents_count, photo_url, is_active FROM employee_profiles ORDER BY last_name ASC, first_name ASC LIMIT {$limit}");
+        // Check if photo_url column exists (tenant DB might not have it migrated yet)
+        static $hasPhotoCol = null;
+        if ($hasPhotoCol === null) {
+            try {
+                $c = $db->query("SHOW COLUMNS FROM employee_profiles LIKE 'photo_url'");
+                $hasPhotoCol = (bool)$c->fetch();
+            } catch (\Throwable $e) { $hasPhotoCol = false; }
+        }
+        $photoField = $hasPhotoCol ? ', photo_url' : '';
+        $stmt = $db->query("SELECT profile_id AS id, last_name, first_name, middle_name, suffix, employee_number, position, department, hire_date, employment_status, salary_type, basic_salary, hourly_rate, daily_rate, monthly_rate, overtime_allowed, holiday_pay_enabled, night_diff_enabled, sss_number, philhealth_number, pagibig_number, tin_number, tax_exemption_status, dependents_count{$photoField}, is_active FROM employee_profiles ORDER BY last_name ASC, first_name ASC LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         awJsonOut(['ok' => true, 'data' => $rows]);
     } catch (\Throwable $e) {
@@ -103,6 +112,12 @@ function wageApiEmployeeCreate(array $params = []): void
 
     try {
         $db = aw_db();
+        static $hasPhotoColInsert = null;
+        if ($hasPhotoColInsert === null) {
+            try { $c = $db->query("SHOW COLUMNS FROM employee_profiles LIKE 'photo_url'"); $hasPhotoColInsert = (bool)$c->fetch(); } catch (\Throwable $e) { $hasPhotoColInsert = false; }
+        }
+        $photoColPart = $hasPhotoColInsert ? ', photo_url' : '';
+        $photoValPart = $hasPhotoColInsert ? ', :photo' : '';
         $stmt = $db->prepare(
             "INSERT INTO employee_profiles
                 (tenant_id, first_name, last_name, middle_name, suffix, employee_number, position, department,
@@ -110,16 +125,16 @@ function wageApiEmployeeCreate(array $params = []): void
                  overtime_allowed, overtime_rate, max_daily_hours, max_weekly_hours,
                  holiday_pay_enabled, rest_day_pay_enabled, night_diff_enabled, cash_advance_allowed, onsite_attendance,
                  sss_number, sss_applicable, philhealth_number, philhealth_applicable,
-                 pagibig_number, pagibig_applicable, tin_number, tax_exemption_status, photo_url)
+                 pagibig_number, pagibig_applicable, tin_number, tax_exemption_status{$photoColPart})
              VALUES
                 (:tid, :fn, :ln, :mn, :sx, :en, :pos, :dept,
                  :hd, :es, :st, :bs, :hr,
                  :oa, :or, :mdh, :mwh,
                  :hp, :rdp, :nd, :ca, :osa,
                  :sss, :sssa, :ph, :pha,
-                 :pag, :paga, :tin, :tx, :photo)"
+                 :pag, :paga, :tin, :tx{$photoValPart})"
         );
-        $stmt->execute([
+        $params = [
             ':tid' => app()->tenant()->current() ?? '',
             ':fn' => $firstName, ':ln' => $lastName, ':mn' => $middleName, ':sx' => $suffix,
             ':en' => $empNo, ':pos' => $position, ':dept' => $department, ':hd' => $hireDate ?: null,
@@ -129,8 +144,9 @@ function wageApiEmployeeCreate(array $params = []): void
             ':osa' => isset($input['onsite_attendance']) ? 1 : 0,
             ':sss' => $sssNum, ':sssa' => $sssApp, ':ph' => $phNum, ':pha' => $phApp,
             ':pag' => $pagNum, ':paga' => $pagApp, ':tin' => $tinNum, ':tx' => $taxStatus,
-            ':photo' => $photoUrl,
-        ]);
+        ];
+        if ($hasPhotoColInsert) { $params[':photo'] = $photoUrl; }
+        $stmt->execute($params);
         $id = (int)$db->lastInsertId();
         $isFormPost = !str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json');
         if ($isFormPost) {
@@ -185,16 +201,22 @@ function wageApiEmployeeUpdate(array $params = []): void
         if (isset($input[$f])) { $fields[] = "`{$f}` = :{$f}"; $vals[":{$f}"] = trim((string)$input[$f]); }
     }
 
-    // Handle photo upload on update
-    if (!empty($_FILES['photo']['tmp_name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
+    // Handle photo upload on update (check column exists first to avoid errors on tenant DBs)
+    static $hasPhotoColUpdate = null;
+    $canSavePhoto = false;
+    if ($hasPhotoColUpdate === null) {
+        try { $c = aw_db()->query("SHOW COLUMNS FROM employee_profiles LIKE 'photo_url'"); $hasPhotoColUpdate = (bool)$c->fetch(); } catch (\Throwable $e) { $hasPhotoColUpdate = false; }
+    }
+    $canSavePhoto = $hasPhotoColUpdate;
+    if ($canSavePhoto && !empty($_FILES['photo']['tmp_name']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
         $photoUrl = aw_saveEmployeePhoto($_FILES['photo']);
         $fields[] = '`photo_url` = :photo';
         $vals[':photo'] = $photoUrl;
-    } elseif (!empty($input['photo_data'])) {
+    } elseif ($canSavePhoto && !empty($input['photo_data'])) {
         $photoUrl = aw_saveEmployeePhotoFromBase64((string)$input['photo_data']);
         $fields[] = '`photo_url` = :photo';
         $vals[':photo'] = $photoUrl;
-    } elseif (isset($input['photo_remove']) && $input['photo_remove']) {
+    } elseif ($canSavePhoto && isset($input['photo_remove']) && $input['photo_remove']) {
         $fields[] = '`photo_url` = :photo';
         $vals[':photo'] = null;
     }
@@ -232,11 +254,11 @@ function aw_saveEmployeePhoto(array $file): ?string
         'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', default => 'jpg',
     };
     $filename = 'emp_' . bin2hex(random_bytes(8)) . '.' . $ext;
-    $dir = defined('STORAGE_PATH') ? STORAGE_PATH . '/uploads/employee-photos' : (defined('BASE_PATH') ? BASE_PATH . '/storage/uploads/employee-photos' : sys_get_temp_dir() . '/employee-photos');
-    if (!is_dir($dir)) @mkdir($dir, 0775, true);
-    $dest = $dir . '/' . $filename;
+    $uploadDir = defined('PUBLIC_PATH') ? PUBLIC_PATH . '/uploads/employee-photos' : (defined('BASE_PATH') ? BASE_PATH . '/public/uploads/employee-photos' : sys_get_temp_dir() . '/employee-photos');
+    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0775, true);
+    $dest = $uploadDir . '/' . $filename;
     return move_uploaded_file($file['tmp_name'], $dest)
-        ? (function_exists('external_base_url') ? external_base_url() . '/storage/uploads/employee-photos/' . rawurlencode($filename) : '/storage/uploads/employee-photos/' . rawurlencode($filename))
+        ? '/uploads/employee-photos/' . rawurlencode($filename)
         : null;
 }
 
@@ -251,10 +273,10 @@ function aw_saveEmployeePhotoFromBase64(string $data): ?string
     if ($binary === false || strlen($binary) > 5 * 1024 * 1024) return null;
 
     $filename = 'emp_' . bin2hex(random_bytes(8)) . '.' . $ext;
-    $dir = defined('STORAGE_PATH') ? STORAGE_PATH . '/uploads/employee-photos' : (defined('BASE_PATH') ? BASE_PATH . '/storage/uploads/employee-photos' : sys_get_temp_dir() . '/employee-photos');
-    if (!is_dir($dir)) @mkdir($dir, 0775, true);
-    $dest = $dir . '/' . $filename;
+    $uploadDir = defined('PUBLIC_PATH') ? PUBLIC_PATH . '/uploads/employee-photos' : (defined('BASE_PATH') ? BASE_PATH . '/public/uploads/employee-photos' : sys_get_temp_dir() . '/employee-photos');
+    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0775, true);
+    $dest = $uploadDir . '/' . $filename;
     return file_put_contents($dest, $binary) !== false
-        ? (function_exists('external_base_url') ? external_base_url() . '/storage/uploads/employee-photos/' . rawurlencode($filename) : '/storage/uploads/employee-photos/' . rawurlencode($filename))
+        ? '/uploads/employee-photos/' . rawurlencode($filename)
         : null;
 }

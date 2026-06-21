@@ -263,7 +263,7 @@ export function deactivate() {
 async function lintDocument(doc: vscode.TextDocument, collection: vscode.DiagnosticCollection) {
     // Phase 1: EBNF-based structural validation (instant, no PHP required)
     const ebnfDiagnostics = validateDisylDocument(doc);
-    
+
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) {
         // No workspace — return EBNF results only

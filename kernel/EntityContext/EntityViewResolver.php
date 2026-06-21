@@ -182,6 +182,15 @@ final class EntityViewResolver
         $sortDir = (string)($overrides['sort_direction'] ?? $contract['sort']['direction'] ?? 'desc');
         $filters = is_array($overrides['filters'] ?? null) ? $overrides['filters'] : [];
 
+        // Resolve key_field — always include it in query results for URL interpolation
+        // even when it's not a display field (e.g. {id} in action_urls / row-click).
+        $keyField = $contract['key_field'] ?? null;
+        $displayFields = $contract['fields'] ?? '*';
+        $queryFields = $displayFields;
+        if ($keyField !== null && is_array($queryFields) && !in_array($keyField, $queryFields, true)) {
+            $queryFields[] = $keyField;
+        }
+
         $capabilityArgs = [
             'entity_type' => $entityType,
             'qualifier' => $qualifier,
@@ -189,7 +198,7 @@ final class EntityViewResolver
             'limit' => $limit,
             'sort' => ['field' => $sortField, 'direction' => $sortDir],
             'filters' => $filters,
-            'fields' => $contract['fields'] ?? '*',
+            'fields' => $queryFields,
         ];
 
         // Attempt to fetch via the capability bus
@@ -240,6 +249,7 @@ final class EntityViewResolver
             'rows' => $rows,
             'total' => $total,
             'view' => $contract,
+            'display_fields' => is_array($displayFields) ? $displayFields : ($rows[0] ?? [] ? array_keys($rows[0]) : []),
             'source' => $parsed,
             'error' => null,
         ];

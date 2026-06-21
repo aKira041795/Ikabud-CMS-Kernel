@@ -23,6 +23,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Salary Computation — table view with action buttons
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('salary_computation', 'table', [
+        'key_field' => 'id',
         'fields' => [
             'employee_name', 'salary_type', 'gross_pay', 'total_additions',
             'total_deductions', 'net_pay', 'status',
@@ -65,7 +66,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'total_deductions' => 'money:2',
             'net_pay'          => 'money:2',
             'status'           => 'badge:{"computed":"Computed|amber","approved":"Approved|green","paid":"Paid|blue","cancelled":"Cancelled|red"}',
-            'salary_type'      => 'badge',
+            'salary_type'      => 'badge:{"hourly":"Hourly|gray","daily":"Daily|blue","monthly":"Monthly|purple","fixed":"Fixed|amber"}',
         ],
         'limit' => 50,
         'sort' => ['field' => 'created_at', 'direction' => 'desc'],
@@ -78,6 +79,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Payroll Period — table view for reports listing
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('payroll_period', 'table', [
+        'key_field' => 'id',
         'fields' => [
             'period_name', 'period_type', 'start_date', 'end_date',
             'comp_count', 'total_gross', 'total_net', 'status',
@@ -118,8 +120,8 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'renderers' => [
             'total_gross' => 'money:2',
             'total_net'   => 'money:2',
+            'period_type' => 'badge:{"weekly":"Weekly|blue","bi_weekly":"Bi-Weekly|purple","semi_monthly":"Semi-Monthly|amber","monthly":"Monthly|green"}',
             'status'      => 'badge:{"draft":"Draft|amber","processing":"Processing|blue","completed":"Completed|green","cancelled":"Cancelled|red"}',
-            'period_type' => 'badge',
         ],
         'limit' => 15,
         'sort' => ['field' => 'start_date', 'direction' => 'desc'],
@@ -132,17 +134,18 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Employee Profile — table view with row-click navigation
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('employee_profile', 'table', [
+        'key_field' => 'id',
         'fields' => [
             'first_name', 'last_name', 'position', 'department', 'salary_type',
             'employment_status', 'hire_date',
         ],
         'actions' => ['view', 'edit'],
         'action_urls' => [
-            'view' => '/admin/wage/employees/{id}',
+            'view' => '/admin/wage/employees/{id}/view',
             'edit' => '/admin/wage/employees/{id}',
         ],
         'renderers' => [
-            'salary_type'          => 'badge',
+            'salary_type'          => 'badge:{"hourly":"Hourly|gray","daily":"Daily|blue","monthly":"Monthly|purple","fixed":"Fixed|amber"}',
             'employment_status'    => 'badge:{"regular":"Regular|green","probationary":"Probationary|amber","contractual":"Contractual|blue","part_time":"Part-Time|gray"}',
             'hire_date'            => 'datetime:date',
             'overtime_allowed'     => 'badge:{"1":"Yes|green","0":"No|gray"}',
@@ -168,10 +171,11 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'tax_exemption_status', 'dependents_count',
         ],
         'renderers' => [
-            'salary_type'          => 'badge',
-            'employment_status'    => 'badge',
+            'salary_type'          => 'badge:{"hourly":"Hourly|gray","daily":"Daily|blue","monthly":"Monthly|purple","fixed":"Fixed|amber"}',
+            'employment_status'    => 'badge:{"regular":"Regular|green","probationary":"Probationary|amber","contractual":"Contractual|blue","part_time":"Part-Time|gray","terminated":"Terminated|red"}',
             'basic_salary'         => 'money:2',
             'overtime_allowed'     => 'badge:{"1":"Yes|green","0":"No|gray"}',
+            'tax_exemption_status' => 'badge:{"single":"Single|gray","married":"Married|blue","head_of_family":"Head of Family|purple"}',
         ],
         'capability' => 'entity.get.employee_profile@1',
     ]);
@@ -223,6 +227,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Cash Advance — table view
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('cash_advance', 'table', [
+        'key_field' => 'id',
         'fields' => [
             'employee_name', 'amount', 'balance', 'repayment_type',
             'request_date', 'status',
@@ -252,7 +257,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'amount'          => 'money:2',
             'balance'         => 'money:2',
             'status'          => 'badge:{"pending":"Pending|amber","approved":"Approved|green","active":"Active|blue","rejected":"Rejected|red","paid":"Paid|gray"}',
-            'repayment_type'  => 'badge',
+            'repayment_type'  => 'badge:{"full_next_payroll":"Full (Next Payroll)|blue","installment":"Installment|purple","lumpsum_date":"Lump Sum by Date|amber"}',
             'request_date'    => 'datetime:date',
         ],
         'limit' => 20,
@@ -266,6 +271,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Holiday — table view with search
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('holiday', 'table', [
+        'key_field' => 'id',
         'fields' => ['holiday_name', 'holiday_date', 'holiday_type', 'is_regular'],
         'actions' => ['view', 'edit', 'delete'],
         'action_urls' => [
@@ -281,7 +287,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         ],
         'renderers' => [
             'holiday_date' => 'datetime:date',
-            'holiday_type' => 'badge',
+            'holiday_type' => 'badge:{"regular":"Regular|green","special_non_working":"Special Non-Working|blue","special_working":"Special Working|amber"}',
             'is_regular'   => 'boolean',
         ],
         'limit' => 30,
@@ -295,6 +301,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Office Location — table view
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('office_location', 'table', [
+        'key_field' => 'id',
         'fields' => ['name', 'address', 'latitude', 'longitude', 'radius_meters', 'is_active'],
         'actions' => ['view', 'edit', 'delete'],
         'action_urls' => [
@@ -332,7 +339,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
             'edit' => '/admin/wage/schedules/employee/{profile_id}',
         ],
         'renderers' => [
-            'shift_type' => 'badge',
+            'shift_type' => 'badge:{"day":"Day|blue","night":"Night|purple","rotating":"Rotating|amber","fixed":"Fixed|gray","flexible":"Flexible|green","split":"Split|red"}',
         ],
         'limit' => 50,
         'sort' => ['field' => 'employee_name', 'direction' => 'asc'],
@@ -365,6 +372,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Salary Adjustment — table view
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('salary_adjustment', 'table', [
+        'key_field' => 'id',
         'fields' => [
             'employee_name', 'adjustment_type', 'amount', 'description',
             'status', 'effective_date',
@@ -390,7 +398,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         ],
         'renderers' => [
             'amount'          => 'money:2',
-            'adjustment_type' => 'badge',
+            'adjustment_type' => 'badge:{"bonus":"Bonus|green","allowance":"Allowance|blue","penalty":"Penalty|red","deduction":"Deduction|amber","correction":"Correction|purple","thirteenth_month":"13th Month|indigo","holiday_bonus":"Holiday Bonus|pink"}',
             'status'          => 'badge:{"pending":"Pending|amber","approved":"Approved|green","applied":"Applied|blue","rejected":"Rejected|red"}',
             'effective_date'  => 'datetime:date',
         ],

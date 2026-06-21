@@ -95,7 +95,7 @@ final class SecurityHeaders
             'X-Content-Type-Options: nosniff',
             'Content-Security-Policy: ' . $this->buildCspHeaderValue(),
             'Referrer-Policy: strict-origin-when-cross-origin',
-            'Permissions-Policy: geolocation=(), microphone=(), camera=(), payment=(), usb=()',
+            'Permissions-Policy: geolocation=self, camera=self, microphone=(), payment=(), usb=()',
         ];
 
         if ($this->isHttps()) {

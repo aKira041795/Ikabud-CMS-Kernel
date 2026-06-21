@@ -724,6 +724,58 @@ function aw_inTimezone(string $utcDatetime): \DateTime
     $dt->setTimezone($tz);
     return $dt;
 }
+
+/**
+ * Normalize tax_exemption_status values for display.
+ * Converts 'head_of_family' → 'Head of Family', 'single' → 'Single', etc.
+ */
+function aw_formatTaxStatus(?string $status): string
+{
+    return aw_formatLookup('tax_exemption_status', $status);
+}
+
+/**
+ * Centralized lookup for all enum-like DB values.
+ * Converts raw underscored values to human-readable labels.
+ * Falls back to ucfirst(str_replace('_', ' ', $value)) for unknown values.
+ */
+function aw_formatLookup(string $field, ?string $value): string
+{
+    static $maps = [
+        'salary_type' => [
+            'hourly' => 'Hourly', 'daily' => 'Daily', 'monthly' => 'Monthly', 'fixed' => 'Fixed',
+        ],
+        'employment_status' => [
+            'regular' => 'Regular', 'probationary' => 'Probationary', 'contractual' => 'Contractual',
+            'part_time' => 'Part-Time', 'terminated' => 'Terminated',
+        ],
+        'period_type' => [
+            'weekly' => 'Weekly', 'bi_weekly' => 'Bi-Weekly', 'semi_monthly' => 'Semi-Monthly', 'monthly' => 'Monthly',
+        ],
+        'repayment_type' => [
+            'full_next_payroll' => 'Full (Next Payroll)', 'installment' => 'Installment', 'lumpsum_date' => 'Lump Sum by Date',
+        ],
+        'holiday_type' => [
+            'regular' => 'Regular', 'special_non_working' => 'Special Non-Working', 'special_working' => 'Special Working',
+        ],
+        'shift_type' => [
+            'day' => 'Day', 'night' => 'Night', 'rotating' => 'Rotating', 'fixed' => 'Fixed', 'flexible' => 'Flexible', 'split' => 'Split',
+        ],
+        'adjustment_type' => [
+            'bonus' => 'Bonus', 'allowance' => 'Allowance', 'penalty' => 'Penalty', 'deduction' => 'Deduction',
+            'correction' => 'Correction', 'thirteenth_month' => '13th Month', 'holiday_bonus' => 'Holiday Bonus',
+        ],
+        'tax_exemption_status' => [
+            'single' => 'Single', 'married' => 'Married', 'head_of_family' => 'Head of Family',
+        ],
+    ];
+    if ($value === null || $value === '') {
+        return '—';
+    }
+    $map = $maps[$field] ?? [];
+    return $map[$value] ?? ucfirst(str_replace('_', ' ', $value));
+}
+
 function aw_getAdjustmentsForPeriod(int $userId, int $periodId): array {
     $db=aw_db();
     // Get period date range for NULL-period fallback

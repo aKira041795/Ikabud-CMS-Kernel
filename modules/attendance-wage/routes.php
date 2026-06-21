@@ -16,6 +16,7 @@ return [
         '/admin/wage'                    => 'attendance-wage:wagePageDashboard',
         '/admin/wage/employees'          => 'attendance-wage:wagePageEmployees',
         '/admin/wage/employees/create'   => 'attendance-wage:wagePageEmployeeForm',
+        '/admin/wage/employees/{id}/view' => 'attendance-wage:wagePageEmployeeView',
         '/admin/wage/employees/{id}'     => 'attendance-wage:wagePageEmployeeForm',
         '/admin/wage/periods'            => 'attendance-wage:wagePagePeriods',
         '/admin/wage/periods/create'     => 'attendance-wage:wagePagePeriodForm',

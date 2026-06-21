@@ -131,6 +131,40 @@ function wagePageEmployeeForm(array $params = []): void
     ]);
 }
 
+function wagePageEmployeeView(array $params = []): void
+{
+    attendanceWageGuard();
+    $viewId = (int)($params['id'] ?? 0);
+    $vars = ['id' => $viewId];
+    try {
+        $db = aw_db();
+        $stmt = $db->prepare("SELECT * FROM employee_profiles WHERE profile_id = :id");
+        $stmt->execute([':id' => $viewId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (is_array($row)) {
+            foreach ($row as $k => $v) {
+                if (!is_array($v) && $v !== null) { $vars[$k] = $v; }
+            }
+        }
+    } catch (\Throwable $e) {
+        echo app()->render('modules/attendance-wage/wage/employees/view', ['id' => $viewId, 'error' => 'Employee not found.']);
+        return;
+    }
+    if (empty($vars['last_name'])) {
+        echo app()->render('modules/attendance-wage/wage/employees/view', ['id' => $viewId, 'error' => 'Employee not found.']);
+        return;
+    }
+    // Normalize display values
+    $vars['tax_status_label'] = aw_formatLookup('tax_exemption_status', $vars['tax_exemption_status'] ?? null);
+    $vars['employment_status_label'] = aw_formatLookup('employment_status', $vars['employment_status'] ?? null);
+    $vars['salary_type_label'] = aw_formatLookup('salary_type', $vars['salary_type'] ?? null);
+    $user = attendanceWageUser();
+    echo app()->render('modules/attendance-wage/wage/employees/view', $vars + [
+        'active_nav'        => 'employees',
+        'current_user_role' => $user['role'] ?? '',
+    ]);
+}
+
 function wagePagePeriods(array $params = []): void
 {
     attendanceWageGuard();
