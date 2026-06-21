@@ -2,7 +2,11 @@
 
 > **Goal:** Narrow the gap between current DiSyL (v6.0) and the v11 vision (type operators, Islands, reactive, Fibers) through incremental, high-impact intermediate steps.
 >
-> **Status:** Active — sprint 1 (1.1 + 1.2 + 2.1) and sprint 2 (2.2 + 2.3 + 3.1 + 3.2) implemented. See [`tests/disyl_v11_verify_test.php`](../../tests/disyl_v11_verify_test.php) for automated verification (60 tests).
+> **Status:** Intermediate roadmap implementation complete. Active hardening: bridge capability contracts, binding primitives, JWT CSRF hardening, manifest schema v1. See [`tests/disyl_v11_verify_test.php`](../../tests/disyl_v11_verify_test.php) for automated verification (64 tests).
+>
+> **Architecture highlight:** The **Bridge System** (`kernel/DiSyL/Bridge/`) is a pluggable output abstraction that makes `{ikb_component}` and `{state}` framework-agnostic. Bridges now declare capability contracts (`supports()` + `capabilities()`) so the compiler can catch incompatible template usage at compile time. Binding primitives (`bind`/`model` attributes on `ikb_text`/`ikb_input`) let templates express intent in a framework-neutral way.
+>
+> **Note on Fibers:** Per architectural review, Fibers are a Kernel runtime optimization, not a DiSyL language feature. DiSyL expresses data requirements declaratively; the Kernel resolves concurrency behind the scenes.
 
 ---
 
@@ -17,6 +21,37 @@ The v11 planned features (type operators, island hydration, reactive state, Fibe
 | **Immediate** | Hours–days | Fix parser/runtime friction points we hit today |
 | **Short-term** | Weeks | Incremental v11 bridges that add value standalone |
 | **Medium-term** | Months | Foundational blocks that enable v11 features |
+
+---
+
+## Revised Versioning
+
+Per architectural review, the intermediate work maps to a cleaner release sequence:
+
+| Version | Identity | Features |
+|---------|----------|----------|
+| **v7** | Declaration and parser safety | Raw script/style modes, `{@var}`, strict-mode cleanup |
+| **v8** | Component Bridge | `ikb_component`, BridgeManager, Alpine/HTMX/Custom output, capability contracts |
+| **v9** | Contract Compiler | DiSyL entity-view config, schema registry, compiled manifests v1 |
+| **v10** | State and Islands Foundation | State contracts, bridge capability matrix, island descriptors, asset manifest |
+| **v11** | Typed Interface Runtime | Type operators, validated component props, island hydration, controlled reactive bindings |
+
+Fibers are removed from the DiSyL headline — they belong under **Kernel runtime concurrency and resolver optimization**.
+
+---
+
+## Contract-Hardening Sprint (Completed)
+
+The following items were addressed after the initial implementation, based on architectural review feedback:
+
+| Item | What changed | Status |
+|------|-------------|--------|
+| Bridge capability contracts | `BridgeInterface::supports()` + `capabilities()` on all bridges | ✅ Done |
+| Binding primitives | `bind` attribute on `ikb_text`, `model` on `ikb_input` — bridges translate to framework-specific attrs | ✅ Done |
+| JWT CSRF hardening | HKDF-style derivation using app secret (`hash_hmac('sha256', 'csrf\|' . hash('sha256', $cookie), $appSecret)`) | ✅ Done |
+| Rich manifest schema | `source_hash`, `compiler_version`, `variables.{used,required,optional}`, `bridges`, `assets`, `dependencies` | ✅ Done |
+| Bridge capabilities documented | Each bridge declares feature support (local_state, two_way_binding, server_actions, etc.) | ✅ Done |
+| Fibers scope clarified | Fibers moved to Kernel runtime; DiSyL expresses data requirements declaratively | ✅ Done |
 
 ---
 
@@ -108,47 +143,80 @@ csrf_token = hash_hmac('sha256', jwt_cookie_value, 'csrf')
 
 **Effort:** ~3–5 days
 
-### 2.2 `{ikb_component}` — Server-Rendered Alpine Bridge
+### 2.2 `{ikb_component}` — Pluggable Component Bridge
 
-**Problem:** Every interactive component currently follows the same pattern: PHP renders data into HTML, Alpine.js `x-data` initializes with a JSON blob. But there's no standard way to do this — each component invents its own HTML structure.
+**Problem:** Every interactive component currently follows the same pattern: PHP renders data into HTML, Alpine.js `x-data` initializes with a JSON blob. But there's no standard way to do this — each component invents its own HTML structure, and the approach is hardcoded to Alpine.js.
 
-**Solution:** A DiSyL component that standardizes server-rendered Alpine components:
+**Solution:** A DiSyL component that standardizes server-rendered components with a **pluggable bridge** system. The `bridge` attribute selects the frontend framework output:
 
-```
-{ikb_component name="employee-profile" data="selectedEmployee"}
-  <template>
-    <div class="...">{{ name }}</div>
-    <div class="...">{{ position }}</div>
-  </template>
+```disyl
+{ikb_component name="employee-profile" data="selectedEmployee" bridge="alpine"}
+  <div class="...">{name}</div>
+  <div class="...">{position}</div>
 {/ikb_component}
 ```
 
-Generates:
+With `bridge="alpine"` (default):
 
 ```html
-<div x-data="ikbComponent({&quot;name&quot;:&quot;Noah Omamalin&quot;,&quot;position&quot;:&quot;Baker&quot;})">
+<div data-ikb-component="employee-profile" x-data="ikbComponent({...json...})">
   <div class="...">Noah Omamalin</div>
   <div class="...">Baker</div>
 </div>
 ```
 
-With a global `ikbComponent()` Alpine function that:
-1. Receives the JSON data
-2. Makes it reactive via Alpine's `$data`
-3. Provides event methods, computed properties, etc.
+With `bridge="htmx"`:
+
+```html
+<div data-ikb-component="employee-profile" data-ikb-data='{...json...}' hx-vals='{"ikb_component":"...","data":{...}}'>
+  <div class="...">Noah Omamalin</div>
+  <div class="...">Baker</div>
+</div>
+```
+
+With `bridge="custom"`:
+
+```html
+<div data-ikb-component="employee-profile" data-ikb-data='{...json...}'>
+  ...
+</div>
+```
+
+**Bridge architecture:**
+- `kernel/DiSyL/Bridge/BridgeInterface.php` — contract for all bridges
+- `kernel/DiSyL/Bridge/AlpineBridge.php` — Alpine.js `x-data` output (default)
+- `kernel/DiSyL/Bridge/HtmxBridge.php` — HTMX `hx-vals` + `data-*` output
+- `kernel/DiSyL/Bridge/CustomBridge.php` — generic `data-ikb-*` attributes only
+- `kernel/DiSyL/Bridge/BridgeManager.php` — resolves bridge by name, extensible
+
+Modules choose per-template:
+```disyl
+{!-- Guidance uses HTMX bridge --}
+{ikb_component name="appointment-form" data="formData" bridge="htmx" hx-post="/api/appointments" hx-target="#result"}
+
+{!-- CMS stays on Alpine --}
+{ikb_component name="editor-toolbar" data="toolbar" bridge="alpine"}
+```
 
 **Location:**
-- `kernel/DiSyL/ComponentRegistry.php` — register `{ikb_component}`
-- `kernel/DiSyL/ComponentRenderers/` — new renderer file
-- `public/assets/js/ikb-components.js` — Alpine plugin
+- `kernel/DiSyL/Bridge/` — all bridge classes
+- `kernel/DiSyL/TemplateEngine.php` — `renderIkbComponent()` delegates to bridge
+- `kernel/DiSyL/Grammar.php` — `BRIDGE_*` constants
+- `public/assets/js/ikb-components.js` — Alpine plugin (Alpine bridge only)
 
 **Impact:**
-- Standardized Alpine integration — every component uses the same bridge
-- The Alpine function `ikbComponent()` can be swapped for a DiSyL client runtime later (Island hydration)
+- Framework-agnostic — same DiSyL component works with Alpine, HTMX, or custom JS
+- Modules pick the bridge that matches their frontend stack
+- Adding a new framework is one bridge class, zero parser changes
 - Eliminates ad-hoc `x-data` strings in templates
 - Data is serialized once, in one format, by one component
 
-**Effort:** ~1 week
+**Effort:** ~1 week (bridge core ~1 day, `{ikb_component}` refactor ~1 day, testing ~1 day)
+
+**Bridge identifiers (Grammar.php):**
+- `Grammar::BRIDGE_ALPINE` = `'alpine'` — emits `x-data="ikbComponent(...)"`
+- `Grammar::BRIDGE_HTMX` = `'htmx'` — emits `data-ikb-data` + `hx-vals`
+- `Grammar::BRIDGE_CUSTOM` = `'custom'` — emits only generic `data-ikb-*` attributes
 
 ### 2.3 Component Registry Configuration in DiSyL (Not PHP Arrays)
 
@@ -192,26 +260,58 @@ With a global `ikbComponent()` Alpine function that:
 
 **Problem:** Current DiSyL has no notion of persistent state between renders. Each page load is a fresh render. Components like the kiosk widget store state in Alpine.js `x-data`, which is invisible to the server.
 
-**Solution:** A `{state}` tag that declares a state namespace with a server-side source:
+**Solution:** A `{state}` tag that declares a state namespace with a server-side source, using the same pluggable bridge system as `{ikb_component}`:
 
-```
-{state name="kiosk" source="attendance-wage/kiosk-state"}
+```disyl
+{state name="kiosk" source="attendance-wage/kiosk-state" bridge="alpine"}
   {variable name="step" type="int" default="0"}
   {variable name="searchQuery" type="string" default=""}
   {variable name="selectedEmployee" type="?object"}
+  <div class="kiosk-content">
+    <span x-text="step"></span>
+    <input x-model="searchQuery">
+  </div>
 {/state}
 ```
 
-- **On page load:** DiSyL renders initialState as JSON → Alpine `x-data` initializes from this
-- **On interaction:** Alpine updates local state only (no server round-trip)
-- **On navigation/refresh:** State is optionally persisted via `sessionStorage` or a quick API call
+With `bridge="alpine"` (default) — emits `x-data="ikbComponent({...})"`:
+
+```html
+<div data-state="kiosk" x-data="ikbComponent({&quot;step&quot;:0,&quot;searchQuery&quot;:&quot;&quot;})" class="kiosk-wrapper">
+  <div class="kiosk-content">...Alpine bindings work...</div>
+</div>
+```
+
+With `bridge="htmx"` — emits `data-ikb-data` + `hx-vals` instead:
+
+```html
+<div data-state="kiosk" data-ikb-data='{"step":0,"searchQuery":""}' hx-vals='{"ikb_state":"kiosk","data":{"step":0,...}}'>
+  ...
+</div>
+```
+
+With `bridge="custom"` — generic data attributes only:
+
+```html
+<div data-state="kiosk" data-ikb-data='{"step":0,"searchQuery":""}'>
+  ...
+</div>
+```
+
+- **On page load:** DiSyL renders initialState as JSON via the selected bridge
+- **On interaction:** Client framework manages local state (no server round-trip)
+- **On navigation/refresh:** State is optionally persisted via `sessionStorage` or API call
 - **Server side:** The `source` handler can compute initial state, validate state mutations, and authorize access
 
+**Bridge reuse:** `{state}` uses the same `BridgeInterface` as `{ikb_component}`, so all bridges work for both without duplication.
+
 **Location:**
-- `kernel/DiSyL/ComponentRegistry.php` — register `{state}`
+- `kernel/DiSyL/Bridge/` — bridge classes shared with `{ikb_component}`
+- `kernel/DiSyL/TemplateEngine.php` — `renderStateDeclaration()` delegates to bridge
 - `modules/attendance-wage/handlers/` — kiosk state provider
 
 **Impact:**
+- Framework-agnostic state — modules pick Alpine, HTMX, or custom per-state block
 - Bridges the PHP-only present and the reactive future
 - The `{state}` declaration is the same format a future `ReactiveState` would use
 - Kiosk flow no longer needs `x-data="kioskWidget()"` — DiSyL owns the state contract
@@ -256,13 +356,18 @@ With a global `ikbComponent()` Alpine function that:
 |---|------|--------|--------|-------------------|---------|--------|
 | 1.1 | `<script>` passthrough | Hours | ⭐⭐⭐ | JS corruption, strict noise | Clean component output | ✅ Done |
 | 1.2 | JWT CSRF token | Hours | ⭐⭐⭐ | 419 errors on approve/pay | No-session auth | ✅ Done |
+| 1.3 | JWT CSRF hardening | Hours | ⭐⭐⭐ | Weak derivation key | HKDF-style app-secret binding | ✅ Done |
 | 2.1 | `{@var}` declarations | Days | ⭐⭐⭐ | Undefined variable warnings | Type system foundation | ✅ Done |
-| 2.2 | `{ikb_component}` bridge | Week | ⭐⭐ | Ad-hoc Alpine patterns | Island architecture | ✅ Done |
-| 2.3 | DiSyL entity config | 2 weeks | ⭐⭐⭐ | PHP array configs | `keyof`, schema validation | ✅ Done |
-| 3.1 | State manager | 2–4 weeks | ⭐⭐ | Alpine-only state | Reactive state | ✅ Done |
-| 3.2 | Compiled manifest | 3–4 weeks | ⭐⭐ | No template introspection | Language server, tooling | ✅ Done |
+| 2.2 | `{ikb_component}` + Bridge System | Week | ⭐⭐⭐ | Ad-hoc Alpine patterns, framework lock-in | Pluggable framework bridges, Island architecture | ✅ Done |
+| 2.3 | Bridge capability contracts | Days | ⭐⭐⭐ | Silent bridge incompatibility | Compile-time feature checking | ✅ Done |
+| 2.4 | Binding primitives | Days | ⭐⭐⭐ | Framework-specific markup in templates | Framework-neutral `<ikb_text bind>` / `<ikb_input model>` | ✅ Done |
+| 2.5 | DiSyL entity config | 2 weeks | ⭐⭐⭐ | PHP array configs | `keyof`, schema validation | ✅ Done |
+| 3.1 | State manager + Bridge System | 2–4 weeks | ⭐⭐⭐ | Alpine-only state, framework lock-in | Framework-agnostic state, Reactive state | ✅ Done |
+| 3.2 | Rich compiled manifest | 3–4 weeks | ⭐⭐ | No template introspection | Language server, tooling, dependency graph | ✅ Done |
+| 3.3 | Entity-view compiler boundary | 2 weeks | ⭐⭐ | ComponentRegistry overload | ViewContractCompiler, SchemaRegistry | 🔜 Planned |
+| 3.4 | Canonical syntax standardization | Ongoing | ⭐⭐ | Inconsistent `{...}` vs `<ikb_...>` | Clear language grammar identity | 🔜 Planned |
 
-**Recommended first sprint: 1.1 + 1.2 + 2.1** — These eliminate the three biggest pain points (JS corruption, 419 errors, strict mode noise) in under a week, and each one directly lays groundwork for a v11 feature line.
+**Implementation complete for the intermediate roadmap.** Hardening, adoption, and v11 design remain active.
 
 ---
 
@@ -275,9 +380,9 @@ No intermediate step breaks backward compatibility:
 | 1.1 | Inline `<script>` with `{...}` | No change — only fixes parsing | ✅ `tests/disyl_v11_verify_test.php` |
 | 1.2 | Session CSRF token | Yes — both methods validated | ✅ `tests/disyl_v11_verify_test.php` + smoke tests |
 | 2.1 | No `{@var}` declarations | Yes — strict mode falls back to current behavior | ✅ `tests/disyl_v11_verify_test.php` |
-| 2.2 | Manual `x-data` | Yes — `{ikb_component}` is additive | ✅ `tests/disyl_v11_verify_test.php` |
+| 2.2 | Manual `x-data` | Yes — `{ikb_component}` is additive, Alpine bridge = identical output | ✅ `tests/disyl_v11_verify_test.php` |
 | 2.3 | PHP array configs | Yes — both APIs coexist | ✅ `tests/disyl_v11_verify_test.php` |
-| 3.1 | Alpine `x-data` only | Yes — `{state}` is additive | ✅ `tests/disyl_v11_verify_test.php` |
+| 3.1 | Alpine `x-data` only | Yes — `{state}` is additive, bridge defaults to Alpine | ✅ `tests/disyl_v11_verify_test.php` |
 | 3.2 | No manifest | Yes — manifests are optional cache | ✅ `tests/disyl_v11_verify_test.php` |
 
 Every intermediate step can be adopted incrementally, template by template, module by module.

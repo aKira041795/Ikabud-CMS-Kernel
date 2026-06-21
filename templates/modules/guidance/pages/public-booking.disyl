@@ -1,6 +1,14 @@
+{@var string $base_url}
+{@var string $cookie_name}
+{@var string $csrf_token}
+{@var int $collegeId}
+{@var string $date}
+{@var int $max_booking_days}
+{@var string $max_date}
+{@var ?string $message}
+{@var string $min_date}
+{@var int $typeId}
 <!DOCTYPE html>
-<html lang="en">
-<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book an Appointment - Guidance Office</title>

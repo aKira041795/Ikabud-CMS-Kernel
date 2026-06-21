@@ -16,7 +16,7 @@ function apiGuidanceListColleges(): void {
     ");
     $colleges = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if (app()->isHtmx()) {
-        echo app()->render('partials/colleges-table.disyl', ['colleges' => $colleges]);
+        echo guidanceRender('partials/colleges-table.disyl', ['colleges' => $colleges]);
     } else {
         app()->json(['success' => true, 'data' => $colleges]);
     }
@@ -99,7 +99,7 @@ function apiGuidanceModalEditCollege(string $id): void {
     ");
     $cStmt->execute([$college['id']]);
     $assignedCounselors = $cStmt->fetchAll(PDO::FETCH_ASSOC);
-    echo app()->render('modals/college-form.disyl', ['college' => $college, 'assigned_counselors' => $assignedCounselors]);
+    echo guidanceRender('modals/college-form.disyl', ['college' => $college, 'assigned_counselors' => $assignedCounselors]);
 }
 
 function apiGuidanceGetUserColleges(string $userId): void {

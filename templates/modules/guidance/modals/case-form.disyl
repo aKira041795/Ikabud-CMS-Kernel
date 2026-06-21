@@ -487,8 +487,7 @@
             </form>
         </div>
     </div>
-</div>
-
+<meta name="ikb:case-categories" content="{case_categories_json}">
 <script>
 (function () {
     function guidanceCombineStudentName(trigger) {
@@ -505,7 +504,7 @@
     window.guidanceCombineStudentName = guidanceCombineStudentName;
 
     // Pre-check categories from saved JSON
-    var savedCategories = {case_categories_json | raw};
+    var savedCategories = JSON.parse((document.querySelector('meta[name="ikb:case-categories"]')?.getAttribute('content') || '[]'));
     if (Array.isArray(savedCategories) && savedCategories.length > 0) {
         savedCategories.forEach(function (cat) {
             var cb = document.querySelector('#case-categories-group input[value="' + cat + '"]');

@@ -65,11 +65,12 @@ vt('JS curlies in script preserved', str_contains($out, '{value: 42}'));
 // ── 1.2 JWT-derived CSRF token ──
 
 $testVal = 'test-jwt-' . bin2hex(random_bytes(8));
-$expected = hash_hmac('sha256', $testVal, 'csrf');
+// Config not available in test context — function falls back to 'change-me-in-env'
+$expected = hash_hmac('sha256', 'csrf|' . hash('sha256', $testVal), 'change-me-in-env');
 $_COOKIE['attendance_wage_token'] = $testVal;
 vt('csrfTokenFromJwt correct hash', hash_equals($expected, csrfTokenFromJwt('attendance_wage_token')));
 vt('csrfTokenFromJwt hides raw JWT', csrfTokenFromJwt('attendance_wage_token') !== $testVal);
-vt('hash_hmac core logic verified', hash_hmac('sha256', 'test', 'csrf') === hash_hmac('sha256', 'test', 'csrf'));
+vt('csrfTokenFromJwt not same as old derivation', csrfTokenFromJwt('attendance_wage_token') !== hash_hmac('sha256', $testVal, 'csrf'));
 unset($_COOKIE['attendance_wage_token']);
 echo "  (csrfTokenFromJwt fallback requires app() — tested via attendance_wage_smoke_test)\n";
 
@@ -151,8 +152,12 @@ $manifest = \Ikabud\Kernel\DiSyL\Compiler\TemplateManifest::build(
 );
 vt('manifest is array', is_array($manifest));
 vt('manifest has template key', isset($manifest['template']) && $manifest['template'] === 'test_template');
-vt('manifest has variables', isset($manifest['variables']) && in_array('name', $manifest['variables']));
+vt('manifest has variables.used', isset($manifest['variables']['used']) && in_array('name', $manifest['variables']['used']));
 vt('manifest has components', isset($manifest['components']));
+vt('manifest has source_hash', isset($manifest['source_hash']));
+vt('manifest has bridges', isset($manifest['bridges']));
+vt('manifest has assets', isset($manifest['assets']['scripts'], $manifest['assets']['styles']));
+vt('manifest has dependencies', array_key_exists('dependencies', $manifest) && array_key_exists('extends', $manifest['dependencies']) && array_key_exists('includes', $manifest['dependencies']));
 vt('manifest has bytes', isset($manifest['bytes']) && $manifest['bytes'] > 0);
 vt('manifest has compiled_at', isset($manifest['compiled_at']));
 

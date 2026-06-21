@@ -164,6 +164,14 @@ class TemplateCache
             throw new \RuntimeException("Template not found or not readable: {$templatePath}");
         }
         $source = file_get_contents($templatePath);
+
+        // Strip {@var type $name} declarations — they're compile-time metadata,
+        // not output. Handled here (compiled path) and in TemplateEngine::compile()
+        // step 0a (interpreted path) to ensure consistency across both rendering modes.
+        if (str_contains($source, '{@var ')) {
+            $source = preg_replace('/\{@var\s+(\??\w+(?:<[^>]+>)?)\s+\$([a-zA-Z_]\w*)\s*\}/', '', $source);
+        }
+
         $ast = $this->parser->parse($source, $templatePath);
         $code = $this->compiler->compile($ast, $className);
 

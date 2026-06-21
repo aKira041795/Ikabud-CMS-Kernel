@@ -2,6 +2,11 @@
 
 {block content}
 {!-- Settings Page --}
+<meta name="ikb:settings-country" content="{settings.app_country}">
+<meta name="ikb:settings-region" content="{settings.app_region}">
+<meta name="ikb:settings-timezone" content="{settings.app_timezone}">
+
+<meta name="ikb:settings-ai-model" content="{settings.ai_model}">
 
 {ikb_section padding="none"}
     
@@ -583,9 +588,9 @@ var tzCountryMap = {
     'HK': { name: 'Hong Kong', timezones: ['Asia/Hong_Kong'] },
 };
 
-var savedCountry = '{settings.app_country}' || 'PH';
-var savedRegion = '{settings.app_region}' || 'Manila';
-var savedTimezone = '{settings.app_timezone}' || 'Asia/Manila';
+var savedCountry = (document.querySelector('meta[name="ikb:settings-country"]')?.getAttribute('content') || 'PH');
+var savedRegion = (document.querySelector('meta[name="ikb:settings-region"]')?.getAttribute('content') || 'Manila');
+var savedTimezone = (document.querySelector('meta[name="ikb:settings-timezone"]')?.getAttribute('content') || 'Asia/Manila');
 
 function initCountryDropdown() {
     const sel = document.getElementById('app_country');
@@ -655,6 +660,9 @@ function updateTimezones() {
     tzSel.onchange = updateTzPreview;
     updateTzPreview();
 }
+
+// Expose to global scope so onchange="updateTimezones()" in HTML works
+window.updateTimezones = updateTimezones;
 
 function updateTzPreview() {
     const tz = document.getElementById('app_timezone').value;
@@ -747,7 +755,7 @@ const aiProviders = {
     }
 };
 
-const savedModel = '{settings.ai_model}';
+const savedModel = (document.querySelector('meta[name="ikb:settings-ai-model"]')?.getAttribute('content') || '');
 
 function updateAiModels() {
     const provider = document.getElementById('ai_provider').value;
@@ -792,6 +800,10 @@ function updateAiModels() {
         modelHelp.textContent = sel ? sel.desc : '';
     };
 }
+
+// Expose to global scope so onchange handlers in HTML work
+window.updateAiModels = updateAiModels;
+window.updateTzPreview = updateTzPreview;
 
 // Initialize immediately — script is at bottom of page, DOM is ready
 // (DOMContentLoaded doesn't fire on HTMX swaps)
@@ -852,5 +864,4 @@ document.body.addEventListener('htmx:afterRequest', function(e) {
 
 })();
 </script>
-
 {/block}

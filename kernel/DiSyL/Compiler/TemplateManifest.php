@@ -44,10 +44,11 @@ class TemplateManifest
     public static function build(string $templatePath, string $compiledOutput, array $context): array
     {
         // Extract variable names from context keys that were accessed
-        $variables = [];
+        $declaredVars = [];
+        $usedVars = [];
         foreach ($context as $key => $value) {
             if (is_string($key) && preg_match('/^[a-zA-Z_]\w*$/', $key)) {
-                $variables[] = $key;
+                $usedVars[] = $key;
             }
         }
 
@@ -63,6 +64,19 @@ class TemplateManifest
             $components = array_merge($components, array_map(fn($n) => "island:{$n}", $islandMatches[1]));
         }
 
+        // Extract bridge requirements from compiled output
+        $bridges = [];
+        if (preg_match_all('/data-ikb-component="[^"]*"[^>]*x-data=/', $compiledOutput)) {
+            $bridges[] = 'alpine';
+        }
+        if (preg_match_all('/data-ikb-component="[^"]*"[^>]*hx-vals=/', $compiledOutput)) {
+            $bridges[] = 'htmx';
+        }
+        if (preg_match_all('/data-ikb-data=/', $compiledOutput)) {
+            $bridges[] = 'custom';
+        }
+        $bridges = array_values(array_unique($bridges));
+
         // Extract extends relationship
         $extends = '';
         if (preg_match('/data-template-extends="([^"]+)"/', $compiledOutput, $extMatches)) {
@@ -75,11 +89,50 @@ class TemplateManifest
             $refersTo = $evMatches[1];
         }
 
+        // Extract asset references (scripts, styles)
+        $scripts = [];
+        if (preg_match_all('/<script[^>]+src="([^"]+)"/', $compiledOutput, $scriptMatches)) {
+            $scripts = $scriptMatches[1];
+        }
+        $styles = [];
+        if (preg_match_all('/<link[^>]+href="([^"]+\.css)"/', $compiledOutput, $styleMatches)) {
+            $styles = $styleMatches[1];
+        }
+
+        // Detect includes from {include} tags in the original source
+        $includes = [];
+        if (preg_match_all('/\{include\s+"([^"]+)"/', $compiledOutput, $incMatches)) {
+            $includes = $incMatches[1];
+        }
+
+        // Source hash for cache invalidation
+        $sourceHash = hash('sha256', $compiledOutput);
+
         $manifest = [
             'template' => $templatePath,
-            'variables' => array_values(array_unique($variables)),
+            'source_hash' => $sourceHash,
+            'compiler_version' => '4.x',
+            'grammar_version' => '4.0.0',
+            'variables' => [
+                'used' => array_values(array_unique($usedVars)),
+                'required' => [],
+                'optional' => [],
+            ],
             'components' => array_values(array_unique($components)),
-            'extends' => $extends,
+            'bridges' => $bridges,
+            'extends' => $extends !== '' ? $extends : null,
+            'includes' => $includes,
+            'entity_views' => $refersTo,
+            'states' => [],
+            'assets' => [
+                'scripts' => $scripts,
+                'styles' => $styles,
+            ],
+            'dependencies' => [
+                'extends' => $extends !== '' ? $extends : null,
+                'includes' => $includes,
+                'dynamic' => false,
+            ],
             'refers_to' => $refersTo,
             'compiled_at' => time(),
             'bytes' => strlen($compiledOutput),
@@ -155,7 +208,8 @@ class TemplateManifest
     {
         $results = [];
         foreach (self::all() as $path => $manifest) {
-            if (in_array($variableName, $manifest['variables'] ?? [], true)) {
+            $used = $manifest['variables']['used'] ?? [];
+            if (in_array($variableName, $used, true)) {
                 $results[$path] = $manifest;
             }
         }

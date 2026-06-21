@@ -35,7 +35,18 @@ final class FilterRegistry
         if (!isset($this->filters[$name])) {
             return $value; // Unknown filters pass through
         }
-        return ($this->filters[$name])($value, $args);
+        // Some filters expect positional and named args separately.
+        // Unpack the combined $args into the two arrays.
+        $positional = [];
+        $named = [];
+        foreach ($args as $k => $v) {
+            if (is_int($k)) {
+                $positional[] = $v;
+            } else {
+                $named[$k] = $v;
+            }
+        }
+        return ($this->filters[$name])($value, $positional, $named);
     }
 
     private function registerDefaults(): void

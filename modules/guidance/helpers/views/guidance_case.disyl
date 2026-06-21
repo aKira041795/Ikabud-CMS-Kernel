@@ -1,0 +1,28 @@
+{ikb_entity_view name="guidance_case" view="table"}
+    {field name="student_name"      type="string" renderer="text"}
+    {field name="status"            type="enum"   renderer="badge:{open|Open|blue;closed|Closed|gray;pending|Pending|amber}"}
+    {field name="counselor_name"    type="string" renderer="text"}
+    {field name="created_at"        type="string" renderer="date"}
+    {field name="updated_at"        type="string" renderer="date"}
+    {action name="view"   url="/admin/guidance/cases/{id}"       method="GET"  label="View"}
+    {action name="edit"   url="/admin/guidance/cases/{id}/edit"  method="GET"  label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="guidance_case" view="compact"}
+    {field name="student_name"      type="string" renderer="text"}
+    {field name="status"            type="enum"   renderer="badge:{open|Open|blue;closed|Closed|gray}"}
+    {field name="counselor_name"    type="string" renderer="text"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="guidance_case" view="detailed"}
+    {field name="student_name"      type="string" renderer="text"}
+    {field name="status"            type="enum"   renderer="badge:{open|Open|blue;closed|Closed|gray;pending|Pending|amber}"}
+    {field name="counselor_name"    type="string" renderer="text"}
+    {field name="severity"          type="string" renderer="badge:{low|Low|green;medium|Medium|amber;high|High|orange;critical|Critical|red}"}
+    {field name="student_status"    type="string" renderer="text"}
+    {field name="created_at"        type="string" renderer="date"}
+    {field name="updated_at"        type="string" renderer="date"}
+    {action name="view"   url="/admin/guidance/cases/{id}"       method="GET"  label="View"}
+    {action name="edit"   url="/admin/guidance/cases/{id}/edit"  method="GET"  label="Edit"}
+    {action name="delete" url="/admin/guidance/cases/{id}/delete" method="POST" label="Delete" confirm="Delete this case?"}
+{/ikb_entity_view}

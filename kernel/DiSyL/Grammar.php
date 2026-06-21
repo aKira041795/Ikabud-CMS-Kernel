@@ -42,6 +42,13 @@ class Grammar
     public const PLATFORM_NATIVE = 'native';
     public const PLATFORM_IKABUD = 'ikabud';
     public const PLATFORM_STATIC = 'static';
+
+    // ── Bridge (frontend framework) identifiers ──
+    // These identify which JS framework bridge to use when rendering
+    // {ikb_component} and {state} blocks. Each maps to a Bridge class.
+    public const BRIDGE_ALPINE = 'alpine';
+    public const BRIDGE_HTMX = 'htmx';
+    public const BRIDGE_CUSTOM = 'custom';
     
     // ========== Declaration Keywords ==========
     public const KEYWORD_VAR = '@var';  // {@var type $name} — variable type declaration (v4.9+)

@@ -1,5 +1,22 @@
 {!-- Guidance Monitoring System - Base Layout --}
 {!-- Powered by DiSyL (Declarative Ikabud Syntax Language) --}
+{@var string $page_title}
+{@var string $base_url}
+{@var string $current_page}
+{@var bool $is_pro}
+{@var string $user_name}
+{@var string $user_role}
+{@var string $user_initials}
+{@var string $today_date}
+{@var int $hour}
+{@var string $app_name}
+{@var string $cookie_name}
+{@var string $csrf_token}
+{@var bool $is_htmx}
+{@var int $year}
+{@var int $notifications_count}
+{@var ?array $user}
+{@var array $nav}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -23,14 +40,23 @@
     {!-- Chart.js for reports charts --}
     <script src="https://unpkg.com/chart.js@4/dist/chart.umd.min.js"></script>
     
+    {!-- DiSyL ikb-component bridge — required for {ikb_component} and {state} tags --}
+    <script src="/assets/js/ikb-components.js"></script>
+    
     {!-- Application Stylesheet --}
     <link rel="stylesheet" href="/assets/guidance/css/app.css">
     
-    {!-- Global config for JS --}
+    {!-- Global config for JS — meta tags so DiSyL resolves variables (script body is raw passthrough) --}
+    <meta name="ikb:base-url" content="{base_url}">
+    <meta name="ikb:cookie-name" content="{cookie_name}">
+    <meta name="ikb:csrf-token" content="{csrf_token}">
     <script>
-        var APP_BASE = '{base_url}';
-        var APP_COOKIE = '{cookie_name}';
-        var APP_CSRF = '{csrf_token}';
+        var metaBase = document.querySelector('meta[name="ikb:base-url"]');
+        var metaCookie = document.querySelector('meta[name="ikb:cookie-name"]');
+        var metaCsrf = document.querySelector('meta[name="ikb:csrf-token"]');
+        var APP_BASE = metaBase ? metaBase.getAttribute('content') : '';
+        var APP_COOKIE = metaCookie ? metaCookie.getAttribute('content') : '';
+        var APP_CSRF = metaCsrf ? metaCsrf.getAttribute('content') : '';
         function guidanceAppPath(path) {
             if (typeof path !== 'string' || path === '') {
                 return path;
@@ -1076,7 +1102,20 @@
                 }
             };
         }
-        
+
+        // Alpine.js component: Tracker view page
+        function guidanceTrackerViewPage() {
+            return {
+                showImport: false
+            };
+        }
+
+        // Global stubs — overridden by page-specific scripts when loaded.
+        // Ensures onchange handlers don't fail before the page script executes.
+        function updateTimezones() {}
+        function updateAiModels() {}
+        function updateStudentNameField() {}
+
         // Re-initialize Alpine.js on HTMX content swaps, including lazy-loaded case tabs.
         document.body.addEventListener('htmx:afterSettle', function(evt) {
             var target = evt.detail && evt.detail.target ? evt.detail.target : null;

@@ -153,6 +153,146 @@ Template rendering (TemplateEngine) + Slot filling (SlotSystem)
 Scoped style injection + Client behavior attachment
 ```
 
+---
+
+## Bridge System — Framework-Agnostic Component Output
+
+**Location:** `kernel/DiSyL/Bridge/`  
+**Status:** Production (v1.0.0)  
+**Last updated:** 2026-06-21
+
+### What Bridges Solve
+
+`{ikb_component}` and `{state}` blocks need to render server-side data into HTML that a client-side framework can use. Different modules use different frontend stacks — Alpine.js (CMS, attendance-wage), HTMX (guidance), or custom JS. The bridge system decouples the DiSyL component data from the framework-specific markup, letting each template choose its target framework per-invocation.
+
+### Architecture
+
+```
+{ikb_component name="..." data="..." bridge="..."}
+       ↓
+TemplateEngine::renderIkbComponent()
+       ↓  resolves data from context, serializes to JSON
+BridgeManager::resolve('alpine'|'htmx'|'custom')
+       ↓
+BridgeInterface::renderComponent(name, json, children, attrs)
+       ↓
+Framework-specific HTML  (e.g. x-data, hx-vals, data-ikb-data)
+```
+
+### Bridge Interface
+
+Every bridge implements `Ikabud\Kernel\DiSyL\Bridge\BridgeInterface`:
+
+```php
+interface BridgeInterface
+{
+    public function name(): string;
+    public function renderComponent(
+        string $componentName, string $json,
+        string $children, array $attrs
+    ): string;
+    public function renderState(
+        string $stateName, string $json,
+        string $body, array $attrs
+    ): string;
+}
+```
+
+### Built-in Bridges
+
+| Bridge | Class | Output | Best for |
+|--------|-------|--------|----------|
+| `alpine` (default) | `AlpineBridge.php` | `x-data="ikbComponent({json})"` | CMS, attendance-wage, Alpine-based modules |
+| `htmx` | `HtmxBridge.php` | `data-ikb-data` + `hx-vals` (passes through `hx-get`, `hx-post`, `hx-target`, etc.) | Guidance, HTMX-heavy modules |
+| `custom` | `CustomBridge.php` | Generic `data-ikb-component` + `data-ikb-data` only | Any custom JS framework, SSR-only fallback |
+
+### Usage in Templates
+
+```disyl
+{!-- Alpine (default, backward-compatible) --}
+{ikb_component name="profile" data="user"}
+
+{!-- HTMX — emits hx-vals, passes through HTMX attrs --}
+{ikb_component name="appointment" data="form" bridge="htmx"
+    hx-post="/api/appointments" hx-target="#result"}
+
+{!-- State with custom bridge — generic data attrs only --}
+{state name="kiosk" bridge="custom"}
+    {variable name="step" type="int" default="0"}
+    {variable name="searchQuery" type="string" default=""}
+{/state}
+```
+
+### Output Comparison
+
+Same data (`{name: "Noah", position: "Baker"}`) rendered through each bridge:
+
+```html
+<!-- Alpine bridge -->
+<div data-ikb-component="employee" x-data="ikbComponent({&quot;name&quot;:&quot;Noah&quot;})">
+  Noah
+</div>
+
+<!-- HTMX bridge -->
+<div data-ikb-component="employee" data-ikb-data='{&quot;name&quot;:&quot;Noah&quot;}' hx-vals='{&quot;ikb_component&quot;:&quot;employee&quot;,&quot;data&quot;:{&quot;name&quot;:&quot;Noah&quot;}}'>
+  Noah
+</div>
+
+<!-- Custom bridge -->
+<div data-ikb-component="employee" data-ikb-data='{&quot;name&quot;:&quot;Noah&quot;}'>
+  Noah
+</div>
+```
+
+### Creating a Custom Bridge
+
+Any module or package can register a bridge. For example, a Vue bridge:
+
+```php
+use Ikabud\Kernel\DiSyL\Bridge\BridgeInterface;
+use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
+
+class VueBridge implements BridgeInterface
+{
+    public function name(): string { return 'vue'; }
+
+    public function renderComponent(string $name, string $json, string $children, array $attrs): string
+    {
+        $class = isset($attrs['class']) ? " class=\"{$attrs['class']}\"" : '';
+        return "<div data-ikb-component=\"{$name}\" data-vue-component=\"{$name}\" :data='{$json}'{$class}>{$children}</div>";
+    }
+
+    public function renderState(string $stateName, string $json, string $body, array $attrs): string
+    {
+        $class = isset($attrs['class']) ? " class=\"{$attrs['class']}\"" : '';
+        return "<div data-state=\"{$stateName}\" data-vue-state=\"{$stateName}\" :data='{$json}'{$class}>{$body}</div>";
+    }
+}
+
+// Register once at boot time
+BridgeManager::register(new VueBridge());
+```
+
+No parser changes needed. The bridge is resolved at render time by name.
+
+### Bridge Identifiers (Grammar.php)
+
+```php
+Grammar::BRIDGE_ALPINE  // 'alpine'
+Grammar::BRIDGE_HTMX    // 'htmx'
+Grammar::BRIDGE_CUSTOM  // 'custom'
+```
+
+### Impact on Architecture
+
+The bridge system is a **pluggable seam** that keeps DiSyL framework-agnostic at the rendering layer:
+
+- **Modules own their frontend choice** — CMS stays on Alpine, guidance uses HTMX, future modules pick whatever suits
+- **Zero parser coupling** — all framework-specific output lives in bridge classes, not in the TemplateEngine
+- **Extensible** — adding a new framework is one class + one registration call
+- **Backward-compatible** — Alpine is the default, so all existing templates render identically
+- **Per-invocation granularity** — a single template can mix bridges if needed
+
 ## Conventions
 
 - Component names use dot notation: `ui.button`, `layout.sidebar`

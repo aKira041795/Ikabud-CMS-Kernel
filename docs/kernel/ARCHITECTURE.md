@@ -406,7 +406,7 @@ Relevant helpers in `src/helpers/module-manager.php`:
 
 ## DiSyL Rendering Runtime (`kernel/DiSyL/`)
 
-**DiSyL** (Declarative Ikabud Syntax Language) is the kernel's native rendering runtime and UI language. It covers server-side rendering, compiled and interpreted execution, components, slot composition, hydration islands, reactive client blocks, and request-aware HTML generation.
+**DiSyL** (Declarative Ikabud Syntax Language) is the kernel's native rendering runtime and UI language. It covers server-side rendering, compiled and interpreted execution, components, slot composition, hydration islands, reactive client blocks, request-aware HTML generation, and a pluggable framework bridge system.
 
 ### Key Features
 
@@ -415,6 +415,7 @@ Relevant helpers in `src/helpers/module-manager.php`:
 - **Filters** — `{$title|upper}`, `{$content|raw}`, `{$date|date:"M d, Y"}` (40+ built-in filters)
 - **Control flow** — `{if $user.role == "admin"}...{/if}`, `{foreach $items as $item}...{/foreach}`
 - **Components & slots** — `{component "partials/card" with title=$card.title}` with structured composition primitives
+- **Pluggable framework bridges** — `{ikb_component}` and `{state}` support Alpine.js (`x-data`), HTMX (`hx-vals`), or custom JS via the `bridge` attribute. See [disyl-component-system.md](disyl-component-system.md#bridge-system--framework-agnostic-component-output).
 - **Auto-escaping** — HTML output escaped by default; use `|raw` for trusted content
 - **Reactive client blocks** — Secure progressive enhancement hooks and request-aware interactivity
 - **Hydration islands** — SSR-first interactive regions that can hydrate on load, idle, visible, media, or interaction

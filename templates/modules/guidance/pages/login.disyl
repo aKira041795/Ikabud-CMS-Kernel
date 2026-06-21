@@ -1,4 +1,7 @@
 {!-- Login Page - No layout extends (guest view) --}
+{@var string $app_name}
+{@var string $base_url}
+{@var string $cookie_name}
 <!DOCTYPE html>
 <html lang="en">
 <head>

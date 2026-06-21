@@ -172,11 +172,11 @@ function guidanceAlertSetTab(tab) {
 }
 
 function guidanceMarkOneRead(id) {
-    fetch('{base_url}/api/notifications/read', {
+    fetch((document.querySelector('meta[name="ikb:base-url"]')?.getAttribute('content') || '') + '/api/notifications/read', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': typeof APP_CSRF !== 'undefined' ? APP_CSRF : ''
+            'X-CSRF-Token': document.querySelector('meta[name="ikb:csrf-token"]')?.getAttribute('content') || ''
         },
         body: JSON.stringify({ id: id })
     }).then(function() {

@@ -70,7 +70,7 @@ function apiGuidanceListAppointmentTypes(): void
             appointmentTypeError('Access denied', 403);
         }
 
-        echo app()->render('partials/appointment-types-settings.disyl', [
+        echo guidanceRender('partials/appointment-types-settings.disyl', [
             'appointment_types' => $types,
         ]);
         return;
@@ -369,7 +369,7 @@ function apiGuidanceListAppointments(): void {
         $stats = array_map('intval', $stats);
         
         if (app()->isHtmx()) {
-            echo app()->render('partials/appointments-list.disyl', [
+            echo guidanceRender('partials/appointments-list.disyl', [
                 'appointments' => $appointments,
                 'rows' => $rows,
                 'stats' => $stats,

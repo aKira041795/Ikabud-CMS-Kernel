@@ -417,7 +417,7 @@ function apiGuidancePublicBooking(): void {
                 ],
                 'bookingSuccess' => true
             ]));
-            echo app()->render('partials/booking-success.disyl', [
+            echo guidanceRender('partials/booking-success.disyl', [
                 'appointment_id' => $appointmentId,
                 'student_name' => $input['student_name'],
                 'scheduled_date' => $input['scheduled_date'],
@@ -528,7 +528,7 @@ function renderPublicBookingPage(): void {
             $twoFaBooking = $tfStmt->fetchColumn() ?: '0';
         } catch (\Exception $e) {}
         
-        echo app()->render('pages/public-booking.disyl', [
+        echo guidanceRender('pages/public-booking.disyl', [
             'colleges' => $colleges,
             'appointment_types' => $types,
             'settings' => $settings,

@@ -211,7 +211,7 @@
         }
         panel.style.display = 'block';
         panel.innerHTML = '<div class="bg-white rounded-xl border border-gray-100 p-8 mt-3 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-xl mb-2"></i><p class="text-sm">Loading session details...</p></div>';
-        htmx.ajax('GET', '{base_url}/api/appointments/' + id + '/session-detail', { target: '#session-detail-panel', swap: 'innerHTML' });
+        htmx.ajax('GET', (document.querySelector('meta[name="ikb:base-url"]')?.getAttribute('content') || '') + '/api/appointments/' + id + '/session-detail', { target: '#session-detail-panel', swap: 'innerHTML' });
         panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -221,7 +221,7 @@
         filters['session_records'] = '1';
         filters['sr_page'] = page;
         clearSessionDetailSelection();
-        htmx.ajax('GET', '{base_url}/api/appointments', { target: '#session-records-list', swap: 'innerHTML', values: filters });
+        htmx.ajax('GET', (document.querySelector('meta[name="ikb:base-url"]')?.getAttribute('content') || '') + '/api/appointments', { target: '#session-records-list', swap: 'innerHTML', values: filters });
     }
 
     document.addEventListener('submit', function(evt) {

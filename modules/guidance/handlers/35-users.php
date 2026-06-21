@@ -79,7 +79,7 @@ function apiGuidanceListUsers(): void {
     }
     
     if (app()->isHtmx()) {
-        echo app()->render('partials/users-table.disyl', [
+        echo guidanceRender('partials/users-table.disyl', [
             'users' => $users,
             'stats' => $roleStats,
             'result_count' => count($users),
@@ -403,7 +403,7 @@ function apiGuidanceModalEditUser(string $id): void {
         $assignedStmt->execute([$editUser['id']]);
         $assignedColleges = $assignedStmt->fetchAll(PDO::FETCH_COLUMN);
     }
-    echo app()->render('modals/user-form.disyl', [
+    echo guidanceRender('modals/user-form.disyl', [
         'user' => $editUser,
         'colleges' => $colleges,
         'assigned_colleges' => $assignedColleges,
@@ -417,5 +417,5 @@ function apiGuidanceModalNewUser(): void {
     app()->requireRole('admin');
     $db = guidanceDb();
     $colleges = $db->query("SELECT id, code, name FROM gm_colleges WHERE is_active = 1 ORDER BY sort_order, name")->fetchAll(PDO::FETCH_ASSOC);
-    echo app()->render('modals/user-form.disyl', ['user' => [], 'colleges' => $colleges, 'assigned_colleges' => [], 'assigned_colleges_json' => '[]', 'is_admin' => true, 'is_self' => false]);
+    echo guidanceRender('modals/user-form.disyl', ['user' => [], 'colleges' => $colleges, 'assigned_colleges' => [], 'assigned_colleges_json' => '[]', 'is_admin' => true, 'is_self' => false]);
 }

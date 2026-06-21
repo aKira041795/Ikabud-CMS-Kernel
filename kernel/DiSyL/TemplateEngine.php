@@ -34,6 +34,7 @@
 
 namespace Ikabud\Kernel\DiSyL;
 
+use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
 require_once __DIR__ . '/EntityRenderingTrait.php';
@@ -673,6 +674,22 @@ class TemplateEngine
             $t = microtime(true);
             $content = $this->processExtends($content, $context);
             $phases['extends_ms'] = round((microtime(true) - $t) * 1000, 2);
+
+            // Post-extends {@var} extraction — the layout may contain {@var}
+            // declarations that were merged in. Extract and strip them now,
+            // since step 0a ran on the child template before extends resolution.
+            if (str_contains($content, '{@var ')) {
+                $content = preg_replace_callback(
+                    '/\{@var\s+(\??\w+(?:<[^>]+>)?)\s+\$([a-zA-Z_]\w*)\s*\}/',
+                    function($match) {
+                        $type = $match[1];
+                        $name = $match[2];
+                        $this->declaredVars[$name] = $type;
+                        return '';
+                    },
+                    $content
+                );
+            }
         }
 
         // 2.5. Post-extends macro extraction — catch {macro} definitions
@@ -5367,6 +5384,7 @@ class TemplateEngine
         $color = $attrs['color'] ?? '';
         $align = $attrs['align'] ?? '';
         $class = $attrs['class'] ?? '';
+        $bind = $attrs['bind'] ?? '';
         
         $sizeClass = match($size) {
             'xs' => 'text-xs', 'sm' => 'text-sm', 'base' => 'text-base',
@@ -5389,7 +5407,17 @@ class TemplateEngine
             'left' => 'text-left', 'center' => 'text-center', 'right' => 'text-right', default => '',
         };
         
-        return "<{$tag} class=\"{$sizeClass} {$weightClass} {$colorClass} {$alignClass} {$class}\">{$children}</{$tag}>";
+        $classAttr = "{$sizeClass} {$weightClass} {$colorClass} {$alignClass} {$class}";
+        
+        // If bind attribute is set, emit framework-neutral binding via current bridge
+        if ($bind !== '') {
+            $bridge = BridgeManager::resolve($attrs['bridge'] ?? 'alpine');
+            $bindAttr = $bridge->renderBind($bind);
+            $classAttr = trim($classAttr) !== '' ? " class=\"" . trim($classAttr) . "\"" : '';
+            return "<{$tag}{$bindAttr}{$classAttr}>{$children}</{$tag}>";
+        }
+        
+        return "<{$tag} class=\"{$classAttr}\">{$children}</{$tag}>";
     }
     
     private function renderButton(array $attrs, string $children): string
@@ -5467,7 +5495,15 @@ class TemplateEngine
         $required = isset($attrs['required']) ? ' required' : '';
         $disabled = isset($attrs['disabled']) ? ' disabled' : '';
         $class = $attrs['class'] ?? '';
+        $model = $attrs['model'] ?? '';
         $htmx = $this->buildHtmxAttrs($attrs);
+        
+        // If model attribute is set, emit framework-neutral binding via current bridge
+        if ($model !== '') {
+            $bridge = BridgeManager::resolve($attrs['bridge'] ?? 'alpine');
+            $modelAttr = $bridge->renderModel($model);
+            return "<input type=\"{$type}\" id=\"{$id}\" name=\"{$name}\" value=\"{$value}\" placeholder=\"{$placeholder}\" class=\"w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 {$class}\"{$required}{$disabled}{$modelAttr}{$htmx}>";
+        }
         
         return "<input type=\"{$type}\" id=\"{$id}\" name=\"{$name}\" value=\"{$value}\" placeholder=\"{$placeholder}\" class=\"w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 {$class}\"{$required}{$disabled}{$htmx}>";
     }
@@ -6482,21 +6518,19 @@ class TemplateEngine
      *     </div>
      *   {/state}
      *
-     * Generates:
-     *   <div x-data="ikbComponent({&quot;step&quot;:0,&quot;searchQuery&quot;:&quot;&quot;,&quot;selectedEmployee&quot;:null})">
-     *     <div class="kiosk-content">...</div>
-     *   </div>
+     * With explicit bridge:
+     *   {state name="kiosk" bridge="htmx"}
+     *   {state name="kiosk" bridge="custom"}
      *
      * @param array $attrs Component attributes
      * @param string $children Raw child content with {variable} tags
      * @param array $context Template rendering context
-     * @return string HTML with x-data attribute
+     * @return string HTML with framework-specific attributes
      */
     private function renderStateDeclaration(array $attrs, string $children, array $context): string
     {
         $name = $attrs['name'] ?? 'app';
         $source = $attrs['source'] ?? '';
-        $class = $attrs['class'] ?? '';
 
         // Parse {variable name="..." type="..." default="..."} from raw children
         $variables = $this->parseStateVariables($children);
@@ -6531,7 +6565,7 @@ class TemplateEngine
             }
         }
 
-        // Serialize as JSON for Alpine
+        // Serialize as JSON
         $json = htmlspecialchars(
             json_encode($initialState, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             ENT_QUOTES,
@@ -6542,8 +6576,9 @@ class TemplateEngine
         $body = preg_replace('/\{variable\s+((?:[^{}]|\{[^{}]*\})*)\}/', '', $children);
         $body = trim($body);
 
-        $classAttr = $class !== '' ? " class=\"{$class}\"" : '';
-        return "<div data-state=\"{$name}\" x-data=\"ikbComponent({$json})\"{$classAttr}>{$body}</div>";
+        // Resolve bridge and delegate rendering
+        $bridge = BridgeManager::resolve($attrs['bridge'] ?? 'alpine');
+        return $bridge->renderState($name, $json, $body, $attrs);
     }
 
     /**
@@ -6682,9 +6717,11 @@ class TemplateEngine
     }
 
     /**
-     * Render {ikb_component} — server-rendered Alpine component bridge.
+     * Render {ikb_component} — server-rendered component bridge.
      *
-     * Standardizes the pattern of PHP-rendered data into Alpine.js x-data.
+     * Delegates to the configured frontend framework bridge.
+     * Default bridge is Alpine.js (x-data="ikbComponent(...)"), but can be
+     * overridden per-invocation via the "bridge" attribute.
      *
      * Usage:
      *   {ikb_component name="employee-profile" data="selectedEmployee"}
@@ -6692,22 +6729,19 @@ class TemplateEngine
      *     <div class="...">{position}</div>
      *   {/ikb_component}
      *
-     * Generates:
-     *   <div x-data="ikbComponent({...json...})">
-     *     <div class="...">Noah Omamalin</div>
-     *     <div class="...">Baker</div>
-     *   </div>
+     * With explicit bridge:
+     *   {ikb_component name="employee-profile" data="selectedEmployee" bridge="htmx"}
+     *   {ikb_component name="employee-profile" data="selectedEmployee" bridge="custom"}
      *
-     * @param array $attrs Component attributes: name, data, class
+     * @param array $attrs Component attributes: name, data, class, bridge
      * @param string $children Compiled child content
      * @param array $context Template rendering context
-     * @return string HTML with x-data attribute
+     * @return string HTML with framework-specific attributes
      */
     private function renderIkbComponent(array $attrs, string $children, array $context): string
     {
         $name = $attrs['name'] ?? 'component';
         $dataVar = $attrs['data'] ?? '';
-        $class = $attrs['class'] ?? '';
 
         // Resolve the data variable from template context
         $data = [];
@@ -6730,16 +6764,16 @@ class TemplateEngine
             }
         }
 
-        // Serialize data as JSON for Alpine
+        // Serialize data as JSON
         $json = htmlspecialchars(
             json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             ENT_QUOTES,
             'UTF-8'
         );
 
-        $classAttr = $class !== '' ? " class=\"{$class}\"" : '';
-
-        return "<div data-ikb-component=\"{$name}\" x-data=\"ikbComponent({$json})\"{$classAttr}>{$children}</div>";
+        // Resolve bridge and delegate rendering
+        $bridge = BridgeManager::resolve($attrs['bridge'] ?? 'alpine');
+        return $bridge->renderComponent($name, $json, $children, $attrs);
     }
 
     private function renderIsland(array $attrs, string $children): string

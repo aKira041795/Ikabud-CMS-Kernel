@@ -178,7 +178,7 @@ function apiGuidanceReportsSummary(): void {
             'start_date' => $startDate ?? '',
             'end_date' => $endDate ?? '',
         ];
-        
+
         if (app()->isHtmx()) {
             echo app()->render('partials/reports-summary.disyl', $data);
         } else {

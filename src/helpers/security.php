@@ -31,9 +31,10 @@ function csrf_verify(): void
 /**
  * Derive a CSRF token from a JWT auth cookie (Double Submit Cookie pattern).
  *
- * Uses hash_hmac('sha256', cookie_value, 'csrf') so the raw cookie value is
- * never transmitted in the form body — only a server-side derivation that an
- * attacker cannot forge without the original cookie.
+ * Uses HKDF-style derivation with the application secret to prevent
+ * token forgery even if the raw cookie value is exposed:
+ *
+ *   hash_hmac('sha256', 'csrf|' . hash('sha256', $cookieValue), $appSecret)
  *
  * Falls back to the session-based token if no JWT cookie is present.
  *
@@ -44,7 +45,14 @@ function csrfTokenFromJwt(string $cookieName = 'attendance_wage_token'): string
 {
     $cookieValue = $_COOKIE[$cookieName] ?? '';
     if ($cookieValue !== '') {
-        return hash_hmac('sha256', $cookieValue, 'csrf');
+        // HKDF-style derivation: bind to app secret + cookie hash
+        // Falls back to 'csrf' constant if config() unavailable (e.g. in tests)
+        $appSecret = function_exists('config') ? config('app.secret', 'change-me-in-env') : 'change-me-in-env';
+        return hash_hmac(
+            'sha256',
+            'csrf|' . hash('sha256', $cookieValue),
+            $appSecret
+        );
     }
     return csrfToken();
 }

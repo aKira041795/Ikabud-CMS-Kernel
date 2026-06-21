@@ -1,3 +1,4 @@
+{@var string $today}
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
@@ -467,5 +468,4 @@ function updateStudentNameField() {
     document.getElementById('inp-student-name').value = parts.join(' ');
 }
 </script>
-
 {/block}

@@ -1,3 +1,4 @@
+{@var string $age_str}
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
@@ -14,7 +15,7 @@
 }"
      x-bind:data-active-tab="tab"
      x-init="
-        const storageKey = 'guidance-case-tab-{case.id}';
+        const storageKey = 'guidance-case-tab-' + (document.querySelector('[data-case-view-id]')?.getAttribute('data-case-view-id') || '');
         const savedTab = sessionStorage.getItem(storageKey);
         const validTabs = ['overview', 'appointments', 'session_records', 'notes', 'documents', 'alerts', 'log'];
         if (savedTab && validTabs.includes(savedTab)) {

@@ -155,7 +155,7 @@ function apiGuidanceListCases(): void {
         
         if (app()->isHtmx()) {
             $totalPages = (int) ceil($total / $limit);
-            echo app()->render('partials/cases-table.disyl', [
+            echo guidanceRender('partials/cases-table.disyl', [
                 'cases' => $cases,
                 'stats' => $stats,
                 'pagination' => [

@@ -74,6 +74,13 @@ kernelRegisterRenderContextContract('guidance.page.shell', [
     'log_event' => 'guidance.render_context.contract_mismatch',
 ]);
 
+kernelRegisterRenderContextContract('guidance.template.base', [
+    'prefixes' => ['modules/guidance/partials/', 'modules/guidance/modals/'],
+    'priority' => 20,
+    'defaults' => ['base_url' => '/admin/guidance'],
+    'log_event' => 'guidance.render_context.contract_mismatch',
+]);
+
 function guidanceRedirect(string $url, int $status = 302): void
 {
     guidanceCtx()->redirect($url, $status);

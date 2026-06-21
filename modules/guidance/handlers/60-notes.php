@@ -34,7 +34,7 @@ function apiGuidanceListNotes(string $caseId): void {
         $notes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         if (app()->isHtmx()) {
-            echo app()->render('partials/notes-list.disyl', ['notes' => $notes]);
+            echo guidanceRender('partials/notes-list.disyl', ['notes' => $notes]);
             exit;
         }
         app()->json(['success' => true, 'data' => $notes]);

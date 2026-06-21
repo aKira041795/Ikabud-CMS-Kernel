@@ -254,7 +254,7 @@ function apiGuidanceListStudentStatuses(): void
     }
 
     if (app()->isHtmx() && $context === 'settings') {
-        echo app()->render('partials/student-statuses-settings.disyl', [
+        echo guidanceRender('partials/student-statuses-settings.disyl', [
             'student_statuses' => $config['items'],
             'default_student_status' => $config['default'],
             'next_sort_order' => count($config['items']) + 1,

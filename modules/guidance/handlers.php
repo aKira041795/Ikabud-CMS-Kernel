@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
+// Load DiSyL entity view configs for guidance entities (cases, appointments)
+\Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+
 // module.license.activate@1 is auto-wired by the module manager from module.json.
 // The callable guidance_cap_module_license_activate_1() is defined in helpers.php.
 function guidanceGetSettingJson(string $key, array $default = []): array

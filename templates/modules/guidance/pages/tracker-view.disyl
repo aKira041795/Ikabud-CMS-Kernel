@@ -230,12 +230,6 @@
 {/ikb_section}
 
 <script>
-function guidanceTrackerViewPage() {
-    return {
-        showImport: false
-    };
-}
-
 function guidanceTrackerPreviewImport(event, trackerId) {
     event.preventDefault();
 

@@ -1,0 +1,14 @@
+{ikb_entity_view name="guidance_appointment" view="table"}
+    {field name="title"             type="string" renderer="text"}
+    {field name="student_name"      type="string" renderer="text"}
+    {field name="date"              type="string" renderer="date"}
+    {field name="status"            type="enum"   renderer="badge:{scheduled|Scheduled|blue;completed|Completed|green;cancelled|Cancelled|red;no_show|No Show|amber;pending|Pending|yellow}"}
+    {action name="view"   url="/admin/guidance/appointments/{id}"       method="GET"  label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="guidance_appointment" view="compact"}
+    {field name="title"             type="string" renderer="text"}
+    {field name="student_name"      type="string" renderer="text"}
+    {field name="date"              type="string" renderer="date"}
+    {field name="status"            type="enum"   renderer="badge:{scheduled|Scheduled|blue;completed|Completed|green;cancelled|Cancelled|red}"}
+{/ikb_entity_view}

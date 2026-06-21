@@ -40,8 +40,21 @@ DiSyL supports reusable components with:
 - scoped styles
 - methods, events, and client behavior
 - state, computed values, and watchers
+- **Pluggable framework bridges** — `{ikb_component}` and `{state}` output can target Alpine.js, HTMX, or custom JS via the `bridge` attribute
 
-That means teams can build UI primitives once and reuse them across modules without introducing a separate component framework for every surface.
+That means teams can build UI primitives once and reuse them across modules without introducing a separate component framework for every surface. The bridge system (see [disyl-component-system.md](disyl-component-system.md#bridge-system--framework-agnostic-component-output)) extends this by letting each template choose which frontend framework to render for, without changing the component's data logic.
+
+**Available bridges:** `alpine` (default), `htmx`, `custom`. Modules pick per-invocation:
+
+```disyl
+{!-- CMS stays on Alpine --}
+{ikb_component name="editor" data="toolbar"}
+
+{!-- Guidance uses HTMX --}
+{ikb_component name="appointment" data="form" bridge="htmx" hx-post="/api/create"}
+```
+
+New bridges are one class implementing `BridgeInterface` — no parser changes needed.
 
 ### 3. Reactive runtime
 

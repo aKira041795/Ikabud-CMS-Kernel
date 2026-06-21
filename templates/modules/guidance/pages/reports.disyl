@@ -1,3 +1,5 @@
+{@var string $start_date}
+{@var string $end_date}
 {extends "modules/guidance/layouts/app.disyl"}
 
 {block content}
@@ -157,12 +159,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var form = document.getElementById('reports-filter');
     if (form) {
         form.addEventListener('submit', function() {
-            // update CSV export link with current filters
             var sd = form.querySelector('[name=start_date]').value;
             var ed = form.querySelector('[name=end_date]').value;
             var link = document.getElementById('export-csv-link');
             if (link) {
-                var base = '{base_url}/api/reports/export?format=csv';
+                var base = (document.querySelector('meta[name="ikb:base-url"]')?.getAttribute('content') || '') + '/api/reports/export?format=csv';
                 if (sd && ed) base += '&start_date=' + sd + '&end_date=' + ed;
                 link.href = base;
             }
@@ -170,5 +171,4 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-
 {/block}
