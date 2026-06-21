@@ -290,6 +290,7 @@ function wagePageComputations(array $params = []): void
         'period_status' => $periodStatus,
         'period_pay_date' => $periodPayDate,
         'today' => $now,
+        'page_title' => 'Payroll Computations',
         'active_nav'        => 'computations',
         'current_user_role' => $user['role'] ?? '',
     ]);

@@ -271,7 +271,18 @@ function wageApiBulkCompute(array $params = []): void
 function wageApiApproveComputation(array $params = []): void
 {
     attendanceWageGuard('attendance_wage.approve@1');
-    aw_csrfGuard();
+    // CSRF: accept either the JWT Double-Submit Cookie token or the session token
+    $submittedToken = $_POST['_token'] ?? '';
+    $jwtCookie = $_COOKIE['attendance_wage_token'] ?? '';
+    $sessionToken = function_exists('csrf_token') ? csrf_token() : '';
+    $csrfValid = ($submittedToken !== '' && $jwtCookie !== '' && hash_equals($jwtCookie, $submittedToken))
+              || ($submittedToken !== '' && $sessionToken !== '' && hash_equals($sessionToken, $submittedToken));
+    if (!$csrfValid) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(419);
+        echo json_encode(['ok' => false, 'error' => 'Invalid CSRF token']);
+        return;
+    }
     $id = (int)($params['id'] ?? 0);
     $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
     $isFormPost = !str_contains($contentType, 'application/json') && $_SERVER['REQUEST_METHOD'] === 'POST';

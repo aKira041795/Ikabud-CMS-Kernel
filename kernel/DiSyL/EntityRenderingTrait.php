@@ -644,9 +644,19 @@ trait EntityRenderingTrait
                     : '';
                 // Include CSRF token if the app provides one
                 $csrfInput = '';
+                $csrfValue = '';
                 if (\function_exists('csrf_token')) {
                     $csrfValue = htmlspecialchars((string)\csrf_token(), ENT_QUOTES, 'UTF-8');
                     $csrfInput = "<input type=\"hidden\" name=\"_token\" value=\"{$csrfValue}\">";
+                }
+                // Allow modules to override the CSRF token via entity_csrf_token() function
+                // (e.g. for the Double Submit Cookie pattern using the JWT auth cookie).
+                if (\function_exists('entity_csrf_token')) {
+                    $moduleCsrf = htmlspecialchars((string)\entity_csrf_token(), ENT_QUOTES, 'UTF-8');
+                    if ($moduleCsrf !== '') {
+                        $csrfValue = $moduleCsrf;
+                        $csrfInput = "<input type=\"hidden\" name=\"_token\" value=\"{$csrfValue}\">";
+                    }
                 }
 
                 // Build hidden inputs from row fields referenced in the action URL

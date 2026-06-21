@@ -929,3 +929,14 @@ function aw_findLocationByGeo(float $latitude, float $longitude): ?array
         return null;
     }
 }
+
+/**
+ * Module-level CSRF token provider for entity list POST forms.
+ * Uses the JWT auth cookie value (Double Submit Cookie pattern)
+ * instead of the session-based csrf_token(), avoiding session mismatch.
+ */
+function entity_csrf_token(): string
+{
+    $cookieName = 'attendance_wage_token';
+    return $_COOKIE[$cookieName] ?? '';
+}
