@@ -43,12 +43,6 @@
                     {selected_records|count} records
                 </span>
             </div>
-            <div class="flex items-center gap-3 mt-3">
-                <a href="/admin/attendance?employee_id={employee_id}&export=csv"
-                   class="inline-flex items-center gap-1 px-4 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200">
-                    📥 Export CSV
-                </a>
-            </div>
         </div>
 
         {if selected_records|count > 0}
