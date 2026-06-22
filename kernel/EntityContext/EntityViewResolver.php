@@ -522,7 +522,7 @@ final class EntityViewResolver
             'guidance_appointment' => ['fields' => ['id', 'title', 'date', 'status', 'student_name'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
             'daily_ledger_entry' => ['fields' => ['id', 'entry_type', 'amount', 'created_at', 'notes'], 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No ledger entries.'],
             'wms_stock' => ['fields' => ['id', 'sku', 'name', 'qty', 'location_name', 'updated_at'], 'actions' => ['view', 'move'], 'limit' => 30, 'empty_state' => 'No stock items.'],
-            'wms_location' => ['fields' => ['id', 'name', 'type', 'is_staging'], 'actions' => ['edit'], 'limit' => 20, 'empty_state' => 'No locations.'],
+            'wms_location' => ['fields' => ['id', 'name', 'type', 'is_staging'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No locations.'],
             'ecommerce_product' => ['fields' => ['id', 'name', 'price', 'image', 'stock_status'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
             'ecommerce_order' => ['fields' => ['id', 'order_number', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No orders yet.'],
             // Phase 3 — attendance-wage entity-view adoption (June 2026)
