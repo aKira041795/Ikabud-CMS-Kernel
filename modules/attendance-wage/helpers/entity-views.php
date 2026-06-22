@@ -325,19 +325,24 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     // Employee Deduction — table view
     // ═══════════════════════════════════════════════════════════════
     $views->registerView('employee_deduction', 'table', [
+        'key_field' => 'employee_name',
         'fields' => [
-            'employee_name', 'amount', 'description', 'status',
-            'deduction_date', 'source',
+            'employee_name', 'deduction_count', 'total_amount', 'deduction_types',
         ],
-        'actions' => [],
+        'actions' => ['view'],
+        'action_urls' => [
+            'view' => '/admin/wage/deductions/{id}',
+        ],
+        'action_labels' => [
+            'view' => 'View Details',
+        ],
         'renderers' => [
-            'amount'         => 'money:2',
-            'status'         => 'badge:{"pending":"Pending|amber","completed":"Completed|green","cancelled":"Cancelled|red","deducted":"Deducted|blue","computed":"Computed|amber","approved":"Approved|green","paid":"Paid|blue"}',
-            'deduction_date' => 'datetime:date',
-            'source'         => 'badge:{"manual":"📝 Manual|gray","cash_advance":"💳 Cash Advance|blue","sss":"🏛️ SSS|green","philhealth":"🏥 PhilHealth|amber","pagibig":"🏠 Pag-IBIG|purple"}',
+            'total_amount'    => 'money:2',
+            'deduction_count' => 'badge:{"1":"1|gray","2":"2|amber","3":"3|blue","4":"4|purple","5":"5+|green"}',
+            'deduction_types' => 'badge:{"manual":"📝 Manual|gray","cash_advance":"💳 CA|blue","sss":"🏛️ SSS|green","philhealth":"🏥 PhilHealth|amber","pagibig":"🏠 Pag-IBIG|purple"}',
         ],
         'limit' => 20,
-        'sort' => ['field' => 'deduction_date', 'direction' => 'desc'],
+        'sort' => ['field' => 'total_amount', 'direction' => 'desc'],
         'empty_state' => 'No employee deductions yet.',
         'capability' => 'entity.list.employee_deduction@1',
     ]);

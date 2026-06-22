@@ -27,6 +27,7 @@ return [
         '/admin/wage/adjustments/{id}'    => 'attendance-wage:wagePageAdjustmentForm',
         '/admin/wage/deductions'         => 'attendance-wage:wagePageDeductions',
         '/admin/wage/deductions/create'  => 'attendance-wage:wagePageDeductionForm',
+        '/admin/wage/deductions/{employeeName}' => 'attendance-wage:wagePageDeductionDetail',
         '/admin/wage/cash-advances'      => 'attendance-wage:wagePageCashAdvances',
         '/admin/wage/cash-advances/create' => 'attendance-wage:wagePageCashAdvanceForm',
         '/admin/wage/holidays'           => 'attendance-wage:wagePageHolidays',

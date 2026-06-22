@@ -283,50 +283,52 @@ function aw_cap_entity_list_salary_adjustment_1(mixed $payload, string $capabili
 function aw_cap_entity_list_employee_deduction_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     $limit = min((int)($payload['limit'] ?? 20), 50);
-    $sortField = aw_allowedSort($payload, 'deduction_date', ['id', 'amount', 'status', 'deduction_date']);
+    $sortField = aw_allowedSort($payload, 'total_amount', ['employee_name', 'total_amount', 'deduction_count']);
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        // Combine manual deductions + cash advance repayments + computed benefits
+        // Group all deduction line items by employee name with totals
         $sql = "
-            (SELECT CONCAT('m', d.deduction_id) AS id, d.employee_name, d.amount, d.description, d.status, d.deduction_date, 'manual' AS source
-             FROM employee_deductions d)
-            UNION ALL
-            (SELECT CONCAT('ca', car.repayment_id) AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
-                    car.amount, CONCAT('Cash Advance #', ca.advance_id) AS description,
-                    IF(car.status='deducted','completed',car.status) AS status, car.created_at AS deduction_date, 'cash_advance' AS source
-             FROM cash_advance_repayments car
-             JOIN cash_advances ca ON ca.advance_id = car.advance_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id)
-            UNION ALL
-            (SELECT CONCAT('sss', sc.computation_id) AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
-                    sc.sss_employee AS amount, CONCAT('SSS — ', pp.period_name) AS description,
-                    sc.status, sc.computation_date AS deduction_date, 'sss' AS source
-             FROM salary_computations sc
-             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-             WHERE sc.sss_employee > 0)
-            UNION ALL
-            (SELECT CONCAT('ph', sc.computation_id) AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
-                    sc.philhealth_employee AS amount, CONCAT('PhilHealth — ', pp.period_name) AS description,
-                    sc.status, sc.computation_date AS deduction_date, 'philhealth' AS source
-             FROM salary_computations sc
-             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-             WHERE sc.philhealth_employee > 0)
-            UNION ALL
-            (SELECT CONCAT('pag', sc.computation_id) AS id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
-                    sc.pagibig_employee AS amount, CONCAT('Pag-IBIG — ', pp.period_name) AS description,
-                    sc.status, sc.computation_date AS deduction_date, 'pagibig' AS source
-             FROM salary_computations sc
-             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-             WHERE sc.pagibig_employee > 0)
+            SELECT employee_name,
+                   COUNT(*) AS deduction_count,
+                   SUM(amount) AS total_amount,
+                   GROUP_CONCAT(DISTINCT source ORDER BY source SEPARATOR ', ') AS deduction_types
+            FROM (
+                SELECT d.employee_name, d.amount, 'manual' AS source
+                FROM employee_deductions d
+                UNION ALL
+                SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                       car.amount, 'cash_advance' AS source
+                FROM cash_advance_repayments car
+                JOIN cash_advances ca ON ca.advance_id = car.advance_id
+                LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id
+                UNION ALL
+                SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                       sc.sss_employee AS amount, 'sss' AS source
+                FROM salary_computations sc
+                LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+                WHERE sc.sss_employee > 0
+                UNION ALL
+                SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                       sc.philhealth_employee AS amount, 'philhealth' AS source
+                FROM salary_computations sc
+                LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+                WHERE sc.philhealth_employee > 0
+                UNION ALL
+                SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                       sc.pagibig_employee AS amount, 'pagibig' AS source
+                FROM salary_computations sc
+                LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+                WHERE sc.pagibig_employee > 0
+            ) t
+            GROUP BY employee_name
             ORDER BY {$sortField} {$sortDir} LIMIT {$limit}
         ";
         $stmt = $db->query($sql);
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query("SELECT COUNT(*) FROM (SELECT 1 FROM employee_deductions UNION ALL SELECT 1 FROM cash_advance_repayments UNION ALL SELECT 1 FROM salary_computations WHERE sss_employee>0 UNION ALL SELECT 1 FROM salary_computations WHERE philhealth_employee>0 UNION ALL SELECT 1 FROM salary_computations WHERE pagibig_employee>0) t")->fetchColumn());
+        // Use employee_name as id for action URL interpolation (URL-encoded for spaces/special chars)
+        $rows = array_map(fn($r) => ['id' => rawurlencode($r['employee_name'])] + $r, $rows);
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) { return ['rows' => [], 'total' => 0, 'error' => $e->getMessage()]; }
 }

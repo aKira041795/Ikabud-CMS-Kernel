@@ -369,6 +369,72 @@ function wagePageDeductionForm(array $params = []): void
     ]);
 }
 
+function wagePageDeductionDetail(array $params = []): void
+{
+    attendanceWageGuard();
+    $user = attendanceWageUser();
+    $employeeName = rawurldecode((string)($params['employeeName'] ?? ''));
+    if ($employeeName === '') {
+        header('Location: ' . awBaseUrl() . '/admin/wage/deductions');
+        exit;
+    }
+    try {
+        $db = aw_db();
+        // Fetch individual deduction line items for this employee from all sources
+        $sql = "
+            (SELECT 'manual' AS type, d.deduction_id AS source_id, d.amount, d.description, d.status, d.deduction_date AS date
+             FROM employee_deductions d WHERE d.employee_name = :name)
+            UNION ALL
+            (SELECT 'cash_advance' AS type, car.repayment_id AS source_id, car.amount,
+                    CONCAT('Cash Advance #', ca.advance_id) AS description,
+                    IF(car.status='deducted','completed',car.status) AS status, car.created_at AS date
+             FROM cash_advance_repayments car
+             JOIN cash_advances ca ON ca.advance_id = car.advance_id
+             LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id
+             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name2)
+            UNION ALL
+            (SELECT 'sss' AS type, sc.computation_id AS source_id, sc.sss_employee AS amount,
+                    CONCAT('SSS — ', pp.period_name) AS description, sc.status, sc.computation_date AS date
+             FROM salary_computations sc
+             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name3 AND sc.sss_employee > 0)
+            UNION ALL
+            (SELECT 'philhealth' AS type, sc.computation_id AS source_id, sc.philhealth_employee AS amount,
+                    CONCAT('PhilHealth — ', pp.period_name) AS description, sc.status, sc.computation_date AS date
+             FROM salary_computations sc
+             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name4 AND sc.philhealth_employee > 0)
+            UNION ALL
+            (SELECT 'pagibig' AS type, sc.computation_id AS source_id, sc.pagibig_employee AS amount,
+                    CONCAT('Pag-IBIG — ', pp.period_name) AS description, sc.status, sc.computation_date AS date
+             FROM salary_computations sc
+             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
+             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
+             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name5 AND sc.pagibig_employee > 0)
+            ORDER BY date DESC
+        ";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':name' => $employeeName, ':name2' => $employeeName, ':name3' => $employeeName, ':name4' => $employeeName, ':name5' => $employeeName]);
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        // Format amounts for display
+        foreach ($rows as &$r) { $r['amount_fmt'] = number_format((float)$r['amount'], 2); }
+        unset($r);
+        $totalDeductions = array_sum(array_column($rows, 'amount'));
+    } catch (\Throwable $e) {
+        $rows = [];
+        $totalDeductions = 0;
+    }
+    echo app()->render('modules/attendance-wage/wage/deductions/detail', [
+        'active_nav'        => 'deductions',
+        'current_user_role' => $user['role'] ?? '',
+        'employee_name'     => $employeeName,
+        'deductions'        => $rows,
+        'total_deductions'  => number_format($totalDeductions, 2),
+    ]);
+}
+
 function wagePageCashAdvances(array $params = []): void
 {
     attendanceWageGuard();

@@ -8,5 +8,6 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         {ikb_entity_list source="employee_deduction.recent" view="table" use="tailwind" limit="20" empty="No employee deductions yet." /}
     </div>
+    <p class="text-xs text-gray-400 mt-4 text-center">Grouped by employee. Click "View Details" to see individual deduction line items.</p>
 </div>
 {/block}
