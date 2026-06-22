@@ -63,7 +63,9 @@ function wageApiReportExportAll(array $params = []): void
                 $comp = $db->prepare(
                     "SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
                             ep.employee_number, ep.position, ep.department,
-                            sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status
+                            sc.gross_pay, sc.sss_employee, sc.philhealth_employee, sc.pagibig_employee,
+                            sc.income_tax, sc.salary_deductions, sc.cash_advance_deduction, sc.other_deductions,
+                            sc.net_pay, sc.status
                      FROM salary_computations sc
                      JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
                      WHERE sc.payroll_period_id = :pid
@@ -71,15 +73,24 @@ function wageApiReportExportAll(array $params = []): void
                 );
                 $comp->execute([':pid' => $period['period_id']]);
                 $rows = $comp->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-                fputcsv($out, ['Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'Deductions', 'Net Pay', 'Status']);
+                fputcsv($out, ['Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'SSS', 'PhilHealth', 'Pag-IBIG', 'Income Tax', 'Manual Deductions', 'Cash Advance', 'Other Deductions', 'Total Deductions', 'Net Pay', 'Status']);
                 foreach ($rows as $r) {
+                    $totalDed = (float)($r['sss_employee'] ?? 0) + (float)($r['philhealth_employee'] ?? 0) + (float)($r['pagibig_employee'] ?? 0)
+                        + (float)($r['income_tax'] ?? 0) + (float)($r['salary_deductions'] ?? 0) + (float)($r['cash_advance_deduction'] ?? 0) + (float)($r['other_deductions'] ?? 0);
                     fputcsv($out, [
                         $r['employee_name'] ?? '—',
                         $r['employee_number'] ?? '—',
                         $r['position'] ?? '—',
                         $r['department'] ?? '—',
                         number_format((float)($r['gross_pay'] ?? 0), 2),
-                        number_format((float)($r['total_deductions'] ?? 0), 2),
+                        number_format((float)($r['sss_employee'] ?? 0), 2),
+                        number_format((float)($r['philhealth_employee'] ?? 0), 2),
+                        number_format((float)($r['pagibig_employee'] ?? 0), 2),
+                        number_format((float)($r['income_tax'] ?? 0), 2),
+                        number_format((float)($r['salary_deductions'] ?? 0), 2),
+                        number_format((float)($r['cash_advance_deduction'] ?? 0), 2),
+                        number_format((float)($r['other_deductions'] ?? 0), 2),
+                        number_format($totalDed, 2),
                         number_format((float)($r['net_pay'] ?? 0), 2),
                         ucfirst($r['status'] ?? '—'),
                     ]);
@@ -120,7 +131,9 @@ function wageApiReportExport(array $params = []): void
         $comp = $db->prepare(
             "SELECT sc.computation_id, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
                     ep.employee_number, ep.position, ep.department,
-                    sc.gross_pay, sc.total_deductions, sc.net_pay, sc.status,
+                    sc.gross_pay, sc.sss_employee, sc.philhealth_employee, sc.pagibig_employee,
+                    sc.income_tax, sc.salary_deductions, sc.cash_advance_deduction, sc.other_deductions,
+                    sc.net_pay, sc.status,
                     pp.period_name
              FROM salary_computations sc
              JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
@@ -139,9 +152,11 @@ function wageApiReportExport(array $params = []): void
             fputcsv($out, ['Period', $period['start_date'] . ' to ' . $period['end_date']]);
             fputcsv($out, ['Pay Date', $period['pay_date'] ?? '—']);
             fputcsv($out, []);
-            fputcsv($out, ['#', 'Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'Deductions', 'Net Pay', 'Status']);
+            fputcsv($out, ['#', 'Employee', 'Employee #', 'Position', 'Department', 'Gross Pay', 'SSS', 'PhilHealth', 'Pag-IBIG', 'Income Tax', 'Manual Deductions', 'Cash Advance', 'Other Deductions', 'Total Deductions', 'Net Pay', 'Status']);
             $i = 1;
             foreach ($rows as $r) {
+                $totalDed = (float)($r['sss_employee'] ?? 0) + (float)($r['philhealth_employee'] ?? 0) + (float)($r['pagibig_employee'] ?? 0)
+                    + (float)($r['income_tax'] ?? 0) + (float)($r['salary_deductions'] ?? 0) + (float)($r['cash_advance_deduction'] ?? 0) + (float)($r['other_deductions'] ?? 0);
                 fputcsv($out, [
                     $i++,
                     $r['employee_name'] ?? '—',
@@ -149,7 +164,14 @@ function wageApiReportExport(array $params = []): void
                     $r['position'] ?? '—',
                     $r['department'] ?? '—',
                     number_format((float)($r['gross_pay'] ?? 0), 2),
-                    number_format((float)($r['total_deductions'] ?? 0), 2),
+                    number_format((float)($r['sss_employee'] ?? 0), 2),
+                    number_format((float)($r['philhealth_employee'] ?? 0), 2),
+                    number_format((float)($r['pagibig_employee'] ?? 0), 2),
+                    number_format((float)($r['income_tax'] ?? 0), 2),
+                    number_format((float)($r['salary_deductions'] ?? 0), 2),
+                    number_format((float)($r['cash_advance_deduction'] ?? 0), 2),
+                    number_format((float)($r['other_deductions'] ?? 0), 2),
+                    number_format($totalDed, 2),
                     number_format((float)($r['net_pay'] ?? 0), 2),
                     ucfirst($r['status'] ?? '—'),
                 ]);
