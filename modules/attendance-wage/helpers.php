@@ -297,25 +297,25 @@ function aw_cap_entity_list_employee_deduction_1(mixed $payload, string $capabil
                 SELECT employee_deductions.employee_name, employee_deductions.amount, 'manual' AS source
                 FROM employee_deductions
                 UNION ALL
-                SELECT CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) AS employee_name,
+                SELECT CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) AS employee_name,
                        cash_advance_repayments.amount, 'cash_advance' AS source
                 FROM cash_advance_repayments
                 JOIN cash_advances ON cash_advances.advance_id = cash_advance_repayments.advance_id
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = cash_advances.employee_profile_id
                 UNION ALL
-                SELECT CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) AS employee_name,
+                SELECT CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) AS employee_name,
                        salary_computations.sss_employee AS amount, 'sss' AS source
                 FROM salary_computations
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
                 WHERE salary_computations.sss_employee > 0
                 UNION ALL
-                SELECT CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) AS employee_name,
+                SELECT CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) AS employee_name,
                        salary_computations.philhealth_employee AS amount, 'philhealth' AS source
                 FROM salary_computations
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
                 WHERE salary_computations.philhealth_employee > 0
                 UNION ALL
-                SELECT CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) AS employee_name,
+                SELECT CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) AS employee_name,
                        salary_computations.pagibig_employee AS amount, 'pagibig' AS source
                 FROM salary_computations
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id

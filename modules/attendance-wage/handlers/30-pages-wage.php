@@ -391,28 +391,28 @@ function wagePageDeductionDetail(array $params = []): void
              FROM cash_advance_repayments
              JOIN cash_advances ON cash_advances.advance_id = cash_advance_repayments.advance_id
              LEFT JOIN employee_profiles ON employee_profiles.profile_id = cash_advances.employee_profile_id
-             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name2)
+             WHERE CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) = :name2)
             UNION ALL
             (SELECT 'sss' AS type, salary_computations.computation_id AS source_id, salary_computations.sss_employee AS amount,
                     CONCAT('SSS — ', payroll_periods.period_name) AS description, salary_computations.status, salary_computations.computation_date AS date
              FROM salary_computations
              JOIN payroll_periods ON payroll_periods.period_id = salary_computations.payroll_period_id
              LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
-             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name3 AND salary_computations.sss_employee > 0)
+             WHERE CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) = :name3 AND salary_computations.sss_employee > 0)
             UNION ALL
             (SELECT 'philhealth' AS type, salary_computations.computation_id AS source_id, salary_computations.philhealth_employee AS amount,
                     CONCAT('PhilHealth — ', payroll_periods.period_name) AS description, salary_computations.status, salary_computations.computation_date AS date
              FROM salary_computations
              JOIN payroll_periods ON payroll_periods.period_id = salary_computations.payroll_period_id
              LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
-             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name4 AND salary_computations.philhealth_employee > 0)
+             WHERE CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) = :name4 AND salary_computations.philhealth_employee > 0)
             UNION ALL
             (SELECT 'pagibig' AS type, salary_computations.computation_id AS source_id, salary_computations.pagibig_employee AS amount,
                     CONCAT('Pag-IBIG — ', payroll_periods.period_name) AS description, salary_computations.status, salary_computations.computation_date AS date
              FROM salary_computations
              JOIN payroll_periods ON payroll_periods.period_id = salary_computations.payroll_period_id
              LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
-             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name5 AND salary_computations.pagibig_employee > 0)
+             WHERE CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) = :name5 AND salary_computations.pagibig_employee > 0)
             ORDER BY date DESC
         ";
         $stmt = $db->prepare($sql);
