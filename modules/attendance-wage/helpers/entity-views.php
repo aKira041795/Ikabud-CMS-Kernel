@@ -249,9 +249,8 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     $views->registerView('holiday', 'table', [
         'key_field' => 'id',
         'fields' => ['holiday_name', 'holiday_date', 'holiday_type', 'is_regular'],
-        'actions' => ['view', 'edit', 'delete'],
+        'actions' => ['edit', 'delete'],
         'action_urls' => [
-            'view'   => '/admin/wage/holidays?edit={id}',
             'edit'   => '/admin/wage/holidays?edit={id}',
             'delete' => '/api/v1/wage/holidays/{id}/delete',
         ],
