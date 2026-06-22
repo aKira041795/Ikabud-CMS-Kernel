@@ -307,26 +307,26 @@ function aw_cap_entity_list_employee_deduction_1(mixed $payload, string $capabil
                        salary_computations.sss_employee AS amount, 'sss' AS source
                 FROM salary_computations
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
-                WHERE salary_computations.sss_employee > 0
+                WHERE salary_computations.sss_employee > 0 AND employee_profiles.sss_applicable = 1
                 UNION ALL
                 SELECT CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) AS employee_name,
                        salary_computations.philhealth_employee AS amount, 'philhealth' AS source
                 FROM salary_computations
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
-                WHERE salary_computations.philhealth_employee > 0
+                WHERE salary_computations.philhealth_employee > 0 AND employee_profiles.philhealth_applicable = 1
                 UNION ALL
                 SELECT CONCAT_WS(' ', NULLIF(employee_profiles.first_name,''), NULLIF(employee_profiles.middle_name,''), NULLIF(employee_profiles.last_name,''), NULLIF(employee_profiles.suffix,'')) AS employee_name,
                        salary_computations.pagibig_employee AS amount, 'pagibig' AS source
                 FROM salary_computations
                 LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
-                WHERE salary_computations.pagibig_employee > 0
+                WHERE salary_computations.pagibig_employee > 0 AND employee_profiles.pagibig_applicable = 1
             ) t
             GROUP BY employee_name
             ORDER BY {$sortField} {$sortDir} LIMIT {$limit}
         ";
         $stmt = $db->query($sql);
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $total = (int)($db->query("SELECT COUNT(*) FROM (SELECT 1 FROM employee_deductions UNION ALL SELECT 1 FROM cash_advance_repayments UNION ALL SELECT 1 FROM salary_computations WHERE sss_employee>0 UNION ALL SELECT 1 FROM salary_computations WHERE philhealth_employee>0 UNION ALL SELECT 1 FROM salary_computations WHERE pagibig_employee>0) t")->fetchColumn());
+        $total = (int)($db->query("SELECT COUNT(*) FROM (SELECT 1 FROM employee_deductions UNION ALL SELECT 1 FROM cash_advance_repayments UNION ALL SELECT 1 FROM salary_computations sc1 LEFT JOIN employee_profiles ep1 ON ep1.profile_id = sc1.employee_profile_id WHERE sc1.sss_employee>0 AND ep1.sss_applicable=1 UNION ALL SELECT 1 FROM salary_computations sc2 LEFT JOIN employee_profiles ep2 ON ep2.profile_id = sc2.employee_profile_id WHERE sc2.philhealth_employee>0 AND ep2.philhealth_applicable=1 UNION ALL SELECT 1 FROM salary_computations sc3 LEFT JOIN employee_profiles ep3 ON ep3.profile_id = sc3.employee_profile_id WHERE sc3.pagibig_employee>0 AND ep3.pagibig_applicable=1) t")->fetchColumn());
         // Use employee_name as id for action URL interpolation (URL-encoded for spaces/special chars)
         $rows = array_map(fn($r) => ['id' => rawurlencode($r['employee_name'])] + $r, $rows);
         return ['rows' => $rows, 'total' => $total];
