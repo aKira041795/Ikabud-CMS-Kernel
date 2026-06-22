@@ -235,6 +235,14 @@
                     "first"
                 ],
                 "description": "Get single office location"
+            },
+            {
+                "id": "attendance.record.hours.update@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Inline edit attendance hours"
             }
         ],
         "depends": []

@@ -23,6 +23,10 @@ use Ikabud\Kernel\EntityContext\ContextRegistry;
 use Ikabud\Kernel\EntityAuthority\EntityAuthorityRegistry;
 use Ikabud\Kernel\EntityAuthority\SyncContractRegistry;
 use Ikabud\Kernel\EntityContext\EntityViewResolver;
+use Ikabud\Kernel\EntityContext\EntityRendererInterface;
+use Ikabud\Kernel\EntityContext\DefaultEntityRenderer;
+use Ikabud\Kernel\EntityContext\CellRendererRegistryInterface;
+use Ikabud\Kernel\EntityContext\CellRendererRegistry;
 
 use Ikabud\Kernel\TenantResolver;
 use Ikabud\Kernel\Database\ModuleDB;
@@ -49,6 +53,8 @@ final class App
     private ?EntityAuthorityRegistry $entityAuthorityRegistry = null;
     private ?SyncContractRegistry $syncContractRegistry = null;
     private ?EntityViewResolver $entityViewResolver = null;
+    private ?EntityRendererInterface $entityRenderer = null;
+    private ?CellRendererRegistryInterface $entityCellRendererRegistry = null;
     private ?IntegrationBridge $integrationBridge = null;
     private ?TriggerService $triggerService = null;
 
@@ -569,6 +575,28 @@ final class App
             $this->entityViewResolver = EntityViewResolver::getInstance();
         }
         return $this->entityViewResolver;
+    }
+
+    /**
+     * Get the entity renderer — renders resolved entity data to HTML.
+     */
+    public function entityRenderers(): EntityRendererInterface
+    {
+        if ($this->entityRenderer === null) {
+            $this->entityRenderer = new DefaultEntityRenderer($this->entityCellRenderers());
+        }
+        return $this->entityRenderer;
+    }
+
+    /**
+     * Get the cell renderer registry — modules register custom cell renderers here.
+     */
+    public function entityCellRenderers(): CellRendererRegistryInterface
+    {
+        if ($this->entityCellRendererRegistry === null) {
+            $this->entityCellRendererRegistry = new CellRendererRegistry();
+        }
+        return $this->entityCellRendererRegistry;
     }
 
     /**

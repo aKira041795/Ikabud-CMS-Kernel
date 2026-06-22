@@ -98,6 +98,7 @@ if (!function_exists('kernelCoreRoutes')) {
                 '/api/v1/admin/kernel/triggers/delete' => 'apiKernelTriggerDelete',
                 '/api/v1/admin/kernel/triggers/suggest' => 'apiKernelTriggersSuggest',
                 '/api/v1/admin/tenants/create' => 'apiTenantCreate',
+                '/api/v1/entity/update' => 'apiEntityUpdate',
                 '/api/v1/admin/tenants/entry-module' => 'apiTenantEntryModuleSet',
                 '/api/v1/admin/tenants/domain/add' => 'apiTenantDomainAdd',
                 '/api/v1/admin/tenants/domain/remove' => 'apiTenantDomainRemove',

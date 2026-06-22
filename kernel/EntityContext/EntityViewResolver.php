@@ -113,6 +113,8 @@ final class EntityViewResolver
             'exportable' => false,
             'capability' => null,
             'provider' => $providerId,
+            // P4: sortable field declarations — field_name => sort_key (DB column)
+            'sortable_fields' => [],
         ], $contract);
     }
 
@@ -181,6 +183,9 @@ final class EntityViewResolver
         $sortField = (string)($overrides['sort_field'] ?? $contract['sort']['field'] ?? 'created_at');
         $sortDir = (string)($overrides['sort_direction'] ?? $contract['sort']['direction'] ?? 'desc');
         $filters = is_array($overrides['filters'] ?? null) ? $overrides['filters'] : [];
+        $offset = (int)($overrides['offset'] ?? 0);
+        $cursor = isset($overrides['cursor']) ? (string)$overrides['cursor'] : null;
+        $prevCursor = isset($overrides['prev_cursor']) ? (string)$overrides['prev_cursor'] : null;
 
         // Resolve key_field — always include it in query results for URL interpolation
         // even when it's not a display field (e.g. {id} in action_urls / row-click).
@@ -196,10 +201,13 @@ final class EntityViewResolver
             'qualifier' => $qualifier,
             'view' => $view,
             'limit' => $limit,
+            'offset' => $offset,
             'sort' => ['field' => $sortField, 'direction' => $sortDir],
             'filters' => $filters,
             'fields' => $queryFields,
         ];
+        if ($cursor !== null) { $capabilityArgs['cursor'] = $cursor; }
+        if ($prevCursor !== null) { $capabilityArgs['prev_cursor'] = $prevCursor; }
 
         // Attempt to fetch via the capability bus
         // Normalize entity type: dots → underscores for capability IDs
@@ -253,6 +261,90 @@ final class EntityViewResolver
             'source' => $parsed,
             'error' => null,
         ];
+    }
+
+    /**
+     * Resolve a source + view and return a typed EntityListResult.
+     *
+     * Same as resolve() but returns an EntityListResult value object that
+     * supports both total-based and cursor-based pagination.
+     *
+     * @param array<string, mixed> $overrides
+     */
+    public function resolveAsResult(string $source, string $view = 'compact', array $overrides = []): EntityListResult
+    {
+        $parsed = $this->parseSource($source);
+        $entityType = $parsed['entity_type'];
+        $qualifier = $parsed['qualifier'];
+
+        if ($entityType === '') {
+            return new EntityListResult(error: 'Invalid source: entity type is empty.');
+        }
+
+        $contract = $this->viewContract($entityType, $view);
+        if ($contract === null) {
+            return new EntityListResult(error: "No view contract for '{$entityType}.{$view}'.");
+        }
+
+        // Check capability gate
+        $requiredCap = $contract['capability'] ?? null;
+        if ($requiredCap !== null && \function_exists('app')) {
+            $app = \app();
+            if ($app !== null && method_exists($app, 'capabilities') && !$app->capabilities()->has($requiredCap)) {
+                return new EntityListResult(error: "Insufficient permissions for '{$requiredCap}'.");
+            }
+        }
+
+        $limit = (int)($overrides['limit'] ?? $contract['limit'] ?? 25);
+        $sortField = (string)($overrides['sort_field'] ?? $contract['sort']['field'] ?? 'created_at');
+        $sortDir = (string)($overrides['sort_direction'] ?? $contract['sort']['direction'] ?? 'desc');
+        $filters = is_array($overrides['filters'] ?? null) ? $overrides['filters'] : [];
+
+        $keyField = $contract['key_field'] ?? null;
+        $displayFields = $contract['fields'] ?? '*';
+        $queryFields = $displayFields;
+        if ($keyField !== null && is_array($queryFields) && !in_array($keyField, $queryFields, true)) {
+            $queryFields[] = $keyField;
+        }
+
+        $capabilityArgs = [
+            'entity_type' => $entityType,
+            'qualifier' => $qualifier,
+            'view' => $view,
+            'limit' => $limit,
+            'sort' => ['field' => $sortField, 'direction' => $sortDir],
+            'filters' => $filters,
+            'fields' => $queryFields,
+        ];
+
+        $sanitizedType = str_replace('.', '_', $entityType);
+        $capabilityId = "entity.list.{$sanitizedType}";
+
+        try {
+            if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'cap')) {
+                $result = $app->cap()->call($capabilityId, $capabilityArgs, [
+                    'caller' => ['module' => 'kernel'],
+                    'mode' => 'first',
+                    'timeout_ms' => 10000,
+                ]);
+                if (is_array($result)) {
+                    return EntityListResult::fromCapabilityResult($result);
+                }
+            }
+        } catch (\Throwable $e) {
+            $error = $e->getMessage();
+            if (\function_exists('write_log')) {
+                $level = str_contains($error, 'not found') ? 'info' : 'warning';
+                \write_log("EntityViewResolver: resolveAsResult failed for '{$capabilityId}'", $level, [
+                    'source' => $source,
+                    'view' => $view,
+                    'error' => $error,
+                ]);
+            }
+            return new EntityListResult(error: $error);
+        }
+
+        return new EntityListResult(error: $contract['error_state'] ?? 'Data source unavailable.');
     }
 
     /**
@@ -351,6 +443,52 @@ final class EntityViewResolver
         return array_keys($this->viewContracts);
     }
 
+    /**
+     * Validate a requested sort field against the view contract's allowlist.
+     *
+     * Returns the sort field if allowed, or the default sort field if not.
+     * This prevents arbitrary user-supplied sort parameters from reaching
+     * the SQL ORDER BY clause.
+     *
+     * @param string      $entityType Entity type (e.g. 'guidance_case')
+     * @param string      $view       View name (e.g. 'table')
+     * @param string|null $requested  Sort field from the request (null = use default)
+     * @param string|null $direction  Sort direction (validated to asc/desc)
+     * @return array{field: string, direction: string}
+     */
+    public function validateSort(string $entityType, string $view, ?string $requested, ?string $direction = null): array
+    {
+        $contract = $this->viewContract($entityType, $view);
+        $sortable = $contract['sortable_fields'] ?? [];
+        $defaultSort = $contract['sort'] ?? ['field' => 'created_at', 'direction' => 'desc'];
+
+        $field = $defaultSort['field'];
+        $dir = in_array((string)$direction, ['asc', 'desc'], true) ? (string)$direction : $defaultSort['direction'];
+
+        if ($requested !== null && $requested !== '') {
+            if (isset($sortable[$requested]) || in_array($requested, $sortable, true)) {
+                $field = $requested;
+            } elseif (empty($sortable)) {
+                // No allowlist defined — allow any field (backward compat)
+                $field = $requested;
+            }
+            // If not allowed and allowlist exists, fall back to default
+        }
+
+        return ['field' => $field, 'direction' => $dir];
+    }
+
+    /**
+     * Get the sortable fields allowlist for a view contract.
+     *
+     * @return array<string, string> field_name => sort_key (or field_name => field_name)
+     */
+    public function getSortableFields(string $entityType, string $view): array
+    {
+        $contract = $this->viewContract($entityType, $view);
+        return $contract['sortable_fields'] ?? [];
+    }
+
     // ── Internal helpers ──
 
     private function viewKey(string $entityType, string $view): string
@@ -381,7 +519,7 @@ final class EntityViewResolver
             'ecommerce_product' => ['fields' => ['id', 'name', 'price', 'image', 'stock_status'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
             'ecommerce_order' => ['fields' => ['id', 'order_number', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No orders yet.'],
             // Phase 3 — attendance-wage entity-view adoption (June 2026)
-            'attendance_record' => ['fields' => ['id', 'employee_name', 'store_name', 'clock_in', 'clock_out', 'status'], 'actions' => ['view', 'edit'], 'action_urls' => ['view' => '/admin/attendance?record={id}', 'edit' => '/admin/attendance?record={id}'], 'renderers' => ['clock_in' => 'datetime:time', 'clock_out' => 'datetime:time', 'status' => 'badge:{"active":"Clocked In|green","completed":"Done|blue","edited":"Edited|amber"}'], 'limit' => 30, 'empty_state' => 'No attendance records found.'],
+            'attendance_record' => ['fields' => ['id', 'employee_name', 'store_name', 'clock_in', 'clock_out', 'hours', 'status'], 'actions' => ['view', 'edit'], 'action_urls' => ['view' => '/admin/attendance?record={id}', 'edit' => '/admin/attendance?record={id}'], 'renderers' => ['clock_in' => 'datetime:time', 'clock_out' => 'datetime:time', 'hours' => 'string', 'status' => 'badge:{"active":"Clocked In|green","completed":"Done|blue","edited":"Edited|amber"}'], 'field_contracts' => ['hours' => ['editable' => 'true', 'update_capability' => 'attendance.record.hours.update@1']], 'limit' => 30, 'empty_state' => 'No attendance records found.'],
             'employee_profile' => ['fields' => ['id', 'first_name', 'last_name', 'position', 'department', 'salary_type', 'employment_status'], 'actions' => ['edit'], 'action_urls' => ['edit' => '/admin/wage/employees/{id}'], 'renderers' => ['salary_type' => 'badge:{"hourly":"Hourly|blue","daily":"Daily|amber","monthly":"Monthly|purple","fixed":"Fixed|gray"}', 'employment_status' => 'badge:{"probationary":"Probationary|amber","regular":"Regular|green","contractual":"Contractual|blue","part_time":"Part-Time|gray"}'], 'limit' => 25, 'empty_state' => 'No employee profiles yet.'],
             'payroll_period' => ['fields' => ['id', 'period_name', 'start_date', 'end_date', 'status', 'total_net_pay'], 'actions' => ['view'], 'action_urls' => ['view' => '/admin/wage/reports/{id}'], 'renderers' => ['total_net_pay' => 'money:2', 'status' => 'badge:{"draft":"Draft|gray","processing":"Processing|blue","approved":"Approved|green","completed":"Completed|green","cancelled":"Cancelled|red"}'], 'limit' => 12, 'empty_state' => 'No payroll periods yet.'],
             'salary_computation' => ['fields' => ['id', 'employee_name', 'period_name', 'gross_pay', 'total_deductions', 'net_pay', 'status'], 'actions' => ['view', 'approve'], 'action_urls' => ['view' => '/admin/wage/computations?id={id}', 'approve' => '/admin/wage/computations?id={id}'], 'renderers' => ['gross_pay' => 'money:2', 'total_deductions' => 'money:2', 'net_pay' => 'money:2', 'status' => 'badge:{"computed":"Computed|amber","approved":"Approved|green","paid":"Paid|blue","cancelled":"Cancelled|red"}'], 'limit' => 25, 'empty_state' => 'No salary computations found.'],
@@ -406,6 +544,7 @@ final class EntityViewResolver
             'action_show_if' => $base['action_show_if'] ?? [],
             'action_labels' => $base['action_labels'] ?? [],
             'renderers' => $base['renderers'] ?? [],
+            'field_contracts' => $base['field_contracts'] ?? [],
             'limit' => $base['limit'] ?? 25,
             'sort' => ['field' => 'created_at', 'direction' => 'desc'],
             'empty_state' => $base['empty_state'] ?? 'No records found.',

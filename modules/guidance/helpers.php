@@ -10,6 +10,7 @@ function guidance_capability_handlers(): array
         'entity.get.guidance_case@1' => 'gm_cap_entity_get_case_1',
         'entity.list.guidance_appointment@1' => 'gm_cap_entity_list_appointment_1',
         'entity.get.guidance_appointment@1' => 'gm_cap_entity_get_appointment_1',
+        'guidance.case.status.update@1' => 'gm_cap_case_status_update_1',
     ];
 }
 
@@ -1690,14 +1691,76 @@ function gm_cap_entity_list_case_1(mixed $payload, string $capabilityId = '', st
     $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
     $qualifier = (string)($payload['qualifier'] ?? '');
     $statusFilter = '';
+
+    // Cursor-based pagination support
+    $cursor = isset($payload['cursor']) ? (string)$payload['cursor'] : null;
+    $prevCursor = isset($payload['prev_cursor']) ? (string)$payload['prev_cursor'] : null;
+
     if ($qualifier === 'open') { $statusFilter = " AND c.status = 'open'"; }
     elseif ($qualifier === 'closed') { $statusFilter = " AND c.status = 'closed'"; }
     elseif ($qualifier === 'active') { $statusFilter = " AND c.status NOT IN ('closed')"; }
 
     try {
         $db = guidanceDb();
-        $stmt = $db->query("SELECT c.id, c.student_name, c.case_number, c.status, c.severity, c.category, c.college_code, c.student_status, c.is_urgent, c.created_at, c.updated_at, c.deleted_at, c.counselor_id, CONCAT(u.first_name, ' ', u.last_name) as counselor_name FROM gm_cases c LEFT JOIN gm_users u ON u.id = c.counselor_id WHERE c.deleted_at IS NULL{$statusFilter} ORDER BY {$sortField} {$sortDir} LIMIT {$limit} OFFSET {$offset}");
+
+        // Determine the cursor column — use the sort field if it maps to c.id or c.updated_at,
+        // otherwise default to c.id for stable keyset pagination.
+        $cursorColumn = 'c.id';
+        $idField = $sortField;
+        if (str_contains($sortField, '.')) {
+            $parts = explode('.', $sortField);
+            $idField = end($parts);
+        }
+        // For keyset pagination, we need the sort field to be unique + stable.
+        // Default to c.id + c.updated_at composite for stable ordering.
+        $cursorClause = '';
+        if ($cursor !== null) {
+            $cursorVal = (int)$cursor;
+            if ($cursorVal > 0) {
+                $cursorOp = $sortDir === 'ASC' ? '>' : '<';
+                $cursorClause = " AND c.id {$cursorOp} {$cursorVal}";
+            }
+        } elseif ($prevCursor !== null) {
+            // Going backward — reverse the direction for this query
+            $cursorVal = (int)$prevCursor;
+            if ($cursorVal > 0) {
+                $revDir = $sortDir === 'ASC' ? 'DESC' : 'ASC';
+                $cursorClause = " AND c.id < {$cursorVal}";
+                // We'll reverse the results after fetching
+            }
+        }
+
+        // Fetch one extra row to determine hasMore
+        $fetchLimit = $limit + 1;
+
+        $stmt = $db->query("SELECT c.id, c.student_name, c.case_number, c.status, c.severity, c.category, c.college_code, c.student_status, c.is_urgent, c.created_at, c.updated_at, c.deleted_at, c.counselor_id, CONCAT(u.first_name, ' ', u.last_name) as counselor_name FROM gm_cases c LEFT JOIN gm_users u ON u.id = c.counselor_id WHERE c.deleted_at IS NULL{$statusFilter}{$cursorClause} ORDER BY {$sortField} {$sortDir} LIMIT {$fetchLimit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        // For prev cursor navigation, reverse the results back to original order
+        if ($prevCursor !== null && !empty($rows)) {
+            $rows = array_reverse($rows);
+        }
+
+        // Determine hasMore — if we fetched limit+1 rows, there are more
+        $hasMore = count($rows) > $limit;
+        if ($hasMore) {
+            // Remove the extra row
+            array_pop($rows);
+        }
+
+        // Determine next_cursor from the last row's id
+        $nextCursor = null;
+        if ($hasMore && !empty($rows)) {
+            $lastRow = end($rows);
+            $nextCursor = (string)($lastRow['id'] ?? '');
+        }
+
+        // Determine prev_cursor from the first row's id (for going back)
+        $prevCursorOut = null;
+        if ($cursor !== null && !empty($rows)) {
+            $firstRow = reset($rows);
+            $prevCursorOut = (string)($firstRow['id'] ?? '');
+        }
 
         // Enrich with college codes
         $counselorIds = array_unique(array_filter(array_column($rows, 'counselor_id')));
@@ -1722,6 +1785,16 @@ function gm_cap_entity_list_case_1(mixed $payload, string $capabilityId = '', st
             }
         }
         unset($caseRow);
+
+        // Return cursor-based format when cursor was used, otherwise total-based
+        if ($cursor !== null || $prevCursor !== null) {
+            return [
+                'rows' => $rows,
+                'next_cursor' => $nextCursor,
+                'has_more' => $hasMore,
+                'prev_cursor' => $prevCursorOut,
+            ];
+        }
 
         $countStmt = $db->query("SELECT COUNT(*) FROM gm_cases WHERE deleted_at IS NULL{$statusFilter}");
         $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
@@ -1773,5 +1846,99 @@ function gm_cap_entity_get_appointment_1(mixed $payload, string $capabilityId = 
         return is_array($row) ? $row : [];
     } catch (\Throwable $e) {
         return [];
+    }
+}
+
+/**
+ * Handle inline status update for guidance cases.
+ *
+ * Capability: guidance.case.status.update@1
+ * Validates the transition, persists, audits, and returns updated data.
+ */
+function gm_cap_case_status_update_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $entityId = (int)($payload['entity_id'] ?? 0);
+    $field = (string)($payload['field'] ?? '');
+    $value = (string)($payload['value'] ?? '');
+    $expectedVersion = isset($payload['expected_version']) ? (int)$payload['expected_version'] : null;
+
+    if ($entityId <= 0 || $field === '') {
+        return ['ok' => false, 'error' => 'Missing entity_id or field.'];
+    }
+
+    if ($field !== 'status') {
+        return ['ok' => false, 'error' => "Field '{$field}' does not support inline editing."];
+    }
+
+    $allowed = ['open', 'closed', 'in_progress', 'on_hold', 'pending'];
+    if (!in_array($value, $allowed, true)) {
+        return ['ok' => false, 'error' => "Invalid status value '{$value}'. Allowed: " . implode(', ', $allowed) . '.'];
+    }
+
+    try {
+        $db = guidanceDb();
+
+        $stmt = $db->prepare('SELECT id, status, updated_at FROM gm_cases WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute([':id' => $entityId]);
+        $current = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!is_array($current)) {
+            return ['ok' => false, 'error' => 'Case not found.'];
+        }
+
+        if ($expectedVersion !== null) {
+            $currentVersion = strtotime((string)$current['updated_at']);
+            if ($currentVersion !== $expectedVersion) {
+                return [
+                    'ok' => false,
+                    'error' => 'Entity was modified by another user. Reload and try again.',
+                    'code' => 'VERSION_CONFLICT',
+                    'current_version' => $currentVersion,
+                ];
+            }
+        }
+
+        $oldStatus = $current['status'];
+        $forbiddenTransitions = [
+            'closed' => ['open', 'in_progress', 'on_hold'],
+        ];
+        if (isset($forbiddenTransitions[$oldStatus]) && in_array($value, $forbiddenTransitions[$oldStatus], true)) {
+            return ['ok' => false, 'error' => "Cannot transition from '{$oldStatus}' to '{$value}'."];
+        }
+
+        $updateStmt = $db->prepare('UPDATE gm_cases SET status = :status, updated_at = NOW() WHERE id = :id');
+        $updateStmt->execute([':status' => $value, ':id' => $entityId]);
+
+        $checkStmt = $db->prepare('SELECT updated_at FROM gm_cases WHERE id = :id');
+        $checkStmt->execute([':id' => $entityId]);
+        $updated = $checkStmt->fetch(\PDO::FETCH_ASSOC);
+        $newVersion = $updated ? strtotime((string)$updated['updated_at']) : null;
+
+        if (function_exists('app') && ($app = app()) !== null && method_exists($app, 'cap')) {
+            try {
+                $app->cap()->call('kernel.audit.record@1', [
+                    'module' => 'guidance',
+                    'action' => 'inline_update',
+                    'entity_type' => 'guidance_case',
+                    'entity_id' => (string)$entityId,
+                    'old_data' => ['status' => $oldStatus],
+                    'new_data' => ['status' => $value],
+                ], ['caller' => ['module' => 'guidance'], 'mode' => 'first']);
+            } catch (\Throwable $e) {
+                // Non-fatal
+            }
+        }
+
+        return [
+            'ok' => true,
+            'data' => [
+                'raw_value' => $value,
+                'display_html' => '',
+                'version' => $newVersion,
+                'updated_at' => $updated['updated_at'] ?? null,
+            ],
+        ];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
     }
 }

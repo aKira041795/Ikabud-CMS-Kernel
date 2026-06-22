@@ -36,6 +36,8 @@
     
     {!-- Alpine.js for client-side interactivity --}
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {!-- ikbInlineEdit — Alpine component for inline field editing --}
+    <script src="/admin/assets/js/ikb-inline-edit.js"></script>
 
     {!-- Chart.js for reports charts --}
     <script src="https://unpkg.com/chart.js@4/dist/chart.umd.min.js"></script>

@@ -2879,3 +2879,124 @@ function kernelHandleApiPlatform(): void
     exit;
 }
 }
+
+/**
+ * Handle POST /api/v1/entity/update — inline entity field editing.
+ *
+ * Receives a mutation request from the ikbInlineEdit Alpine component,
+ * routes it through the capability bus, and re-renders the cell for display.
+ *
+ * POST body (JSON):
+ *   capability       string  Required. Capability ID (e.g. "guidance.case.status.update@1")
+ *   entity_id        int     Required. Entity ID to update
+ *   field            string  Required. Field name being edited
+ *   value            mixed   Required. New value
+ *   expected_version int|null Optional. For optimistic locking
+ *
+ * Response (JSON):
+ *   ok              bool
+ *   data.raw_value  mixed
+ *   data.display_html string  Server-rendered cell HTML
+ *   data.version    int|null
+ *   error           string|null
+ */
+if (!function_exists('kernelHandleApiEntityUpdate')) {
+    function kernelHandleApiEntityUpdate(): void
+    {
+        header('Content-Type: application/json');
+
+        // Require authentication
+        try {
+            $user = app()->requireAuth();
+        } catch (\Throwable $e) {
+            http_response_code(401);
+            echo json_encode(['ok' => false, 'error' => 'Authentication required.']);
+            exit;
+        }
+
+        // Parse JSON body
+        $rawInput = file_get_contents('php://input');
+        if ($rawInput === false || $rawInput === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Empty request body.']);
+            exit;
+        }
+
+        $input = json_decode($rawInput, true);
+        if (!is_array($input)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Invalid JSON.']);
+            exit;
+        }
+
+        $capabilityId = (string)($input['capability'] ?? '');
+        $entityId = (int)($input['entity_id'] ?? 0);
+        $field = (string)($input['field'] ?? '');
+        $value = $input['value'] ?? null;
+        $expectedVersion = isset($input['expected_version']) ? (int)$input['expected_version'] : null;
+
+        if ($capabilityId === '' || $entityId <= 0 || $field === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Missing required fields: capability, entity_id, field.']);
+            exit;
+        }
+
+        // Verify CSRF via X-Requested-With header
+        $requestedWith = (string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '');
+        if (strtolower($requestedWith) !== 'xmlhttprequest') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Invalid request origin.']);
+            exit;
+        }
+
+        // Call the capability
+        try {
+            $result = app()->cap()->call($capabilityId, [
+                'entity_id' => $entityId,
+                'field' => $field,
+                'value' => $value,
+                'expected_version' => $expectedVersion,
+                'auth_user' => $user,
+            ], [
+                'caller' => ['module' => 'kernel'],
+                'mode' => 'first',
+                'timeout_ms' => 5000,
+            ]);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+
+        if (!is_array($result)) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Capability returned invalid response.']);
+            exit;
+        }
+
+        // If the capability already returned display_html, use it.
+        // Otherwise, re-render via the cell renderer registry.
+        if (!isset($result['data']['display_html']) && isset($result['data']['raw_value'])) {
+            try {
+                $renderer = app()->entityRenderers();
+                $displayHtml = $renderer->renderCell(
+                    $result['data']['raw_value'],
+                    $input['renderer'] ?? null,
+                    $field,
+                    $input['row_data'] ?? [],
+                );
+                $result['data']['display_html'] = $displayHtml;
+            } catch (\Throwable $e) {
+                // Non-fatal: client can fall back to raw_value
+            }
+        }
+
+        // Handle version conflict specifically
+        if (isset($result['code']) && $result['code'] === 'VERSION_CONFLICT') {
+            http_response_code(409);
+        }
+
+        echo json_encode($result, JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}

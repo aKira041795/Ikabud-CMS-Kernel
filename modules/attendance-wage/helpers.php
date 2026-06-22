@@ -63,6 +63,7 @@ function attendance_wage_capability_handlers(): array
         'entity.list.employee_schedule@1'    => 'aw_cap_entity_list_employee_schedule_1',
         'entity.get.employee_schedule@1'     => 'aw_cap_entity_get_employee_schedule_1',
         'entity.list.office_location@1'      => 'aw_cap_entity_list_office_location_1',
+        'attendance.record.hours.update@1'   => 'aw_cap_attendance_hours_update_1',
         'entity.get.office_location@1'       => 'aw_cap_entity_get_office_location_1',
         'attendance_wage.read@1'             => 'aw_cap_read_1',
         'attendance_wage.manage@1'           => 'aw_cap_manage_1',
@@ -165,7 +166,7 @@ function aw_cap_entity_list_attendance_record_1(mixed $payload, string $capabili
     $sortDir = aw_sortDir($payload);
     try {
         $db = aw_db();
-        $stmt = $db->query("SELECT ar.attendance_id AS id, u.full_name AS employee_name, s.name AS store_name, ar.clock_in, ar.clock_out, ar.status, ar.created_at FROM attendance_records ar JOIN attendance_wage_users u ON u.id = ar.user_id LEFT JOIN stores s ON s.store_id = ar.store_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
+        $stmt = $db->query("SELECT ar.attendance_id AS id, u.full_name AS employee_name, s.name AS store_name, ar.clock_in, ar.clock_out, ar.status, ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60, 1) AS hours, ar.created_at FROM attendance_records ar JOIN attendance_wage_users u ON u.id = ar.user_id LEFT JOIN stores s ON s.store_id = ar.store_id ORDER BY {$sortField} {$sortDir} LIMIT {$limit}");
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
         $total = (int)($db->query('SELECT COUNT(*) FROM attendance_records')->fetchColumn());
         return ['rows' => $rows, 'total' => $total];
@@ -942,4 +943,81 @@ function aw_findLocationByGeo(float $latitude, float $longitude): ?array
 function entity_csrf_token(): string
 {
     return csrfTokenFromJwt('attendance_wage_token');
+}
+
+/**
+ * Handle inline hours update for attendance records.
+ *
+ * Capability: attendance.record.hours.update@1
+ * Validates and persists manual hours adjustment.
+ */
+function aw_cap_attendance_hours_update_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $entityId = (int)($payload['entity_id'] ?? 0);
+    $field = (string)($payload['field'] ?? '');
+    $value = (string)($payload['value'] ?? '');
+    $expectedVersion = isset($payload['expected_version']) ? (int)$payload['expected_version'] : null;
+
+    if ($entityId <= 0 || $field !== 'hours') {
+        return ['ok' => false, 'error' => 'Invalid request.'];
+    }
+
+    $hours = (float)$value;
+    if ($hours < 0 || $hours > 24) {
+        return ['ok' => false, 'error' => 'Hours must be between 0 and 24.'];
+    }
+
+    try {
+        $db = aw_db();
+
+        $stmt = $db->prepare('SELECT attendance_id, clock_in, clock_out FROM attendance_records WHERE attendance_id = :id');
+        $stmt->execute([':id' => $entityId]);
+        $current = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!is_array($current)) {
+            return ['ok' => false, 'error' => 'Attendance record not found.'];
+        }
+
+        if ($expectedVersion !== null) {
+            $currentVersion = (int)strtotime((string)$current['clock_in']);
+            if ($currentVersion !== $expectedVersion) {
+                return ['ok' => false, 'error' => 'Modified by another user.', 'code' => 'VERSION_CONFLICT'];
+            }
+        }
+
+        // Recalculate clock_out from clock_in + new hours
+        $clockInTs = strtotime((string)$current['clock_in']);
+        if ($clockInTs === false) {
+            return ['ok' => false, 'error' => 'Invalid clock_in timestamp.'];
+        }
+        $newClockOut = date('Y-m-d H:i:s', (int)$clockInTs + (int)($hours * 3600));
+
+        $updateStmt = $db->prepare('UPDATE attendance_records SET clock_out = :clock_out WHERE attendance_id = :id');
+        $updateStmt->execute([':clock_out' => $newClockOut, ':id' => $entityId]);
+
+        if (function_exists('app') && ($app = app()) !== null && method_exists($app, 'cap')) {
+            try {
+                $app->cap()->call('kernel.audit.record@1', [
+                    'module' => 'attendance-wage',
+                    'action' => 'inline_update',
+                    'entity_type' => 'attendance_record',
+                    'entity_id' => (string)$entityId,
+                    'old_data' => ['hours' => $current['clock_out'] ?? null],
+                    'new_data' => ['hours' => $hours],
+                ], ['caller' => ['module' => 'attendance-wage'], 'mode' => 'first']);
+            } catch (\Throwable $e) {}
+        }
+
+        return [
+            'ok' => true,
+            'data' => [
+                'raw_value' => $hours,
+                'display_html' => '',
+                'version' => (int)strtotime((string)$current['clock_in']),
+                'updated_at' => date('c'),
+            ],
+        ];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
 }

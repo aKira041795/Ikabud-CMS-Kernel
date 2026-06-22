@@ -204,6 +204,14 @@
                     "first"
                 ],
                 "description": "Get single guidance appointment"
+            },
+            {
+                "id": "guidance.case.status.update@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Inline update of case status field"
             }
         ],
         "depends": [

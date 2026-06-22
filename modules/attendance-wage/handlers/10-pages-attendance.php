@@ -85,16 +85,79 @@ function attendancePageRecords(array $params = []): void
                 );
                 $er->execute([':pid' => $employeeId]);
                 $selectedRecords = $er->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+                // Render the records table via DefaultEntityRenderer with all columns.
+                // The entity view handles: location with coordinates (location renderer),
+                // photos with click-to-view (image renderer), inline editing for hours
+                // (field_contracts → renderCellEditable in renderTableRow).
+                $renderedRecordsTable = '';
+                if (!empty($selectedRecords) && function_exists('app') && ($app = app()) !== null && method_exists($app, 'entityRenderers')) {
+                    try {
+                        $rows = [];
+                        foreach ($selectedRecords as $rec) {
+                            $photoIn = ($rec['photo_in'] ?? '') !== '' ? '/api/v1/attendance/photo/' . $rec['photo_in'] : '';
+                            $photoOut = ($rec['photo_out'] ?? '') !== '' ? '/api/v1/attendance/photo/' . $rec['photo_out'] : '';
+                            $rows[] = [
+                                'id'           => $rec['attendance_id'],
+                                'date'         => substr((string)($rec['clock_in'] ?? ''), 0, 10),
+                                'clock_in'     => $rec['clock_in'] ?? '',
+                                'clock_out'    => $rec['clock_out'] ?? '',
+                                'hours'        => $rec['hours_logged'] ?? 0,
+                                'location_in'  => $rec['location_in'] ?? '',
+                                'latitude'     => $rec['latitude_in'] ?? null,
+                                'longitude'    => $rec['longitude_in'] ?? null,
+                                'location_out' => $rec['location_out'] ?? '',
+                                'latitude_out' => $rec['latitude_out'] ?? null,
+                                'longitude_out'=> $rec['longitude_out'] ?? null,
+                                'status'       => $rec['status'] ?? '',
+                                'photo_in'     => $photoIn,
+                                'photo_out'    => $photoOut,
+                            ];
+                        }
+
+                        $view = [
+                            'fields' => ['date', 'clock_in', 'clock_out', 'hours', 'location_in', 'location_out', 'status', 'photo_in', 'photo_out'],
+                            'view' => 'table',
+                            'actions' => [],
+                            'field_contracts' => [
+                                'hours' => [
+                                    'editable' => 'true',
+                                    'update_capability' => 'attendance.record.hours.update@1',
+                                ],
+                            ],
+                            'renderers' => [
+                                'clock_in'    => 'datetime:time',
+                                'clock_out'   => 'datetime:time',
+                                'hours'       => 'string',
+                                'location_in' => 'location',
+                                'location_out'=> 'location',
+                                'status'      => 'badge:{"active":"Clocked In|green","completed":"Done|blue","edited":"Edited|amber"}',
+                                'photo_in'    => 'image:modal',
+                                'photo_out'   => 'image:modal',
+                            ],
+                            'empty_state' => 'No attendance records found.',
+                        ];
+
+                        $renderedRecordsTable = $app->entityRenderers()->renderList($rows, $view, [
+                            'source' => 'attendance_record.recent',
+                            'view' => 'table',
+                            'class' => '',
+                        ]);
+                    } catch (\Throwable $e) {
+                        $renderedRecordsTable = '';
+                    }
+                }
             }
         }
     } catch (\Throwable $e) {}
 
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/attendance/records', [
-        'records'           => $records,
-        'selected_employee' => $selectedEmployee,
-        'selected_records'  => $selectedRecords,
-        'employee_id'       => $employeeId,
+        'records'                => $records,
+        'selected_employee'      => $selectedEmployee,
+        'selected_records'       => $selectedRecords,
+        'rendered_records_table' => $renderedRecordsTable,
+        'employee_id'            => $employeeId,
         'today'             => date('Y-m-d'),
         'success'           => $_GET['success'] ?? '',
         'error'             => $_GET['error'] ?? '',

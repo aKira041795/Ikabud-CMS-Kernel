@@ -496,6 +496,10 @@ if (str_contains($handler, ':')) {
 }
 
 switch ($handler) {
+    case 'apiEntityUpdate':
+        kernelHandleApiEntityUpdate();
+        exit;
+
     case 'apiKernelModulesCatalog':
         kernelHandleApiKernelModulesCatalog();
         exit;

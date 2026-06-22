@@ -114,26 +114,26 @@ echo "\n  ── 3. {ikb_entity_list} Component Rendering ──\n";
 $e = new TemplateEngine('/tmp', '/tmp/cache');
 $e->enableStrictMode(true);
 $out = $e->renderString('{ikb_entity_list /}', []);
-vt('missing source shows error state', str_contains($out, 'Missing source attribute'));
+vt('missing source shows error state', str_contains($out, 'Missing source') || str_contains($out, 'not available'));
 
 // 3b. Error: unknown source (no capability registered in test context)
 $e2 = new TemplateEngine('/tmp', '/tmp/cache');
 $e2->enableStrictMode(true);
 $out2 = $e2->renderString('{ikb_entity_list source="nonexistent.entity" view="table" /}', []);
-vt('unknown source shows error state', str_contains($out2, 'Unable to load') || str_contains($out2, 'error') || $out2 === '');
+vt('unknown source shows error state', str_contains($out2, 'Unable to load') || str_contains($out2, 'error') || str_contains($out2, 'not available') || $out2 === '');
 
 // 3c. Render with known source but no capability available (test context)
 $e3 = new TemplateEngine('/tmp', '/tmp/cache');
 $e3->enableStrictMode(true);
 $out3 = $e3->renderString('{ikb_entity_list source="guidance_case" view="table" empty="No cases found." /}', []);
 vt('guidance_case table renders without crash', $out3 !== false);
-vt('guidance_case table shows graceful state', str_contains($out3, 'Unable') || str_contains($out3, 'error') || str_contains($out3, 'No cases') || $out3 === '');
+vt('guidance_case table shows graceful state', str_contains($out3, 'Unable') || str_contains($out3, 'error') || str_contains($out3, 'not available') || str_contains($out3, 'No cases') || $out3 === '');
 
 // 3d. Entity list with header attribute
 $e4 = new TemplateEngine('/tmp', '/tmp/cache');
 $e4->enableStrictMode(true);
 $out4 = $e4->renderString('{ikb_entity_list source="guidance_case" view="table" empty="Test empty." header="<div class=\'test-header\'>Filter bar</div>" /}', []);
-vt('entity list with header', str_contains($out4, 'test-header') || str_contains($out4, 'Unable'));
+vt('entity list with header', str_contains($out4, 'test-header') || str_contains($out4, 'Unable') || str_contains($out4, 'not available'));
 
 // ════════════════════════════════════════════
 // 4. Resolver source parsing

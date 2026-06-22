@@ -37,11 +37,8 @@ namespace Ikabud\Kernel\DiSyL;
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
-require_once __DIR__ . '/EntityRenderingTrait.php';
-
 class TemplateEngine
 {
-    use EntityRenderingTrait;
     private string $templateDir;
     private string $cacheDir;
     private bool $cacheEnabled;
@@ -5239,8 +5236,8 @@ class TemplateEngine
             'ikb_component' => $this->renderIkbComponent($attrs, $children, $context),
             'ikb_entity_view' => $this->renderEntityViewConfig($attrs, $children, $context),
             'state' => $this->renderStateDeclaration($attrs, $children, $context),
-            'ikb_entity_list' => $this->renderEntityList($attrs, $children, $context),
-            'ikb_entity_detail' => $this->renderEntityDetail($attrs, $children, $context),
+            'ikb_entity_list' => $this->renderEntityListViaService($attrs, $children, $context),
+            'ikb_entity_detail' => $this->renderEntityDetailViaService($attrs, $children, $context),
             'ikb_export_button' => $this->renderExportButton($attrs, $children),
             'ikb_form' => $this->renderForm($attrs, $children, $context),
             'ikb_stat_card' => $this->renderStatCard($attrs, $children),
@@ -6788,5 +6785,111 @@ class TemplateEngine
         };
         
         return "<div data-island=\"{$name}\" {$strategyAttr} class=\"{$class}\">{$children}</div>";
+    }
+
+    /**
+     * Render {ikb_entity_list} — delegates to the DefaultEntityRenderer service.
+     *
+     * Replaces the former EntityRenderingTrait::renderEntityList().
+     */
+    private function renderEntityListViaService(array $attrs, string $children, array $context): string
+    {
+        if (!\function_exists('app') || ($app = \app()) === null || !method_exists($app, 'entityRenderers')) {
+            return '<div class="ikb-entity-error px-4 py-2 text-sm text-red-600">Entity renderer service not available.</div>';
+        }
+
+        $source = (string)($attrs['source'] ?? '');
+        $view = (string)($attrs['view'] ?? 'compact');
+        $overrides = [];
+        if (isset($attrs['limit'])) { $overrides['limit'] = (int)$attrs['limit']; }
+        if (isset($attrs['actions'])) { $overrides['actions'] = array_map('trim', explode(',', (string)$attrs['actions'])); }
+
+        $resolved = null;
+        try {
+            if (method_exists($app, 'entityViews')) {
+                $resolved = $app->entityViews()->resolve($source, $view, $overrides);
+            }
+        } catch (\Throwable $e) {
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg">'
+                . '<p class="text-sm text-red-600">Failed to resolve entity list: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p></div>';
+        }
+
+        if ($resolved === null || !empty($resolved['error'])) {
+            $errorMsg = $resolved['error'] ?? '';
+            $emptyMessage = (string)($attrs['empty'] ?? '');
+            $class = (string)($attrs['class'] ?? '');
+            if ($errorMsg !== '' && $emptyMessage !== '' && (
+                str_contains($errorMsg, 'Capability not found') ||
+                str_contains($errorMsg, 'Data source unavailable') ||
+                str_contains($errorMsg, 'No view contract')
+            )) {
+                return '<div class="ikb-entity-list--empty text-center py-8 text-gray-500 ' . $class . '">' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . '</div>';
+            }
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg ' . $class . '">'
+                . '<p class="text-sm text-red-600">' . htmlspecialchars($errorMsg ?: 'Unable to load data.', ENT_QUOTES, 'UTF-8') . '</p></div>';
+        }
+
+        $rows = $resolved['rows'] ?? [];
+        $attrs['_children'] = $children;
+
+        if (empty($rows)) {
+            $msg = (string)($attrs['empty'] ?: $resolved['view']['empty_state'] ?? 'No records found.');
+            return '<div class="ikb-entity-list--empty text-center py-8 text-gray-500 ' . (string)($attrs['class'] ?? '') . '">' . htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '</div>';
+        }
+
+        return $app->entityRenderers()->renderList($rows, $resolved['view'], $attrs, $context);
+    }
+
+    /**
+     * Render {ikb_entity_detail} — delegates to the DefaultEntityRenderer service.
+     *
+     * Replaces the former EntityRenderingTrait::renderEntityDetail().
+     */
+    private function renderEntityDetailViaService(array $attrs, string $children, array $context): string
+    {
+        if (!\function_exists('app') || ($app = \app()) === null || !method_exists($app, 'entityRenderers')) {
+            return '<div class="ikb-entity-error px-4 py-2 text-sm text-red-600">Entity renderer service not available.</div>';
+        }
+
+        $source = (string)($attrs['source'] ?? '');
+        $entityId = (string)($attrs['id'] ?? $attrs['entity_id'] ?? '');
+        $view = (string)($attrs['view'] ?? 'detailed');
+        $class = (string)($attrs['class'] ?? '');
+        $requestedFields = isset($attrs['fields']) ? array_map('trim', explode(',', (string)$attrs['fields'])) : null;
+
+        if ($source === '') {
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg ' . $class . '">'
+                . '<p class="text-sm text-red-600">Missing source attribute on ikb_entity_detail.</p></div>';
+        }
+        if ($entityId === '') {
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg ' . $class . '">'
+                . '<p class="text-sm text-red-600">Missing id attribute on ikb_entity_detail.</p></div>';
+        }
+
+        $resolved = null;
+        try {
+            if (method_exists($app, 'entityViews')) {
+                $resolved = $app->entityViews()->resolveDetail($source, $entityId, $view);
+            }
+        } catch (\Throwable $e) {
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg ' . $class . '">'
+                . '<p class="text-sm text-red-600">Failed to resolve entity detail: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</p></div>';
+        }
+
+        if ($resolved === null || !empty($resolved['error'])) {
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg ' . $class . '">'
+                . '<p class="text-sm text-red-600">' . htmlspecialchars($resolved['error'] ?? 'Entity not found.', ENT_QUOTES, 'UTF-8') . '</p></div>';
+        }
+
+        $entity = $resolved['entity'] ?? null;
+        if ($entity === null || empty($entity)) {
+            return '<div class="ikb-entity-error flex items-center justify-center py-8 px-4 bg-red-50 border border-red-200 rounded-lg ' . $class . '">'
+                . '<p class="text-sm text-red-600">Entity not found.</p></div>';
+        }
+
+        $attrs['_children'] = $children;
+        $attrs['fields'] = $requestedFields ?? ($resolved['view']['fields'] ?? null);
+
+        return $app->entityRenderers()->renderDetail($entity, $resolved['view'], $attrs, $context);
     }
 }
