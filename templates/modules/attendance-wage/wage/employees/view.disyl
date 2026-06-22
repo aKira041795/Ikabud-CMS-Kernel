@@ -1,18 +1,20 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
 <style>
-@media print {
-    aside, .app-header, .app-shell, .app-nav, .app-footer, .print-hidden { display: none !important; }
+    /* Hide sidebar + adjust layout for full-width print-ready view */
+    aside, .app-header, .app-shell, .app-nav, .app-footer { display: none !important; }
     .flex-1.ml-64, [class*="ml-64"] { margin-left: 0 !important; }
     body { background: white !important; }
-    .max-w-4xl { max-width: 100% !important; padding: 0 !important; margin: 0 auto !important; }
+    .max-w-4xl { max-width: 100% !important; padding: 0 2rem !important; margin: 0 auto !important; }
     .shadow-sm { box-shadow: none !important; }
-    .border { border-color: #ddd !important; }
+    .border { border-color: #e5e7eb !important; }
     .bg-white { background: white !important; }
     .rounded-xl { border-radius: 0 !important; }
-    .px-6 { padding-left: 0 !important; padding-right: 0 !important; }
-    .py-8 { padding-top: 0 !important; padding-bottom: 0 !important; }
-}
+    @media print {
+        .print-hidden { display: none !important; }
+        .px-6 { padding-left: 0 !important; padding-right: 0 !important; }
+        .py-8 { padding-top: 0 !important; padding-bottom: 0 !important; }
+    }
 </style>
 <div class="px-6 py-8 max-w-4xl mx-auto">
     {if error}

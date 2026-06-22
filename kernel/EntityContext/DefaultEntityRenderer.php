@@ -839,9 +839,16 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         foreach ($row as $key => $value) {
             if (is_scalar($value) || $value === null) {
                 $safeValue = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-                $result = str_replace('{' . $key . '}', $safeValue, $result);
+                // Prevent double slashes when a substituted value is empty (e.g. //view → /view)
+                if ($safeValue === '') {
+                    $result = preg_replace('/\/\{' . preg_quote($key, '/') . '\}\/?/', '/', $result);
+                } else {
+                    $result = str_replace('{' . $key . '}', $safeValue, $result);
+                }
             }
         }
+        // Collapse any remaining double slashes (except in protocol://)
+        $result = preg_replace('#(?<!:)//+#', '/', $result);
         return $result;
     }
 
