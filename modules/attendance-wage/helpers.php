@@ -470,6 +470,10 @@ function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
 
     $gross = $regPay + $otPay + $dotPay + $holPay + $nsPay + $rdPay + $rdPrem;
     $benefits = aw_calculateBenefits($gross);
+    // Respect applicable flags from the employee profile
+    if (empty($profile['sss_applicable'])) { $benefits['sss'] = ['employee' => 0.0, 'employer' => 0.0]; }
+    if (empty($profile['philhealth_applicable'])) { $benefits['philhealth'] = ['employee' => 0.0, 'employer' => 0.0]; }
+    if (empty($profile['pagibig_applicable'])) { $benefits['pagibig'] = ['employee' => 0.0, 'employer' => 0.0]; }
     $adj = aw_getAdjustmentsForPeriod($userId, $periodId);
     $ded = aw_getDeductionsForPeriod($userId, $period['start_date'], $period['end_date']);
     $caDed = aw_getCashAdvanceRepayment($userId, $periodId);
@@ -530,6 +534,10 @@ function aw_computeSimpleSalary(array $profile, int $periodId, int $computedBy):
     };
 
     $benefits = aw_calculateBenefits($gross);
+    // Respect applicable flags from the employee profile
+    if (empty($profile['sss_applicable'])) { $benefits['sss'] = ['employee' => 0.0, 'employer' => 0.0]; }
+    if (empty($profile['philhealth_applicable'])) { $benefits['philhealth'] = ['employee' => 0.0, 'employer' => 0.0]; }
+    if (empty($profile['pagibig_applicable'])) { $benefits['pagibig'] = ['employee' => 0.0, 'employer' => 0.0]; }
     $totDed = $benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'];
     $tax = aw_calculateTax($gross, $totDed, $profile);
     $totDed += $tax;
