@@ -645,6 +645,13 @@ function aw_defaultBenefitsRate(string $type, float $grossPay): array
 function aw_calculateTax(float $grossPay, float $deductions, array $profile): float
 {
     $ag=$grossPay*12; $ad=$deductions*12; $tx=max(0,$ag-$ad); $at=0.0;
+    // Additional exemption for head of family: ₱50K per dependent (max 4)
+    $depEx = 0;
+    if (($profile['tax_exemption_status'] ?? '') === 'head_of_family') {
+        $depCnt = min((int)($profile['dependents_count'] ?? 0), 4);
+        $depEx = $depCnt * 50000;
+    }
+    $tx = max(0, $tx - $depEx);
     if($tx<=250000)$at=0; elseif($tx<=400000)$at=($tx-250000)*0.20; elseif($tx<=800000)$at=30000+($tx-400000)*0.25;
     elseif($tx<=2000000)$at=130000+($tx-800000)*0.30; elseif($tx<=8000000)$at=490000+($tx-2000000)*0.32; else $at=2400000+($tx-8000000)*0.35;
     return round($at/12,2);
