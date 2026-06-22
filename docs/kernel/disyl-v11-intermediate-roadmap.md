@@ -102,7 +102,7 @@ The HKDF-style two-layer derivation (inner hash of cookie + HMAC with app secret
 - No PHP session dependency — both values come from the same browser cookie + app secret
 
 **Location:**
-- `kernel/DiSyL/EntityRenderingTrait.php` — token generation (delegates to `entity_csrf_token()`)
+- `kernel/EntityContext/DefaultEntityRenderer.php` — entity list/detail rendering (replaces trait)
 - `modules/attendance-wage/handlers/00-bootstrap.php` — token validation in `attendanceWageGuard()`
 - `src/helpers/security.php` — `csrfTokenFromJwt()` helper + `csrfEnforceFromJwt()` validator
 

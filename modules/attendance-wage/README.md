@@ -112,7 +112,10 @@ Entity lists use `{ikb_entity_list}` with rich action support:
 | Layer | File | Purpose |
 |-------|------|---------|
 | Resolver | `kernel/EntityContext/EntityViewResolver.php` | Source parsing, capability dispatch, key_field support |
-| Renderer | `kernel/DiSyL/EntityRenderingTrait.php` | Table/card/compact rendering, POST forms with CSRF |
+| Renderer | `kernel/EntityContext/DefaultEntityRenderer.php` | Table/card/compact rendering via `CellRendererRegistry`, POST forms with CSRF |
+| Location renderer | `kernel/EntityContext/Renderer/LocationCellRenderer.php` | Place name + coordinates display |
+| Image renderer | `kernel/EntityContext/Renderer/ImageCellRenderer.php` | Thumbnail with Alpine lightbox modal |
+| Inline editing | `POST /api/v1/entity/update` + `public/admin/assets/js/ikb-inline-edit.js` | Alpine.js click-to-edit via capability bus |
 | Contract | `helpers/entity-views.php` | Field lists, action URLs, badge label maps, key_field |
 | Data | `helpers.php` (`aw_cap_entity_list_*`) | SQL queries via `EntityListQuery::run()` |
 

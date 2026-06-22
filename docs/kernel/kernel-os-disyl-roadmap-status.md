@@ -26,7 +26,8 @@ or any language that speaks HTTP+JSON.
 |---|---|---|
 | Kernel OS | `6.0.0` (ecosystem) | `kernel/App.php` |
 | DiSyL | `4.7.0` | `kernel/DiSyL/Grammar.php` |
-| TemplateEngine | `4.7.0` | `kernel/DiSyL/TemplateEngine.php` (5799 lines; entity rendering in `EntityRenderingTrait`) |
+| TemplateEngine | `6.1.0` | `kernel/DiSyL/TemplateEngine.php`; entity rendering via `kernel/EntityContext/DefaultEntityRenderer.php` |
+| TemplateEngine | `4.7.0` | Entity rendering extracted from TemplateEngine to `DefaultEntityRenderer` service |
 | Parser (v4) | `4.7.0` | `kernel/DiSyL/v4/Parser.php` (per-block error recovery) |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
 | EntityViewResolver | `1.0.0` | `kernel/EntityContext/EntityViewResolver.php` |
@@ -41,7 +42,8 @@ All April 2026 audit items resolved. Compiled mode is now the **default** (v4.7+
 **DiSyL 4.7 improvements (June 19, 2026):**
 - Compiled mode default (was opt-in `enableCompiledMode()`)
 - Per-block parser error recovery (`recoverableParse()` wrapper on all 9 control structures)
-- TemplateEngine split: `EntityRenderingTrait` extracted (679 lines, 18 methods)
+- TemplateEngine split: `DefaultEntityRenderer` extracted (compostable services replacing trait)
+- `EntityRenderingTrait` fully removed in 6.1.0 — rendering via `DefaultEntityRenderer` + `CellRendererRegistry`
 - Grammar v11 dead code removed → archived to `docs/kernel/disyl-grammar-v11-planned-types.md`
 - Grammar.php: 199 → 135 lines (-64)
 
@@ -92,7 +94,7 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 - DELETE actions via POST with auto-injected CSRF tokens
 - Header slot for inline forms/filters above entity lists
 - `action_show_if` conditions + `action_labels` for row actions
-- Entity rendering extracted to `EntityRenderingTrait` (TemplateEngine: 6478 → 5799 lines)
+- Entity rendering extracted to `DefaultEntityRenderer` (TemplateEngine: 6478 → 6792 lines; trait deleted in 6.1.0)
 
 ---
 

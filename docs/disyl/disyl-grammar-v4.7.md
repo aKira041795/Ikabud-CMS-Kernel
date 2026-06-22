@@ -229,7 +229,8 @@ The parser wraps all 9 control structures in `recoverableParse()`:
 
 | Version | Changes |
 |---|---|
-| v4.7.0 | Compiled mode default, per-block error recovery, EntityRenderingTrait extracted |
+| v6.1.0 | Entity rendering extracted to composable services, `EntityRenderingTrait` deleted, inline editing POC |
+| v4.7.0 | Compiled mode default, per-block error recovery, entity rendering extracted from TemplateEngine |
 | v4.0.0 | `{verbatim}`, `{literal}` fix, `<script>` full control structure support, `|json` raw output, `|default` null handling |
 | v3.0.0 | Arithmetic expressions, ternary, `{set}`, fixed `{if}` nesting, arithmetic in conditions |
 | v2.2.0 | Script-aware compilation, `<script>` block extraction |

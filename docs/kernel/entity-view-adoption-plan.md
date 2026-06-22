@@ -1,7 +1,9 @@
 # Entity-View Adoption Plan — Closing the Gap
 
 > **Status:** Phases 1–3 complete — June 19, 2026.
-> **Latest (June 19):** All 8 modules expose `entity.list`/`entity.get` handlers. Ecommerce product handlers rewritten to `cms_content` (type=product); WMS stock handlers fixed to `wms_stocks` (plural). EntityViewResolver result normalisation hardened. TemplateEngine refactored: 18 entity rendering methods extracted to `EntityRenderingTrait` (679 lines out). Compiled mode now default (v4.7+), fixing stale-cache workarounds. Parser per-block error recovery shipped. Grammar v11 dead code archived to `docs/kernel/disyl-grammar-v11-planned-types.md`.
+> **Latest (June 22):** `EntityRenderingTrait` deleted in 6.1.0. All rendering goes through `DefaultEntityRenderer` + `CellRendererRegistry`. Entity views now support location (name+coords), image (thumbnail+lightbox), and inline editing via Alpine.js.
+
+> **Previous (June 19):** All 8 modules expose `entity.list`/`entity.get` handlers. Ecommerce product handlers rewritten to `cms_content` (type=product); WMS stock handlers fixed to `wms_stocks` (plural). EntityViewResolver result normalisation hardened. Compiled mode default (v4.7+). Parser per-block error recovery shipped.
 > **Objective:** Extend entity-view contracts to all modules so themes can present module data through governed `{ikb_entity_list}` / `{ikb_entity_detail}` without depending on module internals.
 
 ## Final Adoption State
@@ -45,7 +47,7 @@ Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_det
 - Capability handler `entity.list.guidance_case@1` returns rich data with college enrichment
 - Source naming convention verified: `guidance_case` (no dot) → `entity.list.guidance_case@1` resolution
 - HTMX forwarding via `htmx:configRequest` passes `?entity=1` from page URL to API calls
-- Full Tailwind styling via `EntityRenderingTrait` presets
+- Full Tailwind styling via `DefaultEntityRenderer` presets
 
 **Stale-cache workaround resolved:** Compiled mode is now default. Versioned extends cache keys (`md5(path|mtime)`) prevent stale output. `?disyl_nocache=1` escape hatch available. Custom table workarounds (e.g., recent_computations) can now migrate back to `ikb_entity_list`.
 

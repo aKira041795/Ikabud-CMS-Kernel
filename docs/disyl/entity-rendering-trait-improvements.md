@@ -606,35 +606,14 @@ public function render(CellRenderContext $context): CellRenderResult
 ### Still pending (not planned for current sprints)
 
 - **P6 — Inline editing RFC** — separate governance document created at `docs/disyl/inline-editing-rfc.md`
-- **Full EntityRenderingTrait removal** — trait still exists as delegation adapter; see migration plan below
+- **Full EntityRenderingTrait removal** — ✅ **DONE** (trait deleted in 6.1.0)
 - **Cursor-pagination wiring in capability handlers** — `EntityListResult` + `resolveAsResult()` + `renderListFromResult()` exist; no handlers return cursor format yet
 
 ## EntityRenderingTrait removal migration plan
 
-### Goal
-Remove `EntityRenderingTrait` entirely once all rendering logic lives in `DefaultEntityRenderer`.
+### Status: ✅ COMPLETED in kernel 6.1.0
 
-### Current state (after Sprint N+N+1)
-- `EntityRenderingTrait::renderEntityList()` delegates to `DefaultEntityRenderer::renderList()` when `app()->entityRenderers()` is available
-- `EntityRenderingTrait::renderEntityDetail()` delegates to `DefaultEntityRenderer::renderDetail()` similarly
-- Old private rendering methods on the trait remain as fallback
-
-### Migration steps
-
-| Step | What | Risk |
-|------|------|------|
-| 1 | Identify all template tag handlers in `TemplateEngine::renderComponent()` that call trait methods (`renderEntityList`, `renderEntityDetail`, `renderEntityViewConfig`) | None — grep confirms only these 3 entry points |
-| 2 | Move `renderEntityViewConfig()` to a standalone service or inline in `DefaultEntityRenderer` | Low — self-contained DiSyL config parser |
-| 3 | Replace trait method calls in `renderComponent()` with direct calls to `DefaultEntityRenderer` via `app()->entityRenderers()` | Low — guarded by `method_exists` check |
-| 4 | Remove `use EntityRenderingTrait` from `TemplateEngine` | Medium — removes fallback; must verify all paths hit the new service |
-| 5 | Delete `kernel/DiSyL/EntityRenderingTrait.php` | Low — file is not referenced after step 4 |
-
-### Breaking change warning
-Step 4 is the only breaking change. Any subclass of `TemplateEngine` that references trait methods will break. A grep for `EntityRenderingTrait` across all modules should be run before this step.
-
-### Schedule
-- Steps 1-3: Can ship in any release
-- Step 4-5: Recommend a minor version bump (e.g. kernel 6.1.0)
+The trait was removed in a single release. All rendering now goes through `DefaultEntityRenderer`. See `kernel/EntityContext/` for the replacement services.
 
 ### Later RFC — Inline mutations
 
