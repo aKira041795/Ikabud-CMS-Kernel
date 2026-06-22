@@ -56,10 +56,6 @@
                     </td>
                     <td class="px-4 py-3 text-right text-gray-500">{deduction.date|default:''}</td>
                 </tr>
-                {forelse}
-                <tr>
-                    <td colspan="5" class="px-4 py-8 text-center text-gray-400">No deductions found for this employee.</td>
-                </tr>
                 {/for}
             </tbody>
         </table>

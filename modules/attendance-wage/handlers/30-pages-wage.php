@@ -355,6 +355,7 @@ function wagePageDeductions(array $params = []): void
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/deductions/index', [
         'active_nav'        => 'deductions',
+        'page_title'        => 'Employee Deductions',
         'current_user_role' => $user['role'] ?? '',
     ]);
 }
@@ -428,6 +429,7 @@ function wagePageDeductionDetail(array $params = []): void
     }
     echo app()->render('modules/attendance-wage/wage/deductions/detail', [
         'active_nav'        => 'deductions',
+        'page_title'        => 'Deductions — ' . $employeeName,
         'current_user_role' => $user['role'] ?? '',
         'employee_name'     => $employeeName,
         'deductions'        => $rows,
