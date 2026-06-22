@@ -255,6 +255,18 @@ if ($method === 'HEAD') {
 $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $uri = rawurldecode($uri);
 $uri = rtrim($uri, '/');
+// Collapse double slashes (except in protocol:// — not applicable for paths)
+$collapsed = preg_replace('#//+#', '/', $uri);
+if ($collapsed !== $uri) {
+    // Permanent redirect to clean URL — fixes bookmarked/history URLs with //
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $query = $_SERVER['QUERY_STRING'] ?? '';
+    $redirectUrl = $scheme . '://' . $host . $collapsed . ($query !== '' ? '?' . $query : '');
+    header('Location: ' . $redirectUrl, true, 301);
+    exit;
+}
+$uri = $collapsed;
 $uri = $uri === '' ? '/' : $uri;
 
 // ── Module static assets ─────────────────────────────────────────
@@ -452,6 +464,7 @@ $uriCandidate = trim((string)($dispatchContext['uri'] ?? $uri));
 $uriPath = parse_url($uriCandidate, PHP_URL_PATH);
 $uri = rawurldecode(($uriPath === false || $uriPath === null || $uriPath === '') ? $uriCandidate : $uriPath);
 $uri = rtrim($uri, '/');
+$uri = preg_replace('#//+#', '/', $uri);
 $uri = $uri === '' ? '/' : $uri;
 
 $dispatchRedirect = $dispatchContext['redirect'] ?? null;

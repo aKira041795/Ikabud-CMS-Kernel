@@ -836,18 +836,22 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     private function renderWithRowContext(string $template, array $row): string
     {
         $result = $template;
+        // First pass: check if all required placeholders have non-empty values
+        preg_match_all('/\{(\w+)\}/', $result, $placeholders);
+        foreach ($placeholders[1] as $key) {
+            $value = $row[$key] ?? null;
+            if ($value === null || $value === '' || $value === false) {
+                return $result; // Return template with placeholders intact
+            }
+        }
+        // Second pass: substitute all values
         foreach ($row as $key => $value) {
             if (is_scalar($value) || $value === null) {
                 $safeValue = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
-                // Prevent double slashes when a substituted value is empty (e.g. //view → /view)
-                if ($safeValue === '') {
-                    $result = preg_replace('/\/\{' . preg_quote($key, '/') . '\}\/?/', '/', $result);
-                } else {
-                    $result = str_replace('{' . $key . '}', $safeValue, $result);
-                }
+                $result = str_replace('{' . $key . '}', $safeValue, $result);
             }
         }
-        // Collapse any remaining double slashes (except in protocol://)
+        // Collapse any remaining double slashes (except protocol://)
         $result = preg_replace('#(?<!:)//+#', '/', $result);
         return $result;
     }
@@ -858,22 +862,21 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             return ['attrs' => '', 'class' => ''];
         }
         $url = $rowClick;
-        $allResolved = true;
-        foreach ($row as $key => $value) {
-            if (is_scalar($value) || $value === null) {
-                $safeValue = urlencode((string)$value);
-                if ($safeValue === '' && str_contains($url, '{' . $key . '}')) {
-                    $allResolved = false;
-                }
-                $url = str_replace('{' . $key . '}', $safeValue, $url);
+        // First pass: check if all required placeholders have non-empty values
+        preg_match_all('/\{(\w+)\}/', $url, $placeholders);
+        foreach ($placeholders[1] as $key) {
+            $value = $row[$key] ?? null;
+            if ($value === null || $value === '' || $value === false) {
+                return ['attrs' => '', 'class' => ''];
             }
         }
-        // If any template placeholder remains unresolved (e.g. {id} when row has no id),
-        // skip the row-click entirely rather than producing a broken URL.
-        if (!$allResolved || preg_match('/\{[a-zA-Z_][a-zA-Z0-9_]*\}/', $url)) {
-            return ['attrs' => '', 'class' => ''];
+        // Second pass: substitute all values
+        foreach ($row as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $url = str_replace('{' . $key . '}', urlencode((string)$value), $url);
+            }
         }
-        // Collapse double slashes (except protocol://)
+        // Collapse any stray double slashes (except protocol://)
         $url = preg_replace('#(?<!:)//+#', '/', $url);
         $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
