@@ -382,37 +382,37 @@ function wagePageDeductionDetail(array $params = []): void
         $db = aw_db();
         // Fetch individual deduction line items for this employee from all sources
         $sql = "
-            (SELECT 'manual' AS type, d.deduction_id AS source_id, d.amount, d.description, d.status, d.deduction_date AS date
-             FROM employee_deductions d WHERE d.employee_name = :name)
+            (SELECT 'manual' AS type, employee_deductions.deduction_id AS source_id, employee_deductions.amount, employee_deductions.description, employee_deductions.status, employee_deductions.deduction_date AS date
+             FROM employee_deductions WHERE employee_deductions.employee_name = :name)
             UNION ALL
-            (SELECT 'cash_advance' AS type, car.repayment_id AS source_id, car.amount,
-                    CONCAT('Cash Advance #', ca.advance_id) AS description,
-                    IF(car.status='deducted','completed',car.status) AS status, car.created_at AS date
-             FROM cash_advance_repayments car
-             JOIN cash_advances ca ON ca.advance_id = car.advance_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = ca.employee_profile_id
-             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name2)
+            (SELECT 'cash_advance' AS type, cash_advance_repayments.repayment_id AS source_id, cash_advance_repayments.amount,
+                    CONCAT('Cash Advance #', cash_advances.advance_id) AS description,
+                    IF(cash_advance_repayments.status='deducted','completed',cash_advance_repayments.status) AS status, cash_advance_repayments.created_at AS date
+             FROM cash_advance_repayments
+             JOIN cash_advances ON cash_advances.advance_id = cash_advance_repayments.advance_id
+             LEFT JOIN employee_profiles ON employee_profiles.profile_id = cash_advances.employee_profile_id
+             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name2)
             UNION ALL
-            (SELECT 'sss' AS type, sc.computation_id AS source_id, sc.sss_employee AS amount,
-                    CONCAT('SSS — ', pp.period_name) AS description, sc.status, sc.computation_date AS date
-             FROM salary_computations sc
-             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name3 AND sc.sss_employee > 0)
+            (SELECT 'sss' AS type, salary_computations.computation_id AS source_id, salary_computations.sss_employee AS amount,
+                    CONCAT('SSS — ', payroll_periods.period_name) AS description, salary_computations.status, salary_computations.computation_date AS date
+             FROM salary_computations
+             JOIN payroll_periods ON payroll_periods.period_id = salary_computations.payroll_period_id
+             LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
+             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name3 AND salary_computations.sss_employee > 0)
             UNION ALL
-            (SELECT 'philhealth' AS type, sc.computation_id AS source_id, sc.philhealth_employee AS amount,
-                    CONCAT('PhilHealth — ', pp.period_name) AS description, sc.status, sc.computation_date AS date
-             FROM salary_computations sc
-             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name4 AND sc.philhealth_employee > 0)
+            (SELECT 'philhealth' AS type, salary_computations.computation_id AS source_id, salary_computations.philhealth_employee AS amount,
+                    CONCAT('PhilHealth — ', payroll_periods.period_name) AS description, salary_computations.status, salary_computations.computation_date AS date
+             FROM salary_computations
+             JOIN payroll_periods ON payroll_periods.period_id = salary_computations.payroll_period_id
+             LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
+             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name4 AND salary_computations.philhealth_employee > 0)
             UNION ALL
-            (SELECT 'pagibig' AS type, sc.computation_id AS source_id, sc.pagibig_employee AS amount,
-                    CONCAT('Pag-IBIG — ', pp.period_name) AS description, sc.status, sc.computation_date AS date
-             FROM salary_computations sc
-             JOIN payroll_periods pp ON pp.period_id = sc.payroll_period_id
-             LEFT JOIN employee_profiles ep ON ep.profile_id = sc.employee_profile_id
-             WHERE CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) = :name5 AND sc.pagibig_employee > 0)
+            (SELECT 'pagibig' AS type, salary_computations.computation_id AS source_id, salary_computations.pagibig_employee AS amount,
+                    CONCAT('Pag-IBIG — ', payroll_periods.period_name) AS description, salary_computations.status, salary_computations.computation_date AS date
+             FROM salary_computations
+             JOIN payroll_periods ON payroll_periods.period_id = salary_computations.payroll_period_id
+             LEFT JOIN employee_profiles ON employee_profiles.profile_id = salary_computations.employee_profile_id
+             WHERE CONCAT_WS(' ', employee_profiles.first_name, employee_profiles.middle_name, employee_profiles.last_name, employee_profiles.suffix) = :name5 AND salary_computations.pagibig_employee > 0)
             ORDER BY date DESC
         ";
         $stmt = $db->prepare($sql);
