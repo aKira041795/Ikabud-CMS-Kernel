@@ -155,6 +155,10 @@
                     <input type="checkbox" name="cash_advance_allowed" value="1"{if cash_advance_allowed|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
                     <span class="text-sm font-medium text-gray-700">Cash Advances</span>
                 </label>
+                <label class="inline-flex items-center gap-2.5 cursor-pointer bg-gray-50 rounded-lg px-4 py-3 border border-gray-200 hover:border-brand-300 transition-colors">
+                    <input type="checkbox" name="thirteenth_month_enabled" value="1"{if thirteenth_month_enabled|default:1} checked{/if} class="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-sm font-medium text-gray-700">🎄 13th Month Pay</span>
+                </label>
                 <label class="inline-flex items-center gap-2.5 cursor-pointer bg-amber-50 rounded-lg px-4 py-3 border border-amber-200 hover:border-amber-300 transition-colors">
                     <input type="checkbox" name="onsite_attendance" value="1"{if onsite_attendance|default:0} checked{/if} class="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500">
                     <span class="text-sm font-medium text-gray-700">🏗️ On-Site Attendance</span>

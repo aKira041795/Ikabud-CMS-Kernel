@@ -89,6 +89,7 @@ function wageApiEmployeeCreate(array $params = []): void
     $restDayPay  = isset($input['rest_day_pay_enabled']) ? 1 : 0;
     $nightDiff   = isset($input['night_diff_enabled']) ? 1 : 0;
     $cashAdv     = isset($input['cash_advance_allowed']) ? 1 : 0;
+    $th13th     = isset($input['thirteenth_month_enabled']) ? 1 : 0;
     $sssNum      = trim((string)($input['sss_number'] ?? ''));
     $sssApp      = isset($input['sss_applicable']) ? 1 : 0;
     $phNum       = trim((string)($input['philhealth_number'] ?? ''));
@@ -123,14 +124,14 @@ function wageApiEmployeeCreate(array $params = []): void
                 (tenant_id, first_name, last_name, middle_name, suffix, employee_number, position, department,
                  hire_date, employment_status, salary_type, basic_salary, hourly_rate,
                  overtime_allowed, overtime_rate, max_daily_hours, max_weekly_hours,
-                 holiday_pay_enabled, rest_day_pay_enabled, night_diff_enabled, cash_advance_allowed, onsite_attendance,
+                 holiday_pay_enabled, rest_day_pay_enabled, night_diff_enabled, cash_advance_allowed, thirteenth_month_enabled, onsite_attendance,
                  sss_number, sss_applicable, philhealth_number, philhealth_applicable,
                  pagibig_number, pagibig_applicable, tin_number, tax_exemption_status{$photoColPart})
              VALUES
                 (:tid, :fn, :ln, :mn, :sx, :en, :pos, :dept,
                  :hd, :es, :st, :bs, :hr,
                  :oa, :or, :mdh, :mwh,
-                 :hp, :rdp, :nd, :ca, :osa,
+                 :hp, :rdp, :nd, :ca, :t13, :osa,
                  :sss, :sssa, :ph, :pha,
                  :pag, :paga, :tin, :tx{$photoValPart})"
         );
@@ -142,6 +143,7 @@ function wageApiEmployeeCreate(array $params = []): void
             ':oa' => $otAllowed, ':or' => $otRate, ':mdh' => $maxDailyHrs, ':mwh' => $maxWeekHrs,
             ':hp' => $holidayPay, ':rdp' => $restDayPay, ':nd' => $nightDiff, ':ca' => $cashAdv,
             ':osa' => isset($input['onsite_attendance']) ? 1 : 0,
+            ':t13' => $th13th,
             ':sss' => $sssNum, ':sssa' => $sssApp, ':ph' => $phNum, ':pha' => $phApp,
             ':pag' => $pagNum, ':paga' => $pagApp, ':tin' => $tinNum, ':tx' => $taxStatus,
         ];
@@ -187,7 +189,7 @@ function wageApiEmployeeUpdate(array $params = []): void
     foreach (['basic_salary','hourly_rate','overtime_rate','max_daily_hours','max_weekly_hours'] as $f) {
         if (isset($input[$f])) { $fields[] = "`{$f}` = :{$f}"; $vals[":{$f}"] = (float)$input[$f]; }
     }
-    foreach (['overtime_allowed','holiday_pay_enabled','rest_day_pay_enabled','night_diff_enabled','cash_advance_allowed','onsite_attendance','sss_applicable','philhealth_applicable','pagibig_applicable'] as $f) {
+    foreach (['overtime_allowed','holiday_pay_enabled','rest_day_pay_enabled','night_diff_enabled','cash_advance_allowed','thirteenth_month_enabled','onsite_attendance','sss_applicable','philhealth_applicable','pagibig_applicable'] as $f) {
         if (array_key_exists($f, $input)) {
             $fields[] = "`{$f}` = :{$f}";
             $vals[":{$f}"] = $input[$f] ? 1 : 0;

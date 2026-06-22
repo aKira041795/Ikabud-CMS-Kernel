@@ -475,6 +475,12 @@ function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
     if (empty($profile['philhealth_applicable'])) { $benefits['philhealth'] = ['employee' => 0.0, 'employer' => 0.0]; }
     if (empty($profile['pagibig_applicable'])) { $benefits['pagibig'] = ['employee' => 0.0, 'employer' => 0.0]; }
     $adj = aw_getAdjustmentsForPeriod($userId, $periodId);
+    // Auto-compute 13th month accrual (basic salary / 12 per period) if enabled
+    $thirteenthMonth = 0;
+    if (!empty($profile['thirteenth_month_enabled'])) {
+        $thirteenthMonth = round($regPay / 12, 2);
+        $adj['additions'] = ($adj['additions'] ?? 0) + $thirteenthMonth;
+    }
     $ded = aw_getDeductionsForPeriod($userId, $period['start_date'], $period['end_date']);
     $caDed = aw_getCashAdvanceRepayment($userId, $periodId);
     $gross += ($adj['additions'] ?? 0);
@@ -538,7 +544,12 @@ function aw_computeSimpleSalary(array $profile, int $periodId, int $computedBy):
     if (empty($profile['sss_applicable'])) { $benefits['sss'] = ['employee' => 0.0, 'employer' => 0.0]; }
     if (empty($profile['philhealth_applicable'])) { $benefits['philhealth'] = ['employee' => 0.0, 'employer' => 0.0]; }
     if (empty($profile['pagibig_applicable'])) { $benefits['pagibig'] = ['employee' => 0.0, 'employer' => 0.0]; }
-    $totDed = $benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'];
+    // Auto-compute 13th month accrual (basic salary / 12 per period) if enabled
+    $thirteenthMonth = 0;
+    if (!empty($profile['thirteenth_month_enabled'])) {
+        $thirteenthMonth = round($gross / 12, 2);
+        $gross += $thirteenthMonth;
+    }
     $tax = aw_calculateTax($gross, $totDed, $profile);
     $totDed += $tax;
     $netPay = $gross - $totDed;
