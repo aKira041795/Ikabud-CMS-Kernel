@@ -189,11 +189,18 @@ final class EntityViewResolver
 
         // Resolve key_field — always include it in query results for URL interpolation
         // even when it's not a display field (e.g. {id} in action_urls / row-click).
-        $keyField = $contract['key_field'] ?? null;
+        $keyField = $contract['key_field'] ?? 'id';
         $displayFields = $contract['fields'] ?? '*';
         $queryFields = $displayFields;
-        if ($keyField !== null && is_array($queryFields) && !in_array($keyField, $queryFields, true)) {
-            $queryFields[] = $keyField;
+        // Ensure key_field is always queried — needed for row-click and action URLs
+        if (is_array($queryFields)) {
+            if (!in_array($keyField, $queryFields, true)) {
+                $queryFields[] = $keyField;
+            }
+            // Also ensure 'id' is present even if key_field is different
+            if ($keyField !== 'id' && !in_array('id', $queryFields, true)) {
+                $queryFields[] = 'id';
+            }
         }
 
         $capabilityArgs = [
