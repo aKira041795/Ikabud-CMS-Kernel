@@ -303,9 +303,8 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     $views->registerView('office_location', 'table', [
         'key_field' => 'id',
         'fields' => ['name', 'address', 'latitude', 'longitude', 'radius_meters', 'is_active'],
-        'actions' => ['view', 'edit', 'delete'],
+        'actions' => ['edit', 'delete'],
         'action_urls' => [
-            'view'   => '/admin/wage/locations?id={id}',
             'edit'   => '/admin/wage/locations/{id}',
             'delete' => '/api/v1/wage/locations/{id}/delete',
         ],
