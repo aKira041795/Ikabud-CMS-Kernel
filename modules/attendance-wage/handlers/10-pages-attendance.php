@@ -27,9 +27,9 @@ function attendancePageRecords(array $params = []): void
     $employeeId = (int)($_GET['employee_id'] ?? 0);
     $exportCsv = ($_GET['export'] ?? '') === 'csv';
 
-    // CSV export for selected employee
-    if ($exportCsv && $employeeId > 0) {
-        attendanceExportCsv($employeeId);
+    // CSV export for all employees (when no specific employee_id) or a single employee
+    if ($exportCsv) {
+        attendanceExportCsv($employeeId > 0 ? $employeeId : 0);
         return;
     }
 
@@ -167,27 +167,36 @@ function attendancePageRecords(array $params = []): void
 }
 
 /**
- * Export selected employee's attendance records as CSV.
+ * Export attendance records as CSV. If $employeeId is 0, exports ALL employees.
  */
-function attendanceExportCsv(int $employeeId): void
+function attendanceExportCsv(int $employeeId = 0): void
 {
     try {
         $db = aw_db();
         $tid = app()->tenant()->current() ?? '';
 
-        // Get employee info
-        $es = $db->prepare(
-            "SELECT CONCAT_WS(' ', first_name, last_name) AS full_name, employee_number
-             FROM employee_profiles WHERE profile_id = :pid AND tenant_id = :tid LIMIT 1"
-        );
-        $es->execute([':pid' => $employeeId, ':tid' => $tid]);
-        $emp = $es->fetch(\PDO::FETCH_ASSOC);
-        $empName = $emp ? ($emp['full_name'] ?? 'Employee') : 'Employee';
-        $empNum = $emp ? ($emp['employee_number'] ?? '') : '';
+        if ($employeeId > 0) {
+            // Single employee — get info and their records
+            $es = $db->prepare(
+                "SELECT CONCAT_WS(' ', first_name, last_name) AS full_name, employee_number
+                 FROM employee_profiles WHERE profile_id = :pid AND tenant_id = :tid LIMIT 1"
+            );
+            $es->execute([':pid' => $employeeId, ':tid' => $tid]);
+            $emp = $es->fetch(\PDO::FETCH_ASSOC);
+            $filename = 'attendance_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $emp ? ($emp['full_name'] ?? 'Employee') : 'Employee') . '_' . date('Y-m-d') . '.csv';
+            $empSql = "AND ar.user_id = (SELECT user_id FROM employee_profiles WHERE profile_id = :pid LIMIT 1)";
+            $empParams = [':pid' => $employeeId, ':tid' => $tid];
+        } else {
+            // All employees
+            $filename = 'attendance_all_employees_' . date('Y-m-d') . '.csv';
+            $empSql = "AND ep.tenant_id = :tid";
+            $empParams = [':tid' => $tid];
+        }
 
-        // Get attendance records with coordinates
         $er = $db->prepare(
-            "SELECT ar.clock_in, ar.clock_out, ar.status,
+            "SELECT CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name,
+                    ep.employee_number,
+                    ar.clock_in, ar.clock_out, ar.status,
                     ar.location_in, ar.location_out,
                     COALESCE(ar.latitude_in, ar.latitude_out) AS latitude,
                     COALESCE(ar.longitude_in, ar.longitude_out) AS longitude,
@@ -195,14 +204,13 @@ function attendanceExportCsv(int $employeeId): void
                     TIMESTAMPDIFF(MINUTE, ar.clock_in, COALESCE(ar.clock_out, NOW())) AS minutes_logged,
                     ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, COALESCE(ar.clock_out, NOW())) / 60, 2) AS hours_logged
              FROM attendance_records ar
-             WHERE ar.user_id = (SELECT user_id FROM employee_profiles WHERE profile_id = :pid LIMIT 1)
-             ORDER BY ar.clock_in DESC
-             LIMIT 200"
+             JOIN employee_profiles ep ON ep.user_id = ar.user_id
+             WHERE ep.is_active = 1 {$empSql}
+             ORDER BY ep.last_name ASC, ep.first_name ASC, ar.clock_in DESC
+             LIMIT 500"
         );
-        $er->execute([':pid' => $employeeId]);
+        $er->execute($empParams);
         $records = $er->fetchAll(\PDO::FETCH_ASSOC) ?: [];
-
-        $filename = 'attendance_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $empName) . '_' . date('Y-m-d') . '.csv';
 
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -212,6 +220,7 @@ function attendanceExportCsv(int $employeeId): void
 
         // CSV header
         fputcsv($out, [
+            'Employee Name', 'Employee #',
             'Date', 'Clock In', 'Clock Out',
             'Hours', 'Status',
             'Location In', 'Location Out',
@@ -222,9 +231,10 @@ function attendanceExportCsv(int $employeeId): void
         foreach ($records as $r) {
             $lat = $r['latitude'] ?? '';
             $lng = $r['longitude'] ?? '';
-            $coords = ($lat !== null && $lng !== null) ? $lat . ',' . $lng : '';
 
             fputcsv($out, [
+                $r['employee_name'] ?? '—',
+                $r['employee_number'] ?? '—',
                 substr($r['clock_in'] ?? '', 0, 10),
                 substr($r['clock_in'] ?? '', 11, 8),
                 $r['clock_out'] ? substr($r['clock_out'], 11, 8) : '(active)',

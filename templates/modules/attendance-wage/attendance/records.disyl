@@ -4,7 +4,15 @@
 <div class="px-6 py-8">
     <div class="flex items-center justify-between mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">📋 Attendance Records</h1>
-        <span class="text-sm text-gray-400">{today}</span>
+        <div class="flex items-center gap-3">
+            <span class="text-sm text-gray-400">{today}</span>
+            {if not selected_employee}
+            <a href="/admin/attendance?export=csv"
+               class="inline-flex items-center gap-1 px-4 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200">
+                📥 Export All CSV
+            </a>
+            {/if}
+        </div>
     </div>
 
     {if success}
@@ -34,12 +42,6 @@
                 <span class="px-3 py-1 rounded-full text-xs font-semibold bg-brand-100 text-brand-700">
                     {selected_records|count} records
                 </span>
-            </div>
-            <div class="flex items-center gap-3 mt-3">
-                <a href="/admin/attendance?employee_id={employee_id}&export=csv"
-                   class="inline-flex items-center gap-1 px-4 py-2 text-xs font-medium rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors border border-green-200">
-                    📥 Export CSV
-                </a>
             </div>
         </div>
 
