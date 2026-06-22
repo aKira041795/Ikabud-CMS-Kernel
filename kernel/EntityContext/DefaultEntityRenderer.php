@@ -858,18 +858,22 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             return ['attrs' => '', 'class' => ''];
         }
         $url = $rowClick;
+        $allResolved = true;
         foreach ($row as $key => $value) {
             if (is_scalar($value) || $value === null) {
                 $safeValue = urlencode((string)$value);
-                if ($safeValue === '') {
-                    // Remove {key} and surrounding slash to prevent //view
-                    $url = preg_replace('/\/\{' . preg_quote($key, '/') . '\}\/?/', '/', $url);
-                } else {
-                    $url = str_replace('{' . $key . '}', $safeValue, $url);
+                if ($safeValue === '' && str_contains($url, '{' . $key . '}')) {
+                    $allResolved = false;
                 }
+                $url = str_replace('{' . $key . '}', $safeValue, $url);
             }
         }
-        // Collapse any remaining double slashes (except protocol://)
+        // If any template placeholder remains unresolved (e.g. {id} when row has no id),
+        // skip the row-click entirely rather than producing a broken URL.
+        if (!$allResolved || preg_match('/\{[a-zA-Z_][a-zA-Z0-9_]*\}/', $url)) {
+            return ['attrs' => '', 'class' => ''];
+        }
+        // Collapse double slashes (except protocol://)
         $url = preg_replace('#(?<!:)//+#', '/', $url);
         $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
