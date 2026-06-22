@@ -36,7 +36,7 @@ final class ImageCellRenderer implements CellRendererInterface
 
         $thumbWidth = (int)($context->options['thumb_width'] ?? 40);
         $thumbHeight = (int)($context->options['thumb_height'] ?? 40);
-        $enableModal = !empty($context->options['modal']) || $context->options['arg'] === 'modal';
+        $enableModal = !empty($context->options['modal']) || ($context->options['arg'] ?? '') === 'modal';
         $altField = (string)($context->options['alt_field'] ?? '');
         $altText = $altField !== '' ? (string)($context->row[$altField] ?? '') : basename($value);
 

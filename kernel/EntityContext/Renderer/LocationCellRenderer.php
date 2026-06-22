@@ -45,8 +45,10 @@ final class LocationCellRenderer implements CellRendererInterface
             $lng = $context->row[$lngKey] ?? $context->row['longitude_in'] ?? $context->row['longitude'] ?? null;
         }
 
-        $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-        $displayName = $name !== '' ? $safeName : '—';
+        // Strip trailing coordinates in parentheses from display name
+        // e.g. "Office (14.123,121.456)" → "Office"
+        $displayName = preg_replace('/\s*\(-?\d+\.?\d*,-?\d+\.?\d*\)$/', '', $name);
+        $displayName = $displayName !== '' ? htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') : '—';
 
         $coordsHtml = '';
         $coordsText = '';

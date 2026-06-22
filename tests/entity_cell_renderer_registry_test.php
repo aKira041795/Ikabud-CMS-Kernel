@@ -331,6 +331,15 @@ $result4 = $loc->render(new CellRenderContext(
 ));
 t('reads latitude_in from row', str_contains($result4->html, '10.5'));
 
+// Name already contains coordinates — strip from display but keep 📍 line
+$result5 = $loc->render(new CellRenderContext(
+    value: 'Office (14.123,121.456)', field: 'location', row: ['latitude' => '14.123', 'longitude' => '121.456']
+));
+t('shows 📍 line for coords', str_contains($result5->html, '📍'));
+t('strips coords from display name', !str_contains($result5->html, '(14.123,121.456)'));
+t('renders clean name', str_contains($result5->html, 'Office'));
+t('still shows 📍 line', str_contains($result5->html, '📍'));
+
 // ════════════════════════════════════════════
 // 10. ImageCellRenderer
 // ════════════════════════════════════════════
