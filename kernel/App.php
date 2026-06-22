@@ -85,8 +85,8 @@ final class App
     private ?string $cachedAppUrl = null;
     private ?string $cachedBaseUrl = null;
     
-    public const KERNEL_VERSION = '6.0.0';
-    public const KERNEL_CODENAME = 'ecosystem';
+    public const KERNEL_VERSION = '6.1.0';
+    public const KERNEL_CODENAME = 'entity-view-extraction';
 
     /** @var int Maximum JSON input size in bytes (2 MB) */
     private const MAX_INPUT_SIZE = 2 * 1024 * 1024;
