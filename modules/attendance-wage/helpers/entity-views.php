@@ -332,9 +332,9 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'actions' => [],
         'renderers' => [
             'amount'         => 'money:2',
-            'status'         => 'badge:{"pending":"Pending|amber","completed":"Completed|green","cancelled":"Cancelled|red","deducted":"Deducted|blue"}',
+            'status'         => 'badge:{"pending":"Pending|amber","completed":"Completed|green","cancelled":"Cancelled|red","deducted":"Deducted|blue","computed":"Computed|amber","approved":"Approved|green","paid":"Paid|blue"}',
             'deduction_date' => 'datetime:date',
-            'source'         => 'badge:{"manual":"Manual|gray","cash_advance":"Cash Advance|blue"}',
+            'source'         => 'badge:{"manual":"📝 Manual|gray","cash_advance":"💳 Cash Advance|blue","sss":"🏛️ SSS|green","philhealth":"🏥 PhilHealth|amber","pagibig":"🏠 Pag-IBIG|purple"}',
         ],
         'limit' => 20,
         'sort' => ['field' => 'deduction_date', 'direction' => 'desc'],
