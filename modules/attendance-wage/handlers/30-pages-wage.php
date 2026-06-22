@@ -560,6 +560,7 @@ function wagePageBenefitsCalc(array $params = []): void
     $user = attendanceWageUser();
     echo app()->render('modules/attendance-wage/wage/benefits-calculator', [
         'active_nav'        => 'benefits',
+        'page_title'        => 'Benefits Calculator',
         'current_user_role' => $user['role'] ?? '',
     ]);
 }

@@ -607,13 +607,17 @@ function aw_calculateBenefits(float $grossPay): array
 {
     $db=aw_db(); $r=['sss'=>['employee'=>0.0,'employer'=>0.0],'philhealth'=>['employee'=>0.0,'employer'=>0.0],'pagibig'=>['employee'=>0.0,'employer'=>0.0]];
     foreach(['sss','philhealth','pagibig'] as $t){
-        $s=$db->prepare("SELECT employee_share_pct,employer_share_pct,employee_fixed,employer_fixed,min_contribution,max_contribution FROM benefits_contribution_rates WHERE benefit_type=:t AND is_active=1 AND effective_date<=CURDATE() AND salary_from<=:s AND (salary_to IS NULL OR salary_to>=:s2) ORDER BY effective_date DESC LIMIT 1");
-        $s->execute([':t'=>$t,':s'=>$grossPay,':s2'=>$grossPay]); $rate=$s->fetch(\PDO::FETCH_ASSOC);
-        if($rate){
-            $e=$rate['employee_fixed']??($grossPay*(float)$rate['employee_share_pct']); $e=max((float)($rate['min_contribution']??0),min($e,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employee']=round($e,2);
-            $er=$rate['employer_fixed']??($grossPay*(float)$rate['employer_share_pct']); $er=max((float)($rate['min_contribution']??0),min($er,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employer']=round($er,2);
-        } else {
-            // Fallback: use default PH statutory rates when no rate row configured
+        try {
+            $s=$db->prepare("SELECT employee_share_pct,employer_share_pct,employee_fixed,employer_fixed,min_contribution,max_contribution FROM benefits_contribution_rates WHERE benefit_type=:t AND is_active=1 AND effective_date<=CURDATE() AND salary_from<=:s AND (salary_to IS NULL OR salary_to>=:s2) ORDER BY effective_date DESC LIMIT 1");
+            $s->execute([':t'=>$t,':s'=>$grossPay,':s2'=>$grossPay]); $rate=$s->fetch(\PDO::FETCH_ASSOC);
+            if($rate){
+                $e=$rate['employee_fixed']??($grossPay*(float)$rate['employee_share_pct']); $e=max((float)($rate['min_contribution']??0),min($e,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employee']=round($e,2);
+                $er=$rate['employer_fixed']??($grossPay*(float)$rate['employer_share_pct']); $er=max((float)($rate['min_contribution']??0),min($er,(float)($rate['max_contribution']??PHP_FLOAT_MAX))); $r[$t]['employer']=round($er,2);
+            } else {
+                $r[$t] = aw_defaultBenefitsRate($t, $grossPay);
+            }
+        } catch (\Throwable $e) {
+            // DB table missing or query failed — fall back to hardcoded statutory rates
             $r[$t] = aw_defaultBenefitsRate($t, $grossPay);
         }
     }
