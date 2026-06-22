@@ -185,7 +185,7 @@ function attendanceExportCsv(int $employeeId = 0): void
             $emp = $es->fetch(\PDO::FETCH_ASSOC);
             $filename = 'attendance_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $emp ? ($emp['full_name'] ?? 'Employee') : 'Employee') . '_' . date('Y-m-d') . '.csv';
             $empSql = "AND ar.user_id = (SELECT user_id FROM employee_profiles WHERE profile_id = :pid LIMIT 1)";
-            $empParams = [':pid' => $employeeId, ':tid' => $tid];
+            $empParams = [':pid' => $employeeId];
         } else {
             // All employees
             $filename = 'attendance_all_employees_' . date('Y-m-d') . '.csv';
