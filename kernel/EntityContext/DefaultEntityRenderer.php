@@ -860,9 +860,17 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $url = $rowClick;
         foreach ($row as $key => $value) {
             if (is_scalar($value) || $value === null) {
-                $url = str_replace('{' . $key . '}', urlencode((string)$value), $url);
+                $safeValue = urlencode((string)$value);
+                if ($safeValue === '') {
+                    // Remove {key} and surrounding slash to prevent //view
+                    $url = preg_replace('/\/\{' . preg_quote($key, '/') . '\}\/?/', '/', $url);
+                } else {
+                    $url = str_replace('{' . $key . '}', $safeValue, $url);
+                }
             }
         }
+        // Collapse any remaining double slashes (except protocol://)
+        $url = preg_replace('#(?<!:)//+#', '/', $url);
         $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
         if ($target !== '') {
