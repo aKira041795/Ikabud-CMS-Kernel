@@ -22,6 +22,8 @@
  *   php ikabud routes                    List all registered routes
  *   php ikabud disyl:lint [path]         Lint templates for errors
  *   php ikabud disyl:list-sources        List registered entity sources for entity views
+ *   php ikabud entity:list               List all entity sources with schema from EntitySourceRegistry
+ *   php ikabud entity:context <source>   Show resolved context for a source
  *   php ikabud tinker <sql>              Run a raw SQL query
  *   php ikabud work:queue [name]         Run queue worker (--sleep=N, --once)
  *   php ikabud queue:stats [name]        Show queue statistics
@@ -315,6 +317,8 @@ switch ($command) {
         out('    ' . green('disyl:lint') . ' [path]           Lint templates for syntax errors');
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
+        out('    ' . green('entity:list') . '               List all entity sources with schema');
+        out('    ' . green('entity:context') . ' <source>    Show resolved context for a source');
         out('');
         out('  ' . bold('API'));
         out('    ' . green('openapi:generate') . '            Generate OpenAPI 3.0 spec from routes');
@@ -4726,6 +4730,115 @@ PHP;
             }
             out('');
             out('  Total: ' . cyan((string)count($sources)) . ' entity source(s)');
+        }
+        out('');
+        exit(0);
+
+    // ── entity:list ──────────────────────────────────────────────
+    case 'entity:list':
+        banner();
+        out('  ' . bold('Registered Entity Sources (EntitySourceRegistry)') . "\n");
+
+        require_once __DIR__ . '/bootstrap.php';
+        if (function_exists('app') && ($app = app()) !== null) {
+            $app->boot();
+        }
+
+        $sources = [];
+        if (method_exists($app ?? null, 'entitySources')) {
+            $registry = $app->entitySources();
+            foreach ($registry->all() as $sourceId) {
+                $def = $registry->get($sourceId);
+                $sources[$sourceId] = $def;
+            }
+        }
+
+        if (empty($sources)) {
+            out('  ' . yellow('No entity sources registered in EntitySourceRegistry.'));
+            out('  ' . 'Module capability handlers are still available via convention.');
+        } else {
+            ksort($sources);
+            foreach ($sources as $id => $def) {
+                $type = $def['entity_type'] ?? $id;
+                $listCap = $def['list_capability'] ?? '—';
+                $detailCap = $def['detail_capability'] ?? '—';
+                $timeout = $def['timeout_ms'] ?? 10000;
+                $filters = !empty($def['filters']) ? implode(', ', array_keys($def['filters'])) : '—';
+                out('  ' . green($id) . '  (' . $type . ')');
+                out('    └─ List: ' . cyan((string)$listCap));
+                out('    └─ Detail: ' . cyan((string)$detailCap));
+                out('    └─ Timeout: ' . $timeout . 'ms');
+                out('    └─ Filters: ' . $filters);
+            }
+            out('');
+            out('  Total: ' . cyan((string)count($sources)) . ' registered source(s)');
+        }
+        out('');
+        exit(0);
+
+    // ── entity:context ────────────────────────────────────────────
+    case 'entity:context':
+        banner();
+        $sourceId = $params[0] ?? '';
+        if ($sourceId === '') {
+            out(red('  Usage: php ikabud entity:context <source_id>'));
+            out('  Example: php ikabud entity:context pal.expense');
+            exit(1);
+        }
+
+        require_once __DIR__ . '/bootstrap.php';
+        if (function_exists('app') && ($app = app()) !== null) {
+            $app->boot();
+        }
+
+        // Load modules so context registrations are available
+        if (function_exists('loadModuleRoutes')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        // Show EntitySourceRegistry entry
+        if (method_exists($app ?? null, 'entitySources')) {
+            $registry = $app->entitySources();
+            $def = $registry->get($sourceId);
+            if ($def !== null) {
+                out('  Entity Source: ' . bold(green($sourceId)));
+                out('  Entity Type:   ' . ($def['entity_type'] ?? '—'));
+                out('  List Cap:      ' . ($def['list_capability'] ?? '—'));
+                out('  Detail Cap:    ' . ($def['detail_capability'] ?? '—'));
+                out('  Timeout:       ' . ($def['timeout_ms'] ?? 10000) . 'ms');
+                out('  Max Limit:     ' . ($def['max_limit'] ?? 100));
+                if (!empty($def['filters'])) {
+                    out('  Filters:');
+                    foreach ($def['filters'] as $name => $rule) {
+                        $type = $rule['type'] ?? 'string';
+                        $values = !empty($rule['values']) ? ' [' . implode(', ', $rule['values']) . ']' : '';
+                        out('    └─ ' . $name . ': ' . $type . $values);
+                    }
+                }
+                if (!empty($def['sort'])) {
+                    out('  Sortable: ' . implode(', ', (array)$def['sort']));
+                }
+            } else {
+                out('  ' . yellow("Source '{$sourceId}' not registered in EntitySourceRegistry."));
+            }
+        }
+
+        // Show view contracts from EntityViewResolver
+        if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
+            $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
+            $found = false;
+            foreach (['table', 'compact', 'card_grid', 'detailed', 'summary'] as $view) {
+                $contract = $resolver->viewContract($sourceId, $view);
+                if ($contract !== null) {
+                    if (!$found) {
+                        out('  View Contracts:');
+                        $found = true;
+                    }
+                    $fields = $contract['fields'] ?? [];
+                    $fieldStr = is_array($fields) ? implode(', ', $fields) : (string)$fields;
+                    out('    └─ ' . bold($view) . ': ' . $fieldStr);
+                }
+            }
         }
         out('');
         exit(0);

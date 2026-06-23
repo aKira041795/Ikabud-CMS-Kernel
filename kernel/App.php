@@ -27,6 +27,7 @@ use Ikabud\Kernel\EntityContext\EntityRendererInterface;
 use Ikabud\Kernel\EntityContext\DefaultEntityRenderer;
 use Ikabud\Kernel\EntityContext\CellRendererRegistryInterface;
 use Ikabud\Kernel\EntityContext\CellRendererRegistry;
+use Ikabud\Kernel\EntityContext\EntitySourceRegistry;
 
 use Ikabud\Kernel\TenantResolver;
 use Ikabud\Kernel\Database\ModuleDB;
@@ -54,6 +55,7 @@ final class App
     private ?SyncContractRegistry $syncContractRegistry = null;
     private ?EntityViewResolver $entityViewResolver = null;
     private ?EntityRendererInterface $entityRenderer = null;
+    private ?EntitySourceRegistry $entitySourceRegistry = null;
     private ?CellRendererRegistryInterface $entityCellRendererRegistry = null;
     private ?IntegrationBridge $integrationBridge = null;
     private ?TriggerService $triggerService = null;
@@ -367,7 +369,12 @@ final class App
 
         // Fire kernel.boot action so modules/extensions can register hooks
         $this->hooks->action('kernel.boot', $this);
-        
+
+        // Freeze registries to prevent mid-request mutations
+        if ($this->entitySourceRegistry !== null) {
+            $this->entitySourceRegistry->freeze();
+        }
+
         return $this;
     }
 
@@ -580,6 +587,14 @@ final class App
     /**
      * Get the entity renderer — renders resolved entity data to HTML.
      */
+    public function entitySources(): EntitySourceRegistry
+    {
+        if ($this->entitySourceRegistry === null) {
+            $this->entitySourceRegistry = new EntitySourceRegistry();
+        }
+        return $this->entitySourceRegistry;
+    }
+
     public function entityRenderers(): EntityRendererInterface
     {
         if ($this->entityRenderer === null) {

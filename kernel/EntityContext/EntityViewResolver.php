@@ -31,6 +31,9 @@ final class EntityViewResolver
     /** @var array<string, array<string, mixed>> resolved view contracts */
     private array $viewContracts = [];
 
+    /** @var array<string, ResolvedEntityContext> cached resolved contexts */
+    private array $resolvedCache = [];
+
     public static function getInstance(): self
     {
         if (self::$instance === null) {
@@ -46,6 +49,7 @@ final class EntityViewResolver
     {
         $this->sourceCache = [];
         $this->viewContracts = [];
+        $this->resolvedCache = [];
     }
 
     // ── Source parsing ──
@@ -86,41 +90,99 @@ final class EntityViewResolver
     /**
      * Register a view contract for an entity type + view combination.
      *
-     * A view contract declares:
-     *  - fields: list of visible fields (or '*' for all)
-     *  - actions: list of allowed action names
-     *  - limit: default row limit
-     *  - sort: default sort field + direction
-     *  - empty_state: message when no data
-     *  - error_state: message on fetch failure
-     *  - exportable: bool (can this view be exported?)
-     *  - capability: optional capability required to view
+     * Uses domain-specific merge rules (P1.5) instead of generic
+     * array_replace_recursive:
+     *   - fields:   array union; '*' absorbs all
+     *   - actions:  array union
+     *   - sort:     $contract wins entirely
+     *   - renderers, field_contracts, action_*:  array merge ($contract wins per key)
+     *   - scalars:  $contract wins if non-null, else default
+     *
+     * Provenance (P1.4) is tracked per registration with provider ID + timestamp.
      *
      * @param array<string, mixed> $contract
      */
     public function registerView(string $entityType, string $view, array $contract, string $providerId = 'kernel'): void
     {
         $key = $this->viewKey($entityType, $view);
-        $this->viewContracts[$key] = array_replace([
-            'entity_type' => $entityType,
-            'view' => $view,
-            'fields' => '*',
-            'actions' => [],
-            'limit' => 25,
-            'sort' => ['field' => 'created_at', 'direction' => 'desc'],
-            'empty_state' => 'No records found.',
-            'error_state' => 'Unable to load data.',
-            'exportable' => false,
-            'capability' => null,
-            'provider' => $providerId,
-            // P4: sortable field declarations — field_name => sort_key (DB column)
+
+        $defaults = [
+            'entity_type'     => $entityType,
+            'view'            => $view,
+            'fields'          => '*',
+            'actions'         => [],
+            'limit'           => 25,
+            'sort'            => ['field' => 'created_at', 'direction' => 'desc'],
+            'empty_state'     => 'No records found.',
+            'error_state'     => 'Unable to load data.',
+            'exportable'      => false,
+            'capability'      => null,
+            'provider'        => $providerId,
             'sortable_fields' => [],
-            'timeout_ms' => 10000,  // per-source timeout, overridable in view contract
-        ], $contract);
+            'field_contracts' => [],
+            'renderers'       => [],
+            'action_urls'     => [],
+            'action_methods'  => [],
+            'action_confirm'  => [],
+            'action_show_if'  => [],
+            'action_labels'   => [],
+            'key_field'       => null,
+            'timeout_ms'      => 10000,
+        ];
+
+        // Domain-specific merge (P1.5) — not generic array_replace
+        $merged = $defaults;
+
+        // Fields: array union; '*' absorbs
+        if (isset($contract['fields'])) {
+            $merged['fields'] = $contract['fields'];
+            if (is_array($defaults['fields']) && is_array($contract['fields'])) {
+                $merged['fields'] = array_values(array_unique(array_merge($defaults['fields'], $contract['fields'])));
+            }
+        }
+
+        // Actions: array union
+        if (isset($contract['actions']) && is_array($contract['actions'])) {
+            $merged['actions'] = array_values(array_unique(array_merge($defaults['actions'], $contract['actions'])));
+        }
+
+        // Sort: contract wins entirely
+        if (isset($contract['sort']) && is_array($contract['sort'])) {
+            $merged['sort'] = $contract['sort'];
+        }
+
+        // Renderers, field_contracts, action maps: merge (contract wins per key)
+        foreach (['renderers', 'field_contracts', 'action_urls', 'action_methods', 'action_confirm', 'action_show_if', 'action_labels', 'sortable_fields'] as $mapKey) {
+            if (isset($contract[$mapKey]) && is_array($contract[$mapKey])) {
+                $merged[$mapKey] = array_merge($defaults[$mapKey] ?? [], $contract[$mapKey]);
+            }
+        }
+
+        // Scalars: contract wins if non-null
+        foreach (['limit', 'empty_state', 'error_state', 'exportable', 'capability', 'key_field', 'timeout_ms'] as $scalar) {
+            if (array_key_exists($scalar, $contract)) {
+                $merged[$scalar] = $contract[$scalar];
+            }
+        }
+
+        $merged['provider'] = $providerId;
+
+        // Provenance tracking (P1.4)
+        $entry = ['provider' => $providerId, 'timestamp' => date('c')];
+        $provenance = [$entry];
+        if (isset($this->viewContracts[$key]['_provenance']) && is_array($this->viewContracts[$key]['_provenance'])) {
+            $provenance = array_merge($this->viewContracts[$key]['_provenance'], [$entry]);
+        }
+        $merged['_provenance'] = $provenance;
+
+        $this->viewContracts[$key] = $merged;
+        unset($this->resolvedCache[$key]);
     }
 
     /**
      * Get the view contract for an entity type + view.
+     *
+     * Returns cached ResolvedEntityContext for performance (P2.5).
      *
      * @return array<string, mixed>|null
      */
@@ -128,19 +190,43 @@ final class EntityViewResolver
     {
         $key = $this->viewKey($entityType, $view);
 
+        // Return cached resolved context as array
+        if (isset($this->resolvedCache[$key])) {
+            return $this->resolvedCache[$key]->toArray();
+        }
+
         // Exact match
         if (isset($this->viewContracts[$key])) {
-            return $this->viewContracts[$key];
+            $ctx = ResolvedEntityContext::fromContract(
+                $entityType, $view, $this->viewContracts[$key],
+                $this->viewContracts[$key]['_provenance'] ?? null
+            );
+            $this->resolvedCache[$key] = $ctx;
+            return $ctx->toArray();
         }
 
         // Fallback: default view for the entity type
         $fallbackKey = $this->viewKey($entityType, 'default');
         if (isset($this->viewContracts[$fallbackKey])) {
-            return $this->viewContracts[$fallbackKey];
+            $ctx = ResolvedEntityContext::fromContract(
+                $entityType, $view, $this->viewContracts[$fallbackKey],
+                $this->viewContracts[$fallbackKey]['_provenance'] ?? null
+            );
+            $this->resolvedCache[$key] = $ctx;
+            return $ctx->toArray();
         }
 
         // Last resort: built-in defaults per entity type
-        return $this->builtinDefaults($entityType, $view);
+        $defaults = $this->builtinDefaults($entityType, $view);
+        if ($defaults !== null) {
+            $ctx = ResolvedEntityContext::fromContract($entityType, $view, $defaults, [
+                ['provider' => 'kernel.builtin', 'timestamp' => '1970-01-01T00:00:00+00:00'],
+            ]);
+            $this->resolvedCache[$key] = $ctx;
+            return $ctx->toArray();
+        }
+
+        return null;
     }
 
     // ── Data resolution (calls the capability bus) ──
@@ -269,6 +355,22 @@ final class EntityViewResolver
             'source' => $parsed,
             'error' => null,
         ];
+    }
+
+    /**
+     * Get the resolved context as a ResolvedEntityContext value object.
+     */
+    public function resolvedContext(string $entityType, string $view): ?ResolvedEntityContext
+    {
+        $key = $this->viewKey($entityType, $view);
+        if (isset($this->resolvedCache[$key])) {
+            return $this->resolvedCache[$key];
+        }
+        $arr = $this->viewContract($entityType, $view);
+        if ($arr === null) {
+            return null;
+        }
+        return $this->resolvedCache[$key];
     }
 
     /**
@@ -510,11 +612,25 @@ final class EntityViewResolver
     }
 
     /**
-     * @return array<string, mixed>
+     * @deprecated P2.1 Built-in defaults are being migrated to module-level
+     *             registrations. This method is kept as a backward-compat
+     *             fallback for entity types that no module has claimed yet.
+     *             Logs a warning when invoked so migration progress can
+     *             be tracked.
+     * @return array<string, mixed>|null
      */
-    private function builtinDefaults(string $entityType, string $view): array
+    private function builtinDefaults(string $entityType, string $view): ?array
     {
+        // Log deprecation warning to track unresolved entity types
+        if (\function_exists('write_log')) {
+            \write_log("EntityViewResolver: built-in default used for '{$entityType}.{$view}' — migrate to module-level registration (P2.1)", 'warning', [
+                'entity_type' => $entityType,
+                'view' => $view,
+            ]);
+        }
+
         $compactDefaults = [
+            // Legacy backward-compat aliases (short names)
             'orders' => ['fields' => ['id', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 10, 'empty_state' => 'No orders yet.'],
             'products' => ['fields' => ['id', 'name', 'price', 'image'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
             'cases' => ['fields' => ['id', 'title', 'status', 'updated_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No cases found.'],
@@ -522,26 +638,6 @@ final class EntityViewResolver
             'appointments' => ['fields' => ['id', 'title', 'date', 'status'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
             'tickets' => ['fields' => ['id', 'subject', 'status', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No tickets.'],
             'weather' => ['fields' => ['date', 'high_c', 'low_c', 'condition'], 'actions' => [], 'limit' => 5, 'empty_state' => 'No weather data.'],
-            // Phase 2 — extended entity-view adoption (June 2026)
-            'bakeshop_product' => ['fields' => ['id', 'name', 'price', 'unit', 'stock_qty', 'category'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No products found.'],
-            'guidance_case' => ['fields' => ['id', 'student_name', 'status', 'created_at', 'counselor_name'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No cases found.'],
-            'guidance_appointment' => ['fields' => ['id', 'title', 'date', 'status', 'student_name'], 'actions' => ['view', 'cancel'], 'limit' => 10, 'empty_state' => 'No appointments.'],
-            'daily_ledger_entry' => ['fields' => ['id', 'entry_type', 'amount', 'created_at', 'notes'], 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No ledger entries.'],
-            'wms_stock' => ['fields' => ['id', 'sku', 'name', 'qty', 'location_name', 'updated_at'], 'actions' => ['view', 'move'], 'limit' => 30, 'empty_state' => 'No stock items.'],
-            'wms_location' => ['fields' => ['id', 'name', 'type', 'is_staging'], 'actions' => ['view'], 'limit' => 20, 'empty_state' => 'No locations.'],
-            'ecommerce_product' => ['fields' => ['id', 'name', 'price', 'image', 'stock_status'], 'actions' => ['view', 'add_to_cart'], 'limit' => 20, 'empty_state' => 'No products found.'],
-            'ecommerce_order' => ['fields' => ['id', 'order_number', 'status', 'total', 'created_at'], 'actions' => ['view'], 'limit' => 15, 'empty_state' => 'No orders yet.'],
-            // Phase 3 — attendance-wage entity-view adoption (June 2026)
-            'attendance_record' => ['fields' => ['id', 'employee_name', 'store_name', 'clock_in', 'clock_out', 'hours', 'status'], 'actions' => ['view', 'edit'], 'action_urls' => ['view' => '/admin/attendance?record={id}', 'edit' => '/admin/attendance?record={id}'], 'renderers' => ['clock_in' => 'datetime:time', 'clock_out' => 'datetime:time', 'hours' => 'string', 'status' => 'badge:{"active":"Clocked In|green","completed":"Done|blue","edited":"Edited|amber"}'], 'field_contracts' => ['hours' => ['editable' => 'true', 'update_capability' => 'attendance.record.hours.update@1']], 'limit' => 30, 'empty_state' => 'No attendance records found.'],
-            'employee_profile' => ['fields' => ['id', 'first_name', 'last_name', 'position', 'department', 'salary_type', 'employment_status'], 'actions' => ['view', 'edit'], 'action_urls' => ['view' => '/admin/wage/employees/{id}/view', 'edit' => '/admin/wage/employees/{id}'], 'action_labels' => ['view' => 'View'], 'renderers' => ['salary_type' => 'badge:{"hourly":"Hourly|blue","daily":"Daily|amber","monthly":"Monthly|purple","fixed":"Fixed|gray"}', 'employment_status' => 'badge:{"probationary":"Probationary|amber","regular":"Regular|green","contractual":"Contractual|blue","part_time":"Part-Time|gray"}'], 'limit' => 25, 'empty_state' => 'No employee profiles yet.'],
-            'payroll_period' => ['fields' => ['id', 'period_name', 'start_date', 'end_date', 'status', 'total_net_pay'], 'actions' => ['view'], 'action_urls' => ['view' => '/admin/wage/reports/{id}'], 'renderers' => ['total_net_pay' => 'money:2', 'status' => 'badge:{"draft":"Draft|gray","processing":"Processing|blue","approved":"Approved|green","completed":"Completed|green","cancelled":"Cancelled|red"}'], 'limit' => 12, 'empty_state' => 'No payroll periods yet.'],
-            'salary_computation' => ['fields' => ['id', 'employee_name', 'period_name', 'gross_pay', 'total_deductions', 'net_pay', 'status'], 'actions' => ['view', 'approve'], 'action_urls' => ['view' => '/admin/wage/computations?id={id}', 'approve' => '/admin/wage/computations?id={id}'], 'renderers' => ['gross_pay' => 'money:2', 'total_deductions' => 'money:2', 'net_pay' => 'money:2', 'status' => 'badge:{"computed":"Computed|amber","approved":"Approved|green","paid":"Paid|blue","cancelled":"Cancelled|red"}'], 'limit' => 25, 'empty_state' => 'No salary computations found.'],
-            'salary_adjustment' => ['fields' => ['id', 'employee_name', 'adjustment_type', 'amount', 'status', 'effective_date', 'approval_date', 'applied_date'], 'actions' => ['edit', 'view', 'approve'], 'action_urls' => ['edit' => '/admin/wage/adjustments/{id}', 'view' => '/admin/wage/adjustments/{id}', 'approve' => '/api/v1/wage/adjustments/{id}/approve'], 'action_methods' => ['approve' => 'post'], 'action_confirm' => ['approve' => 'Approve this adjustment?'], 'action_show_if' => ['edit' => 'status == "pending"', 'view' => 'status != "pending"', 'approve' => 'status == "pending"'], 'renderers' => ['amount' => 'money:2', 'status' => 'badge:{"pending":"Pending|amber","approved":"Approved|green","applied":"Applied|blue","rejected":"Rejected|red"}'], 'limit' => 20, 'empty_state' => 'No salary adjustments found.'],
-            'employee_deduction' => ['fields' => ['id', 'employee_name', 'amount', 'description', 'status', 'deduction_date', 'source'], 'actions' => ['view'], 'action_urls' => ['view' => '/admin/wage/deductions?id={id}'], 'renderers' => ['amount' => 'money:2', 'status' => 'badge:{"pending":"Pending|amber","approved":"Approved|green","deducted":"Deducted|blue"}'], 'limit' => 20, 'empty_state' => 'No employee deductions found.'],
-            'holiday' => ['fields' => ['id', 'holiday_name', 'holiday_date', 'holiday_type', 'pay_multiplier'], 'actions' => ['edit', 'delete'], 'action_urls' => ['edit' => '/admin/wage/holidays?edit={id}', 'delete' => '/api/v1/wage/holidays/{id}/delete'], 'action_methods' => ['delete' => 'post'], 'action_confirm' => ['delete' => 'Delete this holiday?'], 'renderers' => ['holiday_date' => 'datetime:date', 'holiday_type' => 'badge:{"regular":"Regular|green","special":"Special|blue","special_working":"Working|amber"}'], 'limit' => 30, 'empty_state' => 'No holidays configured.'],
-            'cash_advance' => ['fields' => ['id', 'employee_name', 'amount', 'balance', 'status', 'request_date', 'approved_at'], 'actions' => ['view', 'approve'], 'action_urls' => ['view' => '/admin/wage/cash-advances?id={id}', 'approve' => '/api/v1/wage/cash-advances/{id}/approve'], 'action_methods' => ['approve' => 'post'], 'action_show_if' => ['approve' => 'status == "pending"'], 'renderers' => ['amount' => 'money:2', 'balance' => 'money:2', 'status' => 'badge:{"pending":"Pending|amber","approved":"Approved|green","active":"Active|blue","paid":"Paid|green","rejected":"Rejected|red"}', 'request_date' => 'datetime:date', 'approved_at' => 'datetime:date'], 'limit' => 20, 'empty_state' => 'No cash advance requests.'],
-            'employee_schedule' => ['fields' => ['id', 'employee_name', 'position', 'department', 'days_label', 'shift_type', 'dayoff_count', 'total_days'], 'actions' => ['edit'], 'action_urls' => ['edit' => '/admin/wage/schedules?id={id}'], 'renderers' => ['shift_type' => 'badge:{"day":"Day|blue","night":"Night|purple","rotating":"Rotating|amber"}'], 'limit' => 30, 'empty_state' => 'No employee schedules yet.'],
-            'office_location' => ['fields' => ['id', 'name', 'address', 'latitude', 'longitude', 'radius_meters', 'is_active'], 'actions' => ['edit', 'delete'], 'action_urls' => ['edit' => '/admin/wage/locations/{id}', 'delete' => '/api/v1/wage/locations/{id}/delete'], 'action_methods' => ['delete' => 'post'], 'action_confirm' => ['delete' => 'Delete this location?'], 'renderers' => ['is_active' => 'boolean'], 'limit' => 50, 'empty_state' => 'No office locations configured yet.'],
         ];
 
         $base = $compactDefaults[$entityType] ?? ['fields' => '*', 'actions' => ['view'], 'limit' => 25, 'empty_state' => 'No records found.'];

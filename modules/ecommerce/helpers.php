@@ -24,6 +24,7 @@ require_once __DIR__ . '/helpers/39-storefront.php';
 require_once __DIR__ . '/helpers/39-pricing-tiers.php';
 require_once __DIR__ . '/helpers/41-stock-notifications.php';
 require_once __DIR__ . '/helpers/42-variant-media.php';
+require_once __DIR__ . '/helpers/43-entity-views.php';
 require_once __DIR__ . '/helpers/40-pricing.php';
 require_once __DIR__ . '/helpers/50-reports.php';
 require_once __DIR__ . '/helpers/55-digital-licenses.php';
