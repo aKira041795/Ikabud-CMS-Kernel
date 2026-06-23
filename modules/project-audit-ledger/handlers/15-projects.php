@@ -8,16 +8,11 @@ declare(strict_types=1);
 function palPageProjectList(): void
 {
     $user = palCurrentUser();
-    $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-    $result = $svc->list(['status' => $_GET['status'] ?? null]);
-
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
         'page_title' => 'Projects',
         'page_content' => 'projects-list',
-        'projects' => $result['rows'],
-        'total' => $result['total'],
     ]);
 }
 

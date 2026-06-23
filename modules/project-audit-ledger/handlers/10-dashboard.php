@@ -25,10 +25,6 @@ function palPageDashboard(): void
     $lowStockStmt->execute([':tid' => $tid]);
     $lowStockCount = (int)$lowStockStmt->fetchColumn();
 
-    // Recent activity
-    $recentStmt = $db->prepare("SELECT * FROM pal_audit_logs WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT 10");
-    $recentStmt->execute([':tid' => $tid]);
-
     palRender(__DIR__ . '/../templates/project-audit-ledger/shell.disyl', [
         'current_user' => $user,
         'page_title' => 'Dashboard',
@@ -38,7 +34,6 @@ function palPageDashboard(): void
             'pending_approvals' => $pendingApprovals,
             'monthly_sales' => $monthlySales,
             'low_stock' => $lowStockCount,
-            'recent_activity' => $recentStmt->fetchAll(PDO::FETCH_ASSOC),
         ],
     ]);
 }

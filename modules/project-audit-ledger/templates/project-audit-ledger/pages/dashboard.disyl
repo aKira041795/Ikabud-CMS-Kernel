@@ -6,25 +6,5 @@
 </div>
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Recent Activity</h2></div>
-    <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-        <thead><tr class="bg-gray-50 border-b border-gray-200">
-            <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
-            <th class="text-left py-3 px-4 font-semibold text-gray-600">Action</th>
-            <th class="text-left py-3 px-4 font-semibold text-gray-600">Entity</th>
-        </tr></thead>
-        <tbody>
-            {for a in dashboard.recent_activity|default:[]}
-            <tr class="border-b border-gray-100">
-                <td class="py-3 px-4 text-xs text-gray-600">{a.created_at}</td>
-                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{a.action}</span></td>
-                <td class="py-3 px-4 text-gray-700">{a.entity_type} #{a.entity_id}</td>
-            </tr>
-            {/for}
-            {if (dashboard.recent_activity|default:[])|count == 0}
-            <tr><td colspan="3" class="py-8 text-center text-gray-600">No recent activity.</td></tr>
-            {/if}
-        </tbody>
-    </table>
-    </div>
+    <ikb_entity_list source="pal_audit_log" view="compact" limit="10" empty="No recent activity." />
 </div>

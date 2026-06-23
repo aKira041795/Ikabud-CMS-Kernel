@@ -1,0 +1,13 @@
+{ikb_entity_view name="pal_audit_log" view="table"}
+    {field name="created_at" type="datetime" renderer="datetime"}
+    {field name="actor_name" type="string"}
+    {field name="action" type="string"}
+    {field name="entity_type" type="string"}
+    {field name="entity_id" type="string"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="pal_audit_log" view="compact"}
+    {field name="created_at" type="datetime" renderer="datetime:short"}
+    {field name="action" type="string"}
+    {field name="entity_type" type="string"}
+{/ikb_entity_view}
