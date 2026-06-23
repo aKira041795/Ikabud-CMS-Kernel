@@ -5,5 +5,5 @@
     {field name="net_amount" type="number" renderer="money:2"}
     {field name="status" type="enum" renderer="badge:{issued|blue|partially_paid|amber|paid|green|overdue|red|cancelled|gray|voided|gray}"}
     {field name="sales_date" type="date" renderer="datetime:date"}
-    {action name="view" url="/admin/project-audit-ledger/sales" label="View"}
+    {action name="view" url="/admin/project-audit-ledger/sales/{id}" label="View"}
 {/ikb_entity_view}

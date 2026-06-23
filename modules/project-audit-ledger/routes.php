@@ -58,7 +58,6 @@ return [
         '/project-audit-ledger/auth/login' => 'project-audit-ledger:palAuthLogin',
         '/api/v1/project-audit-ledger/auth/logout' => 'project-audit-ledger:palAuthLogout',
         '/project-audit-ledger/logout' => 'project-audit-ledger:palAuthLogout',
-        '/project-audit-ledger/logout' => 'project-audit-ledger:palAuthLogout',
         '/api/v1/project-audit-ledger/auth/forgot-password' => 'project-audit-ledger:palAuthForgotPassword',
         '/api/v1/project-audit-ledger/auth/reset-password' => 'project-audit-ledger:palAuthResetPassword',
         '/api/v1/project-audit-ledger/projects' => 'project-audit-ledger:palApiProjectStore',
