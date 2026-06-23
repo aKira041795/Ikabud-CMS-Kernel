@@ -175,53 +175,71 @@ function makeCreatable(select) {
     opt.value = '__other__';
     opt.textContent = '✦ Other: type new...';
     select.appendChild(opt);
-    var wrapper = document.createElement('div');
-    wrapper.className = 'hidden mt-1';
-    wrapper.innerHTML = '<input type="text" placeholder="Type new name" class="w-full px-2 py-1.5 border border-blue-400 rounded text-sm creatable-input">';
-    select.parentNode.insertBefore(wrapper, select.nextSibling);
     select.addEventListener('change', function() {
-        wrapper.classList.toggle('hidden', select.value !== '__other__');
-        if (select.value !== '__other__') wrapper.querySelector('input').value = '';
+        if (select.value === '__other__') {
+            showQuickCreateModal(select);
+            select.value = '';
+        }
     });
-    var form = select.closest('form');
-    if (form) {
-        // Use capture phase (true) so this runs BEFORE onsubmit attribute handlers.
-        // HTML onsubmit is registered when parsed — fires in target phase first.
-        // Without capture, onsubmit/ajaxSubmit sends raw __other__ value first.
-        form.addEventListener('submit', function(e) {
-            if (select.value !== '__other__') return;
-            if (form.dataset.submitting === '1') { e.preventDefault(); return; }
-            e.preventDefault();
-            e.stopPropagation();
-            form.dataset.submitting = '1';
-            var val = wrapper.querySelector('input').value.trim();
-            if (!val) { showToast('Enter a name for the new item', 'error'); delete form.dataset.submitting; return; }
-            var btn = form.querySelector('button[type="submit"]');
-            var origText = btn.textContent;
-            btn.disabled = true; btn.textContent = 'Creating...';
-            var fd = new FormData();
-            fd.append('type', select.getAttribute('data-creatable') || '');
-            fd.append('name', val);
-            var csrf = form.querySelector('input[name="_token"]');
-            if (csrf) fd.append('_token', csrf.value);
-            fetch('/api/v1/project-audit-ledger/quick-create', { method: 'POST', body: fd })
-            .then(function(r){ return r.json(); })
-            .then(function(d){
-                if (d.ok) {
-                    var o = document.createElement('option');
-                    o.value = d.id; o.textContent = d.label; o.selected = true;
-                    select.add(o, select.querySelector('option[value="__other__"]'));
-                    select.value = d.id;
-                    wrapper.classList.add('hidden');
-                    wrapper.querySelector('input').value = '';
-                    btn.textContent = origText;
-                    delete form.dataset.submitting;
-                    ajaxSubmit(form, 'Saved');
-                } else { showToast(d.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = origText; delete form.dataset.submitting; }
-            })
-            .catch(function(){ showToast('Failed to create', 'error'); btn.disabled = false; btn.textContent = origText; delete form.dataset.submitting; });
-        }, true);
+}
+
+var _quickCreateModal = null;
+function showQuickCreateModal(select) {
+    var type = select.getAttribute('data-creatable') || '';
+    if (!type) return;
+    if (!_quickCreateModal) {
+        var overlay = document.createElement('div');
+        overlay.id = 'qc-modal';
+        overlay.style.cssText = 'position:fixed;z-index:9999;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;';
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) closeQuickCreateModal(); });
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:8px;padding:24px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+        box.innerHTML = '<h3 class="text-sm font-semibold text-gray-900 mb-3" id="qc-title">Add New</h3>'
+            + '<input type="text" id="qc-input" placeholder="Enter name" class="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-3" style="box-sizing:border-box;">'
+            + '<div class="flex gap-2 justify-end">'
+            + '<button onclick="closeQuickCreateModal()" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button>'
+            + '<button id="qc-btn" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Add</button>'
+            + '</div>';
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+        _quickCreateModal = { overlay: overlay, input: document.getElementById('qc-input'), btn: document.getElementById('qc-btn'), title: document.getElementById('qc-title') };
     }
+    var m = _quickCreateModal;
+    m.title.textContent = 'Add New ' + type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+    m.input.value = '';
+    m.input.focus();
+    m.input.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); doQuickCreate(select, type); } };
+    m.btn.onclick = function() { doQuickCreate(select, type); };
+    m.overlay.style.display = 'flex';
+}
+
+function closeQuickCreateModal() {
+    if (_quickCreateModal) _quickCreateModal.overlay.style.display = 'none';
+}
+
+function doQuickCreate(select, type) {
+    var name = _quickCreateModal.input.value.trim();
+    if (!name) { showToast('Enter a name', 'error'); return; }
+    _quickCreateModal.btn.disabled = true;
+    _quickCreateModal.btn.textContent = 'Adding...';
+    var csrf = document.querySelector('input[name="_token"]');
+    var fd = new FormData();
+    fd.append('type', type);
+    fd.append('name', name);
+    if (csrf) fd.append('_token', csrf.value);
+    fetch('/api/v1/project-audit-ledger/quick-create', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.ok) {
+            var o = document.createElement('option');
+            o.value = d.id; o.textContent = d.label; o.selected = true;
+            select.add(o);
+            select.value = d.id;
+            closeQuickCreateModal();
+            showToast('Added: ' + d.label);
+        } else { showToast(d.error || 'Failed', 'error'); _quickCreateModal.btn.disabled = false; _quickCreateModal.btn.textContent = 'Add'; }
+    })
+    .catch(function(){ showToast('Failed to create', 'error'); _quickCreateModal.btn.disabled = false; _quickCreateModal.btn.textContent = 'Add'; });
 }
 function ajaxSubmit(form, successMsg) {
     if (form.dataset.submitting === '1') return false;
