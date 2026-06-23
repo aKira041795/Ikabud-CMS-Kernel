@@ -2,11 +2,11 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 class="font-semibold text-gray-900 mb-2">{client.name}</h2>
         <div class="space-y-2 text-sm">
-            <div class="flex justify-between"><span class="text-gray-500">Contact</span><span>{client.contact_person|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-500">Email</span><span>{client.email|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-500">Phone</span><span>{client.phone|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-500">Address</span><span>{client.address|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-500">Status</span><span>{if client.is_active==1}<span class="text-green-600 font-medium">Active</span>{else}<span class="text-red-600 font-medium">Inactive</span>{/if}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Contact</span><span>{client.contact_person|default:'—'}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Email</span><span>{client.email|default:'—'}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Phone</span><span>{client.phone|default:'—'}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Address</span><span>{client.address|default:'—'}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Status</span><span>{if client.is_active==1}<span class="text-green-600 font-medium">Active</span>{else}<span class="text-red-600 font-medium">Inactive</span>{/if}</span></div>
         </div>
         <div class="mt-4"><a href="/admin/project-audit-ledger/clients/{client.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a> <a href="/admin/project-audit-ledger/clients" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a></div>
     </div>
@@ -19,7 +19,7 @@
                 <tr class="border-b border-gray-100"><td class="py-2 px-4 font-medium">{p.title}</td><td class="py-2 px-4">{p.status|default:'draft'}</td><td class="py-2 px-4">₱{p.contract_amount|default:0|number_format:2}</td><td class="py-2 px-4 text-xs">{p.start_date|default:'—'} → {p.target_completion_date|default:'—'}</td><td class="py-2 px-4"><a href="/admin/project-audit-ledger/projects/{p.id}" class="text-xs text-blue-600 font-medium">View</a></td></tr>
                 {/for}
                 {if clientProjects|count == 0}
-                <tr><td colspan="5" class="py-8 text-center text-gray-400">No projects linked to this client.</td></tr>
+                <tr><td colspan="5" class="py-8 text-center text-gray-600">No projects linked to this client.</td></tr>
                 {/if}
             </tbody>
         </table>

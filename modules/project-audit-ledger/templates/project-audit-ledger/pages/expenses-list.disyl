@@ -19,12 +19,12 @@
                 <td class="py-3 px-4 text-gray-700">{e.category_name|default:'—'}</td>
                 <td class="py-3 px-4 text-gray-700">₱{e.amount|default:0|number_format:2}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if e.status=='approved'}bg-green-100 text-green-700{elseif e.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{e.status|default:'draft'}</span></td>
-                <td class="py-3 px-4 text-xs text-gray-500">{e.expense_date|default:e.created_at}</td>
+                <td class="py-3 px-4 text-xs text-gray-600">{e.expense_date|default:e.created_at}</td>
                 <td class="py-3 px-4"><a href="/admin/project-audit-ledger/expenses/{e.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-2">View</a><a href="/admin/project-audit-ledger/expenses/{e.id}/edit" class="text-xs text-gray-600 hover:text-gray-800 font-medium">Edit</a></td>
             </tr>
             {/for}
             {if expenses|count == 0}
-            <tr><td colspan="6" class="py-8 text-center text-gray-400">No expenses yet.</td></tr>
+            <tr><td colspan="6" class="py-8 text-center text-gray-600">No expenses yet.</td></tr>
             {/if}
         </tbody>
     </table>

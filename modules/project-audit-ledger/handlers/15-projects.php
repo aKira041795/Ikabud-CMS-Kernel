@@ -82,27 +82,31 @@ function palPageProjectDetail(array $rp = []): void
     $profitability = $costSvc->getProfitability($id);
     $budget = $costSvc->getBudgetStatus($id);
 
-    // Fetch line-item history for business owner view
+    // Fetch line-item history for business owner view — use project's tenant
     $db = palDb();
-    $tid = (int)(app()->tenant()->current() ?? $user['tenant_id'] ?? 0);
+    $tid = (int)($project['tenant_id'] ?? app()->tenant()->current() ?? $user['tenant_id'] ?? 0);
     $expRows = $db->prepare("SELECT e.*, ec.name AS category_name FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id WHERE e.project_id = :pid AND e.tenant_id = :tid ORDER BY e.expense_date DESC, e.created_at DESC LIMIT 30");
     $expRows->execute([':pid' => $id, ':tid' => $tid]);
     $colRows = $db->prepare("SELECT c.*, s.sales_number FROM pal_collections c LEFT JOIN pal_sales s ON c.sales_id = s.id WHERE c.project_id = :pid AND c.tenant_id = :tid ORDER BY c.created_at DESC LIMIT 30");
     $colRows->execute([':pid' => $id, ':tid' => $tid]);
+    $poRows = $db->prepare("SELECT p.*, s.name AS supplier_name FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id WHERE p.project_id = :pid AND p.tenant_id = :tid ORDER BY p.created_at DESC LIMIT 20");
+    $poRows->execute([':pid' => $id, ':tid' => $tid]);
 
     $fabAmount = 0;
     if (!empty($project['fabrication_alloc_pct']) && (float)$project['fabrication_alloc_pct'] > 0) {
         $fabAmount = round((float)($project['contract_amount'] ?? 0) * (float)$project['fabrication_alloc_pct'] / 100, 2);
     }
 
-    // Running totals for financial summary
+    // Running totals: base is collected (if any) or contract (assumed collectible)
     $contractAmt = (float)($project['contract_amount'] ?? 0);
     $spentAmt = (float)($costs['total_cost'] ?? 0);
     $collectedAmt = (float)($profitability['total_collected'] ?? 0);
-    $runAfterFab = $contractAmt - $fabAmount;
+    $baseAmount = $collectedAmt > 0 ? $collectedAmt : $contractAmt;
+    $runAfterFab = $baseAmount - $fabAmount;
     $runAfterSpent = $runAfterFab - $spentAmt;
-    $runAfterCollected = $runAfterSpent + $collectedAmt;
-    $netProfit = $collectedAmt - $spentAmt;
+    $runAfterCollected = $contractAmt + $collectedAmt;  // for display: Budget + Collected
+    $netProfit = $runAfterSpent;
+    $remainingCollectible = max(0, $contractAmt - $collectedAmt);
 
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
@@ -114,12 +118,15 @@ function palPageProjectDetail(array $rp = []): void
         'profitability' => $profitability,
         'budget' => $budget,
         'fabrication_amount' => $fabAmount,
+        'run_after_collected' => $runAfterCollected,
+        'net_profit' => $netProfit,
         'run_after_fab' => $runAfterFab,
         'run_after_spent' => $runAfterSpent,
-        'run_after_collected' => $runAfterCollected,
+        'remaining_collectible' => $remainingCollectible,
         'net_profit' => $netProfit,
         'expense_history' => $expRows->fetchAll(PDO::FETCH_ASSOC),
         'collection_history' => $colRows->fetchAll(PDO::FETCH_ASSOC),
+        'purchase_history' => $poRows->fetchAll(PDO::FETCH_ASSOC),
         'attachments_html' => palRenderAttachments('project', $id, $tid),
         'po_images_html' => palRenderPoImages($id, $tid),
     ]);

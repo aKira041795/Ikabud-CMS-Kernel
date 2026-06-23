@@ -2,10 +2,10 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-2">Issuance #{issuance.issuance_number|default:issuance.id}</h2>
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-500">Project</span><span>{issuance.project_title|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Purpose</span><span>{issuance.purpose|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{issuance.status|default:'draft'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Date</span><span>{issuance.created_at}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{issuance.project_title|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Purpose</span><span>{issuance.purpose|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{issuance.status|default:'draft'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{issuance.created_at}</span></div>
     </div>
     {if issuance.items}
     <h3 class="font-semibold text-gray-900 text-sm mt-4 mb-2">Items</h3>

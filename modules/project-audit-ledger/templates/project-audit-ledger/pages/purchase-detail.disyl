@@ -1,10 +1,10 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg print-area">
     <h2 class="font-semibold text-gray-900 mb-2">Purchase #{purchase.purchase_number|default:purchase.id}</h2>
-    <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-500">Supplier</span><span>{purchase.supplier_name|default:'—'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Total</span><span class="font-medium">₱{purchase.total_amount|number_format:2}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{purchase.status|default:'draft'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Date</span><span>{purchase.purchase_date|default:purchase.created_at}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Invoice</span><span>{purchase.invoice_number|default:'—'}</span></div></div>
+    <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Supplier</span><span>{purchase.supplier_name|default:'—'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Total</span><span class="font-medium">₱{purchase.total_amount|number_format:2}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{purchase.status|default:'draft'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{purchase.purchase_date|default:purchase.created_at}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Invoice</span><span>{purchase.invoice_number|default:'—'}</span></div></div>
     {if purchase.items}
     <h3 class="font-semibold text-gray-900 text-sm mt-4 mb-2">Items</h3>
     <table class="w-full text-sm"><thead><tr class="bg-gray-50"><th class="text-left py-1 px-2 font-semibold text-gray-600">Material</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Qty</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Cost</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Total</th></tr></thead>

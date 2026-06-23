@@ -27,15 +27,19 @@ class palProjectCostService
         // Total material costs from issued items
         $totalMaterials = $this->sumIssuedMaterials($projectId);
 
+        // Total approved purchases
+        $totalPurchases = $this->sumApprovedPurchases($projectId);
+
         // Cost by category
         $expenseByCategory = $this->expensesByCategory($projectId);
 
-        $totalCost = $totalExpenses + $totalMaterials;
+        $totalCost = $totalExpenses + $totalMaterials + $totalPurchases;
 
         return [
             'total_cost' => $totalCost,
             'total_expenses' => $totalExpenses,
             'total_materials' => $totalMaterials,
+            'total_purchases' => $totalPurchases,
             'expense_by_category' => $expenseByCategory,
         ];
     }
@@ -118,6 +122,17 @@ class palProjectCostService
     {
         $stmt = $this->db->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM pal_expenses
+             WHERE project_id = :project_id AND tenant_id = :tenant_id
+             AND status = 'approved'"
+        );
+        $stmt->execute([':project_id' => $projectId, ':tenant_id' => $this->tenantId]);
+        return (float)$stmt->fetchColumn();
+    }
+
+    private function sumApprovedPurchases(int $projectId): float
+    {
+        $stmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(total_amount), 0) FROM pal_purchases
              WHERE project_id = :project_id AND tenant_id = :tenant_id
              AND status = 'approved'"
         );

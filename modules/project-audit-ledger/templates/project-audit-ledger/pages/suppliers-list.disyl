@@ -20,7 +20,7 @@
             </tr>
             {/for}
             {if suppliers|count == 0}
-            <tr><td colspan="4" class="py-8 text-center text-gray-400">No suppliers yet.</td></tr>
+            <tr><td colspan="4" class="py-8 text-center text-gray-600">No suppliers yet.</td></tr>
             {/if}
         </tbody>
     </table>

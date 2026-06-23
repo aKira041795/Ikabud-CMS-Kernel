@@ -119,7 +119,7 @@ class palExpenseService
             ':payment_method' => $data['payment_method'] ?? null,
             ':reference_number' => $data['reference_number'] ?? null,
             ':notes' => $data['notes'] ?? null,
-            ':status' => $data['status'] ?? 'draft',
+            ':status' => $data['status'] ?? 'approved',
             ':created_by' => $this->userId,
         ]);
 

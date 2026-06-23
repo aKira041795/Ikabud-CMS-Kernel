@@ -22,7 +22,7 @@
             </tr>
             {/for}
             {if clients|count == 0}
-            <tr><td colspan="5" class="py-8 text-center text-gray-400">No clients yet.</td></tr>
+            <tr><td colspan="5" class="py-8 text-center text-gray-600">No clients yet.</td></tr>
             {/if}
         </tbody>
     </table>

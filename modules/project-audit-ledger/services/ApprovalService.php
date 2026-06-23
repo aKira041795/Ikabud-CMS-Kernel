@@ -165,13 +165,13 @@ class palApprovalService
 
         $newCollected = (float)$col['already_approved'] + (float)$col['amount'];
         $newStatus = $newCollected >= (float)$col['net_amount'] ? 'paid' : 'partially_paid';
-        $this->db->prepare("UPDATE pal_sales SET status = :st WHERE id = :id")
-             ->execute([':st' => $newStatus, ':id' => $col['sales_id']]);
+        $this->db->prepare("UPDATE pal_sales SET status = :st WHERE id = :id AND tenant_id = :tid")
+             ->execute([':st' => $newStatus, ':id' => $col['sales_id'], ':tid' => $this->tenantId]);
 
         // Update weekly due paid amount if linked
         if (!empty($col['weekly_due_id'])) {
-            $this->db->prepare("UPDATE pal_fabrication_weekly_dues SET paid_amount = paid_amount + :amt WHERE id = :id")
-                 ->execute([':amt' => $col['amount'], ':id' => $col['weekly_due_id']]);
+            $this->db->prepare("UPDATE pal_fabrication_weekly_dues SET paid_amount = paid_amount + :amt WHERE id = :id AND tenant_id = :tid")
+                 ->execute([':amt' => $col['amount'], ':id' => $col['weekly_due_id'], ':tid' => $this->tenantId]);
         }
     }
 
@@ -183,8 +183,8 @@ class palApprovalService
         if (!$pay) return;
 
         if (!empty($pay['weekly_due_id'])) {
-            $this->db->prepare("UPDATE pal_fabrication_weekly_dues SET paid_amount = paid_amount + :amt WHERE id = :id")
-                 ->execute([':amt' => $pay['amount'], ':id' => $pay['weekly_due_id']]);
+            $this->db->prepare("UPDATE pal_fabrication_weekly_dues SET paid_amount = paid_amount + :amt WHERE id = :id AND tenant_id = :tid")
+                 ->execute([':amt' => $pay['amount'], ':id' => $pay['weekly_due_id'], ':tid' => $this->tenantId]);
         }
     }
 
@@ -193,13 +193,13 @@ class palApprovalService
         $stmt = $this->db->prepare(
             "SELECT pi.*, m.current_avg_cost
              FROM pal_purchase_items pi JOIN pal_materials m ON pi.material_id = m.id
-             WHERE pi.purchase_id = :pid"
+             WHERE pi.purchase_id = :pid AND pi.tenant_id = :tid"
         );
-        $stmt->execute([':pid' => $purchaseId]);
+        $stmt->execute([':pid' => $purchaseId, ':tid' => $this->tenantId]);
         $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $pStmt = $this->db->prepare("SELECT purchase_number FROM pal_purchases WHERE id = :id");
-        $pStmt->execute([':id' => $purchaseId]);
+        $pStmt = $this->db->prepare("SELECT purchase_number FROM pal_purchases WHERE id = :id AND tenant_id = :tid");
+        $pStmt->execute([':id' => $purchaseId, ':tid' => $this->tenantId]);
         $purchase = $pStmt->fetch(PDO::FETCH_ASSOC);
         $num = $purchase['purchase_number'] ?? '';
 
@@ -224,7 +224,7 @@ class palApprovalService
             $ib = $this->db->prepare("INSERT INTO pal_inventory_balances (tenant_id, material_id, quantity, avg_cost) VALUES (:t,:m,:qty,:ac) ON DUPLICATE KEY UPDATE quantity=quantity+:qty2, avg_cost=:ac2");
             $ib->execute([':t' => $this->tenantId, ':m' => $mid, ':qty' => $qty, ':ac' => $na, ':qty2' => $qty, ':ac2' => $na]);
 
-            $this->db->prepare("UPDATE pal_materials SET current_avg_cost=:ac WHERE id=:id")->execute([':ac' => $na, ':id' => $mid]);
+            $this->db->prepare("UPDATE pal_materials SET current_avg_cost=:ac WHERE id=:id AND tenant_id=:tid")->execute([':ac' => $na, ':id' => $mid, ':tid' => $this->tenantId]);
         }
     }
 
@@ -235,8 +235,8 @@ class palApprovalService
         $issuance = $iss->fetch(PDO::FETCH_ASSOC);
         if (!$issuance) return;
 
-        $items = $this->db->prepare("SELECT mii.*, m.current_avg_cost FROM pal_material_issuance_items mii JOIN pal_materials m ON mii.material_id=m.id WHERE mii.issuance_id=:iid");
-        $items->execute([':iid' => $issuanceId]);
+        $items = $this->db->prepare("SELECT mii.*, m.current_avg_cost FROM pal_material_issuance_items mii JOIN pal_materials m ON mii.material_id=m.id WHERE mii.issuance_id=:iid AND mii.tenant_id=:tid");
+        $items->execute([':iid' => $issuanceId, ':tid' => $this->tenantId]);
 
         foreach ($items->fetchAll(PDO::FETCH_ASSOC) as $item) {
             $qty = (float)$item['requested_qty'];
@@ -248,6 +248,6 @@ class palApprovalService
             $this->db->prepare("UPDATE pal_inventory_balances SET quantity=quantity-:qty WHERE material_id=:mid AND tenant_id=:tid")->execute([':qty' => $qty, ':mid' => $item['material_id'], ':tid' => $this->tenantId]);
         }
 
-        $this->db->prepare("UPDATE pal_material_issuances SET status='fully_issued' WHERE id=:id")->execute([':id' => $issuanceId]);
+        $this->db->prepare("UPDATE pal_material_issuances SET status='fully_issued' WHERE id=:id AND tenant_id=:tid")->execute([':id' => $issuanceId, ':tid' => $this->tenantId]);
     }
 }

@@ -16,7 +16,7 @@
     </div>
     <div class="flex border-b border-gray-200">
         <button onclick="switchTab('active')" id="tab-active" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Active ({active_users|count})</button>
-        <button onclick="switchTab('inactive')" id="tab-inactive" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Inactive ({inactive_users|count})</button>
+        <button onclick="switchTab('inactive')" id="tab-inactive" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-700">Inactive ({inactive_users|count})</button>
     </div>
     <div id="table-active">
     <table class="w-full text-sm">
@@ -33,7 +33,7 @@
                 <td class="py-3 px-4 font-medium text-gray-900">{u.username}</td>
                 <td class="py-3 px-4 text-gray-700">{u.full_name}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if u.role == 'admin'}bg-purple-100 text-purple-700{elseif u.role == 'supervisor'}bg-blue-100 text-blue-700{else}bg-gray-100 text-gray-700{/if}">{u.role}</span></td>
-                <td class="py-3 px-4 text-gray-500 text-xs">{u.last_login_at|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-600 text-xs">{u.last_login_at|default:'—'}</td>
                 <td class="py-3 px-4">
                     <button onclick="toggleEdit({u.id})" class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-2">Edit</button>
                     <button onclick="toggleUser({u.id})" class="text-xs text-red-600 hover:text-red-800 font-medium">Deactivate</button>
@@ -53,7 +53,7 @@
             </tr>
             {/for}
             {if active_users|count == 0}
-            <tr><td colspan="5" class="py-8 text-center text-gray-400">No active users.</td></tr>
+            <tr><td colspan="5" class="py-8 text-center text-gray-600">No active users.</td></tr>
             {/if}
         </tbody>
     </table>
@@ -70,15 +70,15 @@
         <tbody>
             {for u in inactive_users}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
-                <td class="py-3 px-4 font-medium text-gray-500">{u.username}</td>
-                <td class="py-3 px-4 text-gray-500">{u.full_name}</td>
-                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{u.role}</span></td>
-                <td class="py-3 px-4 text-gray-400 text-xs">{u.last_login_at|default:'—'}</td>
+                <td class="py-3 px-4 font-medium text-gray-600">{u.username}</td>
+                <td class="py-3 px-4 text-gray-600">{u.full_name}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{u.role}</span></td>
+                <td class="py-3 px-4 text-gray-600 text-xs">{u.last_login_at|default:'—'}</td>
                 <td class="py-3 px-4"><button onclick="toggleUser({u.id})" class="text-xs text-green-600 hover:text-green-800 font-medium">Reactivate</button></td>
             </tr>
             {/for}
             {if inactive_users|count == 0}
-            <tr><td colspan="5" class="py-8 text-center text-gray-400">No inactive users.</td></tr>
+            <tr><td colspan="5" class="py-8 text-center text-gray-600">No inactive users.</td></tr>
             {/if}
         </tbody>
     </table>

@@ -6,7 +6,7 @@
             <div class="flex justify-between items-start">
                 <div>
                     <p class="font-medium text-gray-900">{a.reference_type|default:'Request'} #{a.reference_id}</p>
-                    <p class="text-xs text-gray-500">{a.submitted_at} by {a.submitter_name|default:'—'}</p>
+                    <p class="text-xs text-gray-600">{a.submitted_at} by {a.submitter_name|default:'—'}</p>
                     <p class="text-xs text-gray-600 mt-1">{a.notes|default:''}</p>
                 </div>
                 <div class="flex gap-2">
@@ -17,7 +17,7 @@
         </div>
         {/for}
         {if pending|count == 0}
-        <div class="p-8 text-center text-gray-400 text-sm">No pending approvals.</div>
+        <div class="p-8 text-center text-gray-600 text-sm">No pending approvals.</div>
         {/if}
     </div>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -27,14 +27,14 @@
             <div class="flex justify-between items-start">
                 <div>
                     <p class="font-medium text-gray-900">{a.reference_type|default:'Request'} #{a.reference_id}</p>
-                    <p class="text-xs text-gray-500">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
+                    <p class="text-xs text-gray-600">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
                 </div>
                 <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if a.decision=='approved'}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{a.decision}</span>
             </div>
         </div>
         {/for}
         {if recent|count == 0}
-        <div class="p-8 text-center text-gray-400 text-sm">No decisions yet.</div>
+        <div class="p-8 text-center text-gray-600 text-sm">No decisions yet.</div>
         {/if}
     </div>
 </div>

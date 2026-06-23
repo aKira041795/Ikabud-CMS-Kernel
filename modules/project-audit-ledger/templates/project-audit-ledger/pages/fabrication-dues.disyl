@@ -1,8 +1,8 @@
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-500 uppercase">Project</p><p class="font-semibold text-gray-900">{project.title|default:'Project #'~project_id}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-500 uppercase">Fabrication Budget</p><p class="font-semibold text-gray-900">₱{fab_budget|number_format:2} ({project.fabrication_alloc_pct|default:0}%)</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-500 uppercase">Total CA Dispensed</p><p class="font-semibold text-indigo-600">₱{total_dispensed|number_format:2}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-500 uppercase">Remaining</p><p class="font-semibold {if fab_budget - total_dispensed > 0}text-green-600{else}text-gray-400{/if}">₱{fab_budget - total_dispensed|number_format:2}</p></div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Project</p><p class="font-semibold text-gray-900">{project.title|default:'Project #'~project_id}</p></div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Fabrication Budget</p><p class="font-semibold text-gray-900">₱{fab_budget|number_format:2} ({project.fabrication_alloc_pct|default:0}%)</p></div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Total CA Dispensed</p><p class="font-semibold text-indigo-600">₱{total_dispensed|number_format:2}</p></div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Remaining</p><p class="font-semibold {if fab_budget - total_dispensed > 0}text-green-600{else}text-gray-600{/if}">₱{fab_budget - total_dispensed|number_format:2}</p></div>
 </div>
 
 <!-- CA Dispense History -->
@@ -19,7 +19,7 @@
         <tbody>
             {for d in dispenses}
             <tr class="border-b border-gray-100">
-                <td class="py-2 px-4 text-xs text-gray-500">{d.created_at}</td>
+                <td class="py-2 px-4 text-xs text-gray-600">{d.created_at}</td>
                 <td class="py-2 px-4 font-medium text-indigo-600">₱{d.approved_amount|number_format:2}</td>
                 <td class="py-2 px-4 text-gray-600 text-xs">{d.approval_reason|default:'—'}</td>
                 <td class="py-2 px-4 text-gray-700">{d.dispensed_by_name|default:'—'}</td>
@@ -27,7 +27,7 @@
             </tr>
             {/for}
             {if dispenses|count == 0}
-            <tr><td colspan="5" class="py-6 text-center text-gray-400 text-sm">No CA dispensed yet.</td></tr>
+            <tr><td colspan="5" class="py-6 text-center text-gray-600 text-sm">No CA dispensed yet.</td></tr>
             {/if}
         </tbody>
     </table>

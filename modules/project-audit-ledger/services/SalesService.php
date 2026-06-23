@@ -35,8 +35,8 @@ class palSalesService
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return null;
-        $colStmt = $this->db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE sales_id = :sid AND status = 'approved'");
-        $colStmt->execute([':sid' => $id]);
+        $colStmt = $this->db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE sales_id = :sid AND tenant_id = :tid AND status = 'approved'");
+        $colStmt->execute([':sid' => $id, ':tid' => $this->tenantId]);
         $row['total_collected'] = (float)$colStmt->fetchColumn();
         $row['outstanding'] = max(0, (float)$row['net_amount'] - $row['total_collected']);
         return $row;
@@ -64,13 +64,17 @@ class palSalesService
 
         $this->db->beginTransaction();
         try {
-            $stmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, reference_number, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, 'pending', :cb)");
-            $stmt->execute([':t' => $this->tenantId, ':cn' => $num, ':si' => (int)$data['sales_id'], ':pj' => $sale['project_id'], ':cl' => $sale['client_id'], ':pd' => $data['payment_date'] ?? date('Y-m-d'), ':amt' => $data['amount'] ?? 0, ':pm' => $data['payment_method'] ?? null, ':ref' => $data['reference_number'] ?? null, ':no' => $data['notes'] ?? null, ':rb' => $this->userId, ':cb' => $this->userId]);
+            $paymentMethod = $data['payment_method'] ?? 'cash';
+            // All payments recorded as approved. Can be changed later if cheque bounces etc.
+            $status = 'approved';
+
+            $stmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, reference_number, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, :st, :cb)");
+            $stmt->execute([':t' => $this->tenantId, ':cn' => $num, ':si' => (int)$data['sales_id'], ':pj' => $sale['project_id'], ':cl' => $sale['client_id'], ':pd' => $data['payment_date'] ?? date('Y-m-d'), ':amt' => $data['amount'] ?? 0, ':pm' => $paymentMethod, ':ref' => $data['reference_number'] ?? null, ':no' => $data['notes'] ?? null, ':rb' => $this->userId, ':st' => $status, ':cb' => $this->userId]);
 
             $collectionId = (int)$this->db->lastInsertId();
 
-            // Create approval record — ApprovalService::decide() updates sale status on approval
-            $approvalId = palCreateApproval('collection', $collectionId, $this->userId, 'pending', 'pending_approval');
+            // Update sale collection status immediately (all payments assumed received)
+            $this->updateSaleCollectionStatus((int)$data['sales_id']);
 
             $this->db->commit();
 
@@ -78,7 +82,7 @@ class palSalesService
                 null, ['sales_id' => $data['sales_id'], 'amount' => $data['amount'] ?? 0]);
             palFireEvent('pal.collection.recorded', [
                 'collection_id' => $collectionId, 'sales_id' => (int)$data['sales_id'],
-                'amount' => $data['amount'] ?? 0, 'approval_id' => $approvalId,
+                'amount' => $data['amount'] ?? 0,
             ]);
 
             return $collectionId;
@@ -104,5 +108,20 @@ class palSalesService
         $sql = 'UPDATE pal_sales SET ' . implode(', ', $fields) . ' WHERE id = :id AND tenant_id = :tid';
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
+    }
+
+    private function updateSaleCollectionStatus(int $salesId): void
+    {
+        $sale = $this->get($salesId);
+        if (!$sale) return;
+        $totalCollected = (float)($sale['total_collected'] ?? 0);
+        $netAmount = (float)($sale['net_amount'] ?? 0);
+        if ($totalCollected >= $netAmount && $netAmount > 0) {
+            $this->db->prepare("UPDATE pal_sales SET status = 'paid', version = version + 1 WHERE id = :id AND tenant_id = :tid")
+                 ->execute([':id' => $salesId, ':tid' => $this->tenantId]);
+        } elseif ($totalCollected > 0) {
+            $this->db->prepare("UPDATE pal_sales SET status = 'partially_paid', version = version + 1 WHERE id = :id AND tenant_id = :tid AND status = 'issued'")
+                 ->execute([':id' => $salesId, ':tid' => $this->tenantId]);
+        }
     }
 }

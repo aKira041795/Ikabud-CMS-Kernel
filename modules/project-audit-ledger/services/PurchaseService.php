@@ -22,7 +22,7 @@ class palPurchaseService
         if (!empty($filters['status'])) { $where[] = 'p.status = :status'; $params[':status'] = $filters['status']; }
         if (!empty($filters['supplier_id'])) { $where[] = 'p.supplier_id = :supplier_id'; $params[':supplier_id'] = (int)$filters['supplier_id']; }
         $w = implode(' AND ', $where);
-        $sql = "SELECT p.*, s.name AS supplier_name, (SELECT COUNT(*) FROM pal_purchase_items pi WHERE pi.purchase_id = p.id) AS item_count FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id WHERE {$w} ORDER BY p.created_at DESC LIMIT 50";
+        $sql = "SELECT p.*, s.name AS supplier_name, pr.title AS project_title, (SELECT COUNT(*) FROM pal_purchase_items pi WHERE pi.purchase_id = p.id) AS item_count FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id LEFT JOIN pal_projects pr ON p.project_id = pr.id WHERE {$w} ORDER BY p.created_at DESC LIMIT 50";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -30,7 +30,7 @@ class palPurchaseService
 
     public function get(int $id): ?array
     {
-        $sql = "SELECT p.*, s.name AS supplier_name FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id WHERE p.id = :id AND p.tenant_id = :tenant_id";
+        $sql = "SELECT p.*, s.name AS supplier_name, pr.title AS project_title FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id LEFT JOIN pal_projects pr ON p.project_id = pr.id WHERE p.id = :id AND p.tenant_id = :tenant_id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tenant_id' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -69,12 +69,13 @@ class palPurchaseService
             }
 
             $stmt = $this->db->prepare(
-                "INSERT INTO pal_purchases (tenant_id, purchase_number, supplier_id, purchase_date, invoice_number, total_amount, tax_amount, discount_amount, freight_amount, notes, status, created_by)
-                 VALUES (:t, :n, :s, :d, :inv, :ta, :tax, :disc, :fr, :no, 'draft', :cb)"
+                "INSERT INTO pal_purchases (tenant_id, purchase_number, supplier_id, project_id, purchase_date, invoice_number, total_amount, tax_amount, discount_amount, freight_amount, notes, status, created_by)
+                 VALUES (:t, :n, :s, :pj, :d, :inv, :ta, :tax, :disc, :fr, :no, 'draft', :cb)"
             );
             $stmt->execute([
                 ':t' => $this->tenantId, ':n' => $num,
                 ':s' => !empty($data['supplier_id']) ? (int)$data['supplier_id'] : null,
+                ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null,
                 ':d' => $data['purchase_date'] ?? date('Y-m-d'), ':inv' => $data['invoice_number'] ?? null,
                 ':ta' => $totalAmount ?: ($data['total_amount'] ?? 0), ':tax' => $data['tax_amount'] ?? 0,
                 ':disc' => $data['discount_amount'] ?? 0, ':fr' => $data['freight_amount'] ?? 0,

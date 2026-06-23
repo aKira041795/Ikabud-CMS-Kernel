@@ -1,11 +1,11 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg">
     <h2 class="font-semibold text-gray-900 mb-2">Expense #{expense.expense_number|default:expense.id}</h2>
-    <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-500">Amount</span><span class="font-medium">₱{expense.amount|number_format:2}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Category</span><span>{expense.category_name|default:'—'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{expense.status|default:'draft'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Project</span><span>{expense.project_title|default:'—'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Description</span><span>{expense.description|default:'—'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-500">Date</span><span>{expense.expense_date|default:expense.created_at}</span></div></div>
+    <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-medium">₱{expense.amount|number_format:2}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Category</span><span>{expense.category_name|default:'—'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{expense.status|default:'draft'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{expense.project_title|default:'—'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Description</span><span>{expense.description|default:'—'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{expense.expense_date|default:expense.created_at}</span></div></div>
     <div class="mt-4 flex gap-2">
         <a href="/admin/project-audit-ledger/expenses/{expense.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
         {if expense.status|default:'draft' == 'draft'}

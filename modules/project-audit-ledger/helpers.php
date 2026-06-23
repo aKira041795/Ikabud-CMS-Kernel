@@ -334,6 +334,19 @@ function palCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 
 function palDb(): Ikabud\Kernel\Contracts\ModuleDB
 {
+    // Auth-owned module: force tenant context to match the authenticated user.
+    // Overrides host-based tenant resolution so queries always hit the correct
+    // tenant database (palsystem for tenant 502) regardless of the request host.
+    // For unauthenticated routes (login, forgot-password), host-based resolution
+    // continues to apply — those only work when accessed through the correct host.
+    $sessionUser = $_SESSION['pal_user'] ?? null;
+    if (is_array($sessionUser) && !empty($sessionUser['tenant_id'])) {
+        $userTid = (int)$sessionUser['tenant_id'];
+        $currentTid = app()->tenant()->current();
+        if ($currentTid === null || $currentTid !== $userTid) {
+            app()->tenant()->setTenantId($userTid);
+        }
+    }
     return palCtx()->db();
 }
 

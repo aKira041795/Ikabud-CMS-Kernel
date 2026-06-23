@@ -143,14 +143,14 @@ function autocomplete(input, type, opts) {
             dropdown.innerHTML = '';
             if (data.length === 0) {
                 var d = document.createElement('div');
-                d.className = 'px-3 py-2 text-xs text-gray-400';
+                d.className = 'px-3 py-2 text-xs text-gray-600';
                 d.textContent = opts.noResults || 'No results. Type to create new.';
                 dropdown.appendChild(d);
             } else {
                 data.forEach(function(item){
                     var d = document.createElement('div');
                     d.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0';
-                    d.innerHTML = '<div class="font-medium text-sm">' + item.label + '</div>' + (item.sublabel ? '<div class="text-xs text-gray-400">' + item.sublabel + '</div>' : '');
+                    d.innerHTML = '<div class="font-medium text-sm">' + item.label + '</div>' + (item.sublabel ? '<div class="text-xs text-gray-600">' + item.sublabel + '</div>' : '');
                     d.addEventListener('click', function(){
                         input.value = item.label;
                         hidden.value = item.id;
@@ -187,6 +187,7 @@ function makeCreatable(select) {
     if (form) {
         form.addEventListener('submit', function(e) {
             if (select.value !== '__other__') return;
+            if (form.dataset.submitting === '1') return;
             e.preventDefault();
             var val = wrapper.querySelector('input').value.trim();
             if (!val) { showToast('Enter a name for the new item', 'error'); return; }
@@ -217,6 +218,8 @@ function makeCreatable(select) {
     }
 }
 function ajaxSubmit(form, successMsg) {
+    if (form.dataset.submitting === '1') return false;
+    form.dataset.submitting = '1';
     var btn = form.querySelector('button[type="submit"]');
     var orig = btn.textContent;
     btn.disabled = true; btn.textContent = 'Saving...';
@@ -246,8 +249,8 @@ function toggleEdit(id) {
 function switchTab(tab) {
     document.getElementById('table-active').classList.toggle('hidden', tab !== 'active');
     document.getElementById('table-inactive').classList.toggle('hidden', tab !== 'inactive');
-    document.getElementById('tab-active').className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700');
-    document.getElementById('tab-inactive').className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'inactive' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700');
+    document.getElementById('tab-active').className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-700');
+    document.getElementById('tab-inactive').className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'inactive' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-700');
 }
 function toggleUser(id) {
     if (!confirm('Toggle this user\'s active status?')) return;

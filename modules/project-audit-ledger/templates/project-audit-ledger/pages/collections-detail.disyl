@@ -2,11 +2,18 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-2">Collection #{collection.id}</h2>
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-500">Sale</span><span>{collection.sales_number|default:'#'~collection.sales_id}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Amount</span><span class="font-medium">₱{collection.amount|number_format:2}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{collection.status|default:'pending'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Date</span><span>{collection.created_at}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Invoice</span><span class="font-medium">{collection.sales_number|default:'INV#'~collection.sales_id}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{collection.project_title|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{collection.client_name|default:'—'}</span></div>
+        <hr>
+        <div class="flex justify-between"><span class="text-gray-600">Amount Collected</span><span class="font-medium text-green-600">₱{collection.amount|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Invoice Net</span><span>₱{collection.sale_net|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Payment Method</span><span>{collection.payment_method|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Reference</span><span>{collection.reference_number|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Notes</span><span>{collection.notes|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{collection.status|default:'pending'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{collection.payment_date|default:collection.created_at}</span></div>
     </div>
-    <div class="mt-4"><a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a></div>
+    <div class="mt-4 flex gap-2"><a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a><a href="/admin/project-audit-ledger/sales/{collection.sales_id}" class="px-3 py-1.5 text-blue-600 text-sm hover:text-blue-800">View Invoice →</a></div>
 </div>
 </div>

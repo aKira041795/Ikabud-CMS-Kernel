@@ -1,10 +1,10 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg">
     <h2 class="font-semibold text-gray-900 mb-2">{material.name}</h2>
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-500">Stock Balance</span><span class="font-medium">{material.stock_qty|default:0}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Avg Cost</span><span class="font-medium">₱{material.avg_cost|default:0|number_format:2}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Reorder Level</span><span>{material.reorder_level|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-500">Category</span><span>{material.category_name|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Stock Balance</span><span class="font-medium">{material.stock_qty|default:0}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Avg Cost</span><span class="font-medium">₱{material.avg_cost|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Reorder Level</span><span>{material.reorder_level|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Category</span><span>{material.category_name|default:'—'}</span></div>
     </div>
     <div class="mt-2"><a href="/admin/project-audit-ledger/settings?tab=materials" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit material details →</a></div>
     <hr class="my-4">

@@ -14,12 +14,12 @@
         <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Recent Exports</h2></div>
         {for e in exports}
         <div class="p-4 border-b border-gray-100 flex justify-between">
-            <div><p class="font-medium text-gray-900 text-sm">{e.report_type}</p><p class="text-xs text-gray-500">{e.generated_at} · {e.format}</p></div>
+            <div><p class="font-medium text-gray-900 text-sm">{e.report_type}</p><p class="text-xs text-gray-600">{e.generated_at} · {e.format}</p></div>
             <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{e.status}</span>
         </div>
         {/for}
         {if exports|count == 0}
-        <div class="p-8 text-center text-gray-400 text-sm">No exports yet.</div>
+        <div class="p-8 text-center text-gray-600 text-sm">No exports yet.</div>
         {/if}
     </div>
     {if preview_type}{if preview_data|count > 0}
