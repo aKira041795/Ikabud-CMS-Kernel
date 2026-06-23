@@ -82,8 +82,15 @@ function palApiSettingsMaterialUpdate(array $rp = []): void
         if ($id <= 0) { palJsonError('Invalid material ID.'); return; }
         $tid = (int)($u['tenant_id'] ?? 0); $db = palDb();
         $fields = []; $params = [':id' => $id, ':tid' => $tid];
+        $nullableInt = ['category_id','unit_id','conversion_unit_id','preferred_supplier_id'];
+        $nullableDec = ['reorder_level','conversion_factor'];
         foreach (['material_code','name','category_id','description','unit_id','conversion_unit_id','conversion_factor','current_avg_cost','reorder_level','preferred_supplier_id','storage_location'] as $f) {
-            if (isset($_POST[$f])) { $fields[] = "$f = :$f"; $params[":$f"] = $_POST[$f]; }
+            if (isset($_POST[$f])) {
+                $val = $_POST[$f];
+                if (in_array($f, $nullableInt, true) && $val === '') { $val = null; }
+                if (in_array($f, $nullableDec, true) && $val === '') { $val = null; }
+                $fields[] = "$f = :$f"; $params[":$f"] = $val;
+            }
         }
         if (isset($_POST['is_active'])) { $fields[] = 'is_active = :is_active'; $params[':is_active'] = (int)$_POST['is_active']; }
         if (empty($fields)) { palJsonError('No fields to update.'); return; }
