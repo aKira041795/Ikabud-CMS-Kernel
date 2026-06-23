@@ -21,6 +21,7 @@
  *   php ikabud event:list                List registered event listeners
  *   php ikabud routes                    List all registered routes
  *   php ikabud disyl:lint [path]         Lint templates for errors
+ *   php ikabud disyl:list-sources        List registered entity sources for entity views
  *   php ikabud tinker <sql>              Run a raw SQL query
  *   php ikabud work:queue [name]         Run queue worker (--sleep=N, --once)
  *   php ikabud queue:stats [name]        Show queue statistics
@@ -313,6 +314,7 @@ switch ($command) {
         out('  ' . bold('Templates'));
         out('    ' . green('disyl:lint') . ' [path]           Lint templates for syntax errors');
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
+        out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
         out('');
         out('  ' . bold('API'));
         out('    ' . green('openapi:generate') . '            Generate OpenAPI 3.0 spec from routes');
@@ -4637,4 +4639,94 @@ PHP;
         }
         out('');
         exit($totalErrors > 0 ? 1 : 0);
+
+    // ── disyl:list-sources ─────────────────────────────────────────
+    case 'disyl:list-sources':
+        banner();
+        out('  ' . bold('Registered Entity Sources') . "\n");
+
+        // Bootstrap app to load modules and register view configs
+        require_once __DIR__ . '/bootstrap.php';
+        if (function_exists('app') && ($app = app()) !== null) {
+            $app->boot();
+        }
+
+        // Directly load view configs from all modules' helpers/views/ directories
+        // This registers {ikb_entity_view} contracts with EntityViewResolver
+        if (class_exists('Ikabud\\Kernel\\DiSyL\\TemplateEngine', true)) {
+            foreach (glob(BASE_PATH . '/modules/*/helpers/views/') as $viewsDir) {
+                \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs($viewsDir);
+            }
+        }
+
+        // Force module capability registration so entity.list sources are known
+        if (function_exists('loadModuleRoutes')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        // Collect entity sources from capability registrations
+        $sources = [];
+        $modulesDir = BASE_PATH . '/modules';
+        foreach (glob($modulesDir . '/*/module.json') as $manifestPath) {
+            $modId = basename(dirname($manifestPath));
+            $manifest = json_decode((string)file_get_contents($manifestPath), true);
+            if (!is_array($manifest)) continue;
+
+            $exposes = $manifest['capabilities']['exposes'] ?? [];
+            foreach ($exposes as $capId => $capVer) {
+                if (str_starts_with((string)$capId, 'entity.list.')) {
+                    $entityType = substr((string)$capId, strlen('entity.list.'));
+                    $entityType = str_replace('@' . $capVer, '', $entityType);
+                    $sources[$entityType] ??= ['module' => $modId, 'views' => []];
+                }
+            }
+        }
+
+        // Also scan helpers/views/ directories for DiSyL view configs
+        // that may declare views without explicit entity.list capabilities
+        foreach (glob($modulesDir . '/*/helpers/views/*.disyl') as $viewFile) {
+            $modId = basename(dirname(dirname(dirname($viewFile))));
+            $content = (string)file_get_contents($viewFile);
+            if (preg_match('/\{ikb_entity_view\s+name="([^"]+)"/', $content, $m)) {
+                $name = $m[1];
+                if (!isset($sources[$name])) {
+                    $sources[$name] ??= ['module' => $modId, 'views' => []];
+                }
+            }
+        }
+
+        // Query EntityViewResolver for view contract details
+        if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
+            $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
+            foreach ($sources as $type => &$info) {
+                foreach (['table', 'compact', 'card_grid', 'detailed', 'summary'] as $view) {
+                    $contract = $resolver->viewContract($type, $view);
+                    if ($contract !== null) {
+                        $fields = $contract['fields'] ?? [];
+                        $fieldList = is_array($fields) ? implode(', ', array_slice($fields, 0, 5)) : (string)$fields;
+                        if (is_array($fields) && count($fields) > 5) $fieldList .= ', …';
+                        $info['views'][$view] = $fieldList;
+                    }
+                }
+            }
+            unset($info);
+        }
+
+        if (empty($sources)) {
+            out('  ' . yellow('No entity sources registered.'));
+        } else {
+            ksort($sources);
+            foreach ($sources as $type => $info) {
+                $modLabel = cyan($info['module']);
+                $viewCount = count($info['views']);
+                out('  ' . green($type) . '  (' . $modLabel . ', ' . $viewCount . ' view(s))');
+                foreach ($info['views'] as $viewName => $fields) {
+                    out('    └─ ' . bold($viewName) . ': ' . $fields);
+                }
+            }
+            out('');
+            out('  Total: ' . cyan((string)count($sources)) . ' entity source(s)');
+        }
+        out('');
+        exit(0);
 }
