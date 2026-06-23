@@ -113,9 +113,19 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         // Field-level contracts (editable, update_capability, allowed_values, etc.)
         $fieldContracts = $view['field_contracts'] ?? [];
 
-        // Expand '*' to actual keys from first row
+        // Visible fields whitelist — declares which fields are safe for public display
+        $visibleFields = $view['visible_fields'] ?? [];
+
+        // Expand '*' to actual keys from first row, filtered by visible_fields whitelist
         if ($fields === ['*'] || $fields === '*') {
-            $fields = array_values(array_filter(array_keys($rows[0]), fn(string $k): bool => !str_starts_with($k, '_')));
+            $allKeys = array_keys($rows[0]);
+            // If visible_fields is explicitly declared, intersect with it
+            if (!empty($visibleFields)) {
+                $fields = array_values(array_intersect($allKeys, $visibleFields));
+            } else {
+                // Fallback: only exclude underscore-prefixed internal keys
+                $fields = array_values(array_filter($allKeys, fn(string $k): bool => !str_starts_with($k, '_')));
+            }
         }
 
         // Validate declared fields exist in data

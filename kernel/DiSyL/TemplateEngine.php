@@ -6462,9 +6462,10 @@ class TemplateEngine
             $this->logError("ikb_entity_view '{$name}': unknown view type '{$view}' — expected one of: " . implode(', ', $validViews));
         }
 
-        // Parse {field name="..." type="..." renderer="..."} from raw children
+        // Parse {field name="..." type="..." renderer="..." visible="true/false"} from raw children
         $fields = [];
         $fieldRenderers = [];
+        $visibleFields = [];
         if (preg_match_all('/\{field\s+((?:[^{}]|\{[^{}]*\})*)\}/', $children, $fieldMatches)) {
             foreach ($fieldMatches[1] as $fieldStr) {
                 $fieldAttrs = $this->parseSimpleAttrs($fieldStr);
@@ -6474,6 +6475,12 @@ class TemplateEngine
                     continue;
                 }
                 $fields[] = $fieldName;
+
+                // Track visible fields — fields with visible="false" are excluded from public wildcard expansion
+                $isVisible = ($fieldAttrs['visible'] ?? 'true') !== 'false';
+                if ($isVisible) {
+                    $visibleFields[] = $fieldName;
+                }
 
                 // Validate renderer format if present
                 if (!empty($fieldAttrs['renderer'])) {
@@ -6535,6 +6542,7 @@ class TemplateEngine
         if (!empty($actionShowIf)) { $contract['action_show_if'] = $actionShowIf; }
         if (!empty($actionRoles)) { $contract['action_roles'] = $actionRoles; }
         if (!empty($fieldRenderers)) { $contract['renderers'] = $fieldRenderers; }
+        if (!empty($visibleFields)) { $contract['visible_fields'] = $visibleFields; }
         if ($renderer !== '') { $contract['renderer'] = $renderer; }
         if ($class !== '') { $contract['class'] = $class; }
 
