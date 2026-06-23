@@ -93,13 +93,14 @@ function palAuthLogin(): void
     }
 
     $db = palDb();
+    $currentTenant = (int)(app()->tenant()->current() ?? 0);
     $stmt = $db->prepare(
         'SELECT id, tenant_id, username, email, password_hash, full_name, role, is_active, token_version
          FROM pal_users
-         WHERE username = :username OR email = :email
+         WHERE (username = :username OR email = :email) AND tenant_id = :tenant_id
          LIMIT 1'
     );
-    $stmt->execute([':username' => $username, ':email' => $username]);
+    $stmt->execute([':username' => $username, ':email' => $username, ':tenant_id' => $currentTenant]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row || !password_verify($password, $row['password_hash'])) {
