@@ -35,9 +35,6 @@
         <div class="mt-6 border-t pt-4 no-print">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Expenses</h4>
             {ikb_entity_list source="pal_expense" view="table" use="tailwind" filter="project_id={project.id}" empty="No expenses recorded." /}
-                </tbody>
-            </table>
-            </div>
         </div>
         <div class="mt-4 border-t pt-4 no-print">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Collections ({collection_history|count})</h4>
