@@ -197,11 +197,18 @@ class TemplateEngine
         foreach ($files as $file) {
             $content = file_get_contents($file);
             if ($content === false || $content === '') {
+                \write_log('disyl.view_config', 'warning', ['file' => $file, 'error' => 'Empty or unreadable file']);
                 continue;
             }
             // Render the config file — the component produces no output
             // but registers views via EntityViewResolver as a side effect.
             $engine->renderString($content, []);
+
+            // Report any parse/validation errors from the config rendering
+            foreach ($engine->getErrors() as $err) {
+                \write_log('disyl.view_config', 'warning', ['file' => $file, 'error' => $err]);
+            }
+
             $count++;
         }
 
@@ -775,6 +782,20 @@ class TemplateEngine
             $phases['includes_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
+        // 8.5. Detect HTML-style <ikb_ tags (should be {ikb_...})
+        //     Emit a friendly warning pointing to the correct syntax.
+        if (str_contains($content, '<ikb_')) {
+            preg_match_all('/<(\w+(?:-\w+)*)([\s>])/', $content, $htmlTags, PREG_SET_ORDER);
+            $seen = [];
+            foreach ($htmlTags as $tag) {
+                $name = $tag[1];
+                if (str_starts_with($name, 'ikb_') && !isset($seen[$name])) {
+                    $seen[$name] = true;
+                    $this->logError("Component tag '<{$name}>' uses HTML angle brackets — must use DiSyL curly-brace syntax: '{" . $name . ' ... /}". All component tags must use { } delimiters, not < >.');
+                }
+            }
+        }
+
         // 9. Process components
         if (str_contains($content, '{ikb_') || str_contains($content, '{island') || str_contains($content, '{state')) {
             $content = $this->processComponents($content, $context);
@@ -5214,7 +5235,7 @@ class TemplateEngine
         if (isset($this->components[$component])) {
             return call_user_func($this->components[$component], $attrs, $children, $context);
         }
-        
+
         return match($component) {
             'ikb_section' => $this->renderSection($attrs, $children),
             'ikb_container' => $this->renderContainer($attrs, $children),
@@ -5251,10 +5272,23 @@ class TemplateEngine
             'ikb_report' => $this->renderReport($attrs, $children, $context),
             'ikb_signature_block' => $this->renderSignatureBlock($attrs, $children),
             'island' => $this->renderIsland($attrs, $children),
-            default => $children,
+            default => $this->renderUnknownComponent($component, $children),
         };
     }
-    
+
+    /**
+     * Handle unknown/unregistered component names.
+     * Logs a warning and returns a visible HTML comment so developers catch typos.
+     */
+    private function renderUnknownComponent(string $component, string $children): string
+    {
+        if (str_starts_with($component, 'ikb_') || $component === 'state' || $component === 'island') {
+            $this->logError("Unknown component '{$component}' — not registered. Check for typos. If using a custom component, register it via ComponentRegistry::register().");
+            return "<!-- Unknown DiSyL component: {$component} -->";
+        }
+        return $children;
+    }
+
     private function buildHtmxAttrs(array $attrs): string
     {
         $htmxAttrs = [];
@@ -6416,17 +6450,32 @@ class TemplateEngine
         $class = $attrs['class'] ?? '';
 
         if ($name === '') {
+            $this->logError("ikb_entity_view missing required 'name' attribute");
             return '';
+        }
+
+        $validViews = ['table', 'compact', 'card_grid', 'detailed', 'summary'];
+        if (!in_array($view, $validViews, true)) {
+            $this->logError("ikb_entity_view '{$name}': unknown view type '{$view}' — expected one of: " . implode(', ', $validViews));
         }
 
         // Parse {field name="..." type="..." renderer="..."} from raw children
         $fields = [];
+        $fieldRenderers = [];
         if (preg_match_all('/\{field\s+((?:[^{}]|\{[^{}]*\})*)\}/', $children, $fieldMatches)) {
             foreach ($fieldMatches[1] as $fieldStr) {
                 $fieldAttrs = $this->parseSimpleAttrs($fieldStr);
                 $fieldName = $fieldAttrs['name'] ?? '';
-                if ($fieldName !== '') {
-                    $fields[] = $fieldName;
+                if ($fieldName === '') {
+                    $this->logError("ikb_entity_view '{$name}': {field} missing required 'name' attribute");
+                    continue;
+                }
+                $fields[] = $fieldName;
+
+                // Validate renderer format if present
+                if (!empty($fieldAttrs['renderer'])) {
+                    $fieldRenderers[$fieldName] = $fieldAttrs['renderer'];
+                    $this->validateFieldRenderer($name, $fieldName, $fieldAttrs['renderer']);
                 }
             }
         }
@@ -6482,6 +6531,7 @@ class TemplateEngine
         if (!empty($actionConfirm)) { $contract['action_confirm'] = $actionConfirm; }
         if (!empty($actionShowIf)) { $contract['action_show_if'] = $actionShowIf; }
         if (!empty($actionRoles)) { $contract['action_roles'] = $actionRoles; }
+        if (!empty($fieldRenderers)) { $contract['renderers'] = $fieldRenderers; }
         if ($renderer !== '') { $contract['renderer'] = $renderer; }
         if ($class !== '') { $contract['class'] = $class; }
 
@@ -6496,6 +6546,23 @@ class TemplateEngine
         }
 
         return ''; // No output
+    }
+
+    /**
+     * Validate a field renderer string from a view contract {field} tag.
+     * Logs a warning for unrecognized renderer patterns without aborting.
+     */
+    private function validateFieldRenderer(string $entityName, string $fieldName, string $renderer): void
+    {
+        $validPrefixes = ['badge', 'badge:map', 'money', 'datetime', 'boolean', 'string', 'number', 'enum', 'date'];
+        $prefix = explode(':', $renderer, 2)[0];
+        // Allow dynamic badge:JSON patterns (e.g. badge:{draft|gray|...})
+        if ($prefix === 'badge' && str_contains($renderer, '{')) {
+            return; // dynamic badge map — accept
+        }
+        if (!in_array($prefix, $validPrefixes, true)) {
+            $this->logError("ikb_entity_view '{$entityName}' field '{$fieldName}': unknown renderer '{$renderer}' — expected prefix one of: " . implode(', ', $validPrefixes));
+        }
     }
 
     /**
