@@ -217,7 +217,15 @@ function closeQuickCreateModal() {
     if (_quickCreateModal) _quickCreateModal.overlay.style.display = 'none';
 }
 
+function qcResetBtn() {
+    if (_quickCreateModal && _quickCreateModal.btn) {
+        _quickCreateModal.btn.disabled = false;
+        _quickCreateModal.btn.textContent = 'Add';
+    }
+}
+
 function doQuickCreate(select, type) {
+    if (!_quickCreateModal || !_quickCreateModal.input) { showToast('Modal not ready', 'error'); return; }
     var name = _quickCreateModal.input.value.trim();
     if (!name) { showToast('Enter a name', 'error'); return; }
     _quickCreateModal.btn.disabled = true;
@@ -227,9 +235,12 @@ function doQuickCreate(select, type) {
     fd.append('type', type);
     fd.append('name', name);
     if (csrf) fd.append('_token', csrf.value);
+    var timedOut = false;
+    var timer = setTimeout(function() { timedOut = true; showToast('Request timed out', 'error'); qcResetBtn(); }, 10000);
     fetch('/api/v1/project-audit-ledger/quick-create', { method: 'POST', body: fd })
-    .then(function(r){ return r.json(); })
+    .then(function(r){ if (timedOut) return; clearTimeout(timer); return r.json(); })
     .then(function(d){
+        if (timedOut) return;
         if (d.ok) {
             var o = document.createElement('option');
             o.value = d.id; o.textContent = d.label; o.selected = true;
@@ -237,9 +248,9 @@ function doQuickCreate(select, type) {
             select.value = d.id;
             closeQuickCreateModal();
             showToast('Added: ' + d.label);
-        } else { showToast(d.error || 'Failed', 'error'); _quickCreateModal.btn.disabled = false; _quickCreateModal.btn.textContent = 'Add'; }
+        } else { showToast(d.error || 'Failed', 'error'); qcResetBtn(); }
     })
-    .catch(function(){ showToast('Failed to create', 'error'); _quickCreateModal.btn.disabled = false; _quickCreateModal.btn.textContent = 'Add'; });
+    .catch(function(){ if (!timedOut) { clearTimeout(timer); showToast('Failed to create', 'error'); } qcResetBtn(); });
 }
 function ajaxSubmit(form, successMsg) {
     if (form.dataset.submitting === '1') return false;
