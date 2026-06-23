@@ -52,126 +52,142 @@ function project_audit_ledger_capability_handlers(): array
     ];
 }
 
-// ── Capability handler stubs (to be implemented per-phase) ──
+// ── Role-based capability handlers ──
 
 function pal_cap_kernel_auth_authenticate_1(array $args): array
 {
     return palAuthLogin($args['username'] ?? '', $args['password'] ?? '');
 }
 
+/**
+ * Helper: check if current user has one of the allowed roles.
+ * Returns ['ok' => true, 'data' => null] or denies with ['ok' => false].
+ */
+function palCapCheck(array $allowedRoles): array
+{
+    try {
+        $user = palCurrentUser($allowedRoles);
+        return ['ok' => true, 'data' => ['user_id' => (int)$user['id'], 'role' => $user['role']]];
+    } catch (Throwable) {
+        return ['ok' => false, 'error' => 'Forbidden'];
+    }
+}
+
 function pal_cap_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    // Basic read — any authenticated module user
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_manage_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    // Full management — admin only
+    return palCapCheck(['admin']);
 }
 
 function pal_cap_projects_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_projects_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_expenses_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_expenses_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_inventory_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_inventory_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_purchases_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_purchases_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_sales_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_sales_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_collections_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_collections_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_fabrication_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
 }
 
 function pal_cap_fabrication_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_approvals_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_approvals_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_reports_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin', 'supervisor']);
 }
 
 function pal_cap_audit_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin']);
 }
 
 function pal_cap_settings_read_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin']);
 }
 
 function pal_cap_settings_write_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin']);
 }
 
 function pal_cap_users_manage_1(array $args): array
 {
-    return ['ok' => true, 'data' => null];
+    return palCapCheck(['admin']);
 }
 
 // ── Entity view capability handlers ──
