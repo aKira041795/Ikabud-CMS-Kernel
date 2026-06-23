@@ -41,8 +41,9 @@ class palInventoryService
 
     public function createMaterial(array $data): int
     {
+        $code = !empty($data['material_code']) ? $data['material_code'] : 'MAT-' . date('Ymd') . '-' . $this->tenantId . '-' . bin2hex(random_bytes(2));
         $stmt = $this->db->prepare("INSERT INTO pal_materials (tenant_id, material_code, name, category_id, description, unit_id, reorder_level, preferred_supplier_id, storage_location, is_active, created_by) VALUES (:t, :mc, :n, :cat, :desc, :u, :rl, :ps, :sl, 1, :cb)");
-        $stmt->execute([':t' => $this->tenantId, ':mc' => $data['material_code'], ':n' => $data['name'], ':cat' => !empty($data['category_id']) ? (int)$data['category_id'] : null, ':desc' => $data['description'] ?? null, ':u' => !empty($data['unit_id']) ? (int)$data['unit_id'] : null, ':rl' => $data['reorder_level'] ?? null, ':ps' => !empty($data['preferred_supplier_id']) ? (int)$data['preferred_supplier_id'] : null, ':sl' => $data['storage_location'] ?? null, ':cb' => (int)($data['created_by'] ?? 0)]);
+        $stmt->execute([':t' => $this->tenantId, ':mc' => $code, ':n' => $data['name'], ':cat' => !empty($data['category_id']) ? (int)$data['category_id'] : null, ':desc' => $data['description'] ?? null, ':u' => !empty($data['unit_id']) ? (int)$data['unit_id'] : null, ':rl' => $data['reorder_level'] ?? null, ':ps' => !empty($data['preferred_supplier_id']) ? (int)$data['preferred_supplier_id'] : null, ':sl' => $data['storage_location'] ?? null, ':cb' => (int)($data['created_by'] ?? 0)]);
         return (int)$this->db->lastInsertId();
     }
 }
