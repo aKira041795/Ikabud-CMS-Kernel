@@ -1,10 +1,17 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg">
     <h2 class="font-semibold text-gray-900 mb-2">{material.name}</h2>
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-600">Stock Balance</span><span class="font-medium">{material.stock_qty|default:0}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Avg Cost</span><span class="font-medium">₱{material.avg_cost|default:0|number_format:2}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Reorder Level</span><span>{material.reorder_level|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Stock Balance</span><span class="font-medium">{material.stock_qty|default:0}{if material.unit_name} {material.unit_name}{/if}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Avg Cost</span><span class="font-medium">₱{material.avg_cost|default:0|number_format:2}{if material.unit_name} / {material.unit_name}{/if}</span></div>
+        {if material.conversion_factor > 0 && material.conversion_unit_name}
+        <div class="flex justify-between text-xs text-gray-500"><span class="text-gray-500">Cost per {material.conversion_unit_name}</span><span>₱{(material.avg_cost|default:0 / material.conversion_factor)|number_format:4}</span></div>
+        <div class="flex justify-between text-xs text-gray-500"><span class="text-gray-500">Conversion</span><span>1 {material.unit_name} = {material.conversion_factor|number_format:4} {material.conversion_unit_name}</span></div>
+        {/if}
+        <div class="flex justify-between"><span class="text-gray-600">Reorder Level</span><span>{material.reorder_level|default:'—'}{if material.unit_name && material.reorder_level} {material.unit_name}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Category</span><span>{material.category_name|default:'—'}</span></div>
+        {if material.description}
+        <div class="flex justify-between"><span class="text-gray-600">Description</span><span>{material.description}</span></div>
+        {/if}
     </div>
     <div class="mt-2 flex gap-2"><a href="/admin/project-audit-ledger/inventory" class="text-xs text-gray-600 hover:text-gray-800 font-medium">← Back to Inventory</a><a href="/admin/project-audit-ledger/settings?tab=materials" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit material details →</a></div>
     <hr class="my-4">

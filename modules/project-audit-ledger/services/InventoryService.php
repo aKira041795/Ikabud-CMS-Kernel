@@ -28,7 +28,7 @@ class palInventoryService
 
     public function getMaterial(int $id): ?array
     {
-        $sql = "SELECT m.*, mc.name AS category_name, u.name AS unit_name, COALESCE(b.quantity, 0) AS stock_qty, COALESCE(b.avg_cost, m.current_avg_cost) AS avg_cost FROM pal_materials m LEFT JOIN pal_material_categories mc ON m.category_id = mc.id LEFT JOIN pal_units u ON m.unit_id = u.id LEFT JOIN pal_inventory_balances b ON m.id = b.material_id WHERE m.id = :id AND m.tenant_id = :tid";
+        $sql = "SELECT m.*, mc.name AS category_name, u.name AS unit_name, cu.name AS conversion_unit_name, COALESCE(b.quantity, 0) AS stock_qty, COALESCE(b.avg_cost, m.current_avg_cost) AS avg_cost FROM pal_materials m LEFT JOIN pal_material_categories mc ON m.category_id = mc.id LEFT JOIN pal_units u ON m.unit_id = u.id LEFT JOIN pal_units cu ON m.conversion_unit_id = cu.id LEFT JOIN pal_inventory_balances b ON m.id = b.material_id WHERE m.id = :id AND m.tenant_id = :tid";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);

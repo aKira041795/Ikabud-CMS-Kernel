@@ -56,7 +56,8 @@
     "migrations": [
         "database/migrations/001_pal_core_schema.sql",
         "database/migrations/002_pal_users.sql",
-        "database/migrations/003_pal_password_resets.sql"
+        "database/migrations/003_pal_password_resets.sql",
+        "database/migrations/006_pal_materials_unit_conversion.sql"
     ],
     "capabilities": {
         "exposes": [
