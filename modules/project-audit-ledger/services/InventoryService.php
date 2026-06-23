@@ -20,7 +20,7 @@ class palInventoryService
         if (!empty($filters['category_id'])) { $where[] = 'm.category_id = :cat'; $params[':cat'] = (int)$filters['category_id']; }
         if (!empty($filters['search'])) { $where[] = '(m.name LIKE :s OR m.material_code LIKE :s2)'; $params[':s'] = "%{$filters['search']}%"; $params[':s2'] = "%{$filters['search']}%"; }
         $w = implode(' AND ', $where);
-        $sql = "SELECT m.*, mc.name AS category_name, COALESCE(b.quantity, 0) AS stock_qty, COALESCE(b.avg_cost, m.current_avg_cost) AS avg_cost, COALESCE(b.quantity * COALESCE(b.avg_cost, m.current_avg_cost), 0) AS stock_value FROM pal_materials m LEFT JOIN pal_material_categories mc ON m.category_id = mc.id LEFT JOIN pal_inventory_balances b ON m.id = b.material_id WHERE {$w} ORDER BY m.name ASC";
+        $sql = "SELECT m.*, mc.name AS category_name, COALESCE(b.quantity, 0) AS stock_qty, COALESCE(NULLIF(b.avg_cost, 0), m.current_avg_cost) AS avg_cost, COALESCE(b.quantity * COALESCE(NULLIF(b.avg_cost, 0), m.current_avg_cost), 0) AS stock_value FROM pal_materials m LEFT JOIN pal_material_categories mc ON m.category_id = mc.id LEFT JOIN pal_inventory_balances b ON m.id = b.material_id WHERE {$w} ORDER BY m.name ASC";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -28,7 +28,7 @@ class palInventoryService
 
     public function getMaterial(int $id): ?array
     {
-        $sql = "SELECT m.*, mc.name AS category_name, u.name AS unit_name, cu.name AS conversion_unit_name, COALESCE(b.quantity, 0) AS stock_qty, COALESCE(b.avg_cost, m.current_avg_cost) AS avg_cost FROM pal_materials m LEFT JOIN pal_material_categories mc ON m.category_id = mc.id LEFT JOIN pal_units u ON m.unit_id = u.id LEFT JOIN pal_units cu ON m.conversion_unit_id = cu.id LEFT JOIN pal_inventory_balances b ON m.id = b.material_id WHERE m.id = :id AND m.tenant_id = :tid";
+        $sql = "SELECT m.*, mc.name AS category_name, u.name AS unit_name, cu.name AS conversion_unit_name, COALESCE(b.quantity, 0) AS stock_qty, COALESCE(NULLIF(b.avg_cost, 0), m.current_avg_cost) AS avg_cost FROM pal_materials m LEFT JOIN pal_material_categories mc ON m.category_id = mc.id LEFT JOIN pal_units u ON m.unit_id = u.id LEFT JOIN pal_units cu ON m.conversion_unit_id = cu.id LEFT JOIN pal_inventory_balances b ON m.id = b.material_id WHERE m.id = :id AND m.tenant_id = :tid";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
