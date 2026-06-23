@@ -185,10 +185,14 @@ function makeCreatable(select) {
     });
     var form = select.closest('form');
     if (form) {
+        // Use capture phase (true) so this runs BEFORE onsubmit attribute handlers.
+        // HTML onsubmit is registered when parsed — fires in target phase first.
+        // Without capture, onsubmit/ajaxSubmit sends raw __other__ value first.
         form.addEventListener('submit', function(e) {
             if (select.value !== '__other__') return;
             if (form.dataset.submitting === '1') { e.preventDefault(); return; }
             e.preventDefault();
+            e.stopPropagation();
             form.dataset.submitting = '1';
             var val = wrapper.querySelector('input').value.trim();
             if (!val) { showToast('Enter a name for the new item', 'error'); delete form.dataset.submitting; return; }
@@ -216,7 +220,7 @@ function makeCreatable(select) {
                 } else { showToast(d.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = origText; delete form.dataset.submitting; }
             })
             .catch(function(){ showToast('Failed to create', 'error'); btn.disabled = false; btn.textContent = origText; delete form.dataset.submitting; });
-        });
+        }, true);
     }
 }
 function ajaxSubmit(form, successMsg) {
