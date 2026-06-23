@@ -580,6 +580,7 @@ function palDb(): Ikabud\Kernel\Contracts\ModuleDB
 function palRender(string $template, array $context = []): void
 {
     $settings = palSettings();
+    $context['settings'] = $settings;
     $context['pal_app_name'] = $settings['app_name'] ?? 'Project Audit Ledger';
     $context['pal_logo_path'] = $settings['logo_path'] ?? '';
 

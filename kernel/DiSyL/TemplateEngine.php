@@ -1077,12 +1077,15 @@ class TemplateEngine
     
     /**
      * Process {set var = expression} statements.
+     * Also supports shorthand {var = expr} (without the set keyword).
      * Removes the tag from output and adds the computed value to context.
      * Supports: {set x = 5}, {set total = items | count}, {set next = page + 1},
      *           {set locked = status != 'pending'}, {set ok = count > 0}
      */
     private function processSetStatements(string $content, array &$context): string
     {
+        // Normalize shorthand {var = expr} to {set var = expr} before processing
+        $content = preg_replace('/\{(?!set\s)(\w+)\s*=\s*([^}]+)\}/', '{set $1 = $2}', $content);
         return preg_replace_callback(
             '/\{set\s+(\w+)(?:\s*:\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*=\s*([^}]+)\}/',
             function($match) use (&$context) {

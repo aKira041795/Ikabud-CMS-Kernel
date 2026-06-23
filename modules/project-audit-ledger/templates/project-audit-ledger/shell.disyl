@@ -20,6 +20,7 @@
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
+    {csrf_field | raw}
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
         <aside class="w-64 bg-slate-900 flex flex-col" x-data="{ collapsed: false }">
