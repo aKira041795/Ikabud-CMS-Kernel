@@ -282,7 +282,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
         $entityClass = $this->entitySourceClass($attrs['source'] ?? '');
         return <<<HTML
-        <div class="ikb-entity-detail divide-y divide-gray-100 {$entityClass} {$class}">
+        <div class="ikb-entity-detail divide-y divide-gray-100 px-4 py-2 {$entityClass} {$class}">
             {$rows}
         </div>
         HTML;
