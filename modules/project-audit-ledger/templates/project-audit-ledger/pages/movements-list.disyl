@@ -1,0 +1,26 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center"><h2 class="font-semibold text-gray-900">Stock Movements</h2><button onclick="exportCSV('tbl-movements','stock-movements')" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">⤓ CSV</button></div>
+    <table id="tbl-movements" class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Material</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Type</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Qty</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Ref</th>
+        </tr></thead>
+        <tbody>
+            {for mv in movements}
+            <tr class="border-b border-gray-100">
+                <td class="py-3 px-4 text-xs text-gray-500">{mv.created_at}</td>
+                <td class="py-3 px-4 text-gray-700">{mv.material_name|default:'—'}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium">{mv.movement_type}</span></td>
+                <td class="py-3 px-4 font-medium {if mv.quantity > 0}text-green-600{else}text-red-600{/if}">{mv.quantity}</td>
+                <td class="py-3 px-4 text-xs text-gray-500">{mv.reference_type|default:''} #{mv.reference_id|default:''}</td>
+            </tr>
+            {/for}
+            {if movements|count == 0}
+            <tr><td colspan="5" class="py-8 text-center text-gray-400">No movements.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+</div>

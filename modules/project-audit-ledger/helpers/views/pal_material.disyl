@@ -1,0 +1,9 @@
+{ikb_entity_view name="pal_material" view="table"}
+    {field name="material_code" type="string"}
+    {field name="name" type="string"}
+    {field name="category_name" type="string"}
+    {field name="stock_qty" type="number"}
+    {field name="avg_cost" type="number" renderer="money:2"}
+    {field name="reorder_level" type="number"}
+    {action name="view" url="/admin/project-audit-ledger/inventory/{id}" label="View"}
+{/ikb_entity_view}

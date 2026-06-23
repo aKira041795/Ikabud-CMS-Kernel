@@ -1,0 +1,22 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Materials</h2>
+        <button onclick="document.getElementById('mat-form').classList.toggle('hidden')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg">+ New Material</button>
+    </div>
+    <div id="mat-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
+        <form onsubmit="return ajaxSubmit(this, 'Material created')" action="/api/v1/project-audit-ledger/materials" method="POST" class="grid grid-cols-2 gap-3 max-w-lg">
+            {csrf_field | raw}
+            <div class="col-span-2"><input type="text" name="name" placeholder="Material name *" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><input type="text" name="material_code" placeholder="Code" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><select name="category_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">Category</option>{for c in mat_categories}<option value="{c.id}">{c.name}</option>{/for}</select></div>
+            <div><select name="unit_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">Unit</option>{for u in mat_units}<option value="{u.id}">{u.name}</option>{/for}</select></div>
+            <div><select name="preferred_supplier_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">Supplier</option>{for s in mat_suppliers}<option value="{s.id}">{s.name}</option>{/for}</select></div>
+            <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div class="col-span-2 flex gap-2"><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg">Create</button><button type="button" onclick="document.getElementById('mat-form').classList.add('hidden')" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg">Cancel</button></div>
+        </form>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Code</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Category</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Unit</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Stock</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Avg Cost</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
+        <tbody>{for m in materials}<tr class="border-b border-gray-100"><td class="py-2 px-4 font-medium">{m.name}</td><td class="py-2 px-4 text-xs">{m.material_code|default:'—'}</td><td class="py-2 px-4">{m.category_name|default:'—'}</td><td class="py-2 px-4">{m.unit_name|default:'—'}</td><td class="py-2 px-4">{m.stock_qty|default:0}</td><td class="py-2 px-4">₱{m.current_avg_cost|default:0|number_format:2}</td><td class="py-2 px-4"><button onclick="toggleStatus('material',{m.id})" class="text-xs px-2 py-0.5 rounded-full {if m.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{m.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
+    </table>
+</div>

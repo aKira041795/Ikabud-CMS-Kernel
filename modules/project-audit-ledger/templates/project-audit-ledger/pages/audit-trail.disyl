@@ -1,0 +1,28 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center"><h2 class="font-semibold text-gray-900">Audit Trail</h2><button onclick="exportCSV('tbl-audit','audit-trail')" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">⤓ CSV</button></div>
+    <div class="overflow-x-auto">
+    <table id="tbl-audit" class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Time</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">User</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Action</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Entity</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Details</th>
+        </tr></thead>
+        <tbody>
+            {for log in audit_logs}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 text-xs text-gray-500">{log.created_at}</td>
+                <td class="py-3 px-4 text-gray-700">{log.actor_user_id|default:'—'}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{log.action}</span></td>
+                <td class="py-3 px-4 text-gray-700">{log.entity_type}{if log.entity_id} #{log.entity_id}{/if}</td>
+                <td class="py-3 px-4 text-xs text-gray-500">{log.new_data|default:''}</td>
+            </tr>
+            {/for}
+            {if audit_logs|count == 0}
+            <tr><td colspan="5" class="py-8 text-center text-gray-400">No audit logs yet.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+    </div>
+</div>

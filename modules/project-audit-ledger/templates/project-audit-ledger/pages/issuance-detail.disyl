@@ -1,0 +1,23 @@
+<div class="max-w-lg">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h2 class="font-semibold text-gray-900 mb-2">Issuance #{issuance.issuance_number|default:issuance.id}</h2>
+    <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-gray-500">Project</span><span>{issuance.project_title|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Purpose</span><span>{issuance.purpose|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{issuance.status|default:'draft'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Date</span><span>{issuance.created_at}</span></div>
+    </div>
+    {if issuance.items}
+    <h3 class="font-semibold text-gray-900 text-sm mt-4 mb-2">Items</h3>
+    <table class="w-full text-sm"><thead><tr class="bg-gray-50"><th class="text-left py-1 px-2 font-semibold text-gray-600">Material</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Qty</th></tr></thead>
+    <tbody>{for item in issuance.items}<tr class="border-b"><td class="py-1 px-2">{item.material_name|default:'—'}</td><td class="py-1 px-2 text-right">{item.quantity}</td></tr>{/for}</tbody></table>
+    {/if}
+    <div class="mt-4 flex gap-2">
+        <a href="/admin/project-audit-ledger/material-issuance/{issuance.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
+        {if issuance.status == 'draft'}
+        <form onsubmit="return ajaxSubmit(this, 'Submitted for approval')" action="/api/v1/project-audit-ledger/issuances/{issuance.id}/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Submit for Approval</button></form>
+        {/if}
+        <a href="/admin/project-audit-ledger/material-issuance" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
+    </div>
+</div>
+</div>

@@ -1,0 +1,86 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">System Users</h2>
+        <button onclick="document.getElementById('create-user-form').classList.toggle('hidden')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add User</button>
+    </div>
+    <div id="create-user-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
+        <form onsubmit="return ajaxSubmit(this, 'User created')" action="/api/v1/project-audit-ledger/users" method="POST" class="grid grid-cols-2 gap-3">
+            {csrf_field | raw}
+            <div><label class="block text-xs font-medium text-gray-600 mb-1">Username</label><input type="text" name="username" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-xs font-medium text-gray-600 mb-1">Email</label><input type="email" name="email" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-xs font-medium text-gray-600 mb-1">Full Name</label><input type="text" name="full_name" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-xs font-medium text-gray-600 mb-1">Password</label><input type="password" name="password" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-xs font-medium text-gray-600 mb-1">Role</label><select name="role" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="encoder">Encoder</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select></div>
+            <div class="flex items-end"><button type="submit" class="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Create</button></div>
+        </form>
+    </div>
+    <div class="flex border-b border-gray-200">
+        <button onclick="switchTab('active')" id="tab-active" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Active ({active_users|count})</button>
+        <button onclick="switchTab('inactive')" id="tab-inactive" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700">Inactive ({inactive_users|count})</button>
+    </div>
+    <div id="table-active">
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Username</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Role</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Last Login</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Actions</th>
+        </tr></thead>
+        <tbody>
+            {for u in active_users|default:[]}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-900">{u.username}</td>
+                <td class="py-3 px-4 text-gray-700">{u.full_name}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if u.role == 'admin'}bg-purple-100 text-purple-700{elseif u.role == 'supervisor'}bg-blue-100 text-blue-700{else}bg-gray-100 text-gray-700{/if}">{u.role}</span></td>
+                <td class="py-3 px-4 text-gray-500 text-xs">{u.last_login_at|default:'—'}</td>
+                <td class="py-3 px-4">
+                    <button onclick="toggleEdit({u.id})" class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-2">Edit</button>
+                    <button onclick="toggleUser({u.id})" class="text-xs text-red-600 hover:text-red-800 font-medium">Deactivate</button>
+                </td>
+            </tr>
+            <tr id="edit-user-{u.id}" class="hidden border-b border-gray-100 bg-yellow-50">
+                <td colspan="5" class="py-3 px-4">
+                    <form onsubmit="return ajaxSubmit(this, 'User updated')" action="/api/v1/project-audit-ledger/users/{u.id}" method="POST" class="grid grid-cols-5 gap-3 items-end">
+                        {csrf_field | raw}
+                        <div><label class="block text-xs font-medium text-gray-600 mb-1">Email</label><input type="email" name="email" value="{u.email}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                        <div><label class="block text-xs font-medium text-gray-600 mb-1">Full Name</label><input type="text" name="full_name" value="{u.full_name}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                        <div><label class="block text-xs font-medium text-gray-600 mb-1">Role</label><select name="role" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="encoder"{if u.role=='encoder'} selected{/if}>Encoder</option><option value="supervisor"{if u.role=='supervisor'} selected{/if}>Supervisor</option><option value="admin"{if u.role=='admin'} selected{/if}>Admin</option></select></div>
+                        <div><label class="block text-xs font-medium text-gray-600 mb-1">Password</label><input type="password" name="password" placeholder="Leave blank to keep" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                        <div class="flex gap-2"><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Save</button><button type="button" onclick="toggleEdit({u.id})" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button></div>
+                    </form>
+                </td>
+            </tr>
+            {/for}
+            {if active_users|count == 0}
+            <tr><td colspan="5" class="py-8 text-center text-gray-400">No active users.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+    </div>
+    <div id="table-inactive" class="hidden">
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Username</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Role</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Last Login</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Actions</th>
+        </tr></thead>
+        <tbody>
+            {for u in inactive_users}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-500">{u.username}</td>
+                <td class="py-3 px-4 text-gray-500">{u.full_name}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{u.role}</span></td>
+                <td class="py-3 px-4 text-gray-400 text-xs">{u.last_login_at|default:'—'}</td>
+                <td class="py-3 px-4"><button onclick="toggleUser({u.id})" class="text-xs text-green-600 hover:text-green-800 font-medium">Reactivate</button></td>
+            </tr>
+            {/for}
+            {if inactive_users|count == 0}
+            <tr><td colspan="5" class="py-8 text-center text-gray-400">No inactive users.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+    </div>
+</div>

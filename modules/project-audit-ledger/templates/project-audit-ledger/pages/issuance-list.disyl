@@ -1,0 +1,31 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Material Issuances</h2>
+        <a href="/admin/project-audit-ledger/material-issuance/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Issuance</a>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">#</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Project</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Items</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600"></th>
+        </tr></thead>
+        <tbody>
+            {for i in issuances}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-900">{i.issuance_number|default:'#'~i.id}</td>
+                <td class="py-3 px-4 text-gray-700">{i.project_title|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{i.item_count|default:0} items</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if i.status=='approved'||i.status=='fully_issued'}bg-green-100 text-green-700{elseif i.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{i.status|default:'draft'}</span></td>
+                <td class="py-3 px-4 text-xs text-gray-500">{i.created_at}</td>
+                <td class="py-3 px-4"><a href="/admin/project-audit-ledger/material-issuance/{i.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">View</a></td>
+            </tr>
+            {/for}
+            {if issuances|count == 0}
+            <tr><td colspan="6" class="py-8 text-center text-gray-400">No issuances.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+</div>

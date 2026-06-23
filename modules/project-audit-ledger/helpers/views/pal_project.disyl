@@ -1,0 +1,16 @@
+{ikb_entity_view name="pal_project" view="table"}
+    {field name="project_id" type="string"}
+    {field name="title" type="string"}
+    {field name="client_name" type="string"}
+    {field name="contract_amount" type="number" renderer="money:2"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|approved|blue|in_progress|green|on_hold|amber|completed|green|cancelled|red|closed|gray}"}
+    {field name="start_date" type="date" renderer="datetime:date"}
+    {action name="view" url="/admin/project-audit-ledger/projects/{id}" label="View"}
+    {action name="edit" url="/admin/project-audit-ledger/projects/{id}/edit" label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="pal_project" view="compact"}
+    {field name="title" type="string"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|approved|blue|in_progress|green|completed|green|cancelled|red}"}
+    {field name="contract_amount" type="number" renderer="money:2"}
+{/ikb_entity_view}

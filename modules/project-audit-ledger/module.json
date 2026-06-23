@@ -1,0 +1,579 @@
+{
+    "id": "project-audit-ledger",
+    "name": "Project Audit Ledger",
+    "version": "1.0.0",
+    "description": "Project costing, inventory, fabrication dues, sales, and audit management for construction, fabrication, signage, and installation businesses.",
+    "author": "Ikabud Kernel Team",
+    "auth_owned": {
+        "users_table": "pal_users",
+        "username_column": "username",
+        "email_column": "email",
+        "password_column": "password_hash",
+        "name_column": "full_name",
+        "active_column": "is_active",
+        "admin_roles": [
+            "admin"
+        ],
+        "default_admin_role": "admin",
+        "requires_named_admin_on_provision": true,
+        "touch_updated_at": true
+    },
+    "owns_tables": [
+        "pal_users",
+        "pal_password_resets",
+        "pal_projects",
+        "pal_project_types",
+        "pal_clients",
+        "pal_suppliers",
+        "pal_materials",
+        "pal_material_categories",
+        "pal_units",
+        "pal_inventory_locations",
+        "pal_inventory_movements",
+        "pal_inventory_balances",
+        "pal_purchases",
+        "pal_purchase_items",
+        "pal_material_issuances",
+        "pal_material_issuance_items",
+        "pal_material_returns",
+        "pal_expenses",
+        "pal_expense_categories",
+        "pal_sales",
+        "pal_collections",
+        "pal_fabrication_allocations",
+        "pal_fabrication_weekly_dues",
+        "pal_fabrication_payments",
+        "pal_team_leads",
+        "pal_approvals",
+        "pal_attachments",
+        "pal_audit_logs",
+        "pal_report_exports",
+        "pal_settings"
+    ],
+    "reads_tables": [
+        "audit_logs"
+    ],
+    "migrations": [
+        "database/migrations/001_pal_core_schema.sql",
+        "database/migrations/002_pal_users.sql",
+        "database/migrations/003_pal_password_resets.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 550,
+                "modes": [
+                    "pipeline"
+                ]
+            },
+            {
+                "id": "pal.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Basic read access across the module"
+            },
+            {
+                "id": "pal.manage@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Full management access"
+            },
+            {
+                "id": "pal.projects.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View project details"
+            },
+            {
+                "id": "pal.projects.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create and update projects"
+            },
+            {
+                "id": "pal.expenses.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View expenses"
+            },
+            {
+                "id": "pal.expenses.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create and update expenses"
+            },
+            {
+                "id": "pal.inventory.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View inventory"
+            },
+            {
+                "id": "pal.inventory.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage inventory movements"
+            },
+            {
+                "id": "pal.purchases.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View purchases"
+            },
+            {
+                "id": "pal.purchases.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create and approve purchases"
+            },
+            {
+                "id": "pal.sales.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View sales"
+            },
+            {
+                "id": "pal.sales.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create sales records"
+            },
+            {
+                "id": "pal.collections.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View collections"
+            },
+            {
+                "id": "pal.collections.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Record collections"
+            },
+            {
+                "id": "pal.fabrication.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View fabrication data"
+            },
+            {
+                "id": "pal.fabrication.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage fabrication allocations and payments"
+            },
+            {
+                "id": "pal.approvals.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View approval queue"
+            },
+            {
+                "id": "pal.approvals.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Approve or reject entries"
+            },
+            {
+                "id": "pal.reports.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View and export reports"
+            },
+            {
+                "id": "pal.audit.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View audit trail"
+            },
+            {
+                "id": "pal.settings.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View module settings"
+            },
+            {
+                "id": "pal.settings.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage module settings"
+            },
+            {
+                "id": "pal.users.manage@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage module users"
+            },
+            {
+                "id": "entity.list.pal_project@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List projects"
+            },
+            {
+                "id": "entity.get.pal_project@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single project"
+            },
+            {
+                "id": "entity.list.pal_expense@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List expenses"
+            },
+            {
+                "id": "entity.get.pal_expense@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single expense"
+            },
+            {
+                "id": "entity.list.pal_material@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List materials"
+            },
+            {
+                "id": "entity.get.pal_material@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single material"
+            },
+            {
+                "id": "entity.list.pal_purchase@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List purchases"
+            },
+            {
+                "id": "entity.get.pal_purchase@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single purchase"
+            },
+            {
+                "id": "entity.list.pal_sale@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List sales"
+            },
+            {
+                "id": "entity.get.pal_sale@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single sale"
+            },
+            {
+                "id": "entity.list.pal_collection@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List collections"
+            },
+            {
+                "id": "entity.list.pal_fabrication_due@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List fabrication weekly dues"
+            },
+            {
+                "id": "entity.list.pal_audit_log@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List audit logs"
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "kernel.auth.user@1"
+        ],
+        "policy": {
+            "capabilities": {
+                "kernel.auth.authenticate@1": {
+                    "allow_callers": [
+                        "project-audit-ledger",
+                        "kernel"
+                    ]
+                }
+            }
+        }
+    },
+    "auth_cookie": "pal_token",
+    "routes": true,
+    "events": [
+        "pal.project.created",
+        "pal.project.updated",
+        "pal.project.completed",
+        "pal.expense.submitted",
+        "pal.expense.approved",
+        "pal.expense.rejected",
+        "pal.purchase.approved",
+        "pal.inventory.stocked_in",
+        "pal.inventory.material_issued",
+        "pal.inventory.material_returned",
+        "pal.inventory.adjusted",
+        "pal.fabrication.allocation_created",
+        "pal.fabrication.payment_recorded",
+        "pal.fabrication.payment_approved",
+        "pal.sale.created",
+        "pal.collection.recorded",
+        "pal.approval.completed",
+        "pal.report.generated"
+    ],
+    "settings_fields": [
+        {
+            "key": "company_name",
+            "type": "text",
+            "label": "Company Name",
+            "default": "My Company",
+            "description": "Business name displayed on reports, headers, and exports."
+        },
+        {
+            "key": "company_address",
+            "type": "text",
+            "label": "Company Address",
+            "default": "",
+            "description": "Business address displayed on report headers."
+        },
+        {
+            "key": "company_contact",
+            "type": "text",
+            "label": "Contact Number",
+            "default": "",
+            "description": "Business contact number displayed on reports."
+        },
+        {
+            "key": "default_fabrication_pct",
+            "type": "number",
+            "label": "Default Fabrication Allocation (%)",
+            "default": "25",
+            "description": "Default percentage used for fabrication allocation calculations."
+        },
+        {
+            "key": "default_fabrication_basis",
+            "type": "select",
+            "label": "Default Fabrication Basis",
+            "default": "expenses",
+            "description": "Default calculation basis for fabrication allocation.",
+            "options": [
+                {
+                    "label": "Total Project Expenses",
+                    "value": "expenses"
+                },
+                {
+                    "label": "Labor + Materials",
+                    "value": "labor_materials"
+                },
+                {
+                    "label": "Contract Amount",
+                    "value": "contract"
+                },
+                {
+                    "label": "Fixed Amount",
+                    "value": "fixed"
+                }
+            ]
+        },
+        {
+            "key": "budget_warning_pct",
+            "type": "number",
+            "label": "Budget Warning Threshold (%)",
+            "default": "80",
+            "description": "Percentage of contract amount at which the system warns the project is near budget."
+        },
+        {
+            "key": "currency_symbol",
+            "type": "text",
+            "label": "Currency Symbol",
+            "default": "₱",
+            "description": "Currency symbol used in monetary displays."
+        },
+        {
+            "key": "allow_self_approval",
+            "type": "select",
+            "label": "Allow Self-Approval",
+            "default": "0",
+            "description": "If enabled, users can approve their own submitted entries.",
+            "options": [
+                {
+                    "label": "Disabled",
+                    "value": "0"
+                },
+                {
+                    "label": "Enabled",
+                    "value": "1"
+                }
+            ]
+        }
+    ],
+    "nav": [
+        {
+            "label": "Project Ledger",
+            "url": "/admin/project-audit-ledger",
+            "icon": "clipboard-list",
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ]
+        },
+        {
+            "label": "Projects",
+            "url": "/admin/project-audit-ledger/projects",
+            "icon": "folder",
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ]
+        },
+        {
+            "label": "Expenses",
+            "url": "/admin/project-audit-ledger/expenses",
+            "icon": "credit-card",
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ]
+        },
+        {
+            "label": "Inventory",
+            "url": "/admin/project-audit-ledger/inventory",
+            "icon": "package",
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ]
+        },
+        {
+            "label": "Purchases",
+            "url": "/admin/project-audit-ledger/purchases",
+            "icon": "shopping-cart",
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ]
+        },
+        {
+            "label": "Fabrication",
+            "url": "/admin/project-audit-ledger/fabrication",
+            "icon": "wrench",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Sales",
+            "url": "/admin/project-audit-ledger/sales",
+            "icon": "dollar-sign",
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ]
+        },
+        {
+            "label": "Approvals",
+            "url": "/admin/project-audit-ledger/approvals",
+            "icon": "check-circle",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Reports",
+            "url": "/admin/project-audit-ledger/reports",
+            "icon": "bar-chart",
+            "roles": [
+                "admin",
+                "supervisor"
+            ]
+        },
+        {
+            "label": "Settings",
+            "url": "/admin/project-audit-ledger/settings",
+            "icon": "settings",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title} — Project Audit Ledger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { pal: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81' } } } }
+        };
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+            <div class="p-4 border-b border-gray-200">
+                <h1 class="text-lg font-bold text-gray-900">Project Ledger</h1>
+                <p class="text-xs text-gray-500">{current_user.full_name}</p>
+            </div>
+            <nav class="flex-1 overflow-y-auto p-2 space-y-1">
+                <a href="/admin/project-audit-ledger" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">📊 Dashboard</a>
+                <a href="/admin/project-audit-ledger/projects" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">📁 Projects</a>
+                <a href="/admin/project-audit-ledger/clients" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">👥 Clients</a>
+                <a href="/admin/project-audit-ledger/suppliers" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">🏭 Suppliers</a>
+                <a href="/admin/project-audit-ledger/expenses" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">💳 Expenses</a>
+                <a href="/admin/project-audit-ledger/inventory" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">📦 Inventory</a>
+                <a href="/admin/project-audit-ledger/purchases" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">🛒 Purchases</a>
+                <a href="/admin/project-audit-ledger/material-issuance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">📋 Issuance</a>
+                <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">🔧 Fabrication</a>
+                <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">💰 Sales</a>
+                <a href="/admin/project-audit-ledger/approvals" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">✅ Approvals</a>
+                <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">📈 Reports</a>
+                <hr class="my-2 border-gray-200">
+                <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">📜 Audit Trail</a>
+                <a href="/admin/project-audit-ledger/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">⚙️ Settings</a>
+                <a href="/admin/project-audit-ledger/users" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">👤 Users</a>
+            </nav>
+            <div class="p-4 border-t border-gray-200">
+                <form method="POST" action="/api/v1/project-audit-ledger/auth/logout">
+                    <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 font-medium">Sign Out</button>
+                </form>
+            </div>
+        </aside>
+        <main class="flex-1 overflow-y-auto">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
+                {block content}{/block}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

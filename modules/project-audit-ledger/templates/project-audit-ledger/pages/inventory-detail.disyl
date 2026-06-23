@@ -1,0 +1,19 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg">
+    <h2 class="font-semibold text-gray-900 mb-2">{material.name}</h2>
+    <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-gray-500">Stock Balance</span><span class="font-medium">{material.stock_qty|default:0}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Avg Cost</span><span class="font-medium">₱{material.avg_cost|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Reorder Level</span><span>{material.reorder_level|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Category</span><span>{material.category_name|default:'—'}</span></div>
+    </div>
+    <div class="mt-2"><a href="/admin/project-audit-ledger/settings?tab=materials" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit material details →</a></div>
+    <hr class="my-4">
+    <h3 class="font-semibold text-gray-900 mb-2">Adjust Stock</h3>
+    <form onsubmit="return ajaxSubmit(this, 'Stock adjusted')" action="/api/v1/project-audit-ledger/inventory/adjust" method="POST" class="grid grid-cols-3 gap-3">
+        {csrf_field | raw}
+        <input type="hidden" name="material_id" value="{material.id}">
+        <div><input type="number" step="0.01" name="quantity" placeholder="Qty (+/-)" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div><input type="text" name="reason" placeholder="Reason" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Adjust</button></div>
+    </form>
+</div>

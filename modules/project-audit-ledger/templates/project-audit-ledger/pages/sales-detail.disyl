@@ -1,0 +1,25 @@
+<div class="max-w-lg print-area">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h2 class="font-semibold text-gray-900 mb-2">Invoice #{sale.sales_number|default:sale.id}</h2>
+    <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-gray-500">Project</span><span>{sale.project_title|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Client</span><span>{sale.client_name|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Gross Amount</span><span>₱{sale.gross_amount|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Discount</span><span>₱{sale.discount_amount|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Tax</span><span>₱{sale.tax_amount|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500 font-medium">Net Amount</span><span class="font-medium">₱{sale.net_amount|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Collected</span><span class="text-green-600">₱{sale.total_collected|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Outstanding</span><span class="font-medium {if sale.outstanding|default:0 > 0}text-red-600{else}text-green-600{/if}">₱{sale.outstanding|default:0|number_format:2}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Status</span><span class="font-medium">{sale.status|default:'draft'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Date</span><span>{sale.sales_date|default:sale.created_at}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Due Date</span><span>{sale.due_date|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Invoice #</span><span>{sale.invoice_number|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-500">Notes</span><span>{sale.notes|default:'—'}</span></div>
+    </div>
+    <div class="mt-4 flex gap-2 no-print">
+        <a href="/admin/project-audit-ledger/sales/{sale.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
+        <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print Invoice</button>
+        <a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
+    </div>
+</div>
+</div>

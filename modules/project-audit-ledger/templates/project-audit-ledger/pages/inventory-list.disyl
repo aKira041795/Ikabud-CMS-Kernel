@@ -1,0 +1,41 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Inventory</h2>
+        <div class="flex gap-2">
+            <a href="/admin/project-audit-ledger/inventory/movements" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Movements</a>
+            <button onclick="document.getElementById('material-form').classList.toggle('hidden')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add Material</button>
+        </div>
+    </div>
+    <div id="material-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
+        <form onsubmit="return ajaxSubmit(this, 'Material created')" action="/api/v1/project-audit-ledger/materials" method="POST" class="grid grid-cols-3 gap-3">
+            {csrf_field | raw}
+            <div><input type="text" name="name" placeholder="Material name" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><select name="category_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="">Category</option>{for c in categories}<option value="{c.id}">{c.name}</option>{/for}</select></div>
+            <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div class="col-span-3"><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Create</button></div>
+        </form>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Material</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Category</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Stock</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Avg Cost</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600"></th>
+        </tr></thead>
+        <tbody>
+            {for m in materials}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-900">{m.name}</td>
+                <td class="py-3 px-4 text-gray-700">{m.category_name|default:'—'}</td>
+                <td class="py-3 px-4"><span class="font-medium {if (m.stock_qty|default:0) <= (m.reorder_level|default:-1) && m.reorder_level > 0}text-red-600{else}text-gray-900{/if}">{m.stock_qty|default:0}</span> <span class="text-xs text-gray-400">min: {m.reorder_level|default:'—'}</span></td>
+                <td class="py-3 px-4 text-gray-700">₱{m.avg_cost|default:0|number_format:2}</td>
+                <td class="py-3 px-4"><a href="/admin/project-audit-ledger/inventory/{m.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-2">Detail</a><a href="/admin/project-audit-ledger/inventory/{m.id}" class="text-xs text-gray-600 hover:text-gray-800 font-medium">Edit</a></td>
+            </tr>
+            {/for}
+            {if materials|count == 0}
+            <tr><td colspan="5" class="py-8 text-center text-gray-400">No materials.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+</div>

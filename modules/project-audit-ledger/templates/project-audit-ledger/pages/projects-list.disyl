@@ -1,0 +1,31 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Projects ({total|default:0})</h2>
+        <a href="/admin/project-audit-ledger/projects/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Create Project</a>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Title</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Client</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Amount</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Budget Used</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600"></th>
+        </tr></thead>
+        <tbody>
+            {for p in projects}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-900">{p.title}</td>
+                <td class="py-3 px-4 text-gray-700">{p.client_name|default:'—'}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if p.status=='approved'||p.status=='in_progress'}bg-green-100 text-green-700{elseif p.status=='completed'}bg-blue-100 text-blue-700{else}bg-yellow-100 text-yellow-700{/if}">{p.status|default:'draft'}</span></td>
+                <td class="py-3 px-4 text-gray-700">₱{p.contract_amount|default:0|number_format:2}</td>
+                <td class="py-3 px-4"><div class="w-24 bg-gray-200 rounded-full h-2"><div class="{if p.budget_used_pct|default:0 > 100}bg-red-600{elseif p.budget_used_pct|default:0 > 80}bg-yellow-500{else}bg-blue-600{/if} h-2 rounded-full" style="width:{p.budget_used_pct|default:0}%"></div></div><span class="text-xs text-gray-500 ml-2">{p.budget_used_pct|default:0}%</span></td>
+                <td class="py-3 px-4 flex gap-2"><a href="/admin/project-audit-ledger/projects/{p.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium">View</a><a href="/admin/project-audit-ledger/projects/{p.id}/edit" class="text-xs text-gray-600 hover:text-gray-800 font-medium">Edit</a></td>
+            </tr>
+            {/for}
+            {if projects|count == 0}
+            <tr><td colspan="7" class="py-8 text-center text-gray-400">No projects yet.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+</div>

@@ -1,0 +1,25 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Material Returns</h2>
+        <a href="/admin/project-audit-ledger/material-returns/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Return</a>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Project</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Material</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Qty</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Condition</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Issuance</th>
+        </tr></thead>
+        <tbody>{for r in returns}
+        <tr class="border-b border-gray-100">
+            <td class="py-3 px-4 text-xs text-gray-500">{r.return_date|default:r.created_at}</td>
+            <td class="py-3 px-4 text-gray-700">{r.project_title|default:'—'}</td>
+            <td class="py-3 px-4 text-gray-700">{r.material_name|default:'—'}</td>
+            <td class="py-3 px-4 font-medium text-gray-900">{r.quantity_returned}</td>
+            <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if r.condition=='reusable'}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{r.condition}</span></td>
+            <td class="py-3 px-4 text-xs text-gray-500">{r.issuance_number|default:'—'}</td>
+        </tr>{/for}{if returns|count==0}<tr><td colspan="6" class="py-8 text-center text-gray-400">No returns recorded.</td></tr>{/if}</tbody>
+    </table>
+</div>

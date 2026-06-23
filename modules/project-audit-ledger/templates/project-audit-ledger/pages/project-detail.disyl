@@ -1,0 +1,111 @@
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print-area">
+    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex justify-between items-start mb-2"><h2 class="font-semibold text-gray-900">{project.title}</h2><div class="flex gap-2 no-print"><a href="/admin/project-audit-ledger/projects/{project.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a><button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button></div></div>
+        <p class="text-sm text-gray-500 mb-4">{project.description|default:'No description'}</p>
+        <div class="grid grid-cols-3 gap-4 text-sm">
+            <div><span class="text-gray-500">Status</span><br><span class="font-medium">{project.status|default:'draft'}</span></div>
+            <div><span class="text-gray-500">Amount</span><br><span class="font-medium">₱{project.contract_amount|default:0|number_format:2}</span></div>
+            <div><span class="text-gray-500">Client</span><br><span class="font-medium">{project.client_name|default:'—'}</span></div>
+            <div><span class="text-gray-500">Start</span><br><span class="font-medium">{project.start_date|default:'—'}</span></div>
+            <div><span class="text-gray-500">Target End</span><br><span class="font-medium">{project.target_completion_date|default:'—'}</span></div>
+            <div><span class="text-gray-500">Team Lead</span><br><span class="font-medium">{project.team_lead_name|default:'—'}</span></div>
+        </div>
+        <div class="mt-6 border-t pt-4">
+            <h4 class="font-semibold text-gray-900 text-sm mb-2">📄 Project Documents</h4>
+            <p class="text-xs text-gray-400 mb-2">Upload contracts, permits, plans, and other project files.</p>
+            <form onsubmit="return uploadAttachment(this, 'project', {project.id})" class="flex gap-2 items-end">
+                {csrf_field | raw}
+                <div class="flex-1"><input type="file" name="file" required class="w-full text-sm"></div>
+                <div><input type="text" name="description" placeholder="Description" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Upload</button>
+            </form>
+            <div id="project-attachments" class="mt-2">{attachments_html|raw}</div>
+        </div>
+        <div class="mt-4 border-t pt-4">
+            <h4 class="font-semibold text-gray-900 text-sm mb-2">🖼 PO Receipts & Invoices</h4>
+            <p class="text-xs text-gray-400 mb-2">Upload supplier invoices, receipts, and delivery documents.</p>
+            <form onsubmit="return uploadAttachment(this, 'po', {project.id})" class="flex gap-2 items-end mb-3">
+                {csrf_field | raw}
+                <div class="flex-1"><input type="file" name="file" accept="image/*" required class="w-full text-sm"></div>
+                <div><input type="text" name="description" placeholder="PO ref / notes" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Upload PO</button>
+            </form>
+            <div id="po-images" class="grid grid-cols-2 md:grid-cols-3 gap-3">{po_images_html|raw}</div>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 class="font-semibold text-gray-900 mb-3">Financial Summary</h3>
+        <div class="space-y-2 text-sm">
+            <div class="flex justify-between"><span class="text-gray-700 font-semibold">Budget</span><span class="font-semibold text-gray-900">₱{budget.contract_amount|default:0|number_format:2}</span></div>
+            {if project.fabrication_alloc_pct && project.fabrication_alloc_pct > 0}
+            <div class="flex justify-between"><span class="text-gray-500 pl-3">↳ Fabrication</span><span class="font-medium text-indigo-600">−₱{fabrication_amount|number_format:2} ({project.fabrication_alloc_pct}%)</span></div>
+            <div class="flex justify-between text-xs"><span class="text-gray-400 pl-6">Running</span><span class="text-gray-400">₱{run_after_fab|number_format:2}</span></div>
+            {/if}
+            <div class="flex justify-between"><span class="text-gray-500 pl-3">↳ Spent</span><span class="font-medium text-yellow-600">−₱{costs.total_cost|default:0|number_format:2}</span></div>
+            <div class="flex justify-between text-xs"><span class="text-gray-400 pl-6">Running</span><span class="text-gray-400">₱{run_after_spent|number_format:2}</span></div>
+            <div class="flex justify-between"><span class="text-gray-500 pl-3">↳ Collected</span><span class="font-medium text-green-600">+₱{profitability.total_collected|default:0|number_format:2}</span></div>
+            <div class="flex justify-between text-xs"><span class="text-gray-400 pl-6">Running</span><span class="{if run_after_collected >= 0}text-green-600{else}text-red-600{/if}">₱{run_after_collected|number_format:2}</span></div>
+            <div class="border-t pt-2 flex justify-between"><span class="text-gray-700 font-medium">Net Profit</span><span class="font-medium {if net_profit >= 0}text-green-600{else}text-red-600{/if}">₱{net_profit|number_format:2}</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Expense & Collection History -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6 no-print">
+    <!-- Expenses -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-200"><h3 class="font-semibold text-gray-900">Expenses ({expense_history|count})</h3></div>
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 border-b border-gray-200">
+                <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th>
+                <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Category</th>
+                <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Description</th>
+                <th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Amount</th>
+                <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th>
+            </tr></thead>
+            <tbody>
+                {for e in expense_history}
+                <tr class="border-b border-gray-100">
+                    <td class="py-2 px-3 text-xs text-gray-500">{e.expense_date|default:e.created_at}</td>
+                    <td class="py-2 px-3 text-xs text-gray-700">{e.category_name|default:'—'}</td>
+                    <td class="py-2 px-3 text-xs text-gray-600">{e.description|default:'—'}</td>
+                    <td class="py-2 px-3 text-xs text-right font-medium text-red-600">₱{e.amount|number_format:2}</td>
+                    <td class="py-2 px-3 text-center"><span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if e.status=='approved'}bg-green-100 text-green-700{elseif e.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{e.status|default:'draft'}</span></td>
+                </tr>
+                {/for}
+                {if expense_history|count == 0}
+                <tr><td colspan="5" class="py-6 text-center text-gray-400 text-sm">No expenses recorded.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    <!-- Collections -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-200"><h3 class="font-semibold text-gray-900">Collections ({collection_history|count})</h3></div>
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 border-b border-gray-200">
+                <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th>
+                <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Sale #</th>
+                <th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Amount</th>
+                <th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th>
+            </tr></thead>
+            <tbody>
+                {for c in collection_history}
+                <tr class="border-b border-gray-100">
+                    <td class="py-2 px-3 text-xs text-gray-500">{c.created_at}</td>
+                    <td class="py-2 px-3 text-xs text-gray-700">{c.sales_number|default:'#'~c.sales_id}</td>
+                    <td class="py-2 px-3 text-xs text-right font-medium text-green-600">₱{c.amount|number_format:2}</td>
+                    <td class="py-2 px-3 text-center"><span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if c.status=='approved'}bg-green-100 text-green-700{elseif c.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{c.status|default:'pending'}</span></td>
+                </tr>
+                {/for}
+                {if collection_history|count == 0}
+                <tr><td colspan="4" class="py-6 text-center text-gray-400 text-sm">No collections recorded.</td></tr>
+                {/if}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>

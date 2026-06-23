@@ -1,0 +1,9 @@
+{ikb_entity_view name="pal_sale" view="table"}
+    {field name="sales_number" type="string"}
+    {field name="project_title" type="string"}
+    {field name="client_name" type="string"}
+    {field name="net_amount" type="number" renderer="money:2"}
+    {field name="status" type="enum" renderer="badge:{issued|blue|partially_paid|amber|paid|green|overdue|red|cancelled|gray|voided|gray}"}
+    {field name="sales_date" type="date" renderer="datetime:date"}
+    {action name="view" url="/admin/project-audit-ledger/sales" label="View"}
+{/ikb_entity_view}

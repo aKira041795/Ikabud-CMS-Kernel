@@ -1,0 +1,29 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Clients</h2>
+        <a href="/admin/project-audit-ledger/clients/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add Client</a>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Contact</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Email</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600"></th>
+        </tr></thead>
+        <tbody>
+            {for c in clients}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-900">{c.name}</td>
+                <td class="py-3 px-4 text-gray-700">{c.contact_person|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{c.email|default:'—'}</td>
+                <td class="py-3 px-4">{if c.is_active==1}<span class="text-green-600 text-xs font-medium">Active</span>{else}<span class="text-red-600 text-xs font-medium">Inactive</span>{/if}</td>
+                <td class="py-3 px-4"><a href="/admin/project-audit-ledger/clients/{c.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-2">View</a><a href="/admin/project-audit-ledger/clients/{c.id}/edit" class="text-xs text-gray-600 hover:text-gray-800 font-medium">Edit</a></td>
+            </tr>
+            {/for}
+            {if clients|count == 0}
+            <tr><td colspan="5" class="py-8 text-center text-gray-400">No clients yet.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+</div>

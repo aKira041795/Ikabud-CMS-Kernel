@@ -1,0 +1,33 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="font-semibold text-gray-900">Sales Invoices</h2>
+        <a href="/admin/project-audit-ledger/sales/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Create Invoice</a>
+    </div>
+    <table class="w-full text-sm">
+        <thead><tr class="bg-gray-50 border-b border-gray-200">
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Invoice #</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Project</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Gross</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Net</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600"></th>
+        </tr></thead>
+        <tbody>
+            {for s in sales}
+            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                <td class="py-3 px-4 font-medium text-gray-900">{s.sales_number|default:'#'~s.id}</td>
+                <td class="py-3 px-4 text-gray-700">{s.project_title|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">₱{s.gross_amount|default:0|number_format:2}</td>
+                <td class="py-3 px-4 text-gray-700">₱{s.net_amount|default:0|number_format:2}</td>
+                <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if s.status=='paid'}bg-green-100 text-green-700{elseif s.status=='issued'}bg-blue-100 text-blue-700{elseif s.status=='partially_paid'}bg-yellow-100 text-yellow-700{else}bg-gray-100 text-gray-700{/if}">{s.status|default:'draft'}</span></td>
+                <td class="py-3 px-4 text-xs text-gray-500">{s.sales_date|default:s.created_at}</td>
+                <td class="py-3 px-4"><a href="/admin/project-audit-ledger/sales/{s.id}" class="text-xs text-blue-600 hover:text-blue-800 font-medium mr-2">View</a><a href="/admin/project-audit-ledger/sales/{s.id}/edit" class="text-xs text-gray-600 hover:text-gray-800 font-medium">Edit</a></td>
+            </tr>
+            {/for}
+            {if sales|count == 0}
+            <tr><td colspan="7" class="py-8 text-center text-gray-400">No invoices yet.</td></tr>
+            {/if}
+        </tbody>
+    </table>
+</div>
