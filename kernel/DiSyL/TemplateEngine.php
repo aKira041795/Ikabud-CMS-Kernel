@@ -6874,6 +6874,32 @@ class TemplateEngine
         if (isset($attrs['limit'])) { $overrides['limit'] = (int)$attrs['limit']; }
         if (isset($attrs['actions'])) { $overrides['actions'] = array_map('trim', explode(',', (string)$attrs['actions'])); }
 
+        // Parse filter attribute: filter="project_id={project.id},status=approved"
+        // Resolves {var.path} references from the template context.
+        if (isset($attrs['filter']) && $attrs['filter'] !== '') {
+            $overrides['filters'] = [];
+            foreach (explode(',', (string)$attrs['filter']) as $pair) {
+                $pair = trim($pair);
+                if ($pair === '' || !str_contains($pair, '=')) continue;
+                [$key, $rawVal] = explode('=', $pair, 2);
+                $key = trim($key);
+                $rawVal = trim($rawVal);
+                // Resolve {var.path} from context if present
+                if (str_starts_with($rawVal, '{') && str_ends_with($rawVal, '}')) {
+                    $varPath = substr($rawVal, 1, -1);
+                    $segments = explode('.', $varPath);
+                    $current = $context;
+                    foreach ($segments as $seg) {
+                        $current = is_array($current) && isset($current[$seg]) ? $current[$seg] : null;
+                        if ($current === null) break;
+                    }
+                    $overrides['filters'][$key] = $current ?? $rawVal;
+                } else {
+                    $overrides['filters'][$key] = $rawVal;
+                }
+            }
+        }
+
         $resolved = null;
         try {
             if (method_exists($app, 'entityViews')) {

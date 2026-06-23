@@ -250,14 +250,28 @@ function pal_cap_entity_list_expense_1(array $args): array
         $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'DESC'));
         $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
 
-        $count = $db->prepare("SELECT COUNT(*) FROM pal_expenses WHERE tenant_id = :tid");
-        $count->execute([':tid' => $tid]);
-        $total = (int)$count->fetchColumn();
+        $filters = $args['filters'] ?? [];
+        $where = 'e.tenant_id = :tid';
+        $params = [':tid' => $tid];
+        if (isset($filters['project_id'])) {
+            $where .= ' AND e.project_id = :project_id';
+            $params[':project_id'] = (int)$filters['project_id'];
+        }
+        if (isset($filters['status'])) {
+            $where .= ' AND e.status = :status';
+            $params[':status'] = $filters['status'];
+        }
 
-        $stmt = $db->prepare("SELECT e.id, e.expense_number, e.expense_date, e.description, e.amount, e.status, e.created_at, ec.name AS category_name FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id WHERE e.tenant_id = :tid ORDER BY e.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM pal_expenses e WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $stmt = $db->prepare("SELECT e.id, e.project_id, e.expense_number, e.expense_date, e.description, e.amount, e.status, e.created_at, ec.name AS category_name FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id WHERE {$where} ORDER BY e.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        if (isset($filters['project_id'])) $stmt->bindValue(':project_id', (int)$filters['project_id'], PDO::PARAM_INT);
+        if (isset($filters['status'])) $stmt->bindValue(':status', $filters['status'], PDO::PARAM_STR);
         $stmt->execute();
         return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
     } catch (Throwable $e) {
