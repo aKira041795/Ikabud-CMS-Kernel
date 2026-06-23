@@ -1,0 +1,16 @@
+{ikb_entity_view name="pal_purchase" view="table"}
+    {field name="purchase_number" type="string"}
+    {field name="supplier_name" type="string"}
+    {field name="total_amount" type="number" renderer="money:2"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|pending|amber|approved|green|received|blue|cancelled|red}"}
+    {field name="purchase_date" type="date" renderer="datetime:date"}
+    {action name="view" url="/admin/project-audit-ledger/purchases/{id}" label="View"}
+    {action name="edit" url="/admin/project-audit-ledger/purchases/{id}/edit" label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="pal_purchase" view="compact"}
+    {field name="purchase_number" type="string"}
+    {field name="supplier_name" type="string"}
+    {field name="total_amount" type="number" renderer="money:2"}
+    {field name="status" type="enum" renderer="badge:{pending|amber|approved|green|received|blue}"}
+{/ikb_entity_view}

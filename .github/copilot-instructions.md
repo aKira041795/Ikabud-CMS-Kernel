@@ -4,6 +4,8 @@
 - Runtime entrypoint is [public/index.php](../public/index.php): core routes + dynamic module routes are resolved there, then dispatched (including `module-id:functionName` handlers).
 - Bootstrapping and global infra live in [bootstrap.php](../bootstrap.php): env loading, path constants, exception handler, `write_log()`, request IDs, and log paths.
 - Module system is manifest-driven via [src/helpers/module-manager.php](../src/helpers/module-manager.php): discover/enable/disable modules, load routes, capability dependency safety checks.
+- Entity view system (Kernel OS 6.0+) is the primary rendering engine: `EntityViewResolver` resolves source/view to data via capability bus, `DefaultEntityRenderer` produces HTML. See [docs/kernel/entity-context-system.md](../docs/kernel/entity-context-system.md) and [docs/kernel/entity-view-adoption-plan.md](../docs/kernel/entity-view-adoption-plan.md).
+- Kernel OS 6.0 roadmap status: [docs/kernel/kernel-os-disyl-roadmap-status.md](../docs/kernel/kernel-os-disyl-roadmap-status.md) — check before designing rendering or capabilities.
 - CMS is the main feature module under [modules/cms](../modules/cms):
   - route map in [modules/cms/routes.php](../modules/cms/routes.php)
   - handlers in [modules/cms/handlers.php](../modules/cms/handlers.php)
@@ -15,6 +17,21 @@
 - Keep route files declarative (`GET`/`POST` maps); place request logic in module handlers/services.
 - Builder persistence flows through CMS builder APIs (`/api/v1/cms/content/{id}/builder*`) defined in [modules/cms/routes.php](../modules/cms/routes.php).
 - Builder source of truth is structured JSON documents (see [docs/page-builder/page-builder-technical-spec.md](../docs/page-builder/page-builder-technical-spec.md)); avoid HTML-as-source edits.
+
+## New module design workflow
+When creating a module from scratch, use this per-phase iteration loop:
+1. **Research** — Study 2-3 existing modules with similar scope (module.json, routes, handlers, helpers pattern). Consult `docs/kernel/entity-view-adoption-plan.md` for entity view patterns.
+2. **Propose phase spec** — List the files, key decisions, and migration SQL for the phase. Include capability IDs and table names. Get approval before writing code.
+3. **Build per-phase** — Each phase follows this order:
+   a. Migration SQL (schema drives everything)
+   b. Domain service with business logic
+   c. Unit test for the service (written alongside, not deferred)
+   d. Handler + routes
+   e. Template (entity view or composite)
+   f. Validate: `php -l`, run tests, check both logs
+4. **Checkpoint** — Present results, get sign-off before next phase.
+
+Capabilities must be designed before routes. Declare `capabilities.exposes`/`capabilities.depends` in `module.json` first, then implement handler functions in `helpers.php` via a `*_capability_handlers()` map (see bakeshop/guidance/wms for the pattern).
 
 ## Critical workflows (commands)
 - PHP dependencies (repo root): `composer install`
@@ -49,6 +66,8 @@
 - Use `app()->dbForTenant($tenantId)`, `syncTenantCliMigrationsForTenant()`, or `php ikabud tenant:migrate <tenant_id|tenant_key|domain> [module]` so migrations run against the tenant DB instead of the primary app DB.
 - If a tenant-local module reports a `42S02` missing-table error against the primary app DB but the tenant DB is healthy, treat that as a stale base `_migrations` problem first. Verify the tenant record in `kernel_tenants` / `kernel_tenant_db_connections`, then migrate the tenant DB directly instead of forcing the module onto the base DB.
 - Auth-owned or tenant entry modules must own their auth/admin shell. Their settings, recovery, and entry-admin pages must not depend on `cmsRender` / `cmsAdminContext` unless the module is explicitly a CMS extension rather than the tenant shell.
+- **Entity view rendering**: Use `{ikb_entity_list}`/`{ikb_entity_detail}` as the primary rendering engine for all list/detail views. Register view contracts via `{ikb_entity_view}` DiSyL config files in `helpers/views/`, loaded by `TemplateEngine::loadViewConfigs()`. For composite pages (dashboards, multi-section detail pages, approval queues), use a custom DiSyL template with handler-fetched aggregate data and embedded `{ikb_entity_list}` calls — see the `attendance-wage` dashboard and `docs/kernel/entity-view-adoption-plan.md` for the proven pattern.
+- **Entity view limitation boundary**: Entity views handle single-source data display only. Computed cross-entity metrics, multi-source aggregation, tabs, charts, and multi-field filter forms belong in the handler/composite template layer, not in entity view contracts.
 - For builder changes, update source TS/TSX under [modules/cms/builder-ui/src](../modules/cms/builder-ui/src), not generated bundles in `public/admin/assets`.
 - For node style/props behavior, preserve default-merge semantics used in [modules/cms/helpers.php](../modules/cms/helpers.php) and [modules/cms/builder-ui/src/builder/components/NodeRenderer.tsx](../modules/cms/builder-ui/src/builder/components/NodeRenderer.tsx).
 - Keep public rendering deterministic: changes to builder animation/style attrs must not create duplicate/conflicting HTML attributes.
@@ -80,34 +99,3 @@
   3. CMS entity-list product-card image tests for the `/ecommerce/shop` rendering path.
 - Treat `/ecommerce/shop` as a CMS entity-list integration path first and an ecommerce template path second when choosing where to test storefront card behavior.
 
-# Project Instructions
-
-This repository is a modular PHP application kernel with strict module boundaries.
-
-Before editing, understand the affected module, its manifest, owned tables, capabilities, routes, helpers, handlers, migrations, and tests.
-
-Use LeanCTX tools when available:
-- Prefer ctx_tree before exploring folders.
-- Prefer ctx_search before broad file reads.
-- Prefer ctx_read in map/signatures/auto mode before reading full files.
-- Prefer ctx_shell for git, test, grep, composer, npm, and CLI commands.
-- Avoid loading entire large files unless necessary.
-
-Contextual reviews:
-- Use LeanCTX. Inspect only the module routes, helpers, handlers, module.json, and related tests. Do not read unrelated modules. Propose the smallest safe fix first.
-
-Architecture rules:
-- Do not bypass the kernel boundary.
-- Do not let modules call the kernel directly when hooks/capabilities/events should be used.
-- Respect module-owned database tables.
-- Use tenant-safe access patterns.
-- Keep rendering behind DiSyL/kernel render contracts.
-- Preserve existing hooks, events, capabilities, and route conventions.
-- Add or update tests when changing kernel, module, or DiSyL behavior.
-
-When modifying code:
-1. Identify the smallest affected area.
-2. Inspect related contracts first.
-3. Propose the change.
-4. Apply minimal edits.
-5. Run targeted tests or explain why not run.

@@ -5,23 +5,11 @@ declare(strict_types=1);
 function palPageExpenseList(): void
 {
     $user = palCurrentUser();
-    $svc = new palExpenseService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-    $result = $svc->list($_GET);
-
-    $db = palDb();
-    $tid = (int)($user['tenant_id'] ?? 0);
-    $cats = $db->prepare('SELECT id, name FROM pal_expense_categories WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
-    $cats->execute([':tid' => $tid]);
-    $categories = $cats->fetchAll(PDO::FETCH_ASSOC);
-
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
         'page_title' => 'Expenses',
         'page_content' => 'expenses-list',
-        'expenses' => $result['rows'],
-        'total' => $result['total'],
-        'categories' => $categories,
     ]);
 }
 

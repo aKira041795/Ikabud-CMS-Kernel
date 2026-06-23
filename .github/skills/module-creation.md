@@ -33,7 +33,12 @@ These are the authoritative sources. The skills below summarize key points but t
 
 ## Key patterns
 - Use `module()->db()` for module-owned DB access
-- Guard handlers with capability checks: `attendanceWageGuard('capability.id@1')`
+- Guard handlers with capability checks
 - Register routes in `routes.php`, not in handlers
 - Keep rendering behind DiSyL/kernel render contracts
 - Add or update tests when adding capabilities or changing behavior
+- **Capability handlers**: Name the export function `{module_prefix}_capability_handlers()` where `module_prefix` is the module ID with hyphens replaced by underscores. The function must return an array mapping capability IDs to callable function names. See `src/helpers/module-routes.php` for the naming convention.
+- **Auth-owned modules using shared templates**: All auth POST endpoints MUST use `/api/v1/{module-id}/auth/*` routes, accept JSON input (`php://input` + `json_decode`), and return JSON responses (`echo json_encode(...)`). See `.github/skills/auth-module-setup.md` for the full pattern and debug checklist.
+- **CSRF**: The module manager globally enforces CSRF on all non-API POST routes. The shared login template (`pages/login.disyl`) is exempted via `$isModuleLogin` check, but forgot-password and reset-password templates are NOT — they require API routes.
+- **Password reset flow**: Generate `bin2hex(random_bytes(32))` token, store `hash('sha256', $token)` in the password resets table, send email with raw token URL using `sendEmail()` and `buildEmailTemplate()` from `src/helpers/email.php`.
+- **Test every migration**: Run `php -l` on all PHP files, then `php ikabud tenant:migrate {tenant} {module}` to validate SQL syntax.

@@ -11,6 +11,7 @@ use Ikabud\Kernel\EntityContext\Renderer\ImageCellRenderer;
 use Ikabud\Kernel\EntityContext\Renderer\LocationCellRenderer;
 use Ikabud\Kernel\EntityContext\Renderer\MoneyCellRenderer;
 use Ikabud\Kernel\EntityContext\Renderer\TextCellRenderer;
+use Ikabud\Kernel\EntityContext\RowRenderContext;
 
 /**
  * Default entity renderer — the primary implementation of EntityRendererInterface.
@@ -164,9 +165,25 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             }
 
             $out .= match ($viewMode) {
-                'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles),
-                'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles, $hasBulk, $fieldContracts),
-                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles),
+                'card_grid' => $this->renderCardGridRow(new RowRenderContext(
+                    row: $row, fields: $fields, actions: $actions, use: $use,
+                    actionUrls: $actionUrls, actionMethods: $actionMethods, actionConfirm: $actionConfirm,
+                    actionShowIf: $actionShowIf, actionLabels: $actionLabels, renderers: $renderers,
+                    rowClick: $rowClick, rowClickTarget: $rowClickTarget, userRole: $userRole, actionRoles: $actionRoles,
+                )),
+                'table' => $this->renderTableRow(new RowRenderContext(
+                    row: $row, fields: $fields, actions: $actions, use: $use,
+                    actionUrls: $actionUrls, actionMethods: $actionMethods, actionConfirm: $actionConfirm,
+                    actionShowIf: $actionShowIf, actionLabels: $actionLabels, renderers: $renderers,
+                    rowClick: $rowClick, rowClickTarget: $rowClickTarget, userRole: $userRole, actionRoles: $actionRoles,
+                    hasBulk: $hasBulk, fieldContracts: $fieldContracts,
+                )),
+                default => $this->renderCompactRow(new RowRenderContext(
+                    row: $row, fields: $fields, actions: $actions, use: $use,
+                    actionUrls: $actionUrls, actionMethods: $actionMethods, actionConfirm: $actionConfirm,
+                    actionShowIf: $actionShowIf, actionLabels: $actionLabels, renderers: $renderers,
+                    rowClick: $rowClick, rowClickTarget: $rowClickTarget, userRole: $userRole, actionRoles: $actionRoles,
+                )),
             };
         }
 
@@ -242,7 +259,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         }
 
         $rows = '';
-        foreach ($fields as $field) {
+        foreach ($ctx->fields as $field) {
             $field = trim((string)$field);
             if ($field === '' || ($field === 'id' && count($fields) > 1)) {
                 if (count($fields) > 1) continue;
@@ -414,19 +431,19 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     // ── Row rendering ──────────────────────────────────────────────
 
-    private function renderCompactRow(array $row, array $fields, array $actions, string $use, array $actionUrls, array $actionMethods, array $actionConfirm, array $actionShowIf, array $actionLabels, array $renderers, string $rowClick, string $rowClickTarget, string $userRole, array $actionRoles): string
+    private function renderCompactRow(RowRenderContext $ctx): string
     {
-        $rowClass = $this->style('row', 'compact', $use);
-        $titleClass = $this->style('title', 'compact', $use);
-        $subClass = $this->style('subtitle', 'compact', $use);
-        $titleField = $fields[0] ?? 'id';
-        $subField = $fields[1] ?? null;
-        $title = htmlspecialchars((string)($row[$titleField] ?? $titleField), ENT_QUOTES, 'UTF-8');
-        $sub = $subField ? htmlspecialchars((string)($row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+        $rowClass = $this->style('row', 'compact', $ctx->use);
+        $titleClass = $this->style('title', 'compact', $ctx->use);
+        $subClass = $this->style('subtitle', 'compact', $ctx->use);
+        $titleField = $ctx->fields[0] ?? 'id';
+        $subField = $ctx->fields[1] ?? null;
+        $title = htmlspecialchars((string)($ctx->row[$titleField] ?? $titleField), ENT_QUOTES, 'UTF-8');
+        $sub = $subField ? htmlspecialchars((string)($ctx->row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
 
-        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $userRole, $actionRoles);
+        $actionHtml = $this->renderRowActions($ctx);
         $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
-        $clickAttrs = $this->renderRowClickAttrs($row, $rowClick, $rowClickTarget);
+        $clickAttrs = $this->renderRowClickAttrs($ctx->row, $ctx->rowClick, $ctx->rowClickTarget);
 
         return <<<HTML
         <div class="{$rowClass}{$clickAttrs['class']}"{$clickAttrs['attrs']}>
@@ -439,27 +456,27 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         HTML;
     }
 
-    private function renderCardGridRow(array $row, array $fields, array $actions, string $use, array $actionUrls, array $actionMethods, array $actionConfirm, array $actionShowIf, array $actionLabels, array $renderers, string $rowClick, string $rowClickTarget, string $userRole, array $actionRoles): string
+    private function renderCardGridRow(RowRenderContext $ctx): string
     {
-        $cardClass = $this->style('card', 'card_grid', $use);
-        $titleClass = $this->style('title', 'card_grid', $use);
-        $subClass = $this->style('subtitle', 'card_grid', $use);
+        $cardClass = $this->style('card', 'card_grid', $ctx->use);
+        $titleClass = $this->style('title', 'card_grid', $ctx->use);
+        $subClass = $this->style('subtitle', 'card_grid', $ctx->use);
 
-        $titleField = $fields[0] ?? 'name';
-        $subField = $fields[1] ?? null;
-        $imageField = in_array('image', $fields, true) ? 'image' : (in_array('thumbnail', $fields, true) ? 'thumbnail' : null);
-        $title = htmlspecialchars((string)($row[$titleField] ?? ''), ENT_QUOTES, 'UTF-8');
-        $sub = $subField ? htmlspecialchars((string)($row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+        $titleField = $ctx->fields[0] ?? 'name';
+        $subField = $ctx->fields[1] ?? null;
+        $imageField = in_array('image', $ctx->fields, true) ? 'image' : (in_array('thumbnail', $ctx->fields, true) ? 'thumbnail' : null);
+        $title = htmlspecialchars((string)($ctx->row[$titleField] ?? ''), ENT_QUOTES, 'UTF-8');
+        $sub = $subField ? htmlspecialchars((string)($ctx->row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
 
         $imageHtml = '';
-        if ($imageField && !empty($row[$imageField])) {
-            $imgSrc = htmlspecialchars((string)$row[$imageField], ENT_QUOTES, 'UTF-8');
+        if ($imageField && !empty($ctx->row[$imageField])) {
+            $imgSrc = htmlspecialchars((string)$ctx->row[$imageField], ENT_QUOTES, 'UTF-8');
             $imageHtml = "<img src=\"{$imgSrc}\" alt=\"{$title}\" class=\"w-full h-40 object-cover rounded-t-lg\" loading=\"lazy\">";
         }
 
-        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $userRole, $actionRoles);
+        $actionHtml = $this->renderRowActions($ctx);
         $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
-        $clickAttrs = $this->renderRowClickAttrs($row, $rowClick, $rowClickTarget);
+        $clickAttrs = $this->renderRowClickAttrs($ctx->row, $ctx->rowClick, $ctx->rowClickTarget);
 
         return <<<HTML
         <div class="{$cardClass}{$clickAttrs['class']}"{$clickAttrs['attrs']}>
@@ -506,30 +523,30 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         return '<thead><tr class="' . $theadClass . '">' . $cells . '</tr></thead>';
     }
 
-    private function renderTableRow(array $row, array $fields, array $actions, string $use, array $actionUrls, array $actionMethods, array $actionConfirm, array $actionShowIf, array $actionLabels, array $renderers, string $rowClick, string $rowClickTarget, string $userRole, array $actionRoles, bool $hasBulk = false, array $fieldContracts = []): string
+    private function renderTableRow(RowRenderContext $ctx): string
     {
-        $tdClass = $this->style('td', 'table', $use);
-        $trClass = $this->style('tr', 'table', $use);
-        $clickAttrs = $this->renderRowClickAttrs($row, $rowClick, $rowClickTarget);
+        $tdClass = $this->style('td', 'table', $ctx->use);
+        $trClass = $this->style('tr', 'table', $ctx->use);
+        $clickAttrs = $this->renderRowClickAttrs($ctx->row, $ctx->rowClick, $ctx->rowClickTarget);
         $cells = '';
-        if ($hasBulk) {
-            $rowId = htmlspecialchars((string)($row['id'] ?? ''), ENT_QUOTES, 'UTF-8');
+        if ($ctx->hasBulk) {
+            $rowId = htmlspecialchars((string)($ctx->row['id'] ?? ''), ENT_QUOTES, 'UTF-8');
             $cells .= '<td class="' . $tdClass . '"><input type="checkbox" name="ids[]" value="' . $rowId . '" class="ikb-bulk-row"></td>';
         }
-        foreach ($fields as $field) {
+        foreach ($ctx->fields as $field) {
             if ($field === '*') continue;
-            $rawValue = $row[$field] ?? '';
-            $renderer = $renderers[$field] ?? null;
-            $fc = $fieldContracts[$field] ?? [];
-            $editable = !empty($fc['editable']);
+            $rawValue = $ctx->row[$field] ?? '';
+            $renderer = $ctx->renderers[$field] ?? null;
+            $fc = $ctx->fieldContracts[$field] ?? [];
+            $editable = !empty($ctx->fieldContracts[$field]['editable']);
             if ($editable) {
-                $cells .= '<td class="' . $tdClass . '">' . $this->renderCellEditable($rawValue, $renderer, $field, $row, $fc) . '</td>';
+                $cells .= '<td class="' . $tdClass . '">' . $this->renderCellEditable($rawValue, $renderer, $field, $ctx->row, $fc) . '</td>';
             } else {
-                $cells .= '<td class="' . $tdClass . '">' . $this->renderCell($rawValue, $renderer, $field, $row) . '</td>';
+                $cells .= '<td class="' . $tdClass . '">' . $this->renderCell($rawValue, $renderer, $field, $ctx->row) . '</td>';
             }
         }
 
-        $actionHtml = $this->renderRowActions($row, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $userRole, $actionRoles);
+        $actionHtml = $this->renderRowActions($ctx);
         if ($actionHtml !== '') {
             $cells .= '<td class="' . $tdClass . ' text-right whitespace-nowrap">' . $actionHtml . '</td>';
         }
@@ -539,12 +556,12 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     // ── Actions ────────────────────────────────────────────────────
 
-    private function renderRowActions(array $row, array $actions, string $use, array $actionUrls, array $actionMethods, array $actionConfirm, array $actionShowIf, array $actionLabels, string $userRole, array $actionRoles): string
+    private function renderRowActions(RowRenderContext $ctx): string
     {
         if (empty($actions)) return '';
 
-        $id = $row['id'] ?? '';
-        $actionWrapperClass = $this->style('actionWrapper', 'actions', $use);
+        $id = $ctx->row['id'] ?? '';
+        $actionWrapperClass = $this->style('actionWrapper', 'actions', $ctx->use);
         $html = '';
 
         foreach ($actions as $action) {
@@ -585,7 +602,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             }
 
             $label = $actionLabels[$action] ?? ucfirst($action);
-            $actionClass = $this->style('action', $action, $use);
+            $actionClass = $this->style('action', $action, $ctx->use);
             $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
             $safeId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
 
