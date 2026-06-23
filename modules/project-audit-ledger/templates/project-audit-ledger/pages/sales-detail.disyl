@@ -2,8 +2,8 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-2">Invoice #{sale.sales_number|default:sale.id}</h2>
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{sale.project_title|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{sale.client_name|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if sale.project_title && sale.project_id}<a href="/admin/project-audit-ledger/projects/{sale.project_id}" class="text-blue-600 hover:text-blue-800">{sale.project_title}</a>{else}{sale.project_title|default:'—'}{/if}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{if sale.client_name && sale.client_id}<a href="/admin/project-audit-ledger/clients/{sale.client_id}" class="text-blue-600 hover:text-blue-800">{sale.client_name}</a>{else}{sale.client_name|default:'—'}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Gross Amount</span><span>₱{sale.gross_amount|number_format:2}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Discount</span><span>₱{sale.discount_amount|default:0|number_format:2}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Tax</span><span>₱{sale.tax_amount|default:0|number_format:2}</span></div>

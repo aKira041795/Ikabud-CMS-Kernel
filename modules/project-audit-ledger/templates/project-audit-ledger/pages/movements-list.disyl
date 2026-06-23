@@ -12,10 +12,10 @@
             {for mv in movements}
             <tr class="border-b border-gray-100">
                 <td class="py-3 px-4 text-xs text-gray-600">{mv.created_at}</td>
-                <td class="py-3 px-4 text-gray-700">{mv.material_name|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{if mv.material_id}<a href="/admin/project-audit-ledger/inventory/{mv.material_id}" class="text-blue-600 hover:text-blue-800">{mv.material_name|default:'—'}</a>{else}{mv.material_name|default:'—'}{/if}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium">{mv.movement_type}</span></td>
                 <td class="py-3 px-4 font-medium {if mv.quantity > 0}text-green-600{else}text-red-600{/if}">{mv.quantity}</td>
-                <td class="py-3 px-4 text-xs text-gray-600">{mv.reference_type|default:''} #{mv.reference_id|default:''}</td>
+                <td class="py-3 px-4 text-xs text-gray-600">{if mv.reference_type == 'purchase' && mv.reference_id}<a href="/admin/project-audit-ledger/purchases/{mv.reference_id}" class="text-blue-600 hover:text-blue-800">{mv.reference_type} #{mv.reference_id}</a>{elseif mv.reference_type == 'issuance' && mv.reference_id}<a href="/admin/project-audit-ledger/material-issuance/{mv.reference_id}" class="text-blue-600 hover:text-blue-800">{mv.reference_type} #{mv.reference_id}</a>{else}{mv.reference_type|default:''} #{mv.reference_id|default:''}{/if}</td>
             </tr>
             {/for}
             {if movements|count == 0}

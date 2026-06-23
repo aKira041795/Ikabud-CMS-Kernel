@@ -2,10 +2,17 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Pending ({pending|count})</h2></div>
         {for a in pending}
+        {entity_path = a.entity_type|default:''}
+        {if entity_path == 'expense'}{url_base = '/admin/project-audit-ledger/expenses'}
+        {elseif entity_path == 'purchase'}{url_base = '/admin/project-audit-ledger/purchases'}
+        {elseif entity_path == 'issuance'}{url_base = '/admin/project-audit-ledger/material-issuance'}
+        {elseif entity_path == 'collection'}{url_base = '/admin/project-audit-ledger/collections'}
+        {elseif entity_path == 'fabrication_payment'}{url_base = '/admin/project-audit-ledger/fabrication'}
+        {else}{url_base = ''}{/if}
         <div class="p-4 border-b border-gray-100">
             <div class="flex justify-between items-start">
                 <div>
-                    <p class="font-medium text-gray-900">{a.reference_type|default:'Request'} #{a.reference_id}</p>
+                    <p class="font-medium text-gray-900">{if url_base && a.entity_id}<a href="{url_base}/{a.entity_id}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
                     <p class="text-xs text-gray-600">{a.submitted_at} by {a.submitter_name|default:'—'}</p>
                     <p class="text-xs text-gray-600 mt-1">{a.notes|default:''}</p>
                 </div>
@@ -23,10 +30,17 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Recent Decisions</h2></div>
         {for a in recent}
+        {entity_path2 = a.entity_type|default:''}
+        {if entity_path2 == 'expense'}{url_base2 = '/admin/project-audit-ledger/expenses'}
+        {elseif entity_path2 == 'purchase'}{url_base2 = '/admin/project-audit-ledger/purchases'}
+        {elseif entity_path2 == 'issuance'}{url_base2 = '/admin/project-audit-ledger/material-issuance'}
+        {elseif entity_path2 == 'collection'}{url_base2 = '/admin/project-audit-ledger/collections'}
+        {elseif entity_path2 == 'fabrication_payment'}{url_base2 = '/admin/project-audit-ledger/fabrication'}
+        {else}{url_base2 = ''}{/if}
         <div class="p-4 border-b border-gray-100">
             <div class="flex justify-between items-start">
                 <div>
-                    <p class="font-medium text-gray-900">{a.reference_type|default:'Request'} #{a.reference_id}</p>
+                    <p class="font-medium text-gray-900">{if url_base2 && a.entity_id}<a href="{url_base2}/{a.entity_id}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
                     <p class="text-xs text-gray-600">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
                 </div>
                 <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if a.decision=='approved'}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{a.decision}</span>

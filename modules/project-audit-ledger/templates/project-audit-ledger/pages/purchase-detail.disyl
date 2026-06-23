@@ -1,6 +1,7 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg print-area">
     <h2 class="font-semibold text-gray-900 mb-2">Purchase #{purchase.purchase_number|default:purchase.id}</h2>
-    <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Supplier</span><span>{purchase.supplier_name|default:'—'}</span></div>
+    <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Supplier</span><span>{if purchase.supplier_name && purchase.supplier_id}<a href="/admin/project-audit-ledger/suppliers/{purchase.supplier_id}" class="text-blue-600 hover:text-blue-800">{purchase.supplier_name}</a>{else}{purchase.supplier_name|default:'—'}{/if}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if purchase.project_title && purchase.project_id}<a href="/admin/project-audit-ledger/projects/{purchase.project_id}" class="text-blue-600 hover:text-blue-800">{purchase.project_title}</a>{else}{purchase.project_title|default:'—'}{/if}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Total</span><span class="font-medium">₱{purchase.total_amount|number_format:2}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{purchase.status|default:'draft'}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{purchase.purchase_date|default:purchase.created_at}</span></div>

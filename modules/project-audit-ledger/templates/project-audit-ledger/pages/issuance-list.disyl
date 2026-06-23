@@ -16,7 +16,7 @@
             {for i in issuances}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4 font-medium text-gray-900">{i.issuance_number|default:'#'~i.id}</td>
-                <td class="py-3 px-4 text-gray-700">{i.project_title|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{if i.project_title && i.project_id}<a href="/admin/project-audit-ledger/projects/{i.project_id}" class="text-blue-600 hover:text-blue-800">{i.project_title}</a>{else}{i.project_title|default:'—'}{/if}</td>
                 <td class="py-3 px-4 text-gray-700">{i.item_count|default:0} items</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if i.status=='approved'||i.status=='fully_issued'}bg-green-100 text-green-700{elseif i.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{i.status|default:'draft'}</span></td>
                 <td class="py-3 px-4 text-xs text-gray-600">{i.created_at}</td>

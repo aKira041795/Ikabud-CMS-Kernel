@@ -16,7 +16,7 @@
             {for p in projects}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4 font-medium text-gray-900">{p.title}</td>
-                <td class="py-3 px-4 text-gray-700">{p.client_name|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{if p.client_name && p.client_id}<a href="/admin/project-audit-ledger/clients/{p.client_id}" class="text-blue-600 hover:text-blue-800">{p.client_name}</a>{else}{p.client_name|default:'—'}{/if}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if p.status=='approved'||p.status=='in_progress'}bg-green-100 text-green-700{elseif p.status=='completed'}bg-blue-100 text-blue-700{else}bg-yellow-100 text-yellow-700{/if}">{p.status|default:'draft'}</span></td>
                 <td class="py-3 px-4 text-gray-700">₱{p.contract_amount|default:0|number_format:2}</td>
                 <td class="py-3 px-4"><div class="w-24 bg-gray-200 rounded-full h-2"><div class="{if p.budget_used_pct|default:0 > 100}bg-red-600{elseif p.budget_used_pct|default:0 > 80}bg-yellow-500{else}bg-blue-600{/if} h-2 rounded-full" style="width:{p.budget_used_pct|default:0}%"></div></div><span class="text-xs text-gray-600 ml-2">{p.budget_used_pct|default:0}%</span></td>

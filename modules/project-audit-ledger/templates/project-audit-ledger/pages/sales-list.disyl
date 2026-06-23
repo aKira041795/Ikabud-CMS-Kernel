@@ -17,7 +17,7 @@
             {for s in sales}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4 font-medium text-gray-900">{s.sales_number|default:'#'~s.id}</td>
-                <td class="py-3 px-4 text-gray-700">{s.project_title|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{if s.project_title && s.project_id}<a href="/admin/project-audit-ledger/projects/{s.project_id}" class="text-blue-600 hover:text-blue-800">{s.project_title}</a>{else}{s.project_title|default:'—'}{/if}</td>
                 <td class="py-3 px-4 text-gray-700">₱{s.gross_amount|default:0|number_format:2}</td>
                 <td class="py-3 px-4 text-gray-700">₱{s.net_amount|default:0|number_format:2}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if s.status=='paid'}bg-green-100 text-green-700{elseif s.status=='issued'}bg-blue-100 text-blue-700{elseif s.status=='partially_paid'}bg-yellow-100 text-yellow-700{else}bg-gray-100 text-gray-700{/if}">{s.status|default:'draft'}</span></td>

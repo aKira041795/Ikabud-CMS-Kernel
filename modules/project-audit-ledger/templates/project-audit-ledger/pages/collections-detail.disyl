@@ -3,8 +3,8 @@
     <h2 class="font-semibold text-gray-900 mb-2">Collection #{collection.id}</h2>
     <div class="space-y-2 text-sm">
         <div class="flex justify-between"><span class="text-gray-600">Invoice</span><span class="font-medium">{collection.sales_number|default:'INV#'~collection.sales_id}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{collection.project_title|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{collection.client_name|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if collection.project_title && collection.project_id}<a href="/admin/project-audit-ledger/projects/{collection.project_id}" class="text-blue-600 hover:text-blue-800">{collection.project_title}</a>{else}{collection.project_title|default:'—'}{/if}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{if collection.client_name && collection.client_id}<a href="/admin/project-audit-ledger/clients/{collection.client_id}" class="text-blue-600 hover:text-blue-800">{collection.client_name}</a>{else}{collection.client_name|default:'—'}{/if}</span></div>
         <hr>
         <div class="flex justify-between"><span class="text-gray-600">Amount Collected</span><span class="font-medium text-green-600">₱{collection.amount|number_format:2}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Invoice Net</span><span>₱{collection.sale_net|default:0|number_format:2}</span></div>

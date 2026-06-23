@@ -2,7 +2,7 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-2">Issuance #{issuance.issuance_number|default:issuance.id}</h2>
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{issuance.project_title|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if issuance.project_title && issuance.project_id}<a href="/admin/project-audit-ledger/projects/{issuance.project_id}" class="text-blue-600 hover:text-blue-800">{issuance.project_title}</a>{else}{issuance.project_title|default:'—'}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Purpose</span><span>{issuance.purpose|default:'—'}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{issuance.status|default:'draft'}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{issuance.created_at}</span></div>

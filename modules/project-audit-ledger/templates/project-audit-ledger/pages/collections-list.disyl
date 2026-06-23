@@ -19,8 +19,8 @@
             <tr class="border-b border-gray-100">
                 <td class="py-3 px-4 font-medium text-green-600">₱{c.amount|default:0|number_format:2}</td>
                 <td class="py-3 px-4 text-gray-700">{c.sales_number|default:'#'~c.sales_id}</td>
-                <td class="py-3 px-4 text-gray-700">{c.client_name|default:'—'}</td>
-                <td class="py-3 px-4 text-gray-700">{c.project_title|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{if c.client_name && c.client_id}<a href="/admin/project-audit-ledger/clients/{c.client_id}" class="text-blue-600 hover:text-blue-800">{c.client_name}</a>{else}{c.client_name|default:'—'}{/if}</td>
+                <td class="py-3 px-4 text-gray-700">{if c.project_title && c.project_id}<a href="/admin/project-audit-ledger/projects/{c.project_id}" class="text-blue-600 hover:text-blue-800">{c.project_title}</a>{else}{c.project_title|default:'—'}{/if}</td>
                 <td class="py-3 px-4 text-xs text-gray-600">{c.payment_method|default:'—'}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if c.status=='approved'}bg-green-100 text-green-700{elseif c.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{c.status|default:'pending'}</span></td>
                 <td class="py-3 px-4 text-xs text-gray-600">{c.payment_date|default:c.created_at}</td>

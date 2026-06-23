@@ -3,7 +3,7 @@
     <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-medium">₱{expense.amount|number_format:2}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Category</span><span>{expense.category_name|default:'—'}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{expense.status|default:'draft'}</span></div>
-    <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{expense.project_title|default:'—'}</span></div>
+    <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if expense.project_title && expense.project_id}<a href="/admin/project-audit-ledger/projects/{expense.project_id}" class="text-blue-600 hover:text-blue-800">{expense.project_title}</a>{else}{expense.project_title|default:'—'}{/if}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Description</span><span>{expense.description|default:'—'}</span></div>
     <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{expense.expense_date|default:expense.created_at}</span></div></div>
     <div class="mt-4 flex gap-2">

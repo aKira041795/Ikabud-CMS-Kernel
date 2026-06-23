@@ -16,7 +16,7 @@
         <tbody>
             {for p in fabricationProjects}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
-                <td class="py-3 px-4 font-medium text-gray-900">{p.project_title}</td>
+                <td class="py-3 px-4 font-medium text-gray-900">{if p.project_id}<a href="/admin/project-audit-ledger/projects/{p.project_id}" class="text-blue-600 hover:text-blue-800">{p.project_title}</a>{else}{p.project_title}{/if}</td>
                 <td class="py-3 px-4 text-gray-700">{p.team_lead_name|default:'—'}</td>
                 <td class="py-3 px-4"><span class="font-medium">₱{p.fab_budget|default:0|number_format:2}</span><br><span class="text-xs text-gray-600">{p.fabrication_alloc_pct|default:0}% of contract</span></td>
                 <td class="py-3 px-4">

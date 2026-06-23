@@ -7,6 +7,7 @@
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">PO #</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Supplier</th>
+            <th class="text-left py-3 px-4 font-semibold text-gray-600">Project</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Items</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Total</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Status</th>
@@ -17,7 +18,8 @@
             {for p in purchases}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4 font-medium text-gray-900">{p.purchase_number|default:'#'~p.id}</td>
-                <td class="py-3 px-4 text-gray-700">{p.supplier_name|default:'—'}</td>
+                <td class="py-3 px-4 text-gray-700">{if p.supplier_name && p.supplier_id}<a href="/admin/project-audit-ledger/suppliers/{p.supplier_id}" class="text-blue-600 hover:text-blue-800">{p.supplier_name}</a>{else}{p.supplier_name|default:'—'}{/if}</td>
+                <td class="py-3 px-4 text-gray-700">{if p.project_title && p.project_id}<a href="/admin/project-audit-ledger/projects/{p.project_id}" class="text-blue-600 hover:text-blue-800">{p.project_title}</a>{else}{p.project_title|default:'—'}{/if}</td>
                 <td class="py-3 px-4 text-gray-700">{p.item_count|default:0}</td>
                 <td class="py-3 px-4 text-gray-700">₱{p.total_amount|default:0|number_format:2}</td>
                 <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if p.status=='approved'}bg-green-100 text-green-700{elseif p.status=='rejected'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{p.status|default:'draft'}</span></td>
@@ -26,7 +28,7 @@
             </tr>
             {/for}
             {if purchases|count == 0}
-            <tr><td colspan="7" class="py-8 text-center text-gray-600">No purchase orders yet.</td></tr>
+            <tr><td colspan="8" class="py-8 text-center text-gray-600">No purchase orders yet.</td></tr>
             {/if}
         </tbody>
     </table>
