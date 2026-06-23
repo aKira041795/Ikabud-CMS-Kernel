@@ -198,7 +198,8 @@ class palExpenseService
 
     private function generateExpenseNumber(): string
     {
-        $prefix = 'EXP-' . date('Ymd') . '-';
+        $settingPrefix = (function_exists('palSettings') ? (palSettings()['expense_prefix'] ?? 'EXP') : 'EXP');
+        $prefix = $settingPrefix . '-' . date('Ymd') . '-';
         $stmt = $this->db->prepare(
             "SELECT COUNT(*) FROM pal_expenses WHERE expense_number LIKE :prefix AND tenant_id = :tenant_id"
         );

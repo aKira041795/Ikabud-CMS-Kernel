@@ -47,7 +47,8 @@ class palPurchaseService
         try {
             $cStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_purchases WHERE tenant_id = :tid");
             $cStmt->execute([':tid' => $this->tenantId]);
-            $num = 'PO-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+            $prefix = (function_exists('palSettings') ? (palSettings()['purchase_prefix'] ?? 'PO') : 'PO');
+        $num = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
             // Build items from flat form array if not already structured
             if (!isset($data['items']) && isset($data['material_id']) && is_array($data['material_id'])) {

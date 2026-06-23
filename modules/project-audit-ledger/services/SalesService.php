@@ -46,7 +46,8 @@ class palSalesService
     {
         $cStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE tenant_id = :tid");
         $cStmt->execute([':tid' => $this->tenantId]);
-        $num = 'INV-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+        $prefix = (function_exists('palSettings') ? (palSettings()['sales_prefix'] ?? 'INV') : 'INV');
+        $num = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
         $stmt = $this->db->prepare("INSERT INTO pal_sales (tenant_id, sales_number, project_id, client_id, invoice_number, sales_date, gross_amount, discount_amount, tax_amount, due_date, payment_terms, notes, status, created_by) VALUES (:t, :sn, :pj, :cl, :inv, :sd, :ga, :da, :ta, :dd, :pt, :no, 'issued', :cb)");
         $stmt->execute([':t' => $this->tenantId, ':sn' => $num, ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null, ':cl' => !empty($data['client_id']) ? (int)$data['client_id'] : null, ':inv' => $data['invoice_number'] ?? null, ':sd' => $data['sales_date'] ?? date('Y-m-d'), ':ga' => $data['gross_amount'] ?? 0, ':da' => $data['discount_amount'] ?? 0, ':ta' => $data['tax_amount'] ?? 0, ':dd' => $data['due_date'] ?? null, ':pt' => $data['payment_terms'] ?? null, ':no' => $data['notes'] ?? null, ':cb' => $this->userId]);
@@ -60,7 +61,8 @@ class palSalesService
 
         $cStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
         $cStmt->execute([':tid' => $this->tenantId]);
-        $num = 'COL-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+        $prefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
+        $num = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
         $this->db->beginTransaction();
         try {

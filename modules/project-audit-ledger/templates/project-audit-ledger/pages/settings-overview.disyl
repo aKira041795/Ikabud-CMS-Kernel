@@ -1,8 +1,10 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">General Settings</h2></div>
     <div class="p-6">
-        <form onsubmit="return ajaxSubmit(this, 'Settings saved')" action="/api/v1/project-audit-ledger/settings" method="POST" class="space-y-4 max-w-lg" enctype="multipart/form-data">
+        <form onsubmit="return ajaxSubmit(this, 'Settings saved')" action="/api/v1/project-audit-ledger/settings" method="POST" class="space-y-6 max-w-lg" enctype="multipart/form-data">
             {csrf_field | raw}
+
+            <h3 class="text-sm font-semibold text-gray-800 border-b pb-1">Branding</h3>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">App Name</label><input type="text" name="app_name" value="{settings.app_name|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">App Logo</label>
                 <div class="flex items-center gap-3">
@@ -11,13 +13,44 @@
                 </div>
                 <p class="text-xs text-gray-500 mt-1">Upload PNG, JPG, GIF, or SVG. Replaces current logo.</p>
             </div>
+
+            <h3 class="text-sm font-semibold text-gray-800 border-b pb-1">Company</h3>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label><input type="text" name="company_name" value="{settings.company_name|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Company Address</label><textarea name="company_address" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{settings.company_address|default:''}</textarea></div>
             <div class="grid grid-cols-2 gap-3">
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Phone</label><input type="text" name="company_phone" value="{settings.company_phone|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
                 <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" name="company_email" value="{settings.company_email|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
             </div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Default Currency</label><select name="currency" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="PHP" {if settings.currency=='PHP'}selected{/if}>PHP (₱)</option><option value="USD" {if settings.currency=='USD'}selected{/if}>USD ($)</option></select></div>
+
+            <h3 class="text-sm font-semibold text-gray-800 border-b pb-1">Defaults</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Currency</label><select name="currency" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="PHP" {if settings.currency=='PHP'}selected{/if}>PHP (₱)</option><option value="USD" {if settings.currency=='USD'}selected{/if}>USD ($)</option></select></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label><select name="payment_terms" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="" {if settings.payment_terms==''}selected{/if}>— None —</option><option value="due_on_receipt" {if settings.payment_terms=='due_on_receipt'}selected{/if}>Due on Receipt</option><option value="net_15" {if settings.payment_terms=='net_15'}selected{/if}>Net 15</option><option value="net_30" {if settings.payment_terms=='net_30'}selected{/if}>Net 30</option><option value="net_60" {if settings.payment_terms=='net_60'}selected{/if}>Net 60</option></select></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label><select name="timezone" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="Asia/Manila" {if settings.timezone=='Asia/Manila'||!settings.timezone}selected{/if}>Asia/Manila (UTC+8)</option><option value="UTC" {if settings.timezone=='UTC'}selected{/if}>UTC</option><option value="America/New_York" {if settings.timezone=='America/New_York'}selected{/if}>America/New York</option><option value="America/Chicago" {if settings.timezone=='America/Chicago'}selected{/if}>America/Chicago</option><option value="America/Los_Angeles" {if settings.timezone=='America/Los_Angeles'}selected{/if}>America/Los Angeles</option><option value="Europe/London" {if settings.timezone=='Europe/London'}selected{/if}>Europe/London</option><option value="Europe/Berlin" {if settings.timezone=='Europe/Berlin'}selected{/if}>Europe/Berlin</option><option value="Asia/Tokyo" {if settings.timezone=='Asia/Tokyo'}selected{/if}>Asia/Tokyo</option><option value="Asia/Singapore" {if settings.timezone=='Asia/Singapore'}selected{/if}>Asia/Singapore</option></select></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Date Format</label><select name="date_format" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="Y-m-d" {if settings.date_format=='Y-m-d'||!settings.date_format}selected{/if}>2026-06-23</option><option value="m/d/Y" {if settings.date_format=='m/d/Y'}selected{/if}>06/23/2026</option><option value="d/m/Y" {if settings.date_format=='d/m/Y'}selected{/if}>23/06/2026</option><option value="F j, Y" {if settings.date_format=='F j, Y'}selected{/if}>June 23, 2026</option><option value="j F Y" {if settings.date_format=='j F Y'}selected{/if}>23 June 2026</option></select></div>
+            </div>
+
+            <h3 class="text-sm font-semibold text-gray-800 border-b pb-1">Document Numbering</h3>
+            <p class="text-xs text-gray-500 -mt-2">Prefixes used when auto-generating document numbers (e.g. <code>PO-20260623-0001</code>).</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Sales / Invoice</label><input type="text" name="sales_prefix" value="{settings.sales_prefix|default:'INV'}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Purchase Order</label><input type="text" name="purchase_prefix" value="{settings.purchase_prefix|default:'PO'}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Collection</label><input type="text" name="collection_prefix" value="{settings.collection_prefix|default:'COL'}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Expense</label><input type="text" name="expense_prefix" value="{settings.expense_prefix|default:'EXP'}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            </div>
+
+            <h3 class="text-sm font-semibold text-gray-800 border-b pb-1">Approvals</h3>
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="hidden" name="allow_self_approval" value="0">
+                <input type="checkbox" name="allow_self_approval" value="1" {if settings.allow_self_approval=='1'}checked{/if} class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <span class="text-sm text-gray-700">Allow users to approve their own requests</span>
+            </label>
+
+            <h3 class="text-sm font-semibold text-gray-800 border-b pb-1">Receipt Footer</h3>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Footer Text</label><textarea name="receipt_footer" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{settings.receipt_footer|default:''}</textarea><p class="text-xs text-gray-500 mt-1">Printed at the bottom of sales receipts and invoices.</p></div>
+
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Save Settings</button>
         </form>
     </div>
