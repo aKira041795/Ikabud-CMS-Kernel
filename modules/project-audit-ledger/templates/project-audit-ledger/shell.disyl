@@ -290,7 +290,7 @@ function addPoRow() {
     if (!row) return;
     var clone = row.cloneNode(true);
     clone.querySelectorAll('input').forEach(function(i){ i.value = ''; });
-    clone.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; });
+    clone.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; if (s.dataset && s.dataset.creatable) { makeCreatable(s); } });
     clone.querySelector('.line-total').textContent = '₱0.00';
     document.getElementById('po-items').appendChild(clone);
 }
