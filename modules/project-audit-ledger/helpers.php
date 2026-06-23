@@ -49,6 +49,13 @@ function project_audit_ledger_capability_handlers(): array
         'entity.list.pal_collection@1' => 'pal_cap_entity_list_collection_1',
         'entity.list.pal_fabrication_due@1' => 'pal_cap_entity_list_fabrication_due_1',
         'entity.list.pal_audit_log@1' => 'pal_cap_entity_list_audit_log_1',
+        'entity.list.pal_client@1' => 'pal_cap_entity_list_client_1',
+        'entity.get.pal_client@1' => 'pal_cap_entity_get_client_1',
+        'entity.list.pal_supplier@1' => 'pal_cap_entity_list_supplier_1',
+        'entity.get.pal_supplier@1' => 'pal_cap_entity_get_supplier_1',
+        'entity.list.pal_issuance@1' => 'pal_cap_entity_list_issuance_1',
+        'entity.get.pal_issuance@1' => 'pal_cap_entity_get_issuance_1',
+        'entity.list.pal_material_return@1' => 'pal_cap_entity_list_material_return_1',
     ];
 }
 
@@ -458,6 +465,143 @@ function pal_cap_entity_list_audit_log_1(array $args): array
         $total = (int)$count->fetchColumn();
 
         $stmt = $db->prepare("SELECT a.id, a.action, a.entity_type, a.entity_id, a.new_data, a.ip_address, a.created_at, u.full_name AS actor_name FROM pal_audit_logs a LEFT JOIN pal_users u ON a.actor_user_id = u.id WHERE a.tenant_id = :tid ORDER BY a.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_client_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'ASC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'ASC';
+        $count = $db->prepare("SELECT COUNT(*) FROM pal_clients WHERE tenant_id = :tid");
+        $count->execute([':tid' => $tid]);
+        $total = (int)$count->fetchColumn();
+        $stmt = $db->prepare("SELECT id, name, contact_person, email, phone, address, is_active FROM pal_clients WHERE tenant_id = :tid ORDER BY name {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_get_client_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $id = (int)($args['id'] ?? 0);
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $stmt = $db->prepare("SELECT * FROM pal_clients WHERE id = :id AND tenant_id = :tid");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_supplier_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'ASC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'ASC';
+        $count = $db->prepare("SELECT COUNT(*) FROM pal_suppliers WHERE tenant_id = :tid");
+        $count->execute([':tid' => $tid]);
+        $total = (int)$count->fetchColumn();
+        $stmt = $db->prepare("SELECT id, name, contact_person, email, phone, address, payment_terms, is_active FROM pal_suppliers WHERE tenant_id = :tid ORDER BY name {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_get_supplier_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $id = (int)($args['id'] ?? 0);
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $stmt = $db->prepare("SELECT * FROM pal_suppliers WHERE id = :id AND tenant_id = :tid");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_issuance_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'DESC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
+        $count = $db->prepare("SELECT COUNT(*) FROM pal_material_issuances WHERE tenant_id = :tid");
+        $count->execute([':tid' => $tid]);
+        $total = (int)$count->fetchColumn();
+        $stmt = $db->prepare("SELECT i.id, i.issuance_number, i.status, i.created_at, p.title AS project_title, (SELECT COUNT(*) FROM pal_material_issuance_items ii WHERE ii.issuance_id = i.id) AS item_count FROM pal_material_issuances i LEFT JOIN pal_projects p ON i.project_id = p.id WHERE i.tenant_id = :tid ORDER BY i.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_get_issuance_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $id = (int)($args['id'] ?? 0);
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $stmt = $db->prepare("SELECT i.*, p.title AS project_title FROM pal_material_issuances i LEFT JOIN pal_projects p ON i.project_id = p.id WHERE i.id = :id AND i.tenant_id = :tid");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_material_return_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'DESC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
+        $count = $db->prepare("SELECT COUNT(*) FROM pal_material_returns WHERE tenant_id = :tid");
+        $count->execute([':tid' => $tid]);
+        $total = (int)$count->fetchColumn();
+        $stmt = $db->prepare("SELECT r.id, r.return_date, r.quantity_returned, r.condition, r.created_at, p.title AS project_title, m.name AS material_name, iss.issuance_number FROM pal_material_returns r LEFT JOIN pal_projects p ON r.project_id = p.id LEFT JOIN pal_materials m ON r.material_id = m.id LEFT JOIN pal_material_issuances iss ON r.issuance_id = iss.id WHERE r.tenant_id = :tid ORDER BY r.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);

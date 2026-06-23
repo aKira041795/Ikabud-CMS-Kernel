@@ -1,0 +1,8 @@
+{ikb_entity_view name="pal_supplier" view="table"}
+    {field name="name" type="string"}
+    {field name="contact_person" type="string"}
+    {field name="email" type="string"}
+    {field name="phone" type="string"}
+    {field name="is_active" type="boolean" renderer="boolean"}
+    {action name="edit" url="/admin/project-audit-ledger/suppliers/{id}/edit" label="Edit"}
+{/ikb_entity_view}

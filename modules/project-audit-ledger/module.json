@@ -51,7 +51,8 @@
         "pal_settings"
     ],
     "reads_tables": [
-        "audit_logs"
+        "audit_logs",
+        "pal_material_issuance_items"
     ],
     "migrations": [
         "database/migrations/001_pal_core_schema.sql",
@@ -357,6 +358,62 @@
                     "first"
                 ],
                 "description": "List audit logs"
+            },
+            {
+                "id": "entity.list.pal_client@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List clients"
+            },
+            {
+                "id": "entity.get.pal_client@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single client"
+            },
+            {
+                "id": "entity.list.pal_supplier@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List suppliers"
+            },
+            {
+                "id": "entity.get.pal_supplier@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single supplier"
+            },
+            {
+                "id": "entity.list.pal_issuance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List material issuances"
+            },
+            {
+                "id": "entity.get.pal_issuance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single issuance"
+            },
+            {
+                "id": "entity.list.pal_material_return@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List material returns"
             }
         ],
         "depends": [
@@ -461,7 +518,7 @@
             "key": "currency_symbol",
             "type": "text",
             "label": "Currency Symbol",
-            "default": "₱",
+            "default": "\u20b1",
             "description": "Currency symbol used in monetary displays."
         },
         {

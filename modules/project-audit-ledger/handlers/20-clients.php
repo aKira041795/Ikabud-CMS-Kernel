@@ -8,26 +8,11 @@ declare(strict_types=1);
 function palPageClientList(): void
 {
     $user = palCurrentUser();
-    $db = palDb();
-    $search = $_GET['search'] ?? '';
-    $sql = 'SELECT * FROM pal_clients WHERE tenant_id = :tenant_id';
-    $params = [':tenant_id' => $user['tenant_id'] ?? 0];
-    if ($search !== '') {
-        $sql .= ' AND (name LIKE :search OR email LIKE :search2)';
-        $params[':search'] = "%{$search}%";
-        $params[':search2'] = "%{$search}%";
-    }
-    $sql .= ' ORDER BY name ASC';
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    $clients = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
         'page_title' => 'Clients',
         'page_content' => 'clients-list',
-        'clients' => $clients,
     ]);
 }
 
@@ -88,16 +73,11 @@ function palPageClientDetail(array $rp = []): void
 function palPageSupplierList(): void
 {
     $user = palCurrentUser();
-    $stmt = palDb()->prepare('SELECT * FROM pal_suppliers WHERE tenant_id = :tenant_id ORDER BY name ASC');
-    $stmt->execute([':tenant_id' => $user['tenant_id'] ?? 0]);
-    $suppliers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
         'page_title' => 'Suppliers',
         'page_content' => 'suppliers-list',
-        'suppliers' => $suppliers,
     ]);
 }
 

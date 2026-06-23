@@ -3,25 +3,5 @@
         <h2 class="font-semibold text-gray-900">Suppliers</h2>
         <a href="/admin/project-audit-ledger/suppliers/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add Supplier</a>
     </div>
-    <table class="w-full text-sm">
-        <thead><tr class="bg-gray-50 border-b border-gray-200">
-            <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
-            <th class="text-left py-3 px-4 font-semibold text-gray-600">Contact</th>
-            <th class="text-left py-3 px-4 font-semibold text-gray-600">Email</th>
-            <th class="text-left py-3 px-4 font-semibold text-gray-600"></th>
-        </tr></thead>
-        <tbody>
-            {for s in suppliers}
-            <tr class="border-b border-gray-100 hover:bg-gray-50">
-                <td class="py-3 px-4 font-medium text-gray-900">{s.name}</td>
-                <td class="py-3 px-4 text-gray-700">{s.contact_person|default:'—'}</td>
-                <td class="py-3 px-4 text-gray-700">{s.email|default:'—'}</td>
-                <td class="py-3 px-4"><a href="/admin/project-audit-ledger/suppliers/{s.id}/edit" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Edit</a></td>
-            </tr>
-            {/for}
-            {if suppliers|count == 0}
-            <tr><td colspan="4" class="py-8 text-center text-gray-600">No suppliers yet.</td></tr>
-            {/if}
-        </tbody>
-    </table>
+    {ikb_entity_list source="pal_supplier" view="table" use="tailwind" empty="No suppliers yet." /}
 </div>

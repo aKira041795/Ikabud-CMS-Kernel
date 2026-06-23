@@ -1,0 +1,14 @@
+{ikb_entity_view name="pal_client" view="table"}
+    {field name="name" type="string"}
+    {field name="contact_person" type="string"}
+    {field name="email" type="string"}
+    {field name="is_active" type="boolean" renderer="boolean"}
+    {action name="view" url="/admin/project-audit-ledger/clients/{id}" label="View"}
+    {action name="edit" url="/admin/project-audit-ledger/clients/{id}/edit" label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="pal_client" view="compact"}
+    {field name="name" type="string"}
+    {field name="contact_person" type="string"}
+    {field name="is_active" type="boolean" renderer="boolean"}
+{/ikb_entity_view}

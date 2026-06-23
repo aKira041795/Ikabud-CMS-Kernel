@@ -1,0 +1,8 @@
+{ikb_entity_view name="pal_material_return" view="table"}
+    {field name="return_date" type="date" renderer="datetime:date"}
+    {field name="project_title" type="string"}
+    {field name="material_name" type="string"}
+    {field name="quantity_returned" type="number"}
+    {field name="condition" type="enum" renderer="badge:{reusable|green|damaged|red}"}
+    {field name="issuance_number" type="string"}
+{/ikb_entity_view}
