@@ -26,7 +26,7 @@ or any language that speaks HTTP+JSON.
 |---|---|---|
 | Kernel OS | `6.0.0` (ecosystem) | `kernel/App.php` |
 | DiSyL | `4.7.0` | `kernel/DiSyL/Grammar.php` |
-| TemplateEngine | `6.1.0` | `kernel/DiSyL/TemplateEngine.php`; entity rendering via `kernel/EntityContext/DefaultEntityRenderer.php` |
+| TemplateEngine | `6.1.0` | `kernel/DiSyL/TemplateEngine.php`; entity rendering via `kernel/EntityContext/DefaultEntityRenderer.php`; `RowRenderContext` value object |
 | TemplateEngine | `4.7.0` | Entity rendering extracted from TemplateEngine to `DefaultEntityRenderer` service |
 | Parser (v4) | `4.7.0` | `kernel/DiSyL/v4/Parser.php` (per-block error recovery) |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
@@ -95,6 +95,11 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 - Header slot for inline forms/filters above entity lists
 - `action_show_if` conditions + `action_labels` for row actions
 - Entity rendering extracted to `DefaultEntityRenderer` (TemplateEngine: 6478 → 6792 lines; trait deleted in 6.1.0)
+- **DiSyL v4.7 engine hardening (June 23):** HTML-style `<ikb_>` tag detection with friendly error; unknown component name check (`renderUnknownComponent`); shorthand `{var = expr}` set syntax; field renderer + view name validation at config load time
+- **`{ikb_entity_detail}`** — single-entity rendering now working; `resolveDetail()` unwraps `data` key from capability result; `renderDetail()` handles array-type `$attrs['fields']` correctly; default container padding `px-4 py-2`
+- **`filter` attribute** on `{ikb_entity_list}` — comma-separated `key=value` pairs with `{var.path}` context resolution; passed as `$overrides['filters']` to `EntityViewResolver::resolve()`
+- **`RowRenderContext`** value object — 14 shared params consolidated across `renderCompactRow/CardGridRow/TableRow/RowActions`
+- **PAL module** — 10 list templates + 4 new entity types migrated; expense detail uses `{ikb_entity_detail}`
 
 ---
 

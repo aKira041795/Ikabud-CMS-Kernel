@@ -1,7 +1,9 @@
 # Entity-View Adoption Plan — Closing the Gap
 
 > **Status:** Phases 1–3 complete — June 19, 2026.
-> **Latest (June 22):** `EntityRenderingTrait` deleted in 6.1.0. All rendering goes through `DefaultEntityRenderer` + `CellRendererRegistry`. Entity views now support location (name+coords), image (thumbnail+lightbox), and inline editing via Alpine.js.
+> **Latest (June 23):** PAL module (project-audit-ledger) adopted entity views across all 10 list templates + 4 new entity types + `{ikb_entity_detail}` on expense detail. Filter attribute added to `{ikb_entity_list}` for cross-entity composite pages. DiSyL engine hardening: HTML tag warning, component name validation, shorthand set syntax, field renderer validation.
+
+> **Previous (June 22):** `EntityRenderingTrait` deleted in 6.1.0. All rendering goes through `DefaultEntityRenderer` + `CellRendererRegistry`. Entity views now support location (name+coords), image (thumbnail+lightbox), and inline editing via Alpine.js.
 
 > **Previous (June 19):** All 8 modules expose `entity.list`/`entity.get` handlers. Ecommerce product handlers rewritten to `cms_content` (type=product); WMS stock handlers fixed to `wms_stocks` (plural). EntityViewResolver result normalisation hardened. Compiled mode default (v4.7+). Parser per-block error recovery shipped.
 > **Objective:** Extend entity-view contracts to all modules so themes can present module data through governed `{ikb_entity_list}` / `{ikb_entity_detail}` without depending on module internals.
@@ -18,6 +20,7 @@
 | Daily Ledger | ✅ Full | `entity.list/get.daily_ledger_entry@1` | — | builtinDefaults |
 | WMS | ✅ Full | `entity.list/get.wms_stock@1`, `entity.list/get.wms_location@1` | — | builtinDefaults |
 | Attendance & Wage | ✅ Full | `entity.list/get.attendance_record@1`, `entity.list/get.employee_profile@1`, `entity.list/get.payroll_period@1`, `entity.list/get.salary_computation@1`, `entity.list/get.salary_adjustment@1`, `entity.list/get.employee_deduction@1`, `entity.list/get.holiday@1`, `entity.list/get.cash_advance@1`, `entity.list/get.employee_schedule@1` | — | builtinDefaults |
+| Project Audit Ledger | ✅ Full | `entity.list/get.pal_project@1`, `entity.list/get.pal_expense@1`, `entity.list/get.pal_material@1`, `entity.list/get.pal_purchase@1`, `entity.list/get.pal_sale@1`, `entity.list.pal_collection@1`, `entity.list.pal_fabrication_due@1`, `entity.list.pal_audit_log@1`, `entity.list/get.pal_client@1`, `entity.list/get.pal_supplier@1`, `entity.list/get.pal_issuance@1`, `entity.list.pal_material_return@1` | — | 10 DiSyL view contracts |
 
 ## Plan
 
@@ -50,6 +53,19 @@ Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_det
 - Full Tailwind styling via `DefaultEntityRenderer` presets
 
 **Stale-cache workaround resolved:** Compiled mode is now default. Versioned extends cache keys (`md5(path|mtime)`) prevent stale output. `?disyl_nocache=1` escape hatch available. Custom table workarounds (e.g., recent_computations) can now migrate back to `ikb_entity_list`.
+
+**New entity view features (June 23):**
+- `filter` attribute on `{ikb_entity_list}` — pass `key=value` pairs (resolves `{var.path}` from context) to capability handlers for filtered entity lists
+- `{ikb_entity_detail}` component — renders single entity records via `entity.get.*` capability with a `detailed` or `summary` view contract
+- `RowRenderContext` value object — consolidates 14 shared params across row renderers, preventing parameter drift
+- PAL module: 10 list templates migrated, 4 new entity types (client, supplier, issuance, material_return), expense detail now uses pure entity view
+
+**DiSyL engine improvements (June 23):**
+- HTML-style `<ikb_>` tag detection — emits friendly warning suggesting `{...}` curly brace syntax
+- Unknown component name check — misspelled `{ikb_enttiy_list}` produces visible HTML comment + logged error instead of silent pass-through
+- Shorthand `{var = expr}` syntax — now works as alias for `{set var = expr}`
+- Field renderer validation — `validateFieldRenderer()` checks renderer prefix against known types at config load time
+- View contract validation — view names checked against known modes (table, compact, card_grid, detailed, summary) with logged warnings
 
 **New entity view features (June 19):**
 - Custom cell renderers: `badge`, `badge:map`, `money:N`, `datetime`, `boolean`

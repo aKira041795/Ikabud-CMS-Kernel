@@ -122,6 +122,42 @@ via DiSyL entity components (`ikb_entity_detail`, `ikb_entity_list`).
 3. Calls the appropriate `entity.get.{type}` or `entity.list.{type}` capability
 4. Returns `{entity, view contract}` for detail or `{rows, view contract}` for list
 
+### Filtered Entity Lists
+
+The `{ikb_entity_list}` tag supports a `filter` attribute to pass criteria to
+capability handlers:
+
+```disyl
+{ikb_entity_list source="pal_expense" filter="project_id={project.id}" /}
+```
+
+The filter parser in `TemplateEngine::renderEntityListViaService()`:
+1. Parses comma-separated `key=value` pairs from the `filter` attribute
+2. Resolves `{var.path}` references from the template context (e.g., `{project.id}` → context variable)
+3. Passes resolved filters as `$overrides['filters']` to `EntityViewResolver::resolve()`
+4. Capability handlers receive `$args['filters']` and add WHERE clauses accordingly
+
+Multiple filters can be combined:
+```disyl
+{ikb_entity_list source="pal_expense" filter="project_id={project.id},status=approved" /}
+```
+
+### Entity Detail Views
+
+The `{ikb_entity_detail}` tag renders a single entity record using a `detailed` or `summary`
+view contract:
+
+```disyl
+{ikb_entity_detail source="pal_expense" id="{expense.id}" view="detailed" /}
+```
+
+Resolution flow:
+1. `resolveDetail($source, $entityId, $view)` calls `entity.get.{type}@1` capability
+2. Capability handler returns `['ok' => true, 'data' => $row]`
+3. EntityViewResolver unwraps the `data` key for direct field access
+4. `DefaultEntityRenderer::renderDetail()` renders each field as a label-value row
+5. Fields defined in the view contract are rendered in declaration order
+
 ### Field Auto-Detection (Wildcard `*`)
 
 When rendering entity lists, if the resolved view contract has `fields: '*'` (or no
@@ -154,6 +190,27 @@ external service returns.
 | appointments | id, title, date, status | compact |
 | tickets | id, subject, status, created_at | compact |
 | weather | date, high_c, low_c, condition | compact |
+
+### RowRenderContext Value Object
+
+`kernel/EntityContext/RowRenderContext.php` consolidates the 14 shared parameters
+across row rendering methods to prevent parameter drift:
+
+```php
+$ctx = new RowRenderContext(
+    row: $row, fields: $fields, actions: $actions, use: $use,
+    actionUrls: $actionUrls, actionMethods: $actionMethods,
+    actionConfirm: $actionConfirm, actionShowIf: $actionShowIf,
+    actionLabels: $actionLabels, renderers: $renderers,
+    rowClick: $rowClick, rowClickTarget: $rowClickTarget,
+    userRole: $userRole, actionRoles: $actionRoles,
+    hasBulk: $hasBulk,          // table-only
+    fieldContracts: $fieldContracts,  // table-only
+);
+```
+
+Used by `renderCompactRow()`, `renderCardGridRow()`, `renderTableRow()`, and
+`renderRowActions()` in `DefaultEntityRenderer`.
 
 ### Timeout Handling
 
