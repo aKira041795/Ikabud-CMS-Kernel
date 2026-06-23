@@ -166,7 +166,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $out .= match ($viewMode) {
                 'card_grid' => $this->renderCardGridRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles),
                 'table' => $this->renderTableRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles, $hasBulk, $fieldContracts),
-                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $rowClick, $rowClickTarget, $userRole, $actionRoles),
+                default => $this->renderCompactRow($row, $fields, $actions, $use, $actionUrls, $actionMethods, $actionConfirm, $actionShowIf, $actionLabels, $renderers, $rowClick, $rowClickTarget, $userRole, $actionRoles),
             };
         }
 

@@ -3,5 +3,5 @@
         <h2 class="font-semibold text-gray-900">Projects</h2>
         <a href="/admin/project-audit-ledger/projects/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Create Project</a>
     </div>
-    <ikb_entity_list source="pal_project" view="table" use="tailwind" empty="No projects yet." />
+      {ikb_entity_list source="pal_project" view="table" use="tailwind" empty="No projects yet." /}
 </div>

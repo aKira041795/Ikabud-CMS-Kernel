@@ -6,5 +6,5 @@
 </div>
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Recent Activity</h2></div>
-    <ikb_entity_list source="pal_audit_log" view="compact" limit="10" empty="No recent activity." />
+      {ikb_entity_list source="pal_audit_log" view="compact" limit="10" empty="No recent activity." /}
 </div>
