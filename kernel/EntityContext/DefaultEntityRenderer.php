@@ -558,23 +558,23 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     private function renderRowActions(RowRenderContext $ctx): string
     {
-        if (empty($actions)) return '';
+        if (empty($ctx->actions)) return '';
 
         $id = $ctx->row['id'] ?? '';
         $actionWrapperClass = $this->style('actionWrapper', 'actions', $ctx->use);
         $html = '';
 
-        foreach ($actions as $action) {
+        foreach ($ctx->actions as $action) {
             $action = trim($action);
             if ($action === '') continue;
 
-            if ($userRole !== '' && isset($actionRoles[$action])) {
-                $allowedRoles = is_array($actionRoles[$action]) ? $actionRoles[$action] : [$actionRoles[$action]];
-                if (!in_array($userRole, $allowedRoles, true)) continue;
+            if ($ctx->userRole !== '' && isset($ctx->actionRoles[$action])) {
+                $allowedRoles = is_array($ctx->actionRoles[$action]) ? $ctx->actionRoles[$action] : [$ctx->actionRoles[$action]];
+                if (!in_array($ctx->userRole, $allowedRoles, true)) continue;
             }
 
-            if (isset($actionShowIf[$action]) && $actionShowIf[$action] !== '') {
-                $condition = $actionShowIf[$action];
+            if (isset($ctx->actionShowIf[$action]) && $ctx->actionShowIf[$action] !== '') {
+                $condition = $ctx->actionShowIf[$action];
                 // Compile once, cache for repeated row evaluation
                 $cacheKey = $action . '::' . md5($condition);
                 if (!isset($this->compiledConditions[$cacheKey])) {
@@ -587,7 +587,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                 }
                 $compiled = $this->compiledConditions[$cacheKey];
                 if ($compiled !== null) {
-                    if (!$this->conditionEvaluator->evaluate($compiled, $row)) continue;
+                    if (!$this->conditionEvaluator->evaluate($compiled, $ctx->row)) continue;
                 } else {
                     // Legacy regex fallback — condition uses old format
                     if (function_exists('write_log')) {
@@ -597,23 +597,23 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                             ['action' => $action, 'condition' => $condition, 'source' => 'entity_renderer']
                         );
                     }
-                    if (!$this->evaluateRowConditionLegacy($row, $condition)) continue;
+                    if (!$this->evaluateRowConditionLegacy($ctx->row, $condition)) continue;
                 }
             }
 
-            $label = $actionLabels[$action] ?? ucfirst($action);
+            $label = $ctx->actionLabels[$action] ?? ucfirst($action);
             $actionClass = $this->style('action', $action, $ctx->use);
             $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
             $safeId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
 
-            $href = isset($actionUrls[$action])
-                ? $this->renderWithRowContext($actionUrls[$action], $row)
+            $href = isset($ctx->actionUrls[$action])
+                ? $this->renderWithRowContext($ctx->actionUrls[$action], $ctx->row)
                 : "?id={$safeId}&amp;action={$action}";
 
-            $method = $actionMethods[$action] ?? 'get';
+            $method = $ctx->actionMethods[$action] ?? 'get';
 
             if ($method === 'post') {
-                $confirmMsg = $actionConfirm[$action] ?? '';
+                $confirmMsg = $ctx->actionConfirm[$action] ?? '';
                 $onSubmit = $confirmMsg !== ''
                     ? ' onsubmit="return confirm(' . htmlspecialchars(json_encode($confirmMsg), ENT_QUOTES, 'UTF-8') . ')"'
                     : '';
