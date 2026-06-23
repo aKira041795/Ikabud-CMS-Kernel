@@ -1,3 +1,5 @@
+{ikb_entity_detail source="pal_expense" id="{expense.id}" view="detailed" class="mb-6" /}
+
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg">
     <h2 class="font-semibold text-gray-900 mb-2">Expense #{expense.expense_number|default:expense.id}</h2>
     <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-medium">₱{expense.amount|number_format:2}</span></div>

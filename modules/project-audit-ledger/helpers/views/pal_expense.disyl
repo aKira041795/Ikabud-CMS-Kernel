@@ -8,6 +8,16 @@
     {action name="view" url="/admin/project-audit-ledger/expenses/{id}" label="View"}
 {/ikb_entity_view}
 
+{ikb_entity_view name="pal_expense" view="detailed"}
+    {field name="expense_number" type="string"}
+    {field name="expense_date" type="date" renderer="datetime:date"}
+    {field name="description" type="string"}
+    {field name="category_name" type="string"}
+    {field name="amount" type="number" renderer="money:2"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|submitted|blue|pending_approval|amber|approved|green|rejected|red|voided|gray}"}
+    {field name="created_at" type="date" renderer="datetime:full"}
+{/ikb_entity_view}
+
 {ikb_entity_view name="pal_expense" view="compact"}
     {field name="description" type="string"}
     {field name="amount" type="number" renderer="money:2"}

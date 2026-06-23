@@ -252,14 +252,15 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     public function renderDetail(array $entity, array $view, array $attrs, array $context = []): string
     {
         $class = (string)($attrs['class'] ?? '');
-        $fields = isset($attrs['fields']) ? array_map('trim', explode(',', (string)$attrs['fields'])) : ($view['fields'] ?? array_keys($entity));
+        $rawFields = $attrs['fields'] ?? ($view['fields'] ?? array_keys($entity));
+        $fields = is_array($rawFields) ? $rawFields : array_map('trim', explode(',', (string)$rawFields));
         if ($fields === ['*'] || $fields === '*') {
             $fields = array_keys($entity);
             $fields = array_values(array_filter($fields, fn(string $k): bool => !str_starts_with($k, '_')));
         }
 
         $rows = '';
-        foreach ($ctx->fields as $field) {
+        foreach ($fields as $field) {
             $field = trim((string)$field);
             if ($field === '' || ($field === 'id' && count($fields) > 1)) {
                 if (count($fields) > 1) continue;

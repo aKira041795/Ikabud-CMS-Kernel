@@ -413,6 +413,11 @@ final class EntityViewResolver
                 if (is_array($result)) {
                     // Strip capability envelope keys; keep entity data
                     $entity = $result;
+                    // If the capability handler wrapped data in a 'data' key (standard convention),
+                    // unwrap it so field access works directly (e.g., $entity['name'] not $entity['data']['name'])
+                    if (is_array($entity) && array_key_exists('data', $entity) && count($entity) <= 3) {
+                        $entity = $entity['data'];
+                    }
                     unset($entity['ok'], $entity['error'], $entity['message']);
                 }
             }
