@@ -187,6 +187,11 @@ function palApiQuickCreate(): void
                 $s->execute([':t'=>$tid, ':n'=>$name, ':pid'=>'P-'.time(), ':cb'=>(int)$u['id']]);
                 $id = (int)$db->lastInsertId();
                 break;
+            case 'material':
+                $s = $db->prepare("INSERT INTO pal_materials (tenant_id, name, material_code, created_by) VALUES (:t,:n,:code,:cb)");
+                $s->execute([':t'=>$tid, ':n'=>$name, ':code'=>'MAT-'.time(), ':cb'=>(int)$u['id']]);
+                $id = (int)$db->lastInsertId();
+                break;
             case 'material_category':
             case 'expense_category':
             case 'project_type':
