@@ -3,5 +3,5 @@
         <h2 class="font-semibold text-gray-900">Expenses</h2>
         <a href="/admin/project-audit-ledger/expenses/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add Expense</a>
     </div>
-    {ikb_entity_list source="pal_expense" view="table" use="tailwind" empty="No expenses yet." /}
+    {ikb_entity_list source="pal_expense" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search expenses..." empty="No expenses yet." /}
 </div>

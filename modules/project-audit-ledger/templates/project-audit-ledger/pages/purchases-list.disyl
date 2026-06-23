@@ -3,5 +3,5 @@
         <h2 class="font-semibold text-gray-900">Purchase Orders</h2>
         <a href="/admin/project-audit-ledger/purchases/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Create PO</a>
     </div>
-    {ikb_entity_list source="pal_purchase" view="table" use="tailwind" empty="No purchase orders yet." /}
+    {ikb_entity_list source="pal_purchase" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search purchase orders..." empty="No purchase orders yet." /}
 </div>

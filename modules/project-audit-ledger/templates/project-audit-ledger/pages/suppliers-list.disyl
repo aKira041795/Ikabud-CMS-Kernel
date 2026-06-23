@@ -3,5 +3,5 @@
         <h2 class="font-semibold text-gray-900">Suppliers</h2>
         <a href="/admin/project-audit-ledger/suppliers/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add Supplier</a>
     </div>
-    {ikb_entity_list source="pal_supplier" view="table" use="tailwind" empty="No suppliers yet." /}
+    {ikb_entity_list source="pal_supplier" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search suppliers..." empty="No suppliers yet." /}
 </div>
