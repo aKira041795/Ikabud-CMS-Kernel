@@ -187,10 +187,11 @@ function makeCreatable(select) {
     if (form) {
         form.addEventListener('submit', function(e) {
             if (select.value !== '__other__') return;
-            if (form.dataset.submitting === '1') return;
+            if (form.dataset.submitting === '1') { e.preventDefault(); return; }
             e.preventDefault();
+            form.dataset.submitting = '1';
             var val = wrapper.querySelector('input').value.trim();
-            if (!val) { showToast('Enter a name for the new item', 'error'); return; }
+            if (!val) { showToast('Enter a name for the new item', 'error'); delete form.dataset.submitting; return; }
             var btn = form.querySelector('button[type="submit"]');
             var origText = btn.textContent;
             btn.disabled = true; btn.textContent = 'Creating...';
@@ -210,10 +211,11 @@ function makeCreatable(select) {
                     wrapper.classList.add('hidden');
                     wrapper.querySelector('input').value = '';
                     btn.textContent = origText;
+                    delete form.dataset.submitting;
                     ajaxSubmit(form, 'Saved');
-                } else { showToast(d.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = origText; }
+                } else { showToast(d.error || 'Failed', 'error'); btn.disabled = false; btn.textContent = origText; delete form.dataset.submitting; }
             })
-            .catch(function(){ showToast('Failed to create', 'error'); btn.disabled = false; btn.textContent = origText; });
+            .catch(function(){ showToast('Failed to create', 'error'); btn.disabled = false; btn.textContent = origText; delete form.dataset.submitting; });
         });
     }
 }
