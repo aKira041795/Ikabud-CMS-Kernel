@@ -115,6 +115,7 @@ final class EntityViewResolver
             'provider' => $providerId,
             // P4: sortable field declarations — field_name => sort_key (DB column)
             'sortable_fields' => [],
+            'timeout_ms' => 10000,  // per-source timeout, overridable in view contract
         ], $contract);
     }
 
@@ -229,7 +230,7 @@ final class EntityViewResolver
                 $result = $app->cap()->call($capabilityId, $capabilityArgs, [
                     'caller' => ['module' => 'kernel'],
                     'mode' => 'first',
-                    'timeout_ms' => 10000,
+                    'timeout_ms' => $contract['timeout_ms'] ?? 10000,
                 ]);
                 if (is_array($result)) {
                     // Normalise capability result: prefer 'rows' key; also accept
@@ -408,7 +409,7 @@ final class EntityViewResolver
                 ] + $overrides, [
                     'caller' => ['module' => 'kernel'],
                     'mode'   => 'first',
-                    'timeout_ms' => 10000,
+                    'timeout_ms' => $contract['timeout_ms'] ?? 10000,
                 ]);
                 if (is_array($result)) {
                     // Strip capability envelope keys; keep entity data

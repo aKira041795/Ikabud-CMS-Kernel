@@ -6462,6 +6462,8 @@ class TemplateEngine
             $this->logError("ikb_entity_view '{$name}': unknown view type '{$view}' — expected one of: " . implode(', ', $validViews));
         }
 
+        $timeoutMs = isset($attrs['timeout_ms']) ? (int)$attrs['timeout_ms'] : null;
+
         // Parse {field name="..." type="..." renderer="..." visible="true/false"} from raw children
         $fields = [];
         $fieldRenderers = [];
@@ -6529,6 +6531,23 @@ class TemplateEngine
             }
         }
 
+        // Parse {filter name="..." type="..." values="..."} from raw children
+        // Declares allowed filters for the entity source with type constraints.
+        $filterSchema = [];
+        if (preg_match_all('/\{filter\s+((?:[^{}]|\{[^{}]*\})*)\}/', $children, $filterMatches)) {
+            foreach ($filterMatches[1] as $filterStr) {
+                $filterAttrs = $this->parseSimpleAttrs($filterStr);
+                $filterName = $filterAttrs['name'] ?? '';
+                if ($filterName === '') continue;
+
+                $entry = ['type' => $filterAttrs['type'] ?? 'string'];
+                if (!empty($filterAttrs['values'])) {
+                    $entry['values'] = array_map('trim', explode(',', $filterAttrs['values']));
+                }
+                $filterSchema[$filterName] = $entry;
+            }
+        }
+
         // Build contract
         $contract = [
             'fields' => $fields,
@@ -6543,8 +6562,10 @@ class TemplateEngine
         if (!empty($actionRoles)) { $contract['action_roles'] = $actionRoles; }
         if (!empty($fieldRenderers)) { $contract['renderers'] = $fieldRenderers; }
         if (!empty($visibleFields)) { $contract['visible_fields'] = $visibleFields; }
+        if (!empty($filterSchema)) { $contract['filter_schema'] = $filterSchema; }
         if ($renderer !== '') { $contract['renderer'] = $renderer; }
         if ($class !== '') { $contract['class'] = $class; }
+        if ($timeoutMs !== null) { $contract['timeout_ms'] = $timeoutMs; }
 
         // Register with EntityViewResolver
         try {
