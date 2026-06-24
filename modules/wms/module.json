@@ -52,10 +52,10 @@
         "audit_logs",
         "rate_limits"
     ],
-    "reads_tables": [],
-    "reads_tables_deprecated": [
+    "reads_tables": [
         "users"
     ],
+    "reads_tables_deprecated": [],
     "migrations": [
         "database/migrations/001_wms_products.sql",
         "database/migrations/002_wms_warehouses_locations.sql",
