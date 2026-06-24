@@ -31,7 +31,15 @@ function palPageDashboard(): void
     $totalExp = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_expenses WHERE tenant_id = :tid AND status IN ('approved','paid')");
     $totalExp->execute([':tid' => $tid]);
     $totalExpenses = (float)$totalExp->fetchColumn();
+    // ── Fabrication costs (approved allocations) ──
+    $fabCost = $db->prepare("SELECT COALESCE(SUM(COALESCE(approved_amount, calculated_amount)), 0) FROM pal_fabrication_allocations WHERE tenant_id = :tid AND status = 'approved'");
+    $fabCost->execute([':tid' => $tid]);
+    $totalFabrication = (float)$fabCost->fetchColumn();
 
+    // ── Outstanding fabrication dues (unpaid weekly dues) ──
+    $fabDues = $db->prepare("SELECT COALESCE(SUM(balance), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND status NOT IN ('paid','waived')");
+    $fabDues->execute([':tid' => $tid]);
+    $outstandingFabricationDues = (float)$fabDues->fetchColumn();
     // Total collected
     $totalCol = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'approved'");
     $totalCol->execute([':tid' => $tid]);
@@ -106,8 +114,10 @@ function palPageDashboard(): void
             'project_status_breakdown' => $projectStatusBreakdown,
             'total_contract_value' => $totalContractValue,
             'total_expenses' => $totalExpenses,
+            'total_fabrication' => $totalFabrication,
             'total_collected' => $totalCollected,
             'outstanding_receivables' => $outstandingReceivables,
+            'outstanding_fabrication_dues' => $outstandingFabricationDues,
             'monthly_collections' => $monthlyCollections,
             'monthly_expenses' => $monthlyExpenses,
             'net_cash_flow' => $monthlyCollections - $monthlyExpenses,
@@ -118,7 +128,7 @@ function palPageDashboard(): void
             'recent_expenses' => $recentExp,
             'recent_collections' => $recentColl,
             'pending_approval_items' => $pendingItems,
-            'est_profit' => max(0, $totalContractValue - $totalExpenses),
+            'est_profit' => max(0, $totalContractValue - $totalExpenses - $totalFabrication),
         ],
     ]);
 }
