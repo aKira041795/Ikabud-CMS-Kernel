@@ -31,12 +31,12 @@ function palPageDashboard(): void
     $totalExp = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_expenses WHERE tenant_id = :tid AND status IN ('approved','paid')");
     $totalExp->execute([':tid' => $tid]);
     $totalExpenses = (float)$totalExp->fetchColumn();
-    // ── Fabrication costs (approved allocations) ──
-    $fabCost = $db->prepare("SELECT COALESCE(SUM(COALESCE(approved_amount, calculated_amount)), 0) FROM pal_fabrication_allocations WHERE tenant_id = :tid AND status = 'approved'");
+    // ── Fabrication costs (approved payments made) ──
+    $fabCost = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved'");
     $fabCost->execute([':tid' => $tid]);
     $totalFabrication = (float)$fabCost->fetchColumn();
 
-    // ── Outstanding fabrication dues (unpaid weekly dues) ──
+    // ── Outstanding fabrication dues (unpaid weekly dues balance) ──
     $fabDues = $db->prepare("SELECT COALESCE(SUM(balance), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND status NOT IN ('paid','waived')");
     $fabDues->execute([':tid' => $tid]);
     $outstandingFabricationDues = (float)$fabDues->fetchColumn();
