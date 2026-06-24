@@ -113,5 +113,17 @@ test('for loop over keyof detailed view has start_date', 'yes', $hasStartDate);
 $out11 = $engine->renderString('{for f in keyof nonexistent}<span>{f}</span>{empty}no fields{/for}', []);
 test('for loop over unknown keyof shows empty content', 'no fields', $out11);
 
+// Test 12: {a + b | number_format} — arithmetic with filter
+$out12 = $engine->renderString('{(150000 + 50000)|number_format:2}', []);
+test('arithmetic with number_format filter', '200,000.00', $out12);
+
+// Test 13: {(a + b) * c | number_format} — complex arithmetic with filter
+$out13 = $engine->renderString('{(10 + 5) * 3|number_format:2}', []);
+test('complex arithmetic with number_format filter', '45.00', $out13);
+
+// Test 14: arithmetic without filter still works
+$out14 = $engine->renderString('{10 + 5}', []);
+test('arithmetic without filter', '15', $out14);
+
 echo "\n=== Results: {$passed} passed, {$failed} failed ===\n";
 exit($failed > 0 ? 1 : 0);

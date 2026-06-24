@@ -4479,12 +4479,43 @@ class TemplateEngine
                     }
                 }
 
-                // 2. Arithmetic/expression: no pipe + contains operators or parentheses.
-                //    Handles simple {a + b}, chained {a / b * c}, parenthesized {(a + b) * c}.
-                if (!str_contains($expr, '|') && strpbrk($expr, '+-*/%()') !== false) {
-                    $result = $this->evaluateArithmetic($expr, $context);
-                    if ($result !== null) {
-                        return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
+                // 2. Arithmetic/expression: contains operators or parentheses.
+                //    Supports bare {a + b}, parenthesized {(a + b) * c}, and
+                //    arithmetic with filters: {a + b | number_format:2}.
+                if (strpbrk($expr, '+-*/%()') !== false) {
+                    $pipePos = strpos($expr, '|');
+                    if ($pipePos === false) {
+                        // No filters: evaluate and return directly
+                        $result = $this->evaluateArithmetic($expr, $context);
+                        if ($result !== null) {
+                            return htmlspecialchars((string) $result, ENT_QUOTES, 'UTF-8');
+                        }
+                    } else {
+                        // Arithmetic with filters: evaluate left side, pipe through filter chain
+                        $arithPart = trim(substr($expr, 0, $pipePos));
+                        if (strpbrk($arithPart, '+-*/%()') !== false) {
+                            $arithResult = $this->evaluateArithmetic($arithPart, $context);
+                            if ($arithResult !== null) {
+                                $filterPart = substr($expr, $pipePos + 1);
+                                $value = $arithResult;
+                                $hasRaw = false;
+                                $filterNames = [];
+                                $filterParts = $this->splitByPipe($filterPart);
+                                foreach ($filterParts as $filter) {
+                                    $filter = trim($filter);
+                                    if ($filter === '') continue;
+                                    $filterName = trim(explode(':', $filter, 2)[0]);
+                                    if ($filterName === 'raw') { $hasRaw = true; continue; }
+                                    $filterNames[] = $filterName;
+                                    $value = $this->applyFilter($filter, $value, $context);
+                                }
+                                if (!is_scalar($value)) return '';
+                                if (!$hasRaw && !$this->hasEscapeFilter($expr, $filterNames)) {
+                                    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+                                }
+                                return (string) $value;
+                            }
+                        }
                     }
                     // Not a valid arithmetic expression — fall through to variable resolution
                 }
@@ -4588,7 +4619,8 @@ class TemplateEngine
             return true;
         }
 
-        if (!str_contains($expr, '|') && strpbrk($expr, '+-*/%()') !== false) {
+        // Arithmetic expression: accept with or without filters
+        if (strpbrk($expr, '+-*/%()') !== false) {
             return true;
         }
 
