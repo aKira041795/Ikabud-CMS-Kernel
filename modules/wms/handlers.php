@@ -1,21 +1,15 @@
 <?php
+
 declare(strict_types=1);
+
+// Load shared helpers
 require_once __DIR__ . '/helpers.php';
+
+// Load entity view configs
+if (is_dir(__DIR__ . '/helpers/views')) {
+    \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+}
+
+// Load handlers
 require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/05-auth.php';
-require_once __DIR__ . '/handlers/10-pages.php';
-require_once __DIR__ . '/handlers/20-api-catalog.php';
-require_once __DIR__ . '/handlers/30-api-inventory.php';
-require_once __DIR__ . '/handlers/40-api-operations.php';
-require_once __DIR__ . '/handlers/50-api-suppliers.php';
-require_once __DIR__ . '/handlers/60-api-returns.php';
-require_once __DIR__ . '/handlers/70-api-users.php';
-require_once __DIR__ . '/handlers/80-api-tasks.php';
-require_once __DIR__ . '/handlers/90-api-intelligence.php';
-require_once __DIR__ . '/handlers/100-api-production.php';
-require_once __DIR__ . '/handlers/110-api-events.php';
-require_once __DIR__ . '/handlers/120-api-configs.php';
-require_once __DIR__ . '/handlers/130-api-onboarding.php';
-require_once __DIR__ . '/handlers/140-api-diagnostics.php';
-require_once __DIR__ . '/handlers/150-api-financial.php';
-require_once __DIR__ . '/handlers/160-api-import-export.php';

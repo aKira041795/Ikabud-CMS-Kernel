@@ -1,9 +1,11 @@
 {
     "id": "wms",
     "name": "Warehouse Management System",
-    "version": "1.4.0",
-    "description": "Entity-driven warehouse management for inventory, task execution, imports, diagnostics, onboarding, and financial supply loops.",
+    "version": "2.0.0",
+    "description": "ERP-lite warehouse management with movement-ledger accounting, barcode scanning, and ecommerce integration.",
     "author": "Ikabud Kernel Team",
+    "routes": true,
+    "auth_cookie": "wms_token",
     "auth_owned": {
         "users_table": "wms_users",
         "username_column": "username",
@@ -11,11 +13,12 @@
         "password_column": "password_hash",
         "name_column": "full_name",
         "active_column": "is_active",
-        "admin_roles": [
-            "admin"
-        ],
+        "admin_roles": ["admin"],
         "default_admin_role": "admin",
-        "requires_named_admin_on_provision": false,
+        "requires_named_admin_on_provision": true,
+        "blocked_password_hashes": [
+            "!wms-bootstrap-password-reset-required!"
+        ],
         "touch_updated_at": true
     },
     "owns_tables": [
@@ -27,6 +30,7 @@
         "wms_batches",
         "wms_stocks",
         "wms_movements",
+        "wms_idempotency_keys",
         "wms_deliveries",
         "wms_delivery_items",
         "wms_orders",
@@ -37,402 +41,155 @@
         "wms_suppliers",
         "wms_returns",
         "wms_return_items",
-        "wms_idempotency_keys",
         "wms_tasks",
         "wms_recipes",
-        "wms_recipe_items",
+        "wms_recipe_ingredients",
         "wms_production_orders",
-        "wms_production_materials",
-        "wms_task_exceptions",
+        "wms_production_order_items",
         "wms_configs",
-        "wms_purchase_orders",
-        "wms_purchase_order_items"
+        "wms_event_webhooks"
     ],
     "co_owns_tables": [
         "audit_logs",
         "rate_limits"
     ],
-    "reads_tables": [
-        "users"
-    ],
-    "reads_tables_deprecated": [
-        "users"
-    ],
+    "reads_tables": [],
+    "reads_tables_deprecated": [],
     "migrations": [
-        "database/migrations/001_wms_products.sql",
-        "database/migrations/002_wms_warehouses_locations.sql",
-        "database/migrations/003_wms_batches.sql",
-        "database/migrations/004_wms_stocks.sql",
-        "database/migrations/005_wms_movements.sql",
-        "database/migrations/006_wms_deliveries.sql",
-        "database/migrations/007_wms_orders.sql",
-        "database/migrations/008_wms_putaway_rules.sql",
-        "database/migrations/009_wms_cycle_counts.sql",
-        "database/migrations/010_wms_users.sql",
-        "database/migrations/011_wms_suppliers.sql",
-        "database/migrations/012_wms_returns.sql",
-        "database/migrations/013_wms_hardening.sql",
-        "database/migrations/014_wms_phase2.sql",
-        "database/migrations/015_wms_phase5_production.sql",
-        "database/migrations/016_wms_phase6_platformization.sql",
-        "database/migrations/017_wms_phase6_financials.sql",
-        "database/migrations/018_wms_phase7_task_exceptions.sql",
-        "database/migrations/019_wms_phase75_receiving_closure.sql",
-        "database/migrations/020_wms_phase76_exception_dispositions.sql",
-        "database/migrations/021_wms_user_account_security.sql",
-        "database/migrations/022_wms_settings_expansion.sql",
-        "database/migrations/024_wms_password_resets.sql"
-    ],
-    "routes": true,
-    "events": [
-        {
-            "key": "wms.delivery.received",
-            "description": "Fired when a delivery is received."
-        },
-        {
-            "key": "wms.order.dispatched",
-            "description": "Fired when an order is dispatched.",
-            "available_vars": [
-                "order_id",
-                "wms_order_id",
-                "order_number",
-                "external_reference",
-                "warehouse_id",
-                "customer_name",
-                "status",
-                "ecommerce_order_id",
-                "ecommerce_order_number",
-                "tracking_number",
-                "tracking_carrier",
-                "tracking_url",
-                "meta"
-            ]
-        },
-        {
-            "key": "wms.order.picked",
-            "description": "Fired when an order is successfully picked."
-        },
-        {
-            "key": "wms.order.delivered",
-            "description": "Fired when an order is marked as delivered."
-        },
-        {
-            "key": "wms.order.payment_collected",
-            "description": "Fired when payment is collected for a delivered order.",
-            "available_vars": [
-                "order_id",
-                "wms_order_id",
-                "order_number",
-                "external_reference",
-                "warehouse_id",
-                "customer_name",
-                "status",
-                "ecommerce_order_id",
-                "ecommerce_order_number",
-                "payment_status",
-                "payment_method",
-                "collected_at",
-                "actor_user_id",
-                "meta"
-            ]
-        },
-        {
-            "key": "wms.product.created",
-            "description": "Fired when a WMS product is created.",
-            "available_vars": [
-                "id",
-                "sku",
-                "barcode",
-                "name",
-                "description",
-                "unit",
-                "product_type",
-                "is_active",
-                "actor_user_id"
-            ]
-        },
-        {
-            "key": "wms.product.updated",
-            "description": "Fired when a WMS product is updated.",
-            "available_vars": [
-                "id",
-                "sku",
-                "barcode",
-                "name",
-                "description",
-                "unit",
-                "product_type",
-                "is_active",
-                "actor_user_id"
-            ]
-        },
-        {
-            "key": "wms.movement.created",
-            "description": "Fired after a stock movement is recorded."
-        },
-        {
-            "key": "wms.stock.low",
-            "description": "Fired when stock falls below configured threshold."
-        },
-        {
-            "key": "wms.production.completed",
-            "description": "Fired when a production order successfully consumes materials and generates yield."
-        }
+        "database/migrations/001_wms_core_schema.sql",
+        "database/migrations/002_wms_password_resets.sql",
+        "database/migrations/003_wms_bootstrap_admin.sql"
     ],
     "capabilities": {
         "exposes": [
             {
                 "id": "kernel.auth.authenticate@1",
-                "priority": 550,
-                "modes": [
-                    "pipeline"
-                ]
+                "priority": 560,
+                "mode": "pipeline",
+                "policy": {
+                    "allow_callers": ["wms", "kernel"]
+                }
             },
             {
                 "id": "wms.stock.query@1",
                 "priority": 50,
-                "modes": [
-                    "first"
-                ]
+                "mode": "first",
+                "policy": {
+                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                }
             },
             {
                 "id": "wms.stock.reserve@1",
                 "priority": 50,
-                "modes": [
-                    "first"
-                ]
+                "mode": "first",
+                "policy": {
+                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                }
             },
             {
                 "id": "wms.stock.release@1",
                 "priority": 50,
-                "modes": [
-                    "first"
-                ]
-            },
-            {
-                "id": "wms.replenishment.suggest@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ]
-            },
-            {
-                "id": "wms.product.upsert@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ]
+                "mode": "first",
+                "policy": {
+                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                }
             },
             {
                 "id": "wms.order.create@1",
                 "priority": 50,
-                "modes": [
-                    "first"
-                ]
+                "mode": "first",
+                "policy": {
+                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                }
             },
             {
                 "id": "wms.order.cancel@1",
                 "priority": 50,
-                "modes": [
-                    "first"
-                ]
-            },
-            {
-                "id": "wms.return.create@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ]
-            },
-            {
-                "id": "entity.list.wms_stock@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "description": "List WMS stock items"
-            },
-            {
-                "id": "entity.get.wms_stock@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "description": "Get single WMS stock item"
-            },
-            {
-                "id": "entity.list.wms_location@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "description": "List WMS locations"
-            },
-            {
-                "id": "entity.get.wms_location@1",
-                "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "description": "Get single WMS location"
-            }
-        ],
-        "depends": [],
-        "policy": {
-            "capabilities": {
-                "kernel.auth.authenticate@1": {
-                    "allow_callers": [
-                        "wms",
-                        "kernel"
-                    ]
+                "mode": "first",
+                "policy": {
+                    "allow_callers": ["wms", "ecommerce", "kernel"]
                 }
             }
-        },
-        "consumes": []
+        ],
+        "depends": [
+            "kernel.audit.record@1",
+            "kernel.auth.user@1"
+        ]
     },
-    "auth_cookie": "wms_token",
+    "events": {
+        "emits": [
+            "wms.stock.low",
+            "wms.stock.movement.created",
+            "wms.order.picked",
+            "wms.order.dispatched",
+            "wms.order.delivered",
+            "wms.order.payment_collected",
+            "wms.production.completed",
+            "wms.delivery.received",
+            "wms.cycle_count.completed",
+            "wms.return.restocked"
+        ]
+    },
     "settings_fields": [
         {
-            "key": "low_stock_threshold",
-            "type": "number",
-            "label": "Default Low Stock Threshold",
-            "default": "10"
+            "key": "warehouse_name",
+            "label": "Default Warehouse Name",
+            "type": "text",
+            "default": "Main Warehouse",
+            "description": "Name for the default warehouse created during onboarding."
         },
         {
             "key": "picking_strategy",
-            "type": "select",
             "label": "Default Picking Strategy",
-            "default": "fefo"
+            "type": "select",
+            "default": "fifo",
+            "options": [
+                {"value": "fifo", "label": "FIFO (First In, First Out)"},
+                {"value": "fefo", "label": "FEFO (First Expired, First Out)"},
+                {"value": "lifo", "label": "LIFO (Last In, First Out)"}
+            ],
+            "description": "Default strategy for pick-list generation."
+        },
+        {
+            "key": "allow_negative_stock",
+            "label": "Allow Negative Stock",
+            "type": "select",
+            "default": "0",
+            "options": [
+                {"value": "0", "label": "No — block under-picking"},
+                {"value": "1", "label": "Yes — allow negative balances"}
+            ],
+            "description": "Whether to permit stock to go negative during picking."
+        },
+        {
+            "key": "auto_replenish_enabled",
+            "label": "Auto-Replenishment",
+            "type": "select",
+            "default": "1",
+            "options": [
+                {"value": "1", "label": "Enabled"},
+                {"value": "0", "label": "Disabled"}
+            ],
+            "description": "Automatically generate replenishment tasks when stock falls below reorder point."
         },
         {
             "key": "bridge.default_location_id",
+            "label": "Bridge Default Location",
             "type": "number",
-            "label": "Bridge Default Location ID",
-            "default": "0",
-            "description": "Optional fallback location used when bridge-triggered reserve/release payloads specify a warehouse but no location."
+            "default": "",
+            "description": "Fallback location ID for bridge-triggered reserve/release calls."
         }
     ],
     "nav": [
-        {
-            "label": "Warehouse",
-            "url": "/wms",
-            "icon": "warehouse",
-            "roles": [
-                "admin",
-                "supervisor",
-                "viewer"
-            ]
-        },
-        {
-            "label": "Tasks",
-            "url": "/wms/tasks",
-            "icon": "clipboard",
-            "roles": [
-                "admin",
-                "supervisor",
-                "viewer"
-            ]
-        },
-        {
-            "label": "Scanner",
-            "url": "/wms/scanner",
-            "icon": "device-mobile",
-            "roles": [
-                "admin",
-                "supervisor",
-                "viewer"
-            ]
-        },
-        {
-            "label": "Receiving",
-            "url": "/wms/receiving",
-            "icon": "inbox",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        },
-        {
-            "label": "Picking",
-            "url": "/wms/picking",
-            "icon": "box",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        },
-        {
-            "label": "Inventory",
-            "url": "/wms/inventory",
-            "icon": "layers",
-            "roles": [
-                "admin",
-                "supervisor",
-                "viewer"
-            ]
-        },
-        {
-            "label": "Suppliers",
-            "url": "/wms/suppliers",
-            "icon": "factory",
-            "roles": [
-                "admin",
-                "supervisor",
-                "viewer"
-            ]
-        },
-        {
-            "label": "Returns",
-            "url": "/wms/returns",
-            "icon": "return",
-            "roles": [
-                "admin",
-                "supervisor",
-                "viewer"
-            ]
-        },
-        {
-            "label": "Users",
-            "url": "/wms/users",
-            "icon": "user",
-            "roles": [
-                "admin"
-            ]
-        },
-        {
-            "label": "Settings",
-            "url": "/wms/settings",
-            "icon": "settings",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        },
-        {
-            "label": "Onboarding",
-            "url": "/wms/onboarding",
-            "icon": "sparkles",
-            "roles": [
-                "admin"
-            ]
-        },
-        {
-            "label": "Diagnostics",
-            "url": "/wms/diagnostics",
-            "icon": "shield-check",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        },
-        {
-            "label": "Financial",
-            "url": "/wms/financial",
-            "icon": "currency-dollar",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        }
+        {"label": "Dashboard", "path": "/wms", "roles": ["admin", "supervisor", "viewer"], "icon": "dashboard"},
+        {"label": "Receiving", "path": "/wms/receiving", "roles": ["admin", "supervisor"], "icon": "inbox"},
+        {"label": "Picking", "path": "/wms/picking", "roles": ["admin", "supervisor", "viewer"], "icon": "package"},
+        {"label": "Inventory", "path": "/wms/inventory", "roles": ["admin", "supervisor", "viewer"], "icon": "warehouse"},
+        {"label": "Suppliers", "path": "/wms/suppliers", "roles": ["admin", "supervisor"], "icon": "truck"},
+        {"label": "Returns", "path": "/wms/returns", "roles": ["admin", "supervisor"], "icon": "rotate-ccw"},
+        {"label": "Tasks", "path": "/wms/tasks", "roles": ["admin", "supervisor", "viewer"], "icon": "check-square"},
+        {"label": "Scanner", "path": "/wms/scanner", "roles": ["admin", "supervisor"], "icon": "scan"},
+        {"label": "Settings", "path": "/wms/settings", "roles": ["admin"], "icon": "settings"},
+        {"label": "Users", "path": "/wms/users", "roles": ["admin"], "icon": "users"}
     ]
 }

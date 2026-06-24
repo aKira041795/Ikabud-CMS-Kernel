@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{page_title|default:'Sign In'} — {gui.app_name}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    {if gui.font_url}<link href="{gui.font_url}" rel="stylesheet">{/if}
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: {gui.color_primary}; --primary-hover: {gui.color_primary_hover}; --primary-light: {gui.color_primary_light};
+            --bg: {gui.color_bg}; --surface: {gui.color_surface}; --border: {gui.color_border};
+            --text: {gui.color_text}; --text-muted: {gui.color_text_muted};
+        }
+        body { font-family: {gui.font_family|raw}; background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .login-card { background: var(--surface); border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.08); width: 100%; max-width: 380px; padding: 40px 32px; }
+        .login-logo { text-align: center; margin-bottom: 32px; }
+        .login-mark { width: 78px; height: 78px; margin: 0 auto 14px; border-radius: 24px; display: flex; align-items: center; justify-content: center; background: var(--primary-light); border: 1px solid var(--border); color: var(--primary); font-size: 28px; font-weight: 700; }
+        .login-logo h1 { font-size: 24px; font-weight: 700; color: var(--text); }
+        .login-logo h1 span { color: var(--primary); }
+        .login-logo p { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+        .form-group { margin-bottom: 20px; }
+        .form-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        .form-input { width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-family: inherit; }
+        .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+        .btn-login { width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; }
+        .btn-login:hover { background: var(--primary-hover); }
+        .btn-login:disabled { opacity: .6; cursor: not-allowed; }
+        .error-msg { background: #fee2e2; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
+        .error-msg.show { display: block; }
+        .login-links { display: flex; justify-content: flex-end; margin: -8px 0 18px; }
+        .login-links a { color: var(--primary); font-size: 13px; font-weight: 600; text-decoration: none; }
+        .login-links a:hover { color: var(--primary-hover); text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="login-mark">{login_logo_html|raw}</div>
+            <h1>{if login_brand_html}{login_brand_html|raw}{else}<span>{gui.app_name_accent}</span> {gui.app_name_rest}{/if}</h1>
+            <p>{login_subtitle|default:'Sign in to continue'}</p>
+        </div>
+        <div id="login-error" class="error-msg"></div>
+        <form id="login-form" onsubmit="return handleLogin(event)">
+            <div class="form-group">
+                <label class="form-label" for="username">{login_username_label|default:'Username'}</label>
+                <input class="form-input" type="text" id="username" name="username" autocomplete="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input class="form-input" type="password" id="password" name="password" autocomplete="current-password" required>
+            </div>
+            {if login_forgot_url}
+            <div class="login-links">
+                <a href="{login_forgot_url}">{login_forgot_text|default:'Forgot password?'}</a>
+            </div>
+            {/if}
+            <button type="submit" class="btn-login" id="login-btn">{login_button_text|default:'Sign In'}</button>
+        </form>
+    </div>
+    <script>
+        function handleLogin(e) {
+            e.preventDefault();
+            var btn = document.getElementById('login-btn');
+            var errEl = document.getElementById('login-error');
+            var loadingText = '{if login_loading_text}{login_loading_text}{else}Signing in...{/if}';
+            var submitText = '{if login_button_text}{login_button_text}{else}Sign In{/if}';
+            var loginEndpoint = '{if login_endpoint}{login_endpoint}{else}{base_url}/api/v1/auth/login{/if}';
+            btn.disabled = true;
+            btn.textContent = loadingText;
+            errEl.classList.remove('show');
+            fetch(loginEndpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                })
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.ok && res.redirect) {
+                    window.location.href = '{base_url}' + res.redirect;
+                } else {
+                    errEl.textContent = res.error || 'Login failed';
+                    errEl.classList.add('show');
+                    btn.disabled = false;
+                    btn.textContent = submitText;
+                }
+            })
+            .catch(function() {
+                errEl.textContent = 'Network error. Please try again.';
+                errEl.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = submitText;
+            });
+            return false;
+        }
+    </script>
+</body>
+</html>
