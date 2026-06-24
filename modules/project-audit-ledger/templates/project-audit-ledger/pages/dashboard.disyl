@@ -33,8 +33,8 @@
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Monthly Expenses</span>
             <span class="text-lg">💳</span>
         </div>
-        <div class="text-3xl font-bold text-red-700">₱{dashboard.monthly_expenses|number_format:2}</div>
-        <div class="mt-1 text-xs text-gray-400">This month's cash outflow</div>
+        <div class="text-3xl font-bold text-red-700">₱{dashboard.monthly_total_outflow|number_format:2}</div>
+        <div class="mt-1 text-xs text-gray-400">₱{dashboard.monthly_expenses|number_format:2} ops + ₱{dashboard.monthly_fabrication|number_format:2} fab</div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">

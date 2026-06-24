@@ -68,6 +68,11 @@ function palPageDashboard(): void
     $monthlyExp->execute([':tid' => $tid]);
     $monthlyExpenses = (float)$monthlyExp->fetchColumn();
 
+    // ── Monthly fabrication payments (cash out) ──
+    $monthlyFab = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved' AND MONTH(payment_date) = MONTH(CURRENT_DATE) AND YEAR(payment_date) = YEAR(CURRENT_DATE)");
+    $monthlyFab->execute([':tid' => $tid]);
+    $monthlyFabrication = (float)$monthlyFab->fetchColumn();
+
     // ── Pending Approvals ──
     $pendingStmt = $db->prepare("SELECT COUNT(*) FROM pal_approvals WHERE tenant_id = :tid AND decision = 'pending'");
     $pendingStmt->execute([':tid' => $tid]);
@@ -132,7 +137,9 @@ function palPageDashboard(): void
             'outstanding_fabrication_dues' => $outstandingFabricationDues,
             'monthly_collections' => $monthlyCollections,
             'monthly_expenses' => $monthlyExpenses,
-            'net_cash_flow' => $monthlyCollections - $monthlyExpenses,
+            'monthly_fabrication' => $monthlyFabrication,
+            'monthly_total_outflow' => $monthlyExpenses + $monthlyFabrication,
+            'net_cash_flow' => $monthlyCollections - $monthlyExpenses - $monthlyFabrication,
             'pending_approvals' => $pendingApprovals,
             'low_stock_count' => $lowStockCount,
             'low_stock_items' => $lowStockItems,
