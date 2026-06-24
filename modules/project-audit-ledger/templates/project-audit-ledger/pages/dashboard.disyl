@@ -1,10 +1,256 @@
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Active Projects</p><p class="text-2xl font-bold text-gray-900">{dashboard.active_projects|default:0}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Pending Approvals</p><p class="text-2xl font-bold text-yellow-600">{dashboard.pending_approvals|default:0}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">This Month Sales</p><p class="text-2xl font-bold text-green-600">₱{dashboard.monthly_sales|default:'0'|number_format:2}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Low Stock Items</p><p class="text-2xl font-bold text-red-600">{dashboard.low_stock|default:0}</p></div>
+{!-- PAL Business Dashboard — keyof-powered metadata for frontend features --}
+{@var array $d = dashboard}
+<div data-ikb-entity-fields-project="{keyof pal_project}"
+     data-ikb-entity-fields-expense="{keyof pal_expense}"
+     class="print-hidden" aria-hidden="true" style="display:none"></div>
+
+{# ── Row 1: Top KPI Cards ── #}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Projects</span>
+            <span class="text-lg">📁</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-bold text-gray-900">{d.active_projects}</span>
+            <span class="text-sm text-gray-400">/ {d.total_projects} total</span>
+        </div>
+        <div class="mt-2 w-full bg-gray-100 rounded-full h-1.5">
+            <div class="bg-blue-600 h-1.5 rounded-full" style="width:{if d.total_projects > 0}{d.active_projects / d.total_projects * 100|number_format:1}{else}0{/if}%"></div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Monthly Collections</span>
+            <span class="text-lg">💰</span>
+        </div>
+        <div class="text-3xl font-bold text-green-700">₱{d.monthly_collections|number_format:2}</div>
+        <div class="mt-1 text-xs text-gray-400">This month's cash inflow</div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Monthly Expenses</span>
+            <span class="text-lg">💳</span>
+        </div>
+        <div class="text-3xl font-bold text-red-700">₱{d.monthly_expenses|number_format:2}</div>
+        <div class="mt-1 text-xs text-gray-400">This month's cash outflow</div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Cash Flow</span>
+            <span class="text-lg">{if d.net_cash_flow >= 0}📈{else}📉{/if}</span>
+        </div>
+        <div class="text-3xl font-bold {if d.net_cash_flow >= 0}text-green-700{else}text-red-700{/if}">
+            {if d.net_cash_flow >= 0}+{/if}₱{d.net_cash_flow|number_format:2}
+        </div>
+        <div class="mt-1 text-xs text-gray-400">{if d.net_cash_flow >= 0}Positive cash flow{else}Negative cash flow{/if}</div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Pending</span>
+            <span class="text-lg">⏳</span>
+        </div>
+        <div class="flex items-baseline gap-2">
+            <span class="text-3xl font-bold text-amber-700">{d.pending_approvals}</span>
+            <span class="text-sm text-gray-400">approvals</span>
+        </div>
+        <div class="mt-1 flex gap-3 text-xs text-gray-500">
+            <span>🔴 {d.low_stock_count} low stock</span>
+        </div>
+    </div>
 </div>
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Recent Activity</h2></div>
-      {ikb_entity_list source="pal_audit_log" view="compact" limit="10" empty="No recent activity." /}
+
+{# ── Row 2: Financial Health Overview ── #}
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+    <div class="flex items-center justify-between mb-5">
+        <h2 class="text-base font-bold text-gray-900">📊 Financial Health</h2>
+        <span class="text-xs text-gray-400">All-time totals</span>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Contract Value</p>
+            <p class="text-2xl font-bold text-gray-900">₱{d.total_contract_value|number_format:2}</p>
+        </div>
+        <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Expenses</p>
+            <p class="text-2xl font-bold text-red-700">₱{d.total_expenses|number_format:2}</p>
+        </div>
+        <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Collected</p>
+            <p class="text-2xl font-bold text-green-700">₱{d.total_collected|number_format:2}</p>
+        </div>
+        <div>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Est. Profit</p>
+            <p class="text-2xl font-bold text-blue-700">₱{d.est_profit|number_format:2}</p>
+        </div>
+    </div>
+    {if d.total_contract_value > 0}
+    <div class="mt-4 pt-4 border-t border-gray-100">
+        <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+            <span>Expense ratio: {d.total_expenses / d.total_contract_value * 100|number_format:1}%</span>
+            <span>Profit margin: {d.est_profit / d.total_contract_value * 100|number_format:1}%</span>
+        </div>
+        <div class="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden relative">
+            <div class="bg-red-400 h-2.5 rounded-full absolute left-0 top-0" style="width:{min(d.total_expenses / max(d.total_contract_value,1) * 100, 100)|number_format:1}%"></div>
+            <div class="bg-green-400 h-2.5 rounded-full absolute top-0" style="width:{min(d.est_profit / max(d.total_contract_value,1) * 100, 100)|number_format:1}%;left:{min(d.total_expenses / max(d.total_contract_value,1) * 100, 100)|number_format:1}%"></div>
+        </div>
+        <div class="flex items-center gap-4 mt-1.5 text-xs">
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span> Expenses</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span> Profit</span>
+        </div>
+    </div>
+    {/if}
+</div>
+
+{# ── Row 3: Outstanding + Low Stock Alerts ── #}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-gray-900">📋 Outstanding Receivables</h2>
+            <a href="/admin/project-audit-ledger/sales" class="text-xs text-blue-600 hover:text-blue-700 font-medium">View all →</a>
+        </div>
+        <div class="flex items-baseline gap-2 mb-4">
+            <span class="text-3xl font-bold text-amber-700">₱{d.outstanding_receivables|number_format:2}</span>
+            <span class="text-sm text-gray-400">uncollected</span>
+        </div>
+        {if d.recent_collections|count > 0}
+        <div class="divide-y divide-gray-100">
+            {for c in d.recent_collections}
+            <div class="py-2.5 flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">{c.collection_number}</p>
+                    <p class="text-xs text-gray-500 truncate">{c.project_title|default:'—'} · {c.payment_date}</p>
+                </div>
+                <div class="text-right ml-3 shrink-0">
+                    <p class="text-sm font-semibold text-green-700">₱{c.amount|number_format:2}</p>
+                    <p class="text-xs text-gray-400">{c.payment_method|default:'—'}</p>
+                </div>
+            </div>
+            {/for}
+        </div>
+        {else}
+        <p class="text-sm text-gray-400 text-center py-4">No recent collections.</p>
+        {/if}
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-bold text-gray-900">🔴 Low Stock Alerts</h2>
+            <a href="/admin/project-audit-ledger/inventory" class="text-xs text-blue-600 hover:text-blue-700 font-medium">View inventory →</a>
+        </div>
+        {if d.low_stock_count > 0}
+        <div class="divide-y divide-gray-100">
+            {for item in d.low_stock_items}
+            <div class="py-2.5 flex items-center justify-between">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                    <p class="text-xs text-gray-500">{item.material_code|default:'—'} · {item.unit|default:'pc'}</p>
+                </div>
+                <div class="text-right ml-3 shrink-0">
+                    <p class="text-sm font-semibold {if item.quantity <= 0}text-red-600{else}text-amber-600{/if}">{item.quantity} / {item.reorder_level}</p>
+                    <p class="text-xs text-gray-400">stock / reorder</p>
+                </div>
+            </div>
+            {/for}
+        </div>
+        {else}
+        <div class="flex items-center justify-center py-8 text-green-600">
+            <span class="text-2xl mr-2">✅</span>
+            <span class="text-sm font-medium">All stock levels are healthy</span>
+        </div>
+        {/if}
+    </div>
+</div>
+
+{# ── Row 4: Recent Activity + Pending Approvals ── #}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-sm font-bold text-gray-900">📁 Recent Projects</h2>
+            <a href="/admin/project-audit-ledger/projects" class="text-xs text-blue-600 hover:text-blue-700 font-medium">All →</a>
+        </div>
+        {if d.recent_projects|count > 0}
+        <div class="divide-y divide-gray-100">
+            {for p in d.recent_projects}
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                <div class="min-w-0 flex-1">
+                    <a href="/admin/project-audit-ledger/projects/{p.id}" class="text-sm font-medium text-gray-900 hover:text-blue-600 truncate block">{p.title}</a>
+                    <p class="text-xs text-gray-500">{p.project_id} · {p.created_at|default:'—'}</p>
+                </div>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {if p.status == 'in_progress' || p.status == 'approved'}bg-green-100 text-green-700{elseif p.status == 'draft'}bg-gray-100 text-gray-600{elseif p.status == 'on_hold'}bg-amber-100 text-amber-700{else}bg-blue-100 text-blue-700{/if}">{p.status|replace:'_':' '}</span>
+            </div>
+            {/for}
+        </div>
+        {else}
+        <p class="text-sm text-gray-400 text-center py-8">No projects yet.</p>
+        {/if}
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-sm font-bold text-gray-900">💳 Recent Expenses</h2>
+            <a href="/admin/project-audit-ledger/expenses" class="text-xs text-blue-600 hover:text-blue-700 font-medium">All →</a>
+        </div>
+        {if d.recent_expenses|count > 0}
+        <div class="divide-y divide-gray-100">
+            {for e in d.recent_expenses}
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">{e.description}</p>
+                    <p class="text-xs text-gray-500">{e.category_name|default:'—'} · {e.expense_date}</p>
+                </div>
+                <div class="text-right ml-3 shrink-0">
+                    <p class="text-sm font-semibold text-red-700">₱{e.amount|number_format:2}</p>
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {if e.status == 'approved' || e.status == 'paid'}bg-green-100 text-green-700{elseif e.status == 'pending'}bg-amber-100 text-amber-700{else}bg-gray-100 text-gray-600{/if}">{e.status}</span>
+                </div>
+            </div>
+            {/for}
+        </div>
+        {else}
+        <p class="text-sm text-gray-400 text-center py-8">No expenses yet.</p>
+        {/if}
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-sm font-bold text-gray-900">⏳ Pending Approvals</h2>
+            <a href="/admin/project-audit-ledger/approvals" class="text-xs text-blue-600 hover:text-blue-700 font-medium">All →</a>
+        </div>
+        {if d.pending_approval_items|count > 0}
+        <div class="divide-y divide-gray-100">
+            {for a in d.pending_approval_items}
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-gray-900 truncate">{a.description|default:'Pending item'}</p>
+                    <p class="text-xs text-gray-500">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{a.approvable_type|capitalize}</span>
+                        · {a.created_at|default:'—'}
+                    </p>
+                </div>
+                <div class="ml-3 shrink-0">
+                    <a href="/admin/project-audit-ledger/approvals" class="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap">Review →</a>
+                </div>
+            </div>
+            {/for}
+        </div>
+        {else}
+        <div class="flex flex-col items-center justify-center py-8 text-green-600">
+            <span class="text-2xl mb-1">✅</span>
+            <span class="text-sm font-medium">All clear — no pending approvals</span>
+        </div>
+        {/if}
+    </div>
+</div>
+
+{# ── Row 5: Governed entity list of all projects ── #}
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-bold text-gray-900">📊 All Projects</h2>
+        <a href="/admin/project-audit-ledger/projects" class="text-xs text-blue-600 hover:text-blue-700 font-medium">Manage projects →</a>
+    </div>
+    {ikb_entity_list source="pal_project" view="table" limit="10" empty="No projects yet. Create your first project to get started." /}
 </div>
