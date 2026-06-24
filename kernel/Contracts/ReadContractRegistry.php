@@ -183,6 +183,12 @@ final class ReadContractRegistry
 
         foreach ($this->contracts as $readerId => $tables) {
             foreach ($tables as $tableName => $contract) {
+                // Skip deprecated reads entirely — they are known to be
+                // stale (table may live in a different database or no longer exist).
+                if ($this->isDeprecated($readerId, $tableName)) {
+                    continue;
+                }
+
                 $currentColumns = $this->snapshotColumns($db, $tableName);
 
                 if ($currentColumns === null) {

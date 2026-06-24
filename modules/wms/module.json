@@ -55,7 +55,9 @@
     "reads_tables": [
         "users"
     ],
-    "reads_tables_deprecated": [],
+    "reads_tables_deprecated": [
+        "users"
+    ],
     "migrations": [
         "database/migrations/001_wms_products.sql",
         "database/migrations/002_wms_warehouses_locations.sql",
