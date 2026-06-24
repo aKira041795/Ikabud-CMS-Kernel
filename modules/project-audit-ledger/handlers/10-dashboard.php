@@ -33,12 +33,13 @@ function palPageDashboard(): void
     $totalExpenses = (float)$totalExp->fetchColumn();
     // ── Fabrication costs ──
     // Budgeted = contract_amount * alloc_pct / 100 (matches project-detail view)
-    // Actual = approved payments made (may be 0 early in project lifecycle)
+    // Actual = paid_amount from weekly dues (CA paid to team leads)
     $fabBudget = $db->prepare("SELECT COALESCE(SUM(ROUND(contract_amount * COALESCE(fabrication_alloc_pct, 0) / 100, 2)), 0) FROM pal_projects WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed') AND fabrication_alloc_pct > 0");
     $fabBudget->execute([':tid' => $tid]);
     $totalFabricationBudget = (float)$fabBudget->fetchColumn();
 
-    $fabPaid = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved'");
+    // Actual fabrication cash spent = SUM of paid_amount from weekly dues
+    $fabPaid = $db->prepare("SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid");
     $fabPaid->execute([':tid' => $tid]);
     $totalFabricationPaid = (float)$fabPaid->fetchColumn();
 
@@ -68,8 +69,8 @@ function palPageDashboard(): void
     $monthlyExp->execute([':tid' => $tid]);
     $monthlyExpenses = (float)$monthlyExp->fetchColumn();
 
-    // ── Monthly fabrication: use actual payments if recorded, else budgeted ──
-    $monthlyFabPaid = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved' AND MONTH(payment_date) = MONTH(CURRENT_DATE) AND YEAR(payment_date) = YEAR(CURRENT_DATE)");
+    // ── Monthly fabrication: paid_amount from weekly dues based on week_start ──
+    $monthlyFabPaid = $db->prepare("SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND MONTH(week_start) = MONTH(CURRENT_DATE) AND YEAR(week_start) = YEAR(CURRENT_DATE)");
     $monthlyFabPaid->execute([':tid' => $tid]);
     $monthlyFabrication = (float)$monthlyFabPaid->fetchColumn();
     if ($monthlyFabrication <= 0 && $totalFabricationBudget > 0) {
