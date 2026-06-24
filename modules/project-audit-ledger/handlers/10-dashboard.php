@@ -36,6 +36,11 @@ function palPageDashboard(): void
     $fabCost->execute([':tid' => $tid]);
     $totalFabrication = (float)$fabCost->fetchColumn();
 
+    // ── Budgeted fabrication (contract_amount * alloc_pct) ──
+    $fabBudget = $db->prepare("SELECT COALESCE(SUM(ROUND(contract_amount * COALESCE(fabrication_alloc_pct, 0) / 100, 2)), 0) FROM pal_projects WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed') AND fabrication_alloc_pct > 0");
+    $fabBudget->execute([':tid' => $tid]);
+    $totalFabricationBudget = (float)$fabBudget->fetchColumn();
+
     // ── Outstanding fabrication dues (unpaid weekly dues balance) ──
     $fabDues = $db->prepare("SELECT COALESCE(SUM(balance), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND status NOT IN ('paid','waived')");
     $fabDues->execute([':tid' => $tid]);
@@ -115,6 +120,8 @@ function palPageDashboard(): void
             'total_contract_value' => $totalContractValue,
             'total_expenses' => $totalExpenses,
             'total_fabrication' => $totalFabrication,
+            'total_fabrication_budget' => $totalFabricationBudget,
+            'total_costs' => $totalExpenses + $totalFabrication,
             'total_collected' => $totalCollected,
             'outstanding_receivables' => $outstandingReceivables,
             'outstanding_fabrication_dues' => $outstandingFabricationDues,

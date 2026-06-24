@@ -84,7 +84,7 @@
         </div>
         <div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Costs</p>
-            <p class="text-2xl font-bold text-gray-900">₱{(dashboard.total_expenses + dashboard.total_fabrication)|number_format:2}</p>
+            <p class="text-2xl font-bold text-gray-900">₱{dashboard.total_costs|number_format:2}</p>
         </div>
         <div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Collected</p>
@@ -99,7 +99,7 @@
     <div class="mt-4 pt-4 border-t border-gray-100">
         <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
             <span>Expense ratio: {dashboard.total_expenses / dashboard.total_contract_value * 100|number_format:1}%</span>
-            <span>Fabrication ratio: {dashboard.total_fabrication / dashboard.total_contract_value * 100|number_format:1}%</span>
+            <span>Fabrication: {dashboard.total_fabrication_budget|default:0|number_format:2} ({dashboard.total_fabrication_budget / max(dashboard.total_contract_value,1) * 100|number_format:1}%)</span>
             <span>Profit margin: {dashboard.est_profit / dashboard.total_contract_value * 100|number_format:1}%</span>
         </div>
         <div class="w-full bg-gray-100 rounded-full h-3 overflow-hidden relative flex">
