@@ -1,9 +1,10 @@
 # DiSyL Grammar — v11 Planned Type System
 
-> **Status:** Roadmap / future-looking  
+> **Status:** Roadmap / future-looking (keyof now implemented at runtime)  
 > **Removed from:** `kernel/DiSyL/Grammar.php` in kernel 4.7+  
 > **Canonical roadmap:** `kernel/DiSyL/Grammar/Planned.php`  
-> **Date archived:** 2026-06-19
+> **Date archived:** 2026-06-19  
+> **Updated:** 2026-06-24 — `keyof` runtime implementation complete in `TemplateEngine::resolveKeyof()`
 
 ## Why these types are NOT in the live Grammar
 
@@ -52,6 +53,15 @@ public static function getV11Keywords(): array    // → removed (implemented ke
 public static function isUtilityType(string $type): bool  // → Planned::isUtilityType() (still there)
 public static function getAdvancedTypes(): array  // returned the 13 constants above
 ```
+
+## Implementation Status
+
+| Operator | Status | Since |
+|----------|--------|-------|
+| `keyof` | ✅ Runtime implementation in `TemplateEngine::resolveKeyof()`. Supports direct output, filters (`\| json`, `\| join`), and `{for}` iteration. | v4.10 |
+| `typeof` | 🔴 Planned — no code | — |
+| `\|` (union) | 🔴 Planned — no code | — |
+| `&` (intersection) | 🔴 Planned — no code | — |
 
 ## Reinstatement guide
 

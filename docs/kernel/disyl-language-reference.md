@@ -86,6 +86,32 @@
 {debug user}      — arrays as formatted JSON
 ```
 
+### Entity View Field Reflection — `keyof` (v4.10+)
+
+Resolves to the field name list of a registered entity view contract at runtime.
+Works wherever an expression is expected — direct output, filters, `{for}` loops.
+
+```
+{keyof employee_profile}
+  → ["first_name","last_name","email","phone","department"]
+
+{keyof employee_profile.detailed}
+  → ["first_name","last_name","...","salary","start_date"]
+
+{keyof employee_profile | json}
+  → same as default (JSON array)
+
+{keyof employee_profile | join:", "}
+  → first_name, last_name, email, phone, department
+
+{for field in keyof employee_profile.detailed}
+  <span>{field}</span>
+{/for}
+```
+
+If the entity type or view is not found, returns `[]` (empty array).
+Wildcard field contracts (`fields: '*'`) return `[]` — field list is unknown.
+
 ---
 
 ## 2. Filters

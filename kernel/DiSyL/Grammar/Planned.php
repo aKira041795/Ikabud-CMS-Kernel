@@ -6,8 +6,13 @@
  * or evaluator code yet.  Implemented keyword groups (cache, sandbox,
  * experiment, i18n, async, federation, AI) live in Grammar.php.
  *
+ * STATUS UPDATE (2026-06-24):
+ *   - keyof  → Runtime implementation complete in TemplateEngine::resolveKeyof().
+ *              Compile-time resolution still planned (Parser/Compiler changes).
+ *   - The remaining operators below have no parser or evaluator code yet.
+ *
  * Still truly PLANNED (no parser or evaluator code yet):
- *   - Type operators: union (|), intersection (&), keyof, typeof, infer
+ *   - Type operators: union (|), intersection (&), typeof, infer
  *   - Utility types: Record, Exclude, Extract, NonNullable, ReturnType etc.
  *   - Template-level Fibers-based I/O multiplexing (Kernel runtime concern)
  *

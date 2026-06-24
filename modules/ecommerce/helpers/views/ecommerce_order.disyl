@@ -2,6 +2,7 @@
     {field name="order_number" type="string" role="title"}
     {field name="status" type="enum" renderer="badge:{pending|amber|processing|blue|completed|green|cancelled|red}"}
     {field name="total" type="number" renderer="money:2" role="subtitle"}
+    {field name="id" type="number" visible="false"}
     {field name="created_at" type="date" renderer="datetime:date"}
     {action name="view" url="{base_url}/admin/ecommerce/orders/{id}" label="View"}
 {/ikb_entity_view}
@@ -16,6 +17,7 @@
     {field name="order_number" type="string" role="title"}
     {field name="total" type="number" renderer="money:2" role="subtitle"}
     {field name="status" type="enum" renderer="badge:{pending|amber|processing|blue|completed|green|cancelled|red}"}
+    {field name="id" type="number" visible="false"}
     {field name="created_at" type="date" renderer="datetime:date"}
     {action name="view" url="{base_url}/admin/ecommerce/orders/{id}" label="View"}
 {/ikb_entity_view}

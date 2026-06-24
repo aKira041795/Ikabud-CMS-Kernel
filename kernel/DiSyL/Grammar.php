@@ -53,6 +53,9 @@ class Grammar
     // ========== Declaration Keywords ==========
     public const KEYWORD_VAR = '@var';  // {@var type $name} — variable type declaration (v4.9+)
 
+    // ── Expression Keywords (evaluated at template-expression level) ──
+    public const KW_KEYOF = 'keyof';    // {keyof entity_type.view} — resolved entity view field list
+
     // ========== Structure Body Keywords (v4.3+) ==========
     // All keywords below are wired in TemplateEngine::evaluateStructureBody().
     // Each constant maps to a dedicated evaluator method.

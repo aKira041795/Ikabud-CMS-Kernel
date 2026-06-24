@@ -6,6 +6,7 @@
     {field name="payment_method" type="string"}
     {field name="status" type="enum" renderer="badge:{pending|amber|approved|green|rejected|red}"}
     {field name="payment_date" type="date" renderer="datetime:date"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="/admin/project-audit-ledger/collections/{id}" label="View"}
 {/ikb_entity_view}
 

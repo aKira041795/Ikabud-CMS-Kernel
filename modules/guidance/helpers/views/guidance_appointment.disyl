@@ -3,6 +3,7 @@
     {field name="student_name"      type="string" renderer="text"}
     {field name="date"              type="string" renderer="date"}
     {field name="status"            type="enum"   renderer="badge:{scheduled|Scheduled|blue;completed|Completed|green;cancelled|Cancelled|red;no_show|No Show|amber;pending|Pending|yellow}"}
+    {field name="id"                type="number" visible="false"}
     {action name="view"   url="/admin/guidance/appointments/{id}"       method="GET"  label="View"}
 {/ikb_entity_view}
 

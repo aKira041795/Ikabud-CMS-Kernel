@@ -1,3 +1,5 @@
+{!-- Expose available entity fields for frontend features --}
+<div data-ikb-entity-fields="{keyof pal_project}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print-area">
     <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex justify-between items-start mb-2"><h2 class="font-semibold text-gray-900">{project.title}</h2><div class="flex gap-2 no-print"><a href="/admin/project-audit-ledger/projects" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a><a href="/admin/project-audit-ledger/projects/{project.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a><button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button></div></div>

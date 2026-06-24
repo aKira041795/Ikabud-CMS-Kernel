@@ -1,5 +1,7 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
+{!-- Expose available entity fields for frontend features --}
+<div data-ikb-entity-fields="{keyof employee_profile.table}" data-ikb-entity-fields-detailed="{keyof employee_profile.detailed}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 <div class="px-6 py-8">
     <div class="flex items-center justify-between mb-8">
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">👥 Employees</h1>

@@ -2,6 +2,8 @@
 
 {block content}
 {!-- Dashboard Page - Guidance Counseling System --}
+{!-- Expose available entity fields for frontend features --}
+<div data-ikb-entity-fields-case="{keyof guidance_case}" data-ikb-entity-fields-appointment="{keyof guidance_appointment}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 
 {ikb_section padding="none"}
     

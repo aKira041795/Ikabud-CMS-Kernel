@@ -1,6 +1,8 @@
 {extends "modules/ecommerce/layouts/public.disyl"}
 
 {block content}
+{!-- Expose available entity fields for frontend features --}
+<div data-ikb-entity-fields-product="{keyof ecommerce_product}" data-ikb-entity-fields-order="{keyof ecommerce_order}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 <div
     class="max-w-5xl mx-auto"
     data-storefront-route-kind="{storefront.route.kind|default:public_route_kind|default:'product_detail'}"

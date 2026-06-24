@@ -5,6 +5,7 @@
     {field name="category_name" type="string"}
     {field name="amount" type="number" renderer="money:2"}
     {field name="status" type="enum" renderer="badge:{draft|gray|submitted|blue|pending_approval|amber|approved|green|rejected|red|voided|gray}"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="/admin/project-audit-ledger/expenses/{id}" label="View"}
     {filter name="project_id" type="int"}
     {filter name="status" type="enum" values="draft,submitted,pending_approval,approved,rejected,voided"}

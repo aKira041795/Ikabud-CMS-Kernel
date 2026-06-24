@@ -7,6 +7,7 @@
     {field name="college_code"      type="string" renderer="text"}
     {field name="counselor_name"    type="string" renderer="text"}
     {field name="updated_at"        type="string" renderer="date"}
+    {field name="id"                type="number" visible="false"}
     {action name="view"   url="/admin/guidance/cases/{id}"       method="GET"  label="View"}
     {action name="edit"   url="/admin/guidance/cases/{id}/edit"  method="GET"  label="Edit"}
     {action name="delete" url="/admin/guidance/cases/{id}/delete" method="POST" label="Delete" confirm="Delete this case?"}
@@ -17,6 +18,7 @@
     {field name="status"            type="enum"   renderer="badge:{open|Open|blue;closed|Closed|gray;in_progress|In Progress|indigo;on_hold|On Hold|amber}"}
     {field name="counselor_name"    type="string" renderer="text"}
     {field name="updated_at"        type="string" renderer="date"}
+    {field name="id"                type="number" visible="false"}
     {action name="view"   url="/admin/guidance/cases/{id}"       method="GET"  label="View"}
 {/ikb_entity_view}
 
@@ -28,6 +30,7 @@
     {field name="student_status"    type="string" renderer="text"}
     {field name="created_at"        type="string" renderer="date"}
     {field name="updated_at"        type="string" renderer="date"}
+    {field name="id"                type="number" visible="false"}
     {action name="view"   url="/admin/guidance/cases/{id}"       method="GET"  label="View"}
     {action name="edit"   url="/admin/guidance/cases/{id}/edit"  method="GET"  label="Edit"}
     {action name="delete" url="/admin/guidance/cases/{id}/delete" method="POST" label="Delete" confirm="Delete this case?"}

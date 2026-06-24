@@ -3,6 +3,7 @@
     {field name="contact_person" type="string"}
     {field name="email" type="string"}
     {field name="is_active" type="boolean" renderer="boolean"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="/admin/project-audit-ledger/clients/{id}" label="View"}
     {action name="edit" url="/admin/project-audit-ledger/clients/{id}/edit" label="Edit"}
 {/ikb_entity_view}

@@ -1,5 +1,9 @@
 {extends "modules/attendance-wage/layouts/admin.disyl"}
 {block main}
+{!-- Expose available entity fields as JSON for frontend metadata features --}
+<div data-ikb-entity-fields="{keyof employee_profile.table}"
+     data-ikb-entity-fields-detailed="{keyof employee_profile.detailed}"
+     class="print-hidden" aria-hidden="true"></div>
 <style>
 @media print {
     aside, .app-header, .app-shell, .app-nav, .app-footer, .print-hidden { display: none !important; }

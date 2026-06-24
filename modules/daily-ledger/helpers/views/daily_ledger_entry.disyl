@@ -17,6 +17,7 @@
     {field name="entry_type" type="string" role="title"}
     {field name="amount" type="number" renderer="money:2" role="subtitle"}
     {field name="notes" type="string"}
+    {field name="id" type="number" visible="false"}
     {field name="created_at" type="date" renderer="datetime:date"}
     {action name="view" url="{base_url}/admin/daily-ledger/entries/{id}" label="View"}
 {/ikb_entity_view}

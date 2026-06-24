@@ -4432,6 +4432,43 @@ class TemplateEngine
                     return $match[0];
                 }
 
+                // 0. keyof expression: {keyof entity_type} or {keyof entity_type.view}
+                //    Resolves to the field list of a registered entity view contract.
+                //    Supports filters: {keyof employee_profile | json}, {keyof employee_profile | join(', ')}
+                if (str_starts_with($expr, 'keyof ')) {
+                    $keyofRest = substr($expr, 6); // strip 'keyof '
+                    $pipePos = strpos($keyofRest, '|');
+                    $keyofArgs = $pipePos !== false ? trim(substr($keyofRest, 0, $pipePos)) : trim($keyofRest);
+                    $fields = $this->resolveKeyof($keyofArgs);
+
+                    if ($pipePos !== false) {
+                        // Pass through filter chain
+                        $filterPart = substr($keyofRest, $pipePos + 1);
+                        $value = $fields;
+                        $hasRaw = false;
+                        $filterNames = [];
+                        $filterParts = $this->splitByPipe($filterPart);
+                        foreach ($filterParts as $filter) {
+                            $filter = trim($filter);
+                            if ($filter === '') continue;
+                            $filterName = trim(explode(':', $filter, 2)[0]);
+                            if ($filterName === 'raw') { $hasRaw = true; continue; }
+                            $filterNames[] = $filterName;
+                            $value = $this->applyFilter($filter, $value, $context);
+                        }
+                        if (!is_scalar($value)) return '';
+                        if (!$hasRaw && !$this->hasEscapeFilter($expr, $filterNames)) {
+                            return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+                        }
+                        return (string) $value;
+                    }
+
+                    // No filters: return JSON array (not htmlspecialchars — JSON
+                    // from keyof is a controlled list of identifiers, never user
+                    // content, and json_encode already escapes internal quotes)
+                    return json_encode($fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                }
+
                 // 1. Ternary: {condition ? trueVal : falseVal}
                 //    Only if ? appears before any | (avoid matching filter args containing ?)
                 if (str_contains($expr, '?') && str_contains($expr, ':')) {
@@ -4540,6 +4577,11 @@ class TemplateEngine
         // v4.8: {call ...} and {macro ...} are control structures, not variables
         if (str_starts_with($expr, 'call ') || str_starts_with($expr, 'macro ')) {
             return false;
+        }
+
+        // keyof expression
+        if (str_starts_with($expr, 'keyof ')) {
+            return true;
         }
 
         if (str_contains($expr, '?') && str_contains($expr, ':')) {
@@ -4677,6 +4719,12 @@ class TemplateEngine
         if ($lower === 'false') return false;
         if ($lower === 'null') return null;
 
+        // keyof expression: resolve to field list from entity view contract
+        if (str_starts_with($lower, 'keyof ')) {
+            $this->currentExpression = $prevExpr;
+            return $this->resolveKeyof(substr($path, 6));
+        }
+
         // Numeric literals
         if (is_numeric($path)) {
             return str_contains($path, '.') ? (float)$path : (int)$path;
@@ -4761,7 +4809,70 @@ class TemplateEngine
         }
         return $parts;
     }
-    
+
+    /**
+     * Resolve a keyof expression to an array of field names.
+     *
+     * Parses "entity_type" or "entity_type.view" and looks up the registered
+     * view contract from EntityViewResolver. Returns the field list, or an
+     * empty array if the entity/view is not found.
+     *
+     * @param string $expr "entity_type" or "entity_type.view"
+     * @return list<string>
+     */
+    private function resolveKeyof(string $expr): array
+    {
+        $expr = trim($expr);
+        if ($expr === '') {
+            $this->logError('keyof: empty expression');
+            return [];
+        }
+
+        // Parse "entity_type.view" — default view is "compact"
+        $dotPos = strrpos($expr, '.');
+        if ($dotPos === false) {
+            $entityType = $expr;
+            $view = 'compact';
+        } else {
+            $entityType = substr($expr, 0, $dotPos);
+            $view = substr($expr, $dotPos + 1);
+        }
+
+        if ($entityType === '') {
+            $this->logError("keyof: invalid expression '{$expr}'");
+            return [];
+        }
+
+        // Look up the view contract
+        $resolverClass = 'Ikabud\\Kernel\\EntityContext\\EntityViewResolver';
+        if (!class_exists($resolverClass, true)) {
+            $this->logError("keyof: EntityViewResolver not available");
+            return [];
+        }
+
+        $resolver = $resolverClass::getInstance();
+        $contract = $resolver->viewContract($entityType, $view);
+
+        if ($contract === null) {
+            $this->logError("keyof: no view contract for '{$entityType}.{$view}'");
+            return [];
+        }
+
+        $fields = $contract['fields'] ?? null;
+
+        // Wildcard '*' means unknown fields — can't keyof
+        if ($fields === '*') {
+            $this->logError("keyof: entity '{$entityType}' view '{$view}' uses wildcard fields — cannot resolve field list");
+            return [];
+        }
+
+        if (!is_array($fields) || $fields === []) {
+            return [];
+        }
+
+        return array_values($fields);
+    }
+
     /** Maximum number of filters allowed in a single filter chain */
     private const FILTER_CHAIN_MAX = 20;
 
@@ -7205,6 +7316,19 @@ class TemplateEngine
 
         $rows = $resolved['rows'] ?? [];
         $attrs['_children'] = $children;
+
+        // Validate requested fields against the view contract
+        if (isset($attrs['fields']) && is_string($attrs['fields']) && $attrs['fields'] !== '') {
+            $requestedFields = array_map('trim', explode(',', $attrs['fields']));
+            $contractFields = $resolved['view']['fields'] ?? null;
+            if (is_array($contractFields) && $contractFields !== []) {
+                $unknownFields = array_diff($requestedFields, $contractFields);
+                if (!empty($unknownFields)) {
+                    $this->logError("ikb_entity_list '{$source}': unknown field(s) '" . implode(', ', $unknownFields)
+                        . "' — valid fields: " . implode(', ', $contractFields));
+                }
+            }
+        }
 
         if (empty($rows)) {
             $msg = (string)($attrs['empty'] ?: $resolved['view']['empty_state'] ?? 'No records found.');

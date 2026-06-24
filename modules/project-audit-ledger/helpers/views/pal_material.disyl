@@ -5,5 +5,6 @@
     {field name="stock_qty" type="number"}
     {field name="avg_cost" type="number" renderer="money:2"}
     {field name="reorder_level" type="number"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="/admin/project-audit-ledger/inventory/{id}" label="View"}
 {/ikb_entity_view}

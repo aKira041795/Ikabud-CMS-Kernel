@@ -1,6 +1,8 @@
 {extends "modules/ecommerce/layouts/public.disyl"}
 
 {block content}
+{!-- Expose available entity fields for frontend features --}
+<div data-ikb-entity-fields-product="{keyof ecommerce_product}" data-ikb-entity-fields-order="{keyof ecommerce_order}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 {include "modules/ecommerce/public/partials/storefront-chrome.disyl"}
 <div
     class="flex gap-8"

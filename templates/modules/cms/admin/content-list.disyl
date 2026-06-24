@@ -1,6 +1,8 @@
 {extends "modules/cms/layouts/admin.disyl"}
 
 {block content}
+{!-- Expose available entity fields for frontend features --}
+<div data-ikb-entity-fields="{keyof cms_post}" data-ikb-entity-fields-page="{keyof cms_page}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 <div x-data="cmsBulkActions()" class="space-y-6">
 <div class="flex flex-col gap-6">
     <div class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

@@ -5,6 +5,7 @@
     {field name="contract_amount" type="number" renderer="money:2"}
     {field name="status" type="enum" renderer="badge:{draft|gray|approved|blue|in_progress|green|on_hold|amber|completed|green|cancelled|red|closed|gray}"}
     {field name="start_date" type="date" renderer="datetime:date"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="/admin/project-audit-ledger/projects/{id}" label="View"}
     {action name="edit" url="/admin/project-audit-ledger/projects/{id}/edit" label="Edit"}
 {/ikb_entity_view}
