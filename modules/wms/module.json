@@ -52,7 +52,8 @@
         "audit_logs",
         "rate_limits"
     ],
-    "reads_tables": [
+    "reads_tables": [],
+    "reads_tables_deprecated": [
         "users"
     ],
     "migrations": [

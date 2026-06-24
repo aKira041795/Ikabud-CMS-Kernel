@@ -55,7 +55,8 @@
     "sms_log",
     "sms_templates"
   ],
-  "reads_tables": [
+  "reads_tables": [],
+  "reads_tables_deprecated": [
     "users"
   ],
   "settings_fields": [

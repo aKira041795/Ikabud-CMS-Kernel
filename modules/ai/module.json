@@ -5,7 +5,8 @@
   "description": "AI capability providers for kernel automation and suggestions.",
   "author": "Noah C. Omamalin",
   "owns_tables": [],
-  "reads_tables": [
+  "reads_tables": [],
+  "reads_tables_deprecated": [
     "users"
   ],
   "nav": [],

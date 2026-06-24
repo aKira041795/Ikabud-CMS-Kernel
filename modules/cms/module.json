@@ -65,7 +65,9 @@
     "reads_tables": [
         "kernel_event_triggers",
         "rate_limits",
-        "workflow_definitions",
+        "workflow_definitions"
+    ],
+    "reads_tables_deprecated": [
         "ec_stores",
         "ec_store_users"
     ],

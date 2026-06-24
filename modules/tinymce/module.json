@@ -5,7 +5,8 @@
   "description": "Shared editor service module for assets, config, normalization, and sanitation.",
   "author": "Noah C. Omamalin",
   "owns_tables": [],
-  "reads_tables": [
+  "reads_tables": [],
+  "reads_tables_deprecated": [
     "users"
   ],
   "nav": [],

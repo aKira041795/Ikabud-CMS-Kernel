@@ -79,12 +79,14 @@
         "gm_migrations"
     ],
     "reads_tables": [
+        "audit_logs",
+        "rate_limits"
+    ],
+    "reads_tables_deprecated": [
         "kernel_module_catalog",
         "kernel_tenant_module_access_requests",
         "kernel_tenant_module_entitlements",
-        "users",
-        "audit_logs",
-        "rate_limits"
+        "users"
     ],
     "migrations": [
         "migrations/001_guidance_schema.sql",

@@ -24,11 +24,13 @@
     "cms_menu_locations"
   ],
   "reads_tables": [
-    "users",
     "cms_users",
-    "cms_user_services",
     "tenant_module_settings",
     "audit_logs"
+  ],
+  "reads_tables_deprecated": [
+    "users",
+    "cms_user_services"
   ],
   "migrations": [
     "database/migrations/001_moodle_integration_schema.sql",
