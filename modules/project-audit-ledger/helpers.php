@@ -886,5 +886,5 @@ function palRejectStaleSession(): void
 {
     palClearAuthCookie();
     unset($_SESSION['pal_user']);
-    app()->redirect('/project-audit-ledger/login?error=Session+expired.+Please+log+in+again.');
+    app()->redirect('http://palsystem.test/project-audit-ledger/login');
 }

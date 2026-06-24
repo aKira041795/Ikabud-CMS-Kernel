@@ -31,7 +31,12 @@ function palEnforceCsrf(): void
 
 function palCurrentUser(array $roles = ['admin', 'supervisor', 'encoder']): array
 {
-    $user = palCtx()->requireAuth();
+    // Check user directly — don't call App::requireAuth() which redirects
+    // to kernel /login on expiry. We redirect to PAL login instead.
+    $user = app()->user();
+    if (!$user) {
+        palRejectStaleSession();
+    }
 
     if (palIsKernelSuperadmin($user)) {
         return $user;
