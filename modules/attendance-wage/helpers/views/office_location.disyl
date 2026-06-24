@@ -1,0 +1,20 @@
+{ikb_entity_view name="office_location" view="table"}
+    {field name="name" type="string" role="title"}
+    {field name="address" type="string"}
+    {field name="is_active" type="boolean" renderer="boolean"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/locations/{id}/edit" label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="office_location" view="compact"}
+    {field name="name" type="string" role="title"}
+    {field name="is_active" type="boolean" renderer="boolean"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="office_location" view="card_grid"}
+    {field name="name" type="string" role="title"}
+    {field name="address" type="string" role="subtitle"}
+    {field name="is_active" type="boolean" renderer="boolean"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/locations/{id}/edit" label="Edit"}
+{/ikb_entity_view}

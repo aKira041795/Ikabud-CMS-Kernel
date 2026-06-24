@@ -195,8 +195,20 @@ class TemplateEngine
      * @param string $viewsDir Absolute path to the views directory
      * @return int Number of config files loaded
      */
+    /**
+     * Get details from the last loadViewConfigs call, including per-file errors.
+     *
+     * @return array{file:string, success:bool, errors:array}[]|null Null if loadViewConfigs was never called.
+     */
+    public static function getLastLoadErrors(): ?array
+    {
+        return self::$lastLoadErrors;
+    }
+
     public static function loadViewConfigs(string $viewsDir): int
     {
+        self::$lastLoadErrors = null;
+
         if (!is_dir($viewsDir)) {
             return 0;
         }
@@ -212,22 +224,50 @@ class TemplateEngine
         $engine = new self('/tmp', '/tmp/cache');
         $engine->enableStrictMode(false);
 
+        $results = [];
+        $hasCriticalErrors = false;
+
         foreach ($files as $file) {
             $content = file_get_contents($file);
             if ($content === false || $content === '') {
                 \write_log('disyl.view_config', 'warning', ['file' => $file, 'error' => 'Empty or unreadable file']);
+                $results[] = ['file' => $file, 'success' => false, 'errors' => ['Empty or unreadable file']];
                 continue;
             }
             // Render the config file — the component produces no output
             // but registers views via EntityViewResolver as a side effect.
             $engine->renderString($content, []);
 
-            // Report any parse/validation errors from the config rendering
+            // Collect errors from the config rendering
+            $fileErrors = [];
             foreach ($engine->getErrors() as $err) {
-                \write_log('disyl.view_config', 'warning', ['file' => $file, 'error' => $err]);
+                $fileErrors[] = $err;
+                \write_log('disyl.view_config', 'error', ['file' => $file, 'error' => $err]);
+            }
+
+            if (!empty($fileErrors)) {
+                $hasCriticalErrors = true;
+                $results[] = ['file' => $file, 'success' => false, 'errors' => $fileErrors];
+            } else {
+                $results[] = ['file' => $file, 'success' => true, 'errors' => []];
             }
 
             $count++;
+        }
+
+        self::$lastLoadErrors = $results;
+
+        // Throw if any file had errors — prevents silent contract registration failures
+        if ($hasCriticalErrors) {
+            $failures = [];
+            foreach ($results as $r) {
+                if (!$r['success']) {
+                    $failures[] = basename($r['file']) . ': ' . implode('; ', $r['errors']);
+                }
+            }
+            throw new \RuntimeException(
+                'Entity view config loading failed for ' . count($failures) . ' file(s): ' . implode(' | ', $failures)
+            );
         }
 
         return $count;
@@ -235,6 +275,9 @@ class TemplateEngine
     
     /** @var array In-memory cache of compiled output per request */
     private array $outputCache = [];
+
+    /** @var array{file:string, errors:array}[]|null Last loadViewConfigs result with per-file errors */
+    private static ?array $lastLoadErrors = null;
 
     /** @var array<string, string> Per-request template source cache */
     private array $templateSourceCache = [];
@@ -5324,14 +5367,111 @@ class TemplateEngine
         };
     }
 
+    /** @var array<string>|null Lazily-built list of known governed component names for typo suggestions */
+    private static ?array $knownGovernedComponents = null;
+
+    /**
+     * Get the list of known governed component names (for typo suggestions).
+     */
+    private function getKnownGovernedComponents(): array
+    {
+        if (self::$knownGovernedComponents !== null) {
+            return self::$knownGovernedComponents;
+        }
+
+        // Built-in governed components from the renderComponent match block
+        $governed = [
+            'ikb_section',
+            'ikb_container',
+            'ikb_grid',
+            'ikb_card',
+            'ikb_text',
+            'ikb_button',
+            'ikb_badge',
+            'ikb_input',
+            'ikb_textarea',
+            'ikb_select',
+            'ikb_icon',
+            'ikb_image',
+            'ikb_link',
+            'ikb_table',
+            'ikb_modal',
+            'ikb_alert',
+            'ikb_spinner',
+            'ikb_component',
+            'ikb_entity_view',
+            'ikb_entity_list',
+            'ikb_entity_detail',
+            'ikb_export_button',
+            'ikb_form',
+            'ikb_stat_card',
+            'ikb_timeline',
+            'ikb_confirm_action',
+            'ikb_panel',
+            'ikb_drawer',
+            'ikb_audit_log',
+            'ikb_ai_summary',
+            'ikb_ai_assist',
+            'ikb_report',
+            'ikb_signature_block',
+        ];
+
+        // Add any custom registered components
+        foreach (array_keys($this->components) as $custom) {
+            if (!in_array($custom, $governed, true)) {
+                $governed[] = $custom;
+            }
+        }
+
+        self::$knownGovernedComponents = $governed;
+        return $governed;
+    }
+
+    /**
+     * Find the closest matching known component name by Levenshtein distance.
+     *
+     * @param string $input The unknown component name
+     * @param array<string> $candidates List of known component names
+     * @return string|null The closest match, or null if distance is too large
+     */
+    private function findClosestComponent(string $input, array $candidates): ?string
+    {
+        $best = null;
+        $bestDist = PHP_INT_MAX;
+
+        foreach ($candidates as $candidate) {
+            $dist = levenshtein($input, $candidate);
+            if ($dist < $bestDist) {
+                $bestDist = $dist;
+                $best = $candidate;
+            }
+        }
+
+        // Only suggest if the distance is within reasonable threshold
+        $threshold = max(3, (int)(strlen($input) * 0.4));
+        if ($bestDist > 0 && $bestDist <= $threshold) {
+            return $best;
+        }
+
+        return null;
+    }
+
     /**
      * Handle unknown/unregistered component names.
-     * Logs a warning and returns a visible HTML comment so developers catch typos.
+     * Logs a warning, suggests the closest known component, and returns a visible
+     * HTML comment so developers catch typos.
      */
     private function renderUnknownComponent(string $component, string $children): string
     {
         if (str_starts_with($component, 'ikb_') || $component === 'state' || $component === 'island') {
-            $this->logError("Unknown component '{$component}' — not registered. Check for typos. If using a custom component, register it via ComponentRegistry::register().");
+            $suggestion = $this->findClosestComponent($component, $this->getKnownGovernedComponents());
+            $msg = "Unknown component '{$component}' — not registered.";
+            if ($suggestion !== null) {
+                $msg .= " Did you mean '{$suggestion}'?";
+            } else {
+                $msg .= " Check for typos. If using a custom component, register it via ComponentRegistry::register().";
+            }
+            $this->logError($msg);
             return "<!-- Unknown DiSyL component: {$component} -->";
         }
         return $children;
@@ -6602,6 +6742,9 @@ class TemplateEngine
             }
         }
 
+        // Validate the collected contract before registering
+        $this->validateViewContract($name, $view, $fields, $roleFields, $actionUrls);
+
         // Build contract
         $contract = [
             'fields' => $fields,
@@ -6637,6 +6780,53 @@ class TemplateEngine
         }
 
         return ''; // No output
+    }
+
+    /**
+     * Validate an entity view contract before registration.
+     *
+     * Checks for:
+     * - Duplicate field names
+     * - Duplicate semantic role assignments
+     * - Action URL placeholders ({id}, {slug}) that don't match any declared field
+     *
+     * Logs errors via logError() but does not abort — the contract is still registered.
+     */
+    private function validateViewContract(string $entityName, string $view, array $fields, array $roleFields, array $actionUrls): void
+    {
+        // Check 1: duplicate field names
+        $seen = [];
+        foreach ($fields as $f) {
+            if (isset($seen[$f])) {
+                $this->logError("ikb_entity_view '{$entityName}/{$view}': duplicate field '{$f}' declared multiple times");
+            }
+            $seen[$f] = true;
+        }
+
+        // Check 2: duplicate role values (last-writer-wins detection)
+        $roleSeen = [];
+        foreach ($roleFields as $role => $fieldName) {
+            if (isset($roleSeen[$role])) {
+                $this->logError("ikb_entity_view '{$entityName}/{$view}': role '{$role}' assigned to both '{$roleSeen[$role]}' and '{$fieldName}' — last definition wins");
+            }
+            $roleSeen[$role] = $fieldName;
+        }
+
+        // Check 3: action URL placeholders not in field list
+        $fieldSet = array_flip($fields);
+        foreach ($actionUrls as $actionName => $url) {
+            if (preg_match_all('/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/', $url, $placeholderMatches)) {
+                foreach ($placeholderMatches[1] as $placeholder) {
+                    // Skip standard context variables that don't need field declarations
+                    if (in_array($placeholder, ['base_url', 'current_url', 'request_id'], true)) {
+                        continue;
+                    }
+                    if (!isset($fieldSet[$placeholder])) {
+                        $this->logError("ikb_entity_view '{$entityName}/{$view}' action '{$actionName}': URL placeholder '{{$placeholder}}' not in declared fields — will render as literal");
+                    }
+                }
+            }
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 # Entity-View Adoption Plan — Closing the Gap
 
 > **Status:** Phases 1–3 complete — June 19, 2026.
-> **Latest (June 23):** PAL module (project-audit-ledger) adopted entity views across all 10 list templates + 4 new entity types + `{ikb_entity_detail}` on expense detail. Filter attribute added to `{ikb_entity_list}` for cross-entity composite pages. DiSyL engine hardening: HTML tag warning, component name validation, shorthand set syntax, field renderer validation.
+> **Latest (June 24):** All 11 attendance-wage entity view contracts created (3 pre-existing + 8 new: payroll_period, salary_computation, salary_adjustment, employee_deduction, holiday, cash_advance, employee_schedule, office_location). Each view contract declares semantic role annotations (`role="title"`, `role="subtitle"`, `role="image"`) for card_grid layout. DiSyL engine hardening: loadViewConfigs throws on parse errors with per-file diagnostics; validateViewContract() checks duplicate fields, duplicate roles, and action URL placeholder mismatches at registration time; renderUnknownComponent suggests closest known component name via Levenshtein distance.
 
 > **Previous (June 22):** `EntityRenderingTrait` deleted in 6.1.0. All rendering goes through `DefaultEntityRenderer` + `CellRendererRegistry`. Entity views now support location (name+coords), image (thumbnail+lightbox), and inline editing via Alpine.js.
 
@@ -19,7 +19,7 @@
 | Guidance | ✅ Full | `entity.list/get.guidance_case@1`, `entity.list/get.guidance_appointment@1` | — | builtinDefaults |
 | Daily Ledger | ✅ Full | `entity.list/get.daily_ledger_entry@1` | — | builtinDefaults |
 | WMS | ✅ Full | `entity.list/get.wms_stock@1`, `entity.list/get.wms_location@1` | — | builtinDefaults |
-| Attendance & Wage | ✅ Full | `entity.list/get.attendance_record@1`, `entity.list/get.employee_profile@1`, `entity.list/get.payroll_period@1`, `entity.list/get.salary_computation@1`, `entity.list/get.salary_adjustment@1`, `entity.list/get.employee_deduction@1`, `entity.list/get.holiday@1`, `entity.list/get.cash_advance@1`, `entity.list/get.employee_schedule@1` | — | builtinDefaults |
+| Attendance & Wage | ✅ Full | `entity.list/get.attendance_record@1`, `entity.list/get.employee_profile@1`, `entity.list/get.payroll_period@1`, `entity.list/get.salary_computation@1`, `entity.list/get.salary_adjustment@1`, `entity.list/get.employee_deduction@1`, `entity.list/get.holiday@1`, `entity.list/get.cash_advance@1`, `entity.list/get.employee_schedule@1` | — | 11 DiSyL view contracts, 11 entity types |
 | Project Audit Ledger | ✅ Full | `entity.list/get.pal_project@1`, `entity.list/get.pal_expense@1`, `entity.list/get.pal_material@1`, `entity.list/get.pal_purchase@1`, `entity.list/get.pal_sale@1`, `entity.list.pal_collection@1`, `entity.list.pal_fabrication_due@1`, `entity.list.pal_audit_log@1`, `entity.list/get.pal_client@1`, `entity.list/get.pal_supplier@1`, `entity.list/get.pal_issuance@1`, `entity.list.pal_material_return@1` | — | 10 DiSyL view contracts |
 
 ## Plan
@@ -57,7 +57,12 @@ Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_det
 **New entity view features (June 23):**
 - `filter` attribute on `{ikb_entity_list}` — pass `key=value` pairs (resolves `{var.path}` from context) to capability handlers for filtered entity lists
 - `{ikb_entity_detail}` component — renders single entity records via `entity.get.*` capability with a `detailed` or `summary` view contract
-- `RowRenderContext` value object — consolidates 14 shared params across row renderers, preventing parameter drift
+- `RowRenderContext` value object — consolidates 15 shared params across row renderers, preventing parameter drift
+
+**DiSyL view contracts for attendance-wage (June 24):**
+- 8 new DiSyL view contract files created: `payroll_period.disyl`, `salary_computation.disyl`, `salary_adjustment.disyl`, `employee_deduction.disyl`, `holiday.disyl`, `cash_advance.disyl`, `employee_schedule.disyl`, `office_location.disyl`
+- Each declares `card_grid`, `table`, and `compact` views with semantic role annotations (`role="title"`, `role="subtitle"`) for proper card_grid layout
+- All 11 attendance-wage entity types now have explicit DiSyL view contracts (migrated from builtinDefaults)
 - PAL module: 10 list templates migrated, 4 new entity types (client, supplier, issuance, material_return), expense detail now uses pure entity view
 
 **DiSyL engine improvements (June 23):**
@@ -66,6 +71,11 @@ Replace module-specific render paths with `{ikb_entity_list}` / `{ikb_entity_det
 - Shorthand `{var = expr}` syntax — now works as alias for `{set var = expr}`
 - Field renderer validation — `validateFieldRenderer()` checks renderer prefix against known types at config load time
 - View contract validation — view names checked against known modes (table, compact, card_grid, detailed, summary) with logged warnings
+
+**DiSyL engine improvements (June 24):**
+- **`loadViewConfigs` error surfacing** — parse failures now logged at `error` level instead of `warning`; new `getLastLoadErrors()` static method returns `{file, success, errors}[]` array; throws `RuntimeException` with per-file summary when any file has errors — prevents silent contract registration failures
+- **`validateViewContract()`** — new private method called before every `{ikb_entity_view}` registration, checking: duplicate field names, duplicate semantic role assignments (two fields with `role="title"`), and action URL placeholders (`{id}`, `{slug}`) not matching any declared field
+- **`renderUnknownComponent` suggestion** — when an unknown `ikb_*` component is encountered, uses `levenshtein()` to find the closest match from 32 governed components and includes "Did you mean 'ikb_card'?" in the error message
 
 **New entity view features (June 19):**
 - Custom cell renderers: `badge`, `badge:map`, `money:N`, `datetime`, `boolean`
@@ -240,6 +250,11 @@ Zero handler code. Zero module-internal knowledge. The theme declares intent. Th
 | `guidance_settings_modules_test.php` | ✅ 17/17 |
 | `wms_module_test.php` | ✅ 27/27 |
 | `error.log` | ✅ 0 lines |
+| `disyl_v11_verify_test.php` | ✅ 22/22 |
+| loadViewConfigs throws on parse errors | ✅ |
+| validateViewContract duplicate/role/URL checks | ✅ |
+| renderUnknownComponent levenshtein suggestion | ✅ |
+| 11 DiSyL view contracts for attendance-wage | ✅ |
 
 ## Phase 3 — Template Migration (Deferred)
 
@@ -255,3 +270,17 @@ Individual module templates still use module-specific render paths. Migration pa
 | Attendance & Wage | `aw_render('wage/dashboard.disyl')` | `{ikb_entity_list source="employee_schedule.all"}` in CMS theme |
 
 **Template migration is zero-risk for the capability layer.** The capabilities exist and are tested. Templates can adopt them incrementally without breaking existing render paths.
+
+## DiSyL View Contract Files
+
+The following entity types now have explicit DiSyL view contracts (under `modules/*/helpers/views/`) instead of `builtinDefaults`:
+
+| Module | Files | Views Declared |
+|--------|-------|----------------|
+| CMS | `cms_post.disyl`, `cms_page.disyl` | card_grid, table, compact |
+| Bakeshop | `bakeshop_product.disyl` | card_grid, table, compact |
+| Daily Ledger | `daily_ledger_entry.disyl` | table, compact, card_grid |
+| Ecommerce | `ecommerce_product.disyl`, `ecommerce_order.disyl` | card_grid, table, compact |
+| Attendance & Wage | `attendance_record.disyl`, `employee_profile.disyl`, `payroll_period.disyl`, `salary_computation.disyl`, `salary_adjustment.disyl`, `employee_deduction.disyl`, `holiday.disyl`, `cash_advance.disyl`, `employee_schedule.disyl`, `office_location.disyl` | table, compact, card_grid |
+
+Each file declares `{ikb_entity_view name="..." view="..."}` blocks with explicit field lists, semantic role annotations (`role="title"`, `role="subtitle"`), and action URLs with `{base_url}` context fallback. Loaded via `loadViewConfigs()` in each module's `handlers.php`. The `loadViewConfigs()` implementation now throws `RuntimeException` with per-file error details on parse failures — check `getLastLoadErrors()` for diagnostics.

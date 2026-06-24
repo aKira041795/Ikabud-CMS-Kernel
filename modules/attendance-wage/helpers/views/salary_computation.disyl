@@ -1,0 +1,26 @@
+{ikb_entity_view name="salary_computation" view="table"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="period_name" type="string"}
+    {field name="gross_pay" type="number" renderer="money:2"}
+    {field name="total_deductions" type="number" renderer="money:2"}
+    {field name="net_pay" type="number" renderer="money:2" role="subtitle"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|approved|green|paid|blue}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="{base_url}/admin/wage/computations/{id}" label="View"}
+    {action name="approve" url="{base_url}/admin/wage/computations/{id}/approve" label="Approve" method="post"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="salary_computation" view="compact"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="net_pay" type="number" renderer="money:2"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|approved|green|paid|blue}"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="salary_computation" view="card_grid"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="net_pay" type="number" renderer="money:2" role="subtitle"}
+    {field name="period_name" type="string"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|approved|green|paid|blue}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="{base_url}/admin/wage/computations/{id}" label="View"}
+{/ikb_entity_view}

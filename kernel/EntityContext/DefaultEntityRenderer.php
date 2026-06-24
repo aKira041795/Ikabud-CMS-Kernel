@@ -157,6 +157,9 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $actionRoles = $explicitRoles;
         }
 
+        // Semantic role→field mapping from view contract (e.g. role="title", role="subtitle")
+        $roleFields = $view['role_fields'] ?? [];
+
         $rowClick = (string)($attrs['row-click'] ?? '');
         $rowClickTarget = (string)($attrs['row-click-target'] ?? '');
         $search = !empty($attrs['search']) && $attrs['search'] !== 'false';
@@ -183,19 +186,21 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                     actionUrls: $actionUrls, actionMethods: $actionMethods, actionConfirm: $actionConfirm,
                     actionShowIf: $actionShowIf, actionLabels: $actionLabels, renderers: $renderers,
                     rowClick: $rowClick, rowClickTarget: $rowClickTarget, userRole: $userRole, actionRoles: $actionRoles,
+                    roleFields: $roleFields,
                 )),
                 'table' => $this->renderTableRow(new RowRenderContext(
                     row: $row, fields: $fields, actions: $actions, use: $use,
                     actionUrls: $actionUrls, actionMethods: $actionMethods, actionConfirm: $actionConfirm,
                     actionShowIf: $actionShowIf, actionLabels: $actionLabels, renderers: $renderers,
                     rowClick: $rowClick, rowClickTarget: $rowClickTarget, userRole: $userRole, actionRoles: $actionRoles,
-                    hasBulk: $hasBulk, fieldContracts: $fieldContracts,
+                    hasBulk: $hasBulk, fieldContracts: $fieldContracts, roleFields: $roleFields,
                 )),
                 default => $this->renderCompactRow(new RowRenderContext(
                     row: $row, fields: $fields, actions: $actions, use: $use,
                     actionUrls: $actionUrls, actionMethods: $actionMethods, actionConfirm: $actionConfirm,
                     actionShowIf: $actionShowIf, actionLabels: $actionLabels, renderers: $renderers,
                     rowClick: $rowClick, rowClickTarget: $rowClickTarget, userRole: $userRole, actionRoles: $actionRoles,
+                    roleFields: $roleFields,
                 )),
             };
         }
@@ -869,19 +874,18 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     private function renderWithRowContext(string $template, array $row, array $fallbackContext = []): string
     {
         $result = $template;
-        // First pass: check if all required placeholders have non-empty values.
-        // Falls back to template context for keys not in row data (e.g. {base_url}).
+        // Collect all placeholders from the template
         preg_match_all('/\{(\w+)\}/', $result, $placeholders);
+        $allValues = array_merge($fallbackContext, $row);
+
         foreach ($placeholders[1] as $key) {
             $value = $row[$key] ?? $fallbackContext[$key] ?? null;
             if ($value === null || $value === '' || $value === false) {
-                return $result;
-            }
-        }
-        // Second pass: substitute all values — row first, then context fallback
-        $allValues = array_merge($fallbackContext, $row);
-        foreach ($allValues as $key => $value) {
-            if ((is_scalar($value) || $value === null) && str_contains($result, '{' . $key . '}')) {
+                // Placeholder not resolvable — replace with empty string to avoid
+                // rendering literal "{key}" in the output (e.g. {base_url} when
+                // the template context doesn't include it).
+                $result = str_replace('{' . $key . '}', '', $result);
+            } else {
                 $safeValue = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
                 $result = str_replace('{' . $key . '}', $safeValue, $result);
             }

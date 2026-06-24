@@ -303,6 +303,58 @@
 
 ## 6. Entity Views
 
+### View Contract Registration
+
+Entity views are declared in DiSyL config files (`.disyl` under `helpers/views/`) using `{ikb_entity_view}`:
+
+```disyl
+{ikb_entity_view name="employee_profile" view="table"}
+    {field name="first_name" type="string" renderer="text"}
+    {field name="last_name"  type="string" renderer="text"}
+    {field name="salary_type" type="enum" renderer="badge:{hourly|Daily}"}
+    {field name="employment_status" type="enum" renderer="badge:{regular|Regular|green}"}
+    {action name="view" url="/admin/wage/employees/{id}/view"}
+    {action name="edit" url="/admin/wage/employees/{id}"}
+{/ikb_entity_view}
+```
+
+Loaded via:
+```php
+\Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/views');
+```
+
+**Config loading errors** (parse failures, missing `name` attributes, invalid renderers) now throw `RuntimeException` with per-file details. Retrieve per-file results via `TemplateEngine::getLastLoadErrors()`. Previously silent parse failures are surfaced as errors in the log.
+
+### Semantic Roles (v4.8)
+
+Fields can declare semantic roles for card_grid layout positioning:
+
+```disyl
+{ikb_entity_view name="cms_post" view="card_grid"}
+    {field name="title"   type="string" role="title"}
+    {field name="excerpt" type="string" role="subtitle"}
+    {field name="image"   type="string" role="image"}
+    {action name="view" url="{base_url}/cms/blog/{slug}"}
+{/ikb_entity_view}
+```
+
+Supported roles: `title`, `subtitle`, `image`, `body`, `description`.
+
+### View Contract Validation (v4.8)
+
+At registration time, every `{ikb_entity_view}` is validated for:
+- **Duplicate field names** — two `{field name="same"}` declarations
+- **Duplicate role values** — two fields with `role="title"`
+- **Action URL placeholder mismatches** — `{id}` or `{slug}` in action URLs not matching any declared field
+
+### Unknown Component Suggestion (v4.8)
+
+When a misspelled governed component is used (e.g., `{ikb_botton}` instead of `{ikb_button}`), the engine now suggests the closest match via Levenshtein distance:
+
+```
+Unknown component 'ikb_botton' — not registered. Did you mean 'ikb_button'?
+```
+
 ### `ikb_entity_list`
 
 ```disyl
@@ -343,6 +395,7 @@
 | `auth-role` | string | Override role for visibility (v4.8) |
 | `action-roles` | JSON | Action → role map (v4.8) |
 | `class` | string | Additional CSS classes |
+| `filter` | string | Comma-separated `key=value` pairs, `{var.path}` resolved from context |
 
 ### `ikb_entity_detail`
 

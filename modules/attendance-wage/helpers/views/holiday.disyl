@@ -1,0 +1,23 @@
+{ikb_entity_view name="holiday" view="table"}
+    {field name="holiday_name" type="string" role="title"}
+    {field name="holiday_date" type="date" renderer="datetime:date"}
+    {field name="holiday_type" type="string"}
+    {field name="pay_multiplier" type="number"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/holidays/{id}/edit" label="Edit"}
+    {action name="delete" url="{base_url}/admin/wage/holidays/{id}/delete" label="Delete" method="post" confirm="Delete this holiday?"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="holiday" view="compact"}
+    {field name="holiday_name" type="string" role="title"}
+    {field name="holiday_date" type="date" renderer="datetime:date"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="holiday" view="card_grid"}
+    {field name="holiday_name" type="string" role="title"}
+    {field name="holiday_date" type="date" renderer="datetime:date" role="subtitle"}
+    {field name="holiday_type" type="string"}
+    {field name="pay_multiplier" type="number"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/holidays/{id}/edit" label="Edit"}
+{/ikb_entity_view}

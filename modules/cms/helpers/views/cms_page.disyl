@@ -4,7 +4,8 @@
     {field name="published_at" type="date" renderer="datetime:date"}
     {field name="author_name" type="string"}
     {field name="status" type="enum" renderer="badge:{published|green|draft|gray}"}
-    {action name="view" url="/cms/{slug}" label="View"}
+    {field name="slug" type="string" visible="false"}
+    {action name="view" url="{base_url}/cms/{slug}" label="View"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="cms_page" view="table"}
@@ -13,7 +14,8 @@
     {field name="author_name" type="string"}
     {field name="status" type="enum" renderer="badge:{published|green|draft|gray}"}
     {field name="updated_at" type="date" renderer="datetime:date"}
-    {action name="view" url="/cms/{slug}" label="View"}
+    {field name="slug" type="string" visible="false"}
+    {action name="view" url="{base_url}/cms/{slug}" label="View"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="cms_page" view="compact"}

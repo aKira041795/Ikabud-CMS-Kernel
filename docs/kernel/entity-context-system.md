@@ -193,7 +193,7 @@ external service returns.
 
 ### RowRenderContext Value Object
 
-`kernel/EntityContext/RowRenderContext.php` consolidates the 14 shared parameters
+`kernel/EntityContext/RowRenderContext.php` consolidates the 15 shared parameters
 across row rendering methods to prevent parameter drift:
 
 ```php
@@ -206,11 +206,28 @@ $ctx = new RowRenderContext(
     userRole: $userRole, actionRoles: $actionRoles,
     hasBulk: $hasBulk,          // table-only
     fieldContracts: $fieldContracts,  // table-only
+    roleFields: $roleFields,    // semantic role→field mapping
 );
 ```
 
 Used by `renderCompactRow()`, `renderCardGridRow()`, `renderTableRow()`, and
 `renderRowActions()` in `DefaultEntityRenderer`.
+
+### Semantic Role Fields (v4.8)
+
+View contracts can declare semantic roles that override positional field ordering in card_grid:
+
+```disyl
+{field name="title"   type="string" role="title"}
+{field name="excerpt" type="string" role="subtitle"}
+{field name="image"   type="string" role="image"}
+```
+
+The `$roleFields` mapping (`title→fieldName`, `subtitle→fieldName`, `image→fieldName`) is stored in the view contract and passed through `RowRenderContext::$roleFields` to `renderCardGridRow()`, which uses them as the primary field ordering. Supported roles: `title`, `subtitle`, `image`, `body`, `description`.
+
+### Render Context Fallback
+
+`renderWithRowContext()` accepts an optional `$fallbackContext` parameter. When a template variable (e.g., `{base_url}`) is not found in the row data, the renderer falls back to the fallback context before rendering a literal `{base_url}`. This enables action URLs like `{base_url}/cms/blog/{slug}` to resolve even when `base_url` isn't in the entity row data.
 
 ### Timeout Handling
 

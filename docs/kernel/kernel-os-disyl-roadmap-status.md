@@ -96,9 +96,13 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 - `action_show_if` conditions + `action_labels` for row actions
 - Entity rendering extracted to `DefaultEntityRenderer` (TemplateEngine: 6478 → 6792 lines; trait deleted in 6.1.0)
 - **DiSyL v4.7 engine hardening (June 23):** HTML-style `<ikb_>` tag detection with friendly error; unknown component name check (`renderUnknownComponent`); shorthand `{var = expr}` set syntax; field renderer + view name validation at config load time
+- **DiSyL engine improvements (June 24):**
+  - **`loadViewConfigs` error surfacing** — log level changed from `warning` to `error` for parse failures; new `getLastLoadErrors()` static method returns per-file error details; throws `RuntimeException` with summary when any file has errors — no more silent contract registration failures
+  - **`validateViewContract()`** — validates every `{ikb_entity_view}` before registration, checking duplicate field names, duplicate semantic role assignments (`role="title"` on two fields), and action URL placeholders (`{id}`, `{slug}`) not matching any declared field
+  - **`renderUnknownComponent` closest-match suggestion** — when an unknown `ikb_*` component is encountered, uses `levenshtein()` to find the closest match from 32 governed components and suggests it in the error (e.g., "Did you mean 'ikb_card'?")
 - **`{ikb_entity_detail}`** — single-entity rendering now working; `resolveDetail()` unwraps `data` key from capability result; `renderDetail()` handles array-type `$attrs['fields']` correctly; default container padding `px-4 py-2`
 - **`filter` attribute** on `{ikb_entity_list}` — comma-separated `key=value` pairs with `{var.path}` context resolution; passed as `$overrides['filters']` to `EntityViewResolver::resolve()`
-- **`RowRenderContext`** value object — 14 shared params consolidated across `renderCompactRow/CardGridRow/TableRow/RowActions`
+- **`RowRenderContext`** value object — 15 shared params (including `roleFields`) consolidated across `renderCompactRow/CardGridRow/TableRow/RowActions`
 - **PAL module** — 10 list templates + 4 new entity types migrated; expense detail uses `{ikb_entity_detail}`
 
 ---
@@ -249,6 +253,9 @@ See: [Polyglot Service Developer Guide](polyglot-service-guide.md)
 | 4 critical bugs fixed (capabilities()->call → cap()->call, content_type → type, module() guard, log level) | ✅ |
 | Version bumped: 4.6.0 → 5.0.0 | ✅ |
 | error.log: clean | ✅ |
+| loadViewConfigs throws on parse errors | ✅ |
+| validateViewContract() duplicate/role/URL checks | ✅ |
+| renderUnknownComponent levenshtein suggestion | ✅ |
 
 ---
 
@@ -272,6 +279,10 @@ Production templates using new 5.0 components:
 | Remaining module certification fixes (20/41 pass) | 🟡 Mechanical |
 | Real AI provider in production | 🔴 Needs API keys |
 | Polyglot service health-check monitoring in superadmin | 🟡 Nice to have |
+| loadViewConfigs throws on parse errors with per-file diagnostics | ✅ |
+| validateViewContract() — duplicate fields, roles, URL placeholders | ✅ |
+| renderUnknownComponent levenshtein suggestion | ✅ |
+| 11 DiSyL view contracts for attendance-wage (migrated from builtinDefaults) | ✅ |
 
 ---
 

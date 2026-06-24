@@ -6,6 +6,7 @@
     {field name="hours" type="number"}
     {field name="status" type="enum" renderer="badge:{present|green|late|amber|absent|red|half-day|blue}"}
     {field name="created_at" type="date" renderer="datetime:date"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="{base_url}/admin/attendance-wage/attendance/{id}" label="View"}
 {/ikb_entity_view}
 
@@ -21,5 +22,6 @@
     {field name="clock_in" type="date" renderer="datetime:full"}
     {field name="hours" type="number"}
     {field name="status" type="enum" renderer="badge:{present|green|late|amber|absent|red|half-day|blue}"}
+    {field name="id" type="number" visible="false"}
     {action name="view" url="{base_url}/admin/attendance-wage/attendance/{id}" label="View"}
 {/ikb_entity_view}

@@ -1,0 +1,17 @@
+{ikb_entity_view name="employee_schedule" view="table"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="position" type="string"}
+    {field name="department" type="string"}
+    {field name="days_label" type="string" role="subtitle"}
+    {field name="shift_type" type="string"}
+    {field name="dayoff_count" type="number"}
+    {field name="total_days" type="number"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/schedules/{id}/edit" label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="employee_schedule" view="compact"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="days_label" type="string"}
+    {field name="total_days" type="number"}
+{/ikb_entity_view}

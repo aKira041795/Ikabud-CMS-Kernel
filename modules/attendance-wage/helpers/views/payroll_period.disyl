@@ -1,0 +1,24 @@
+{ikb_entity_view name="payroll_period" view="table"}
+    {field name="period_name" type="string" role="title"}
+    {field name="start_date" type="date" renderer="datetime:date"}
+    {field name="end_date" type="date" renderer="datetime:date"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|open|blue|processing|amber|closed|green}"}
+    {field name="total_net_pay" type="number" renderer="money:2"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/payroll/{id}" label="Edit"}
+    {action name="process" url="{base_url}/admin/wage/payroll/{id}/process" label="Process" method="post"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="payroll_period" view="compact"}
+    {field name="period_name" type="string" role="title"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|open|blue|processing|amber|closed|green}"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="payroll_period" view="card_grid"}
+    {field name="period_name" type="string" role="title"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|open|blue|processing|amber|closed|green}"}
+    {field name="start_date" type="date" renderer="datetime:date"}
+    {field name="total_net_pay" type="number" renderer="money:2"}
+    {field name="id" type="number" visible="false"}
+    {action name="edit" url="{base_url}/admin/wage/payroll/{id}" label="Edit"}
+{/ikb_entity_view}

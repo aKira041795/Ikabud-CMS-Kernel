@@ -5,6 +5,7 @@
     {field name="author_name" type="string"}
     {field name="image" type="string" role="image"}
     {field name="status" type="enum" renderer="badge:{published|green|draft|gray}"}
+    {field name="slug" type="string" visible="false"}
     {action name="view" url="{base_url}/cms/blog/{slug}" label="Read More"}
     {filter name="status" type="enum" values="published,draft"}
 {/ikb_entity_view}
@@ -15,7 +16,8 @@
     {field name="author_name" type="string"}
     {field name="status" type="enum" renderer="badge:{published|green|draft|gray}"}
     {field name="published_at" type="date" renderer="datetime:date"}
-    {action name="view" url="/cms/blog/{slug}" label="View"}
+    {field name="slug" type="string" visible="false"}
+    {action name="view" url="{base_url}/cms/blog/{slug}" label="View"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="cms_post" view="compact"}
