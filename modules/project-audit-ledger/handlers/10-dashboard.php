@@ -84,13 +84,14 @@ function palPageDashboard(): void
 
     // ── Pending Approvals Detail ──
     $pendingDetail = $db->prepare("
-        SELECT a.id, a.approvable_type, a.requested_by, a.created_at,
-               CASE WHEN a.approvable_type = 'expense' THEN (SELECT description FROM pal_expenses WHERE id = a.approvable_id)
-                    WHEN a.approvable_type = 'purchase' THEN (SELECT purchase_number FROM pal_purchases WHERE id = a.approvable_id)
+        SELECT a.id, a.entity_type, a.submitted_by, a.submitted_at AS created_at,
+               CASE a.entity_type
+                    WHEN 'expense' THEN (SELECT description FROM pal_expenses WHERE id = a.entity_id)
+                    WHEN 'purchase' THEN (SELECT purchase_number FROM pal_purchases WHERE id = a.entity_id)
                     ELSE '—' END AS description
         FROM pal_approvals a
         WHERE a.tenant_id = :tid AND a.decision = 'pending'
-        ORDER BY a.created_at DESC
+        ORDER BY a.submitted_at DESC
         LIMIT 10");
     $pendingDetail->execute([':tid' => $tid]);
     $pendingItems = $pendingDetail->fetchAll(\PDO::FETCH_ASSOC);

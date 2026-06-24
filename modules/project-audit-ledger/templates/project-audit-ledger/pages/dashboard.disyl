@@ -227,7 +227,7 @@
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium text-gray-900 truncate">{a.description|default:'Pending item'}</p>
                     <p class="text-xs text-gray-500">
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{a.approvable_type|capitalize}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">{a.entity_type|capitalize}</span>
                         · {a.created_at|default:'—'}
                     </p>
                 </div>
