@@ -1,5 +1,4 @@
 {!-- PAL Business Dashboard — keyof-powered metadata for frontend features --}
-{@var array $d = dashboard}
 <div data-ikb-entity-fields-project="{keyof pal_project}"
      data-ikb-entity-fields-expense="{keyof pal_expense}"
      class="print-hidden" aria-hidden="true" style="display:none"></div>
@@ -12,11 +11,11 @@
             <span class="text-lg">📁</span>
         </div>
         <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-bold text-gray-900">{d.active_projects}</span>
-            <span class="text-sm text-gray-400">/ {d.total_projects} total</span>
+            <span class="text-3xl font-bold text-gray-900">{dashboard.active_projects}</span>
+            <span class="text-sm text-gray-400">/ {dashboard.total_projects} total</span>
         </div>
         <div class="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div class="bg-blue-600 h-1.5 rounded-full" style="width:{if d.total_projects > 0}{d.active_projects / d.total_projects * 100|number_format:1}{else}0{/if}%"></div>
+            <div class="bg-blue-600 h-1.5 rounded-full" style="width:{if dashboard.total_projects > 0}{dashboard.active_projects / dashboard.total_projects * 100|number_format:1}{else}0{/if}%"></div>
         </div>
     </div>
 
@@ -25,7 +24,7 @@
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Monthly Collections</span>
             <span class="text-lg">💰</span>
         </div>
-        <div class="text-3xl font-bold text-green-700">₱{d.monthly_collections|number_format:2}</div>
+        <div class="text-3xl font-bold text-green-700">₱{dashboard.monthly_collections|number_format:2}</div>
         <div class="mt-1 text-xs text-gray-400">This month's cash inflow</div>
     </div>
 
@@ -34,19 +33,19 @@
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Monthly Expenses</span>
             <span class="text-lg">💳</span>
         </div>
-        <div class="text-3xl font-bold text-red-700">₱{d.monthly_expenses|number_format:2}</div>
+        <div class="text-3xl font-bold text-red-700">₱{dashboard.monthly_expenses|number_format:2}</div>
         <div class="mt-1 text-xs text-gray-400">This month's cash outflow</div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
         <div class="flex items-center justify-between mb-2">
             <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Cash Flow</span>
-            <span class="text-lg">{if d.net_cash_flow >= 0}📈{else}📉{/if}</span>
+            <span class="text-lg">{if dashboard.net_cash_flow >= 0}📈{else}📉{/if}</span>
         </div>
-        <div class="text-3xl font-bold {if d.net_cash_flow >= 0}text-green-700{else}text-red-700{/if}">
-            {if d.net_cash_flow >= 0}+{/if}₱{d.net_cash_flow|number_format:2}
+        <div class="text-3xl font-bold {if dashboard.net_cash_flow >= 0}text-green-700{else}text-red-700{/if}">
+            {if dashboard.net_cash_flow >= 0}+{/if}₱{dashboard.net_cash_flow|number_format:2}
         </div>
-        <div class="mt-1 text-xs text-gray-400">{if d.net_cash_flow >= 0}Positive cash flow{else}Negative cash flow{/if}</div>
+        <div class="mt-1 text-xs text-gray-400">{if dashboard.net_cash_flow >= 0}Positive cash flow{else}Negative cash flow{/if}</div>
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
@@ -55,11 +54,11 @@
             <span class="text-lg">⏳</span>
         </div>
         <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-bold text-amber-700">{d.pending_approvals}</span>
+            <span class="text-3xl font-bold text-amber-700">{dashboard.pending_approvals}</span>
             <span class="text-sm text-gray-400">approvals</span>
         </div>
         <div class="mt-1 flex gap-3 text-xs text-gray-500">
-            <span>🔴 {d.low_stock_count} low stock</span>
+            <span>🔴 {dashboard.low_stock_count} low stock</span>
         </div>
     </div>
 </div>
@@ -73,30 +72,30 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
         <div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Contract Value</p>
-            <p class="text-2xl font-bold text-gray-900">₱{d.total_contract_value|number_format:2}</p>
+            <p class="text-2xl font-bold text-gray-900">₱{dashboard.total_contract_value|number_format:2}</p>
         </div>
         <div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Expenses</p>
-            <p class="text-2xl font-bold text-red-700">₱{d.total_expenses|number_format:2}</p>
+            <p class="text-2xl font-bold text-red-700">₱{dashboard.total_expenses|number_format:2}</p>
         </div>
         <div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Collected</p>
-            <p class="text-2xl font-bold text-green-700">₱{d.total_collected|number_format:2}</p>
+            <p class="text-2xl font-bold text-green-700">₱{dashboard.total_collected|number_format:2}</p>
         </div>
         <div>
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Est. Profit</p>
-            <p class="text-2xl font-bold text-blue-700">₱{d.est_profit|number_format:2}</p>
+            <p class="text-2xl font-bold text-blue-700">₱{dashboard.est_profit|number_format:2}</p>
         </div>
     </div>
-    {if d.total_contract_value > 0}
+    {if dashboard.total_contract_value > 0}
     <div class="mt-4 pt-4 border-t border-gray-100">
         <div class="flex items-center justify-between text-xs text-gray-500 mb-1.5">
-            <span>Expense ratio: {d.total_expenses / d.total_contract_value * 100|number_format:1}%</span>
-            <span>Profit margin: {d.est_profit / d.total_contract_value * 100|number_format:1}%</span>
+            <span>Expense ratio: {dashboard.total_expenses / dashboard.total_contract_value * 100|number_format:1}%</span>
+            <span>Profit margin: {dashboard.est_profit / dashboard.total_contract_value * 100|number_format:1}%</span>
         </div>
         <div class="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden relative">
-            <div class="bg-red-400 h-2.5 rounded-full absolute left-0 top-0" style="width:{min(d.total_expenses / max(d.total_contract_value,1) * 100, 100)|number_format:1}%"></div>
-            <div class="bg-green-400 h-2.5 rounded-full absolute top-0" style="width:{min(d.est_profit / max(d.total_contract_value,1) * 100, 100)|number_format:1}%;left:{min(d.total_expenses / max(d.total_contract_value,1) * 100, 100)|number_format:1}%"></div>
+            <div class="bg-red-400 h-2.5 rounded-full absolute left-0 top-0" style="width:{min(dashboard.total_expenses / max(dashboard.total_contract_value,1) * 100, 100)|number_format:1}%"></div>
+            <div class="bg-green-400 h-2.5 rounded-full absolute top-0" style="width:{min(dashboard.est_profit / max(dashboard.total_contract_value,1) * 100, 100)|number_format:1}%;left:{min(dashboard.total_expenses / max(dashboard.total_contract_value,1) * 100, 100)|number_format:1}%"></div>
         </div>
         <div class="flex items-center gap-4 mt-1.5 text-xs">
             <span class="inline-flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span> Expenses</span>
@@ -114,12 +113,12 @@
             <a href="/admin/project-audit-ledger/sales" class="text-xs text-blue-600 hover:text-blue-700 font-medium">View all →</a>
         </div>
         <div class="flex items-baseline gap-2 mb-4">
-            <span class="text-3xl font-bold text-amber-700">₱{d.outstanding_receivables|number_format:2}</span>
+            <span class="text-3xl font-bold text-amber-700">₱{dashboard.outstanding_receivables|number_format:2}</span>
             <span class="text-sm text-gray-400">uncollected</span>
         </div>
-        {if d.recent_collections|count > 0}
+        {if dashboard.recent_collections|count > 0}
         <div class="divide-y divide-gray-100">
-            {for c in d.recent_collections}
+            {for c in dashboard.recent_collections}
             <div class="py-2.5 flex items-center justify-between">
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium text-gray-900 truncate">{c.collection_number}</p>
@@ -142,9 +141,9 @@
             <h2 class="text-base font-bold text-gray-900">🔴 Low Stock Alerts</h2>
             <a href="/admin/project-audit-ledger/inventory" class="text-xs text-blue-600 hover:text-blue-700 font-medium">View inventory →</a>
         </div>
-        {if d.low_stock_count > 0}
+        {if dashboard.low_stock_count > 0}
         <div class="divide-y divide-gray-100">
-            {for item in d.low_stock_items}
+            {for item in dashboard.low_stock_items}
             <div class="py-2.5 flex items-center justify-between">
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium text-gray-900 truncate">{item.name}</p>
@@ -173,9 +172,9 @@
             <h2 class="text-sm font-bold text-gray-900">📁 Recent Projects</h2>
             <a href="/admin/project-audit-ledger/projects" class="text-xs text-blue-600 hover:text-blue-700 font-medium">All →</a>
         </div>
-        {if d.recent_projects|count > 0}
+        {if dashboard.recent_projects|count > 0}
         <div class="divide-y divide-gray-100">
-            {for p in d.recent_projects}
+            {for p in dashboard.recent_projects}
             <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div class="min-w-0 flex-1">
                     <a href="/admin/project-audit-ledger/projects/{p.id}" class="text-sm font-medium text-gray-900 hover:text-blue-600 truncate block">{p.title}</a>
@@ -195,9 +194,9 @@
             <h2 class="text-sm font-bold text-gray-900">💳 Recent Expenses</h2>
             <a href="/admin/project-audit-ledger/expenses" class="text-xs text-blue-600 hover:text-blue-700 font-medium">All →</a>
         </div>
-        {if d.recent_expenses|count > 0}
+        {if dashboard.recent_expenses|count > 0}
         <div class="divide-y divide-gray-100">
-            {for e in d.recent_expenses}
+            {for e in dashboard.recent_expenses}
             <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium text-gray-900 truncate">{e.description}</p>
@@ -220,9 +219,9 @@
             <h2 class="text-sm font-bold text-gray-900">⏳ Pending Approvals</h2>
             <a href="/admin/project-audit-ledger/approvals" class="text-xs text-blue-600 hover:text-blue-700 font-medium">All →</a>
         </div>
-        {if d.pending_approval_items|count > 0}
+        {if dashboard.pending_approval_items|count > 0}
         <div class="divide-y divide-gray-100">
-            {for a in d.pending_approval_items}
+            {for a in dashboard.pending_approval_items}
             <div class="px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div class="min-w-0 flex-1">
                     <p class="text-sm font-medium text-gray-900 truncate">{a.description|default:'Pending item'}</p>
