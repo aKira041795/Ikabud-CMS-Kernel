@@ -417,7 +417,10 @@ function wmsAuthLogin(): void
     $token = app()->jwt()->generate($payload);
     wmsSetAuthCookie($token, (int)config('app.jwt.expiration', 86400));
 
-    $redirect = kernelResolveAuthenticatedHomeRedirect($payload, true) ?? '/wms';
+    $redirect = kernelResolveAuthenticatedHomeRedirect($payload, true);
+    if (!is_string($redirect) || $redirect === '' || $redirect === '/') {
+        $redirect = '/wms';
+    }
     echo json_encode(['ok' => true, 'redirect' => $redirect]);
 }
 
