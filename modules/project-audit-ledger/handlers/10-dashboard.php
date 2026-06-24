@@ -31,15 +31,19 @@ function palPageDashboard(): void
     $totalExp = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_expenses WHERE tenant_id = :tid AND status IN ('approved','paid')");
     $totalExp->execute([':tid' => $tid]);
     $totalExpenses = (float)$totalExp->fetchColumn();
-    // ── Fabrication costs (approved payments made) ──
-    $fabCost = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved'");
-    $fabCost->execute([':tid' => $tid]);
-    $totalFabrication = (float)$fabCost->fetchColumn();
-
-    // ── Budgeted fabrication (contract_amount * alloc_pct) ──
+    // ── Fabrication costs ──
+    // Budgeted = contract_amount * alloc_pct / 100 (matches project-detail view)
+    // Actual = approved payments made (may be 0 early in project lifecycle)
     $fabBudget = $db->prepare("SELECT COALESCE(SUM(ROUND(contract_amount * COALESCE(fabrication_alloc_pct, 0) / 100, 2)), 0) FROM pal_projects WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed') AND fabrication_alloc_pct > 0");
     $fabBudget->execute([':tid' => $tid]);
     $totalFabricationBudget = (float)$fabBudget->fetchColumn();
+
+    $fabPaid = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved'");
+    $fabPaid->execute([':tid' => $tid]);
+    $totalFabricationPaid = (float)$fabPaid->fetchColumn();
+
+    // Use budgeted amount for the main KPI (matches project-detail), actual for drill-down
+    $totalFabrication = $totalFabricationBudget;
 
     // ── Outstanding fabrication dues (unpaid weekly dues balance) ──
     $fabDues = $db->prepare("SELECT COALESCE(SUM(balance), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND status NOT IN ('paid','waived')");
@@ -121,6 +125,7 @@ function palPageDashboard(): void
             'total_expenses' => $totalExpenses,
             'total_fabrication' => $totalFabrication,
             'total_fabrication_budget' => $totalFabricationBudget,
+            'total_fabrication_paid' => $totalFabricationPaid,
             'total_costs' => $totalExpenses + $totalFabrication,
             'total_collected' => $totalCollected,
             'outstanding_receivables' => $outstandingReceivables,
