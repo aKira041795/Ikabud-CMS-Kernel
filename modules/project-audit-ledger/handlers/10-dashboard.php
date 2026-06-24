@@ -58,9 +58,10 @@ function palPageDashboard(): void
 
     // ── Low Stock Alerts ──
     $lowStockStmt = $db->prepare("
-        SELECT m.name, m.material_code, b.quantity, m.reorder_level, m.unit
+        SELECT m.name, m.material_code, b.quantity, m.reorder_level, u.name AS unit
         FROM pal_materials m
         JOIN pal_inventory_balances b ON m.id = b.material_id
+        LEFT JOIN pal_units u ON m.unit_id = u.id
         WHERE m.tenant_id = :tid AND m.reorder_level IS NOT NULL AND b.quantity <= m.reorder_level
         ORDER BY (b.quantity / NULLIF(m.reorder_level, 0)) ASC
         LIMIT 10");
