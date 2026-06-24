@@ -68,10 +68,13 @@ function palPageDashboard(): void
     $monthlyExp->execute([':tid' => $tid]);
     $monthlyExpenses = (float)$monthlyExp->fetchColumn();
 
-    // ── Monthly fabrication payments (cash out) ──
-    $monthlyFab = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved' AND MONTH(payment_date) = MONTH(CURRENT_DATE) AND YEAR(payment_date) = YEAR(CURRENT_DATE)");
-    $monthlyFab->execute([':tid' => $tid]);
-    $monthlyFabrication = (float)$monthlyFab->fetchColumn();
+    // ── Monthly fabrication: use actual payments if recorded, else budgeted ──
+    $monthlyFabPaid = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments WHERE tenant_id = :tid AND status = 'approved' AND MONTH(payment_date) = MONTH(CURRENT_DATE) AND YEAR(payment_date) = YEAR(CURRENT_DATE)");
+    $monthlyFabPaid->execute([':tid' => $tid]);
+    $monthlyFabrication = (float)$monthlyFabPaid->fetchColumn();
+    if ($monthlyFabrication <= 0 && $totalFabricationBudget > 0) {
+        $monthlyFabrication = $totalFabricationBudget;
+    }
 
     // ── Pending Approvals ──
     $pendingStmt = $db->prepare("SELECT COUNT(*) FROM pal_approvals WHERE tenant_id = :tid AND decision = 'pending'");
