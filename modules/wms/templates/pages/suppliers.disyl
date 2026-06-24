@@ -1,0 +1,121 @@
+{# Suppliers Page — Phase 2 #}
+<div class="max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">🚚 Suppliers</h1>
+        <button onclick="document.getElementById('supplier-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
+            + Add Supplier
+        </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-100">
+            <input id="search-suppliers" type="text" placeholder="Search suppliers..."
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   oninput="filterSuppliers()">
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b">
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Code</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Name</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Contact</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Email</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Lead Time</th>
+                        <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="suppliers-table" class="divide-y divide-gray-100">
+                    {for s in suppliers}
+                    <tr class="hover:bg-gray-50 transition-colors supplier-row" data-name="{s.name|lower}" data-code="{s.code|lower}">
+                        <td class="py-3 px-4 font-mono text-xs text-gray-700">{s.code}</td>
+                        <td class="py-3 px-4 font-medium text-gray-900">{s.name}</td>
+                        <td class="py-3 px-4 text-gray-600">{s.contact_person|default:'—'}</td>
+                        <td class="py-3 px-4"><a href="mailto:{s.email}" class="text-blue-600 hover:text-blue-800">{s.email|default:'—'}</a></td>
+                        <td class="py-3 px-4 text-gray-600">{if s.lead_time_days}{s.lead_time_days} days{else}—{/if}</td>
+                        <td class="py-3 px-4 text-center">{if s.is_active}<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>{else}<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactive</span>{/if}</td>
+                    </tr>
+                    {/for}
+                    {if suppliers|count == 0}
+                    <tr><td colspan="6" class="py-12 text-center text-gray-400">No suppliers yet.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# Add Supplier Modal #}
+<div id="supplier-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold text-gray-900">Add Supplier</h2>
+            <button onclick="document.getElementById('supplier-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+        <form id="supplier-form" onsubmit="return createSupplier(event)">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Code *</label>
+                    <input name="code" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Lead Time (days)</label>
+                    <input name="lead_time_days" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Name *</label>
+                <input name="name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Contact Person</label>
+                    <input name="contact_person" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Phone</label>
+                    <input name="phone" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Email</label>
+                <input name="email" type="email" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Address</label>
+                <textarea name="address" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></textarea>
+            </div>
+            <button type="submit" class="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm">
+                Create Supplier
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+function filterSuppliers() {
+    var q = document.getElementById('search-suppliers').value.toLowerCase();
+    document.querySelectorAll('.supplier-row').forEach(function(row) {
+        var name = row.getAttribute('data-name') || '';
+        var code = row.getAttribute('data-code') || '';
+        row.style.display = (name.indexOf(q) > -1 || code.indexOf(q) > -1) ? '' : 'none';
+    });
+}
+
+function createSupplier(e) {
+    e.preventDefault();
+    var data = {};
+    new FormData(e.target).forEach(function(v, k) { data[k] = v; });
+    fetch('{base_url}/api/v1/wms/suppliers', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) { location.reload(); }
+        else { alert(res.error || 'Failed to create supplier.'); }
+    });
+    return false;
+}
+</script>

@@ -1,0 +1,146 @@
+{# Inventory Page — Phase 2 #}
+<div class="max-w-7xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">🏭 Inventory</h1>
+        <button onclick="document.getElementById('product-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
+            + Add Product
+        </button>
+    </div>
+
+    {# Product List #}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div class="p-4 border-b border-gray-100 flex items-center gap-3">
+            <input id="search-products" type="text" placeholder="Search by name, SKU, or barcode..."
+                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   oninput="filterProducts()">
+            <span class="text-xs text-gray-400">{products|count} products</span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b">
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">SKU</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Name</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Unit</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Type</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Batch</th>
+                        <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Reorder</th>
+                        <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="products-table" class="divide-y divide-gray-100">
+                    {for p in products}
+                    <tr class="hover:bg-gray-50 transition-colors product-row" data-name="{p.name|lower}" data-sku="{p.sku|lower}">
+                        <td class="py-3 px-4 font-mono text-xs text-gray-700">{p.sku}</td>
+                        <td class="py-3 px-4 font-medium text-gray-900">{p.name}</td>
+                        <td class="py-3 px-4 text-gray-600">{p.unit}</td>
+                        <td class="py-3 px-4"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{p.product_type}</span></td>
+                        <td class="py-3 px-4">{if p.is_batch_tracked}<span class="text-blue-600">Yes</span>{else}<span class="text-gray-400">—</span>{/if}</td>
+                        <td class="py-3 px-4 text-gray-600">{if p.reorder_point}{p.reorder_point}{else}—{/if}</td>
+                        <td class="py-3 px-4 text-center">{if p.is_active}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>{else}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactive</span>{/if}</td>
+                    </tr>
+                    {/for}
+                    {if products|count == 0}
+                    <tr><td colspan="7" class="py-12 text-center text-gray-400">No products yet. Add your first product to get started.</td></tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# Add Product Modal #}
+<div id="product-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" onclick="event.stopPropagation()">
+        <div class="flex items-center justify-between mb-5">
+            <h2 class="text-lg font-bold text-gray-900">Add Product</h2>
+            <button onclick="document.getElementById('product-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+        </div>
+        <form id="product-form" onsubmit="return createProduct(event)">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">SKU *</label>
+                    <input name="sku" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Barcode</label>
+                    <input name="barcode" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Name *</label>
+                <input name="name" required class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Unit</label>
+                    <select name="unit" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="pcs">Pieces</option>
+                        <option value="kg">Kilograms</option>
+                        <option value="g">Grams</option>
+                        <option value="L">Liters</option>
+                        <option value="box">Box</option>
+                        <option value="pallet">Pallet</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Type</label>
+                    <select name="product_type" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        <option value="physical">Physical</option>
+                        <option value="digital">Digital</option>
+                        <option value="service">Service</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Reorder Point</label>
+                    <input name="reorder_point" type="number" step="0.0001" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase mb-1">Safety Stock</label>
+                    <input name="safety_stock" type="number" step="0.0001" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                </div>
+            </div>
+            <div class="flex items-center gap-2 mb-4">
+                <input type="checkbox" name="is_batch_tracked" id="is_batch_tracked" value="1" class="rounded border-gray-300">
+                <label for="is_batch_tracked" class="text-sm text-gray-700">Batch/Lot tracked (FEFO)</label>
+            </div>
+            <button type="submit" class="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm">
+                Create Product
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+function filterProducts() {
+    var q = document.getElementById('search-products').value.toLowerCase();
+    document.querySelectorAll('.product-row').forEach(function(row) {
+        var name = row.getAttribute('data-name') || '';
+        var sku = row.getAttribute('data-sku') || '';
+        row.style.display = (name.indexOf(q) > -1 || sku.indexOf(q) > -1) ? '' : 'none';
+    });
+}
+
+function createProduct(e) {
+    e.preventDefault();
+    var form = e.target;
+    var data = {};
+    new FormData(form).forEach(function(v, k) { data[k] = v; });
+    fetch('{base_url}/api/v1/wms/products', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        if (res.ok) {
+            location.reload();
+        } else {
+            alert(res.error || 'Failed to create product.');
+        }
+    });
+    return false;
+}
+</script>

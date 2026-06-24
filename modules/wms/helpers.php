@@ -242,9 +242,19 @@ function wmsRenderTemplate(string $pageContent, array $extra = []): void
         'settings' => $settings,
         'base_url' => $baseUrl,
         'page_content' => $pageContent,
+        'menu_items' => wmsNavItems($user['role'] ?? ''),
+        'page_title' => $extra['page_title'] ?? 'WMS',
     ], $extra);
 
-    echo wmsRender('modules/wms/layouts/admin.disyl', $context);
+    // Render the page template as a string, pass as page_body
+    $pageTemplate = __DIR__ . '/templates/pages/' . $pageContent . '.disyl';
+    if (file_exists($pageTemplate)) {
+        $context['page_body'] = app()->render($pageTemplate, $context);
+    } else {
+        $context['page_body'] = '<div class="p-8 text-center text-gray-400 text-sm">Page not found: ' . htmlspecialchars($pageContent, ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+
+    echo app()->render('modules/wms/layouts/admin.disyl', $context);
 }
 
 // ── Home URL hook for WMS ──
