@@ -6978,7 +6978,7 @@ class TemplateEngine
      */
     private function validateFieldRenderer(string $entityName, string $fieldName, string $renderer): void
     {
-        $validPrefixes = ['badge', 'badge:map', 'money', 'datetime', 'boolean', 'string', 'text', 'number', 'enum', 'date'];
+        $validPrefixes = ['badge', 'badge:map', 'money', 'datetime', 'boolean', 'string', 'text', 'number', 'enum', 'date', 'image'];
         $prefix = explode(':', $renderer, 2)[0];
         // Allow dynamic badge:JSON patterns (e.g. badge:{draft|gray|...})
         if ($prefix === 'badge' && str_contains($renderer, '{')) {
