@@ -6,6 +6,11 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/helpers/entity-views.php';
 require_once __DIR__ . '/handlers-deliveries.php';
 
+// Load DiSyL entity view configs
+if (is_dir(__DIR__ . '/helpers/views')) {
+    \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+}
+
 /**
  * Daily Ledger Module — Handlers
  *

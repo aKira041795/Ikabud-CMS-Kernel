@@ -1,0 +1,23 @@
+{ikb_entity_view name="ecommerce_product" view="card_grid"}
+    {field name="name" type="string" role="title"}
+    {field name="price" type="number" renderer="money:2" role="subtitle"}
+    {field name="stock_status" type="string"}
+    {field name="image" type="string" role="image"}
+    {field name="created_at" type="date" renderer="datetime:date"}
+    {action name="view" url="{base_url}/ecommerce/shop/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ecommerce_product" view="table"}
+    {field name="id" type="number"}
+    {field name="name" type="string" role="title"}
+    {field name="price" type="number" renderer="money:2"}
+    {field name="stock_status" type="string"}
+    {field name="created_at" type="date" renderer="datetime:date"}
+    {action name="view" url="{base_url}/ecommerce/shop/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ecommerce_product" view="compact"}
+    {field name="name" type="string" role="title"}
+    {field name="price" type="number" renderer="money:2"}
+    {field name="stock_status" type="string"}
+{/ikb_entity_view}

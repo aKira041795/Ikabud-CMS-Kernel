@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/handlers/entity-views.php';
+
+// Load DiSyL entity view configs
+if (is_dir(__DIR__ . '/helpers/views')) {
+    \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+}
 require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/05-auth.php';
 require_once __DIR__ . '/handlers/10-pages.php';

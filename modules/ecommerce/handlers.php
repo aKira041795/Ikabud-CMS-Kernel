@@ -44,3 +44,8 @@ require_once __DIR__ . '/handlers/88-api-reports.php';
 require_once __DIR__ . '/handlers/90-api-coupons.php';
 require_once __DIR__ . '/handlers/92-api-pos.php';
 require_once __DIR__ . '/handlers/94-api-reviews.php';
+
+// Load DiSyL entity view configs
+if (is_dir(__DIR__ . '/helpers/views')) {
+    \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+}

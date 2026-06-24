@@ -1,0 +1,25 @@
+{ikb_entity_view name="attendance_record" view="table"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="store_name" type="string"}
+    {field name="clock_in" type="date" renderer="datetime:full"}
+    {field name="clock_out" type="date" renderer="datetime:full"}
+    {field name="hours" type="number"}
+    {field name="status" type="enum" renderer="badge:{present|green|late|amber|absent|red|half-day|blue}"}
+    {field name="created_at" type="date" renderer="datetime:date"}
+    {action name="view" url="{base_url}/admin/attendance-wage/attendance/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="attendance_record" view="compact"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="clock_in" type="date" renderer="datetime:time"}
+    {field name="status" type="enum" renderer="badge:{present|green|late|amber|absent|red|half-day|blue}"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="attendance_record" view="card_grid"}
+    {field name="employee_name" type="string" role="title"}
+    {field name="store_name" type="string" role="subtitle"}
+    {field name="clock_in" type="date" renderer="datetime:full"}
+    {field name="hours" type="number"}
+    {field name="status" type="enum" renderer="badge:{present|green|late|amber|absent|red|half-day|blue}"}
+    {action name="view" url="{base_url}/admin/attendance-wage/attendance/{id}" label="View"}
+{/ikb_entity_view}

@@ -1,0 +1,25 @@
+{ikb_entity_view name="bakeshop_product" view="card_grid"}
+    {field name="name" type="string" role="title"}
+    {field name="price" type="number" renderer="money:2" role="subtitle"}
+    {field name="unit" type="string"}
+    {field name="stock_qty" type="number"}
+    {field name="category" type="string"}
+    {field name="created_at" type="date" renderer="datetime:date"}
+    {action name="view" url="{base_url}/admin/bakeshop/products/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="bakeshop_product" view="table"}
+    {field name="id" type="number"}
+    {field name="name" type="string" role="title"}
+    {field name="price" type="number" renderer="money:2"}
+    {field name="stock_qty" type="number"}
+    {field name="unit" type="string"}
+    {field name="category" type="string"}
+    {action name="view" url="{base_url}/admin/bakeshop/products/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="bakeshop_product" view="compact"}
+    {field name="name" type="string" role="title"}
+    {field name="price" type="number" renderer="money:2"}
+    {field name="stock_qty" type="number"}
+{/ikb_entity_view}
