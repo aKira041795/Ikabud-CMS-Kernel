@@ -49,6 +49,8 @@ class TemplateEngine
     private bool $compiledModeBooted = false;
     /** Strict mode ON by default (v4.8+). Logs undefined vars, type mismatches, |raw usage. */
     private bool $strictMode = true;
+    /** Auto-convert HTML-style <ikb_> tags to DiSyL {ikb_...} syntax (default off). */
+    private bool $autoConvertHtmlTags = false;
     /** @var array<string, array{params: array, body: string}> Registered {macro} definitions */
     private array $macros = [];
     /** @var int Recursion depth for compile() — macros only extracted at depth 0 */
@@ -116,6 +118,22 @@ class TemplateEngine
     public function enableStrictMode(bool $enable = true): void
     {
         $this->strictMode = $enable;
+    }
+
+    /**
+     * Enable auto-conversion of HTML-style <ikb_> tags to DiSyL {ikb_...} syntax.
+     *
+     * When enabled, the engine converts:
+     *   <ikb_section padding_y="lg">        → {ikb_section padding_y="lg"}
+     *   <ikb_entity_list source="..." />    → {ikb_entity_list source="..." /}
+     *   </ikb_section>                      → {/ikb_section}
+     *
+     * This helps templates migrating from HTML-style to curly-brace syntax.
+     * Conversion happens at step 8.5, before component processing.
+     */
+    public function enableAutoConvertHtmlTags(bool $enable = true): void
+    {
+        $this->autoConvertHtmlTags = $enable;
     }
 
     /**
@@ -628,7 +646,13 @@ class TemplateEngine
         }
         $this->compileDepth++;
 
-        if (!str_contains($content, '{') && stripos($content, '<script') === false && stripos($content, '<style') === false) {
+        // Fast-path: skip full compile when content has no DiSyL markers.
+        // When auto-convert is enabled, also keep content with <ikb_ HTML tags
+        // so step 8.5 can convert them before the component processor runs.
+        $hasHtmlIkb = $this->autoConvertHtmlTags && str_contains($content, '<ikb_');
+        if (!str_contains($content, '{') && !$hasHtmlIkb
+            && stripos($content, '<script') === false && stripos($content, '<style') === false
+        ) {
             $this->compileDepth--;
             return $content;
         }
@@ -659,7 +683,7 @@ class TemplateEngine
         }
         
         // 1. Remove comments first
-        if (str_contains($content, '{!--') || str_contains($content, '{*')) {
+        if (str_contains($content, '{!--') || str_contains($content, '{*') || str_contains($content, '{#')) {
             $content = $this->removeComments($content);
         }
         
@@ -711,7 +735,7 @@ class TemplateEngine
         }
         
         // 3. Remove comments again (layout may have comments)
-        if (str_contains($content, '{!--') || str_contains($content, '{*')) {
+        if (str_contains($content, '{!--') || str_contains($content, '{*') || str_contains($content, '{#')) {
             $content = $this->removeComments($content);
         }
         
@@ -782,16 +806,37 @@ class TemplateEngine
             $phases['includes_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
-        // 8.5. Detect HTML-style <ikb_ tags (should be {ikb_...})
-        //     Emit a friendly warning pointing to the correct syntax.
-        if (str_contains($content, '<ikb_')) {
-            preg_match_all('/<(\w+(?:-\w+)*)([\s>])/', $content, $htmlTags, PREG_SET_ORDER);
-            $seen = [];
-            foreach ($htmlTags as $tag) {
-                $name = $tag[1];
-                if (str_starts_with($name, 'ikb_') && !isset($seen[$name])) {
-                    $seen[$name] = true;
-                    $this->logError("Component tag '<{$name}>' uses HTML angle brackets — must use DiSyL curly-brace syntax: '{" . $name . ' ... /}". All component tags must use { } delimiters, not < >.');
+        // 8.5. Auto-convert HTML-style <ikb_ tags to DiSyL {ikb_...} syntax
+        //     When autoConvertHtmlTags is enabled, converts in place so templates
+        //     using HTML-style tags render without manual edits. When disabled,
+        //     logs a warning pointing to the correct syntax.
+        if (str_contains($content, '<ikb_') || str_contains($content, '</ikb_')) {
+            if ($this->autoConvertHtmlTags) {
+                // 1. Self-closing: <ikb_tag attr="val" /> → {ikb_tag attr="val" /}
+                //    Uses [^>]* for attributes — safe for DiSyL templates where
+                //    > never appears inside attribute values.
+                $content = preg_replace(
+                    '/<(ikb_\w+)([^>]*?)\s*\/>/',
+                    '{$1$2 /}',
+                    $content
+                );
+                // 2. Opening: <ikb_tag attr="val"> → {ikb_tag attr="val"}
+                $content = preg_replace(
+                    '/<(ikb_\w+)([^>]*?)>/',
+                    '{$1$2}',
+                    $content
+                );
+                // 3. Closing: </ikb_tag> → {/ikb_tag}
+                $content = preg_replace('/<\/(ikb_\w+)\s*>/', '{/$1}', $content);
+            } else {
+                preg_match_all('/<(\w+(?:-\w+)*)([\s>])/', $content, $htmlTags, PREG_SET_ORDER);
+                $seen = [];
+                foreach ($htmlTags as $tag) {
+                    $name = $tag[1];
+                    if (str_starts_with($name, 'ikb_') && !isset($seen[$name])) {
+                        $seen[$name] = true;
+                        $this->logError("Component tag '<{$name}>' uses HTML angle brackets — must use DiSyL curly-brace syntax: '{" . $name . ' ... /}". All component tags must use { } delimiters, not < >.');
+                    }
                 }
             }
         }
@@ -6452,6 +6497,9 @@ class TemplateEngine
         $renderer = $attrs['renderer'] ?? '';
         $class = $attrs['class'] ?? '';
 
+        // Collect semantic role→field mapping from {field role="..."} attributes
+        $roleFields = [];
+
         if ($name === '') {
             $this->logError("ikb_entity_view missing required 'name' attribute");
             return '';
@@ -6478,6 +6526,12 @@ class TemplateEngine
                 }
                 $fields[] = $fieldName;
 
+                // Track semantic role if present (e.g. role="title", role="subtitle", role="image")
+                $fieldRole = $fieldAttrs['role'] ?? '';
+                if ($fieldRole !== '' && in_array($fieldRole, ['title', 'subtitle', 'image', 'body', 'description'], true)) {
+                    $roleFields[$fieldRole] = $fieldName;
+                }
+
                 // Track visible fields — fields with visible="false" are excluded from public wildcard expansion
                 $isVisible = ($fieldAttrs['visible'] ?? 'true') !== 'false';
                 if ($isVisible) {
@@ -6486,7 +6540,7 @@ class TemplateEngine
 
                 // Validate renderer format if present
                 if (!empty($fieldAttrs['renderer'])) {
-                    $fieldRenderers[$fieldName] = $fieldAttrs['renderer'];
+                    $fieldRenderers[$fieldName] = $fieldAttrs['renderer']; 
                     $this->validateFieldRenderer($name, $fieldName, $fieldAttrs['renderer']);
                 }
             }
@@ -6567,6 +6621,11 @@ class TemplateEngine
         if ($class !== '') { $contract['class'] = $class; }
         if ($timeoutMs !== null) { $contract['timeout_ms'] = $timeoutMs; }
 
+        // Store role→field mapping in contract so renderers can use semantic roles
+        if (!empty($roleFields)) {
+            $contract['role_fields'] = $roleFields;
+        }
+
         // Register with EntityViewResolver
         try {
             if (class_exists(\Ikabud\Kernel\EntityContext\EntityViewResolver::class, true)) {
@@ -6586,7 +6645,7 @@ class TemplateEngine
      */
     private function validateFieldRenderer(string $entityName, string $fieldName, string $renderer): void
     {
-        $validPrefixes = ['badge', 'badge:map', 'money', 'datetime', 'boolean', 'string', 'number', 'enum', 'date'];
+        $validPrefixes = ['badge', 'badge:map', 'money', 'datetime', 'boolean', 'string', 'text', 'number', 'enum', 'date'];
         $prefix = explode(':', $renderer, 2)[0];
         // Allow dynamic badge:JSON patterns (e.g. badge:{draft|gray|...})
         if ($prefix === 'badge' && str_contains($renderer, '{')) {

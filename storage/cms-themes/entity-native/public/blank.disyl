@@ -1,4 +1,4 @@
 {# Entity-Native: Blank canvas for builder-composed pages #}
 {extends "_cms_active_theme/layouts/public.disyl"}
-{/block}
+
 {block content}{body|raw}{/block}

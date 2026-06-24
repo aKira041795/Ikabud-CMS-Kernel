@@ -31,6 +31,7 @@ final class RowRenderContext
      * @param array  $actionRoles    Required roles per action
      * @param bool   $hasBulk        Whether bulk checkboxes are enabled (table only)
      * @param array  $fieldContracts Field-level contracts (table only)
+     * @param array  $roleFields     Semantic role-to-field mapping (e.g. ['title' => 'name', 'subtitle' => 'description', 'image' => 'photo'])
      */
     public function __construct(
         public readonly array $row,
@@ -49,5 +50,6 @@ final class RowRenderContext
         public readonly array $actionRoles,
         public readonly bool $hasBulk = false,
         public readonly array $fieldContracts = [],
+        public readonly array $roleFields = [],
     ) {}
 }

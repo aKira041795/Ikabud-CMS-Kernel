@@ -1319,7 +1319,7 @@ function cmsResolveEntityList(string $contentType, mixed $payload): array
 
     try {
         $db = $ctx->db();
-        $query = "SELECT c.id, c.title, c.slug, c.status, c.excerpt, c.created_at, c.updated_at, c.published_at,
+        $query = "SELECT c.id, c.title, c.slug, c.status, c.excerpt, c.body, c.created_at, c.updated_at, c.published_at,
                          u.display_name as author_name
                   FROM cms_content c
                   LEFT JOIN cms_users u ON u.id = c.author_id
@@ -1328,6 +1328,11 @@ function cmsResolveEntityList(string $contentType, mixed $payload): array
                   LIMIT {$limit}";
         $stmt = $db->query($query, [':type' => $contentType]);
         $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
+
+        // Auto-generate excerpts from body when excerpt is empty
+        if (\function_exists('cmsProcessPostExcerpts')) {
+            $rows = cmsProcessPostExcerpts($rows);
+        }
 
         // Count total
         $countStmt = $db->query("SELECT COUNT(*) FROM cms_content WHERE type = :type AND deleted_at IS NULL{$statusFilter}", [':type' => $contentType]);

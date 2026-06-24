@@ -465,7 +465,8 @@ function cmsPublicHome(array $params = []): void
     $queryStageStart = $timingEnabled ? microtime(true) : 0.0;
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.body, c.type, c.published_at,
-                c.featured_image_id, u.display_name as author_name, m.file_path as featured_image
+                c.featured_image_id, u.display_name as author_name, m.file_path as featured_image,
+                COUNT(*) OVER() as _total_count
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
@@ -475,19 +476,16 @@ function cmsPublicHome(array $params = []): void
     );
     $stmt->execute($bind);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $posts = cmsProcessPostExcerpts($posts);
+    $total = !empty($posts) ? (int)$posts[0]['_total_count'] : 0;
+    // Strip window-function column from each row so it doesn't leak into template variables
     foreach ($posts as &$postRow) {
+        unset($postRow['_total_count']);
         if (!empty($postRow['featured_image'])) {
             $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
         }
     }
     unset($postRow);
-
-    $totalStmt = $db->prepare(
-        "SELECT COUNT(*) FROM cms_content c WHERE {$whereSql}"
-    );
-    $totalStmt->execute($bind);
-    $total = (int)$totalStmt->fetchColumn();
+    $posts = cmsProcessPostExcerpts($posts);
     if ($timingEnabled) {
         cmsPublicRenderLogTiming('cms.public.home.db_fetch', $queryStageStart, [
             'page' => $page,
@@ -650,7 +648,8 @@ function cmsPublicCategoryArchive(array $params = []): void
 
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
+                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image,
+                COUNT(*) OVER() as _total_count
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
@@ -661,21 +660,15 @@ function cmsPublicCategoryArchive(array $params = []): void
     );
     $stmt->execute([(int)$category['id']]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $posts = cmsProcessPostExcerpts($posts);
+    $total = !empty($posts) ? (int)$posts[0]['_total_count'] : 0;
     foreach ($posts as &$postRow) {
+        unset($postRow['_total_count']);
         if (!empty($postRow['featured_image'])) {
             $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
         }
     }
     unset($postRow);
-
-    $countStmt = $db->prepare(
-        "SELECT COUNT(*) FROM cms_content c
-         INNER JOIN cms_content_categories cc ON cc.content_id = c.id AND cc.category_id = ?
-         WHERE c.type = 'post' AND c.deleted_at IS NULL AND {$vis}"
-    );
-    $countStmt->execute([(int)$category['id']]);
-    $total = (int)$countStmt->fetchColumn();
+    $posts = cmsProcessPostExcerpts($posts);
     $totalPages = max(1, (int)ceil($total / $perPage));
 
     $baseUrl = cmsPublicCanonicalBaseUrl();
@@ -790,7 +783,8 @@ function cmsPublicTagArchive(array $params = []): void
 
     $stmt = $db->prepare(
         "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
+                c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image,
+                COUNT(*) OVER() as _total_count
          FROM cms_content c
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
@@ -801,21 +795,15 @@ function cmsPublicTagArchive(array $params = []): void
     );
     $stmt->execute([(int)$tag['id']]);
     $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $posts = cmsProcessPostExcerpts($posts);
+    $total = !empty($posts) ? (int)$posts[0]['_total_count'] : 0;
     foreach ($posts as &$postRow) {
+        unset($postRow['_total_count']);
         if (!empty($postRow['featured_image'])) {
             $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
         }
     }
     unset($postRow);
-
-    $countStmt = $db->prepare(
-        "SELECT COUNT(*) FROM cms_content c
-         INNER JOIN cms_content_tags ct ON ct.content_id = c.id AND ct.tag_id = ?
-         WHERE c.type = 'post' AND c.deleted_at IS NULL AND {$vis}"
-    );
-    $countStmt->execute([(int)$tag['id']]);
-    $total = (int)$countStmt->fetchColumn();
+    $posts = cmsProcessPostExcerpts($posts);
     $totalPages = max(1, (int)ceil($total / $perPage));
 
     $baseUrl = cmsPublicCanonicalBaseUrl();
@@ -887,17 +875,10 @@ function cmsPublicSearch(array $params = []): void
         $vis = cmsPublicVisibilitySql('c');
         $like = '%' . $q . '%';
 
-        $countStmt = $db->prepare(
-            "SELECT COUNT(*) FROM cms_content c
-             WHERE c.deleted_at IS NULL AND {$vis}
-             AND (c.title LIKE ? OR c.body LIKE ? OR c.excerpt LIKE ?)"
-        );
-        $countStmt->execute([$like, $like, $like]);
-        $total = (int)$countStmt->fetchColumn();
-
         $stmt = $db->prepare(
             "SELECT c.id, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
-                    c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image
+                    c.featured_image_id, u.display_name AS author_name, m.file_path AS featured_image,
+                    COUNT(*) OVER() as _total_count
              FROM cms_content c
              LEFT JOIN cms_users u ON u.id = c.author_id
              LEFT JOIN cms_media m ON m.id = c.featured_image_id
@@ -908,14 +889,16 @@ function cmsPublicSearch(array $params = []): void
         );
         $stmt->execute([$like, $like, $like]);
         $posts = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $total = !empty($posts) ? (int)$posts[0]['_total_count'] : 0;
     }
-    $posts = cmsProcessPostExcerpts($posts);
     foreach ($posts as &$postRow) {
+        unset($postRow['_total_count']);
         if (!empty($postRow['featured_image'])) {
             $postRow['featured_image_url'] = cmsResolveUploadUrl((string)$postRow['featured_image']);
         }
     }
     unset($postRow);
+    $posts = cmsProcessPostExcerpts($posts);
 
     $totalPages = max(1, (int)ceil(max($total, 1) / $perPage));
     $baseUrl = cmsPublicCanonicalBaseUrl();
@@ -1896,15 +1879,7 @@ function cmsPublicEntityList(array $params = []): void
 
     $visibilityWhere = cmsPublicVisibilitySql('c');
 
-    // Get total count
-    $cStmt = $db->prepare(
-        "SELECT COUNT(*) FROM cms_content c{$categoryJoin}"
-        . " WHERE c.deleted_at IS NULL AND c.type = :type AND {$visibilityWhere}{$searchClause}"
-    );
-    $cStmt->execute($bindParams);
-    $total = (int)$cStmt->fetchColumn();
-
-    $resultLabel = cmsEntityListResultLabel($total);
+    $total = 0;
     $activeFilterCount = 0;
     if ($search !== '') {
         $activeFilterCount++;
@@ -1930,7 +1905,8 @@ function cmsPublicEntityList(array $params = []): void
     $stmt = $db->prepare(
         "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status, c.published_at,
             c.author_id, c.featured_image_id, u.display_name as author_name, m.file_path as featured_image,
-            ct.label as content_type_label
+            ct.label as content_type_label,
+            COUNT(*) OVER() as _total_count
          FROM cms_content c{$categoryJoin}
          LEFT JOIN cms_users u ON u.id = c.author_id
          LEFT JOIN cms_media m ON m.id = c.featured_image_id
@@ -1941,6 +1917,15 @@ function cmsPublicEntityList(array $params = []): void
     );
     $stmt->execute($bindParams);
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $total = !empty($rows) ? (int)$rows[0]['_total_count'] : 0;
+
+    // Strip window-function column from rows
+    foreach ($rows as &$row) {
+        unset($row['_total_count']);
+    }
+    unset($row);
+
+    $resultLabel = cmsEntityListResultLabel($total);
 
     // Enrich each item with capabilities, capability_data, and url
     $items = [];

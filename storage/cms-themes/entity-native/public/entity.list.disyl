@@ -2,62 +2,135 @@
    Pure entity-view rendering — no CMS-specific context injection.
    Uses governed {ikb_entity_list} for data resolution.
    Theme owns presentation (grid, cards, spacing).
-   Modules own truth (data, capabilities, actions). #}
+   Modules own truth (data, capabilities, actions).
+
+   Dispatch priority:
+     1. CMS route context  (public_route_kind) — use {ikb_entity_list} governed component
+     2. Entity-view context (entity_type)       — use spec-driven {ikb_entity_list}
+     3. No context                              — discovery dashboard sections
+#}
 
 {extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
-<ikb_section padding_y="lg">
-    <ikb_container max_width="1200px" padding="md">
+{ikb_section padding_y="lg"}
+    {ikb_container max_width="1200px" padding="md"}
 
-        {# Page title from context — falls back to entity type #}
+        {# ── Page header — route-aware title + description ── #}
         {if page_title}
+        <header class="en-list-header" style="margin-bottom:var(--spacing-lg);">
             <h1 style="font-size:2rem;font-weight:700;margin:0 0 0.25rem;">{page_title}</h1>
-        {/if}
-        {if page_subtitle}
-            <p style="color:var(--color-text-secondary);margin:0 0 var(--spacing-lg);">{page_subtitle}</p>
+            {if list_description}
+            <p style="color:var(--color-text-secondary);margin:0;max-width:600px;">{list_description}</p>
+            {/if}
+        </header>
         {/if}
 
-        {# ── Governed entity list — the theme declares intent, the kernel resolves #}
-        {if entity_type}
-            <ikb_entity_list
+        {# CMS blog listing / archive / tag — {ikb_entity_list} governed component #}
+        {if public_route_kind == 'blog-home' or public_route_kind == 'archive' or public_route_kind == 'tag'}
+
+            {# Active filter summary #}
+            {if entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search}
+            <div class="en-list-filters" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:var(--spacing-md);font-size:0.85rem;">
+                {if entity_list_context.result_label}
+                <span style="color:var(--color-text-secondary);">{entity_list_context.result_label}</span>
+                {/if}
+                {if entity_list_context.category_name}
+                <span style="display:inline-flex;align-items:center;gap:0.25rem;background:var(--color-primary-light);color:var(--color-primary);padding:0.2rem 0.6rem;border-radius:999px;font-weight:500;">
+                    {entity_list_context.category_name}
+                    {if entity_list_context.all_items_url}
+                    <a href="{entity_list_context.all_items_url}" style="color:inherit;text-decoration:none;margin-left:0.25rem;" title="Clear filter">✕</a>
+                    {/if}
+                </span>
+                {/if}
+                {if entity_list_context.search}
+                <span style="display:inline-flex;align-items:center;gap:0.25rem;background:#fef3c7;color:#92400e;padding:0.2rem 0.6rem;border-radius:999px;font-weight:500;">
+                    "{entity_list_context.search}"
+                </span>
+                {/if}
+            </div>
+            {/if}
+
+            {# Governed entity list — kernel resolves data #}
+            {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="10" /}
+
+            {# Pagination — from standardised handler context #}
+            {if pagination and pagination.total > 1}
+            <nav class="en-list-pagination" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:var(--spacing-lg);">
+                {if pagination.prev_url}
+                <a href="{pagination.prev_url}" style="padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:0.875rem;transition:background 0.12s;">← Previous</a>
+                {/if}
+                <span style="padding:0.5rem 1rem;font-size:0.85rem;color:var(--color-text-secondary);">Page {pagination.current} of {pagination.total}</span>
+                {if pagination.next_url}
+                <a href="{pagination.next_url}" style="padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:0.875rem;transition:background 0.12s;">Next →</a>
+                {/if}
+            </nav>
+            {/if}
+
+        {# Search results #}
+        {else if public_route_kind == 'search'}
+            <div class="en-search-header" style="margin-bottom:var(--spacing-md);">
+                {if entity_list_context.result_label}
+                <p style="color:var(--color-text-secondary);">{entity_list_context.result_label}</p>
+                {/if}
+            </div>
+            {ikb_entity_list source="cms_post.recent" view="card_grid" limit="10" filter="search={entity_list_context.search}" /}
+            {if pagination and pagination.total > 1}
+            <nav class="en-list-pagination" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:var(--spacing-lg);">
+                {if pagination.prev_url}
+                <a href="{pagination.prev_url}" style="padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:0.875rem;">← Previous</a>
+                {/if}
+                <span style="padding:0.5rem 1rem;font-size:0.85rem;color:var(--color-text-secondary);">Page {pagination.current} of {pagination.total}</span>
+                {if pagination.next_url}
+                <a href="{pagination.next_url}" style="padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:0.875rem;">Next →</a>
+                {/if}
+            </nav>
+            {/if}
+
+        {# Pure entity-view context #}
+        {else if entity_type}
+            {# Subtitle from entity context #}
+            {if entity_list_context.result_label}
+            <p style="color:var(--color-text-secondary);margin-bottom:var(--spacing-md);">{entity_list_context.result_label}</p>
+            {/if}
+
+            {ikb_entity_list
                 source="{entity_type}.{qualifier|default:'recent'}"
                 view="{entity_view|default:'card_grid'}"
                 limit="{entity_limit|default:12}"
-            />
+            /}
+
+        {# Discovery dashboard (no context) #}
         {else}
-            {# Fallback: render all available entity types as sections #}
-            <ikb_section padding_y="md">
-                <ikb_grid columns="2" gap="md">
-                    {# Products — ecommerce or bakeshop #}
-                    <ikb_card padding="md" radius="md">
+            {# Quick-links grid #}
+            {ikb_section padding_y="md"}
+                {ikb_grid columns="2" gap="md"}
+                    {ikb_card padding="md" radius="md"}
                         <h3 style="margin:0 0 0.5rem;">Products</h3>
                         <p style="color:var(--color-text-secondary);font-size:0.85rem;margin:0 0 1rem;">Browse available products</p>
                         <a href="{base_url}/ecommerce/shop" class="cms-btn cms-btn-primary" style="font-size:0.85rem;">View Products</a>
-                    </ikb_card>
-
-                    {# Content — CMS posts and pages #}
-                    <ikb_card padding="md" radius="md">
+                    {/ikb_card}
+                    {ikb_card padding="md" radius="md"}
                         <h3 style="margin:0 0 0.5rem;">Articles</h3>
                         <p style="color:var(--color-text-secondary);font-size:0.85rem;margin:0 0 1rem;">Read the latest posts</p>
                         <a href="{base_url}/blog" class="cms-btn cms-btn-outline" style="font-size:0.85rem;">View Articles</a>
-                    </ikb_card>
-                </ikb_grid>
-            </ikb_section>
+                    {/ikb_card}
+                {/ikb_grid}
+            {/ikb_section}
 
             {# Recent CMS posts #}
-            <ikb_section padding_y="md">
+            {ikb_section padding_y="md"}
                 <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Latest Articles</h2>
-                <ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" />
-            </ikb_section>
+                {ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" /}
+            {/ikb_section}
 
             {# Featured products from ecommerce #}
-            <ikb_section padding_y="md">
+            {ikb_section padding_y="md"}
                 <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Featured Products</h2>
-                <ikb_entity_list source="ecommerce_product.featured" view="card_grid" limit="4" />
-            </ikb_section>
+                {ikb_entity_list source="ecommerce_product.featured" view="card_grid" limit="4" /}
+            {/ikb_section}
         {/if}
 
-    </ikb_container>
-</ikb_section>
+    {/ikb_container}
+{/ikb_section}
 {/block}

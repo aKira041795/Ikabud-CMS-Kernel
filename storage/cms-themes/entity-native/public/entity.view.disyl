@@ -1,91 +1,126 @@
 {# Entity-Native: Entity Detail (Single View) Template
    Pure entity-view rendering — no CMS-specific context injection.
    Theme owns layout, typography, spacing, visual treatment.
-   Entity data + actions come from capability-gated entity context. #}
+   Entity data + actions come from capability-gated entity context.
+
+   Dispatch priority:
+     1. Builder-enabled content (post_html / content_html) — render directly
+     2. Entity-view context (entity_type + entity_id)      — use {ikb_entity_detail}
+     3. CMS handler context (entity.title / entity.body)   — inline rendering
+     4. Capability-enriched context (capability_data)      — render section blocks
+#}
 
 {extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
-<ikb_section padding_y="lg">
-    <ikb_container max_width="800px" padding="md">
+{ikb_section padding_y="lg"}
+    {ikb_container max_width="800px" padding="md"}
 
-        {# ── Governed entity detail — the theme declares intent, the kernel resolves #}
-        {if entity_type and entity_id}
-            <ikb_entity_detail
+        {# Builder-composed content — pass through #}
+        {if builder_enabled and (post_html or content_html)}
+            {if post_html}{post_html|raw}{/if}
+            {if content_html}{content_html|raw}{/if}
+
+        {# Pure entity-view context #}
+        {else if entity_type and entity_id}
+            {ikb_entity_detail
                 source="{entity_type}"
                 id="{entity_id}"
                 view="{entity_view|default:'full'}"
-            />
+            /}
+
+        {# CMS handler context (single post / page) #}
         {else}
-            {# Fallback: render from context directly (legacy compat) #}
             <article class="en-detail">
-                {if entity.title}
-                    <h1 class="en-detail__title">{entity.title}</h1>
-                {/if}
+                {# Title #}
+                {if entity_view_context.show_header|default:1}
+                    {if entity.title or content.title}
+                    <h1 class="en-detail__title">{entity.title|default:content.title}</h1>
+                    {/if}
 
-                {if entity.author_name or entity.published_at}
-                    <div class="en-detail__meta">
-                        {if entity.author_name}By {entity.author_name}{/if}
-                        {if entity.published_at} · {entity.published_at}{/if}
-                        {if entity.status}
-                            <span class="en-card__status en-card__status--{entity.status}">{entity.status}</span>
+                    {# Meta — author, date, status #}
+                    {if entity_view_context.show_meta|default:1}
+                        {if entity.author_name or entity.published_at or entity.status or content.author_name}
+                        <div class="en-detail__meta">
+                            {if entity.author_name or content.author_name}By {entity.author_name|default:content.author_name}{/if}
+                            {if entity.published_at} · {entity.published_at}{/if}
+                            {if entity.status}
+                                <span class="en-card__status en-card__status--{entity.status}">{entity.status}</span>
+                            {/if}
+                        </div>
                         {/if}
-                    </div>
+                    {/if}
                 {/if}
 
-                {if entity.image}
-                    <img src="{entity.image}" alt="{entity.title}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
+                {# Featured image #}
+                {if entity_view_context.show_media|default:1}
+                    {if entity.featured_image_url or entity.image or content.featured_image_url}
+                    <img src="{entity.featured_image_url|default:entity.image|default:content.featured_image_url}" alt="{entity.title|default:content.title}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
+                    {/if}
                 {/if}
 
-                {if entity.body}
-                    <div class="en-detail__body">{entity.body|raw}</div>
-                {/if}
+                {# Body — rendered content from editor or builder #}
+                <div class="en-detail__body">
+                    {if post_html}{post_html|raw}
+                    {else if content_html}{content_html|raw}
+                    {else if entity.body}{entity.body|raw}
+                    {/if}
+                </div>
 
-                {# Actions — capability-gated, module-approved #}
-                {if entity.actions}
-                    <div class="en-detail__section" style="display:flex;gap:0.75rem;">
-                        {for action in entity.actions}
-                            <ikb_button variant="primary" size="md" href="{action.url}" label="{action.label}" />
+                {# Entity taxonomy links #}
+                {if entity_taxonomies and entity_view_context.show_taxonomies|default:1}
+                    <div class="en-detail__section" style="margin-top:var(--spacing-lg);padding-top:var(--spacing-md);border-top:1px solid var(--color-border);">
+                        {for tax in entity_taxonomies}
+                            <span style="display:inline-block;padding:0.2rem 0.6rem;background:var(--color-surface-muted);border-radius:var(--radius-sm);font-size:0.8rem;margin:0.15rem;">
+                                <a href="{tax.url}" style="color:var(--color-text-secondary);text-decoration:none;">{tax.label}</a>
+                            </span>
                         {/for}
                     </div>
                 {/if}
 
-                {# Capability sections — rendered if the entity provides them #}
+                {# Navigation — back link #}
+                {if entity_view_context.show_back_link|default:0 or entity_presentation_settings.single_show_nav}
+                    <div class="en-detail__section" style="margin-top:var(--spacing-lg);">
+                        <a href="{base_url}/cms/blog" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">← Back to blog</a>
+                    </div>
+                {/if}
+
+                {# ── Capability sections — rendered if the entity provides them ── #}
                 {if capability_data}
                     {# Pricing block #}
                     {if capability_data.pricing}
-                        <ikb_section padding_y="md">
+                        {ikb_section padding_y="md"}
                             <h3 style="font-weight:600;margin:0 0 0.5rem;">Pricing</h3>
-                            <ikb_card padding="md" radius="md">
+                            {ikb_card padding="md" radius="md"}
                                 <span style="font-size:1.5rem;font-weight:700;color:var(--color-primary);">{capability_data.pricing.price_display}</span>
-                            </ikb_card>
-                        </ikb_section>
+                            {/ikb_card}
+                        {/ikb_section}
                     {/if}
 
                     {# Inventory block #}
                     {if capability_data.inventory}
-                        <ikb_section padding_y="md">
+                        {ikb_section padding_y="md"}
                             <h3 style="font-weight:600;margin:0 0 0.5rem;">Availability</h3>
-                            <ikb_badge tone="{if capability_data.inventory.in_stock}success{else}warning{/if}">
+                            {ikb_badge tone="{if capability_data.inventory.in_stock}success{else}warning{/if}"}
                                 {if capability_data.inventory.in_stock}In Stock{else}Out of Stock{/if}
-                            </ikb_badge>
-                        </ikb_section>
+                            {/ikb_badge}
+                        {/ikb_section}
                     {/if}
 
                     {# Progress block (courses, cases) #}
                     {if capability_data.progress_tracking}
-                        <ikb_section padding_y="md">
+                        {ikb_section padding_y="md"}
                             <h3 style="font-weight:600;margin:0 0 0.5rem;">Progress</h3>
                             <div style="background:var(--color-surface-muted);border-radius:999px;height:8px;overflow:hidden;">
                                 <div style="width:{capability_data.progress_tracking.percentage}%;height:100%;background:var(--color-primary);border-radius:999px;"></div>
                             </div>
                             <span style="font-size:0.8rem;color:var(--color-text-secondary);">{capability_data.progress_tracking.percentage}% complete</span>
-                        </ikb_section>
+                        {/ikb_section}
                     {/if}
                 {/if}
             </article>
         {/if}
 
-    </ikb_container>
-</ikb_section>
+    {/ikb_container}
+{/ikb_section}
 {/block}

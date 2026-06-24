@@ -76,8 +76,11 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     /**
      * Internal rendering logic shared by renderList and renderListFromResult.
      */
+    private array $renderContext = [];
+
     private function doRenderList(array $rows, array $view, array $attrs, array $context = []): string
     {
+        $this->renderContext = $context;
         $this->beforeRenderList($attrs, $context);
 
         $use = (string)($attrs['use'] ?? 'tailwind');
@@ -473,9 +476,11 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $titleClass = $this->style('title', 'card_grid', $ctx->use);
         $subClass = $this->style('subtitle', 'card_grid', $ctx->use);
 
-        $titleField = $ctx->fields[0] ?? 'name';
-        $subField = $ctx->fields[1] ?? null;
-        $imageField = in_array('image', $ctx->fields, true) ? 'image' : (in_array('thumbnail', $ctx->fields, true) ? 'thumbnail' : null);
+        // Use semantic role annotations from view contract if available,
+        // fall back to positional fields (index 0 = title, index 1 = subtitle).
+        $titleField = $ctx->roleFields['title'] ?? ($ctx->fields[0] ?? 'name');
+        $subField = $ctx->roleFields['subtitle'] ?? ($ctx->fields[1] ?? null);
+        $imageField = $ctx->roleFields['image'] ?? (in_array('image', $ctx->fields, true) ? 'image' : (in_array('thumbnail', $ctx->fields, true) ? 'thumbnail' : null));
         $title = htmlspecialchars((string)($ctx->row[$titleField] ?? ''), ENT_QUOTES, 'UTF-8');
         $sub = $subField ? htmlspecialchars((string)($ctx->row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
 
@@ -618,7 +623,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $safeId = htmlspecialchars((string)$id, ENT_QUOTES, 'UTF-8');
 
             $href = isset($ctx->actionUrls[$action])
-                ? $this->renderWithRowContext($ctx->actionUrls[$action], $ctx->row)
+                ? $this->renderWithRowContext($ctx->actionUrls[$action], $ctx->row, $this->renderContext)
                 : "?id={$safeId}&amp;action={$action}";
 
             $method = $ctx->actionMethods[$action] ?? 'get';
@@ -861,25 +866,27 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     // ── Utilities ──────────────────────────────────────────────────
 
-    private function renderWithRowContext(string $template, array $row): string
+    private function renderWithRowContext(string $template, array $row, array $fallbackContext = []): string
     {
         $result = $template;
-        // First pass: check if all required placeholders have non-empty values
+        // First pass: check if all required placeholders have non-empty values.
+        // Falls back to template context for keys not in row data (e.g. {base_url}).
         preg_match_all('/\{(\w+)\}/', $result, $placeholders);
         foreach ($placeholders[1] as $key) {
-            $value = $row[$key] ?? null;
+            $value = $row[$key] ?? $fallbackContext[$key] ?? null;
             if ($value === null || $value === '' || $value === false) {
-                return $result; // Return template with placeholders intact
+                return $result;
             }
         }
-        // Second pass: substitute all values
-        foreach ($row as $key => $value) {
-            if (is_scalar($value) || $value === null) {
+        // Second pass: substitute all values — row first, then context fallback
+        $allValues = array_merge($fallbackContext, $row);
+        foreach ($allValues as $key => $value) {
+            if ((is_scalar($value) || $value === null) && str_contains($result, '{' . $key . '}')) {
                 $safeValue = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
                 $result = str_replace('{' . $key . '}', $safeValue, $result);
             }
         }
-        // Collapse any remaining double slashes (except protocol://)
+        // Collapse remaining double slashes (except protocol://)
         $result = preg_replace('#(?<!:)//+#', '/', $result);
         return $result;
     }

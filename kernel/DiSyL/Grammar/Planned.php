@@ -1,36 +1,18 @@
 <?php
 /**
- * DiSyL Grammar — PLANNED keywords / type system extensions
+ * DiSyL Grammar — TRULY PLANNED future features
  *
- * Holds constants that describe future DiSyL surface area (v11 / v11.1),
- * as well as keyword groups that have been IMPLEMENTED in the runtime.
- *
- * IMPLEMENTED in TemplateEngine::evaluateStructureBody():
- *   - {cache}        → FragmentStore::tryGet/put with deps + TTL        (v4.3)
- *   - {sandbox}      → Sandbox::pushSandbox/pushTrusted/pushUntrusted   (v4.4)
- *   - {experiment}   → Bucketer::assign/expose with variant arms        (v4.3)
- *   - {trans}        → i18n\Catalog::translate with plural + when arms (v4.7)
- *   - {parallel}     → Scheduler with concurrent await task resolution  (v4.5)
- *   - {await}        → Promise resolution + synchronous fallback        (v4.5)
- *   - {suspense}     → Try/catch render with fallback attribute         (v4.5)
- *   - {federated_query} → ServiceRegistry + remote/aggregate sub-blocks (v4.6)
- *   - {ai_generate}  → AiProvider::complete + Policy cost ceiling       (v4.6)
- *   - {ai_query}     → JSON-decoded AI response binding                (v4.6)
- *   - {ai_complete}  → AI text completion binding                      (v4.6)
- *
- * REMAINING PLANNED (parser dispatch exists, evaluator needed):
- *   - (none — all keywords with dispatch entries have implementations)
+ * Holds constants for aspirational DiSyL features that have NO parser
+ * or evaluator code yet.  Implemented keyword groups (cache, sandbox,
+ * experiment, i18n, async, federation, AI) live in Grammar.php.
  *
  * Still truly PLANNED (no parser or evaluator code yet):
  *   - Type operators: union (|), intersection (&), keyof, typeof, infer
  *   - Utility types: Record, Exclude, Extract, NonNullable, ReturnType etc.
- *   - Template-level Fibers-based I/O multiplexing (scheduled for 4.5.1)
- *
- * Split out of `kernel/DiSyL/Grammar.php` in kernel 4.0.0 so that the live
- * grammar surface stays focused on what the runtime actually understands.
+ *   - Template-level Fibers-based I/O multiplexing (Kernel runtime concern)
  *
  * @package Ikabud\Kernel\DiSyL\Grammar
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 declare(strict_types=1);
@@ -39,25 +21,20 @@ namespace Ikabud\Kernel\DiSyL\Grammar;
 
 final class Planned
 {
-    // ── v11: Pattern Matching Keywords (PLANNED — not yet implemented) ──
+    // ── v11: Pattern-Matching Sub-Keywords (PLANNED) ──
+    // {match} itself is implemented (evaluateMatchBody).  These are the
+    // sub-keywords for extended pattern-matching syntax (guarded arms,
+    // exhaustiveness checking, nested pattern destructuring) that have
+    // no parser or evaluator code yet.
     public const PATTERN_KEYWORDS = [
-        'match', 'when', 'endmatch', 'endwhen',
-        'case', 'default', 'guard', 'if',
+        'endmatch', 'endwhen',
+        'case', 'guard',
     ];
 
-    // ── v11: Async Keywords (PLANNED — not yet implemented) ──
-    public const ASYNC_KEYWORDS = [
-        'await', 'endawait', 'loading', 'catch',
-        'parallel', 'endparallel', 'fetch', 'then',
-        'suspense', 'endsuspense', 'fallback',
-    ];
-
-    // ── v11: i18n Keywords (PLANNED — not yet implemented) ──
-    public const I18N_KEYWORDS = [
-        'trans', 'endtrans', 'plural', 'context',
-    ];
-
-    // ── v11: Type Operators (PLANNED) ──
+    // ── v11: Type Operators (PLANNED — no parser or evaluator code) ──
+    // Adding these requires deep changes across Parser, Compiler,
+    // TypeChecker, and Grammar::validateType().  The v4 type system
+    // (string, int, float, bool, array, etc.) covers all current needs.
     public const TYPE_OPERATORS = [
         '|' => 'union',
         '&' => 'intersection',
@@ -71,60 +48,17 @@ final class Planned
         'readonly' => 'readonly',
     ];
 
-    // ── v11: Built-in Utility Types (PLANNED) ──
+    // ── v11: Built-in Utility Types (PLANNED — blocked on type operators) ──
+    // Utility types like Partial<T> require generics and type parameter
+    // support.  Zero parser or evaluator code exists.
     public const UTILITY_TYPES = [
         'Partial', 'Required', 'Readonly', 'Pick', 'Omit', 'Record',
         'Exclude', 'Extract', 'NonNullable', 'ReturnType', 'Parameters',
         'Awaited',
     ];
 
-    // ── v11.1: Experimentation Keywords (PLANNED) ──
-    public const EXPERIMENT_KEYWORDS = [
-        'experiment', 'variant', 'endexperiment', 'convert',
-    ];
-
-    // ── v11.1: Cache Keywords (PLANNED) ──
-    public const CACHE_KEYWORDS = [
-        'cache', 'endcache', 'depends_on', 'invalidate', 'ttl',
-    ];
-
-    // ── v11.1: Security Keywords (PLANNED) ──
-    public const SECURITY_KEYWORDS = [
-        'sandbox', 'endsandbox', 'trusted', 'untrusted',
-    ];
-
-    // ── v11.1: Federation Keywords (PLANNED) ──
-    public const FEDERATION_KEYWORDS = [
-        'federated_query', 'remote', 'aggregate',
-    ];
-
-    // ── v11.1: AI Keywords (PLANNED) ──
-    public const AI_KEYWORDS = [
-        'ai_generate', 'ai_query', 'ai_complete', 'ai_optimize',
-    ];
-
     public static function isUtilityType(string $type): bool
     {
         return in_array($type, self::UTILITY_TYPES, true);
-    }
-
-    public static function getAllV11Keywords(): array
-    {
-        return array_merge(
-            self::PATTERN_KEYWORDS,
-            self::ASYNC_KEYWORDS,
-            self::I18N_KEYWORDS
-        );
-    }
-
-    public static function getAllV11_1Keywords(): array
-    {
-        return array_merge(
-            self::EXPERIMENT_KEYWORDS,
-            self::CACHE_KEYWORDS,
-            self::SECURITY_KEYWORDS,
-            self::FEDERATION_KEYWORDS,
-            self::AI_KEYWORDS
-        );
     }
 }

@@ -2,13 +2,12 @@
 /**
  * DiSyL Grammar v4.0.0
  *
- * Defines type constants, platform identifiers, and validation rules
- * for the DiSyL template language.
+ * Defines type constants, platform identifiers, keyword registries, and
+ * validation rules for the DiSyL template language.
  *
- * The v4 type system is intentionally simple: string, integer, number,
- * boolean, array, object, mixed, null, callable, expression.  Advanced
- * types (union, generic, intersection, etc.) are planned for v11 — see
- * docs/kernel/disyl-grammar-v11-planned-types.md and Grammar/Planned.php.
+ * All keyword constants here are backed by runtime implementations in
+ * TemplateEngine::evaluateStructureBody().  Aspirational / future items
+ * (type operators, utility types) live in Grammar\Planned.php.
  *
  * @package Ikabud\Kernel\DiSyL
  * @version 4.0.0
@@ -47,7 +46,6 @@ class Grammar
     // These identify which JS framework bridge to use when rendering
     // {ikb_component} and {state} blocks. Each maps to a Bridge class.
     public const BRIDGE_REACT = 'react';
-
     public const BRIDGE_ALPINE = 'alpine';
     public const BRIDGE_HTMX = 'htmx';
     public const BRIDGE_CUSTOM = 'custom';
@@ -55,6 +53,87 @@ class Grammar
     // ========== Declaration Keywords ==========
     public const KEYWORD_VAR = '@var';  // {@var type $name} — variable type declaration (v4.9+)
 
+    // ========== Structure Body Keywords (v4.3+) ==========
+    // All keywords below are wired in TemplateEngine::evaluateStructureBody().
+    // Each constant maps to a dedicated evaluator method.
+
+    // ── Cache ──
+    public const KW_CACHE = 'cache';
+    public const KW_ENDCACHE = 'endcache';
+    public const KW_DEPENDS_ON = 'depends_on';
+    public const KW_INVALIDATE = 'invalidate';
+    public const KW_TTL = 'ttl';
+    public const CACHE_KEYWORDS = [
+        'cache', 'endcache', 'depends_on', 'invalidate', 'ttl',
+    ];
+
+    // ── Security / Sandbox ──
+    public const KW_SANDBOX = 'sandbox';
+    public const KW_ENDSANDBOX = 'endsandbox';
+    public const KW_TRUSTED = 'trusted';
+    public const KW_UNTRUSTED = 'untrusted';
+    public const SECURITY_KEYWORDS = [
+        'sandbox', 'endsandbox', 'trusted', 'untrusted',
+    ];
+
+    // ── Experimentation ──
+    public const KW_EXPERIMENT = 'experiment';
+    public const KW_VARIANT = 'variant';
+    public const KW_ENDEXPERIMENT = 'endexperiment';
+    public const KW_CONVERT = 'convert';
+    public const EXPERIMENT_KEYWORDS = [
+        'experiment', 'variant', 'endexperiment', 'convert',
+    ];
+
+    // ── Internationalization ──
+    public const KW_TRANS = 'trans';
+    public const KW_ENDTRANS = 'endtrans';
+    public const KW_PLURAL = 'plural';
+    public const KW_CONTEXT = 'context';
+    public const I18N_KEYWORDS = [
+        'trans', 'endtrans', 'plural', 'context',
+    ];
+
+    // ── Async / Concurrency ──
+    public const KW_AWAIT = 'await';
+    public const KW_ENDAWAIT = 'endawait';
+    public const KW_LOADING = 'loading';
+    public const KW_CATCH = 'catch';
+    public const KW_PARALLEL = 'parallel';
+    public const KW_ENDPARALLEL = 'endparallel';
+    public const KW_FETCH = 'fetch';
+    public const KW_THEN = 'then';
+    public const KW_SUSPENSE = 'suspense';
+    public const KW_ENDSUSPENSE = 'endsuspense';
+    public const KW_FALLBACK = 'fallback';
+    public const ASYNC_KEYWORDS = [
+        'await', 'endawait', 'loading', 'catch',
+        'parallel', 'endparallel', 'fetch', 'then',
+        'suspense', 'endsuspense', 'fallback',
+    ];
+
+    // ── Pattern Matching ──
+    public const KW_MATCH = 'match';
+    public const KW_WHEN = 'when';
+    public const KW_DEFAULT = 'default';
+
+    // ── Federation ──
+    public const KW_FEDERATED_QUERY = 'federated_query';
+    public const KW_REMOTE = 'remote';
+    public const KW_AGGREGATE = 'aggregate';
+    public const FEDERATION_KEYWORDS = [
+        'federated_query', 'remote', 'aggregate',
+    ];
+
+    // ── AI ──
+    public const KW_AI_GENERATE = 'ai_generate';
+    public const KW_AI_QUERY = 'ai_query';
+    public const KW_AI_COMPLETE = 'ai_complete';
+    public const KW_AI_OPTIMIZE = 'ai_optimize';
+    public const AI_KEYWORDS = [
+        'ai_generate', 'ai_query', 'ai_complete', 'ai_optimize',
+    ];
+    
     // ========== Component Categories ==========
     public const COMPONENT_CATEGORIES = [
         'structural',
@@ -85,6 +164,28 @@ class Grammar
         return [
             self::KEYWORD_VAR,
         ];
+    }
+
+    /**
+     * Get all structure-body keywords wired in evaluateStructureBody().
+     * These are the keywords whose evaluator methods exist and are dispatched.
+     */
+    public static function getStructureBodyKeywords(): array
+    {
+        return array_merge(
+            self::CACHE_KEYWORDS,
+            self::SECURITY_KEYWORDS,
+            self::EXPERIMENT_KEYWORDS,
+            self::I18N_KEYWORDS,
+            self::ASYNC_KEYWORDS,
+            self::FEDERATION_KEYWORDS,
+            self::AI_KEYWORDS,
+            [
+                self::KW_MATCH,
+                self::KW_WHEN,
+                self::KW_DEFAULT,
+            ]
+        );
     }
 
     /**
@@ -181,8 +282,4 @@ class Grammar
     {
         return in_array($platform, self::getPlatforms(), true);
     }
-    
-    // ========== Planned / Roadmap ==========
-    // v11+ keywords and type operators live in Grammar\Planned.
-    // See docs/kernel/disyl-grammar-v11-planned-types.md for details.
 }

@@ -47,9 +47,9 @@ public const TYPE_INFER = 'infer';
 
 ```php
 // These delegated to Grammar\Planned but were never called externally:
-public static function getAllKeywords(): array    // → Planned::getAllV11Keywords()
-public static function getV11Keywords(): array    // → Planned::getAllV11_1Keywords()
-public static function isUtilityType(string $type): bool  // → Planned::isUtilityType()
+public static function getAllKeywords(): array    // → removed (implemented keywords moved to Grammar.php)
+public static function getV11Keywords(): array    // → removed (implemented keywords moved to Grammar.php)
+public static function isUtilityType(string $type): bool  // → Planned::isUtilityType() (still there)
 public static function getAdvancedTypes(): array  // returned the 13 constants above
 ```
 

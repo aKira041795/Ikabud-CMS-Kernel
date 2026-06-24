@@ -30,3 +30,8 @@ require_once __DIR__ . '/handlers/86-ai-automation.php';
 require_once __DIR__ . '/handlers/88-entity-capabilities.php';
 require_once __DIR__ . '/handlers/79-weather.php';
 require_once __DIR__ . '/handlers/79-weather-public.php';
+
+// Load entity view contracts
+if (is_dir(__DIR__ . '/helpers/views')) {
+    \Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+}
