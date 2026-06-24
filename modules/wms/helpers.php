@@ -64,13 +64,7 @@ function wms_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId
     }
 }
 
-// ── Stock capability stubs (Phase 2+) ──
-
-function wms_cap_stock_query_1(mixed $payload): ?array { return null; }
-function wms_cap_stock_reserve_1(mixed $payload): ?array { return null; }
-function wms_cap_stock_release_1(mixed $payload): ?array { return null; }
-function wms_cap_order_create_1(mixed $payload): ?array { return null; }
-function wms_cap_order_cancel_1(mixed $payload): ?array { return null; }
+// ── Stock capability implementations live in handlers/30-api-movements.php ──
 
 // ── Core helpers ──
 

@@ -15,4 +15,5 @@ require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/05-auth.php';
 require_once __DIR__ . '/handlers/10-pages.php';
 require_once __DIR__ . '/handlers/20-api-catalog.php';
+require_once __DIR__ . '/handlers/30-api-movements.php';
 require_once __DIR__ . '/handlers/50-api-suppliers.php';

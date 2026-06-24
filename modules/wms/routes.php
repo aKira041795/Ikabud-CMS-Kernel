@@ -11,6 +11,8 @@ return [
         '/wms'                   => 'wms:wmsPageDashboard',
         '/wms/inventory'         => 'wms:wmsPageInventory',
         '/wms/suppliers'         => 'wms:wmsPageSuppliers',
+        '/wms/stock'             => 'wms:wmsPageStock',
+        '/wms/movements'         => 'wms:wmsPageMovements',
 
         '/api/v1/wms/products'           => 'wms:wmsApiProductsList',
         '/api/v1/wms/products/{id}'       => 'wms:wmsApiProductGet',
@@ -23,6 +25,11 @@ return [
         '/api/v1/wms/suppliers/{id}'      => 'wms:wmsApiSupplierGet',
         '/api/v1/wms/batches'             => 'wms:wmsApiBatchesList',
         '/api/v1/wms/batches/{id}'        => 'wms:wmsApiBatchGet',
+
+        '/api/v1/wms/stock'               => 'wms:wmsApiStockQuery',
+        '/api/v1/wms/stock/{id}'          => 'wms:wmsApiStockGet',
+        '/api/v1/wms/stock/movements'     => 'wms:wmsApiMovementsList',
+        '/api/v1/wms/stock/adjustments'   => 'wms:wmsApiAdjustmentsList',
     ],
     'POST' => [
         '/wms/auth/login'              => 'wms:wmsAuthLogin',
@@ -41,5 +48,12 @@ return [
         '/api/v1/wms/suppliers/{id}'         => 'wms:wmsApiSupplierUpdate',
         '/api/v1/wms/suppliers/{id}/delete'  => 'wms:wmsApiSupplierDelete',
         '/api/v1/wms/batches'                => 'wms:wmsApiBatchCreate',
+        '/api/v1/wms/batches/{id}'          => 'wms:wmsApiBatchUpdate',
+
+        '/api/v1/wms/stock/receive'         => 'wms:wmsApiStockReceive',
+        '/api/v1/wms/stock/transfer'        => 'wms:wmsApiStockTransfer',
+        '/api/v1/wms/stock/adjust'          => 'wms:wmsApiStockAdjust',
+        '/api/v1/wms/stock/scrap'           => 'wms:wmsApiStockScrap',
+        '/api/v1/wms/stock/adjustments/{id}' => 'wms:wmsApiAdjustmentReview',
     ],
 ];

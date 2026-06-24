@@ -13,7 +13,9 @@
         "password_column": "password_hash",
         "name_column": "full_name",
         "active_column": "is_active",
-        "admin_roles": ["admin"],
+        "admin_roles": [
+            "admin"
+        ],
         "default_admin_role": "admin",
         "requires_named_admin_on_provision": true,
         "blocked_password_hashes": [
@@ -59,7 +61,8 @@
         "database/migrations/001_wms_core_schema.sql",
         "database/migrations/002_wms_password_resets.sql",
         "database/migrations/003_wms_bootstrap_admin.sql",
-        "database/migrations/004_wms_catalog.sql"
+        "database/migrations/004_wms_catalog.sql",
+        "database/migrations/005_wms_movement_ledger.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -68,7 +71,10 @@
                 "priority": 560,
                 "mode": "pipeline",
                 "policy": {
-                    "allow_callers": ["wms", "kernel"]
+                    "allow_callers": [
+                        "wms",
+                        "kernel"
+                    ]
                 }
             },
             {
@@ -76,7 +82,11 @@
                 "priority": 50,
                 "mode": "first",
                 "policy": {
-                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                    "allow_callers": [
+                        "wms",
+                        "ecommerce",
+                        "kernel"
+                    ]
                 }
             },
             {
@@ -84,7 +94,11 @@
                 "priority": 50,
                 "mode": "first",
                 "policy": {
-                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                    "allow_callers": [
+                        "wms",
+                        "ecommerce",
+                        "kernel"
+                    ]
                 }
             },
             {
@@ -92,7 +106,11 @@
                 "priority": 50,
                 "mode": "first",
                 "policy": {
-                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                    "allow_callers": [
+                        "wms",
+                        "ecommerce",
+                        "kernel"
+                    ]
                 }
             },
             {
@@ -100,7 +118,11 @@
                 "priority": 50,
                 "mode": "first",
                 "policy": {
-                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                    "allow_callers": [
+                        "wms",
+                        "ecommerce",
+                        "kernel"
+                    ]
                 }
             },
             {
@@ -108,7 +130,11 @@
                 "priority": 50,
                 "mode": "first",
                 "policy": {
-                    "allow_callers": ["wms", "ecommerce", "kernel"]
+                    "allow_callers": [
+                        "wms",
+                        "ecommerce",
+                        "kernel"
+                    ]
                 }
             }
         ],
@@ -145,9 +171,18 @@
             "type": "select",
             "default": "fifo",
             "options": [
-                {"value": "fifo", "label": "FIFO (First In, First Out)"},
-                {"value": "fefo", "label": "FEFO (First Expired, First Out)"},
-                {"value": "lifo", "label": "LIFO (Last In, First Out)"}
+                {
+                    "value": "fifo",
+                    "label": "FIFO (First In, First Out)"
+                },
+                {
+                    "value": "fefo",
+                    "label": "FEFO (First Expired, First Out)"
+                },
+                {
+                    "value": "lifo",
+                    "label": "LIFO (Last In, First Out)"
+                }
             ],
             "description": "Default strategy for pick-list generation."
         },
@@ -157,8 +192,14 @@
             "type": "select",
             "default": "0",
             "options": [
-                {"value": "0", "label": "No — block under-picking"},
-                {"value": "1", "label": "Yes — allow negative balances"}
+                {
+                    "value": "0",
+                    "label": "No — block under-picking"
+                },
+                {
+                    "value": "1",
+                    "label": "Yes — allow negative balances"
+                }
             ],
             "description": "Whether to permit stock to go negative during picking."
         },
@@ -168,8 +209,14 @@
             "type": "select",
             "default": "1",
             "options": [
-                {"value": "1", "label": "Enabled"},
-                {"value": "0", "label": "Disabled"}
+                {
+                    "value": "1",
+                    "label": "Enabled"
+                },
+                {
+                    "value": "0",
+                    "label": "Disabled"
+                }
             ],
             "description": "Automatically generate replenishment tasks when stock falls below reorder point."
         },
@@ -182,15 +229,97 @@
         }
     ],
     "nav": [
-        {"label": "Dashboard", "path": "/wms", "roles": ["admin", "supervisor", "viewer"], "icon": "dashboard"},
-        {"label": "Receiving", "path": "/wms/receiving", "roles": ["admin", "supervisor"], "icon": "inbox"},
-        {"label": "Picking", "path": "/wms/picking", "roles": ["admin", "supervisor", "viewer"], "icon": "package"},
-        {"label": "Inventory", "path": "/wms/inventory", "roles": ["admin", "supervisor", "viewer"], "icon": "warehouse"},
-        {"label": "Suppliers", "path": "/wms/suppliers", "roles": ["admin", "supervisor"], "icon": "truck"},
-        {"label": "Returns", "path": "/wms/returns", "roles": ["admin", "supervisor"], "icon": "rotate-ccw"},
-        {"label": "Tasks", "path": "/wms/tasks", "roles": ["admin", "supervisor", "viewer"], "icon": "check-square"},
-        {"label": "Scanner", "path": "/wms/scanner", "roles": ["admin", "supervisor"], "icon": "scan"},
-        {"label": "Settings", "path": "/wms/settings", "roles": ["admin"], "icon": "settings"},
-        {"label": "Users", "path": "/wms/users", "roles": ["admin"], "icon": "users"}
+        {
+            "label": "Dashboard",
+            "path": "/wms",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ],
+            "icon": "dashboard"
+        },
+        {
+            "label": "Receiving",
+            "path": "/wms/receiving",
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
+            "icon": "inbox"
+        },
+        {
+            "label": "Picking",
+            "path": "/wms/picking",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ],
+            "icon": "package"
+        },
+        {
+            "label": "Inventory",
+            "path": "/wms/inventory",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ],
+            "icon": "warehouse"
+        },
+        {
+            "label": "Suppliers",
+            "path": "/wms/suppliers",
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
+            "icon": "truck"
+        },
+        {
+            "label": "Returns",
+            "path": "/wms/returns",
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
+            "icon": "rotate-ccw"
+        },
+        {
+            "label": "Tasks",
+            "path": "/wms/tasks",
+            "roles": [
+                "admin",
+                "supervisor",
+                "viewer"
+            ],
+            "icon": "check-square"
+        },
+        {
+            "label": "Scanner",
+            "path": "/wms/scanner",
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
+            "icon": "scan"
+        },
+        {
+            "label": "Settings",
+            "path": "/wms/settings",
+            "roles": [
+                "admin"
+            ],
+            "icon": "settings"
+        },
+        {
+            "label": "Users",
+            "path": "/wms/users",
+            "roles": [
+                "admin"
+            ],
+            "icon": "users"
+        }
     ]
 }
