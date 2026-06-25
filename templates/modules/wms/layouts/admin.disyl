@@ -3,161 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{page_title} — WMS</title>
+    <title>{page_title|default:'WMS'} — Warehouse Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        wms: {
-                            50: '#eef7ff',
-                            100: '#d8ebff',
-                            200: '#badcff',
-                            300: '#89c2ff',
-                            400: '#529eff',
-                            500: '#2a78f6',
-                            600: '#1d5fe8',
-                            700: '#174bcf',
-                            800: '#193fa7',
-                            900: '#1a387f'
-                        }
-                    }
-                }
-            }
-        };
-        async function wmsPost(url, data, onSuccess) {
-            const headers = {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{csrf_token}'};
-            const body = JSON.stringify(data || {});
-            const res = await fetch(url, {method: 'POST', headers, body});
-            const json = await res.json();
-            if (!json.ok) {
-                alert(json.error || 'Request failed');
-                return;
-            }
-            if (typeof onSuccess === 'function') {
-                onSuccess(json);
-            } else {
-                window.location.reload();
-            }
-        }
-    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
-        body,
-        main,
-        main input,
-        main select,
-        main textarea,
-        main table,
-        main button {
-            color: #0f172a;
-        }
-
-        main input::placeholder,
-        main textarea::placeholder {
-            color: #64748b;
-        }
+        * { border-radius: 4px !important; }
+        @media print { .no-print { display: none !important; } }
     </style>
-    {block head}{/block}
 </head>
-<body class="bg-slate-50 min-h-screen text-slate-900" x-data="{ sidebarOpen: true }">
-    <div class="flex min-h-screen">
-        <aside class="hidden lg:flex lg:flex-col bg-slate-900 text-slate-200 transition-all duration-150" :class="sidebarOpen ? 'w-64' : 'w-20'">
-            <div class="h-16 px-4 flex items-center border-b border-slate-800 gap-3">
-                <div class="w-9 h-9 rounded-xl bg-wms-500 text-white flex items-center justify-center font-bold">W</div>
-                <div x-show="sidebarOpen" x-cloak>
-                    <div class="font-semibold">Warehouse</div>
-                    <div class="text-xs text-slate-400">Management</div>
-                </div>
+<body class="bg-gray-50 min-h-screen">
+    {csrf_field | raw}
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-56 bg-slate-900 flex flex-col shrink-0">
+            <div class="p-4 border-b border-slate-700">
+                <h1 class="text-lg font-bold text-white">📦 WMS</h1>
+                <p class="text-xs text-slate-400">{current_user.full_name|default:''}</p>
             </div>
-            <nav class="flex-1 px-3 py-4 space-y-2">
-                <a href="{base_url}/wms" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'dashboard'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>📊</span>
-                    <span x-show="sidebarOpen" x-cloak>Dashboard</span>
+            <nav class="flex-1 overflow-y-auto p-2 space-y-0.5">
+                {for item in menu_items}
+                <a href="{item.path}"
+                   class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors {if page_content == item.label|lower}bg-slate-700 text-white{/if}">
+                    <span>{item.icon}</span>
+                    <span>{item.label}</span>
                 </a>
-                <a href="{base_url}/wms/tasks" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'tasks'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>📋</span>
-                    <span x-show="sidebarOpen" x-cloak>Tasks</span>
-                </a>
-                <a href="{base_url}/wms/scanner" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'scanner_home'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>📱</span>
-                    <span x-show="sidebarOpen" x-cloak>Scanner</span>
-                </a>
-                <a href="{base_url}/wms/receiving" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'receiving'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>📥</span>
-                    <span x-show="sidebarOpen" x-cloak>Receiving</span>
-                </a>
-                <a href="{base_url}/wms/picking" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'picking'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>📦</span>
-                    <span x-show="sidebarOpen" x-cloak>Picking</span>
-                </a>
-                <a href="{base_url}/wms/inventory" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'inventory'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>🧮</span>
-                    <span x-show="sidebarOpen" x-cloak>Inventory</span>
-                </a>
-                <a href="{base_url}/wms/suppliers" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'suppliers'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>🏭</span>
-                    <span x-show="sidebarOpen" x-cloak>Suppliers</span>
-                </a>
-                <a href="{base_url}/wms/returns" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'returns'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>↩️</span>
-                    <span x-show="sidebarOpen" x-cloak>Returns</span>
-                </a>
-                <a href="{base_url}/wms/users" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'users'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>👤</span>
-                    <span x-show="sidebarOpen" x-cloak>Users</span>
-                </a>
-                <a href="{base_url}/wms/settings" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'settings'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>⚙️</span>
-                    <span x-show="sidebarOpen" x-cloak>Settings</span>
-                </a>
-                <a href="{base_url}/wms/account" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'account'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>🔐</span>
-                    <span x-show="sidebarOpen" x-cloak>My Account</span>
-                </a>
-                {if user.role == 'admin'}
-                <a href="{base_url}/wms/onboarding" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'onboarding'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>🧭</span>
-                    <span x-show="sidebarOpen" x-cloak>Onboarding</span>
-                </a>
-                {/if}
-                {if user.role == 'admin' || user.role == 'supervisor'}
-                <a href="{base_url}/wms/diagnostics" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'diagnostics'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>🩺</span>
-                    <span x-show="sidebarOpen" x-cloak>Diagnostics</span>
-                </a>
-                <a href="{base_url}/wms/financial" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm {if current_page == 'financial'}bg-slate-800 text-white{else}text-slate-300 hover:bg-slate-800{/if}">
-                    <span>💰</span>
-                    <span x-show="sidebarOpen" x-cloak>Financial</span>
-                </a>
-                {/if}
+                {/for}
             </nav>
-            <div class="px-4 py-4 border-t border-slate-800 text-xs text-slate-400" x-show="sidebarOpen" x-cloak>
-                Strategy: {wms_settings.picking_strategy}
+            <div class="p-3 border-t border-slate-700">
+                <a href="/wms/logout" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-700 transition-colors">
+                    <span>🚪</span> Logout
+                </a>
             </div>
         </aside>
-        <div class="flex-1 flex flex-col min-w-0">
-            <header class="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <button class="hidden lg:inline-flex text-slate-600 hover:text-slate-900" @click="sidebarOpen = !sidebarOpen">☰</button>
-                    <div>
-                        <div class="text-lg font-semibold text-slate-900">{page_title}</div>
-                        <div class="text-xs text-slate-600">Warehouse Management System</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-4 text-sm">
-                    <div class="text-slate-700">{if user.display_name}{user.display_name}{elseif user.name}{user.name}{else}User{/if}</div>
-                    <a href="{base_url}/wms/account" class="text-slate-600 hover:text-slate-900 font-medium">Account</a>
-                    <a href="{base_url}/wms/logout" class="text-wms-600 hover:text-wms-700 font-medium">Logout</a>
-                </div>
-            </header>
-            <main class="p-6 space-y-6">
-                {block content}{/block}
-            </main>
-        </div>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto p-6">
+            {page_body|raw}
+        </main>
     </div>
-    {block scripts}{/block}
 </body>
 </html>

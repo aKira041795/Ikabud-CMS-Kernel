@@ -33,7 +33,7 @@
                 </tr>
             </thead>
             <tbody>
-                {@each movements as m}
+                {each movements as m}
                 <tr class="border-t hover:bg-gray-50">
                     <td class="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{m.created_at}</td>
                     <td class="px-4 py-3">{m.product_name}<br><span class="text-xs text-gray-400">{m.sku}</span></td>
@@ -57,10 +57,10 @@
                     <td class="px-4 py-3 text-xs text-gray-500">{m.created_by_name ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400 max-w-xs truncate">{m.notes ?? m.reason ?? ''}</td>
                 </tr>
-                {@/each}
-                {@if count(movements) === 0}
+                {/each}
+                {if count(movements) === 0}
                 <tr><td colspan="11" class="px-4 py-8 text-center text-gray-400">No movements found.</td></tr>
-                {@/if}
+                {/if}
             </tbody>
         </table>
     </div>

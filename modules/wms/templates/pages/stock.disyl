@@ -14,9 +14,9 @@
                 <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
                 <select x-model="filterWarehouse" @@change="applyFilters()" class="border rounded px-3 py-2 text-sm">
                     <option value="">All Warehouses</option>
-                    {@each warehouses as w}
+                    {each warehouses as w}
                         <option value="{w.id}">{w.code} — {w.name}</option>
-                    {@/each}
+                    {/each}
                 </select>
             </div>
             <label class="flex items-center gap-2 text-sm">
@@ -45,7 +45,7 @@
                 </tr>
             </thead>
             <tbody>
-                {@each stock as s}
+                {each stock as s}
                 <tr class="border-t hover:bg-gray-50" :class="{'bg-red-50': s.qty_on_hand <= s.reorder_point && s.reorder_point > 0}">
                     <td class="px-4 py-3">{s.product_name}</td>
                     <td class="px-4 py-3 text-gray-500">{s.sku}</td>
@@ -57,10 +57,10 @@
                     <td class="px-4 py-3 text-right font-medium" :class="s.qty_on_hand - s.qty_reserved <= 0 ? 'text-red-600' : 'text-green-600'">{(s.qty_on_hand - s.qty_reserved)|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-gray-400">{s.qty_staged|number_format:4}</td>
                 </tr>
-                {@/each}
-                {@if count(stock) === 0}
+                {/each}
+                {if count(stock) === 0}
                 <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">No stock records found.</td></tr>
-                {@/if}
+                {/if}
             </tbody>
         </table>
     </div>
@@ -74,18 +74,18 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
                     <select x-model="receive.product_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select product...</option>
-                        {@each products as p}
+                        {each products as p}
                             <option value="{p.id}">{p.name} ({p.sku})</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
                     <select x-model="receive.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select warehouse...</option>
-                        {@each warehouses as w}
+                        {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
@@ -121,9 +121,9 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
                     <select x-model="transfer.product_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select product...</option>
-                        {@each products as p}
+                        {each products as p}
                             <option value="{p.id}">{p.name} ({p.sku})</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
@@ -159,18 +159,18 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
                     <select x-model="adjust.product_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select product...</option>
-                        {@each products as p}
+                        {each products as p}
                             <option value="{p.id}">{p.name} ({p.sku})</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
                     <select x-model="adjust.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select warehouse...</option>
-                        {@each warehouses as w}
+                        {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>

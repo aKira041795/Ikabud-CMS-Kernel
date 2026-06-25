@@ -18,7 +18,7 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {@each tasks as t}
+        {each tasks as t}
         <div class="bg-white rounded shadow border-l-4 p-4"
              :class="{'border-l-gray-400': t.priority==='low', 'border-l-blue-500': t.priority==='medium', 'border-l-amber-500': t.priority==='high', 'border-l-red-500': t.priority==='critical'}">
             <div class="flex items-start justify-between mb-2">
@@ -31,15 +31,15 @@
                 <div><span class="font-medium">Priority:</span> {t.priority}</div>
                 <div><span class="font-medium">Warehouse:</span> {t.warehouse_code}</div>
                 <div><span class="font-medium">Assigned:</span> {t.assigned_name ?? '—'}</div>
-                {@if t.description}
+                {if t.description}
                 <div class="text-gray-400 pt-1">{t.description}</div>
-                {@/if}
+                {/if}
             </div>
         </div>
-        {@/each}
-        {@if count(tasks) === 0}
+        {/each}
+        {if count(tasks) === 0}
         <div class="col-span-3 py-12 text-center text-gray-400">No tasks found.</div>
-        {@/if}
+        {/if}
     </div>
 
     <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
@@ -50,9 +50,9 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
                     <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select...</option>
-                        {@each warehouses as w}
+                        {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
@@ -84,9 +84,9 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Assigned To</label>
                     <select x-model="form.assigned_to" class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Unassigned</option>
-                        {@each users as u}
+                        {each users as u}
                             <option value="{u.id}">{u.full_name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>

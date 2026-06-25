@@ -29,7 +29,7 @@
                 </tr>
             </thead>
             <tbody>
-                {@each cycle_counts as cc}
+                {each cycle_counts as cc}
                 <tr class="border-t hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium">{cc.count_number}</td>
                     <td class="px-4 py-3 text-xs">{cc.count_type}</td>
@@ -42,10 +42,10 @@
                     <td class="px-4 py-3 text-sm">{cc.scheduled_at ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{cc.completed_at ?? '—'}</td>
                 </tr>
-                {@/each}
-                {@if count(cycle_counts) === 0}
+                {/each}
+                {if count(cycle_counts) === 0}
                 <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No cycle counts found.</td></tr>
-                {@/if}
+                {/if}
             </tbody>
         </table>
     </div>
@@ -58,9 +58,9 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
                     <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select...</option>
-                        {@each warehouses as w}
+                        {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
@@ -78,9 +78,9 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Assigned To</label>
                     <select x-model="form.assigned_to" class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Unassigned</option>
-                        {@each users as u}
+                        {each users as u}
                             <option value="{u.id}">{u.full_name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>

@@ -31,7 +31,7 @@
                 </tr>
             </thead>
             <tbody>
-                {@each production_orders as po}
+                {each production_orders as po}
                 <tr class="border-t hover:bg-gray-50">
                     <td class="px-4 py-3 font-medium">{po.order_number}</td>
                     <td class="px-4 py-3 text-sm">{po.recipe_name}</td>
@@ -45,10 +45,10 @@
                     <td class="px-4 py-3 text-right font-medium">{po.quantity_produced|number_format:4}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{po.completed_at ?? '—'}</td>
                 </tr>
-                {@/each}
-                {@if count(production_orders) === 0}
+                {/each}
+                {if count(production_orders) === 0}
                 <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No production orders found.</td></tr>
-                {@/if}
+                {/if}
             </tbody>
         </table>
     </div>
@@ -61,18 +61,18 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Recipe *</label>
                     <select x-model="form.recipe_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select recipe...</option>
-                        {@each recipes as r}
+                        {each recipes as r}
                             <option value="{r.id}">{r.recipe_code} — {r.name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
                     <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select...</option>
-                        {@each warehouses as w}
+                        {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
-                        {@/each}
+                        {/each}
                     </select>
                 </div>
                 <div>
