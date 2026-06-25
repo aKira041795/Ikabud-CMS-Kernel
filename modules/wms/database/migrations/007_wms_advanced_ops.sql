@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS wms_return_items (
     product_id        INT UNSIGNED NOT NULL,
     batch_id          INT UNSIGNED NULL DEFAULT NULL,
     quantity          DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
-    condition         VARCHAR(30) NULL DEFAULT NULL COMMENT 'damaged, defective, good, expired',
+    `condition`       VARCHAR(30) NULL DEFAULT NULL COMMENT 'damaged, defective, good, expired',
     disposition       VARCHAR(50) NULL DEFAULT NULL COMMENT 'restock, scrap, return_to_supplier, donate',
     notes             TEXT NULL DEFAULT NULL,
     created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

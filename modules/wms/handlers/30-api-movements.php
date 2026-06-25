@@ -135,9 +135,9 @@ function wmsApiStockReceive(): void
         $stock = wmsDb()->query(
             'SELECT id, qty_on_hand FROM wms_stock
              WHERE product_id = :pid AND warehouse_id = :wid
-               AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-               AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-            [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $batchId]
+               AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+               AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+            [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $batchId, ':bid_null' => $batchId]
         )->fetch(\PDO::FETCH_ASSOC);
 
         if ($stock) {
@@ -216,8 +216,8 @@ function wmsApiStockTransfer(): void
     $stock = wmsDb()->query(
         'SELECT id, qty_on_hand, qty_reserved FROM wms_stock
          WHERE product_id = :pid AND warehouse_id = :wid AND location_id = :lid
-           AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-        [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $fromLocationId, ':bid' => $batchId]
+           AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+        [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $fromLocationId, ':bid' => $batchId, ':bid_null' => $batchId]
     )->fetch(\PDO::FETCH_ASSOC);
     if (!$stock) wmsJsonError('No stock at source location.', 404);
 
@@ -235,8 +235,8 @@ function wmsApiStockTransfer(): void
         $destStock = wmsDb()->query(
             'SELECT id, qty_on_hand FROM wms_stock
              WHERE product_id = :pid AND warehouse_id = :wid AND location_id = :lid
-               AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-            [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $toLocationId, ':bid' => $batchId]
+               AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+            [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $toLocationId, ':bid' => $batchId, ':bid_null' => $batchId]
         )->fetch(\PDO::FETCH_ASSOC);
 
         if ($destStock) {
@@ -296,9 +296,9 @@ function wmsApiStockAdjust(): void
     $stock = wmsDb()->query(
         'SELECT id, qty_on_hand, qty_reserved FROM wms_stock
          WHERE product_id = :pid AND warehouse_id = :wid
-           AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-           AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-        [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $batchId]
+           AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+           AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+        [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $batchId, ':bid_null' => $batchId]
     )->fetch(\PDO::FETCH_ASSOC);
 
     wmsDb()->beginTransaction();
@@ -313,12 +313,12 @@ function wmsApiStockAdjust(): void
                 $movementType = $diff > 0 ? 'adjustment_up' : 'adjustment_down';
                 wmsDb()->execute(
                     'INSERT INTO wms_stock_movements (product_id, warehouse_id, to_location_id, batch_id, movement_type, quantity, prev_qty_on_hand, new_qty_on_hand, reason, notes, created_by)
-                     VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :reason, :reason, :uid)',
+                     VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :reason, :reason_notes, :uid)',
                     [
                         ':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId,
                         ':bid' => $batchId, ':type' => $movementType, ':qty' => $diff,
                         ':prev' => $prevQty, ':new' => $newQty,
-                        ':reason' => $reason, ':uid' => (int)$user['id'],
+                        ':reason' => $reason, ':reason_notes' => $reason, ':uid' => (int)$user['id'],
                     ]
                 );
             }
@@ -334,12 +334,12 @@ function wmsApiStockAdjust(): void
             if ($newQty > 0) {
                 wmsDb()->execute(
                     'INSERT INTO wms_stock_movements (product_id, warehouse_id, to_location_id, batch_id, movement_type, quantity, prev_qty_on_hand, new_qty_on_hand, reason, notes, created_by)
-                     VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :reason, :reason, :uid)',
+                     VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :reason, :reason_notes, :uid)',
                     [
                         ':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId,
                         ':bid' => $batchId, ':type' => 'adjustment_up', ':qty' => $newQty,
                         ':prev' => 0, ':new' => $newQty,
-                        ':reason' => $reason, ':uid' => (int)$user['id'],
+                        ':reason' => $reason, ':reason_notes' => $reason, ':uid' => (int)$user['id'],
                     ]
                 );
             }
@@ -386,9 +386,9 @@ function wmsApiStockScrap(): void
     $stock = wmsDb()->query(
         'SELECT id, qty_on_hand FROM wms_stock
          WHERE product_id = :pid AND warehouse_id = :wid
-           AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-           AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-        [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $batchId]
+           AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+           AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+        [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $batchId, ':bid_null' => $batchId]
     )->fetch(\PDO::FETCH_ASSOC);
     if (!$stock) wmsJsonError('No stock record found.', 404);
     if ((float)$stock['qty_on_hand'] < $quantity) wmsJsonError('Insufficient stock to scrap.');
@@ -401,12 +401,12 @@ function wmsApiStockScrap(): void
 
         wmsDb()->execute(
             'INSERT INTO wms_stock_movements (product_id, warehouse_id, to_location_id, batch_id, movement_type, quantity, prev_qty_on_hand, new_qty_on_hand, reason, notes, created_by)
-             VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :reason, :reason, :uid)',
+             VALUES (:pid, :wid, :lid, :bid, :type, :qty, :prev, :new, :reason, :reason_notes, :uid)',
             [
                 ':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId,
                 ':bid' => $batchId, ':type' => 'scrap', ':qty' => -$quantity,
                 ':prev' => $prevQty, ':new' => $newQty,
-                ':reason' => $reason, ':uid' => (int)$user['id'],
+                ':reason' => $reason, ':reason_notes' => $reason, ':uid' => (int)$user['id'],
             ]
         );
 
@@ -472,94 +472,4 @@ function wmsApiAdjustmentReview(array $params): void
     );
 
     wmsJsonOk(['adjustment_id' => $id, 'status' => $newStatus]);
-}
-
-// ── Capability Implementations (replaces stubs in helpers.php) ──
-
-function wms_cap_stock_query_1(mixed $payload): ?array
-{
-    if (!is_array($payload)) return null;
-    $productId = (int)($payload['product_id'] ?? 0);
-    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
-
-    $sql = 'SELECT s.*, p.sku, p.name AS product_name, p.unit
-            FROM wms_stock s
-            JOIN wms_products p ON p.id = s.product_id
-            WHERE 1=1';
-    $params = [];
-    if ($productId) { $sql .= ' AND s.product_id = :pid'; $params[':pid'] = $productId; }
-    if ($warehouseId) { $sql .= ' AND s.warehouse_id = :wid'; $params[':wid'] = $warehouseId; }
-    $sql .= ' ORDER BY p.name ASC';
-
-    try {
-        $rows = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
-        return ['stock' => $rows];
-    } catch (\Throwable $e) {
-        return null;
-    }
-}
-
-function wms_cap_stock_reserve_1(mixed $payload): ?array
-{
-    if (!is_array($payload)) return null;
-    $productId = (int)($payload['product_id'] ?? 0);
-    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
-    $quantity = (float)($payload['quantity'] ?? 0);
-
-    if ($productId <= 0 || $warehouseId <= 0 || $quantity <= 0) return null;
-
-    try {
-        $stock = wmsDb()->query(
-            'SELECT id, qty_on_hand, qty_reserved FROM wms_stock
-             WHERE product_id = :pid AND warehouse_id = :wid
-             ORDER BY qty_on_hand - qty_reserved DESC LIMIT 1',
-            [':pid' => $productId, ':wid' => $warehouseId]
-        )->fetch(\PDO::FETCH_ASSOC);
-
-        if (!$stock) return ['reserved' => 0, 'message' => 'No stock available.'];
-
-        $available = (float)$stock['qty_on_hand'] - (float)$stock['qty_reserved'];
-        $toReserve = min($quantity, $available);
-        if ($toReserve <= 0) return ['reserved' => 0, 'message' => 'No available stock to reserve.'];
-
-        wmsDb()->execute(
-            'UPDATE wms_stock SET qty_reserved = qty_reserved + :qty WHERE id = :id',
-            [':qty' => $toReserve, ':id' => $stock['id']]
-        );
-
-        return ['reserved' => $toReserve, 'stock_id' => (int)$stock['id']];
-    } catch (\Throwable $e) {
-        return null;
-    }
-}
-
-function wms_cap_stock_release_1(mixed $payload): ?array
-{
-    if (!is_array($payload)) return null;
-    $productId = (int)($payload['product_id'] ?? 0);
-    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
-    $quantity = (float)($payload['quantity'] ?? 0);
-
-    if ($productId <= 0 || $warehouseId <= 0 || $quantity <= 0) return null;
-
-    try {
-        $stock = wmsDb()->query(
-            'SELECT id, qty_reserved FROM wms_stock
-             WHERE product_id = :pid AND warehouse_id = :wid AND qty_reserved > 0
-             ORDER BY qty_reserved DESC LIMIT 1',
-            [':pid' => $productId, ':wid' => $warehouseId]
-        )->fetch(\PDO::FETCH_ASSOC);
-
-        if (!$stock) return ['released' => 0, 'message' => 'No reserved stock found.'];
-
-        $toRelease = min($quantity, (float)$stock['qty_reserved']);
-        wmsDb()->execute(
-            'UPDATE wms_stock SET qty_reserved = qty_reserved - :qty WHERE id = :id',
-            [':qty' => $toRelease, ':id' => $stock['id']]
-        );
-
-        return ['released' => $toRelease, 'stock_id' => (int)$stock['id']];
-    } catch (\Throwable $e) {
-        return null;
-    }
 }

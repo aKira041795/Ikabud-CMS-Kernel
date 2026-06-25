@@ -169,9 +169,9 @@ function wmsApiDeliveryReceive(array $params): void
             // Add to stock
             $stock = wmsDb()->query(
                 'SELECT id, qty_on_hand FROM wms_stock WHERE product_id = :pid AND warehouse_id = :wid
-                 AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-                 AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-                [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $batchId]
+                 AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+                 AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+                [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $batchId, ':bid_null' => $batchId]
             )->fetch(\PDO::FETCH_ASSOC);
 
             if ($stock) {
@@ -542,9 +542,9 @@ function wmsApiPicklistPickItem(array $params): void
         $stock = wmsDb()->query(
             'SELECT id, qty_on_hand, qty_reserved FROM wms_stock
              WHERE product_id = :pid AND warehouse_id = :wid
-               AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-               AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-            [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $batchId]
+               AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+               AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+            [':pid' => $productId, ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $batchId, ':bid_null' => $batchId]
         )->fetch(\PDO::FETCH_ASSOC);
 
         if (!$stock) wmsJsonError('No stock record found.', 404);
@@ -759,85 +759,4 @@ function wmsApiPutawayRuleDelete(array $params): void
     $id = (int)($params['id'] ?? 0);
     wmsDb()->execute('DELETE FROM wms_putaway_rules WHERE id = :id', [':id' => $id]);
     wmsJsonOk(['putaway_rule_id' => $id]);
-}
-
-// ── Capability Implementations ──
-
-function wms_cap_order_create_1(mixed $payload): ?array
-{
-    if (!is_array($payload)) return null;
-
-    $items = $payload['items'] ?? [];
-    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
-    $customerEmail = trim((string)($payload['customer_email'] ?? ''));
-
-    if ($warehouseId <= 0 || !is_array($items) || count($items) === 0) return null;
-
-    try {
-        $orderNumber = 'API-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
-
-        wmsDb()->execute(
-            'INSERT INTO wms_orders (order_number, order_type, warehouse_id, status, customer_email, notes, created_by)
-             VALUES (:on, :ot, :wid, :status, :ce, :notes, :uid)',
-            [
-                ':on' => $orderNumber, ':ot' => 'sales_order', ':wid' => $warehouseId,
-                ':status' => 'pending', ':ce' => $customerEmail ?: null,
-                ':notes' => 'Created via API capability',
-                ':uid' => 0, // system
-            ]
-        );
-        $orderId = (int)wmsDb()->lastInsertId();
-
-        foreach ($items as $item) {
-            $pid = (int)($item['product_id'] ?? 0);
-            $qty = (float)($item['quantity'] ?? 0);
-            if ($pid <= 0 || $qty <= 0) continue;
-            wmsDb()->execute(
-                'INSERT INTO wms_order_items (order_id, product_id, quantity_ordered, status)
-                 VALUES (:oid, :pid, :qty, :status)',
-                [':oid' => $orderId, ':pid' => $pid, ':qty' => $qty, ':status' => 'pending']
-            );
-        }
-
-        return ['order_id' => $orderId, 'order_number' => $orderNumber];
-    } catch (\Throwable $e) {
-        return null;
-    }
-}
-
-function wms_cap_order_cancel_1(mixed $payload): ?array
-{
-    if (!is_array($payload)) return null;
-    $orderId = (int)($payload['order_id'] ?? 0);
-    if ($orderId <= 0) return null;
-
-    try {
-        $order = wmsDb()->query('SELECT id, status FROM wms_orders WHERE id = :id', [':id' => $orderId])->fetch(\PDO::FETCH_ASSOC);
-        if (!$order || in_array($order['status'], ['shipped', 'delivered', 'cancelled'], true)) {
-            return ['cancelled' => false, 'message' => 'Order cannot be cancelled.'];
-        }
-
-        $items = wmsDb()->query('SELECT product_id, quantity_picked FROM wms_order_items WHERE order_id = :oid', [':oid' => $orderId])->fetchAll(\PDO::FETCH_ASSOC);
-        foreach ($items as $item) {
-            $picked = (float)($item['quantity_picked'] ?? 0);
-            if ($picked > 0) {
-                $stockRows = wmsDb()->query(
-                    'SELECT id, qty_reserved FROM wms_stock WHERE product_id = :pid AND qty_reserved > 0 ORDER BY qty_reserved DESC',
-                    [':pid' => $item['product_id']]
-                )->fetchAll(\PDO::FETCH_ASSOC);
-                $toRelease = $picked;
-                foreach ($stockRows as $sr) {
-                    $rel = min($toRelease, (float)$sr['qty_reserved']);
-                    wmsDb()->execute('UPDATE wms_stock SET qty_reserved = qty_reserved - :rel WHERE id = :id', [':rel' => $rel, ':id' => $sr['id']]);
-                    $toRelease -= $rel;
-                    if ($toRelease <= 0) break;
-                }
-            }
-        }
-
-        wmsDb()->execute('UPDATE wms_orders SET status = :status WHERE id = :id', [':status' => 'cancelled', ':id' => $orderId]);
-        return ['cancelled' => true, 'order_id' => $orderId];
-    } catch (\Throwable $e) {
-        return null;
-    }
 }

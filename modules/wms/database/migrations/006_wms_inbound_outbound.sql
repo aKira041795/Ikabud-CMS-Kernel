@@ -1,6 +1,14 @@
 -- WMS Deliveries, Orders, Picklists, Shipments, Putaway Rules
 -- Phase 4: Inbound/Outbound Operations
 
+CREATE TABLE IF NOT EXISTS wms_idempotency_keys (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    idempotency_key   VARCHAR(255) NOT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wms_idempotency_key (idempotency_key),
+    INDEX idx_wms_idempotency_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS wms_deliveries (
     id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     supplier_id       INT UNSIGNED NULL DEFAULT NULL,

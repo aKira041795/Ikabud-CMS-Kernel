@@ -46,10 +46,15 @@ function wmsAuthLogin(): void
     }
 
     try {
-        $auth = app()->cap()->call('kernel.auth.authenticate@1', [
-            'username' => '@wms:' . $username,
+        $prefix = '@wms:';
+        $loginName = $username;
+        if (!str_starts_with($username, $prefix)) {
+            $loginName = '@wms:' . $username;
+        }
+        $auth = wms_cap_kernel_auth_authenticate_1([
+            'username' => $loginName,
             'password' => $password,
-        ], ['mode' => 'pipeline']);
+        ]);
     } catch (\Throwable $e) {
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Authentication temporarily unavailable.']);

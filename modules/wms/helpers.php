@@ -64,7 +64,144 @@ function wms_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId
     }
 }
 
-// ── Stock capability implementations live in handlers/30-api-movements.php ──
+// ── Stock capability handlers ──
+
+function wms_cap_stock_query_1(mixed $payload): ?array
+{
+    if (!is_array($payload)) return null;
+    $productId = (int)($payload['product_id'] ?? 0);
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+
+    $sql = 'SELECT s.*, p.sku, p.name AS product_name, p.unit
+            FROM wms_stock s
+            JOIN wms_products p ON p.id = s.product_id
+            WHERE 1=1';
+    $params = [];
+    if ($productId) { $sql .= ' AND s.product_id = :pid'; $params[':pid'] = $productId; }
+    if ($warehouseId) { $sql .= ' AND s.warehouse_id = :wid'; $params[':wid'] = $warehouseId; }
+    $sql .= ' ORDER BY p.name ASC';
+
+    try {
+        $rows = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+        return ['stock' => $rows];
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function wms_cap_stock_reserve_1(mixed $payload): ?array
+{
+    if (!is_array($payload)) return null;
+    $productId = (int)($payload['product_id'] ?? 0);
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+    $quantity = (float)($payload['quantity'] ?? 0);
+
+    if ($productId <= 0 || $warehouseId <= 0 || $quantity <= 0) return null;
+
+    try {
+        $stock = wmsDb()->query(
+            'SELECT id, qty_on_hand, qty_reserved FROM wms_stock
+             WHERE product_id = :pid AND warehouse_id = :wid
+             ORDER BY qty_on_hand - qty_reserved DESC LIMIT 1',
+            [':pid' => $productId, ':wid' => $warehouseId]
+        )->fetch(\PDO::FETCH_ASSOC);
+
+        if (!$stock) return ['reserved' => 0, 'message' => 'No stock available.'];
+        $available = (float)$stock['qty_on_hand'] - (float)$stock['qty_reserved'];
+        $toReserve = min($quantity, $available);
+        if ($toReserve <= 0) return ['reserved' => 0, 'message' => 'No available stock to reserve.'];
+
+        wmsDb()->execute('UPDATE wms_stock SET qty_reserved = qty_reserved + :qty WHERE id = :id', [':qty' => $toReserve, ':id' => $stock['id']]);
+        return ['reserved' => $toReserve, 'stock_id' => (int)$stock['id']];
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+function wms_cap_stock_release_1(mixed $payload): ?array
+{
+    if (!is_array($payload)) return null;
+    $productId = (int)($payload['product_id'] ?? 0);
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+    $quantity = (float)($payload['quantity'] ?? 0);
+
+    if ($productId <= 0 || $warehouseId <= 0 || $quantity <= 0) return null;
+
+    try {
+        $stock = wmsDb()->query(
+            'SELECT id, qty_reserved FROM wms_stock WHERE product_id = :pid AND warehouse_id = :wid AND qty_reserved > 0 ORDER BY qty_reserved DESC LIMIT 1',
+            [':pid' => $productId, ':wid' => $warehouseId]
+        )->fetch(\PDO::FETCH_ASSOC);
+        if (!$stock) return ['released' => 0, 'message' => 'No reserved stock found.'];
+
+        $toRelease = min($quantity, (float)$stock['qty_reserved']);
+        wmsDb()->execute('UPDATE wms_stock SET qty_reserved = qty_reserved - :qty WHERE id = :id', [':qty' => $toRelease, ':id' => $stock['id']]);
+        return ['released' => $toRelease, 'stock_id' => (int)$stock['id']];
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+// ── Order capability handlers ──
+
+function wms_cap_order_create_1(mixed $payload): ?array
+{
+    if (!is_array($payload)) return null;
+    $items = $payload['items'] ?? [];
+    $warehouseId = (int)($payload['warehouse_id'] ?? 0);
+    $customerEmail = trim((string)($payload['customer_email'] ?? ''));
+    if ($warehouseId <= 0 || !is_array($items) || count($items) === 0) return null;
+
+    try {
+        $orderNumber = 'API-' . date('Ymd') . '-' . strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+        wmsDb()->execute(
+            'INSERT INTO wms_orders (order_number, order_type, warehouse_id, status, customer_email, notes, created_by)
+             VALUES (:on, :ot, :wid, :status, :ce, :notes, :uid)',
+            [':on' => $orderNumber, ':ot' => 'sales_order', ':wid' => $warehouseId,
+             ':status' => 'pending', ':ce' => $customerEmail ?: null,
+             ':notes' => 'Created via API capability', ':uid' => 0]
+        );
+        $orderId = (int)wmsDb()->lastInsertId();
+        foreach ($items as $item) {
+            $pid = (int)($item['product_id'] ?? 0);
+            $qty = (float)($item['quantity'] ?? 0);
+            if ($pid <= 0 || $qty <= 0) continue;
+            wmsDb()->execute('INSERT INTO wms_order_items (order_id, product_id, quantity_ordered, status) VALUES (:oid, :pid, :qty, :status)',
+                [':oid' => $orderId, ':pid' => $pid, ':qty' => $qty, ':status' => 'pending']);
+        }
+        return ['order_id' => $orderId, 'order_number' => $orderNumber];
+    } catch (\Throwable $e) { return null; }
+}
+
+function wms_cap_order_cancel_1(mixed $payload): ?array
+{
+    if (!is_array($payload)) return null;
+    $orderId = (int)($payload['order_id'] ?? 0);
+    if ($orderId <= 0) return null;
+
+    try {
+        $order = wmsDb()->query('SELECT id, status FROM wms_orders WHERE id = :id', [':id' => $orderId])->fetch(\PDO::FETCH_ASSOC);
+        if (!$order || in_array($order['status'], ['shipped', 'delivered', 'cancelled'], true))
+            return ['cancelled' => false, 'message' => 'Order cannot be cancelled.'];
+
+        $items = wmsDb()->query('SELECT product_id, quantity_picked FROM wms_order_items WHERE order_id = :oid', [':oid' => $orderId])->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($items as $item) {
+            $picked = (float)($item['quantity_picked'] ?? 0);
+            if ($picked > 0) {
+                $stockRows = wmsDb()->query('SELECT id, qty_reserved FROM wms_stock WHERE product_id = :pid AND qty_reserved > 0 ORDER BY qty_reserved DESC', [':pid' => $item['product_id']])->fetchAll(\PDO::FETCH_ASSOC);
+                $toRelease = $picked;
+                foreach ($stockRows as $sr) {
+                    $rel = min($toRelease, (float)$sr['qty_reserved']);
+                    wmsDb()->execute('UPDATE wms_stock SET qty_reserved = qty_reserved - :rel WHERE id = :id', [':rel' => $rel, ':id' => $sr['id']]);
+                    $toRelease -= $rel;
+                    if ($toRelease <= 0) break;
+                }
+            }
+        }
+        wmsDb()->execute('UPDATE wms_orders SET status = :status WHERE id = :id', [':status' => 'cancelled', ':id' => $orderId]);
+        return ['cancelled' => true, 'order_id' => $orderId];
+    } catch (\Throwable $e) { return null; }
+}
 
 // ── Core helpers ──
 

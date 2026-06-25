@@ -181,10 +181,10 @@ function wmsApiCycleCountComplete(array $params): void
                 // Update stock
                 $stock = wmsDb()->query(
                     'SELECT id, qty_on_hand FROM wms_stock WHERE product_id = :pid AND warehouse_id = :wid
-                     AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-                     AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
+                     AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+                     AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
                     [':pid' => $item['product_id'], ':wid' => $warehouseId,
-                     ':lid' => $item['location_id'], ':bid' => $item['batch_id']]
+                     ':lid' => $item['location_id'], ':lid_null' => $item['location_id'], ':bid' => $item['batch_id'], ':bid_null' => $item['batch_id']]
                 )->fetch(\PDO::FETCH_ASSOC);
 
                 if ($stock) {
@@ -403,9 +403,9 @@ function wmsApiReturnProcess(array $params): void
                 if ($action === 'restock') {
                     $stock = wmsDb()->query(
                         'SELECT id, qty_on_hand FROM wms_stock WHERE product_id = :pid AND warehouse_id = :wid
-                         AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-                         AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-                        [':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $locationId, ':bid' => $item['batch_id']]
+                         AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+                         AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+                        [':pid' => $item['product_id'], ':wid' => $warehouseId, ':lid' => $locationId, ':lid_null' => $locationId, ':bid' => $item['batch_id'], ':bid_null' => $item['batch_id']]
                     )->fetch(\PDO::FETCH_ASSOC);
 
                     if ($stock) {
@@ -858,9 +858,9 @@ function wmsApiProductionOrderComplete(array $params): void
         // Add output product to stock
         $stock = wmsDb()->query(
             'SELECT id, qty_on_hand FROM wms_stock WHERE product_id = :pid AND warehouse_id = :wid
-             AND (location_id = :lid OR (:lid IS NULL AND location_id IS NULL))
-             AND (batch_id = :bid OR (:bid IS NULL AND batch_id IS NULL))',
-            [':pid' => $po['product_id'], ':wid' => $warehouseId, ':lid' => $outputLocationId, ':bid' => $outputBatchId]
+             AND (location_id = :lid OR (:lid_null IS NULL AND location_id IS NULL))
+             AND (batch_id = :bid OR (:bid_null IS NULL AND batch_id IS NULL))',
+            [':pid' => $po['product_id'], ':wid' => $warehouseId, ':lid' => $outputLocationId, ':lid_null' => $outputLocationId, ':bid' => $outputBatchId, ':bid_null' => $outputBatchId]
         )->fetch(\PDO::FETCH_ASSOC);
 
         if ($stock) {
