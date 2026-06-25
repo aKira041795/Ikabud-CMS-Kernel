@@ -9,6 +9,7 @@ function bakeshopProductionSelectColumns(): string
             pr.product_id,
             pr.produced_at,
             pr.qty_produced,
+            pr.days_worth,
             pr.produced_by,
             pr.notes,
             pr.voided_at,
@@ -30,6 +31,7 @@ function bakeshopProductionGroupByColumns(): string
             pr.product_id,
             pr.produced_at,
             pr.qty_produced,
+            pr.days_worth,
             pr.produced_by,
             pr.notes,
             pr.voided_at,
@@ -134,6 +136,16 @@ function bakeshopProductionCreate(array $input): array
     $producedBy = trim((string)($input['produced_by'] ?? ''));
     $notes = trim((string)($input['notes'] ?? ''));
 
+    $daysWorthRaw = $input['days_worth'] ?? null;
+    if ($daysWorthRaw !== null && (string)$daysWorthRaw !== '') {
+        if (!is_numeric($daysWorthRaw) || (float)$daysWorthRaw <= 0) {
+            throw new InvalidArgumentException('days_worth must be a positive number.');
+        }
+        $daysWorth = number_format((float)$daysWorthRaw, 4, '.', '');
+    } else {
+        $daysWorth = '1.0000';
+    }
+
     $product = bakeshopCatalogFetchOne(
         'SELECT id, name, default_yield_qty, default_yield_unit_id FROM bakeshop_products WHERE id = :id LIMIT 1',
         [':id' => $productId]
@@ -170,14 +182,15 @@ function bakeshopProductionCreate(array $input): array
 
     try {
         $stmt = $db->prepare(
-            'INSERT INTO bakeshop_production_runs (branch_id, product_id, produced_at, qty_produced, produced_by, notes)
-             VALUES (:branch_id, :product_id, :produced_at, :qty_produced, :produced_by, :notes)'
+            'INSERT INTO bakeshop_production_runs (branch_id, product_id, produced_at, qty_produced, days_worth, produced_by, notes)
+             VALUES (:branch_id, :product_id, :produced_at, :qty_produced, :days_worth, :produced_by, :notes)'
         );
         $stmt->execute([
             ':branch_id' => $branchId,
             ':product_id' => $productId,
             ':produced_at' => $producedAt->format('Y-m-d H:i:s'),
             ':qty_produced' => $qtyProduced,
+            ':days_worth' => $daysWorth,
             ':produced_by' => $producedBy !== '' ? $producedBy : null,
             ':notes' => $notes !== '' ? $notes : null,
         ]);
@@ -300,19 +313,35 @@ function bakeshopProductionUpdate(array $input): array
     $producedBy = trim((string)($input['produced_by'] ?? ''));
     $notes = trim((string)($input['notes'] ?? ''));
 
-    $stmt = bakeshopDb()->prepare(
-        'UPDATE bakeshop_production_runs
-         SET produced_at = :produced_at,
-             produced_by = :produced_by,
-             notes = :notes
-         WHERE id = :id'
-    );
-    $stmt->execute([
+    $daysWorthRaw = $input['days_worth'] ?? null;
+    if ($daysWorthRaw !== null && (string)$daysWorthRaw !== '') {
+        if (!is_numeric($daysWorthRaw) || (float)$daysWorthRaw <= 0) {
+            throw new InvalidArgumentException('days_worth must be a positive number.');
+        }
+        $daysWorth = number_format((float)$daysWorthRaw, 4, '.', '');
+    } else {
+        $daysWorth = null;
+    }
+
+    $updateFields = 'produced_at = :produced_at, produced_by = :produced_by, notes = :notes';
+    $updateBindings = [
         ':id' => $id,
         ':produced_at' => $producedAt->format('Y-m-d H:i:s'),
         ':produced_by' => $producedBy !== '' ? $producedBy : null,
         ':notes' => $notes !== '' ? $notes : null,
-    ]);
+    ];
+
+    if ($daysWorth !== null) {
+        $updateFields .= ', days_worth = :days_worth';
+        $updateBindings[':days_worth'] = $daysWorth;
+    }
+
+    $stmt = bakeshopDb()->prepare(
+        'UPDATE bakeshop_production_runs
+         SET ' . $updateFields . '
+         WHERE id = :id'
+    );
+    $stmt->execute($updateBindings);
 
     $updatedRun = bakeshopProductionFindById($id, true) ?? $run;
 

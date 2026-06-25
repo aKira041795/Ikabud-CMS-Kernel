@@ -22,4 +22,5 @@ require_once __DIR__ . '/handlers/45-api-inventory-adjustments.php';
 require_once __DIR__ . '/handlers/50-api-usage-report.php';
 require_once __DIR__ . '/handlers/55-api-dr-projection.php';
 require_once __DIR__ . '/handlers/56-api-suggested-reorder.php';
+require_once __DIR__ . '/handlers/57-api-product-coverage.php';
 require_once __DIR__ . '/handlers/60-users.php';

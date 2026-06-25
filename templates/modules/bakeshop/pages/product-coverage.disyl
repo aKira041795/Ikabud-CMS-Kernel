@@ -1,0 +1,207 @@
+{extends "modules/bakeshop/layouts/app.disyl"}
+
+{block head}
+<style>
+    .bs-cov-shell { display: grid; gap: 20px; }
+    .bs-cov-header { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+    .bs-cov-header h2 { margin: 0 0 6px; font-size: var(--font-size-h2); }
+    .bs-cov-header p { margin: 0; color: var(--text-muted); max-width: 56rem; }
+    .bs-cov-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .bs-cov-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        border-radius: 10px; border: 1px solid #1d4ed8; background: #2563eb; color: #fff;
+        padding: 10px 16px; text-decoration: none; font-size: 0.92rem; cursor: pointer;
+    }
+    .bs-cov-btn:hover { background: #1d4ed8; }
+    .bs-cov-btn.secondary { border-color: var(--border-color); background: #fff; color: var(--text-color); }
+    .bs-cov-panel {
+        border: 1px solid var(--border-color); border-radius: 14px;
+        background: var(--surface-color, #fff); overflow: hidden;
+        box-shadow: 0 14px 32px rgba(37, 99, 235, 0.05);
+    }
+    .bs-cov-panel-head { padding: 18px 20px 12px; border-bottom: 1px solid color-mix(in srgb, var(--border-color) 85%, transparent); }
+    .bs-cov-panel-head h3 { margin: 0 0 6px; }
+    .bs-cov-panel-head p { margin: 0; color: var(--text-muted); }
+    .bs-cov-panel-body { padding: 18px 20px 20px; display: grid; gap: 16px; }
+    .bs-cov-filters { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .bs-cov-field { display: grid; gap: 6px; }
+    .bs-cov-field label { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bs-cov-field input, .bs-cov-field select { width: 100%; border-radius: 12px; border: 1px solid var(--border-color); padding: 11px 12px; background: #fff; }
+    .bs-cov-summary-cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+    .bs-cov-summary-card { border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; background: #fff; }
+    .bs-cov-summary-card strong { display: block; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bs-cov-summary-card .value { margin-top: 6px; font-size: 1.4rem; font-weight: 700; }
+    .bs-cov-summary-card .value.ok { color: #059669; }
+    .bs-cov-summary-card .value.warn { color: #d97706; }
+    .bs-cov-summary-card .value.danger { color: #dc2626; }
+    .bs-cov-table-wrap { overflow: auto; }
+    .bs-cov-table { width: 100%; border-collapse: collapse; }
+    .bs-cov-table th, .bs-cov-table td { padding: 13px 14px; border-bottom: 1px solid var(--border-color); text-align: left; vertical-align: middle; }
+    .bs-cov-table th { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); white-space: nowrap; }
+    .bs-cov-table tr:last-child td { border-bottom: none; }
+    .bs-cov-table tr:hover td { background: #f8fafc; }
+    .bs-cov-empty { padding: 18px; border-radius: 12px; background: #f8fafc; color: var(--text-muted); }
+    .bs-cov-badge {
+        display: inline-block; padding: 3px 10px; border-radius: 999px;
+        font-size: 0.78rem; font-weight: 600; white-space: nowrap;
+    }
+    .bs-cov-badge.surplus { background: #d1fae5; color: #065f46; }
+    .bs-cov-badge.deficit { background: #fee2e2; color: #991b1b; }
+    .bs-cov-badge.balanced { background: #e0e7ff; color: #3730a3; }
+    .bs-cov-badge.none { background: #f3f4f6; color: #6b7280; }
+    .bs-cov-meta { color: var(--text-muted); font-size: 0.84rem; }
+    @media (max-width: 980px) { .bs-cov-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 680px) { .bs-cov-filters { grid-template-columns: 1fr; } }
+</style>
+{/block}
+
+{block content}
+<div class="bs-cov-shell">
+    <div class="bs-cov-header">
+        <div>
+            <h2>{page_title}</h2>
+            <p>{page_intro}</p>
+        </div>
+        <div class="bs-cov-actions">
+            <a class="bs-cov-btn secondary" href="{base_url}{workspace_overview_url}">Back to Workspace</a>
+        </div>
+    </div>
+
+    <section class="bs-cov-panel">
+        <div class="bs-cov-panel-head">
+            <h3>Filter Coverage</h3>
+            <p>Choose a branch and delivery cycle. The report compares commissary product allocations against actual production days.</p>
+        </div>
+        <div class="bs-cov-panel-body">
+            <form method="get" action="{base_url}/admin/bakeshop/coverage" class="bs-cov-filters">
+                <div class="bs-cov-field">
+                    <label for="cov-branch">Branch</label>
+                    <select id="cov-branch" name="branch_id">
+                        <option value="">All branches</option>
+                        {foreach branches as branch}
+                        <option value="{branch.id}" {if filters.branch_id == branch.id}selected{/if}>{branch.code} - {branch.name}</option>
+                        {/foreach}
+                    </select>
+                </div>
+                <div class="bs-cov-field">
+                    <label for="cov-from">Cycle From</label>
+                    <input id="cov-from" name="from_date" type="date" value="{filters.from_date}">
+                </div>
+                <div class="bs-cov-field">
+                    <label for="cov-to">Cycle To</label>
+                    <input id="cov-to" name="to_date" type="date" value="{filters.to_date}">
+                </div>
+                <div class="bs-cov-actions" style="grid-column: 1 / -1;">
+                    <button class="bs-cov-btn" type="submit">Run Report</button>
+                    <a class="bs-cov-btn secondary" href="{base_url}/admin/bakeshop/coverage">Reset</a>
+                </div>
+            </form>
+
+            {if error_message}
+            <div class="bs-cov-empty" style="color: #991b1b; background: #fff3f2; padding: 14px 16px;">{error_message}</div>
+            {else}
+            {if report.products | count == 0}
+                {if report.products | count == 0 && report.branch_id !== null}
+                <div class="bs-cov-empty">No production records or commissary allocations found for this branch and date range.</div>
+                {else}
+                <div class="bs-cov-empty">Select a branch and date range, then run the report.</div>
+                {/if}
+            {else}
+            <div class="bs-cov-summary-cards">
+                <div class="bs-cov-summary-card">
+                    <strong>Branch</strong>
+                    <div class="value">{report.branch_name}</div>
+                </div>
+                <div class="bs-cov-summary-card">
+                    <strong>Allocated Products</strong>
+                    <div class="value">{report.summary.allocated}</div>
+                </div>
+
+                <div class="bs-cov-summary-card">
+                    <strong>Cycle</strong>
+                    <div class="value">{report.from_date} – {report.to_date}</div>
+                </div>
+                <div class="bs-cov-summary-card">
+                    <strong>Surplus</strong>
+                    <div class="value ok">{report.summary.surplus_count}</div>
+                </div>
+                <div class="bs-cov-summary-card">
+                    <strong>Deficit</strong>
+                    <div class="value danger">{report.summary.deficit_count}</div>
+                </div>
+            </div>
+
+            <!-- Per-product ledger view -->
+            {foreach report.products as product}
+            <div class="bs-cov-panel" style="box-shadow: none; border: 1px solid color-mix(in srgb, var(--border-color) 75%, transparent);">
+                <div class="bs-cov-panel-head" style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div>
+                        <h3 style="margin: 0; font-size: 1.1rem;">{product.product_name}</h3>
+                        <p style="margin: 2px 0 0; color: var(--text-muted); font-size: 0.88rem;">
+                            Allocated: <strong>{product.days_allocated_label}</strong>
+                            &middot; Produced: <strong>{product.production_days_label}</strong>
+                            &middot; Remaining: <strong>{product.remaining_label}</strong>
+                            &middot; <span class="bs-cov-badge {product.status}" style="font-size:0.72rem;">{product.status}</span>
+                        </p>
+                    </div>
+                </div>
+                <div class="bs-cov-panel-body" style="padding: 0;">
+                    <div class="bs-cov-table-wrap">
+                        <table class="bs-cov-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 130px;">Date</th>
+                                    <th style="width: 110px;">Type</th>
+                                    <th>Days</th>
+                                    <th style="width: 130px;">Balance</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {if product.ledger | count == 0}
+                                <tr>
+                                    <td colspan="5" class="bs-cov-meta" style="padding: 14px; text-align: center;">No ledger entries for this product in the selected cycle.</td>
+                                </tr>
+                                {else}
+                                {set running = 0}
+                                {foreach product.ledger as entry}
+                                <tr>
+                                    <td>{entry.date}</td>
+                                    <td>
+                                        <span class="bs-cov-badge {if entry.type == 'allocation'}surplus{else}deficit{/if}" style="font-size:0.72rem;">{entry.type_label}</span>
+                                    </td>
+                                    <td style="font-weight: 600;">{entry.days_display}</td>
+                                    <td style="font-weight: 700;">{entry.balance_display}</td>
+                                    <td class="bs-cov-meta">{entry.notes | default:''}</td>
+                                </tr>
+                                {/foreach}
+                                {/if}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2"><strong>Total</strong></td>
+                                    <td><strong>{if product.total_days_allocated > 0}+{/if}{product.total_days_allocated | number_format:1} / &minus;{product.production_days | number_format:1}</strong></td>
+                                    <td><strong>{product.remaining_label}</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {/foreach}
+
+            <div class="bs-cov-meta" style="padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 12px; background: #fff; line-height: 1.55;">
+                <strong>Ledger guide:</strong> <strong>Allocation</strong> entries (green) add days — commissary delivered pre-packed ingredients worth that many production days. <strong>Production</strong> entries (red) subtract days — bakery logged production runs. <strong>Balance</strong> is the running total. A positive balance at cycle end means surplus stock available for next week's reorder. A negative balance means production exceeded delivery — scale up next reorder.
+            </div>
+
+            <div class="bs-cov-actions">
+                <a class="bs-cov-btn secondary" href="{base_url}/admin/bakeshop/coverage/print?branch_id={filters.branch_id}&from_date={filters.from_date}&to_date={filters.to_date}" target="_blank" rel="noopener">Print / PDF</a>
+                <a class="bs-cov-btn secondary" href="{base_url}/admin/bakeshop/coverage/csv?branch_id={filters.branch_id}&from_date={filters.from_date}&to_date={filters.to_date}">Download CSV</a>
+            </div>
+            {/if}
+            {/if}
+        </div>
+    </section>
+</div>
+{/block}

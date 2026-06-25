@@ -1,0 +1,220 @@
+{extends "modules/bakeshop/layouts/app.disyl"}
+
+{block head}
+<style>
+    .bs-wk-shell { display: grid; gap: 16px; }
+    .bs-wk-header { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+    .bs-wk-header h2 { margin: 0 0 4px; font-size: var(--font-size-h2); }
+    .bs-wk-header p { margin: 0; color: var(--text-muted); }
+    .bs-wk-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; border: 1px solid #1d4ed8; background: #2563eb; color: #fff; padding: 10px 20px; text-decoration: none; font-size: 0.92rem; cursor: pointer; }
+    .bs-wk-btn:hover { background: #1d4ed8; }
+    .bs-wk-btn.secondary { border-color: var(--border-color); background: #fff; color: var(--text-color); }
+    .bs-wk-btn.green { background: #059669; border-color: #047857; }
+    .bs-wk-btn.green:hover { background: #047857; }
+    .bs-wk-panel { border: 1px solid var(--border-color); border-radius: 14px; background: var(--surface-color, #fff); overflow: hidden; }
+    .bs-wk-pad { padding: 16px 20px; }
+    .bs-wk-filters { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+    .bs-wk-field { display: grid; gap: 4px; }
+    .bs-wk-field label { font-size: 0.76rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+    .bs-wk-field input, .bs-wk-field select { width: 100%; border-radius: 10px; border: 1px solid var(--border-color); padding: 10px 12px; background: #fff; }
+    .bs-wk-table-wrap { overflow-x: auto; }
+    .bs-wk-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .bs-wk-table th, .bs-wk-table td { padding: 8px 10px; border: 1px solid #e5e7eb; text-align: center; vertical-align: middle; }
+    .bs-wk-table th { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); background: #f8fafc; white-space: nowrap; }
+    .bs-wk-table td:first-child { text-align: left; font-weight: 600; white-space: nowrap; }
+    .bs-wk-table input { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; text-align: center; font-size: 0.88rem; width: 55px; }
+    .bs-wk-table input:focus { border-color: #2563eb; outline: none; box-shadow: 0 0 0 2px rgba(37,99,235,0.15); }
+    .bs-wk-empty { padding: 18px; color: var(--text-muted); background: #f8fafc; border-radius: 10px; }
+    .bs-wk-error { padding: 12px 16px; border-radius: 10px; background: #fff3f2; border: 1px solid #fecaca; color: #991b1b; }
+    .bs-wk-surplus { color: #059669; font-weight: 700; }
+    .bs-wk-deficit { color: #dc2626; font-weight: 700; }
+    .bs-wk-muted { color: var(--text-muted); font-size: 0.82rem; }
+    .bs-wk-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    @media (max-width: 900px) { .bs-wk-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
+<script>
+function bsLedgerAutoSave(input) {
+    var val = input.value.trim();
+    var name = input.name;
+    var form = input.closest('form');
+    var token = form.querySelector('input[name="_token"]').value;
+    var branchId = form.querySelector('input[name="branch_id"]').value;
+    var fromDate = form.querySelector('input[name="from_date"]').value;
+    var toDate = form.querySelector('input[name="to_date"]').value;
+
+    var data = {
+        _token: token,
+        _action: 'single_save',
+        branch_id: branchId,
+        from_date: fromDate,
+        to_date: toDate,
+        value: val
+    };
+
+    // Parse field name: alloc[PRODUCT_ID] or prod[PRODUCT_ID][DATE]
+    var allocMatch = name.match(/^alloc\[(\d+)\]$/);
+    var prodMatch = name.match(/^prod\[(\d+)\]\[(.+)\]$/);
+
+    if (allocMatch) {
+        data.cell_type = 'alloc';
+        data.product_id = allocMatch[1];
+    } else if (prodMatch) {
+        data.cell_type = 'prod';
+        data.product_id = prodMatch[1];
+        data.date = prodMatch[2];
+    } else {
+        return;
+    }
+
+    // Update row totals immediately (client-side)
+    var row = input.closest('tr');
+    if (row) {
+        bsLedgerRecalcRow(row);
+    }
+
+    // Send AJAX
+    fetch(form.action, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams(data)
+    }).then(function(r) { return r.json(); }).then(function(j) {
+        if (!j.ok) { console.warn('Save error:', j.error); }
+    }).catch(function(e) { console.warn('Save failed:', e); });
+}
+
+function bsLedgerRecalcRow(row) {
+    var inputs = row.querySelectorAll('input[name^="prod["]');
+    var allocInput = row.querySelector('input[name^="alloc["]');
+    var total = 0;
+    var count = 0;
+    inputs.forEach(function(inp) {
+        var v = parseFloat(inp.value);
+        if (!isNaN(v) && v > 0) { total += v; count++; }
+    });
+    var allocVal = allocInput ? parseFloat(allocInput.value) : 0;
+    if (isNaN(allocVal)) allocVal = 0;
+
+    // Update Total cell (2nd from last)
+    var cells = row.querySelectorAll('td');
+    if (cells.length >= 3) {
+        var totalCell = cells[cells.length - 2];
+        totalCell.textContent = total.toFixed(1) + ' days';
+        var remCell = cells[cells.length - 1];
+        var rem = allocVal - total;
+        var remText = rem >= 0 ? '+' + rem.toFixed(1) : rem.toFixed(1);
+        remCell.textContent = remText;
+        remCell.className = '';
+        if (rem >= 2) remCell.className = 'bs-wk-surplus';
+        else if (rem <= -0.5) remCell.className = 'bs-wk-deficit';
+    }
+}
+
+// Wire up auto-save on all ledger inputs
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.bs-wk-table input[type="number"]').forEach(function(inp) {
+        inp.addEventListener('change', function() { bsLedgerAutoSave(this); });
+    });
+});
+</script>
+{/block}
+
+{block content}
+<div class="bs-wk-shell">
+    <div class="bs-wk-header">
+        <div>
+            <h2>{page_title}</h2>
+            <p>{page_intro}</p>
+        </div>
+        <div class="bs-wk-actions">
+            <a class="bs-wk-btn secondary" href="{base_url}/admin/bakeshop/coverage">Coverage Report</a>
+            <a class="bs-wk-btn secondary" href="{base_url}/admin/bakeshop/coverage/print?branch_id={filters.branch_id}&from_date={filters.from_date}&to_date={filters.to_date}" target="_blank" rel="noopener">Print Full Report</a>
+        </div>
+    </div>
+
+    {if error_message}
+    <div class="bs-wk-error">{error_message}</div>
+    {/if}
+
+    <div class="bs-wk-panel">
+        <div class="bs-wk-pad" style="border-bottom: 1px solid var(--border-color);">
+            <form method="get" action="{base_url}/admin/bakeshop/ledger">
+                <div class="bs-wk-filters">
+                    <div class="bs-wk-field">
+                        <label>Branch</label>
+                        <select name="branch_id">
+                            <option value="">Select</option>
+                            {foreach branches as branch}
+                            <option value="{branch.id}" {if filters.branch_id == branch.id}selected{/if}>{branch.code} - {branch.name}</option>
+                            {/foreach}
+                        </select>
+                    </div>
+                    <div class="bs-wk-field">
+                        <label>From</label>
+                        <input name="from_date" type="date" value="{filters.from_date}">
+                    </div>
+                    <div class="bs-wk-field">
+                        <label>To</label>
+                        <input name="to_date" type="date" value="{filters.to_date}">
+                    </div>
+                    <div class="bs-wk-field" style="align-self: end;">
+                        <button class="bs-wk-btn" type="submit">Open</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {if filters.branch_id != ''}
+        <form method="post" action="{base_url}/admin/bakeshop/ledger">
+            <input type="hidden" name="_token" value="{csrf_token}">
+            <input type="hidden" name="_action" value="batch_save">
+            <input type="hidden" name="branch_id" value="{filters.branch_id}">
+            <input type="hidden" name="from_date" value="{filters.from_date}">
+            <input type="hidden" name="to_date" value="{filters.to_date}">
+
+            <div class="bs-wk-table-wrap">
+                <table class="bs-wk-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Alloc</th>
+                            {foreach day_labels as dl}
+                            <th>{dl}</th>
+                            {/foreach}
+                            <th>Total</th>
+                            <th>Rem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach grid_rows as row}
+                        {set sc = 'bs-wk-muted'}
+                        {if row.status == 'surplus'}{set sc = 'bs-wk-surplus'}{/if}
+                        {if row.status == 'deficit'}{set sc = 'bs-wk-deficit'}{/if}
+                        <tr>
+                            <td>{row.name}</td>
+                            <td><input type="number" name="alloc[{row.id}]" step="0.5" min="0" value="{row.alloc_val}" placeholder="0"></td>
+                            <td><input type="number" name="{row.day_0_name}" step="0.5" min="0" max="3" value="{row.day_0_val}" placeholder="-"></td>
+                            <td><input type="number" name="{row.day_1_name}" step="0.5" min="0" max="3" value="{row.day_1_val}" placeholder="-"></td>
+                            <td><input type="number" name="{row.day_2_name}" step="0.5" min="0" max="3" value="{row.day_2_val}" placeholder="-"></td>
+                            <td><input type="number" name="{row.day_3_name}" step="0.5" min="0" max="3" value="{row.day_3_val}" placeholder="-"></td>
+                            <td><input type="number" name="{row.day_4_name}" step="0.5" min="0" max="3" value="{row.day_4_val}" placeholder="-"></td>
+                            <td><input type="number" name="{row.day_5_name}" step="0.5" min="0" max="3" value="{row.day_5_val}" placeholder="-"></td>
+                            <td><input type="number" name="{row.day_6_name}" step="0.5" min="0" max="3" value="{row.day_6_val}" placeholder="-"></td>
+                            <td class="{sc}">{row.prod_total}</td>
+                            <td class="{sc}">{row.remaining}</td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="bs-wk-pad bs-wk-foot">
+                <span class="bs-wk-muted">Set allocation and daily production. Zeros/blanks skipped on save.</span>
+                <button class="bs-wk-btn green" type="submit">Save Week</button>
+            </div>
+        </form>
+        {else}
+        <div class="bs-wk-pad bs-wk-empty">Select a branch and week, then click Open.</div>
+        {/if}
+    </div>
+</div>
+{/block}

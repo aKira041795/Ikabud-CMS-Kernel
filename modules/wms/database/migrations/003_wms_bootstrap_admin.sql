@@ -8,7 +8,7 @@ ON DUPLICATE KEY UPDATE updated_at = NOW();
 
 -- Default configs for new tenants
 INSERT IGNORE INTO wms_configs (config_key, config_value) VALUES
-    ('warehouse_name', 'Main Warehouse'),
-    ('picking_strategy', 'fifo'),
-    ('allow_negative_stock', '0'),
-    ('auto_replenish_enabled', '1');
+    ('warehouse_name', '"Main Warehouse"'),
+    ('picking_strategy', '"fifo"'),
+    ('allow_negative_stock', '"0"'),
+    ('auto_replenish_enabled', '"1"');

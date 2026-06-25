@@ -1,0 +1,80 @@
+{extends "modules/bakeshop/layouts/print.disyl"}
+
+{block head}
+<style>
+    .bs-p { max-width: 100%; margin: 0 auto; display: grid; gap: 12px; font-size: 11px; }
+    .bs-p h2 { margin: 0; font-size: 18px; font-weight: 800; }
+    .bs-p .sub { color: var(--text-muted); margin: 0; font-size: 11px; }
+    .bs-p-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+    .bs-p-meta > div { border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 10px; background: #fff; flex: 1; min-width: 90px; }
+    .bs-p-meta strong { display: block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+    .bs-p-meta p { margin: 2px 0 0; font-size: 13px; font-weight: 600; color: var(--text-color); }
+    .bs-p table { width: 100%; border-collapse: collapse; }
+    .bs-p th, .bs-p td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border-color); vertical-align: top; font-size: 11px; }
+    .bs-p th { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); background: #fffaf2; }
+    .bs-p tfoot td { font-weight: 700; background: #fffaf2; border-top: 2px solid var(--border-color); font-size: 11px; }
+    .bs-p .surplus { color: #059669; font-weight: 700; }
+    .bs-p .deficit { color: #dc2626; font-weight: 700; }
+    .bs-p-section { border: 1px solid var(--border-color); border-radius: 8px; background: #fff; overflow: hidden; }
+    .bs-p-section-head { padding: 8px 12px 6px; border-bottom: 1px solid var(--border-color); }
+    .bs-p-section-head h3 { margin: 0; font-size: 13px; }
+    .bs-p-section-head p { margin: 1px 0 0; color: var(--text-muted); font-size: 10px; }
+    @media print { .bs-p { max-width: none; font-size: 10px; } .bs-p-meta > div { break-inside: avoid; } }
+</style>
+{/block}
+
+{block content}
+<div class="bs-p">
+    <h2>{page_title}</h2>
+    <p class="sub">Commissary allocations vs actual production. All values in production-days.</p>
+
+    <div class="bs-p-meta">
+        <div><strong>Branch</strong><p>{report.branch_name}</p></div>
+        <div><strong>Cycle</strong><p>{report.from_date} – {report.to_date}</p></div>
+        <div><strong>Products</strong><p>{report.summary.total_products}</p></div>
+        <div><strong>Surplus</strong><p>{report.summary.surplus_count}</p></div>
+        <div><strong>Deficit</strong><p>{report.summary.deficit_count}</p></div>
+    </div>
+
+    <div class="bs-p-section">
+        <div class="bs-p-section-head">
+            <h3>Product Coverage</h3>
+            <p>Allocated days — Production days — Remaining.</p>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Allocated</th>
+                    <th>Produced</th>
+                    <th>Remaining</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {foreach report.products as product}
+                {set sc = product.status}
+                <tr>
+                    <td><strong>{product.product_name}</strong></td>
+                    <td>{product.days_allocated_label}</td>
+                    <td>{product.production_days_label}</td>
+                    <td class="{sc}">{product.remaining_label}</td>
+                    <td>{product.status}</td>
+                </tr>
+                {/foreach}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td><strong>Total</strong></td>
+                    <td><strong>{report.summary.total_products} product(s)</strong></td>
+                    <td><strong>{report.summary.surplus_count} surplus</strong></td>
+                    <td><strong>{report.summary.deficit_count} deficit</strong></td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <p class="sub" style="text-align:center;">Generated from Julie's Bakeshop Ledger — {report.from_date} to {report.to_date}</p>
+</div>
+{/block}

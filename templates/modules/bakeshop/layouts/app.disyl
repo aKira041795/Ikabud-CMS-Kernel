@@ -628,6 +628,18 @@
 
                 <div class="bakeshop-nav-group">
                     <div class="bakeshop-nav-label">Reports</div>
+                    <a href="{base_url}/admin/bakeshop/ledger" class="{if current_page == 'ledger'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Product Ledger</strong>
+                            <span>Day-by-day running balance per product</span>
+                        </span>
+                    </a>
+                    <a href="{base_url}/admin/bakeshop/coverage" class="{if current_page == 'coverage'}active{/if}">
+                        <span class="bakeshop-nav-title">
+                            <strong>Coverage Summary</strong>
+                            <span>Allocated vs produced totals, per product</span>
+                        </span>
+                    </a>
                     <a href="{base_url}{workspace_print_url}" target="_blank" rel="noopener">
                         <span class="bakeshop-nav-title">
                             <strong>Print Summary</strong>
