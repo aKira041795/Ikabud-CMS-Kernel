@@ -4432,6 +4432,30 @@ class TemplateEngine
                     return $match[0];
                 }
 
+                // 0a. Null-coalescing: {var ?? fallback} — transforms to {var|default:fallback}
+                //     Must be checked before ternary/arithmetic since ?? uses ? and :
+                if (str_contains($expr, '??')) {
+                    // Find the first ?? that's not inside a quoted string
+                    $inQuote = null;
+                    $len = strlen($expr);
+                    for ($i = 0; $i < $len - 1; $i++) {
+                        $c = $expr[$i];
+                        if ($inQuote !== null) {
+                            if ($c === '\\') { $i++; continue; }
+                            if ($c === $inQuote) $inQuote = null;
+                            continue;
+                        }
+                        if ($c === '"' || $c === "'") { $inQuote = $c; continue; }
+                        if ($c === '?' && $expr[$i + 1] === '?') {
+                            $left = trim(substr($expr, 0, $i));
+                            $right = trim(substr($expr, $i + 2));
+                            // Recurse into the left side in case of chained ??, then apply default filter
+                            $transformed = '{' . $left . '|default:' . $right . '}';
+                            return $this->processVariables($transformed, $context);
+                        }
+                    }
+                }
+
                 // 0. keyof expression: {keyof entity_type} or {keyof entity_type.view}
                 //    Resolves to the field list of a registered entity view contract.
                 //    Supports filters: {keyof employee_profile | json}, {keyof employee_profile | join(', ')}
@@ -4612,6 +4636,11 @@ class TemplateEngine
 
         // keyof expression
         if (str_starts_with($expr, 'keyof ')) {
+            return true;
+        }
+
+        // Null-coalescing: {var ?? fallback}
+        if (str_contains($expr, '??')) {
             return true;
         }
 

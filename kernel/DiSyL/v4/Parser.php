@@ -257,6 +257,11 @@ final class Parser
             return false;
         }
 
+        // Null-coalescing: {var ?? fallback}
+        if (str_contains($expr, '??')) {
+            return true;
+        }
+
         $qPos = $this->findUnquotedChar($expr, '?');
         if ($qPos !== false) {
             $colonPos = $this->findUnquotedChar($expr, ':', $qPos + 1);
@@ -860,6 +865,29 @@ final class Parser
      */
     private function buildExpressionNode(string $content): AbstractNode
     {
+        // ── null-coalescing: {var ?? fallback} ──
+        // Transform to {var|default:fallback} before filter/ternary parsing
+        // (must be before ternary check since ?? contains ?)
+        if (str_contains($content, '??')) {
+            $inQuote = null;
+            $len = strlen($content);
+            for ($i = 0; $i < $len - 1; $i++) {
+                $c = $content[$i];
+                if ($inQuote !== null) {
+                    if ($c === '\\') { $i++; continue; }
+                    if ($c === $inQuote) $inQuote = null;
+                    continue;
+                }
+                if ($c === '"' || $c === "'") { $inQuote = $c; continue; }
+                if ($c === '?' && $content[$i + 1] === '?') {
+                    $left  = trim(substr($content, 0, $i));
+                    $right = trim(substr($content, $i + 2));
+                    // Recurse into the transformed expression (supports chained ??)
+                    return $this->buildExpressionNode($left . '|default:' . $right);
+                }
+            }
+        }
+
         // ── ternary? ──
         $qPos = $this->findUnquotedChar($content, '?');
         if ($qPos !== false) {
