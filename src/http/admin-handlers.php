@@ -183,7 +183,47 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
 
             $pdo->commit();
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
-            echo json_encode(['ok' => true, 'tenant_id' => $tenantId]);
+
+            // Auto-create a shared-DB connection record if none exists (development mode)
+            $connCheck = $pdo->prepare('SELECT id FROM kernel_tenant_db_connections WHERE tenant_id = :tid LIMIT 1');
+            $connCheck->execute([':tid' => $tenantId]);
+            if (!$connCheck->fetchColumn()) {
+                $dbHost = $_ENV['DB_HOST'] ?? 'localhost';
+                $dbPort = $_ENV['DB_PORT'] ?? '3306';
+                $dbName = $_ENV['DB_DATABASE'] ?? '';
+                $dbUser = $_ENV['DB_USERNAME'] ?? 'root';
+                $dbPass = $_ENV['DB_PASSWORD'] ?? '';
+                $crypto = new \Ikabud\Kernel\Crypto();
+                $enc = $crypto->encryptString($dbPass);
+                $insConn = $pdo->prepare(
+                    'INSERT INTO kernel_tenant_db_connections '
+                    . '(tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, db_pass_ciphertext, db_pass_iv, db_pass_tag) '
+                    . 'VALUES (:tid, :drv, :host, :port, :name, :user, NULL, :charset, :cipher, :iv, :tag)'
+                );
+                $insConn->execute([
+                    ':tid' => $tenantId, ':drv' => 'mysql',
+                    ':host' => $dbHost, ':port' => $dbPort,
+                    ':name' => $dbName, ':user' => $dbUser,
+                    ':charset' => 'utf8mb4',
+                    ':cipher' => $enc['ciphertext'] ?? null,
+                    ':iv' => $enc['iv'] ?? null,
+                    ':tag' => $enc['tag'] ?? null,
+                ]);
+            }
+
+            $sync = syncTenantMigrationsForTenant($tenantId, $entryModuleId !== '' ? $entryModuleId : null);
+            if (empty($sync['ok'])) {
+                http_response_code(500);
+                echo json_encode([
+                    'ok' => false,
+                    'error' => 'db saved but migrations failed to synchronize',
+                    'details' => $sync['error'] ?? 'Unknown error',
+                    'tenant_id' => $tenantId,
+                ]);
+                return;
+            }
+
+            echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'migration_sync' => $sync, 'request_id' => request_id()]);
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
