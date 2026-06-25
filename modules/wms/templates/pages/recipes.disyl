@@ -1,7 +1,7 @@
-<div class="p-6" x-data="recipesPage()">
+<div class="p-6" id="recipesPage-page">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Recipes / Bill of Materials</h1>
-        <button @@click="showCreate = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Recipe</button>
+        <button onclick="document.getElementById('recipe-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Recipe</button>
     </div>
 
     <div class="bg-white rounded shadow overflow-x-auto">
@@ -26,8 +26,7 @@
                     <td class="px-4 py-3 text-sm">{r.output_qty|number_format:4} {r.output_unit}</td>
                     <td class="px-4 py-3 text-sm">v{r.version}</td>
                     <td class="px-4 py-3">
-                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
-                              class="inline-block px-2 py-0.5 rounded text-xs font-medium {r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">{r.is_active ? 'Active' : 'Inactive'}</span>
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium">{r.is_active ? 'Active' : 'Inactive'}</span>
                     </td>
                         <td class="px-4 py-3 text-center text-xs">
                             <button onclick="location.href='/wms/recipes'" class="text-blue-600 hover:text-blue-800">View</button>
@@ -41,18 +40,18 @@
         </table>
     </div>
 
-    <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6" @@click.outside="showCreate=false">
+    <div id="recipe-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
             <h2 class="text-lg font-bold mb-4">New Recipe</h2>
-            <form @@submit.prevent="submitRecipe()" class="space-y-3">
+            <form id="form-recipe" onsubmit="return submitRecipe(event)" class="space-y-3">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Recipe Code *</label>
-                        <input type="text" x-model="form.recipe_code" required class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="text" name="recipe_code" required class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
-                        <select x-model="form.product_id" required class="border rounded px-3 py-2 w-full text-sm">
+                        <select name="product_id" required class="border rounded px-3 py-2 w-full text-sm">
                             <option value="">Select...</option>
                             {each products as p}
                                 <option value="{p.id}">{p.name} ({p.sku})</option>
@@ -62,38 +61,25 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                    <input type="text" x-model="form.name" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="text" name="name" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Output Qty</label>
-                        <input type="number" step="0.0001" x-model="form.output_qty" class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="number" step="0.0001" name="output_qty" class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Output Unit</label>
-                        <input type="text" x-model="form.output_unit" class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="text" name="output_unit" class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-2">Ingredients</label>
-                    <template x-for="(ing, i) in form.ingredients" :key="i">
-                        <div class="flex gap-2 mb-2 items-end">
-                            <select x-model="ing.ingredient_product_id" class="border rounded px-3 py-2 text-sm flex-1">
-                                <option value="">Ingredient...</option>
-                                {each products as p}
-                                    <option value="{p.id}">{p.name} ({p.sku})</option>
-                                {/each}
-                            </select>
-                            <input type="number" step="0.0001" x-model="ing.quantity" placeholder="Qty" class="border rounded px-3 py-2 text-sm w-20">
-                            <input type="text" x-model="ing.unit" placeholder="Unit" class="border rounded px-3 py-2 text-sm w-16">
-                            <input type="number" step="0.01" x-model="ing.wastage_pct" placeholder="Waste %" class="border rounded px-3 py-2 text-sm w-16">
-                            <button type="button" @@click="form.ingredients.splice(i,1)" class="text-red-500 text-xs">✕</button>
-                        </div>
-                    </template>
-                    <button type="button" @@click="form.ingredients.push({ingredient_product_id:'',quantity:'',unit:'pcs',wastage_pct:0})" class="text-blue-600 text-xs">+ Add ingredient</button>
+                    
+                    
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showCreate=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('recipe-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create Recipe</button>
                 </div>
             </form>

@@ -345,9 +345,11 @@ function wmsPageSettings(): void
 {
     $user = wmsCurrentUser(['admin']);
     $settings = wmsSettings();
+    $locations = wmsDb()->query('SELECT id, code, name FROM wms_locations ORDER BY code')->fetchAll(\PDO::FETCH_ASSOC);
 
     wmsRenderTemplate('settings', [
         'settings' => $settings,
+        'locations' => $locations,
         'page_title' => 'Settings — WMS',
     ]);
 }

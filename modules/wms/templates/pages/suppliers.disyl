@@ -2,7 +2,7 @@
 <div class="max-w-5xl mx-auto">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-900">🚚 Suppliers</h1>
-        <button onclick="document.getElementById('supplier-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
+        <button onclick="resetSupplierForm(); document.getElementById('supplier-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">
             + Add Supplier
         </button>
     </div>
@@ -28,13 +28,17 @@
                 </thead>
                 <tbody id="suppliers-table" class="divide-y divide-gray-100">
                     {for s in suppliers}
-                    <tr class="hover:bg-gray-50 transition-colors supplier-row" data-name="{s.name|lower}" data-code="{s.code|lower}">
+                    <tr class="hover:bg-gray-50 transition-colors supplier-row" data-id="{s.id}" data-name="{s.name|lower}" data-code="{s.code|lower}">
                         <td class="py-3 px-4 font-mono text-xs text-gray-700">{s.code}</td>
                         <td class="py-3 px-4 font-medium text-gray-900">{s.name}</td>
                         <td class="py-3 px-4 text-gray-600">{s.contact_person|default:'—'}</td>
                         <td class="py-3 px-4"><a href="mailto:{s.email}" class="text-blue-600 hover:text-blue-800">{s.email|default:'—'}</a></td>
                         <td class="py-3 px-4 text-gray-600">{if s.lead_time_days}{s.lead_time_days} days{else}—{/if}</td>
                         <td class="py-3 px-4 text-center">{if s.is_active}<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>{else}<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactive</span>{/if}</td>
+                        <td class="py-3 px-4 text-center text-xs">
+                            <button onclick="editSupplier(this)" data-id="{s.id}" class="text-blue-600 hover:text-blue-800 mr-2">Edit</button>
+                            <button onclick="deleteSupplier({s.id})" class="text-red-600 hover:text-red-800">Delete</button>
+                        </td>
                     </tr>
                     {/for}
                     {if suppliers|count == 0}
@@ -51,7 +55,7 @@
     <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6" onclick="event.stopPropagation()">
         <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-bold text-gray-900">Add Supplier</h2>
-            <button onclick="document.getElementById('supplier-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+            <button onclick="resetSupplierForm(); document.getElementById('supplier-modal').classList.add('hidden')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
         </div>
         <form id="supplier-form" onsubmit="return createSupplier(event)">
             <div class="grid grid-cols-2 gap-4 mb-4">
@@ -103,11 +107,16 @@ function filterSuppliers() {
     });
 }
 
+var editingSupplierId = null;
+
 function createSupplier(e) {
     e.preventDefault();
     var data = {};
     new FormData(e.target).forEach(function(v, k) { data[k] = v; });
-    fetch('{base_url}/api/v1/wms/suppliers', {
+    var url = editingSupplierId
+        ? '{base_url}/api/v1/wms/suppliers/' + editingSupplierId
+        : '{base_url}/api/v1/wms/suppliers';
+    fetch(url, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
@@ -115,8 +124,30 @@ function createSupplier(e) {
     .then(function(r) { return r.json(); })
     .then(function(res) {
         if (res.ok) { location.reload(); }
-        else { alert(res.error || 'Failed to create supplier.'); }
+        else { alert(res.error || 'Failed to save supplier.'); }
     });
     return false;
+}
+function editSupplier(btn) {
+    var row = btn.closest('tr');
+    var cells = row.querySelectorAll('td');
+    editingSupplierId = btn.getAttribute('data-id');
+    var form = document.getElementById('supplier-form');
+    form.querySelector('[name="code"]').value = cells[0].textContent.trim();
+    form.querySelector('[name="name"]').value = cells[1].textContent.trim();
+    form.querySelector('[name="contact_person"]').value = cells[2].textContent.trim() === '—' ? '' : cells[2].textContent.trim();
+    form.querySelector('[name="email"]').value = cells[3].textContent.trim() === '—' ? '' : cells[3].textContent.trim();
+    form.querySelector('[name="lead_time_days"]').value = cells[4].textContent.replace(' days','').trim() === '—' ? '' : cells[4].textContent.replace(' days','').trim();
+    document.querySelector('#supplier-modal h2').textContent = 'Edit Supplier';
+    document.querySelector('#supplier-modal button[type="submit"]').textContent = 'Update Supplier';
+    document.getElementById('supplier-modal').classList.remove('hidden');
+}
+function resetSupplierForm() {
+    editingSupplierId = null;
+    var form = document.getElementById('supplier-form');
+    form.reset();
+    document.querySelector('#supplier-modal h2').textContent = 'Add Supplier';
+    document.querySelector('#supplier-modal button[type="submit"]').textContent = 'Create Supplier';
+}
 function deleteSupplier(id) { if(confirm('Delete this supplier?')) { fetch('{base_url}/api/v1/wms/suppliers/'+id+'/delete', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 </script>

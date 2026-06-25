@@ -1,7 +1,7 @@
-<div class="p-6" x-data="productionPage()">
+<div class="p-6">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Production Orders</h1>
-        <button @@click="showCreate = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Production Order</button>
+        <button onclick="document.getElementById('prod-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Production Order</button>
     </div>
 
     <div class="bg-white rounded shadow mb-6">
@@ -58,13 +58,13 @@
         </table>
     </div>
 
-    <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" @@click.outside="showCreate=false">
+    <div id="prod-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" onclick="event.stopPropagation()">
             <h2 class="text-lg font-bold mb-4">New Production Order</h2>
-            <form @@submit.prevent="submitProdOrder()" class="space-y-3">
+            <form id="prod-form" onsubmit="return submitProdOrder(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Recipe *</label>
-                    <select x-model="form.recipe_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="recipe_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select recipe...</option>
                         {each recipes as r}
                             <option value="{r.id}">{r.recipe_code} — {r.name}</option>
@@ -73,7 +73,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
-                    <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select...</option>
                         {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
@@ -82,14 +82,14 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Quantity *</label>
-                    <input type="number" step="0.0001" min="0.0001" x-model="form.quantity" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="number" step="0.0001" min="0.0001" name="quantity" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                    <textarea x-model="form.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <textarea name="notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showCreate=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('prod-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create</button>
                 </div>
             </form>
@@ -98,18 +98,7 @@
 </div>
 
 <script>
-function productionPage() {
-    return {
-        showCreate: false,
-        form: { recipe_id: '', warehouse_id: '', quantity: '', notes: '' },
-        async submitProdOrder() {
-            const res = await fetch('/api/v1/wms/production-orders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.form)});
-            const data = await res.json();
-            if (!data.ok) { alert('Error: ' + data.error); return; }
-            location.reload();
-        }
-    }
-}
+function submitProdOrder(e) { e.preventDefault(); var data={}; new FormData(e.target).forEach(function(v,k){data[k]=v;}); fetch('/api/v1/wms/production-orders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error||'Failed');}); return false; }
 
 function completeProd(id) { var qty = prompt('Actual output quantity:'); if(qty && parseFloat(qty)>0) { fetch('{base_url}/api/v1/wms/production-orders/'+id+'/complete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({actual_output:parseFloat(qty)})}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 

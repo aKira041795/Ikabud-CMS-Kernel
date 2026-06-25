@@ -52,7 +52,7 @@ Capability policy restricts `kernel.auth.authenticate@1` callers to `bakeshop` a
 
 ## Database Architecture
 
-Schema is shipped as five migrations under [modules/bakeshop/database/migrations/](modules/bakeshop/database/migrations) and applied per-tenant by `syncTenantMigrationsForCurrentRequest()`:
+Schema is shipped as five migrations under [modules/bakeshop/database/migrations/](modules/bakeshop/database/migrations) and applied per-tenant via `php ikabud tenant:migrate <tenant>` or the provisioning flow:
 
 | Migration | Purpose |
 |---|---|

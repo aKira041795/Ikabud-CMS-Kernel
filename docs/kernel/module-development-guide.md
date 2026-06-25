@@ -733,7 +733,7 @@ CREATE TABLE IF NOT EXISTS my_table (
 
 **Multi-tenant note**: If `APP_MULTI_TENANT_ENABLED` is on, module migrations must be safe to run against tenant databases as well as the default database. New module migrations should be idempotent (`IF NOT EXISTS`, `information_schema` guards for `ALTER TABLE`, etc.) because tenant schema is synchronized separately from the control plane.
 
-The kernel now provides tenant migration synchronization through `syncTenantMigrationsForTenant()` and `syncTenantMigrationsForCurrentRequest()` in [src/helpers/module-manager.php](/var/www/html/applicationkernel/src/helpers/module-manager.php). Tenant DB setup and tenant request bootstrap use these helpers to apply manifest-declared module migrations to the tenant-resolved database.
+The kernel provides tenant migration synchronization through `syncTenantMigrationsForTenant()` and `syncTenantCliMigrationsForTenant()` in [src/helpers/module-migrations.php](src/helpers/module-migrations.php). Tenant DB provisioning uses these helpers to apply manifest-declared module migrations to the tenant-resolved database from the CLI or admin API.
 
 ---
 
@@ -1281,12 +1281,9 @@ function mySetting(string $key): ?string {
 
 ### Tenant Migration Sync
 
-`syncTenantMigrationsForCurrentRequest()` runs on every HTTP request when multi-tenancy is enabled. It is **cached at multiple levels** to minimize overhead:
-- Static once-per-request guard
-- File cache with configurable TTL (default 300s via `APP_REQUEST_TENANT_MIGRATION_SYNC_TTL`)
-- Fingerprint-based invalidation
+Migrations are applied to tenant databases **explicitly** via `php ikabud tenant:migrate <tenant>` or through the provisioning flow. The per-request auto-sync (`syncTenantMigrationsForCurrentRequest()`) has been removed — standalone tenant databases require explicit migration management.
 
-Set `APP_REQUEST_TENANT_MIGRATION_SYNC=0` to disable per-request sync entirely (useful for high-traffic tenants where migrations are applied via CLI).
+Use `syncTenantMigrationsForTenant()` or `syncTenantCliMigrationsForTenant()` for programmatic migration application. See `src/helpers/module-migrations.php` for the full API.
 
 ### Benchmarking
 

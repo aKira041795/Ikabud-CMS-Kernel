@@ -965,3 +965,30 @@ function wmsApiWebhookDelete(array $params): void
     wmsDb()->execute('DELETE FROM wms_event_webhooks WHERE id = :id', [':id' => $id]);
     wmsJsonOk(['webhook_id' => $id]);
 }
+
+// ── Config / Settings ──
+
+function wmsApiConfigSave(): void
+{
+    $user = wmsCurrentUser(['admin']);
+    $body = json_decode(file_get_contents('php://input'), true);
+    $configs = $body['configs'] ?? [];
+
+    // Prevent overwriting onboarding status from UI
+    unset($configs['onboarding.completed']);
+
+    foreach ($configs as $key => $value) {
+        if ($value === null || $value === '') {
+            $value = '';
+        } elseif (is_bool($value)) {
+            $value = $value ? '1' : '0';
+        }
+        wmsDb()->execute(
+            'INSERT INTO wms_configs (config_key, config_value, updated_at) VALUES (:key, :val, NOW())
+             ON DUPLICATE KEY UPDATE config_value = :val2, updated_at = NOW()',
+            [':key' => $key, ':val' => (string)$value, ':val2' => (string)$value]
+        );
+    }
+
+    wmsJsonOk(['saved' => count($configs)]);
+}

@@ -440,15 +440,6 @@ if (!empty($_SERVER['IK_FAST_404'])) {
 $routes = kernelCoreRoutes();
 
 // Batch-load all tenant module settings in 1 query (avoids N+1 per module)
-try {
-    syncTenantMigrationsForCurrentRequest();
-} catch (Throwable $e) {
-    write_log('Tenant migration sync failed during request bootstrap: ' . $e->getMessage(), 'error', [
-        'host' => (string)($_SERVER['HTTP_HOST'] ?? ''),
-        'uri' => $uri,
-    ]);
-}
-
 preloadAllTenantModuleSettings();
 
 $routes = loadModuleRoutes($routes);

@@ -44,7 +44,7 @@ wmsDb()
   → cmsnewtest / baronbakeshop / etc.  // tenant's own database
 ```
 
-`wms_*` tables are applied to each tenant's database on first request via `syncTenantMigrationsForCurrentRequest()`.
+`wms_*` tables are applied to each tenant's database via `php ikabud tenant:migrate <tenant>` or the provisioning flow (`syncTenantMigrationsForTenant()`).
 
 ---
 
@@ -1143,7 +1143,7 @@ modules/wms/
 | Point | Mechanism | Detail |
 |-------|-----------|--------|
 | **DB connection** | `module('wms')->db()` | ModuleDB wrapping `app()->db()` (tenant-resolved) |
-| **Migration auto-apply** | `syncTenantMigrationsForCurrentRequest()` | `wms_*` tables created in tenant DB on first request |
+| **Migration auto-apply** | `php ikabud tenant:migrate <tenant>` | `wms_*` tables applied via explicit CLI or provisioning flow |
 | **Module catalog** | `kernel_module_catalog` in control DB | WMS registered on installation |
 | **Auth** | `app()->requireAnyRole()` | All API endpoints require authentication |
 | **Audit logging** | `module('wms')->audit()` | Stock mutations + delivery/order state changes |

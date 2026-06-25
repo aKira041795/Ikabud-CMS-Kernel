@@ -1,10 +1,10 @@
-<div class="p-6" x-data="stockPage()">
+<div class="p-6" id="stock-page">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Stock Levels</h1>
         <div class="flex gap-2">
-            <button @@click="showReceive = true" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Receive Stock</button>
-            <button @@click="showAdjust = true" class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 text-sm">Adjust Stock</button>
-            <button @@click="showTransfer = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Transfer</button>
+            <button onclick="document.getElementById('receive-modal').classList.remove('hidden')" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Receive Stock</button>
+            <button onclick="document.getElementById('adjust-modal').classList.remove('hidden')" class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 text-sm">Adjust Stock</button>
+            <button onclick="document.getElementById('transfer-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Transfer</button>
         </div>
     </div>
 
@@ -12,7 +12,7 @@
         <div class="p-4 border-b flex flex-wrap gap-4 items-end">
             <div>
                 <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse</label>
-                <select x-model="filterWarehouse" @@change="applyFilters()" class="border rounded px-3 py-2 text-sm">
+                <select id="filter-warehouse" onchange="applyFilters()" class="border rounded px-3 py-2 text-sm">
                     <option value="">All Warehouses</option>
                     {each warehouses as w}
                         <option value="{w.id}">{w.code} — {w.name}</option>
@@ -20,11 +20,11 @@
                 </select>
             </div>
             <label class="flex items-center gap-2 text-sm">
-                <input type="checkbox" x-model="filterLowStock" @@change="applyFilters()" class="rounded">
+                <input type="checkbox" id="filter-low-stock" onchange="applyFilters()" class="rounded">
                 Low stock only (below reorder point)
             </label>
             <div class="ml-auto">
-                <input type="text" x-model="search" placeholder="Search product..." @@input.debounce="applyFilters()" class="border rounded px-3 py-2 text-sm w-48">
+                <input type="text" id="filter-search" placeholder="Search product..." oninput="applyFiltersDelayed()" class="border rounded px-3 py-2 text-sm w-48">
             </div>
         </div>
     </div>
@@ -54,7 +54,7 @@
                     <td class="px-4 py-3 text-gray-500">{s.batch_number ?? '—'}</td>
                     <td class="px-4 py-3 text-right font-medium">{s.qty_on_hand|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-amber-600">{s.qty_reserved|number_format:4}</td>
-                    <td class="px-4 py-3 text-right font-medium" class="{s.qty_on_hand - s.qty_reserved <= 0 ? 'text-red-600' : 'text-green-600'}">{(s.qty_on_hand - s.qty_reserved)|number_format:4}</td>
+                    <td class="px-4 py-3 text-right font-medium">{(s.qty_on_hand - s.qty_reserved)|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-gray-400">{s.qty_staged|number_format:4}</td>
                 </tr>
                 {/each}
@@ -66,13 +66,13 @@
     </div>
 
     <!-- Receive Modal -->
-    <div x-show="showReceive" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" @@click.outside="showReceive=false">
+    <div id="receive-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
             <h2 class="text-lg font-bold mb-4">Receive Stock</h2>
-            <form @@submit.prevent="submitReceive()" class="space-y-3">
+            <form id="form-receive" onsubmit="return submitReceive(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
-                    <select x-model="receive.product_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="product_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select product...</option>
                         {each products as p}
                             <option value="{p.id}">{p.name} ({p.sku})</option>
@@ -81,7 +81,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
-                    <select x-model="receive.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select warehouse...</option>
                         {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
@@ -90,22 +90,22 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Location</label>
-                    <input type="text" x-model="receive.location_id" placeholder="Location ID (optional)" class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="text" name="location_id" placeholder="Location ID (optional)" class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Quantity *</label>
-                    <input type="number" step="0.0001" min="0.0001" x-model="receive.quantity" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="number" step="0.0001" min="0.0001" name="quantity" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Reference</label>
-                    <input type="text" x-model="receive.reference_type" placeholder="e.g. delivery, PO" class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="text" name="reference_type" placeholder="e.g. delivery, PO" class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                    <textarea x-model="receive.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <textarea name="notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showReceive=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('receive-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded text-sm">Receive</button>
                 </div>
             </form>
@@ -113,13 +113,13 @@
     </div>
 
     <!-- Transfer Modal -->
-    <div x-show="showTransfer" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" @@click.outside="showTransfer=false">
+    <div id="transfer-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
             <h2 class="text-lg font-bold mb-4">Transfer Stock</h2>
-            <form @@submit.prevent="submitTransfer()" class="space-y-3">
+            <form id="form-transfer" onsubmit="return submitTransfer(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
-                    <select x-model="transfer.product_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="product_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select product...</option>
                         {each products as p}
                             <option value="{p.id}">{p.name} ({p.sku})</option>
@@ -128,22 +128,22 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">From Location ID *</label>
-                    <input type="number" x-model="transfer.from_location_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="number" name="from_location_id" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">To Location ID *</label>
-                    <input type="number" x-model="transfer.to_location_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="number" name="to_location_id" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Quantity *</label>
-                    <input type="number" step="0.0001" min="0.0001" x-model="transfer.quantity" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="number" step="0.0001" min="0.0001" name="quantity" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                    <textarea x-model="transfer.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <textarea name="notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showTransfer=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('transfer-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Transfer</button>
                 </div>
             </form>
@@ -151,13 +151,13 @@
     </div>
 
     <!-- Adjust Modal -->
-    <div x-show="showAdjust" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" @@click.outside="showAdjust=false">
+    <div id="adjust-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6">
             <h2 class="text-lg font-bold mb-4">Adjust Stock</h2>
-            <form @@submit.prevent="submitAdjust()" class="space-y-3">
+            <form id="form-adjust" onsubmit="return submitAdjust(event)" class="space-y-3">
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Product *</label>
-                    <select x-model="adjust.product_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="product_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select product...</option>
                         {each products as p}
                             <option value="{p.id}">{p.name} ({p.sku})</option>
@@ -166,7 +166,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
-                    <select x-model="adjust.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select warehouse...</option>
                         {each warehouses as w}
                             <option value="{w.id}">{w.code} — {w.name}</option>
@@ -175,11 +175,11 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">New Quantity *</label>
-                    <input type="number" step="0.0001" min="0" x-model="adjust.new_quantity" required class="border rounded px-3 py-2 w-full text-sm">
+                    <input type="number" step="0.0001" min="0" name="new_quantity" required class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
-                    <select x-model="adjust.adjustment_type" class="border rounded px-3 py-2 w-full text-sm">
+                    <select name="adjustment_type" class="border rounded px-3 py-2 w-full text-sm">
                         <option value="correction">Correction</option>
                         <option value="damage">Damage</option>
                         <option value="loss">Loss</option>
@@ -189,10 +189,10 @@
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Reason *</label>
-                    <textarea x-model="adjust.reason" required class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <textarea name="reason" required class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showAdjust=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('adjust-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-amber-600 text-white rounded text-sm">Adjust</button>
                 </div>
             </form>
@@ -201,45 +201,54 @@
 </div>
 
 <script>
-function stockPage() {
-    return {
-        showReceive: false,
-        showTransfer: false,
-        showAdjust: false,
-        filterWarehouse: '',
-        filterLowStock: false,
-        search: '',
-        receive: { product_id: '', warehouse_id: '', location_id: '', quantity: '', reference_type: '', notes: '', idempotency_key: '' },
-        transfer: { product_id: '', from_location_id: '', to_location_id: '', quantity: '', notes: '' },
-        adjust: { product_id: '', warehouse_id: '', new_quantity: '', adjustment_type: 'correction', reason: '' },
-        applyFilters() {
-            const params = new URLSearchParams();
-            if (this.filterWarehouse) params.set('warehouse_id', this.filterWarehouse);
-            if (this.filterLowStock) params.set('low_stock', '1');
-            if (this.search) params.set('q', this.search);
-            window.location.search = params.toString();
-        },
-        async submitReceive() {
-            const r = this.receive;
-            r.idempotency_key = 'recv-' + Date.now();
-            const res = await fetch('/api/v1/wms/stock/receive', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(r) });
-            const data = await res.json();
+var filterTimeout = null;
+function applyFilters() {
+    var params = new URLSearchParams();
+    var w = document.getElementById('filter-warehouse');
+    if (w && w.value) params.set('warehouse_id', w.value);
+    var ls = document.getElementById('filter-low-stock');
+    if (ls && ls.checked) params.set('low_stock', '1');
+    var s = document.getElementById('filter-search');
+    if (s && s.value) params.set('q', s.value);
+    window.location.search = params.toString();
+}
+function applyFiltersDelayed() {
+    if (filterTimeout) clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(applyFilters, 300);
+}
+function submitReceive(e) {
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    fd.set('idempotency_key', 'recv-' + Date.now());
+    fetch('/api/v1/wms/stock/receive', { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
             if (!data.ok) { alert('Error: ' + data.error); return; }
             location.reload();
-        },
-        async submitTransfer() {
-            const res = await fetch('/api/v1/wms/stock/transfer', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.transfer) });
-            const data = await res.json();
+        });
+    return false;
+}
+function submitTransfer(e) {
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    fetch('/api/v1/wms/stock/transfer', { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
             if (!data.ok) { alert('Error: ' + data.error); return; }
             location.reload();
-        },
-        async submitAdjust() {
-            const res = await fetch('/api/v1/wms/stock/adjust', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.adjust) });
-            const data = await res.json();
+        });
+    return false;
+}
+function submitAdjust(e) {
+    e.preventDefault();
+    var fd = new FormData(e.target);
+    fetch('/api/v1/wms/stock/adjust', { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(data) {
             if (!data.ok) { alert('Error: ' + data.error); return; }
             location.reload();
-        }
-    }
+        });
+    return false;
 }
 </script>
 

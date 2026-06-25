@@ -367,13 +367,12 @@ All database execution paths are instrumented with two hook/event seams:
 - Control-plane migrations: `control-migrations/`
 - Runner: `PdoMigrationRunner` — incremental, tracks applied migrations
 
-### Tenant Migration Auto-Sync
+### Tenant Migrations
 
-On every HTTP request (when multi-tenancy is active) the kernel automatically
-applies any pending module migrations to the current tenant's database:
+Tenant database migrations are applied explicitly via CLI (`php ikabud tenant:migrate <tenant>`) or through the provisioning flow. The kernel no longer auto-applies migrations on every HTTP request — standalone databases require explicit migration management.
 
 ```
-syncTenantMigrationsForCurrentRequest()
+syncTenantMigrationsForTenant(tenantId)
   → resolves tenant ID
   → discovers planned modules via tenantProvisionModulePlan(entry_module_id)
   → for each module, compares declared migrations against _migrations tracking table
@@ -396,7 +395,6 @@ errors in the API response before returning.
 Relevant helpers in `src/helpers/module-manager.php`:
 - `tenantSyncModuleMigrations(PDO, moduleId)` — apply pending migrations for one module
 - `syncTenantMigrationsForTenant(tenantId)` — apply across all planned modules for a tenant
-- `syncTenantMigrationsForCurrentRequest()` — request-lifecycle hook (static once-per-request)
 
 ### Tenant Database Pool
 

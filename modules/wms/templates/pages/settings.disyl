@@ -1,35 +1,363 @@
-<div class="p-6">
-    <h1 class="text-2xl font-bold text-gray-800 mb-6">⚙️ Settings</h1>
+<div class="p-6 max-w-5xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">⚙️ Settings</h1>
+            <p class="text-sm text-gray-400 mt-1">Configure your warehouse management system.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="settings-saved" class="text-sm text-green-600 font-medium hidden">Saved!</span>
+            <span id="settings-error" class="text-sm text-red-600 font-medium hidden"></span>
+            <button id="settings-save-btn" onclick="saveAllSettings()" class="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition shadow-sm">Save Settings</button>
+        </div>
+    </div>
 
-    <div class="bg-white rounded shadow max-w-2xl">
-        <div class="p-4 border-b">
-            <h2 class="text-sm font-semibold text-gray-700">Warehouse Configuration</h2>
-        </div>
-        <div class="p-4 space-y-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-sm font-medium text-gray-700">Default Warehouse Name</div>
-                    <div class="text-xs text-gray-400">Configured during onboarding</div>
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        <!-- General -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+                General
+            </h2>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-gray-600">Warehouse Name</span>
+                    <input type="text" id="cfg-general.warehouse_name" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Main Distribution Center">
+                </label>
+                <label class="block">
+                    <span class="text-sm text-gray-600">Timezone</span>
+                    <select id="cfg-general.timezone" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York (EST)</option>
+                        <option value="America/Chicago">America/Chicago (CST)</option>
+                        <option value="America/Denver">America/Denver (MST)</option>
+                        <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                        <option value="America/Toronto">America/Toronto</option>
+                        <option value="Europe/London">Europe/London (GMT)</option>
+                        <option value="Europe/Paris">Europe/Paris (CET)</option>
+                        <option value="Europe/Berlin">Europe/Berlin (CET)</option>
+                        <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                        <option value="Asia/Shanghai">Asia/Shanghai (CST)</option>
+                        <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                        <option value="Asia/Manila">Asia/Manila (PHT)</option>
+                        <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-gray-600">Date Format</span>
+                    <select id="cfg-general.date_format" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="Y-m-d">2026-04-11 (Y-m-d)</option>
+                        <option value="m/d/Y">04/11/2026 (m/d/Y)</option>
+                        <option value="d/m/Y">11/04/2026 (d/m/Y)</option>
+                        <option value="d-M-Y">11-Apr-2026 (d-M-Y)</option>
+                    </select>
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block">
+                        <span class="text-sm text-gray-600">Weight Unit</span>
+                        <select id="cfg-general.weight_unit" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="kg">Kilograms (kg)</option>
+                            <option value="lb">Pounds (lb)</option>
+                        </select>
+                    </label>
+                    <label class="block">
+                        <span class="text-sm text-gray-600">Dimension Unit</span>
+                        <select id="cfg-general.dimension_unit" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="cm">Centimeters (cm)</option>
+                            <option value="in">Inches (in)</option>
+                        </select>
+                    </label>
                 </div>
-                <div class="text-sm text-gray-600">{settings.warehouse_name ?? 'Main Warehouse'}</div>
             </div>
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-sm font-medium text-gray-700">Picking Strategy</div>
-                    <div class="text-xs text-gray-400">Controls pick-list generation order</div>
+        </section>
+
+        <!-- Inventory -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                Inventory
+            </h2>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-gray-600">Low Stock Threshold</span>
+                    <input type="number" id="cfg-low_stock_threshold" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" min="0" placeholder="10">
+                    <p class="text-xs text-gray-400 mt-1">Items below this quantity trigger low-stock alerts.</p>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Allow Negative Stock</div>
+                        <p class="text-xs text-gray-400">Permit outbound movements even when on-hand is insufficient.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-system.allow_negative_stock" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Auto-Replenishment</div>
+                        <p class="text-xs text-gray-400">Generate replenishment tasks when stock falls below reorder points.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-auto_replenishment.enabled" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="block">
+                        <span class="text-sm text-gray-600">Reorder Buffer (%)</span>
+                        <input type="number" id="cfg-inventory.reorder_point_buffer_pct" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" min="0" max="100" placeholder="20">
+                    </label>
+                    <label class="block">
+                        <span class="text-sm text-gray-600">Cycle Count Frequency (days)</span>
+                        <input type="number" id="cfg-inventory.cycle_count_frequency_days" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" min="1" placeholder="30">
+                    </label>
                 </div>
-                <div class="text-sm text-gray-600">{settings.picking_strategy ?? 'fifo'}</div>
             </div>
-            <div class="flex items-center justify-between">
-                <div>
-                    <div class="text-sm font-medium text-gray-700">Allow Negative Stock</div>
-                    <div class="text-xs text-gray-400">When disabled, blocks under-picking</div>
-                </div>
-                <div class="text-sm text-gray-600">{settings.allow_negative_stock ?? '0' === '1' ? 'Yes' : 'No'}</div>
+        </section>
+
+        <!-- Picking -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                Picking &amp; Fulfillment
+            </h2>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-gray-600">Default Picking Strategy</span>
+                    <select id="cfg-picking.default_strategy" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="FIFO">FIFO (First In, First Out)</option>
+                        <option value="FEFO">FEFO (First Expiry, First Out)</option>
+                        <option value="LIFO">LIFO (Last In, First Out)</option>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Controls how stock is selected when fulfilling orders.</p>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-gray-600">Wave Batch Size</span>
+                    <input type="number" id="cfg-picking.wave_batch_size" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" min="1" max="200" placeholder="20">
+                    <p class="text-xs text-gray-400 mt-1">Maximum orders grouped in a single wave pick run.</p>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Require Scan Confirmation</div>
+                        <p class="text-xs text-gray-400">Barcode scan required to confirm each pick.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-picking.require_scan_confirmation" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Auto-Assign Picking Tasks</div>
+                        <p class="text-xs text-gray-400">Automatically assign tasks to available operators.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-picking.auto_assign_tasks" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
             </div>
-        </div>
-        {if count(settings) === 0}
-        <div class="p-8 text-center text-gray-400 text-sm">No settings configured yet.</div>
-        {/if}
+        </section>
+
+        <!-- Receiving -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4h18M3 4v16a2 2 0 002 2h14a2 2 0 002-2V4M3 4l6 16m12-16l-6 16"/></svg>
+                Receiving
+            </h2>
+            <div class="space-y-3">
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Auto-Create Putaway Tasks</div>
+                        <p class="text-xs text-gray-400">Generate putaway tasks automatically when items are received.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-receiving.auto_create_putaway_tasks" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Require Quality Check</div>
+                        <p class="text-xs text-gray-400">Mandate a quality inspection step on inbound receipts.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-receiving.require_quality_check" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-gray-600">Over-Receive Tolerance (%)</span>
+                    <input type="number" id="cfg-receiving.over_receive_tolerance_pct" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" min="0" max="100" placeholder="0">
+                    <p class="text-xs text-gray-400 mt-1">Allow receiving up to this % above the PO line qty. 0 = exact match.</p>
+                </label>
+            </div>
+        </section>
+
+        <!-- Returns -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 4v5h-5M4 20v-5h5M20 20v-5h-5"/></svg>
+                Returns &amp; Quality
+            </h2>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-gray-600">Default Quarantine Location</span>
+                    <select id="cfg-returns.default_quarantine_location_id" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">— None —</option>
+                        {each locations as loc}
+                        <option value="{loc.id}">{loc.code} — {loc.name}</option>
+                        {/each}
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Fallback location for quarantine-routed returns.</p>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Require Inspection</div>
+                        <p class="text-xs text-gray-400">Require inspection before returned items can be restocked.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-returns.require_inspection" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Auto-Quarantine Damaged</div>
+                        <p class="text-xs text-gray-400">Automatically route damaged returns to quarantine.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-returns.auto_quarantine_damaged" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+            </div>
+        </section>
+
+        <!-- Financial -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Financial
+            </h2>
+            <div class="space-y-3">
+                <label class="block">
+                    <span class="text-sm text-gray-600">Inventory Costing Method</span>
+                    <select id="cfg-financial.costing_method" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="FIFO">FIFO (First In, First Out)</option>
+                        <option value="MAC">MAC (Moving Average Cost)</option>
+                    </select>
+                    <p class="text-xs text-gray-400 mt-1">Method used for inventory valuation calculations.</p>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-gray-600">Default Currency</span>
+                    <select id="cfg-financial.default_currency" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="USD">USD ($)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="CAD">CAD (C$)</option>
+                        <option value="AUD">AUD (A$)</option>
+                        <option value="JPY">JPY (¥)</option>
+                        <option value="CNY">CNY (¥)</option>
+                        <option value="PHP">PHP (₱)</option>
+                        <option value="SGD">SGD (S$)</option>
+                        <option value="INR">INR (₹)</option>
+                    </select>
+                </label>
+            </div>
+        </section>
+
+        <!-- Notifications -->
+        <section class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-4">
+            <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                Notifications
+            </h2>
+            <div class="space-y-3">
+                <label class="flex items-center justify-between py-2">
+                    <div>
+                        <div class="text-sm text-gray-700">Low Stock Alerts</div>
+                        <p class="text-xs text-gray-400">Send alerts when stock falls below the low-stock threshold.</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="cfg-notifications.low_stock_alerts_enabled" class="cfg-input sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                    </label>
+                </label>
+                <label class="block">
+                    <span class="text-sm text-gray-600">Task Escalation (hours)</span>
+                    <input type="number" id="cfg-notifications.task_escalation_hours" class="cfg-input mt-1 block w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" min="1" max="168" placeholder="4">
+                    <p class="text-xs text-gray-400 mt-1">Hours before unassigned tasks are flagged for escalation.</p>
+                </label>
+            </div>
+        </section>
+
     </div>
 </div>
+
+<script>
+var cfgData = {settings|json:JSON_PRETTY_PRINT|raw};
+
+function loadSettings() {
+    document.querySelectorAll('.cfg-input').forEach(function(el) {
+        var key = el.id.replace('cfg-', '');
+        var val = cfgData[key];
+        if (el.type === 'checkbox') {
+            el.checked = val === '1' || val === 'true' || val === true;
+        } else if (el.tagName === 'SELECT' || el.type === 'text' || el.type === 'number') {
+            if (val !== undefined && val !== null && val !== '') {
+                el.value = val;
+            }
+        }
+    });
+}
+
+function saveAllSettings() {
+    var btn = document.getElementById('settings-save-btn');
+    var savedEl = document.getElementById('settings-saved');
+    var errEl = document.getElementById('settings-error');
+    btn.disabled = true;
+    btn.textContent = 'Saving\u2026';
+    savedEl.classList.add('hidden');
+    errEl.classList.add('hidden');
+
+    var configs = {};
+    document.querySelectorAll('.cfg-input').forEach(function(el) {
+        var key = el.id.replace('cfg-', '');
+        if (el.type === 'checkbox') {
+            configs[key] = el.checked ? true : false;
+        } else if (el.type === 'number') {
+            configs[key] = el.value !== '' ? parseFloat(el.value) : '';
+        } else {
+            configs[key] = el.value;
+        }
+    });
+
+    fetch('{base_url}/api/v1/wms/configs', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({configs: configs})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+        btn.disabled = false;
+        btn.textContent = 'Save Settings';
+        if (res.ok) {
+            savedEl.classList.remove('hidden');
+            setTimeout(function() { savedEl.classList.add('hidden'); }, 3000);
+        } else {
+            errEl.textContent = res.error || 'Failed to save.';
+            errEl.classList.remove('hidden');
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = 'Save Settings';
+        errEl.textContent = 'Network error.';
+        errEl.classList.remove('hidden');
+    });
+}
+
+loadSettings();
+</script>

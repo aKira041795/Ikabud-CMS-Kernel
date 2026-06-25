@@ -1,7 +1,7 @@
-<div class="p-6" x-data="ordersPage()">
+<div class="p-6">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Sales Orders</h1>
-        <button @@click="showCreate = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Order</button>
+        <button onclick="document.getElementById('order-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Order</button>
     </div>
 
     <div class="bg-white rounded shadow mb-6">
@@ -42,7 +42,7 @@
                     <td class="px-4 py-3">{o.warehouse_code}</td>
                     <td class="px-4 py-3">
                         {o.customer_name ?? '—'}
-                        <span x-show="o.customer_email" class="text-xs text-gray-400 block">{o.customer_email}</span>
+                        {if o.customer_email}<span class="text-xs text-gray-400 block">{o.customer_email}</span>{/if}
                     </td>
                     <td class="px-4 py-3">
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
@@ -70,14 +70,14 @@
     </div>
 
     <!-- Create Order Modal -->
-    <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6" @@click.outside="showCreate=false">
+    <div id="order-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6" onclick="event.stopPropagation()">
             <h2 class="text-lg font-bold mb-4">New Sales Order</h2>
-            <form @@submit.prevent="submitOrder()" class="space-y-3">
+            <form id="order-form" onsubmit="return submitOrder(event)" class="space-y-3">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
-                        <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                        <select name="warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                             <option value="">Select...</option>
                             {each warehouses as w}
                                 <option value="{w.id}">{w.code} — {w.name}</option>
@@ -86,7 +86,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Order Type</label>
-                        <select x-model="form.order_type" class="border rounded px-3 py-2 w-full text-sm">
+                        <select name="order_type" class="border rounded px-3 py-2 w-full text-sm">
                             <option value="sales_order">Sales Order</option>
                             <option value="transfer_out">Transfer Out</option>
                             <option value="internal">Internal</option>
@@ -96,40 +96,28 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Customer Name</label>
-                        <input type="text" x-model="form.customer_name" class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="text" name="customer_name" class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Customer Email</label>
-                        <input type="email" x-model="form.customer_email" class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="email" name="customer_email" class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Shipping Address</label>
-                    <textarea x-model="form.shipping_address" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <textarea name="shipping_address" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Items</label>
-                    <template x-for="(item, i) in form.items" :key="i">
-                        <div class="flex gap-2 mb-2 items-end">
-                            <select x-model="item.product_id" class="border rounded px-3 py-2 text-sm flex-1">
-                                <option value="">Product...</option>
-                                {each products as p}
-                                    <option value="{p.id}">{p.name} ({p.sku})</option>
-                                {/each}
-                            </select>
-                            <input type="number" step="0.0001" x-model="item.quantity_ordered" placeholder="Qty" class="border rounded px-3 py-2 text-sm w-24">
-                            <input type="number" step="0.01" x-model="item.unit_price" placeholder="Price" class="border rounded px-3 py-2 text-sm w-24">
-                            <button type="button" @@click="form.items.splice(i,1)" class="text-red-500 text-xs">✕</button>
-                        </div>
-                    </template>
-                    <button type="button" @@click="form.items.push({product_id:'',quantity_ordered:'',unit_price:''})" class="text-blue-600 text-xs">+ Add item</button>
+                    
+                    
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                    <textarea x-model="form.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <textarea name="notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showCreate=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('order-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create Order</button>
                 </div>
             </form>
@@ -138,18 +126,7 @@
 </div>
 
 <script>
-function ordersPage() {
-    return {
-        showCreate: false,
-        form: { warehouse_id: '', order_type: 'sales_order', customer_name: '', customer_email: '', customer_phone: '', shipping_address: '', notes: '', items: [] },
-        async submitOrder() {
-            const res = await fetch('/api/v1/wms/orders', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.form) });
-            const data = await res.json();
-            if (!data.ok) { alert('Error: ' + data.error); return; }
-            location.reload();
-        }
-    }
-}
+function submitOrder(e) { e.preventDefault(); var data={}; new FormData(e.target).forEach(function(v,k){data[k]=v;}); fetch('/api/v1/wms/orders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error||'Failed');}); return false; }
 
 function cancelOrder(id) { if(confirm('Cancel this order?')) { fetch('{base_url}/api/v1/wms/orders/'+id+'/cancel', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 
