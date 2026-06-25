@@ -153,12 +153,14 @@ function bakeshopDeliveriesFetchItemsByDeliveryIds(array $deliveryIds): array
             di.delivery_id,
             di.id,
             di.ingredient_id,
+            di.product_id,
             di.qty,
             di.unit_id,
             di.unit_cost,
             ' . bakeshopDeliveriesItemCostBasisSelectSql('di') . '
             i.name AS ingredient_name,
-            u.code AS unit_code
+            u.code AS unit_code,
+            p.name AS product_name
          FROM bakeshop_delivery_items di
          INNER JOIN bakeshop_ingredients i ON i.id = di.ingredient_id
          INNER JOIN bakeshop_units u ON u.id = di.unit_id
@@ -374,8 +376,15 @@ function bakeshopDeliveriesNormalizeItems(mixed $rawItems): array
         bakeshopCatalogAssertRecordExists('bakeshop_units', $unitId);
         bakeshopAssertIngredientUnitCompatible($ingredientId, $unitId, 'unit_id');
 
+        $productId = null;
+        if (($rawItem['product_id'] ?? null) !== null && (string)$rawItem['product_id'] !== '') {
+            $productId = bakeshopCatalogRequirePositiveInt($rawItem['product_id'], 'product_id');
+            bakeshopCatalogAssertRecordExists('bakeshop_products', $productId);
+        }
+
         $items[] = [
             'ingredient_id' => $ingredientId,
+            'product_id' => $productId,
             'unit_id' => $unitId,
             'qty' => $qty,
             'unit_cost' => $unitCost,
@@ -483,16 +492,17 @@ function bakeshopDeliveriesCreate(array $input): array
         $hasItemCostBasisColumn = bakeshopDeliveriesHasItemCostBasisColumn();
         $itemStmt = $db->prepare(
             $hasItemCostBasisColumn
-                ? 'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, qty, unit_id, unit_cost, cost_basis)
-                   VALUES (:delivery_id, :ingredient_id, :qty, :unit_id, :unit_cost, :cost_basis)'
-                : 'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, qty, unit_id, unit_cost)
-                   VALUES (:delivery_id, :ingredient_id, :qty, :unit_id, :unit_cost)'
+                ? 'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, product_id, qty, unit_id, unit_cost, cost_basis)
+                   VALUES (:delivery_id, :ingredient_id, :product_id, :qty, :unit_id, :unit_cost, :cost_basis)'
+                : 'INSERT INTO bakeshop_delivery_items (delivery_id, ingredient_id, product_id, qty, unit_id, unit_cost)
+                   VALUES (:delivery_id, :ingredient_id, :product_id, :qty, :unit_id, :unit_cost)'
         );
 
         foreach ($items as $item) {
             $bindings = [
                 ':delivery_id' => $deliveryId,
                 ':ingredient_id' => $item['ingredient_id'],
+                ':product_id' => $item['product_id'],
                 ':qty' => $item['qty'],
                 ':unit_id' => $item['unit_id'],
                 ':unit_cost' => $item['unit_cost'],

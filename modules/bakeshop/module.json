@@ -38,7 +38,8 @@
         "database/migrations/011_bakeshop_ingredient_pack.sql",
         "database/migrations/012_bakeshop_inventory_adjustments_and_reorder.sql",
         "database/migrations/013_bakeshop_product_allocations.sql",
-        "database/migrations/014_bakeshop_production_day_fraction.sql"
+        "database/migrations/014_bakeshop_production_day_fraction.sql",
+        "database/migrations/015_bakeshop_delivery_item_product.sql"
     ],
     "capabilities": {
         "exposes": [
