@@ -46,7 +46,7 @@
             </thead>
             <tbody>
                 {each stock as s}
-                <tr class="border-t hover:bg-gray-50" :class="{'bg-red-50': s.qty_on_hand <= s.reorder_point && s.reorder_point > 0}">
+                <tr class="border-t hover:bg-gray-50" class="{'bg-red-50': s.qty_on_hand <= s.reorder_point && s.reorder_point > 0 ? 'bg-red-50' : ''}>
                     <td class="px-4 py-3">{s.product_name}</td>
                     <td class="px-4 py-3 text-gray-500">{s.sku}</td>
                     <td class="px-4 py-3">{s.warehouse_code}</td>
@@ -54,7 +54,7 @@
                     <td class="px-4 py-3 text-gray-500">{s.batch_number ?? '—'}</td>
                     <td class="px-4 py-3 text-right font-medium">{s.qty_on_hand|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-amber-600">{s.qty_reserved|number_format:4}</td>
-                    <td class="px-4 py-3 text-right font-medium" :class="s.qty_on_hand - s.qty_reserved <= 0 ? 'text-red-600' : 'text-green-600'">{(s.qty_on_hand - s.qty_reserved)|number_format:4}</td>
+                    <td class="px-4 py-3 text-right font-medium" class="{s.qty_on_hand - s.qty_reserved <= 0 ? 'text-red-600' : 'text-green-600'}">{(s.qty_on_hand - s.qty_reserved)|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-gray-400">{s.qty_staged|number_format:4}</td>
                 </tr>
                 {/each}

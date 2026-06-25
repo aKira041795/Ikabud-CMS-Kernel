@@ -118,5 +118,6 @@ return [
 
         '/api/v1/wms/users/{id}/toggle'           => 'wms:wmsApiUserToggle',
         '/api/v1/wms/auth/admin-reset-password'   => 'wms:wmsApiAdminResetPassword',
+        '/api/v1/wms/auth/register'               => 'wms:wmsApiUserRegister',
     ],
 ];

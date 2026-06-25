@@ -362,3 +362,30 @@ function wmsApiUserToggle(): void
     ]);
     wmsJsonOk(['user_id' => $userId, 'is_active' => (bool)$newActive]);
 }
+
+// ── Admin: Create user ──
+
+function wmsApiUserRegister(): void
+{
+    $user = wmsCurrentUser(['admin']);
+    $input = wmsInput();
+    $username = trim((string)($input['username'] ?? ''));
+    $fullName = trim((string)($input['full_name'] ?? ''));
+    $email = trim((string)($input['email'] ?? ''));
+    $password = (string)($input['password'] ?? '');
+    $role = in_array(trim((string)($input['role'] ?? '')), ['admin', 'supervisor', 'viewer'], true) ? trim($input['role']) : 'viewer';
+
+    if ($username === '' || $fullName === '' || $password === '' || strlen($password) < 4) {
+        wmsJsonError('username, full_name, and password (min 4 chars) are required.');
+    }
+
+    $existing = wmsDb()->query('SELECT id FROM wms_users WHERE username = :u', [':u' => $username])->fetch(\PDO::FETCH_ASSOC);
+    if ($existing) wmsJsonError('Username already exists.');
+
+    $hash = password_hash($password, \PASSWORD_DEFAULT);
+    wmsDb()->execute(
+        'INSERT INTO wms_users (username, full_name, email, password_hash, role, is_active) VALUES (:u, :fn, :e, :h, :r, 1)',
+        [':u' => $username, ':fn' => $fullName, ':e' => $email !== '' ? $email : $username . '@wms.local', ':h' => $hash, ':r' => $role]
+    );
+    wmsJsonOk(['user_id' => (int)wmsDb()->lastInsertId()], 201);
+}

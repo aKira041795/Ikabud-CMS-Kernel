@@ -25,7 +25,7 @@
                     <td class="px-4 py-3">{d.warehouse_code}</td>
                     <td class="px-4 py-3">
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
-                              :class="{'bg-yellow-100 text-yellow-700': d.status==='expected','bg-blue-100 text-blue-700': d.status==='in_transit','bg-green-100 text-green-700': d.status==='received','bg-amber-100 text-amber-700': d.status==='partially_received'}">{d.status}</span>
+                              class="inline-block px-2 py-0.5 rounded text-xs font-medium {d.status == 'expected' ? 'bg-yellow-100 text-yellow-700' : d.status == 'in_transit' ? 'bg-blue-100 text-blue-700' : d.status == 'received' ? 'bg-green-100 text-green-700' : d.status == 'partially_received' ? 'bg-amber-100 text-amber-700' : ''}">{d.status}</span>
                     </td>
                     <td class="px-4 py-3 text-sm">{d.expected_at ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-500">{d.reference ?? '—'}</td>

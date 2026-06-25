@@ -493,8 +493,8 @@ function wmsApiPicklistCreate(): void
                 [
                     ':plid' => $picklistId, ':oiid' => $oi['id'],
                     ':pid' => $oi['product_id'],
-                    ':lid' => $loc ? (int)$loc['location_id'] : null,
-                    ':bid' => $loc ? (int)$loc['batch_id'] : null,
+                    ':lid' => $loc ? $loc['location_id'] : null,
+                    ':bid' => $loc ? $loc['batch_id'] : null,
                     ':qty' => $toPick, ':status' => 'pending',
                 ]
             );

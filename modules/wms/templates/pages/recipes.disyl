@@ -27,7 +27,7 @@
                     <td class="px-4 py-3 text-sm">v{r.version}</td>
                     <td class="px-4 py-3">
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
-                              :class="r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'">{r.is_active ? 'Active' : 'Inactive'}</span>
+                              class="inline-block px-2 py-0.5 rounded text-xs font-medium {r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">{r.is_active ? 'Active' : 'Inactive'}</span>
                     </td>
                         <td class="px-4 py-3 text-center text-xs">
                             <button onclick="location.href='/wms/recipes'" class="text-blue-600 hover:text-blue-800">View</button>

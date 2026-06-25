@@ -46,8 +46,7 @@
                     </td>
                     <td class="px-4 py-3">
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
-                              :class="{
-                                  'bg-gray-100 text-gray-600': o.status === 'pending',
+                              class="                                  'bg-gray-100 text-gray-600': o.status === 'pending',
                                   'bg-blue-100 text-blue-700': o.status === 'picking',
                                   'bg-indigo-100 text-indigo-700': o.status === 'picked',
                                   'bg-purple-100 text-purple-700': o.status === 'packed',
