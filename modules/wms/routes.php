@@ -115,5 +115,8 @@ return [
         '/api/v1/wms/webhooks'                    => 'wms:wmsApiWebhookCreate',
         '/api/v1/wms/webhooks/{id}/toggle'        => 'wms:wmsApiWebhookToggle',
         '/api/v1/wms/webhooks/{id}/delete'        => 'wms:wmsApiWebhookDelete',
+
+        '/api/v1/wms/users/{id}/toggle'           => 'wms:wmsApiUserToggle',
+        '/api/v1/wms/auth/admin-reset-password'   => 'wms:wmsApiAdminResetPassword',
     ],
 ];

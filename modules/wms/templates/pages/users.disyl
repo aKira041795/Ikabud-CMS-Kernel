@@ -95,7 +95,7 @@ function usersPage() {
     }
 }
 
-function resetPassword(id) { var pw = prompt('New password:'); if(pw && pw.length>3) { fetch('{base_url}/api/v1/wms/auth/reset-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:id, password:pw})}).then(function(r){return r.json()}).then(function(res){if(res.ok)alert('Password reset');else alert(res.error)}); } }
-function toggleUser(id) { if(confirm('Toggle user active status?')) { fetch('{base_url}/api/v1/wms/users/'+id+'/toggle', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
+function resetPassword(id) { var pw = prompt('New password:'); if(pw && pw.length>3) { fetch('{base_url}/api/v1/wms/auth/admin-reset-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:id, password:pw})}).then(function(r){return r.json()}).then(function(res){if(res.ok)alert('Password reset');else alert(res.error)}); } }
+function toggleUser(id) { if(confirm('Toggle user active status?')) { fetch('{base_url}/api/v1/wms/users/'+id+'/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({user_id:id})}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 
 </script>

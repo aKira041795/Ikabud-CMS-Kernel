@@ -315,3 +315,50 @@ function wmsNavItems(string $role): array
 
     return $all;
 }
+
+// ── Admin: Force reset user password ──
+
+function wmsApiAdminResetPassword(): void
+{
+    $user = wmsCurrentUser(['admin']);
+    $input = wmsInput();
+    $userId = (int)($input['user_id'] ?? 0);
+    $password = trim((string)($input['password'] ?? ''));
+
+    if ($userId <= 0 || $password === '' || strlen($password) < 4) {
+        wmsJsonError('Valid user_id and password (min 4 chars) are required.');
+    }
+
+    $existing = wmsDb()->query('SELECT id FROM wms_users WHERE id = :id', [':id' => $userId])->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) wmsJsonError('User not found.', 404);
+
+    $hash = password_hash($password, \PASSWORD_DEFAULT);
+    wmsDb()->execute('UPDATE wms_users SET password_hash = :hash, updated_at = NOW() WHERE id = :id', [
+        ':hash' => $hash, ':id' => $userId,
+    ]);
+    wmsJsonOk(['user_id' => $userId, 'message' => 'Password reset successfully.']);
+}
+
+// ── Admin: Toggle user active status ──
+
+function wmsApiUserToggle(): void
+{
+    $user = wmsCurrentUser(['admin']);
+    $userId = (int)(wmsInput()['user_id'] ?? 0);
+    if ($userId <= 0) wmsJsonError('user_id is required.');
+
+    $existing = wmsDb()->query('SELECT id, is_active, role FROM wms_users WHERE id = :id', [':id' => $userId])->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) wmsJsonError('User not found.', 404);
+    if ($existing['role'] === 'admin') {
+        $adminCount = (int)wmsDb()->query('SELECT COUNT(*) FROM wms_users WHERE role = \'admin\' AND is_active = 1')->fetchColumn();
+        if ($adminCount <= 1 && (int)$existing['is_active'] === 1) {
+            wmsJsonError('Cannot deactivate the last active admin.');
+        }
+    }
+
+    $newActive = (int)$existing['is_active'] ? 0 : 1;
+    wmsDb()->execute('UPDATE wms_users SET is_active = :active, updated_at = NOW() WHERE id = :id', [
+        ':active' => $newActive, ':id' => $userId,
+    ]);
+    wmsJsonOk(['user_id' => $userId, 'is_active' => (bool)$newActive]);
+}
