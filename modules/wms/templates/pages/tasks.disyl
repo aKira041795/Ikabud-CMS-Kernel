@@ -8,10 +8,10 @@
         <div class="p-4 border-b flex gap-4 items-center">
             <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
                 <option value="">All</option>
-                <option value="open" {eq($_GET['status'] ?? '', 'open') ? 'selected' : ''}>Open</option>
-                <option value="assigned" {eq($_GET['status'] ?? '', 'assigned') ? 'selected' : ''}>Assigned</option>
-                <option value="in_progress" {eq($_GET['status'] ?? '', 'in_progress') ? 'selected' : ''}>In Progress</option>
-                <option value="completed" {eq($_GET['status'] ?? '', 'completed') ? 'selected' : ''}>Completed</option>
+                <option value="open" {eq($_GET['status']|default:'', 'open') ? 'selected' : ''}>Open</option>
+                <option value="assigned" {eq($_GET['status']|default:'', 'assigned') ? 'selected' : ''}>Assigned</option>
+                <option value="in_progress" {eq($_GET['status']|default:'', 'in_progress') ? 'selected' : ''}>In Progress</option>
+                <option value="completed" {eq($_GET['status']|default:'', 'completed') ? 'selected' : ''}>Completed</option>
             </select>
             <span class="text-xs text-gray-400">{tasks|count} tasks</span>
         </div>
@@ -30,7 +30,7 @@
                 <div><span class="font-medium">Type:</span> {t.task_type}</div>
                 <div><span class="font-medium">Priority:</span> {t.priority}</div>
                 <div><span class="font-medium">Warehouse:</span> {t.warehouse_code}</div>
-                <div><span class="font-medium">Assigned:</span> {t.assigned_name ?? '—'}</div>
+                <div><span class="font-medium">Assigned:</span> {t.assigned_name|default:'—'}</div>
                 {if t.description}
                 <div class="text-gray-400 pt-1">{t.description}</div>
                 {/if}

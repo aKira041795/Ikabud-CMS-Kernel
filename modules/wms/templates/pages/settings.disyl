@@ -11,21 +11,21 @@
                     <div class="text-sm font-medium text-gray-700">Default Warehouse Name</div>
                     <div class="text-xs text-gray-400">Configured during onboarding</div>
                 </div>
-                <div class="text-sm text-gray-600">{settings.warehouse_name ?? 'Main Warehouse'}</div>
+                <div class="text-sm text-gray-600">{settings.warehouse_name|default:'Main Warehouse'}</div>
             </div>
             <div class="flex items-center justify-between">
                 <div>
                     <div class="text-sm font-medium text-gray-700">Picking Strategy</div>
                     <div class="text-xs text-gray-400">Controls pick-list generation order</div>
                 </div>
-                <div class="text-sm text-gray-600">{settings.picking_strategy ?? 'fifo'}</div>
+                <div class="text-sm text-gray-600">{settings.picking_strategy|default:'fifo'}</div>
             </div>
             <div class="flex items-center justify-between">
                 <div>
                     <div class="text-sm font-medium text-gray-700">Allow Negative Stock</div>
                     <div class="text-xs text-gray-400">When disabled, blocks under-picking</div>
                 </div>
-                <div class="text-sm text-gray-600">{settings.allow_negative_stock ?? '0' === '1' ? 'Yes' : 'No'}</div>
+                <div class="text-sm text-gray-600">{settings.allow_negative_stock|default:'0' === '1' ? 'Yes' : 'No'}</div>
             </div>
         </div>
         {if count(settings) === 0}

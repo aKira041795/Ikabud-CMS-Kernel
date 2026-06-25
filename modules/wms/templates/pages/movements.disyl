@@ -4,14 +4,14 @@
         <select onchange="if(this.value) { const p=new URLSearchParams(location.search); p.set('type',this.value); location.search=p.toString(); } else { const p=new URLSearchParams(location.search); p.delete('type'); location.search=p.toString(); }"
                 class="border rounded px-3 py-2 text-sm">
             <option value="">All Types</option>
-            <option value="receipt" {eq($_GET['type'] ?? '', 'receipt') ? 'selected' : ''}>Receipts</option>
-            <option value="transfer" {eq($_GET['type'] ?? '', 'transfer') ? 'selected' : ''}>Transfers</option>
-            <option value="adjustment_up" {eq($_GET['type'] ?? '', 'adjustment_up') ? 'selected' : ''}>Adjustments (Up)</option>
-            <option value="adjustment_down" {eq($_GET['type'] ?? '', 'adjustment_down') ? 'selected' : ''}>Adjustments (Down)</option>
-            <option value="scrap" {eq($_GET['type'] ?? '', 'scrap') ? 'selected' : ''}>Scrap</option>
-            <option value="sale" {eq($_GET['type'] ?? '', 'sale') ? 'selected' : ''}>Sales</option>
-            <option value="return_in" {eq($_GET['type'] ?? '', 'return_in') ? 'selected' : ''}>Returns (In)</option>
-            <option value="return_out" {eq($_GET['type'] ?? '', 'return_out') ? 'selected' : ''}>Returns (Out)</option>
+            <option value="receipt" {eq($_GET['type']|default:'', 'receipt') ? 'selected' : ''}>Receipts</option>
+            <option value="transfer" {eq($_GET['type']|default:'', 'transfer') ? 'selected' : ''}>Transfers</option>
+            <option value="adjustment_up" {eq($_GET['type']|default:'', 'adjustment_up') ? 'selected' : ''}>Adjustments (Up)</option>
+            <option value="adjustment_down" {eq($_GET['type']|default:'', 'adjustment_down') ? 'selected' : ''}>Adjustments (Down)</option>
+            <option value="scrap" {eq($_GET['type']|default:'', 'scrap') ? 'selected' : ''}>Scrap</option>
+            <option value="sale" {eq($_GET['type']|default:'', 'sale') ? 'selected' : ''}>Sales</option>
+            <option value="return_in" {eq($_GET['type']|default:'', 'return_in') ? 'selected' : ''}>Returns (In)</option>
+            <option value="return_out" {eq($_GET['type']|default:'', 'return_out') ? 'selected' : ''}>Returns (Out)</option>
         </select>
     </div>
 
@@ -48,14 +48,14 @@
                                   'bg-gray-100 text-gray-700': !['receipt','transfer','adjustment_up','adjustment_down','scrap','sale'].includes(m.movement_type)
                               }">{m.movement_type}</span>
                     </td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{m.from_location_code ?? '—'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{m.to_location_code ?? '—'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{m.batch_number ?? '—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">{m.from_location_code|default:'—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">{m.to_location_code|default:'—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">{m.batch_number|default:'—'}</td>
                     <td class="px-4 py-3 text-right font-medium" :class="m.quantity >= 0 ? 'text-green-600' : 'text-red-600'">{m.quantity|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-gray-500">{m.prev_qty_on_hand|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-gray-500">{m.new_qty_on_hand|number_format:4}</td>
-                    <td class="px-4 py-3 text-xs text-gray-500">{m.created_by_name ?? '—'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-400 max-w-xs truncate">{m.notes ?? m.reason ?? ''}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">{m.created_by_name|default:'—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400 max-w-xs truncate">{m.notes|default:m.reason}</td>
                 </tr>
                 {/each}
                 {if count(movements) === 0}
