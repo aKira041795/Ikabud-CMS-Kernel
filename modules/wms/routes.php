@@ -20,6 +20,11 @@ return [
         '/wms/tasks'             => 'wms:wmsPageTasks',
         '/wms/recipes'           => 'wms:wmsPageRecipes',
         '/wms/production'        => 'wms:wmsPageProduction',
+        '/wms/receiving'         => 'wms:wmsPageReceiving',
+        '/wms/picking'           => 'wms:wmsPagePicking',
+        '/wms/users'             => 'wms:wmsPageUsers',
+        '/wms/settings'          => 'wms:wmsPageSettings',
+        '/wms/scanner'           => 'wms:wmsPageScanner',
 
         '/api/v1/wms/products'           => 'wms:wmsApiProductsList',
         '/api/v1/wms/products/{id}'       => 'wms:wmsApiProductGet',

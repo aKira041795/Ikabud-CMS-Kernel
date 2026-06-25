@@ -276,3 +276,89 @@ function wmsPageProduction(): void
         'page_title' => 'Production — WMS',
     ]);
 }
+
+function wmsPageReceiving(): void
+{
+    $user = wmsCurrentUser();
+    $deliveries = wmsDb()->query(
+        'SELECT d.*, w.code AS warehouse_code, s.name AS supplier_name
+         FROM wms_deliveries d
+         JOIN wms_warehouses w ON w.id = d.warehouse_id
+         LEFT JOIN wms_suppliers s ON s.id = d.supplier_id
+         WHERE d.status IN (\'expected\', \'in_transit\', \'partially_received\')
+         ORDER BY d.expected_at ASC, d.created_at DESC LIMIT 100'
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $suppliers = wmsDb()->query('SELECT id, code, name FROM wms_suppliers WHERE is_active = 1 ORDER BY name ASC LIMIT 200')->fetchAll(\PDO::FETCH_ASSOC);
+    $products = wmsDb()->query('SELECT id, sku, name FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('receiving', [
+        'deliveries' => $deliveries,
+        'warehouses' => $warehouses,
+        'suppliers' => $suppliers,
+        'products' => $products,
+        'page_title' => 'Receiving — WMS',
+    ]);
+}
+
+function wmsPagePicking(): void
+{
+    $user = wmsCurrentUser();
+    $picklists = wmsDb()->query(
+        'SELECT p.*, w.code AS warehouse_code, a.full_name AS assigned_name
+         FROM wms_picklists p
+         JOIN wms_warehouses w ON w.id = p.warehouse_id
+         LEFT JOIN wms_users a ON a.id = p.assigned_to
+         WHERE p.status IN (\'open\', \'in_progress\')
+         ORDER BY p.created_at DESC LIMIT 100'
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $orders = wmsDb()->query(
+        "SELECT id, order_number, customer_name FROM wms_orders WHERE status = 'pending' ORDER BY created_at ASC LIMIT 200"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $users = wmsDb()->query('SELECT id, full_name, role FROM wms_users WHERE is_active = 1 ORDER BY full_name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('picking', [
+        'picklists' => $picklists,
+        'orders' => $orders,
+        'warehouses' => $warehouses,
+        'users' => $users,
+        'page_title' => 'Picking — WMS',
+    ]);
+}
+
+function wmsPageUsers(): void
+{
+    $user = wmsCurrentUser(['admin']);
+    $users = wmsDb()->query('SELECT id, username, email, full_name, role, is_active, created_at FROM wms_users ORDER BY full_name ASC LIMIT 200')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('users', [
+        'users' => $users,
+        'page_title' => 'Users — WMS',
+    ]);
+}
+
+function wmsPageSettings(): void
+{
+    $user = wmsCurrentUser(['admin']);
+    $settings = wmsSettings();
+
+    wmsRenderTemplate('settings', [
+        'settings' => $settings,
+        'page_title' => 'Settings — WMS',
+    ]);
+}
+
+function wmsPageScanner(): void
+{
+    $user = wmsCurrentUser();
+    $products = wmsDb()->query('SELECT id, sku, name, barcode, unit FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('scanner', [
+        'products' => $products,
+        'page_title' => 'Scanner — WMS',
+    ]);
+}
