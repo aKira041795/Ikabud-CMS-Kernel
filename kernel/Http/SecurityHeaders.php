@@ -121,7 +121,7 @@ final class SecurityHeaders
         // 'unsafe-eval' is required by:
         //   - Alpine.js v3 (CDN build uses new Function() for expression evaluation)
         //   - Tailwind CSS CDN (JIT mode generates styles via eval-based class scanning)
-        $scriptSrc = ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://unpkg.com', 'https://maps.googleapis.com'];
+        $scriptSrc = ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://unpkg.com', 'https://cdn.jsdelivr.net', 'https://maps.googleapis.com'];      
 
         // CSP nonce transition: when CSP_NONCE_MODE is enabled, replace
         // 'unsafe-inline' with the per-request nonce. Templates must carry

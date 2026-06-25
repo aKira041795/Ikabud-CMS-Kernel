@@ -26,6 +26,7 @@
                         <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Batch</th>
                         <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Reorder</th>
                         <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Status</th>
+                        <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="products-table" class="divide-y divide-gray-100">
@@ -38,6 +39,10 @@
                         <td class="py-3 px-4">{if p.is_batch_tracked}<span class="text-blue-600">Yes</span>{else}<span class="text-gray-400">—</span>{/if}</td>
                         <td class="py-3 px-4 text-gray-600">{if p.reorder_point}{p.reorder_point}{else}—{/if}</td>
                         <td class="py-3 px-4 text-center">{if p.is_active}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">Active</span>{else}<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">Inactive</span>{/if}</td>
+                        <td class="py-3 px-4 text-center">
+                            <button onclick="editProduct({p.id},'{p.name}','{p.sku}','{p.unit}')" class="text-blue-600 hover:text-blue-800 text-xs mr-2">Edit</button>
+                            <button onclick="deleteProduct({p.id})" class="text-red-600 hover:text-red-800 text-xs">Delete</button>
+                        </td>
                     </tr>
                     {/for}
                     {if products|count == 0}

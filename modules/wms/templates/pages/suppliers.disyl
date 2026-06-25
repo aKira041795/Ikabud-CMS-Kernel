@@ -23,6 +23,7 @@
                         <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Email</th>
                         <th class="text-left py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Lead Time</th>
                         <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Status</th>
+                        <th class="text-center py-3 px-4 font-semibold text-gray-600 text-xs uppercase">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="suppliers-table" class="divide-y divide-gray-100">
@@ -37,7 +38,7 @@
                     </tr>
                     {/for}
                     {if suppliers|count == 0}
-                    <tr><td colspan="6" class="py-12 text-center text-gray-400">No suppliers yet.</td></tr>
+                    <tr><td colspan="8" class="py-12 text-center text-gray-400">No suppliers yet.</td></tr>
                     {/if}
                 </tbody>
             </table>
@@ -117,5 +118,5 @@ function createSupplier(e) {
         else { alert(res.error || 'Failed to create supplier.'); }
     });
     return false;
-}
+function deleteSupplier(id) { if(confirm('Delete this supplier?')) { fetch('{base_url}/api/v1/wms/suppliers/'+id+'/delete', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 </script>

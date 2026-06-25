@@ -270,16 +270,29 @@ function wmsPageDashboard(): void
     $user = wmsCurrentUser();
     $settings = wmsSettings();
     $baseUrl = wmsBaseUrl();
+    $wid = (int)($settings['default_warehouse_id'] ?? 0);
 
-    $context = array_merge([
-        'current_user' => $user,
-        'settings' => $settings,
-        'base_url' => $baseUrl,
+    // KPIs
+    $totalProducts = (int)wmsDb()->query('SELECT COUNT(*) FROM wms_products WHERE is_active = 1')->fetchColumn();
+    $totalStockItems = (int)wmsDb()->query('SELECT COUNT(*) FROM wms_stock WHERE qty_on_hand > 0')->fetchColumn();
+    $totalStockQty = (float)wmsDb()->query('SELECT COALESCE(SUM(qty_on_hand), 0) FROM wms_stock')->fetchColumn();
+    $lowStockCount = (int)wmsDb()->query('SELECT COUNT(*) FROM wms_stock s JOIN wms_products p ON p.id = s.product_id WHERE s.qty_on_hand <= COALESCE(p.reorder_point, 0) AND s.qty_on_hand > 0')->fetchColumn();
+    $pendingDeliveries = (int)wmsDb()->query("SELECT COUNT(*) FROM wms_deliveries WHERE status IN ('expected', 'in_transit')")->fetchColumn();
+    $pendingOrders = (int)wmsDb()->query("SELECT COUNT(*) FROM wms_orders WHERE status IN ('pending', 'picking')")->fetchColumn();
+    $openTasks = (int)wmsDb()->query("SELECT COUNT(*) FROM wms_tasks WHERE status IN ('open', 'assigned', 'in_progress')")->fetchColumn();
+    $recentMovements = wmsDb()->query('SELECT m.*, p.name AS product_name FROM wms_stock_movements m JOIN wms_products p ON p.id = m.product_id ORDER BY m.created_at DESC LIMIT 10')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('dashboard', [
+        'total_products' => $totalProducts,
+        'total_stock_items' => $totalStockItems,
+        'total_stock_qty' => $totalStockQty,
+        'low_stock_count' => $lowStockCount,
+        'pending_deliveries' => $pendingDeliveries,
+        'pending_orders' => $pendingOrders,
+        'open_tasks' => $openTasks,
+        'recent_movements' => $recentMovements,
         'page_title' => 'Dashboard — WMS',
-        'menu_items' => wmsNavItems($user['role'] ?? ''),
     ]);
-
-    echo wmsRender('modules/wms/layouts/admin.disyl', $context);
 }
 
 function wmsNavItems(string $role): array
