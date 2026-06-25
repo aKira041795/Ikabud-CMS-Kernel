@@ -148,4 +148,6 @@ function createProduct(e) {
     });
     return false;
 }
+function editProduct(id) { alert('Edit product #' + id); }
+function deleteProduct(id) { if(confirm('Delete this product?')) { fetch('{base_url}/api/v1/wms/products/'+id+'/delete', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 </script>
