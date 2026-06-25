@@ -150,3 +150,129 @@ function wmsPageOrders(): void
         'page_title' => 'Orders — WMS',
     ]);
 }
+
+function wmsPageCycleCounts(): void
+{
+    $user = wmsCurrentUser();
+    $status = trim((string)($_GET['status'] ?? ''));
+
+    $sql = 'SELECT cc.*, w.code AS warehouse_code, a.full_name AS assigned_name
+            FROM wms_cycle_counts cc
+            JOIN wms_warehouses w ON w.id = cc.warehouse_id
+            LEFT JOIN wms_users a ON a.id = cc.assigned_to
+            WHERE 1=1';
+    $params = [];
+    if ($status !== '') { $sql .= ' AND cc.status = :status'; $params[':status'] = $status; }
+    $sql .= ' ORDER BY cc.created_at DESC LIMIT 100';
+
+    $cycleCounts = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $products = wmsDb()->query('SELECT id, sku, name FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+    $users = wmsDb()->query('SELECT id, full_name, role FROM wms_users WHERE is_active = 1 ORDER BY full_name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('cycle-counts', [
+        'cycle_counts' => $cycleCounts,
+        'warehouses' => $warehouses,
+        'products' => $products,
+        'users' => $users,
+        'page_title' => 'Cycle Counts — WMS',
+    ]);
+}
+
+function wmsPageReturns(): void
+{
+    $user = wmsCurrentUser();
+
+    $sql = 'SELECT r.*, w.code AS warehouse_code, u.full_name AS created_name
+            FROM wms_returns r
+            JOIN wms_warehouses w ON w.id = r.warehouse_id
+            LEFT JOIN wms_users u ON u.id = r.created_by
+            ORDER BY r.created_at DESC LIMIT 100';
+
+    $returns = wmsDb()->query($sql)->fetchAll(\PDO::FETCH_ASSOC);
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $products = wmsDb()->query('SELECT id, sku, name FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('returns', [
+        'returns' => $returns,
+        'warehouses' => $warehouses,
+        'products' => $products,
+        'page_title' => 'Returns — WMS',
+    ]);
+}
+
+function wmsPageTasks(): void
+{
+    $user = wmsCurrentUser();
+    $status = trim((string)($_GET['status'] ?? ''));
+
+    $sql = 'SELECT t.*, w.code AS warehouse_code, a.full_name AS assigned_name
+            FROM wms_tasks t
+            JOIN wms_warehouses w ON w.id = t.warehouse_id
+            LEFT JOIN wms_users a ON a.id = t.assigned_to
+            WHERE 1=1';
+    $params = [];
+    if ($status !== '') { $sql .= ' AND t.status = :status'; $params[':status'] = $status; }
+    $sql .= ' ORDER BY t.priority ASC, t.created_at DESC LIMIT 100';
+
+    $tasks = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $users = wmsDb()->query('SELECT id, full_name, role FROM wms_users WHERE is_active = 1 ORDER BY full_name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('tasks', [
+        'tasks' => $tasks,
+        'warehouses' => $warehouses,
+        'users' => $users,
+        'page_title' => 'Tasks — WMS',
+    ]);
+}
+
+function wmsPageRecipes(): void
+{
+    $user = wmsCurrentUser();
+    $recipes = wmsDb()->query(
+        'SELECT r.*, p.sku, p.name AS product_name, p.unit, u.full_name AS created_name
+         FROM wms_recipes r
+         JOIN wms_products p ON p.id = r.product_id
+         LEFT JOIN wms_users u ON u.id = r.created_by
+         ORDER BY r.name ASC LIMIT 200'
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $products = wmsDb()->query('SELECT id, sku, name, unit FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('recipes', [
+        'recipes' => $recipes,
+        'products' => $products,
+        'page_title' => 'Recipes — WMS',
+    ]);
+}
+
+function wmsPageProduction(): void
+{
+    $user = wmsCurrentUser();
+    $status = trim((string)($_GET['status'] ?? ''));
+
+    $sql = 'SELECT po.*, r.recipe_code, r.name AS recipe_name, p.sku, p.name AS product_name,
+                   w.code AS warehouse_code
+            FROM wms_production_orders po
+            JOIN wms_recipes r ON r.id = po.recipe_id
+            JOIN wms_products p ON p.id = r.product_id
+            JOIN wms_warehouses w ON w.id = po.warehouse_id
+            WHERE 1=1';
+    $params = [];
+    if ($status !== '') { $sql .= ' AND po.status = :status'; $params[':status'] = $status; }
+    $sql .= ' ORDER BY po.created_at DESC LIMIT 100';
+
+    $productionOrders = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    $recipes = wmsDb()->query('SELECT id, recipe_code, name FROM wms_recipes WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $products = wmsDb()->query('SELECT id, sku, name, unit FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('production', [
+        'production_orders' => $productionOrders,
+        'recipes' => $recipes,
+        'warehouses' => $warehouses,
+        'products' => $products,
+        'page_title' => 'Production — WMS',
+    ]);
+}

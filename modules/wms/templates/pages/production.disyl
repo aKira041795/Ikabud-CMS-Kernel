@@ -1,0 +1,108 @@
+<div class="p-6" x-data="productionPage()">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Production Orders</h1>
+        <button @@click="showCreate = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Production Order</button>
+    </div>
+
+    <div class="bg-white rounded shadow mb-6">
+        <div class="p-4 border-b flex gap-4 items-center">
+            <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
+                <option value="">All</option>
+                <option value="planned" {eq($_GET['status'] ?? '', 'planned') ? 'selected' : ''}>Planned</option>
+                <option value="in_progress" {eq($_GET['status'] ?? '', 'in_progress') ? 'selected' : ''}>In Progress</option>
+                <option value="completed" {eq($_GET['status'] ?? '', 'completed') ? 'selected' : ''}>Completed</option>
+                <option value="cancelled" {eq($_GET['status'] ?? '', 'cancelled') ? 'selected' : ''}>Cancelled</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="bg-white rounded shadow overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 text-left">
+                    <th class="px-4 py-3 font-medium text-gray-600">Order #</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Recipe</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Product</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Warehouse</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th class="px-4 py-3 font-medium text-gray-600 text-right">Target</th>
+                    <th class="px-4 py-3 font-medium text-gray-600 text-right">Produced</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {@each production_orders as po}
+                <tr class="border-t hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">{po.order_number}</td>
+                    <td class="px-4 py-3 text-sm">{po.recipe_name}</td>
+                    <td class="px-4 py-3 text-sm">{po.product_name} ({po.sku})</td>
+                    <td class="px-4 py-3">{po.warehouse_code}</td>
+                    <td class="px-4 py-3">
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                              :class="{'bg-gray-100 text-gray-600': po.status==='planned','bg-blue-100 text-blue-700': po.status==='in_progress','bg-green-100 text-green-700': po.status==='completed','bg-red-100 text-red-700': po.status==='cancelled'}">{po.status}</span>
+                    </td>
+                    <td class="px-4 py-3 text-right">{po.quantity|number_format:4}</td>
+                    <td class="px-4 py-3 text-right font-medium">{po.quantity_produced|number_format:4}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400">{po.completed_at ?? '—'}</td>
+                </tr>
+                {@/each}
+                {@if count(production_orders) === 0}
+                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No production orders found.</td></tr>
+                {@/if}
+            </tbody>
+        </table>
+    </div>
+
+    <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-6" @@click.outside="showCreate=false">
+            <h2 class="text-lg font-bold mb-4">New Production Order</h2>
+            <form @@submit.prevent="submitProdOrder()" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Recipe *</label>
+                    <select x-model="form.recipe_id" required class="border rounded px-3 py-2 w-full text-sm">
+                        <option value="">Select recipe...</option>
+                        {@each recipes as r}
+                            <option value="{r.id}">{r.recipe_code} — {r.name}</option>
+                        {@/each}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
+                    <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                        <option value="">Select...</option>
+                        {@each warehouses as w}
+                            <option value="{w.id}">{w.code} — {w.name}</option>
+                        {@/each}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Quantity *</label>
+                    <input type="number" step="0.0001" min="0.0001" x-model="form.quantity" required class="border rounded px-3 py-2 w-full text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                    <textarea x-model="form.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                </div>
+                <div class="flex gap-2 justify-end pt-2">
+                    <button type="button" @@click="showCreate=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function productionPage() {
+    return {
+        showCreate: false,
+        form: { recipe_id: '', warehouse_id: '', quantity: '', notes: '' },
+        async submitProdOrder() {
+            const res = await fetch('/api/v1/wms/production-orders', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(this.form)});
+            const data = await res.json();
+            if (!data.ok) { alert('Error: ' + data.error); return; }
+            location.reload();
+        }
+    }
+}
+</script>
