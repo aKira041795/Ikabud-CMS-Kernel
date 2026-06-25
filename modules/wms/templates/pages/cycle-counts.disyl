@@ -26,6 +26,7 @@
                     <th class="px-4 py-3 font-medium text-gray-600">Assigned To</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Scheduled</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Completed</th>
+                        <th class="px-4 py-3 font-medium text-gray-600 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -41,10 +42,14 @@
                     <td class="px-4 py-3 text-sm">{cc.assigned_name ?? '—'}</td>
                     <td class="px-4 py-3 text-sm">{cc.scheduled_at ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{cc.completed_at ?? '—'}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <button onclick="location.href='/wms/cycle-counts'" class="text-blue-600 hover:text-blue-800 mr-2">View</button>
+                            <button onclick="completeCount({cc.id})" class="text-green-600 hover:text-green-800">Complete</button>
+                        </td>
                 </tr>
                 {/each}
                 {if count(cycle_counts) === 0}
-                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No cycle counts found.</td></tr>
+                <tr><td colspan="9" class="px-4 py-8 text-center text-gray-400">No cycle counts found.</td></tr>
                 {/if}
             </tbody>
         </table>
@@ -109,4 +114,7 @@ function cycleCountsPage() {
         }
     }
 }
+
+function completeCount(id) { if(confirm('Complete this cycle count?')) { fetch('{base_url}/api/v1/wms/cycle-counts/'+id+'/complete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({apply_adjustments:true})}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
+
 </script>

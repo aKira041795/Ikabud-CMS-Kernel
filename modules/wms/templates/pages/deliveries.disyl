@@ -30,6 +30,7 @@
                     <th class="px-4 py-3 font-medium text-gray-600">Expected</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Created By</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Date</th>
+                        <th class="px-4 py-3 font-medium text-gray-600 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -52,10 +53,14 @@
                     <td class="px-4 py-3 text-sm">{d.expected_at ?? '—'}</td>
                     <td class="px-4 py-3 text-sm text-gray-500">{d.created_by_name ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{d.created_at}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <button onclick="location.href='/wms/deliveries'" class="text-blue-600 hover:text-blue-800 mr-2">View</button>
+                            <button onclick="cancelDelivery({d.id})" class="text-red-600 hover:text-red-800">Cancel</button>
+                        </td>
                 </tr>
                 {/each}
                 {if count(deliveries) === 0}
-                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No deliveries found.</td></tr>
+                <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">No deliveries found.</td></tr>
                 {/if}
             </tbody>
         </table>
@@ -142,4 +147,7 @@ function deliveriesPage() {
         }
     }
 }
+
+function cancelDelivery(id) { if(confirm('Cancel this delivery?')) { fetch('{base_url}/api/v1/wms/deliveries/'+id+'/cancel', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
+
 </script>

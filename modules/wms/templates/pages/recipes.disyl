@@ -14,6 +14,7 @@
                     <th class="px-4 py-3 font-medium text-gray-600">Output</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Version</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Status</th>
+                        <th class="px-4 py-3 font-medium text-gray-600 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -28,10 +29,13 @@
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
                               :class="r.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'">{r.is_active ? 'Active' : 'Inactive'}</span>
                     </td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <button onclick="location.href='/wms/recipes'" class="text-blue-600 hover:text-blue-800">View</button>
+                        </td>
                 </tr>
                 {/each}
                 {if count(recipes) === 0}
-                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No recipes found.</td></tr>
+                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No recipes found.</td></tr>
                 {/if}
             </tbody>
         </table>
@@ -110,4 +114,7 @@ function recipesPage() {
         }
     }
 }
+
+// Recipes are view-only from the list page
+
 </script>

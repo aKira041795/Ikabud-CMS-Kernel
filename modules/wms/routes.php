@@ -9,6 +9,7 @@ return [
         '/wms/reset-password'    => 'wms:wmsResetPasswordPage',
         '/wms/logout'            => 'wms:wmsLogout',
         '/wms'                   => 'wms:wmsPageDashboard',
+        '/wms/dashboard'         => 'wms:wmsPageDashboard',
         '/wms/inventory'         => 'wms:wmsPageInventory',
         '/wms/suppliers'         => 'wms:wmsPageSuppliers',
         '/wms/stock'             => 'wms:wmsPageStock',

@@ -28,6 +28,7 @@
                     <th class="px-4 py-3 font-medium text-gray-600 text-right">Target</th>
                     <th class="px-4 py-3 font-medium text-gray-600 text-right">Produced</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Completed</th>
+                        <th class="px-4 py-3 font-medium text-gray-600 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -44,10 +45,14 @@
                     <td class="px-4 py-3 text-right">{po.quantity|number_format:4}</td>
                     <td class="px-4 py-3 text-right font-medium">{po.quantity_produced|number_format:4}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{po.completed_at ?? '—'}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <button onclick="location.href='/wms/production'" class="text-blue-600 hover:text-blue-800 mr-2">View</button>
+                            <button onclick="completeProd({po.id})" class="text-green-600 hover:text-green-800">Complete</button>
+                        </td>
                 </tr>
                 {/each}
                 {if count(production_orders) === 0}
-                <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No production orders found.</td></tr>
+                <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">No production orders found.</td></tr>
                 {/if}
             </tbody>
         </table>
@@ -105,4 +110,7 @@ function productionPage() {
         }
     }
 }
+
+function completeProd(id) { var qty = prompt('Actual output quantity:'); if(qty && parseFloat(qty)>0) { fetch('{base_url}/api/v1/wms/production-orders/'+id+'/complete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({actual_output:parseFloat(qty)})}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
+
 </script>

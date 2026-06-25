@@ -13,6 +13,7 @@
                     <th class="px-4 py-3 font-medium text-gray-600">Status</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Assigned To</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Created</th>
+                        <th class="px-4 py-3 font-medium text-gray-600 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -26,10 +27,13 @@
                     </td>
                     <td class="px-4 py-3 text-sm">{p.assigned_name ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{p.created_at}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <button onclick="location.href='/wms/picking'" class="text-blue-600 hover:text-blue-800">View</button>
+                        </td>
                 </tr>
                 {/each}
                 {if count(picklists) === 0}
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">No active picklists.</td></tr>
+                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No active picklists.</td></tr>
                 {/if}
             </tbody>
         </table>
@@ -89,4 +93,7 @@ function pickingPage() {
         }
     }
 }
+
+// Picking actions available on the picklist detail page
+
 </script>

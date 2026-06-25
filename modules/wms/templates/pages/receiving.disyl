@@ -14,6 +14,7 @@
                     <th class="px-4 py-3 font-medium text-gray-600">Status</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Expected</th>
                     <th class="px-4 py-3 font-medium text-gray-600">Reference</th>
+                        <th class="px-4 py-3 font-medium text-gray-600 text-center">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -28,10 +29,13 @@
                     </td>
                     <td class="px-4 py-3 text-sm">{d.expected_at ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-500">{d.reference ?? '—'}</td>
+                        <td class="px-4 py-3 text-center text-xs">
+                            <button onclick="location.href='/wms/deliveries'" class="text-blue-600 hover:text-blue-800">View Delivery</button>
+                        </td>
                 </tr>
                 {/each}
                 {if count(deliveries) === 0}
-                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No pending deliveries. <a href="/wms/deliveries" class="text-blue-600">Create one</a></td></tr>
+                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No pending deliveries. <a href="/wms/deliveries" class="text-blue-600">Create one</a></td></tr>
                 {/if}
             </tbody>
         </table>
