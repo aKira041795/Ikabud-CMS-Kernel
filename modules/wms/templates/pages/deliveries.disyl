@@ -1,12 +1,12 @@
-<div class="p-6" x-data="deliveriesPage()">
+<div class="p-6">
     <div class="flex items-center justify-between mb-6">
         <h1 class="text-2xl font-bold text-gray-800">Inbound Deliveries</h1>
-        <button @@click="showCreate = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Delivery</button>
+        <button onclick="document.getElementById('delivery-modal').classList.remove('hidden')" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Delivery</button>
     </div>
 
     <div class="bg-white rounded shadow mb-6">
         <div class="p-4 border-b flex gap-4 items-center">
-            <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
+            <select onchange="if(this.value){const p=new URLSearchParams(location.search);p.set('status',this.value);location.search=p.toString();}else{const p=new URLSearchParams(location.search);p.delete('status');location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
                 <option value="">All Statuses</option>
                 <option value="expected" {eq($_GET['status'] ?? '', 'expected') ? 'selected' : ''}>Expected</option>
                 <option value="in_transit" {eq($_GET['status'] ?? '', 'in_transit') ? 'selected' : ''}>In Transit</option>
@@ -61,18 +61,18 @@
     </div>
 
     <!-- Create Delivery Modal -->
-    <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6" @@click.outside="showCreate=false">
+    <div id="delivery-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick="if(event.target===this)this.classList.add('hidden')">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6" onclick="event.stopPropagation()">
             <h2 class="text-lg font-bold mb-4">New Delivery</h2>
-            <form @@submit.prevent="submitDelivery()" class="space-y-3">
+            <form id="delivery-form" onsubmit="return createDelivery(event)">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Delivery Number *</label>
-                        <input type="text" x-model="form.delivery_number" required class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="text" name="delivery_number" required class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
-                        <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                        <select name="warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
                             <option value="">Select...</option>
                             {each warehouses as w}
                                 <option value="{w.id}">{w.code} — {w.name}</option>
@@ -83,7 +83,7 @@
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Supplier</label>
-                        <select x-model="form.supplier_id" class="border rounded px-3 py-2 w-full text-sm">
+                        <select name="supplier_id" class="border rounded px-3 py-2 w-full text-sm">
                             <option value="">None</option>
                             {each suppliers as s}
                                 <option value="{s.id}">{s.code} — {s.name}</option>
@@ -92,35 +92,15 @@
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">Expected Date</label>
-                        <input type="date" x-model="form.expected_at" class="border rounded px-3 py-2 w-full text-sm">
+                        <input type="date" name="expected_at" class="border rounded px-3 py-2 w-full text-sm">
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Reference (PO#)</label>
-                    <input type="text" x-model="form.reference" class="border rounded px-3 py-2 w-full text-sm">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Items</label>
-                    <template x-for="(item, i) in form.items" :key="i">
-                        <div class="flex gap-2 mb-2 items-end">
-                            <select x-model="item.product_id" class="border rounded px-3 py-2 text-sm flex-1">
-                                <option value="">Product...</option>
-                                {each products as p}
-                                    <option value="{p.id}">{p.name} ({p.sku})</option>
-                                {/each}
-                            </select>
-                            <input type="number" step="0.0001" x-model="item.expected_qty" placeholder="Qty" class="border rounded px-3 py-2 text-sm w-24">
-                            <button type="button" @@click="form.items.splice(i,1)" class="text-red-500 text-xs">✕</button>
-                        </div>
-                    </template>
-                    <button type="button" @@click="form.items.push({product_id:'',expected_qty:''})" class="text-blue-600 text-xs">+ Add item</button>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-                    <textarea x-model="form.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                    <input type="text" name="reference" class="border rounded px-3 py-2 w-full text-sm">
                 </div>
                 <div class="flex gap-2 justify-end pt-2">
-                    <button type="button" @@click="showCreate=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="button" onclick="document.getElementById('delivery-modal').classList.add('hidden')" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
                     <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create Delivery</button>
                 </div>
             </form>
@@ -129,19 +109,14 @@
 </div>
 
 <script>
-function deliveriesPage() {
-    return {
-        showCreate: false,
-        form: { delivery_number: '', warehouse_id: '', supplier_id: '', expected_at: '', reference: '', notes: '', items: [] },
-        async submitDelivery() {
-            const res = await fetch('/api/v1/wms/deliveries', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.form) });
-            const data = await res.json();
-            if (!data.ok) { alert('Error: ' + data.error); return; }
-            location.reload();
-        }
-    }
+function createDelivery(e) {
+    e.preventDefault();
+    var data = {};
+    new FormData(e.target).forEach(function(v,k){data[k]=v;});
+    fetch('/api/v1/wms/deliveries', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(function(r){return r.json()})
+    .then(function(res){if(res.ok)location.reload();else alert(res.error||'Failed');});
+    return false;
 }
-
-function cancelDelivery(id) { if(confirm('Cancel this delivery?')) { fetch('{base_url}/api/v1/wms/deliveries/'+id+'/cancel', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
-
+function cancelDelivery(id) { if(confirm('Cancel this delivery?')) { fetch('/api/v1/wms/deliveries/'+id+'/cancel', {method:'POST', headers:{'Content-Type':'application/json'}}).then(function(r){return r.json()}).then(function(res){if(res.ok)location.reload();else alert(res.error)}); } }
 </script>
