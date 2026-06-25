@@ -92,3 +92,61 @@ function wmsPageMovements(): void
         'page_title' => 'Movement History — WMS',
     ]);
 }
+
+function wmsPageDeliveries(): void
+{
+    $user = wmsCurrentUser();
+    $status = trim((string)($_GET['status'] ?? ''));
+
+    $sql = 'SELECT d.*, w.code AS warehouse_code, w.name AS warehouse_name,
+                   s.name AS supplier_name, u.full_name AS created_by_name
+            FROM wms_deliveries d
+            JOIN wms_warehouses w ON w.id = d.warehouse_id
+            LEFT JOIN wms_suppliers s ON s.id = d.supplier_id
+            LEFT JOIN wms_users u ON u.id = d.created_by
+            WHERE 1=1';
+    $params = [];
+    if ($status !== '') { $sql .= ' AND d.status = :status'; $params[':status'] = $status; }
+    $sql .= ' ORDER BY d.created_at DESC LIMIT 100';
+
+    $deliveries = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $suppliers = wmsDb()->query('SELECT id, code, name FROM wms_suppliers WHERE is_active = 1 ORDER BY name ASC LIMIT 200')->fetchAll(\PDO::FETCH_ASSOC);
+    $products = wmsDb()->query('SELECT id, sku, name FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('deliveries', [
+        'deliveries' => $deliveries,
+        'warehouses' => $warehouses,
+        'suppliers' => $suppliers,
+        'products' => $products,
+        'page_title' => 'Deliveries — WMS',
+    ]);
+}
+
+function wmsPageOrders(): void
+{
+    $user = wmsCurrentUser();
+    $status = trim((string)($_GET['status'] ?? ''));
+    $type = trim((string)($_GET['type'] ?? ''));
+
+    $sql = 'SELECT o.*, w.code AS warehouse_code, u.full_name AS created_by_name
+            FROM wms_orders o
+            JOIN wms_warehouses w ON w.id = o.warehouse_id
+            LEFT JOIN wms_users u ON u.id = o.created_by
+            WHERE 1=1';
+    $params = [];
+    if ($status !== '') { $sql .= ' AND o.status = :status'; $params[':status'] = $status; }
+    if ($type !== '') { $sql .= ' AND o.order_type = :type'; $params[':type'] = $type; }
+    $sql .= ' ORDER BY o.created_at DESC LIMIT 100';
+
+    $orders = wmsDb()->query($sql, $params)->fetchAll(\PDO::FETCH_ASSOC);
+    $warehouses = wmsDb()->query('SELECT id, code, name FROM wms_warehouses WHERE is_active = 1 ORDER BY name ASC')->fetchAll(\PDO::FETCH_ASSOC);
+    $products = wmsDb()->query('SELECT id, sku, name FROM wms_products WHERE is_active = 1 ORDER BY name ASC LIMIT 500')->fetchAll(\PDO::FETCH_ASSOC);
+
+    wmsRenderTemplate('orders', [
+        'orders' => $orders,
+        'warehouses' => $warehouses,
+        'products' => $products,
+        'page_title' => 'Orders — WMS',
+    ]);
+}

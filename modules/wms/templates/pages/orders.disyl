@@ -1,0 +1,149 @@
+<div class="p-6" x-data="ordersPage()">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Sales Orders</h1>
+        <button @@click="showCreate = true" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">+ New Order</button>
+    </div>
+
+    <div class="bg-white rounded shadow mb-6">
+        <div class="p-4 border-b flex gap-4 items-center">
+            <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
+                <option value="">All Statuses</option>
+                <option value="pending" {eq($_GET['status'] ?? '', 'pending') ? 'selected' : ''}>Pending</option>
+                <option value="picking" {eq($_GET['status'] ?? '', 'picking') ? 'selected' : ''}>Picking</option>
+                <option value="picked" {eq($_GET['status'] ?? '', 'picked') ? 'selected' : ''}>Picked</option>
+                <option value="packed" {eq($_GET['status'] ?? '', 'packed') ? 'selected' : ''}>Packed</option>
+                <option value="shipped" {eq($_GET['status'] ?? '', 'shipped') ? 'selected' : ''}>Shipped</option>
+                <option value="delivered" {eq($_GET['status'] ?? '', 'delivered') ? 'selected' : ''}>Delivered</option>
+                <option value="cancelled" {eq($_GET['status'] ?? '', 'cancelled') ? 'selected' : ''}>Cancelled</option>
+            </select>
+            <span class="text-xs text-gray-400">{orders|count} orders</span>
+        </div>
+    </div>
+
+    <div class="bg-white rounded shadow overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 text-left">
+                    <th class="px-4 py-3 font-medium text-gray-600">Order #</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Type</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Warehouse</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Customer</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Status</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Created By</th>
+                    <th class="px-4 py-3 font-medium text-gray-600">Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {@each orders as o}
+                <tr class="border-t hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">{o.order_number}</td>
+                    <td class="px-4 py-3 text-xs text-gray-500">{o.order_type}</td>
+                    <td class="px-4 py-3">{o.warehouse_code}</td>
+                    <td class="px-4 py-3">
+                        {o.customer_name ?? '—'}
+                        <span x-show="o.customer_email" class="text-xs text-gray-400 block">{o.customer_email}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
+                              :class="{
+                                  'bg-gray-100 text-gray-600': o.status === 'pending',
+                                  'bg-blue-100 text-blue-700': o.status === 'picking',
+                                  'bg-indigo-100 text-indigo-700': o.status === 'picked',
+                                  'bg-purple-100 text-purple-700': o.status === 'packed',
+                                  'bg-green-100 text-green-700': o.status === 'shipped' || o.status === 'delivered',
+                                  'bg-red-100 text-red-700': o.status === 'cancelled'
+                              }">{o.status}</span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-500">{o.created_by_name ?? '—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400">{o.created_at}</td>
+                </tr>
+                {@/each}
+                {@if count(orders) === 0}
+                <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No orders found.</td></tr>
+                {@/if}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Create Order Modal -->
+    <div x-show="showCreate" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" style="display:none">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 p-6" @@click.outside="showCreate=false">
+            <h2 class="text-lg font-bold mb-4">New Sales Order</h2>
+            <form @@submit.prevent="submitOrder()" class="space-y-3">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Warehouse *</label>
+                        <select x-model="form.warehouse_id" required class="border rounded px-3 py-2 w-full text-sm">
+                            <option value="">Select...</option>
+                            {@each warehouses as w}
+                                <option value="{w.id}">{w.code} — {w.name}</option>
+                            {@/each}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Order Type</label>
+                        <select x-model="form.order_type" class="border rounded px-3 py-2 w-full text-sm">
+                            <option value="sales_order">Sales Order</option>
+                            <option value="transfer_out">Transfer Out</option>
+                            <option value="internal">Internal</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Customer Name</label>
+                        <input type="text" x-model="form.customer_name" class="border rounded px-3 py-2 w-full text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Customer Email</label>
+                        <input type="email" x-model="form.customer_email" class="border rounded px-3 py-2 w-full text-sm">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Shipping Address</label>
+                    <textarea x-model="form.shipping_address" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Items</label>
+                    <template x-for="(item, i) in form.items" :key="i">
+                        <div class="flex gap-2 mb-2 items-end">
+                            <select x-model="item.product_id" class="border rounded px-3 py-2 text-sm flex-1">
+                                <option value="">Product...</option>
+                                {@each products as p}
+                                    <option value="{p.id}">{p.name} ({p.sku})</option>
+                                {@/each}
+                            </select>
+                            <input type="number" step="0.0001" x-model="item.quantity_ordered" placeholder="Qty" class="border rounded px-3 py-2 text-sm w-24">
+                            <input type="number" step="0.01" x-model="item.unit_price" placeholder="Price" class="border rounded px-3 py-2 text-sm w-24">
+                            <button type="button" @@click="form.items.splice(i,1)" class="text-red-500 text-xs">✕</button>
+                        </div>
+                    </template>
+                    <button type="button" @@click="form.items.push({product_id:'',quantity_ordered:'',unit_price:''})" class="text-blue-600 text-xs">+ Add item</button>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                    <textarea x-model="form.notes" class="border rounded px-3 py-2 w-full text-sm" rows="2"></textarea>
+                </div>
+                <div class="flex gap-2 justify-end pt-2">
+                    <button type="button" @@click="showCreate=false" class="px-4 py-2 text-gray-600 border rounded text-sm">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded text-sm">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function ordersPage() {
+    return {
+        showCreate: false,
+        form: { warehouse_id: '', order_type: 'sales_order', customer_name: '', customer_email: '', customer_phone: '', shipping_address: '', notes: '', items: [] },
+        async submitOrder() {
+            const res = await fetch('/api/v1/wms/orders', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.form) });
+            const data = await res.json();
+            if (!data.ok) { alert('Error: ' + data.error); return; }
+            location.reload();
+        }
+    }
+}
+</script>

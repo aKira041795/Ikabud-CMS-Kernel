@@ -62,7 +62,8 @@
         "database/migrations/002_wms_password_resets.sql",
         "database/migrations/003_wms_bootstrap_admin.sql",
         "database/migrations/004_wms_catalog.sql",
-        "database/migrations/005_wms_movement_ledger.sql"
+        "database/migrations/005_wms_movement_ledger.sql",
+        "database/migrations/006_wms_inbound_outbound.sql"
     ],
     "capabilities": {
         "exposes": [

@@ -13,6 +13,8 @@ return [
         '/wms/suppliers'         => 'wms:wmsPageSuppliers',
         '/wms/stock'             => 'wms:wmsPageStock',
         '/wms/movements'         => 'wms:wmsPageMovements',
+        '/wms/deliveries'        => 'wms:wmsPageDeliveries',
+        '/wms/orders'            => 'wms:wmsPageOrders',
 
         '/api/v1/wms/products'           => 'wms:wmsApiProductsList',
         '/api/v1/wms/products/{id}'       => 'wms:wmsApiProductGet',
@@ -30,6 +32,14 @@ return [
         '/api/v1/wms/stock/{id}'          => 'wms:wmsApiStockGet',
         '/api/v1/wms/stock/movements'     => 'wms:wmsApiMovementsList',
         '/api/v1/wms/stock/adjustments'   => 'wms:wmsApiAdjustmentsList',
+
+        '/api/v1/wms/deliveries'          => 'wms:wmsApiDeliveriesList',
+        '/api/v1/wms/deliveries/{id}'     => 'wms:wmsApiDeliveryGet',
+        '/api/v1/wms/orders'              => 'wms:wmsApiOrdersList',
+        '/api/v1/wms/orders/{id}'         => 'wms:wmsApiOrderGet',
+        '/api/v1/wms/picklists'           => 'wms:wmsApiPicklistsList',
+        '/api/v1/wms/picklists/{id}'      => 'wms:wmsApiPicklistGet',
+        '/api/v1/wms/putaway-rules'       => 'wms:wmsApiPutawayRulesList',
     ],
     'POST' => [
         '/wms/auth/login'              => 'wms:wmsAuthLogin',
@@ -55,5 +65,17 @@ return [
         '/api/v1/wms/stock/adjust'          => 'wms:wmsApiStockAdjust',
         '/api/v1/wms/stock/scrap'           => 'wms:wmsApiStockScrap',
         '/api/v1/wms/stock/adjustments/{id}' => 'wms:wmsApiAdjustmentReview',
+
+        '/api/v1/wms/deliveries'              => 'wms:wmsApiDeliveryCreate',
+        '/api/v1/wms/deliveries/{id}/receive'  => 'wms:wmsApiDeliveryReceive',
+        '/api/v1/wms/deliveries/{id}/cancel'   => 'wms:wmsApiDeliveryCancel',
+        '/api/v1/wms/orders'                   => 'wms:wmsApiOrderCreate',
+        '/api/v1/wms/orders/{id}/cancel'       => 'wms:wmsApiOrderCancel',
+        '/api/v1/wms/picklists'                => 'wms:wmsApiPicklistCreate',
+        '/api/v1/wms/picklists/{id}/assign'    => 'wms:wmsApiPicklistAssign',
+        '/api/v1/wms/picklists/{id}/items/{item_id}/pick' => 'wms:wmsApiPicklistPickItem',
+        '/api/v1/wms/shipments'                => 'wms:wmsApiShipmentCreate',
+        '/api/v1/wms/putaway-rules'            => 'wms:wmsApiPutawayRuleCreate',
+        '/api/v1/wms/putaway-rules/{id}/delete' => 'wms:wmsApiPutawayRuleDelete',
     ],
 ];

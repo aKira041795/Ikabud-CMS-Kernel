@@ -1,0 +1,178 @@
+-- WMS Deliveries, Orders, Picklists, Shipments, Putaway Rules
+-- Phase 4: Inbound/Outbound Operations
+
+CREATE TABLE IF NOT EXISTS wms_deliveries (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    supplier_id       INT UNSIGNED NULL DEFAULT NULL,
+    warehouse_id      INT UNSIGNED NOT NULL,
+    delivery_number   VARCHAR(100) NOT NULL,
+    status            VARCHAR(30) NOT NULL DEFAULT 'expected' COMMENT 'expected, in_transit, received, partially_received, cancelled',
+    reference         VARCHAR(255) NULL DEFAULT NULL COMMENT 'PO number or external reference',
+    notes             TEXT NULL DEFAULT NULL,
+    expected_at       DATE NULL DEFAULT NULL,
+    received_at       DATETIME NULL DEFAULT NULL,
+    created_by        INT UNSIGNED NOT NULL,
+    received_by       INT UNSIGNED NULL DEFAULT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wms_delivery_number (delivery_number),
+    INDEX idx_wms_delivery_supplier (supplier_id),
+    INDEX idx_wms_delivery_warehouse (warehouse_id),
+    INDEX idx_wms_delivery_status (status),
+    CONSTRAINT fk_wms_delivery_supplier FOREIGN KEY (supplier_id) REFERENCES wms_suppliers (id) ON DELETE SET NULL,
+    CONSTRAINT fk_wms_delivery_warehouse FOREIGN KEY (warehouse_id) REFERENCES wms_warehouses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_delivery_creator FOREIGN KEY (created_by) REFERENCES wms_users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_delivery_receiver FOREIGN KEY (received_by) REFERENCES wms_users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_delivery_items (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    delivery_id       INT UNSIGNED NOT NULL,
+    product_id        INT UNSIGNED NOT NULL,
+    batch_id          INT UNSIGNED NULL DEFAULT NULL,
+    expected_qty      DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    received_qty      DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    status            VARCHAR(30) NOT NULL DEFAULT 'pending' COMMENT 'pending, received, over_received, short',
+    notes             TEXT NULL DEFAULT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_wms_delivery_item_delivery (delivery_id),
+    INDEX idx_wms_delivery_item_product (product_id),
+    INDEX idx_wms_delivery_item_batch (batch_id),
+    CONSTRAINT fk_wms_delivery_item_delivery FOREIGN KEY (delivery_id) REFERENCES wms_deliveries (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_delivery_item_product FOREIGN KEY (product_id) REFERENCES wms_products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_delivery_item_batch FOREIGN KEY (batch_id) REFERENCES wms_batches (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_orders (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_number      VARCHAR(100) NOT NULL,
+    order_type        VARCHAR(30) NOT NULL DEFAULT 'sales_order' COMMENT 'sales_order, transfer_out, internal',
+    warehouse_id      INT UNSIGNED NOT NULL,
+    status            VARCHAR(30) NOT NULL DEFAULT 'pending' COMMENT 'pending, picking, picked, packed, shipped, delivered, cancelled',
+    customer_name     VARCHAR(255) NULL DEFAULT NULL,
+    customer_email    VARCHAR(255) NULL DEFAULT NULL,
+    customer_phone    VARCHAR(50) NULL DEFAULT NULL,
+    shipping_address  TEXT NULL DEFAULT NULL,
+    notes             TEXT NULL DEFAULT NULL,
+    created_by        INT UNSIGNED NOT NULL,
+    picked_by         INT UNSIGNED NULL DEFAULT NULL,
+    packed_by         INT UNSIGNED NULL DEFAULT NULL,
+    shipped_by        INT UNSIGNED NULL DEFAULT NULL,
+    ordered_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    picked_at         DATETIME NULL DEFAULT NULL,
+    shipped_at        DATETIME NULL DEFAULT NULL,
+    delivered_at      DATETIME NULL DEFAULT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_wms_order_number (order_number),
+    INDEX idx_wms_order_type (order_type),
+    INDEX idx_wms_order_warehouse (warehouse_id),
+    INDEX idx_wms_order_status (status),
+    INDEX idx_wms_order_customer (customer_email),
+    CONSTRAINT fk_wms_order_warehouse FOREIGN KEY (warehouse_id) REFERENCES wms_warehouses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_order_creator FOREIGN KEY (created_by) REFERENCES wms_users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_order_picker FOREIGN KEY (picked_by) REFERENCES wms_users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_wms_order_packer FOREIGN KEY (packed_by) REFERENCES wms_users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_wms_order_shipper FOREIGN KEY (shipped_by) REFERENCES wms_users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_order_items (
+    id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id           INT UNSIGNED NOT NULL,
+    product_id         INT UNSIGNED NOT NULL,
+    batch_id           INT UNSIGNED NULL DEFAULT NULL,
+    quantity_ordered   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    quantity_picked    DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    quantity_shipped   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    unit_price         DECIMAL(14,4) NULL DEFAULT NULL,
+    status             VARCHAR(30) NOT NULL DEFAULT 'pending' COMMENT 'pending, allocated, picked, shipped',
+    notes              TEXT NULL DEFAULT NULL,
+    created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_wms_order_item_order (order_id),
+    INDEX idx_wms_order_item_product (product_id),
+    INDEX idx_wms_order_item_batch (batch_id),
+    INDEX idx_wms_order_item_status (status),
+    CONSTRAINT fk_wms_order_item_order FOREIGN KEY (order_id) REFERENCES wms_orders (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_order_item_product FOREIGN KEY (product_id) REFERENCES wms_products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_order_item_batch FOREIGN KEY (batch_id) REFERENCES wms_batches (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_picklists (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    warehouse_id      INT UNSIGNED NOT NULL,
+    status            VARCHAR(30) NOT NULL DEFAULT 'open' COMMENT 'open, in_progress, completed, cancelled',
+    assigned_to       INT UNSIGNED NULL DEFAULT NULL,
+    created_by        INT UNSIGNED NOT NULL,
+    completed_at      DATETIME NULL DEFAULT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_wms_picklist_warehouse (warehouse_id),
+    INDEX idx_wms_picklist_status (status),
+    INDEX idx_wms_picklist_assignee (assigned_to),
+    CONSTRAINT fk_wms_picklist_warehouse FOREIGN KEY (warehouse_id) REFERENCES wms_warehouses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_picklist_assignee FOREIGN KEY (assigned_to) REFERENCES wms_users (id) ON DELETE SET NULL,
+    CONSTRAINT fk_wms_picklist_creator FOREIGN KEY (created_by) REFERENCES wms_users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_picklist_items (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    picklist_id       INT UNSIGNED NOT NULL,
+    order_item_id     INT UNSIGNED NULL DEFAULT NULL,
+    product_id        INT UNSIGNED NOT NULL,
+    location_id       INT UNSIGNED NULL DEFAULT NULL,
+    batch_id          INT UNSIGNED NULL DEFAULT NULL,
+    quantity_to_pick  DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    quantity_picked   DECIMAL(14,4) NOT NULL DEFAULT 0.0000,
+    status            VARCHAR(30) NOT NULL DEFAULT 'pending' COMMENT 'pending, picked, skipped',
+    picked_at         DATETIME NULL DEFAULT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_wms_picklist_item_picklist (picklist_id),
+    INDEX idx_wms_picklist_item_order_item (order_item_id),
+    INDEX idx_wms_picklist_item_product (product_id),
+    INDEX idx_wms_picklist_item_location (location_id),
+    INDEX idx_wms_picklist_item_status (status),
+    CONSTRAINT fk_wms_picklist_item_picklist FOREIGN KEY (picklist_id) REFERENCES wms_picklists (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_picklist_item_order_item FOREIGN KEY (order_item_id) REFERENCES wms_order_items (id) ON DELETE SET NULL,
+    CONSTRAINT fk_wms_picklist_item_product FOREIGN KEY (product_id) REFERENCES wms_products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_picklist_item_location FOREIGN KEY (location_id) REFERENCES wms_locations (id) ON DELETE SET NULL,
+    CONSTRAINT fk_wms_picklist_item_batch FOREIGN KEY (batch_id) REFERENCES wms_batches (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_shipments (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    order_id          INT UNSIGNED NOT NULL,
+    carrier           VARCHAR(100) NULL DEFAULT NULL,
+    tracking_number   VARCHAR(255) NULL DEFAULT NULL,
+    status            VARCHAR(30) NOT NULL DEFAULT 'pending' COMMENT 'pending, shipped, delivered, partial',
+    shipped_at        DATETIME NULL DEFAULT NULL,
+    delivered_at      DATETIME NULL DEFAULT NULL,
+    notes             TEXT NULL DEFAULT NULL,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_wms_shipment_order (order_id),
+    INDEX idx_wms_shipment_status (status),
+    INDEX idx_wms_shipment_tracking (tracking_number),
+    CONSTRAINT fk_wms_shipment_order FOREIGN KEY (order_id) REFERENCES wms_orders (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS wms_putaway_rules (
+    id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    product_id        INT UNSIGNED NULL DEFAULT NULL COMMENT 'NULL = applies to all products',
+    warehouse_id      INT UNSIGNED NOT NULL,
+    location_id       INT UNSIGNED NOT NULL,
+    priority          INT UNSIGNED NOT NULL DEFAULT 100,
+    condition_type    VARCHAR(50) NULL DEFAULT NULL COMMENT 'product_type, is_batch_tracked, temp_range',
+    condition_value   VARCHAR(255) NULL DEFAULT NULL,
+    is_active         TINYINT(1) NOT NULL DEFAULT 1,
+    created_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_wms_putaway_warehouse (warehouse_id),
+    INDEX idx_wms_putaway_product (product_id),
+    INDEX idx_wms_putaway_active (is_active),
+    CONSTRAINT fk_wms_putaway_product FOREIGN KEY (product_id) REFERENCES wms_products (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_putaway_warehouse FOREIGN KEY (warehouse_id) REFERENCES wms_warehouses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_wms_putaway_location FOREIGN KEY (location_id) REFERENCES wms_locations (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
