@@ -11,7 +11,7 @@
                     <label class="block text-xs font-medium text-gray-600 mb-1">Barcode / SKU</label>
                     <input type="text" id="scan-input" placeholder="Scan or type barcode..." autofocus
                            class="border rounded px-3 py-2 w-full text-sm"
-                           onkeydown="if(event.key==='Enter'){const v=this.value.trim();if(!v)return;fetch('/api/v1/wms/products?q='+encodeURIComponent(v)).then(r=>r.json()).then(d=>{if(d.ok&&d.products.length>0){const p=d.products[0];document.getElementById('scan-result').innerHTML='<div class=\\'p-4 bg-green-50 rounded\\'><p class=\\'font-medium\\'>'+p.name+'</p><p class=\\'text-sm text-gray-500\\'>SKU: '+p.sku+' | Unit: '+p.unit+'</p><p class=\\'text-xs text-gray-400\\'>ID: '+p.id+'</p></div>';}else{document.getElementById('scan-result').innerHTML='<div class=\\'p-4 bg-red-50 text-red-700 rounded\\'>Product not found</div>';}}).catch(()=>{document.getElementById('scan-result').innerHTML='<div class=\\'p-4 bg-red-50 text-red-700 rounded\\'>Search failed</div>';});this.value='';})">
+                           onkeydown="scanLookup(event)">
                 </div>
                 <div id="scan-result" class="text-sm text-gray-400">Awaiting scan...</div>
             </div>
@@ -22,7 +22,7 @@
             <div class="space-y-2 max-h-96 overflow-y-auto">
                 {each products as p}
                 <div class="p-2 border rounded text-sm hover:bg-gray-50 cursor-pointer"
-                     onclick="document.getElementById('scan-input').value='{p.sku}';document.getElementById('scan-input').dispatchEvent(new KeyboardEvent('keydown',{'key':'Enter'}))">
+                     onclick="quickLookup('{p.sku}')">
                     <span class="font-medium">{p.name}</span>
                     <span class="text-xs text-gray-400 ml-2">{p.sku}</span>
                     {if p.barcode}
@@ -37,3 +37,30 @@
         </div>
     </div>
 </div>
+
+<script>
+function scanLookup(e) {
+    if(e.key !== 'Enter') return;
+    var v = e.target.value.trim();
+    if(!v) return;
+    fetch('/api/v1/wms/products?q='+encodeURIComponent(v))
+    .then(function(r){return r.json()})
+    .then(function(d){
+        var el = document.getElementById('scan-result');
+        if(d.ok && d.products.length > 0) {
+            var p = d.products[0];
+            el.innerHTML = '<div class="p-4 bg-green-50 rounded"><p class="font-medium">'+p.name+'</p><p class="text-sm text-gray-500">SKU: '+p.sku+' | Unit: '+p.unit+'</p><p class="text-xs text-gray-400">ID: '+p.id+'</p></div>';
+        } else {
+            el.innerHTML = '<div class="p-4 bg-red-50 text-red-700 rounded">Product not found</div>';
+        }
+    })
+    .catch(function(){
+        document.getElementById('scan-result').innerHTML = '<div class="p-4 bg-red-50 text-red-700 rounded">Search failed</div>';
+    });
+    e.target.value = '';
+}
+function quickLookup(sku) {
+    document.getElementById('scan-input').value = sku;
+    scanLookup({key:'Enter', target: document.getElementById('scan-input')});
+}
+</script>
