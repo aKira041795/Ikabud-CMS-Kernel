@@ -8,13 +8,13 @@
         <div class="p-4 border-b flex gap-4 items-center">
             <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
                 <option value="">All Statuses</option>
-                <option value="pending" {eq($_GET['status']|default:'', 'pending') ? 'selected' : ''}>Pending</option>
-                <option value="picking" {eq($_GET['status']|default:'', 'picking') ? 'selected' : ''}>Picking</option>
-                <option value="picked" {eq($_GET['status']|default:'', 'picked') ? 'selected' : ''}>Picked</option>
-                <option value="packed" {eq($_GET['status']|default:'', 'packed') ? 'selected' : ''}>Packed</option>
-                <option value="shipped" {eq($_GET['status']|default:'', 'shipped') ? 'selected' : ''}>Shipped</option>
-                <option value="delivered" {eq($_GET['status']|default:'', 'delivered') ? 'selected' : ''}>Delivered</option>
-                <option value="cancelled" {eq($_GET['status']|default:'', 'cancelled') ? 'selected' : ''}>Cancelled</option>
+                <option value="pending" {eq($_GET['status'] ?? '', 'pending') ? 'selected' : ''}>Pending</option>
+                <option value="picking" {eq($_GET['status'] ?? '', 'picking') ? 'selected' : ''}>Picking</option>
+                <option value="picked" {eq($_GET['status'] ?? '', 'picked') ? 'selected' : ''}>Picked</option>
+                <option value="packed" {eq($_GET['status'] ?? '', 'packed') ? 'selected' : ''}>Packed</option>
+                <option value="shipped" {eq($_GET['status'] ?? '', 'shipped') ? 'selected' : ''}>Shipped</option>
+                <option value="delivered" {eq($_GET['status'] ?? '', 'delivered') ? 'selected' : ''}>Delivered</option>
+                <option value="cancelled" {eq($_GET['status'] ?? '', 'cancelled') ? 'selected' : ''}>Cancelled</option>
             </select>
             <span class="text-xs text-gray-400">{orders|count} orders</span>
         </div>
@@ -40,7 +40,7 @@
                     <td class="px-4 py-3 text-xs text-gray-500">{o.order_type}</td>
                     <td class="px-4 py-3">{o.warehouse_code}</td>
                     <td class="px-4 py-3">
-                        {o.customer_name|default:'—'}
+                        {o.customer_name ?? '—'}
                         <span x-show="o.customer_email" class="text-xs text-gray-400 block">{o.customer_email}</span>
                     </td>
                     <td class="px-4 py-3">
@@ -54,7 +54,7 @@
                                   'bg-red-100 text-red-700': o.status === 'cancelled'
                               }">{o.status}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm text-gray-500">{o.created_by_name|default:'—'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-500">{o.created_by_name ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{o.created_at}</td>
                 </tr>
                 {/each}

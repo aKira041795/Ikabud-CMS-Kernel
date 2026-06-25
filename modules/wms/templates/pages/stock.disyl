@@ -50,8 +50,8 @@
                     <td class="px-4 py-3">{s.product_name}</td>
                     <td class="px-4 py-3 text-gray-500">{s.sku}</td>
                     <td class="px-4 py-3">{s.warehouse_code}</td>
-                    <td class="px-4 py-3 text-gray-500">{s.location_code|default:'—'}</td>
-                    <td class="px-4 py-3 text-gray-500">{s.batch_number|default:'—'}</td>
+                    <td class="px-4 py-3 text-gray-500">{s.location_code ?? '—'}</td>
+                    <td class="px-4 py-3 text-gray-500">{s.batch_number ?? '—'}</td>
                     <td class="px-4 py-3 text-right font-medium">{s.qty_on_hand|number_format:4}</td>
                     <td class="px-4 py-3 text-right text-amber-600">{s.qty_reserved|number_format:4}</td>
                     <td class="px-4 py-3 text-right font-medium" :class="s.qty_on_hand - s.qty_reserved <= 0 ? 'text-red-600' : 'text-green-600'">{(s.qty_on_hand - s.qty_reserved)|number_format:4}</td>

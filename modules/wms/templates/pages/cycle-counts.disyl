@@ -8,9 +8,9 @@
         <div class="p-4 border-b flex gap-4 items-center">
             <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
                 <option value="">All</option>
-                <option value="open" {eq($_GET['status']|default:'', 'open') ? 'selected' : ''}>Open</option>
-                <option value="in_progress" {eq($_GET['status']|default:'', 'in_progress') ? 'selected' : ''}>In Progress</option>
-                <option value="completed" {eq($_GET['status']|default:'', 'completed') ? 'selected' : ''}>Completed</option>
+                <option value="open" {eq($_GET['status'] ?? '', 'open') ? 'selected' : ''}>Open</option>
+                <option value="in_progress" {eq($_GET['status'] ?? '', 'in_progress') ? 'selected' : ''}>In Progress</option>
+                <option value="completed" {eq($_GET['status'] ?? '', 'completed') ? 'selected' : ''}>Completed</option>
             </select>
         </div>
     </div>
@@ -38,9 +38,9 @@
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
                               :class="{'bg-yellow-100 text-yellow-700': cc.status==='open','bg-blue-100 text-blue-700': cc.status==='in_progress','bg-green-100 text-green-700': cc.status==='completed'}">{cc.status}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm">{cc.assigned_name|default:'—'}</td>
-                    <td class="px-4 py-3 text-sm">{cc.scheduled_at|default:'—'}</td>
-                    <td class="px-4 py-3 text-xs text-gray-400">{cc.completed_at|default:'—'}</td>
+                    <td class="px-4 py-3 text-sm">{cc.assigned_name ?? '—'}</td>
+                    <td class="px-4 py-3 text-sm">{cc.scheduled_at ?? '—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400">{cc.completed_at ?? '—'}</td>
                 </tr>
                 {/each}
                 {if count(cycle_counts) === 0}

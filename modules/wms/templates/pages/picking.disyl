@@ -24,7 +24,7 @@
                         <span class="inline-block px-2 py-0.5 rounded text-xs font-medium"
                               :class="{'bg-yellow-100 text-yellow-700': p.status==='open','bg-blue-100 text-blue-700': p.status==='in_progress','bg-green-100 text-green-700': p.status==='completed'}">{p.status}</span>
                     </td>
-                    <td class="px-4 py-3 text-sm">{p.assigned_name|default:'—'}</td>
+                    <td class="px-4 py-3 text-sm">{p.assigned_name ?? '—'}</td>
                     <td class="px-4 py-3 text-xs text-gray-400">{p.created_at}</td>
                 </tr>
                 {/each}
@@ -54,7 +54,7 @@
                     <select x-model="form.order_ids" class="border rounded px-3 py-2 w-full text-sm">
                         <option value="">Select order...</option>
                         {each orders as o}
-                            <option value="{o.id}">#{o.id} — {o.customer_name|default:'Unnamed'}</option>
+                            <option value="{o.id}">#{o.id} — {o.customer_name ?? 'Unnamed'}</option>
                         {/each}
                     </select>
                 </div>

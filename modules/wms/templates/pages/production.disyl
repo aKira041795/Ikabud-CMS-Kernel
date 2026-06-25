@@ -8,10 +8,10 @@
         <div class="p-4 border-b flex gap-4 items-center">
             <select onchange="if(this.value) {const p=new URLSearchParams(location.search); p.set('status',this.value); location.search=p.toString();} else {const p=new URLSearchParams(location.search); p.delete('status'); location.search=p.toString();}" class="border rounded px-3 py-2 text-sm">
                 <option value="">All</option>
-                <option value="planned" {eq($_GET['status']|default:'', 'planned') ? 'selected' : ''}>Planned</option>
-                <option value="in_progress" {eq($_GET['status']|default:'', 'in_progress') ? 'selected' : ''}>In Progress</option>
-                <option value="completed" {eq($_GET['status']|default:'', 'completed') ? 'selected' : ''}>Completed</option>
-                <option value="cancelled" {eq($_GET['status']|default:'', 'cancelled') ? 'selected' : ''}>Cancelled</option>
+                <option value="planned" {eq($_GET['status'] ?? '', 'planned') ? 'selected' : ''}>Planned</option>
+                <option value="in_progress" {eq($_GET['status'] ?? '', 'in_progress') ? 'selected' : ''}>In Progress</option>
+                <option value="completed" {eq($_GET['status'] ?? '', 'completed') ? 'selected' : ''}>Completed</option>
+                <option value="cancelled" {eq($_GET['status'] ?? '', 'cancelled') ? 'selected' : ''}>Cancelled</option>
             </select>
         </div>
     </div>
@@ -43,7 +43,7 @@
                     </td>
                     <td class="px-4 py-3 text-right">{po.quantity|number_format:4}</td>
                     <td class="px-4 py-3 text-right font-medium">{po.quantity_produced|number_format:4}</td>
-                    <td class="px-4 py-3 text-xs text-gray-400">{po.completed_at|default:'—'}</td>
+                    <td class="px-4 py-3 text-xs text-gray-400">{po.completed_at ?? '—'}</td>
                 </tr>
                 {/each}
                 {if count(production_orders) === 0}
