@@ -305,6 +305,7 @@ switch ($command) {
         out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, routes, tables, migrations)');
         out('    ' . green('module:check-boundaries') . '     Validate module boundary rules');
         out('    ' . green('architecture:check') . '         Cross-module table/capability/template audit');
+        out('    ' . green('doctor') . '                      Environment health check');
         out('    ' . green('module:graph') . ' [id]           Dependency graph + impact analysis');
         out('');
         out('  ' . bold('Capabilities'));
@@ -1963,6 +1964,120 @@ switch ($command) {
         exit(1);
 
     // ── module:validate ──────────────────────────────────────────
+    // ── doctor ──────────────────────────────────────────────────────
+    case 'doctor':
+        banner();
+        out('  ' . bold('Environment Health Check'));
+        out('');
+        $pass = 0; $fail = 0; $warn = 0;
+
+        // PHP version
+        $phpVersion = PHP_VERSION;
+        $phpOk = version_compare($phpVersion, '8.1', '>=');
+        $phpOk ? $pass++ : $fail++;
+        out('  ' . ($phpOk ? green('✓') : red('✗')) . " PHP version: {$phpVersion}" . ($phpOk ? '' : ' (8.1+ required)'));
+
+        // Required extensions
+        $required = ['pdo', 'pdo_mysql', 'json', 'mbstring', 'curl', 'openssl', 'fileinfo'];
+        $optional = ['zip', 'gd', 'imagick', 'intl', 'bcmath', 'xml', 'dom', 'xmlwriter'];
+        foreach ($required as $ext) {
+            $ok = extension_loaded($ext);
+            $ok ? $pass++ : $fail++;
+            out('  ' . ($ok ? green('✓') : red('✗')) . " Extension: {$ext}" . ($ok ? '' : ' (required)'));
+        }
+        foreach ($optional as $ext) {
+            $ok = extension_loaded($ext);
+            if ($ok) $pass++; else $warn++;
+            out('  ' . ($ok ? green('✓') : yellow('△')) . " Extension: {$ext}" . ($ok ? '' : ' (optional)'));
+        }
+
+        // Database connectivity
+        try {
+            $dbOk = false;
+            if (function_exists('app') && ($app = app()) !== null) {
+                $app->boot();
+                $db = $app->db();
+                $db->query('SELECT 1');
+                $dbOk = true;
+            }
+            $dbOk ? $pass++ : $fail++;
+            out('  ' . ($dbOk ? green('✓') : red('✗')) . ' Database connection');
+        } catch (\Throwable $e) {
+            $fail++;
+            out('  ' . red('✗') . ' Database connection: ' . $e->getMessage());
+        }
+
+        // Control DB
+        try {
+            $ctrlDb = defined('CONTROL_DB_DSN') || (function_exists('app') && method_exists(app(), 'controlDb'));
+            if ($ctrlDb) { $pass++; out('  ' . green('✓') . ' Control plane DB'); }
+            else { $warn++; out('  ' . yellow('△') . ' Control plane DB — not configured'); }
+        } catch (\Throwable $e) {
+            $warn++; out('  ' . yellow('△') . ' Control plane DB: ' . $e->getMessage());
+        }
+
+        // Writable directories
+        $writableDirs = [
+            'storage/logs' => STORAGE_PATH . '/logs',
+            'storage/cache' => STORAGE_PATH . '/cache',
+            'storage/uploads' => STORAGE_PATH . '/uploads',
+            'storage/report-archive' => STORAGE_PATH . '/report-archive',
+            'storage/report-templates' => STORAGE_PATH . '/report-templates',
+        ];
+        foreach ($writableDirs as $label => $dir) {
+            $exists = is_dir($dir) || @mkdir($dir, 0755, true);
+            $writable = $exists && is_writable($dir);
+            if ($writable) { $pass++; out('  ' . green('✓') . " Writable: {$label}"); }
+            else { $fail++; out('  ' . red('✗') . " Writable: {$label}"); }
+        }
+
+        // Module discovery
+        try {
+            $mods = function_exists('discoverModules') ? discoverModules() : [];
+            $count = count($mods);
+            $pass++;
+            out('  ' . green('✓') . " Module discovery: {$count} modules found");
+        } catch (\Throwable $e) {
+            $fail++; out('  ' . red('✗') . ' Module discovery: ' . $e->getMessage());
+        }
+
+        // PHP opcache
+        if (function_exists('opcache_get_status')) {
+            $status = opcache_get_status(false);
+            $enabled = is_array($status) && ($status['opcache_enabled'] ?? false);
+            $enabled ? $pass++ : $warn++;
+            out('  ' . ($enabled ? green('✓') : yellow('△')) . ' OPcache: ' . ($enabled ? 'enabled' : 'disabled'));
+        } else {
+            $warn++; out('  ' . yellow('△') . ' OPcache: not available');
+        }
+
+        // ikabud CLI version
+        $version = defined('IKABUD_VERSION') ? IKABUD_VERSION : '6.1.0';
+        $pass++; out('  ' . green('✓') . " Ikabud version: {$version}");
+
+        // Composer dependencies check
+        $vendorAutoload = BASE_PATH . '/vendor/autoload.php';
+        $composerOk = file_exists($vendorAutoload);
+        $composerOk ? $pass++ : $fail++;
+        out('  ' . ($composerOk ? green('✓') : red('✗')) . ' Composer dependencies installed');
+
+        // Cron check (scheduled-reports.json)
+        $scheduledFile = STORAGE_PATH . '/scheduled-reports.json';
+        $cronExists = file_exists($scheduledFile);
+        $pass++;
+        out('  ' . green('✓') . " Scheduler: " . ($cronExists ? 'configured' : 'not configured (optional)'));
+
+        // Summary
+        out('');
+        $total = $pass + $fail + $warn;
+        if ($fail === 0) {
+            out('  ' . green("✓ All checks passed ({$pass} ok, {$warn} warning(s))"));
+        } else {
+            out('  ' . red("✗ {$fail} check(s) failed") . " ({$pass} ok, {$warn} warning(s))");
+        }
+        out('');
+        exit($fail > 0 ? 1 : 0);
+
     case 'module:validate':
         $clean = paramsWithoutFlags($params);
         $moduleId = $clean[0] ?? '';
