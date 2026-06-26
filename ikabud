@@ -327,6 +327,7 @@ switch ($command) {
         out('  ' . bold('Debug'));
         out('    ' . green('event:list') . '                  List registered event listeners');
         out('    ' . green('event:trace') . ' <name>          Show listeners, emitters, and flow for an event');
+    out('    ' . green('trigger:trace') . ' <name>        Show workflow subscriptions and runs for an event');
         out('    ' . green('routes') . '                      List all routes');
         out('    ' . green('tinker') . ' "<sql>"              Run a raw SQL query');
         out('    ' . green('module:certify') . ' [module]     Validate module against certification checklist');
@@ -3409,6 +3410,93 @@ MD;
             }
         } else {
             out('    ' . dim('incomplete — need both emitters and listeners to draw flow'));
+        }
+        out('');
+        break;
+
+    // ── trigger:trace ────────────────────────────────────────────────
+    case 'trigger:trace':
+        $clean = paramsWithoutFlags($params);
+        $triggerName = $clean[0] ?? '';
+        if ($triggerName === '') {
+            out(red('  ✗ Trigger name or event name required.'));
+            out('  Usage: php ikabud trigger:trace <event-name>');
+            out('  Example: php ikabud trigger:trace cms.content.published');
+            exit(1);
+        }
+
+        banner();
+        out('  ' . bold('Trigger Trace: ') . cyan($triggerName));
+        out('');
+
+        // Load module helpers for trigger registration
+        foreach (getEnabledModules() as $m) {
+            $helpersFile = ($m['_path'] ?? '') . '/helpers.php';
+            if (is_file($helpersFile)) {
+                require_once $helpersFile;
+            }
+        }
+
+        // ── 1. Event subscriptions (workflow auto-start) ─────────
+        out('  ' . bold('Workflow Subscriptions'));
+        try {
+            $stmt = app()->db()->prepare(
+                'SELECT ws.*, wd.initial_state, wd.states_json FROM workflow_subscriptions ws '
+                . 'LEFT JOIN workflow_definitions wd ON wd.workflow_key = ws.workflow_key AND wd.module = ws.module '
+                . 'WHERE ws.event_id = :evt AND ws.is_active = 1'
+            );
+            $stmt->execute([':evt' => $triggerName]);
+            $subs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($subs)) {
+                out('    ' . dim('none — no workflow subscribes to this event'));
+            } else {
+                foreach ($subs as $sub) {
+                    $wf = (string)($sub['workflow_key'] ?? '?');
+                    $mod = (string)($sub['module'] ?? '?');
+                    $filter = json_decode((string)($sub['filter_json'] ?? 'null'), true);
+                    $filterStr = is_array($filter) && $filter !== [] ? ' filter=' . json_encode($filter) : '';
+                    out('    ' . green('→') . ' ' . cyan($mod) . dim('/') . yellow($wf) . $filterStr);
+                }
+            }
+        } catch (\Throwable $e) {
+            out('    ' . red('error: ' . $e->getMessage()));
+        }
+        out('');
+
+        // ── 2. Workflow runs triggered by this event ─────────────
+        out('  ' . bold('Recent Runs'));
+        try {
+            $stmt = app()->db()->prepare(
+                'SELECT wr.id, wr.workflow_key, wr.module, wr.status, wr.entity_type, wr.entity_id, '
+                . 'wr.created_at, wr.finished_at, wr.cancel_reason '
+                . 'FROM workflow_runs wr '
+                . 'INNER JOIN workflow_subscriptions ws ON ws.workflow_key = wr.workflow_key AND ws.module = wr.module '
+                . 'WHERE ws.event_id = :evt '
+                . 'ORDER BY wr.created_at DESC LIMIT 20'
+            );
+            $stmt->execute([':evt' => $triggerName]);
+            $runs = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+            if (empty($runs)) {
+                out('    ' . dim('none'));
+            } else {
+                foreach ($runs as $run) {
+                    $status = $run['status'] ?? '?';
+                    $statusColor = match ($status) {
+                        'completed' => green('completed'),
+                        'running' => yellow('running'),
+                        'failed' => red('failed'),
+                        'cancelled' => dim('cancelled'),
+                        default => $status,
+                    };
+                    $entity = $run['entity_type'] && $run['entity_id']
+                        ? dim(' [' . $run['entity_type'] . '#' . $run['entity_id'] . ']') : '';
+                    out('    #' . $run['id'] . ' ' . $statusColor . ' ' . cyan($run['workflow_key']) . $entity);
+                }
+            }
+        } catch (\Throwable $e) {
+            out('    ' . dim('(no workflow runs table — workflow engine not installed)'));
         }
         out('');
         break;

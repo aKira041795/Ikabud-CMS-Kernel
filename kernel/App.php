@@ -47,6 +47,7 @@ final class App
     private ?Hooks $hooks = null;
     private ?EventBus $events = null;
     private ?WorkflowRuntime $workflowRuntime = null;
+    private ?WorkflowEngine $workflowEngine = null;
     private ?TenantResolver $tenantResolver = null;
     private ?CapabilityRegistry $capabilityRegistry = null;
     private ?CapabilityBus $capabilityBus = null;
@@ -447,6 +448,18 @@ final class App
             $this->workflowRuntime = new WorkflowRuntime($this);
         }
         return $this->workflowRuntime;
+    }
+
+    /**
+     * Multi-step workflow engine — runs ordered capability steps with retry,
+     * idempotency, event-triggered auto-start, and cancellation.
+     */
+    public function workflowEngine(): WorkflowEngine
+    {
+        if ($this->workflowEngine === null) {
+            $this->workflowEngine = new WorkflowEngine($this);
+        }
+        return $this->workflowEngine;
     }
 
     /**

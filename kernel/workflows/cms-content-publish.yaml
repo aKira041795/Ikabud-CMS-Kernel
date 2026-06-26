@@ -1,0 +1,54 @@
+key: cms.content.publish
+label: CMS Content Publishing
+entity_type: cms_content
+initial_state: pending
+trigger:
+  event: cms.content.submitted
+  filter:
+    status: review
+states:
+  - key: pending
+    label: Pending
+  - key: review
+    label: In Review
+  - key: approved
+    label: Approved
+  - key: published
+    label: Published
+  - key: failed
+    label: Failed
+transitions:
+  - from: pending
+    action: start_review
+    to: review
+    roles: [editor, administrator]
+  - from: review
+    action: approve
+    to: approved
+    roles: [editor, administrator]
+  - from: approved
+    action: publish
+    to: published
+    roles: [administrator]
+  - from: review
+    action: reject
+    to: pending
+    roles: [editor, administrator]
+  - from: failed
+    action: retry
+    to: pending
+    roles: [administrator]
+steps:
+  - key: validate_content
+    label: Validate Content
+    capability: cms.content.validate@1
+    max_attempts: 3
+    args:
+      content_id: "{payload.id}"
+  - key: send_notification
+    label: Send Approval Notification
+    capability: email.send@1
+    max_attempts: 3
+    args:
+      template: content_approved
+      entity_id: "{payload.id}"

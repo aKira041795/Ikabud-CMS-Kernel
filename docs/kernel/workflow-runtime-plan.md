@@ -1,10 +1,10 @@
 # Workflow Runtime — Phase 5 Plan
 
-Status: **shipped** (kernel 4.0+ → 6.0)
+Status: **shipped** (kernel 4.0+ → 6.0) + **multi-step engine shipped** (kernel 6.1)
 Owner: Workflow module + kernel team
 Predecessors: kernel 3.x event bus + capability system
 
-> **Current state:** `WorkflowRuntime` is in production (`kernel/WorkflowRuntime.php`). The workflow definition model, trigger execution, integration bridge wiring, and execution history are all delivered. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the full platform status.
+> **Current state:** `WorkflowRuntime` is in production (`kernel/WorkflowRuntime.php`) for single-transition state machines. `WorkflowEngine` (`kernel/WorkflowEngine.php`) delivers the multi-step workflow runner with YAML definitions, ordered step execution, retry, cancellation, replay, and event-triggered auto-start. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the full platform status.
 
 ## Why this exists
 
