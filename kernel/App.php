@@ -996,13 +996,7 @@ final class App
      */
     public function csrfToken(): string
     {
-        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
-            session_start();
-        }
-        if (empty($_SESSION['_csrf_token'])) {
-            $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
-        }
-        return $_SESSION['_csrf_token'];
+        return \Ikabud\Kernel\Http\CsrfManager::token();
     }
 
     /**
@@ -1010,16 +1004,7 @@ final class App
      */
     public function csrfRotate(bool $regenerateSessionId = false): string
     {
-        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
-            session_start();
-        }
-
-        if ($regenerateSessionId && session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
-            @session_regenerate_id(true);
-        }
-
-        $_SESSION['_csrf_token'] = bin2hex(random_bytes(32));
-        return $_SESSION['_csrf_token'];
+        return \Ikabud\Kernel\Http\CsrfManager::rotate($regenerateSessionId);
     }
 
     /**
@@ -1027,7 +1012,7 @@ final class App
      */
     public function csrfField(): string
     {
-        return '<input type="hidden" name="_token" value="' . htmlspecialchars($this->csrfToken(), ENT_QUOTES, 'UTF-8') . '">';
+        return \Ikabud\Kernel\Http\CsrfManager::field();
     }
 
     /**
@@ -1036,11 +1021,9 @@ final class App
      */
     public function csrfEnforce(): void
     {
-        $input = $this->input();
-        $token = $input['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-        if (!is_string($token) || $token === '' || !hash_equals($this->csrfToken(), $token)) {
-            $this->json(['ok' => false, 'error' => 'Invalid CSRF token'], 419);
-        }
+        \Ikabud\Kernel\Http\CsrfManager::enforce(function (array $data): void {
+            $this->json($data, 419);
+        });
     }
 
     /**
@@ -1279,13 +1262,7 @@ final class App
      */
     public function isHtmx(): bool
     {
-        // HX-History-Restore-Request means HTMX needs the full page (back/forward
-        // navigation with a cache miss). Treat it as a normal full-page request so
-        // the layout (sidebar, etc.) is returned.
-        if (!empty($_SERVER['HTTP_HX_HISTORY_RESTORE_REQUEST'])) {
-            return false;
-        }
-        return isset($_SERVER['HTTP_HX_REQUEST']) && $_SERVER['HTTP_HX_REQUEST'] === 'true';
+        return \Ikabud\Kernel\Http\HtmxContext::isRequest();
     }
 
     /**
@@ -1294,35 +1271,25 @@ final class App
      */
     public function isHtmxBoosted(): bool
     {
-        return !empty($_SERVER['HTTP_HX_BOOSTED']);
+        return \Ikabud\Kernel\Http\HtmxContext::isBoosted();
     }
-    
+
     /**
      * Get HTMX request details
      */
     public function htmx(): array
     {
-        return [
-            'request' => $_SERVER['HTTP_HX_REQUEST'] ?? false,
-            'trigger' => $_SERVER['HTTP_HX_TRIGGER'] ?? null,
-            'trigger_name' => $_SERVER['HTTP_HX_TRIGGER_NAME'] ?? null,
-            'target' => $_SERVER['HTTP_HX_TARGET'] ?? null,
-            'current_url' => $_SERVER['HTTP_HX_CURRENT_URL'] ?? null,
-            'boosted' => isset($_SERVER['HTTP_HX_BOOSTED']),
-        ];
+        return \Ikabud\Kernel\Http\HtmxContext::context();
     }
-    
+
     /**
      * Send HTMX response headers
      */
     public function htmxResponse(array $headers = []): void
     {
-        foreach ($headers as $key => $value) {
-            $headerName = 'HX-' . ucfirst($key);
-            header("{$headerName}: {$value}");
-        }
+        \Ikabud\Kernel\Http\HtmxContext::sendHeaders($headers);
     }
-    
+
     /**
      * Get current authenticated user
      */
@@ -1591,88 +1558,17 @@ final class App
      */
     public function input(?string $key = null, $default = null)
     {
-        static $input = null;
-        static $inputSignature = null;
-
-        $currentSignature = null;
-        if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
-            $currentSignature = md5(serialize([
-                $_SERVER['REQUEST_METHOD'] ?? 'GET',
-                $_SERVER['REQUEST_URI'] ?? '',
-                $_SERVER['CONTENT_TYPE'] ?? '',
-                $_GET,
-                $_POST,
-            ]));
-        }
-        
-        if ($input === null || ($currentSignature !== null && $inputSignature !== $currentSignature)) {
-            $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-            
-            if (strpos($contentType, 'application/json') !== false) {
-                $raw = file_get_contents('php://input');
-                if ($raw === false || strlen($raw) > self::MAX_INPUT_SIZE) {
-                    $input = []; // reject oversized payloads silently
-                } else {
-                    $decoded = json_decode($raw, true, 32);
-                    if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
-                        // JSON parse failed — return structured error so callers
-                        // (especially the page-builder save handler) never
-                        // silently overwrite real data with an empty document.
-                        $input = ['_json_error' => json_last_error_msg()];
-                    } else {
-                        $input = $decoded ?? [];
-                    }
-                }
-            } elseif (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['PUT', 'PATCH', 'DELETE'])) {
-                $raw = file_get_contents('php://input');
-                if ($raw !== false && strlen($raw) <= self::MAX_INPUT_SIZE) {
-                    parse_str($raw, $parsed);
-                    $input = array_merge($_GET, $parsed);
-                } else {
-                    $input = $_GET;
-                }
-            } else {
-                $input = array_merge($_GET, $_POST);
-            }
-
-            // Strip null bytes from all string values (prevents path traversal)
-            $input = self::sanitizeInput($input);
-            $inputSignature = $currentSignature;
-        }
-        
-        if ($key === null) {
-            return $input;
-        }
-        
-        return $input[$key] ?? $default;
+        return \Ikabud\Kernel\Http\Input::get($key, $default);
     }
 
     /**
      * Recursively sanitize input: strip null bytes, enforce depth limit.
-     *
-     * Note: depth must be high enough to accommodate deeply nested structures
-     * such as page-builder documents (document → section → container → slideshow
-     * → props → slides[] → slide → image_url can easily reach depth 11+).
      */
     private static function sanitizeInput(mixed $data, int $depth = 0): mixed
     {
-        if ($depth > 32) {
-            return null; // too deep — discard
-        }
-        if (is_string($data)) {
-            return str_replace("\0", '', $data);
-        }
-        if (is_array($data)) {
-            $clean = [];
-            foreach ($data as $k => $v) {
-                $cleanKey = is_string($k) ? str_replace("\0", '', $k) : $k;
-                $clean[$cleanKey] = self::sanitizeInput($v, $depth + 1);
-            }
-            return $clean;
-        }
-        return $data;
+        return \Ikabud\Kernel\Http\Input::sanitize($data, $depth);
     }
-    
+
     /**
      * Log message
      */

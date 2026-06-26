@@ -235,7 +235,7 @@ function cmsMediaLibrary() {
             if (this.cropWidth <= 0 || this.cropHeight <= 0) return;
             const tag = document.activeElement ? document.activeElement.tagName : '';
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-            if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return;
+            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
             e.preventDefault();
             const step = e.shiftKey ? 10 : 1, resize = e.altKey;
             if (resize) {
