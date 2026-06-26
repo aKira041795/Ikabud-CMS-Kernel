@@ -2951,14 +2951,11 @@ class TemplateEngine
         $isPromise = false;
 
         if ($hasSrc) {
-            // parseAttrPairs already parsed the src value (strips quotes).
-            // If it's a Promise in context, use it; otherwise use value directly.
-            $resolved = $this->resolveValue($src, $context);
+            // parseAttrPairs already resolved the src value from context.
+            // If it's a Promise, await it; otherwise use value directly.
+            $resolved = $src;
             if ($resolved instanceof \Ikabud\Kernel\DiSyL\Async\Promise) {
                 $isPromise = true;
-            } elseif ($resolved === null && !array_key_exists($src, $context)) {
-                // Not a context variable — use the literal src value as-is
-                $resolved = $src;
             }
         } else {
             // No explicit src — resolve the entire expression as a variable
