@@ -549,6 +549,29 @@ The platform is no longer just extensible — it is **instrumented**.
 
 ---
 
+## Kernel OS 6.2 — Trust Boundaries (Planned)
+
+**Theme:** Can every boundary be trusted under failure, retry, concurrency, and hostile input?
+
+| Priority | Description |
+|---|---|
+| 1. Baseline violations | Eliminate or formally baseline all 9 architecture violations |
+| 2. CI enforcement | `php ikabud architecture:check --baseline=architecture-baseline.json --fail-on-new` in CI; move toward `--strict` with zero violations |
+| 3. Signed service requests | Complete signed internal service calls with replay protection (nonce, timestamp, body hash, key rotation) |
+| 4. Entity timeouts | Replace hardcoded 10s timeouts with hierarchy: governed call → entity source → service manifest → capability policy → kernel default |
+| 5. Entity source schemas | Declare fields, filters, sorting, limits per entity source; validate filter values against schema before reaching query handlers |
+| 6. Wildcard field exposure | Restrict auto-detected fields in production; unknown fields hidden by default; explicit/schema-approved modes only |
+| 7. Workflow hardening | Step-level idempotency keys, locks, tenant/actor context, immutable inputs, output snapshots, duplicate event suppression, replay authorization, max workflow age |
+| 8. Immutable report artifacts | Approve specific snapshot (definition + params + data hash + generated hash + requester + timestamp); regenerated artifact requires new approval |
+| 9. Script interpolation | Resolve `<script>` block semantics: default raw passthrough, opt-in `disyl:compile` attribute, JSON serialization helper |
+| 10. Test separation | Deterministic offline E2E tests separate from optional live external-service canaries |
+| 11. Browser tests | Add Playwright/Puppeteer tests for builder, report approvals, async rendering |
+| 12. Doc consolidation | Remove stale status sections; auto-generate component counts from registry |
+
+**Release question:** Can every boundary be trusted under failure, retry, concurrency, and hostile input?
+
+---
+
 ### Version Compatibility
 
 ```

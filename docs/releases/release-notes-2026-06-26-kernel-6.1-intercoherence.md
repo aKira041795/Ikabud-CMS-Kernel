@@ -314,13 +314,19 @@ Plus: Content duplication skips `_builder_page_settings` and `_builder_seo_setti
 
 ## Forward — 6.2 Candidates
 
-| Item | Priority |
+**Theme: Trust Boundaries** — Can every boundary be trusted under failure, retry, concurrency, and hostile input?
+
+| Priority | Description |
 |---|---|
-| `test:module`, `test:contract`, `test:tenant-isolation` CLI tools | 🟡 |
-| `service:test` polyglot service endpoint validator | 🟡 |
-| `schema:audit` cross-module table schema diff | 🟡 |
-| `disyl:format` auto-formatter | 🟡 |
-| `deploy:check` pre-deployment checklist | 🟡 |
-| Doc generators from code annotations | 🟡 |
-| WorkflowEngine visualizer (Mermaid state diagram export) | 🟢 |
-| DiSyL LSP diagnostics (real-time parse errors in editor) | 🟢 |
+| 1. Baseline violations | Eliminate or formally baseline all 9 architecture violations |
+| 2. CI enforcement | `architecture:check --baseline --fail-on-new` in CI; move toward `--strict` |
+| 3. Signed service requests | Replay protection with nonce, timestamp, body hash, key rotation |
+| 4. Entity timeouts | Replace hardcoded 10s with governed hierarchy |
+| 5. Entity source schemas | Declare fields, filters, sorting, limits per source |
+| 6. Wildcard field exposure | Unknown fields hidden by default in production |
+| 7. Workflow hardening | Idempotency keys, step locks, duplicate suppression |
+| 8. Immutable report artifacts | Approve specific snapshot; regenerated requires re-approval |
+| 9. Script interpolation | Default raw passthrough, opt-in `disyl:compile` |
+| 10. Test separation | Offline E2E separate from live external-service canaries |
+| 11. Browser tests | Builder, report approvals, async rendering |
+| 12. Doc consolidation | Auto-generated component counts, no stale sections |
