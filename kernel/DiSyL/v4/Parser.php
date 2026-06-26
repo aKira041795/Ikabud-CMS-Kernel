@@ -206,6 +206,9 @@ final class Parser
         if (preg_match('/^if[\s}]/', $peek)) {
             return $this->recoverableParse($this->parseIf(...), 'if', $savedPos);
         }
+        if (preg_match('/^while[\s}]/', $peek)) {
+            return $this->recoverableParse($this->parseWhile(...), 'while', $savedPos);
+        }
         if (preg_match('/^match[\s}]/', $peek)) {
             return $this->recoverableParse($this->parseMatch(...), 'match', $savedPos);
         }
@@ -399,9 +402,11 @@ final class Parser
             // tag (e.g. {/if}, {/for}, {/foreach}, {/block}) or end-of-source.
             $closeTag = match ($blockName) {
                 'if' => '{/if}',
+                'while' => '{/while}',
                 'match' => '{/match}',
                 'macro' => '{/macro}',
                 'for' => '{/for}',
+                'cfor' => '{/for}',
                 'foreach' => '{/foreach}',
                 'each' => '{/each}',
                 'block' => '{/block}',
@@ -431,6 +436,24 @@ final class Parser
             $safeMsg = htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
             return new CommentNode([], " DiSyL parse error ({$blockName}): {$safeMsg} ");
         }
+    }
+
+    /** {while condition}...{/while} */
+    private function parseWhile(): ControlNode
+    {
+        $tag = $this->readTagContent();
+        $condition = trim(substr($tag, 5));          // strip "while"
+
+        $body = $this->parseChildren(['{/while}']);
+        $this->consumeExact('{/while}');
+
+        return new ControlNode(
+            [],
+            'while',
+            ['condition' => $this->parseExprValue($condition)],
+            new DocumentNode([], $body),
+            null
+        );
     }
 
     /** {if condition}...{elseif condition}...{else if condition}...{else}...{/if} */
@@ -642,11 +665,35 @@ final class Parser
         return $parts;
     }
 
-    /** {for item in list}...{empty}...{/for} */
+    /** {for item in list}...{empty}...{/for}
+     *  {for i = 0; i < 10; i++}...{/for} (C-style, semicolons) */
     private function parseFor(): ControlNode
     {
-        $tag = $this->readTagContent();             // "for item in list"
+        $tag = $this->readTagContent();             // "for item in list" or "for i = 0; i < 10; i++"
         $expr = trim(substr($tag, 3));               // strip "for"
+
+        // C-style for: {for init; condition; increment}
+        if (substr_count($expr, ';') === 2) {
+            $parts = explode(';', $expr);
+            $initExpr = trim($parts[0]);
+            $condExpr = trim($parts[1]);
+            $incExpr  = trim($parts[2]);
+
+            $body = $this->parseChildren(['{/for}']);
+            $this->consumeExact('{/for}');
+
+            return new ControlNode(
+                [],
+                'cfor',
+                [
+                    'init' => $this->parseExprValue($initExpr),
+                    'condition' => $this->parseExprValue($condExpr),
+                    'increment' => $this->parseExprValue($incExpr),
+                ],
+                new DocumentNode([], $body),
+                null
+            );
+        }
 
         // Parse "item in iterable"
         if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', $expr, $m)) {

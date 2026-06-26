@@ -286,6 +286,8 @@ PHP;
         return match ($node->getTag()) {
             'if' => $this->compileIf($node),
             'for' => $this->compileFor($node),
+            'cfor' => $this->compileCFor($node),
+            'while' => $this->compileWhile($node),
             'set' => $this->compileSet($node),
             'with' => $this->compileWith($node),
             'apply' => $this->compileApply($node),
@@ -375,7 +377,43 @@ PHP;
         $code .= $this->line("}");
         return $code;
     }
-    
+
+    /** {for init; condition; increment}...{/for} — C-style for loop */
+    private function compileCFor(ControlNode $node): string
+    {
+        $init = $this->compileExpressionValue($node->getAttribute('init'));
+        $condition = $this->compileExpressionValue($node->getAttribute('condition'));
+        $increment = $this->compileExpressionValue($node->getAttribute('increment'));
+
+        $code = $this->line("for ({$init}; \$this->isTruthy({$condition}); {$increment}) {");
+        $this->indentLevel++;
+
+        if ($node->getBody()) {
+            $code .= $this->compileDocument($node->getBody());
+        }
+
+        $this->indentLevel--;
+        $code .= $this->line("}");
+        return $code;
+    }
+
+    /** {while condition}...{/while} */
+    private function compileWhile(ControlNode $node): string
+    {
+        $condition = $this->compileExpressionValue($node->getAttribute('condition'));
+
+        $code = $this->line("while (\$this->isTruthy({$condition})) {");
+        $this->indentLevel++;
+
+        if ($node->getBody()) {
+            $code .= $this->compileDocument($node->getBody());
+        }
+
+        $this->indentLevel--;
+        $code .= $this->line("}");
+        return $code;
+    }
+
     private function compileSet(ControlNode $node): string
     {
         $name = var_export($node->getAttribute('name'), true);

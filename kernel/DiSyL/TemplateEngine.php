@@ -2105,7 +2105,7 @@ class TemplateEngine
         $result = '';
         $offset = 0;
         $len = strlen($content);
-        $allTypes = ['for', 'foreach', 'each', 'if', 'match', 'trans', 'cache', 'experiment', 'sandbox', 'trusted', 'untrusted', 'parallel', 'await', 'suspense', 'federated_query', 'ai_generate', 'ai_query', 'ai_complete'];
+        $allTypes = ['for', 'foreach', 'each', 'if', 'while', 'match', 'trans', 'cache', 'experiment', 'sandbox', 'trusted', 'untrusted', 'parallel', 'await', 'suspense', 'federated_query', 'ai_generate', 'ai_query', 'ai_complete'];
 
         while ($offset < $len) {
             $tag = $this->findNextOpeningControlTag($content, $offset, $allTypes);
@@ -2150,6 +2150,7 @@ class TemplateEngine
             'for'     => $this->evaluateForBody($tag['expr'], $innerContent, $context),
             'foreach' => $this->evaluateForeachBody($tag['expr'], $innerContent, $context),
             'each'    => $this->evaluateEachBody($tag['expr'], $innerContent, $context),
+            'while'   => $this->evaluateWhileBody($tag['expr'], $innerContent, $context),
             'match'      => $this->evaluateMatchBody($tag['expr'], $innerContent, $context),
             'trans'      => $this->evaluateTransBody($tag['expr'], $innerContent, $context),
             'cache'      => $this->evaluateCacheBody($tag['expr'], $innerContent, $context),
@@ -3559,6 +3560,31 @@ class TemplateEngine
      */
     private function evaluateForBody(string $expr, string $innerContent, array $context): string
     {
+        // C-style for: {for init; condition; increment}
+        if (substr_count($expr, ';') === 2) {
+            $parts = explode(';', $expr);
+            $initExpr = trim($parts[0]);
+            $condExpr = trim($parts[1]);
+            $incExpr  = trim($parts[2]);
+
+            // Evaluate init (typically a {set} operation)
+            $ctx = $context;
+            $initResult = $this->processSetStatements('{' . $initExpr . '}', $ctx);
+            $maxIterations = 10000;
+            $count = 0;
+            $result = '';
+            while ($this->evaluateCondition($condExpr, $ctx)) {
+                $result .= $this->compile($innerContent, $ctx);
+                // Evaluate increment — set $var = $var + 1 style
+                $incResult = $this->processSetStatements('{' . $incExpr . '}', $ctx);
+                $count++;
+                if ($count >= $maxIterations) {
+                    break;
+                }
+            }
+            return $result;
+        }
+
         if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', trim($expr), $parts)) {
             return '';
         }
@@ -3661,6 +3687,28 @@ class TemplateEngine
             }
             $result .= $this->compile($body, $loopContext);
             $index++;
+        }
+        return $result;
+    }
+
+    /**
+     * Evaluate a {while condition}...{/while} body.
+     * Safety-limited to 10000 iterations to prevent accidental infinite loops.
+     */
+    private function evaluateWhileBody(string $expr, string $innerContent, array $context): string
+    {
+        $maxIterations = 10000;
+        $count = 0;
+        $result = '';
+        while ($this->evaluateCondition($expr, $context)) {
+            $result .= $this->compile($innerContent, $context);
+            $count++;
+            if ($count >= $maxIterations) {
+                if (function_exists('write_log')) {
+                    write_log('DiSyL {while} loop exceeded max iterations (' . $maxIterations . ')', 'warning');
+                }
+                break;
+            }
         }
         return $result;
     }
