@@ -54,9 +54,10 @@
             <i class="fas fa-rotate-right mr-1"></i> Reload Tracker
         </button>
         {/if}
-        <button type="button" onclick="document.getElementById('import-result-area').innerHTML=''; document.getElementById('import-mapping-area').innerHTML='';" 
+        <button type="button" onclick="document.getElementById('import-result-area').innerHTML=''; document.getElementById('import-mapping-area').innerHTML='';"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition">
             <i class="fas fa-check mr-1"></i> Close
         </button>
     </div>
 </div>
+

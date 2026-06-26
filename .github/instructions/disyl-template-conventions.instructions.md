@@ -48,3 +48,10 @@ applyTo: "**/*.disyl"
 - Alpine.js `{}` parse conflict → **improve DiSyL** (script/attribute extraction)
 - Wrong syntax (`user->name` instead of `user.name`) → **fix template**
 - Bypassing DiSyL with raw PHP → **fix template**
+
+## Template Tooling
+- **`php _lint_disyl.php`** — validates all `.disyl` templates for syntax errors,
+  mismatched blocks, broken include/extends paths, and trailing whitespace
+- Use `--path <dir>` to lint a specific directory, `--ci` for CI-friendly output
+- Use `--fix` to auto-remove trailing whitespace from all templates
+- Run before committing to catch structural errors early

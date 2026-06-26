@@ -33,7 +33,7 @@
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-600 to-emerald-700 py-12 px-4">
-    
+
     <div class="max-w-md w-full">
         {!-- Logo & Title --}
         <div class="text-center mb-8">
@@ -42,7 +42,7 @@
             </div>
             <h1 class="text-3xl font-bold text-white">{app_name}</h1>
         </div>
-        
+
         {!-- Login Card --}
         <div class="gms-card bg-white shadow-xl p-8">
             <h2 class="text-2xl font-bold text-gray-800 text-center mb-6" id="card-title">Welcome Back</h2>
@@ -158,7 +158,7 @@
             Powered by <strong>DiSyL</strong> + <strong>Ikabud CMS</strong>
         </p>
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
 
@@ -344,3 +344,4 @@
     </script>
 </body>
 </html>
+

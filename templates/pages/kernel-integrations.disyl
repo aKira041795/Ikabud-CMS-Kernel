@@ -764,7 +764,7 @@ async function applyIntegrationMode() {
     var mode = document.querySelector('input[name="intg_mode"]:checked').value;
     var btn = document.getElementById('btn-apply-mode');
     var stat = document.getElementById('mode-status');
-    
+
     btn.disabled = true;
     stat.className = 'intg-status pending';
     stat.textContent = 'Applying mode...';
@@ -795,3 +795,4 @@ async function applyIntegrationMode() {
 
 </script>
 {/block}
+

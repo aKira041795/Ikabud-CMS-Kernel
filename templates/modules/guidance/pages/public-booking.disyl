@@ -41,7 +41,7 @@
                 <p class="text-sm text-indigo-600 font-medium mt-1">{school_info.name}</p>
             {/if}
         </div>
-        
+
         {!-- Progress Steps --}
         <div class="flex items-center justify-center mb-8">
             <div class="flex items-center space-x-4">
@@ -52,36 +52,36 @@
                 <div class="step-indicator flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-600 text-sm font-medium" id="step3-indicator">3</div>
             </div>
         </div>
-        
+
         {!-- Booking Form --}
         <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">
             <form id="booking-form">
                 {csrf_field | raw}
-                
+
                 {!-- Step 1: Personal Info (Dynamic from Form Settings) --}
                 <div id="step1" class="step-content">
                     <h2 class="text-xl font-semibold text-gray-900 mb-6">
                         <i class="fas fa-user text-indigo-500 mr-2"></i> Your Information
                     </h2>
-                    
+
                     <div class="space-y-4">
                         {booking_fields_html | raw}
                     </div>
-                    
+
                     <div class="mt-6 flex justify-end">
-                        <button type="button" onclick="nextStep(2)" 
+                        <button type="button" onclick="nextStep(2)"
                                 class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                             Next <i class="fas fa-arrow-right ml-2"></i>
                         </button>
                     </div>
                 </div>
-                
+
                 {!-- Step 2: Appointment Details --}
                 <div id="step2" class="step-content hidden">
                     <h2 class="text-xl font-semibold text-gray-900 mb-6">
                         <i class="fas fa-calendar text-indigo-500 mr-2"></i> Appointment Details
                     </h2>
-                    
+
                     <div class="space-y-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Type of Session *</label>
@@ -93,7 +93,7 @@
                                 {/foreach}
                             </select>
                         </div>
-                        
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Preferred Date *</label>
                             <input type="date" name="scheduled_date" id="date-select" required
@@ -101,7 +101,7 @@
                                    class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                             <p class="text-xs text-gray-500 mt-1">You can book up to {max_booking_days} days in advance</p>
                         </div>
-                        
+
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Available Time Slots *</label>
                             <div id="slots-container" class="min-h-[100px] border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -110,49 +110,49 @@
                                 </p>
                             </div>
                         </div>
-                        
+
                         {booking_detail_fields_html | raw}
                     </div>
-                    
+
                     <div class="mt-6 flex justify-between">
-                        <button type="button" onclick="prevStep(1)" 
+                        <button type="button" onclick="prevStep(1)"
                                 class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i> Back
                         </button>
-                        <button type="button" onclick="nextStep(3)" 
+                        <button type="button" onclick="nextStep(3)"
                                 class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
                             Next <i class="fas fa-arrow-right ml-2"></i>
                         </button>
                     </div>
                 </div>
-                
+
                 {!-- Step 3: Review & Submit --}
                 <div id="step3" class="step-content hidden">
                     <h2 class="text-xl font-semibold text-gray-900 mb-6">
                         <i class="fas fa-check-circle text-indigo-500 mr-2"></i> Review & Submit
                     </h2>
-                    
+
                     <div class="bg-gray-50 rounded-lg p-4 mb-4">
                         <h3 class="font-medium text-gray-700 mb-3">Your Information</h3>
                         <div class="grid grid-cols-2 gap-2 text-sm" id="review-personal">
                             {!-- Filled by JS --}
                         </div>
                     </div>
-                    
+
                     <div class="bg-gray-50 rounded-lg p-4 mb-4">
                         <h3 class="font-medium text-gray-700 mb-3">Appointment Details</h3>
                         <div class="grid grid-cols-2 gap-2 text-sm" id="review-appointment">
                             {!-- Filled by JS --}
                         </div>
                     </div>
-                    
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Additional Message (optional)</label>
                         <textarea name="message" rows="3"
                                   class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                   placeholder="Any additional information you'd like to share..."></textarea>
                     </div>
-                    
+
                     <div class="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                         <p class="text-sm text-blue-800">
                             <i class="fas fa-info-circle mr-1"></i>
@@ -168,9 +168,9 @@
                             </p>
                         </div>
                     {/if}
-                    
+
                     <div class="mt-6 flex justify-between">
-                        <button type="button" onclick="prevStep(2)" 
+                        <button type="button" onclick="prevStep(2)"
                                 class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                             <i class="fas fa-arrow-left mr-2"></i> Back
                         </button>
@@ -218,7 +218,7 @@
 
             <div id="booking-result" class="mt-6"></div>
         </div>
-        
+
         {!-- Footer --}
         <div class="text-center mt-8 text-sm text-gray-500">
             <p>Need immediate help? Contact the Guidance Office directly.</p>
@@ -227,10 +227,10 @@
             {/if}
         </div>
     </div>
-    
+
     {!-- Toast Container --}
     <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
-    
+
     <script>
         let currentStep = 1;
         let activeBookingOtpTicket = '';
@@ -296,40 +296,40 @@
                 bookingResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         }
-        
+
         function nextStep(step) {
             if (!validateStep(currentStep)) return;
-            
+
             document.getElementById('step' + currentStep).classList.add('hidden');
             document.getElementById('step' + step).classList.remove('hidden');
-            
+
             document.getElementById('step' + currentStep + '-indicator').classList.remove('active');
             document.getElementById('step' + currentStep + '-indicator').classList.add('completed');
             document.getElementById('step' + step + '-indicator').classList.add('active');
-            
+
             if (step === 3) {
                 updateReview();
             }
-            
+
             currentStep = step;
         }
-        
+
         function prevStep(step) {
             document.getElementById('step' + currentStep).classList.add('hidden');
             document.getElementById('step' + step).classList.remove('hidden');
-            
+
             document.getElementById('step' + currentStep + '-indicator').classList.remove('active');
             document.getElementById('step' + step + '-indicator').classList.remove('completed');
             document.getElementById('step' + step + '-indicator').classList.add('active');
-            
+
             currentStep = step;
         }
-        
+
         function validateStep(step) {
             const form = document.getElementById('booking-form');
             const stepDiv = document.getElementById('step' + step);
             const requiredFields = stepDiv.querySelectorAll('[required]');
-            
+
             let valid = true;
             requiredFields.forEach(field => {
                 if (!field.value) {
@@ -339,7 +339,7 @@
                     field.classList.remove('border-red-500');
                 }
             });
-            
+
             if (step === 2) {
                 const selectedTime = document.getElementById('selected-time');
                 if (!selectedTime || !selectedTime.value) {
@@ -347,11 +347,11 @@
                     valid = false;
                 }
             }
-            
+
             if (!valid) {
                 showToast('Please fill in all required fields', 'error');
             }
-            
+
             return valid;
         }
 
@@ -473,7 +473,7 @@
                 <div class="text-gray-600">${entry.label}:</div><div class="font-medium">${entry.value || '-'}</div>
             `).join('');
         }
-        
+
         function updateReview() {
             const form = document.getElementById('booking-form');
             const formData = new FormData(form);
@@ -498,13 +498,13 @@
 
             renderReviewEntries('review-appointment', appointmentEntries);
         }
-        
+
         function formatDate(dateStr) {
             if (!dateStr) return '-';
             const date = new Date(dateStr);
             return date.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
-        
+
         function formatTime(timeStr) {
             if (!timeStr) return '-';
             const [hours, minutes] = timeStr.split(':');
@@ -512,7 +512,7 @@
             date.setHours(parseInt(hours), parseInt(minutes));
             return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         }
-        
+
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -534,22 +534,22 @@
                 headers
             });
         }
-        
+
         // Load slots when date changes
         document.getElementById('date-select').addEventListener('change', function() {
             const date = this.value;
             const collegeId = document.getElementById('college-select').value;
             const typeId = document.getElementById('type-select').value;
-            
+
             if (!collegeId) {
                 showToast('Please select your college first', 'error');
                 this.value = '';
                 return;
             }
-            
+
             const container = document.getElementById('slots-container');
             container.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin text-indigo-500 text-2xl"></i></div>';
-            
+
             fetch(APP_BASE + `/api/booking/slots?date=${date}&college_id=${collegeId}&type_id=${typeId}` , {
                 headers: {
                     'HX-Request': 'true'
@@ -564,7 +564,7 @@
                     container.innerHTML = '<div class="text-red-500">Failed to load slots</div>';
                 });
         });
-        
+
         function attachSlotListeners() {
             document.querySelectorAll('.slot-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
@@ -671,3 +671,4 @@
     </script>
 </body>
 </html>
+

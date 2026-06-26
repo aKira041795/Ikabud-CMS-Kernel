@@ -66,7 +66,7 @@
                     }
                 });
             };
-            
+
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', attachCursors);
             } else {
@@ -84,12 +84,12 @@
         }
     }">
         <template x-teleport="body">
-            <div x-show="lightboxModalSrc" 
+            <div x-show="lightboxModalSrc"
                  style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 99999; background: rgba(0,0,0,0.9); cursor: zoom-out;"
                  x-transition.opacity.duration.200ms
                  @click="lightboxModalSrc = null"
                  @keydown.escape.window="lightboxModalSrc = null">
-                 
+
                  <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; padding: 2rem; box-sizing: border-box;">
                      <button type="button" style="position: absolute; top: 1rem; right: 1rem; padding: 0.5rem; color: rgba(255,255,255,0.7); background: transparent; border: none; cursor: pointer; z-index: 10;" @click="lightboxModalSrc = null" onmouseover="this.style.color='white'" onmouseout="this.style.color='rgba(255,255,255,0.7)'">
                          <svg style="width: 2rem; height: 2rem;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -103,3 +103,4 @@
     {block scripts}{/block}
 </body>
 </html>
+

@@ -180,7 +180,7 @@
     <script src="{base_url}/assets/cms/builder-public.js"></script>
     {/if}
     {if body_end_code}{body_end_code|raw}{/if}
-    
+
     {* ── Global Lightbox for standard content editor images ── *}
     <div x-data="{
         lightboxModalSrc: null,
@@ -451,3 +451,4 @@
     {block scripts}{/block}
 </body>
 </html>
+

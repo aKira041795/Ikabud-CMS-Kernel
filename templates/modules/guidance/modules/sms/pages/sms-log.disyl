@@ -2,7 +2,7 @@
 
 {block content}
 <div class="p-6 max-w-7xl mx-auto">
-    
+
     {!-- Header --}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
@@ -15,15 +15,15 @@
                 <i class="fas fa-flask mr-1"></i> Test Mode
             </span>
             {/if}
-            <button hx-get="{base_url}/pages/sms/compose" 
-                    hx-target="#modal-container" 
+            <button hx-get="{base_url}/pages/sms/compose"
+                    hx-target="#modal-container"
                     hx-swap="innerHTML"
                     class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm font-medium">
                 <i class="fas fa-paper-plane mr-2"></i> Compose SMS
             </button>
         </div>
     </div>
-    
+
     {!-- Stats Cards --}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="sms-stats">
         <div class="bg-white rounded-xl shadow-sm border p-4">
@@ -71,7 +71,7 @@
             </div>
         </div>
     </div>
-    
+
     {!-- Tabs --}
     <div class="bg-white rounded-xl shadow-sm border">
         <div class="border-b px-4">
@@ -90,12 +90,12 @@
                 </button>
             </nav>
         </div>
-        
+
         {!-- Search Bar --}
         <div class="px-4 py-3 border-b bg-gray-50" id="sms-search-bar">
             <div class="flex gap-3">
                 <div class="flex-1">
-                    <input type="text" id="sms-search" placeholder="Search by number, name, or message..." 
+                    <input type="text" id="sms-search" placeholder="Search by number, name, or message..."
                            class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
                 <button id="sms-search-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
@@ -103,7 +103,7 @@
                 </button>
             </div>
         </div>
-        
+
         {!-- Log Table Container --}
         <div id="sms-log-container" hx-get="{base_url}/api/modules/sms/log" hx-trigger="load, refreshSmsLog from:body" hx-target="#sms-log-container">
             <div class="p-8 text-center text-gray-400">
@@ -111,7 +111,7 @@
                 <p class="mt-2">Loading SMS log...</p>
             </div>
         </div>
-        
+
         {!-- Templates Container (hidden by default) --}
         <div id="sms-templates-container" class="hidden">
         </div>
@@ -138,7 +138,7 @@
         }
     })
     .catch(function() {});
-    
+
     // Tab switching
     document.querySelectorAll('.sms-tab').forEach(function(tab) {
         tab.addEventListener('click', function() {
@@ -149,12 +149,12 @@
             });
             this.classList.remove('border-transparent', 'text-gray-500');
             this.classList.add('border-indigo-600', 'text-indigo-600');
-            
+
             var tabType = this.dataset.tab;
             var logContainer = document.getElementById('sms-log-container');
             var tplContainer = document.getElementById('sms-templates-container');
             var searchBar = document.getElementById('sms-search-bar');
-            
+
             if (tabType === 'templates') {
                 logContainer.classList.add('hidden');
                 searchBar.classList.add('hidden');
@@ -172,17 +172,17 @@
             }
         });
     });
-    
+
     // Search
     var searchInput = document.getElementById('sms-search');
     var searchBtn = document.getElementById('sms-search-btn');
-    
+
     function doSearch() {
         var q = searchInput.value.trim();
         var url = '/api/modules/sms/log' + (q ? '?search=' + encodeURIComponent(q) : '');
         htmx.ajax('GET', url, {target: '#sms-log-container', swap: 'innerHTML'});
     }
-    
+
     if (searchBtn) searchBtn.addEventListener('click', doSearch);
     if (searchInput) searchInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') doSearch();
@@ -190,3 +190,4 @@
 })();
 </script>
 {/block}
+

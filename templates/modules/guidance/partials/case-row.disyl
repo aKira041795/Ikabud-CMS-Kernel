@@ -1,10 +1,10 @@
 {!-- Case Row Partial - Used in cases list --}
-<tr class="hover:bg-gray-50 cursor-pointer transition {if case.deleted_at}opacity-60 bg-red-50{/if}" 
+<tr class="hover:bg-gray-50 cursor-pointer transition {if case.deleted_at}opacity-60 bg-red-50{/if}"
     data-case-id="{case.id}"
-    hx-get="{base_url}/pages/cases/{case.id}" 
-    hx-target="#main-content" 
+    hx-get="{base_url}/pages/cases/{case.id}"
+    hx-target="#main-content"
     hx-push-url="{base_url}/cases/{case.id}">
-    
+
     <td class="px-6 py-4 whitespace-nowrap">
         <div class="flex items-center">
             <div class="w-10 h-10 {if case.deleted_at}bg-red-100{else}bg-indigo-100{/if} rounded-full flex items-center justify-center">
@@ -19,23 +19,23 @@
             </div>
         </div>
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap">
         <span class="text-sm text-gray-900">{case.case_number}</span>
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap">
         {ikb_badge variant="{case.status}"}{case.status | title}{/ikb_badge}
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap">
         {ikb_badge variant="{case.severity}"}{case.severity | title}{/ikb_badge}
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         {case.category | title}
     </td>
-    
+
     <td class="px-6 py-4">
         {if case.college_code}
         <div class="flex flex-wrap gap-1">
@@ -47,28 +47,28 @@
         <span class="text-xs text-gray-400 italic">—</span>
         {/if}
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         {case.counselor_name | default:'Unassigned'}
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
         {case.updated_at | date:'M d, Y'}
     </td>
-    
+
     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-        <button class="text-gray-500 hover:text-indigo-700" 
+        <button class="text-gray-500 hover:text-indigo-700"
                 onclick="event.stopPropagation();"
-                hx-get="{base_url}/pages/cases/{case.id}" 
+                hx-get="{base_url}/pages/cases/{case.id}"
                 hx-target="#main-content"
                 hx-push-url="{base_url}/cases/{case.id}"
                 title="View">
             <i class="fas fa-eye"></i>
         </button>
         {if case.status != 'closed'}
-        <button class="text-indigo-600 hover:text-indigo-900" 
+        <button class="text-indigo-600 hover:text-indigo-900"
                 onclick="event.stopPropagation();"
-                hx-get="{base_url}/pages/cases/{case.id}/edit" 
+                hx-get="{base_url}/pages/cases/{case.id}/edit"
                 hx-target="#modal-container"
                 title="Edit">
             <i class="fas fa-edit"></i>
@@ -76,3 +76,4 @@
         {/if}
     </td>
 </tr>
+

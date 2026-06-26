@@ -64,13 +64,13 @@
                 <div class="absolute w-full h-1 bg-green-500 shadow-[0_0_10px_2px_rgba(34,197,94,0.5)] animate-pulse"></div>
                 <p class="text-white/50 text-sm">Awaiting Scanner Input...</p>
             </div>
-            
+
             <!-- Manual Wedge Input for Testing -->
             <input type="text" id="wedgeInput" x-effect="if(scanning) setTimeout(() => document.getElementById('wedgeInput').focus(), 100)"
-                class="bg-slate-800 text-white border border-slate-700 rounded px-4 py-3 w-full max-w-sm text-center text-xl tracking-widest focus:ring-2 focus:ring-green-500 focus:outline-none" 
-                placeholder="Or type barcode..." 
+                class="bg-slate-800 text-white border border-slate-700 rounded px-4 py-3 w-full max-w-sm text-center text-xl tracking-widest focus:ring-2 focus:ring-green-500 focus:outline-none"
+                placeholder="Or type barcode..."
                 @keydown.enter.prevent="if ($event.target.value.trim() !== '') { window.handleScan($event.target.value.trim()); } $event.target.value = ''; scanning = false">
-                
+
             <p class="mt-4 text-slate-400 text-sm">Hardware wedge scanners emit an 'Enter' keypress automatically.</p>
         </div>
     </div>
@@ -87,7 +87,7 @@
         let scanTimer;
         document.addEventListener('keypress', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            
+
             if (e.key === 'Enter') {
                 if (scanBuffer.length > 3) {
                     window.handleScan(scanBuffer);
@@ -95,7 +95,7 @@
                 scanBuffer = '';
                 return;
             }
-            
+
             scanBuffer += e.key;
             clearTimeout(scanTimer);
             scanTimer = setTimeout(() => { scanBuffer = ''; }, 100); // 100ms threshold for human vs scanner
@@ -103,3 +103,4 @@
     </script>
 </body>
 </html>
+

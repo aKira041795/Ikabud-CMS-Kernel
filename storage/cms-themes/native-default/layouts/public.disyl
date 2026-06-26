@@ -406,7 +406,7 @@
         },
         init() {
             const syncEligibleImages = () => this.syncEligibleImages();
-            
+
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', syncEligibleImages, { once: true });
             } else {
@@ -481,7 +481,7 @@
                   x-text="hoverHintText"></div>
            </template>
            <template x-teleport="body">
-            <div x-show="lightboxModalSrc" 
+            <div x-show="lightboxModalSrc"
                  class="cms-lightbox-backdrop"
                  style="display: none;"
                   :style="lightboxBackdropStyle"
@@ -508,3 +508,4 @@
     {block scripts}{/block}
 </body>
 </html>
+

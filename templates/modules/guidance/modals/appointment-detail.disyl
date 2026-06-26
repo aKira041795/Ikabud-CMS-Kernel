@@ -3,7 +3,7 @@
 <div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop transition-opacity" onclick="closeModal()"></div>
-        
+
         <div class="guidance-modal-panel guidance-modal-panel--xl">
             {!-- Header --}
             <div class="guidance-modal-header px-8 py-5">
@@ -55,14 +55,14 @@
                     </button>
                 </div>
             </div>
-            
+
             {!-- Body --}
             <div class="guidance-modal-body px-8 py-6">
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
+
                     {!-- Left Column: Appointment Info --}
                     <div class="lg:col-span-2 space-y-6">
-                        
+
                         {!-- Schedule & Location --}
                         <div class="bg-gray-50 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
@@ -87,7 +87,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         {!-- Purpose & Type --}
                         <div class="bg-gray-50 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
@@ -114,7 +114,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         {!-- Notes --}
                         <div class="bg-gray-50 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
@@ -126,7 +126,7 @@
                                 <p class="text-sm text-gray-400 italic">No notes recorded</p>
                             {/if}
                         </div>
-                        
+
                         {!-- Cancellation / Rejection Info --}
                         {if appointment.status == 'cancelled'}
                         <div class="bg-red-50 rounded-xl p-5 border border-red-100">
@@ -137,7 +137,7 @@
                             <p class="text-xs text-red-400 mt-2">Cancelled at: {appointment.cancelled_at | default:'N/A'}</p>
                         </div>
                         {/if}
-                        
+
                         {if appointment.status == 'rejected'}
                         <div class="bg-gray-50 rounded-xl p-5 border border-gray-200">
                             <h3 class="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-3">
@@ -147,7 +147,7 @@
                             <p class="text-xs text-gray-400 mt-2">Rejected at: {appointment.rejected_at | default:'N/A'}</p>
                         </div>
                         {/if}
-                        
+
                         {!-- Recent Case Notes --}
                         {if case_notes}
                         <div>
@@ -167,12 +167,12 @@
                             </div>
                         </div>
                         {/if}
-                        
+
                     </div>
-                    
+
                     {!-- Right Column: Student & Counselor --}
                     <div class="space-y-6">
-                        
+
                         {!-- Student Card --}
                         <div class="bg-white border border-gray-200 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
@@ -210,7 +210,7 @@
                                 {/if}
                             </div>
                         </div>
-                        
+
                         {!-- Counselor Card --}
                         <div class="bg-white border border-gray-200 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
@@ -223,14 +223,14 @@
                                 <p class="text-sm font-bold text-gray-900">{appointment.counselor_name | default:'Unassigned'}</p>
                             </div>
                         </div>
-                        
+
                         {!-- Case Link --}
                         {if appointment.case_id}
                         <div class="bg-white border border-gray-200 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
                                 <i class="fas fa-folder-open mr-2 text-indigo-500"></i>Linked Case
                             </h3>
-                            <a href="{base_url}/cases/{appointment.case_id}" 
+                            <a href="{base_url}/cases/{appointment.case_id}"
                                hx-get="{base_url}/pages/cases/{appointment.case_id}"
                                hx-target="#main-content"
                                hx-push-url="{base_url}/cases/{appointment.case_id}"
@@ -260,7 +260,7 @@
                             </button>
                         </div>
                         {/if}
-                        
+
                         {!-- Timestamps --}
                         <div class="bg-white border border-gray-200 rounded-xl p-5">
                             <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
@@ -283,17 +283,17 @@
                                 {/if}
                             </div>
                         </div>
-                        
+
                     </div>
                 </div>
             </div>
-            
+
             {!-- Footer Actions --}
             <div class="px-8 py-4 border-t bg-gray-50 flex items-center justify-between">
                 <button type="button" onclick="closeModal()" class="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
                     <i class="fas fa-times mr-2"></i>Close
                 </button>
-                
+
                 <div class="flex items-center space-x-2">
                     {if appointment.status == 'pending'}
                         <button type="button" hx-post="{base_url}/api/appointments/{appointment.id}/approve" hx-swap="none"
@@ -305,7 +305,7 @@
                             <i class="fas fa-times mr-2"></i>Reject
                         </button>
                     {/if}
-                    
+
                     {if appointment.status == 'pending' or appointment.status == 'scheduled' or appointment.status == 'confirmed'}
                         {if appointment.status == 'confirmed' and !appointment.case_id}
                         <button type="button" hx-get="{base_url}/pages/cases/new?appointment_id={appointment.id}" hx-target="#modal-container" hx-swap="innerHTML"
@@ -344,7 +344,7 @@
                 <i class="fas fa-info-circle mr-1"></i>{outcome_locked_reason}
             </div>
             {/if}
-            
+
             {!-- Hidden Cancel Form --}
             {if appointment.status == 'pending' or appointment.status == 'scheduled' or appointment.status == 'confirmed'}
             <div id="cancel-form-{appointment.id}" class="hidden px-8 py-4 border-t bg-red-50">
@@ -360,7 +360,8 @@
                 </form>
             </div>
             {/if}
-            
+
         </div>
     </div>
 </div>
+

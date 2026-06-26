@@ -9,13 +9,13 @@
 <meta name="ikb:settings-ai-model" content="{settings.ai_model}">
 
 {ikb_section padding="none"}
-    
+
     {!-- Page Header --}
     <div class="mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
         <p class="text-sm text-gray-500 mt-1">Configure system preferences</p>
     </div>
-    
+
     <div class="flex gap-6">
         {!-- Sidebar Navigation --}
         <div class="w-56 flex-shrink-0 hidden lg:block">
@@ -284,13 +284,13 @@
                         <p class="text-xs text-gray-400 mt-1">Optional override for Guidance license verification. Leave blank to use the bundled key or the issuing tenant's ecommerce public key.</p>
                     </div>
                 </div>
-                
+
                 {!-- General Settings --}
                 <div id="general" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <i class="fas fa-cog mr-2 text-indigo-500"></i> General Settings
                     </h2>
-                    
+
                     <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
                         <i class="fas fa-tag mr-1"></i> Application
                     </h3>
@@ -324,7 +324,7 @@
                             <p class="text-xs text-gray-400 mt-1" id="tz_current_time"></p>
                         </div>
                     </div>
-                    
+
                     <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
                         <i class="fas fa-calendar-check mr-1"></i> Appointments
                     </h3>
@@ -339,7 +339,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 {!-- Working Hours --}
                 <div id="working-hours" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -382,7 +382,7 @@
                         </label>
                     </div>
                 </div>
-                
+
                 {!-- Data Retention --}
                 <div id="retention" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -399,7 +399,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 {!-- Security / 2FA --}
                 <div id="security" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -439,7 +439,7 @@
                         </div>
                     {/if}
                 </div>
-                
+
                 {!-- AI Provider --}
                 <div id="ai-provider" class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 settings-section">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -476,7 +476,7 @@
                         <div id="ai_provider_info" class="rounded-lg p-4 bg-gray-50 border border-gray-200 text-sm" style="{if settings.ai_provider == ''}display:none{/if}"></div>
                     </div>
                 </div>
-                
+
                 {!-- Save Button --}
                 <div class="flex justify-end sticky bottom-4">
                     <button type="submit" class="inline-flex items-center px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-lg shadow-indigo-200">
@@ -545,10 +545,10 @@
                     </div>
                 </div>
             </div>
-            
+
         </div>
     </div>
-    
+
 {/ikb_section}
 
 <script>
@@ -621,13 +621,13 @@ function updateTimezones() {
     const tzSel = document.getElementById('app_timezone');
     const regSel = document.getElementById('app_region');
     const info = tzCountryMap[code];
-    
+
     // Update region dropdown with timezone city names
     regSel.innerHTML = '<option value="">Select region</option>';
     tzSel.innerHTML = '';
-    
+
     if (!info) return;
-    
+
     info.timezones.forEach(function(tz) {
         // Timezone option
         const tzOpt = document.createElement('option');
@@ -635,7 +635,7 @@ function updateTimezones() {
         tzOpt.textContent = tz;
         if (tz === savedTimezone) tzOpt.selected = true;
         tzSel.appendChild(tzOpt);
-        
+
         // Region option (extract city from timezone)
         const city = tz.split('/').pop().replace(/_/g, ' ');
         const regOpt = document.createElement('option');
@@ -644,7 +644,7 @@ function updateTimezones() {
         if (city === savedRegion) regOpt.selected = true;
         regSel.appendChild(regOpt);
     });
-    
+
     // Sync region selection to timezone
     regSel.onchange = function() {
         const city = this.value.replace(/ /g, '_');
@@ -656,7 +656,7 @@ function updateTimezones() {
         }
         updateTzPreview();
     };
-    
+
     tzSel.onchange = updateTzPreview;
     updateTzPreview();
 }
@@ -764,21 +764,21 @@ function updateAiModels() {
     const modelSelect = document.getElementById('ai_model');
     const keyHelp = document.getElementById('ai_key_help');
     const modelHelp = document.getElementById('ai_model_help');
-    
+
     if (!provider) {
         configFields.style.display = 'none';
         infoPanel.style.display = 'none';
         return;
     }
-    
+
     const p = aiProviders[provider];
     if (!p) return;
-    
+
     configFields.style.display = '';
     infoPanel.style.display = '';
     infoPanel.innerHTML = '<p class="text-sm">' + p.info + '</p><a href="' + p.keyUrl + '" target="_blank" class="inline-block mt-2 text-xs text-indigo-600 hover:text-indigo-800"><i class="fas fa-external-link-alt mr-1"></i> Get API Key</a>';
     keyHelp.textContent = p.keyHelp;
-    
+
     modelSelect.innerHTML = '';
     p.models.forEach(function(m) {
         const opt = document.createElement('option');
@@ -787,14 +787,14 @@ function updateAiModels() {
         if (m.value === savedModel) opt.selected = true;
         modelSelect.appendChild(opt);
     });
-    
+
     if (!savedModel && p.models.length > 0) {
         modelSelect.selectedIndex = 0;
     }
-    
+
     const selected = p.models.find(m => m.value === modelSelect.value);
     modelHelp.textContent = selected ? selected.desc : '';
-    
+
     modelSelect.onchange = function() {
         const sel = p.models.find(m => m.value === this.value);
         modelHelp.textContent = sel ? sel.desc : '';
@@ -865,3 +865,4 @@ document.body.addEventListener('htmx:afterRequest', function(e) {
 })();
 </script>
 {/block}
+

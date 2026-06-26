@@ -2,7 +2,7 @@
 <div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
-        
+
         <div class="guidance-modal-panel guidance-modal-panel--sm">
             <div class="guidance-modal-header">
                 <h2 class="text-xl font-semibold text-gray-800">Reassign Case</h2>
@@ -10,7 +10,7 @@
                     <i class="fas fa-times text-xl"></i>
                 </button>
             </div>
-            
+
             <form hx-put="{base_url}/api/cases/{case_id}" hx-swap="none" class="p-6 space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Assign to Counselor</label>
@@ -21,7 +21,7 @@
                         {/foreach}
                     </select>
                 </div>
-                
+
                 <div class="flex justify-end space-x-3 pt-4 border-t">
                     <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
                         Cancel
@@ -34,3 +34,4 @@
         </div>
     </div>
 </div>
+

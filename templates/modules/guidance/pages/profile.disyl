@@ -3,9 +3,9 @@
 {block content}
 
 {ikb_section padding="none"}
-    
+
     <div class="max-w-2xl mx-auto space-y-6">
-        
+
         {!-- Profile Header --}
         {ikb_card variant="elevated"}
             <div class="flex items-center space-x-6 mb-6">
@@ -24,7 +24,7 @@
                 </div>
             </div>
         {/ikb_card}
-        
+
         {!-- Profile Information --}
         {ikb_card variant="elevated"}
             <h3 class="text-lg font-semibold text-gray-800 mb-4">
@@ -43,7 +43,7 @@
                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                       {if can_edit_email}
@@ -54,13 +54,13 @@
                           class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
                       {/if}
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
                     <input type="text" value="{profile.role | capitalize}" readonly
                            class="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
                 </div>
-                
+
                 <div class="pt-4 flex justify-end">
                     <button type="submit" class="px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium">
                         <i class="fas fa-save mr-2"></i> Update Profile
@@ -68,7 +68,7 @@
                 </div>
             </form>
         {/ikb_card}
-        
+
         {!-- Change Password --}
         {ikb_card variant="elevated"}
             <h3 class="text-lg font-semibold text-gray-800 mb-4">
@@ -77,28 +77,28 @@
             <form hx-put="{base_url}/api/profile" hx-swap="none" class="space-y-4" id="password-form">
                 <input type="hidden" name="first_name" value="{profile.first_name | esc_html}">
                 <input type="hidden" name="last_name" value="{profile.last_name | esc_html}">
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
                     <input type="password" name="current_password" required
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                            placeholder="Enter current password">
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
                       <input type="password" name="new_password" required minlength="8"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                           placeholder="Minimum 8 characters">
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
                       <input type="password" name="confirm_password" required minlength="8"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                            placeholder="Repeat new password">
                 </div>
-                
+
                 <div class="pt-4 flex justify-end">
                     <button type="submit" class="px-6 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition font-medium">
                         <i class="fas fa-key mr-2"></i> Change Password
@@ -248,9 +248,9 @@
             </form>
         {/ikb_card}
         {/if}
-        
+
     </div>
-    
+
 {/ikb_section}
 
 {/block}
@@ -688,3 +688,4 @@ if (availabilityForm) {
 }
 </script>
 {/block}
+

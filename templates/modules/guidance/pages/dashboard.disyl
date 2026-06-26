@@ -6,7 +6,7 @@
 <div data-ikb-entity-fields-case="{keyof guidance_case}" data-ikb-entity-fields-appointment="{keyof guidance_appointment}" class="print-hidden" aria-hidden="true" style="display:none"></div>
 
 {ikb_section padding="none"}
-    
+
     {!-- Welcome Header --}
     <div class="mb-6 flex items-center justify-between">
         <div>
@@ -26,17 +26,17 @@
             </button>
         </div>
     </div>
-    
+
     {!-- Stats Cards with auto-refresh every 30 seconds --}
-    <div id="stats-container" 
-         hx-get="{base_url}/api/dashboard/stats" 
-         hx-trigger="load, every 30s" 
+    <div id="stats-container"
+         hx-get="{base_url}/api/dashboard/stats"
+         hx-trigger="load, every 30s"
          hx-swap="innerHTML">
         <div class="flex items-center justify-center py-12 text-gray-400">
             <i class="fas fa-spinner fa-spin text-xl mr-3"></i> Loading dashboard...
         </div>
     </div>
-    
+
     {!-- Recently Updated Students (full width) --}
     <div class="mt-6">
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -73,7 +73,7 @@
         </div>
         {ikb_entity_list source="cms.post.recent" view="compact" limit="5" empty="No recent activity to display." /}
     {/ikb_panel}
-    
+
 {/ikb_section}
 
 {/block}
@@ -143,3 +143,4 @@
     });
 </script>
 {/block}
+

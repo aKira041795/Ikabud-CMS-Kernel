@@ -4,18 +4,18 @@
 {!-- Colleges Management Page --}
 
 {ikb_section padding="none"}
-    
+
     <div class="flex items-center justify-between mb-6">
         <div>
             {ikb_text tag="h1" size="2xl" weight="bold"}Colleges{/ikb_text}
             {ikb_text color="muted"}Manage colleges and department assignments{/ikb_text}
         </div>
-        
+
         {ikb_button variant="primary" hx-get="{base_url}/pages/colleges/new" hx-target="#modal-container"}
             <i class="fas fa-plus mr-2"></i> Add College
         {/ikb_button}
     </div>
-    
+
     {!-- Colleges Table --}
     {ikb_card variant="elevated" padding="none"}
         <div id="colleges-list" hx-get="{base_url}/api/colleges" hx-trigger="load, refreshColleges from:body" hx-swap="innerHTML">
@@ -25,7 +25,8 @@
             </div>
         </div>
     {/ikb_card}
-    
+
 {/ikb_section}
 
 {/block}
+

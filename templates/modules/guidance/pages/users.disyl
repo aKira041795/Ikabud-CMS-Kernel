@@ -4,7 +4,7 @@
 {!-- Users Management Page --}
 
 {ikb_section padding="none"}
-    
+
     {!-- Page Header --}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
@@ -18,7 +18,7 @@
         </button>
         {/if}
     </div>
-    
+
     {!-- Filters Bar (admin only) --}
     {if is_admin}
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-5">
@@ -31,7 +31,7 @@
                        hx-get="{base_url}/api/users" hx-target="#users-list" hx-trigger="keyup changed delay:400ms"
                        hx-include="[name='user_role']" />
             </div>
-            
+
             {!-- Role Filter --}
             <select name="user_role"
                     class="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
@@ -42,7 +42,7 @@
                 <option value="counselor">Counselor</option>
                 <option value="supervisor">Supervisor</option>
             </select>
-            
+
             {!-- Clear --}
             <button type="button" onclick="document.querySelectorAll('[name=user_search],[name=user_role]').forEach(e=>{e.value=''}); htmx.ajax('GET','{base_url}/api/users',{target:'#users-list'})"
                     class="text-xs text-gray-500 hover:text-red-600 flex-shrink-0 px-2 py-2" title="Clear filters">
@@ -51,14 +51,15 @@
         </div>
     </div>
     {/if}
-    
+
     {!-- Users List --}
     <div id="users-list" hx-get="{base_url}/api/users" hx-trigger="load, refreshUsers from:body" hx-swap="innerHTML">
         <div class="flex items-center justify-center py-16 text-gray-400">
             <i class="fas fa-spinner fa-spin text-lg mr-3"></i> Loading users...
         </div>
     </div>
-    
+
 {/ikb_section}
 
 {/block}
+

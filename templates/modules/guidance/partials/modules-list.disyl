@@ -4,7 +4,7 @@
 <div class="space-y-4">
     {foreach modules as mod}
     <div class="border rounded-xl p-5 {if mod.card_state == "active"}border-green-200 bg-green-50/30{elseif mod.card_state == "blocked"}border-amber-200 bg-amber-50/40{else}border-gray-200 bg-white{/if}" x-data="{ showSettings: false }">
-        
+
         {!-- Module Header --}
         <div class="flex items-start justify-between gap-4">
             <div class="flex items-start gap-3">
@@ -30,23 +30,23 @@
                     </div>
                 </div>
             </div>
-            
+
             <div class="flex items-center gap-2 flex-shrink-0">
                 {if mod.settings_state == "available"}
-                <button @click="showSettings = !showSettings" 
+                <button @click="showSettings = !showSettings"
                         class="px-3 py-1.5 text-xs font-medium text-gray-600 bg-white border rounded-lg hover:bg-gray-50 transition">
                     <i class="fas fa-cog mr-1"></i> Configure
                 </button>
                 {/if}
                 {if mod.action_state == "disable"}
-                <button hx-post="{mod.disable_action}" 
+                <button hx-post="{mod.disable_action}"
                         hx-swap="none"
                         hx-confirm="Deactivate {mod.name} for this tenant? The add-on data will be preserved."
                         class="px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 transition">
                     <i class="fas fa-power-off mr-1"></i> Deactivate
                 </button>
                 {elseif mod.action_state == "enable"}
-                <button hx-post="{mod.enable_action}" 
+                <button hx-post="{mod.enable_action}"
                         hx-swap="none"
                         class="px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition">
                     <i class="fas fa-power-off mr-1"></i> Activate
@@ -106,7 +106,7 @@
             {mod.access_will_self_activate_message}
         </div>
         {/if}
-        
+
         {!-- Module Settings (collapsible) --}
         {if mod.settings_state == "available"}
         <div x-show="showSettings" x-cloak x-transition class="mt-4 pt-4 border-t border-gray-200">
@@ -116,11 +116,11 @@
             </div>
             {/if}
             <form hx-post="{base_url}/api/modules/{mod.id}/settings" hx-swap="none" class="space-y-4">
-                
+
                 {foreach mod.settings as field}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">{field.label}</label>
-                    
+
                     {if field.is_select}
                     <select name="{field.key}" class="w-full max-w-md px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                         {foreach field.options as option}
@@ -128,30 +128,30 @@
                         {/foreach}
                     </select>
                     {/if}
-                    
+
                     {if field.is_input}
-                    <input type="{field.input_type}" name="{field.key}" 
-                           value="{field.current_value}" 
+                    <input type="{field.input_type}" name="{field.key}"
+                           value="{field.current_value}"
                            placeholder="{field.default}"
                            class="w-full max-w-md px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                     {/if}
-                    
+
                     {if field.is_checkbox}
                     <label class="flex items-center gap-2">
                         <input type="hidden" name="{field.key}" value="0">
-                        <input type="checkbox" name="{field.key}" value="1" 
+                        <input type="checkbox" name="{field.key}" value="1"
                                {if field.is_checked}checked{/if}
                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                         <span class="text-sm text-gray-600">Enabled</span>
                     </label>
                     {/if}
-                    
+
                     {if field.description}
                     <p class="text-xs text-gray-400 mt-1">{field.description}</p>
                     {/if}
                 </div>
                 {/foreach}
-                
+
                 <div class="pt-2">
                     <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition">
                         <i class="fas fa-save mr-1"></i> Save Add-on Settings
@@ -170,3 +170,4 @@
     <p class="text-gray-400 text-sm mt-1">Place module folders in <code class="bg-gray-100 px-1 rounded">/modules/</code> to get started</p>
 </div>
 {/if}
+

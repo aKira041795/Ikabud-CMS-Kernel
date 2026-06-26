@@ -3,7 +3,7 @@
 <div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
-        
+
         <div class="guidance-modal-panel guidance-modal-panel--md">
             <div class="guidance-modal-header">
                 <h2 class="text-xl font-semibold text-gray-800">Add Note</h2>
@@ -16,7 +16,7 @@
                 <form hx-post="{base_url}/api/notes"
                       hx-swap="none"
                       class="guidance-modal-form">
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Select Case *</label>
                     <select name="case_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
@@ -25,7 +25,7 @@
                     </select>
                     <p class="text-xs text-gray-500 mt-1">Choose the case this note belongs to</p>
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Note Type</label>
                     <select name="note_type" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
@@ -36,25 +36,25 @@
                         <option value="other">Other</option>
                     </select>
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                    <input type="date" name="note_date" value="{today}" 
+                    <input type="date" name="note_date" value="{today}"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Note Content *</label>
                     <textarea name="content" rows="5" required placeholder="Enter note details..."
                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"></textarea>
                 </div>
-                
+
                 <div class="flex items-center">
                     <input type="checkbox" name="is_confidential" value="1" id="is_confidential"
                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                     <label for="is_confidential" class="ml-2 text-sm text-gray-700">Mark as confidential</label>
                 </div>
-                
+
                 <div class="guidance-modal-actions">
                     <button type="button" onclick="closeModal()" class="guidance-modal-secondary-btn">
                         Cancel
@@ -68,3 +68,4 @@
         </div>
     </div>
 </div>
+

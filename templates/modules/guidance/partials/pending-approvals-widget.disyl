@@ -9,7 +9,7 @@
             {pending_appointments | count}
         </span>
     </div>
-    
+
     <div class="space-y-2 max-h-48 overflow-y-auto">
         {foreach pending_appointments as appt}
         <div class="bg-white rounded-lg p-3 border border-amber-100 shadow-sm">
@@ -26,14 +26,14 @@
                     {/if}
                 </div>
                 <div class="flex space-x-1 ml-2">
-                    <button hx-post="{base_url}/api/appointments/{appt.id}/approve" 
+                    <button hx-post="{base_url}/api/appointments/{appt.id}/approve"
                             hx-swap="none"
                             hx-confirm="Approve this appointment?"
                             class="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors"
                             title="Approve">
                         <i class="fas fa-check text-xs"></i>
                     </button>
-                    <button hx-post="{base_url}/api/appointments/{appt.id}/reject" 
+                    <button hx-post="{base_url}/api/appointments/{appt.id}/reject"
                             hx-swap="none"
                             hx-confirm="Reject this appointment?"
                             class="p-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
@@ -45,7 +45,7 @@
         </div>
         {/foreach}
     </div>
-    
+
     {if pending_appointments | count > 3}
     <a href="{base_url}/appointments?status=pending" class="block mt-3 text-center text-xs text-amber-700 hover:underline">
         View all pending appointments →
@@ -53,3 +53,4 @@
     {/if}
 </div>
 {/if}
+

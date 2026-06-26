@@ -2,7 +2,7 @@
     <div class="moodle-panel__body">
         <div class="moodle-kicker">Learning</div>
         <h3 class="moodle-panel__title">{block_title}</h3>
-        
+
         {if courses | count > 0}
         <div class="moodle-grid" style="margin-top: 1.5rem;">
             {foreach courses as course}

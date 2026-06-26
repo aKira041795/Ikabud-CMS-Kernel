@@ -25,7 +25,7 @@
                 </div>
             </div>
             {if user.role == 'admin' or user.role == 'supervisor'}
-            <button hx-delete="{base_url}/api/trackers/{tracker_id}/items/{item.id}" 
+            <button hx-delete="{base_url}/api/trackers/{tracker_id}/items/{item.id}"
                     hx-swap="none" hx-confirm="Delete '{item.name}'? This will remove all submission records for this document."
                     class="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition text-sm">
                 <i class="fas fa-trash-alt"></i>
@@ -42,3 +42,4 @@
     <p class="text-gray-400 text-sm mt-1">Add documents that students need to submit</p>
 </div>
 {/if}
+

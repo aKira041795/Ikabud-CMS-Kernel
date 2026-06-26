@@ -529,7 +529,7 @@
     collegeSelect.querySelectorAll('option').forEach(function(opt) {
         if (opt.value) allColleges.push({ id: opt.value, text: opt.textContent, selected: opt.selected });
     });
-    
+
     var currentCollegeId = collegeSelect.value;
     var currentCollegeText = initialSelectedOption && initialSelectedOption.value ? initialSelectedOption.textContent : '';
 
@@ -566,7 +566,7 @@
 
         return opts;
     }
-    
+
     counselorSelect.addEventListener('change', function() {
         var counselorId = this.value;
         if (!counselorId) {
@@ -594,7 +594,7 @@
             rebuildColleges(withPersistedSelection([], currentCollegeId), currentCollegeId, 'Failed to load colleges');
         });
     });
-    
+
     function rebuildColleges(opts, selectedId, emptyLabel) {
         collegeSelect.innerHTML = '<option value="">' + (emptyLabel || 'Select college...') + '</option>';
         opts.forEach(function(o) {
@@ -605,7 +605,7 @@
             collegeSelect.appendChild(opt);
         });
     }
-    
+
     // For new cases with a preselected counselor, pre-filter colleges.
     // In edit mode, preserve the server-rendered saved college until the user changes counselor.
     if (!{if case.id}true{else}false{/if} && counselorSelect.value) {
@@ -622,7 +622,7 @@
     const dateInput = document.getElementById('case-appt-date');
     const slotsContainer = document.getElementById('case-slots-container');
     const timeInput = document.getElementById('case-appt-time');
-    
+
     const counselorSelect = document.getElementById('case-counselor-select');
 
     // Load appointment types
@@ -643,23 +643,23 @@
         .catch(() => {
             typeSelect.innerHTML = '<option value="">Failed to load</option>';
         });
-    
+
     // Load slots when date changes
     dateInput.addEventListener('change', loadSlots);
     typeSelect.addEventListener('change', loadSlots);
-    
+
     function loadSlots() {
         const date = dateInput.value;
         const typeId = typeSelect.value;
-        
+
         if (!date) {
             slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4 text-gray-500 text-sm"><i class="fas fa-calendar mr-2"></i> Select a date to view available slots</div>';
             return;
         }
-        
+
         slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4"><i class="fas fa-spinner fa-spin mr-2"></i> Loading slots...</div>';
         timeInput.value = '';
-        
+
         const duration = typeSelect.selectedOptions[0]?.dataset?.duration || 30;
         const counselorId = counselorSelect ? counselorSelect.value : '';
 
@@ -697,7 +697,7 @@
                 slotsContainer.innerHTML = '<div class="col-span-4 text-center py-4 text-red-500 text-sm"><i class="fas fa-exclamation-circle mr-2"></i> Failed to load slots</div>';
             });
     }
-    
+
     function selectSlot(btn) {
         slotsContainer.querySelectorAll('button').forEach(b => {
             b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600');
@@ -712,3 +712,4 @@
 })();
 </script>
 {/if}
+

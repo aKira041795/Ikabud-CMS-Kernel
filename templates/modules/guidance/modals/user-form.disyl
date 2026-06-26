@@ -3,7 +3,7 @@
 <div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
-        
+
         <div class="guidance-modal-panel guidance-modal-panel--lg">
             <div class="guidance-modal-header px-6 py-4">
                 <div class="flex items-center space-x-3">
@@ -144,3 +144,4 @@
 })();
 </script>
 {/if}
+

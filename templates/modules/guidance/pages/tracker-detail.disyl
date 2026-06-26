@@ -203,7 +203,7 @@
                         <div class="mt-4 flex items-start gap-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
                             <i class="fas fa-info-circle mt-0.5"></i>
                             <div>
-                                <strong>Tip:</strong> Your CSV should have a header row. Columns will be auto-matched to database fields. 
+                                <strong>Tip:</strong> Your CSV should have a header row. Columns will be auto-matched to database fields.
                                 Unrecognized columns can be mapped manually or created as new custom fields.
                                 <div class="mt-2">
                                     <a href="{base_url}/api/trackers/{tracker.id}/import/template" class="inline-flex items-center text-indigo-600 hover:text-indigo-800 font-medium">
@@ -252,7 +252,7 @@ function csvUploader() {
             this.uploading = true;
             const formData = new FormData();
             formData.append('csv_file', file);
-            
+
             fetch('/api/trackers/{tracker.id}/import/preview', {
                 method: 'POST',
                 body: formData,
@@ -276,3 +276,5 @@ function csvUploader() {
 }
 </script>
 {/block}
+{/block}
+

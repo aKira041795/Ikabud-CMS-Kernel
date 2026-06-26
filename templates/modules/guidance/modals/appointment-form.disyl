@@ -3,7 +3,7 @@
 <div class="fixed inset-0 z-50 overflow-hidden" aria-modal="true">
     <div class="guidance-modal-shell">
         <div class="fixed inset-0 guidance-modal-backdrop" onclick="closeModal()"></div>
-        
+
         <div class="guidance-modal-panel guidance-modal-panel--md">
             <div class="guidance-modal-header">
                 <h2 class="text-xl font-semibold text-gray-800">
@@ -18,11 +18,11 @@
                 <form {if appointment.id}hx-put="{base_url}/api/appointments/{appointment.id}"{else}hx-post="{base_url}/api/appointments"{/if}
                       hx-swap="none"
                       class="guidance-modal-form">
-                
+
                 {if case_id}
                 <input type="hidden" name="case_id" value="{case_id}">
                 {/if}
-                
+
                 {if !case_id}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Case *</label>
@@ -32,7 +32,7 @@
                     </select>
                 </div>
                 {/if}
-                
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Date *</label>
@@ -55,19 +55,19 @@
                         <option value="">Loading session types...</option>
                     </select>
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
                     <input type="text" name="purpose" value="{appointment.purpose | default:''}" placeholder="Brief purpose of the appointment"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
                 </div>
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                     <textarea name="notes" rows="3" placeholder="Additional notes..."
                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">{appointment.notes | default:''}</textarea>
                 </div>
-                
+
                 <div class="guidance-modal-actions">
                     <button type="button" onclick="closeModal()" class="guidance-modal-secondary-btn">
                         Cancel
@@ -112,3 +112,4 @@
         });
 })();
 </script>
+

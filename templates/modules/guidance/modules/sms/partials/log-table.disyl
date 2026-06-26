@@ -86,13 +86,13 @@
     </span>
     <div class="flex gap-1">
         {if page > 1}
-        <button hx-get="{base_url}/api/modules/sms/log?page={page - 1}" hx-target="#sms-log-container" 
+        <button hx-get="{base_url}/api/modules/sms/log?page={page - 1}" hx-target="#sms-log-container"
                 class="px-3 py-1 text-sm border rounded hover:bg-gray-100">
             <i class="fas fa-chevron-left"></i>
         </button>
         {/if}
         {if page < pages}
-        <button hx-get="{base_url}/api/modules/sms/log?page={page + 1}" hx-target="#sms-log-container" 
+        <button hx-get="{base_url}/api/modules/sms/log?page={page + 1}" hx-target="#sms-log-container"
                 class="px-3 py-1 text-sm border rounded hover:bg-gray-100">
             <i class="fas fa-chevron-right"></i>
         </button>
@@ -108,3 +108,4 @@
     <p class="text-gray-400 text-sm mt-1">Send your first SMS using the Compose button above</p>
 </div>
 {/if}
+

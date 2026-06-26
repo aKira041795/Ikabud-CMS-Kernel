@@ -255,7 +255,7 @@
         <div class="p-5">
             <p class="text-sm text-gray-600">
                 For a single historical content import, use the <strong>WXR file import</strong> on the
-                <a href="/cms/admin/bridge" class="text-blue-600 underline hover:text-blue-800">Bridge Dashboard</a>. 
+                <a href="/cms/admin/bridge" class="text-blue-600 underline hover:text-blue-800">Bridge Dashboard</a>.
                 No companion plugin required — just export your WordPress content
                 (<em>Tools → Export → All content</em>) and upload the XML file.
             </p>
@@ -301,3 +301,4 @@ function wpBridgeSettings(init) {
 }
 </script>
 {/block}
+

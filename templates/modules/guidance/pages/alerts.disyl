@@ -208,7 +208,6 @@ window.guidanceMarkAllReadUi = function() {
 };
 </script>
 
-{/block}
                 hx-post="{base_url}/api/notifications/read"
                 hx-vals='{"id":0}'
                 hx-swap="none"

@@ -4,19 +4,19 @@
 <div class="space-y-3">
     {for apt in appointments}
     <div class="flex items-start space-x-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition cursor-pointer"
-         hx-get="{base_url}/pages/appointments/{apt.id}/edit" 
+         hx-get="{base_url}/pages/appointments/{apt.id}/edit"
          hx-target="#modal-container">
-        
+
         <div class="flex-shrink-0 w-14 text-center">
             <div class="text-sm font-semibold text-indigo-600">{apt.scheduled_time | date:'g:i'}</div>
             <div class="text-xs text-gray-500">{apt.scheduled_time | date:'A'}</div>
         </div>
-        
+
         <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-gray-900 truncate">{apt.student_name | esc_html}</p>
             <p class="text-xs text-gray-500">{apt.appointment_type | title} • {apt.duration_minutes} min</p>
         </div>
-        
+
         {ikb_badge variant="{apt.status}" class="flex-shrink-0"}{apt.status | title}{/ikb_badge}
     </div>
     {/for}
@@ -27,3 +27,4 @@
     <p class="text-sm">No appointments today</p>
 </div>
 {/if}
+
