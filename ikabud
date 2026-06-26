@@ -267,6 +267,8 @@ switch ($command) {
         out('');
         out('  ' . bold('Scaffolding'));
         out('    ' . green('make:module') . ' <name>          Create a new PHP module skeleton');
+        out('    ' . green('make:entity') . ' <module.entity>  Scaffold entity source, views, templates, tests');
+        out('    ' . green('make:capability') . ' <id>         Scaffold a capability handler');
         out('    ' . green('make:service-module') . ' <name>  Create a new polyglot service module');
         out('    ' . green('make:example') . '               Create example modules for onboarding');
         out('    ' . green('make:migration') . ' <mod> <name>  Create next numbered migration');
@@ -4116,6 +4118,73 @@ MD;
             if (!$result['ok']) { exit(1); }
         }
         break;
+
+    // ── make:entity ─────────────────────────────────────────────────
+    case 'make:entity':
+        banner();
+        $entityArg = $params[0] ?? '';
+        if ($entityArg === '' || !str_contains($entityArg, '.')) {
+            out(red('  ✗ Usage: php ikabud make:entity <module.entity>'));
+            out('  Example: php ikabud make:entity property-management.issue');
+            exit(1);
+        }
+        $parts = explode('.', $entityArg, 2);
+        $moduleId = $parts[0];
+        $entityName = $parts[1];
+        $modPath = BASE_PATH . '/modules/' . $moduleId;
+        if (!is_dir($modPath)) { out(red("  ✗ Module '{$moduleId}' not found")); exit(1); }
+        $migrationDir = $modPath . '/database/migrations';
+        $viewDir = $modPath . '/helpers/views';
+        $entityHandlerFile = $modPath . '/helpers/' . $entityName . '-entity.php';
+        $tableName = $moduleId . '_' . str_replace(['-', '_'], '_', $entityName) . 's';
+        $phpPrefix = str_replace(['-', '.'], '_', $moduleId);
+        $entityLabel = ucwords(str_replace(['-', '_'], ' ', $entityName));
+        if (!is_dir($migrationDir)) @mkdir($migrationDir, 0755, true);
+        if (!is_dir($viewDir)) @mkdir($viewDir, 0755, true);
+        // Migration
+        $migrationNum = count(glob($migrationDir . '/*.sql')) + 1;
+        file_put_contents(sprintf('%s/%03d_create_%s.sql', $migrationDir, $migrationNum, $tableName),
+            "CREATE TABLE IF NOT EXISTS `{$tableName}` (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,name VARCHAR(255) NOT NULL,description TEXT,is_active TINYINT(1) DEFAULT 1,created_at DATETIME DEFAULT CURRENT_TIMESTAMP,updated_at DATETIME NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;\n");
+        // Handler
+        file_put_contents($entityHandlerFile, "<?php\nfunction {$phpPrefix}_cap_entity_list_{$entityName}_1(mixed \$p, string \$c='', string \$pr=''): array {\n try {\n \$r=module()->db()->query('SELECT * FROM {$tableName} WHERE is_active=1 ORDER BY created_at DESC')->fetchAll(\\PDO::FETCH_ASSOC);\n return ['ok'=>true,'data'=>['rows'=>\$r]];\n } catch(\\Throwable \$e) { return ['ok'=>false,'error'=>\$e->getMessage()]; }\n}\nfunction {$phpPrefix}_cap_entity_get_{$entityName}_1(mixed \$p, string \$c='', string \$pr=''): array {\n \$id=(int)(\$p['id']??0); if(\$id<=0) return ['ok'=>false,'error'=>'id required'];\n try {\n \$s=module()->db()->prepare('SELECT * FROM {$tableName} WHERE id=:id LIMIT 1'); \$s->execute([':id'=>\$id]); \$r=\$s->fetch(\\PDO::FETCH_ASSOC);\n return \$r?['ok'=>true,'data'=>\$r]:['ok'=>false,'error'=>'Not found'];\n } catch(\\Throwable \$e) { return ['ok'=>false,'error'=>\$e->getMessage()]; }\n}\n");
+        // View contract
+        file_put_contents($viewDir . '/' . $entityName . '.disyl', "{ikb_entity_view name=\"{$moduleId}.{$entityName}\" source=\"{$moduleId}.{$entityName}\"\n fields=\"id,name,description,is_active,created_at\" role_fields=\"{ title: name }\" actions_urls=\"{}\"}\n");
+        // Templates
+        $tplDir = BASE_PATH . '/templates/modules/' . $moduleId;
+        if (!is_dir($tplDir)) @mkdir($tplDir, 0755, true);
+        file_put_contents($tplDir . '/' . $entityName . '-list.disyl', "{ikb_entity_list source=\"{$moduleId}.{$entityName}\" view=\"table\" limit=\"25\"}\n");
+        file_put_contents($tplDir . '/' . $entityName . '-detail.disyl', "{ikb_entity_detail source=\"{$moduleId}.{$entityName}\" view=\"detailed\"}\n");
+        // Test
+        file_put_contents(BASE_PATH . '/tests/' . $moduleId . '_' . $entityName . '_entity_test.php',
+            "<?php\n\$_SERVER['HTTP_HOST']='cmsnew.test';\$_SERVER['REQUEST_URI']='/';\nrequire __DIR__.'/../bootstrap.php';\n\$r=app()->cap()->call('entity.list.{$moduleId}.{$entityName}@1',['limit'=>10]);\necho \$r['ok']?'ok':'fail';\n");
+        out('  ' . green('✓') . " Entity {$moduleId}.{$entityName} scaffolded");
+        out('  ' . dim('  Migration, handler, view contract, list/detail templates, test created'));
+        out('  ' . yellow('  Next: register in module.json capabilities.exposes'));
+        exit(0);
+
+    // ── make:capability ─────────────────────────────────────────────
+    case 'make:capability':
+        banner();
+        $capId = $params[0] ?? '';
+        $moduleFlag = null;
+        foreach ($params as $p) { if (str_starts_with($p, '--module=')) $moduleFlag = substr($p, 14); }
+        if ($capId === '') { out(red('  ✗ Capability ID required')); exit(1); }
+        if (!preg_match('/^([a-zA-Z_][\w.]*?)@?(\d+)?$/', $capId, $cm)) { out(red("  ✗ Invalid: {$capId}")); exit(1); }
+        $baseId = $cm[1]; $version = $cm[2] ?? '1'; $fullId = $baseId . '@' . $version;
+        $capParts = explode('.', $baseId);
+        $moduleId = $moduleFlag ?? $capParts[0];
+        $modPath = BASE_PATH . '/modules/' . $moduleId;
+        if (!is_dir($modPath)) { out(red("  ✗ Module '{$moduleId}' not found")); exit(1); }
+        $phpPrefix = str_replace(['-', '.'], '_', $moduleId);
+        $funcName = $phpPrefix . '_cap_' . str_replace(['-', '.', '@'], '_', $baseId) . '_' . $version;
+        $handlerFile = $modPath . '/helpers/cap-' . str_replace(['.', '@'], '-', $baseId) . '.php';
+        file_put_contents($handlerFile, "<?php\nfunction {$funcName}(mixed \$p, string \$c='', string \$pr=''): array {\n try {\n \$input=is_array(\$p)?\$p:[];\n return ['ok'=>true,'data'=>['status'=>'ok']];\n } catch(\\Throwable \$e) { return ['ok'=>false,'error'=>\$e->getMessage()]; }\n}\n");
+        file_put_contents(BASE_PATH . '/tests/' . $moduleId . '_' . str_replace(['.', '@'], '_', $baseId) . '_test.php',
+            "<?php\n\$_SERVER['HTTP_HOST']='cmsnew.test';\$_SERVER['REQUEST_URI']='/';\nrequire __DIR__.'/../bootstrap.php';\nrequire_once '{$handlerFile}';\n\$r={$funcName}(['id'=>1],'{$fullId}','{$moduleId}');\necho \$r['ok']?'ok':'fail';\n");
+        out('  ' . green('✓') . " Capability {$fullId} scaffolded");
+        out('  ' . dim('  Handler and test created'));
+        out('  ' . yellow('  Next: register in module.json capabilities.exposes + capability_handlers() map'));
+        exit(0);
 
     // ── make:service-module ────────────────────────────────────
     case 'make:service-module':
