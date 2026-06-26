@@ -1,0 +1,63 @@
+key: report.approval
+label: Report Approval
+entity_type: report_export
+initial_state: pending
+trigger:
+  event: report.export.requested
+  filter:
+    requires_approval: "1"
+states:
+  - key: pending
+    label: Pending Review
+  - key: approved
+    label: Approved
+  - key: rejected
+    label: Rejected
+  - key: delivered
+    label: Delivered
+  - key: failed
+    label: Failed
+transitions:
+  - from: pending
+    action: approve
+    to: approved
+    roles: [administrator, superadmin]
+  - from: pending
+    action: reject
+    to: rejected
+    roles: [administrator, superadmin]
+  - from: approved
+    action: deliver
+    to: delivered
+    roles: [administrator, superadmin]
+  - from: rejected
+    action: resubmit
+    to: pending
+    roles: [administrator, superadmin]
+  - from: failed
+    action: retry
+    to: pending
+    roles: [administrator]
+steps:
+  - key: validate_request
+    label: Validate Export Request
+    capability: report.export.validate@1
+    max_attempts: 1
+    args:
+      export_source: "{payload.export_source}"
+      export_format: "{payload.export_format}"
+  - key: generate_report
+    label: Generate Report
+    capability: report.export.generate@1
+    max_attempts: 3
+    args:
+      export_source: "{payload.export_source}"
+      export_format: "{payload.export_format}"
+      title: "{payload.title}"
+  - key: notify_approvers
+    label: Notify Approvers
+    capability: report.export.notify_approvers@1
+    max_attempts: 3
+    args:
+      approval_id: "{payload.approval_id}"
+      title: "{payload.title}"

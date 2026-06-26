@@ -1,0 +1,101 @@
+<!--
+  Report Approval Queue — Admin page
+  Requires administrator/superadmin role
+-->
+{cms_admin_header}
+{cms_admin_sidebar}
+
+<div class="admin-content">
+    <div class="admin-content-header">
+        <h1>Report Approval Queue</h1>
+        <p class="text-muted">Review and approve pending export requests.</p>
+    </div>
+
+    <div class="card">
+        <div class="card-body">
+            {if pending_approvals|default:[]|count > 0}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Title</th>
+                        <th>Source</th>
+                        <th>Format</th>
+                        <th>Status</th>
+                        <th>Requested</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for item in pending_approvals}
+                    <tr>
+                        <td>{item.id}</td>
+                        <td>{item.title|default:item.export_source}</td>
+                        <td>{item.export_source}</td>
+                        <td>{item.export_format}</td>
+                        <td>
+                            {if item.status == 'pending'}
+                            <span class="badge badge-warning">Pending</span>
+                            {elseif item.status == 'approved'}
+                            <span class="badge badge-success">Approved</span>
+                            {elseif item.status == 'rejected'}
+                            <span class="badge badge-danger">Rejected</span>
+                            {else}
+                            <span class="badge">{item.status}</span>
+                            {/if}
+                        </td>
+                        <td>{item.created_at}</td>
+                        <td>
+                            {if item.status == 'pending'}
+                            <button class="btn btn-sm btn-success btn-approve" data-id="{item.id}">Approve</button>
+                            <button class="btn btn-sm btn-danger btn-reject" data-id="{item.id}">Reject</button>
+                            {elseif item.status == 'approved'}
+                            <span class="text-success">Download</span>
+                            {/if}
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+            {else}
+            <div class="empty-state">
+                <p>No pending approvals.</p>
+            </div>
+            {/if}
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('.btn-approve').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        if (!confirm('Approve this export?')) return;
+        fetch('/api/v1/cms/export/approve', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({approval_id: parseInt(id)})
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) { location.reload(); }
+            else { alert('Error: ' + (d.error || 'Unknown')); }
+        });
+    });
+});
+document.querySelectorAll('.btn-reject').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var id = this.getAttribute('data-id');
+        var reason = prompt('Rejection reason:');
+        if (reason === null) return;
+        fetch('/api/v1/cms/export/reject', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({approval_id: parseInt(id), reason: reason})
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.ok) { location.reload(); }
+            else { alert('Error: ' + (d.error || 'Unknown')); }
+        });
+    });
+});
+</script>
+
+{cms_admin_footer}

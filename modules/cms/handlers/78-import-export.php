@@ -48,6 +48,7 @@ function cmsApiKernelExport(array $params = []): void
 {
     $source = trim((string)($_GET['source'] ?? ''));
     $format = strtolower(trim((string)($_GET['format'] ?? 'csv')));
+    $requireApproval = ($_GET['requires_approval'] ?? '') === '1';
 
     if ($source === '') {
         http_response_code(400);
@@ -80,10 +81,59 @@ function cmsApiKernelExport(array $params = []): void
         return;
     }
 
-    // Export via kernel service
     $entityType = explode('.', $source)[0];
     $filename = $entityType . '-export-' . date('Y-m-d') . '.' . $format;
 
+    // Approval path
+    if ($requireApproval) {
+        try {
+            $user = \app()->user();
+            $actorId = (int)($user['id'] ?? 0);
+
+            $stmt = \app()->db()->prepare(
+                'INSERT INTO report_approvals (export_source, export_format, title, status, requested_by, created_at) '
+                . 'VALUES (:src, :fmt, :title, :st, :req, NOW())'
+            );
+            $stmt->execute([
+                ':src'   => $source,
+                ':fmt'   => $format,
+                ':title' => $title,
+                ':st'   => 'pending',
+                ':req'  => $actorId ?: null,
+            ]);
+            $approvalId = (int)\app()->db()->lastInsertId();
+
+            $wfResult = \app()->workflowEngine()->start('report.approval', 'kernel', [
+                'export_source'      => $source,
+                'export_format'      => $format,
+                'title'              => $title,
+                'approval_id'        => $approvalId,
+                'requires_approval'  => '1',
+            ], 'report_export', (string)$approvalId);
+
+            if (isset($wfResult['run_id'])) {
+                \app()->db()->prepare('UPDATE report_approvals SET workflow_run_id = :wid WHERE id = :id')
+                    ->execute([':wid' => $wfResult['run_id'], ':id' => $approvalId]);
+            }
+
+            header('Content-Type: application/json');
+            echo json_encode([
+                'ok' => true,
+                'requires_approval' => true,
+                'approval_id' => $approvalId,
+                'status' => 'pending',
+                'message' => 'Export requires approval. An approver has been notified.',
+            ]);
+            return;
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => false, 'error' => 'Failed to create approval: ' . $e->getMessage()]);
+            return;
+        }
+    }
+
+    // Direct export via kernel service
     $result = \Ikabud\Kernel\Services\KernelExport::export($entityType, $format, $rows, [
         'title' => $title,
         'filename' => $filename,
@@ -104,6 +154,160 @@ function cmsApiKernelExport(array $params = []): void
 
     // Clean up temp file
     @unlink($result['path']);
+}
+
+/**
+ * GET /cms/admin/report-approvals — approval queue admin page
+ */
+function cmsAdminReportApprovals(array $params = []): void
+{
+    $user = cmsRequireRole('administrator', 'superadmin');
+
+    $db = \app()->db();
+    $stmt = $db->query(
+        'SELECT ra.*, wr.status AS workflow_status '
+        . 'FROM report_approvals ra '
+        . 'LEFT JOIN workflow_runs wr ON wr.id = ra.workflow_run_id '
+        . 'ORDER BY ra.created_at DESC LIMIT 100'
+    );
+    $pending = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo cmsRender('modules/cms/admin/report-approvals.disyl', array_merge(
+        cmsAdminContext($user, 'admin'),
+        ['pending_approvals' => is_array($pending) ? $pending : []]
+    ));
+}
+
+/**
+ * POST /api/v1/cms/export/approve — approve a pending export
+ */
+function cmsApiExportApprove(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('admin');
+    \app()->csrfEnforce();
+
+    $input = cmsInput();
+    $approvalId = (int)($input['approval_id'] ?? 0);
+    if ($approvalId <= 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'approval_id required']);
+        return;
+    }
+
+    $db = \app()->db();
+    $stmt = $db->prepare('SELECT * FROM report_approvals WHERE id = :id AND status = :st LIMIT 1');
+    $stmt->execute([':id' => $approvalId, ':st' => 'pending']);
+    $record = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$record) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'Pending approval not found']);
+        return;
+    }
+
+    $actorId = (int)($user['id'] ?? 0);
+    $source = (string)($record['export_source'] ?? '');
+    $format = (string)($record['export_format'] ?? 'csv');
+
+    try {
+        // Generate the export
+        $rows = [];
+        $title = (string)($record['title'] ?? 'Export');
+        if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, 'entityViews')) {
+            $resolved = $app->entityViews()->resolve($source, 'compact', ['limit' => 100]);
+            $rows = $resolved['rows'] ?? [];
+        }
+
+        if (empty($rows)) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'No data to export']);
+            return;
+        }
+
+        $entityType = explode('.', $source)[0];
+        $filename = $entityType . '-export-' . date('Y-m-d') . '.' . $format;
+
+        $result = \Ikabud\Kernel\Services\KernelExport::export($entityType, $format, $rows, [
+            'title' => $title,
+            'filename' => $filename,
+        ]);
+
+        if ($result === null || empty($result['path'])) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Export generation failed']);
+            return;
+        }
+
+        // Update approval record
+        $db->prepare(
+            'UPDATE report_approvals SET status = :st, approved_by = :by, approved_at = NOW(), '
+            . 'result_path = :rp, result_size = :rs, result_mime = :rm, updated_at = NOW() WHERE id = :id'
+        )->execute([
+            ':st' => 'approved', ':by' => $actorId,
+            ':rp' => $result['path'], ':rs' => (int)($result['size'] ?? 0),
+            ':rm' => $result['mime'] ?? '', ':id' => $approvalId,
+        ]);
+
+        echo json_encode(['ok' => true, 'status' => 'approved', 'message' => 'Export approved and generated']);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+/**
+ * POST /api/v1/cms/export/reject — reject a pending export
+ */
+function cmsApiExportReject(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('admin');
+    \app()->csrfEnforce();
+
+    $input = cmsInput();
+    $approvalId = (int)($input['approval_id'] ?? 0);
+    $reason = trim((string)($input['reason'] ?? ''));
+
+    if ($approvalId <= 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'approval_id required']);
+        return;
+    }
+
+    $db = \app()->db();
+    $actorId = (int)($user['id'] ?? 0);
+    $stmt = $db->prepare('UPDATE report_approvals SET status = :st, rejected_by = :by, reject_reason = :rr, updated_at = NOW() WHERE id = :id AND status = :ps');
+    $stmt->execute([':st' => 'rejected', ':by' => $actorId, ':rr' => $reason, ':id' => $approvalId, ':ps' => 'pending']);
+
+    if ($stmt->rowCount() === 0) {
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'error' => 'Pending approval not found']);
+        return;
+    }
+
+    echo json_encode(['ok' => true, 'status' => 'rejected']);
+}
+
+/**
+ * GET /api/v1/cms/export/pending — list pending approvals (for admin UI)
+ */
+function cmsApiExportPending(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $user = cmsRequireCap('admin');
+
+    $db = \app()->db();
+    $stmt = $db->query(
+        'SELECT ra.id, ra.export_source, ra.export_format, ra.title, ra.status, ra.created_at, '
+        . 'wr.status AS workflow_status '
+        . 'FROM report_approvals ra '
+        . 'LEFT JOIN workflow_runs wr ON wr.id = ra.workflow_run_id '
+        . 'ORDER BY ra.created_at DESC LIMIT 50'
+    );
+    $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+    echo json_encode(['ok' => true, 'data' => is_array($rows) ? $rows : []]);
 }
 
 // ── Builder Component Discovery API ──────────────────────────────────

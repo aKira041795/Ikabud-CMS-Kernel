@@ -32,6 +32,10 @@ function cms_capability_handlers(): array
         'entity.list.weather@1'          => 'cms_cap_entity_list_weather',
         'entity.get.weather@1'           => 'cms_cap_entity_get_weather',
         'entity.get.weather_current@1'   => 'cms_cap_entity_get_weather',
+        'report.export.request_approval@1' => 'cms_cap_report_request_approval_1',
+        'report.export.approve@1'          => 'cms_cap_report_approve_1',
+        'report.export.reject@1'           => 'cms_cap_report_reject_1',
+        'report.export.list_pending@1'     => 'cms_cap_report_list_pending_1',
     ];
 }
 
@@ -942,6 +946,85 @@ function cms_cap_cms_themes_list_1(mixed $payload, string $capabilityId, string 
 //   cms:api:pages    — headless API page listing
 //   cms:content:{id} — any cache related to a specific content ID
 //   cms:type:{type}  — any cache related to a content type (post/page)
+
+// ── Report Approval Capability Handlers ───────────────────────────────
+
+function cms_cap_report_request_approval_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $source = trim((string)($payload['export_source'] ?? ''));
+    $format = trim((string)($payload['export_format'] ?? 'csv'));
+    $title = trim((string)($payload['title'] ?? 'Export'));
+
+    if ($source === '') {
+        return ['ok' => false, 'error' => 'export_source required'];
+    }
+
+    try {
+        $user = \app()->user();
+        $actorId = (int)($user['id'] ?? 0);
+        $stmt = \app()->db()->prepare(
+            'INSERT INTO report_approvals (export_source, export_format, title, status, requested_by, created_at) '
+            . 'VALUES (:src, :fmt, :title, :st, :req, NOW())'
+        );
+        $stmt->execute([':src' => $source, ':fmt' => $format, ':title' => $title, ':st' => 'pending', ':req' => $actorId ?: null]);
+        return ['ok' => true, 'data' => ['approval_id' => (int)\app()->db()->lastInsertId()]];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function cms_cap_report_approve_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $approvalId = (int)($payload['approval_id'] ?? 0);
+    if ($approvalId <= 0) {
+        return ['ok' => false, 'error' => 'approval_id required'];
+    }
+
+    try {
+        $user = \app()->user();
+        $actorId = (int)($user['id'] ?? 0);
+        \app()->db()->prepare(
+            'UPDATE report_approvals SET status = :st, approved_by = :by, updated_at = NOW() WHERE id = :id AND status = :ps'
+        )->execute([':st' => 'approved', ':by' => $actorId, ':id' => $approvalId, ':ps' => 'pending']);
+        return ['ok' => true, 'data' => ['approval_id' => $approvalId, 'status' => 'approved']];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function cms_cap_report_reject_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $approvalId = (int)($payload['approval_id'] ?? 0);
+    if ($approvalId <= 0) {
+        return ['ok' => false, 'error' => 'approval_id required'];
+    }
+
+    try {
+        $user = \app()->user();
+        $actorId = (int)($user['id'] ?? 0);
+        $reason = trim((string)($payload['reason'] ?? ''));
+        \app()->db()->prepare(
+            'UPDATE report_approvals SET status = :st, rejected_by = :by, reject_reason = :rr, updated_at = NOW() WHERE id = :id AND status = :ps'
+        )->execute([':st' => 'rejected', ':by' => $actorId, ':rr' => $reason, ':id' => $approvalId, ':ps' => 'pending']);
+        return ['ok' => true, 'data' => ['approval_id' => $approvalId, 'status' => 'rejected']];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function cms_cap_report_list_pending_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    try {
+        $stmt = \app()->db()->query(
+            'SELECT id, export_source, export_format, title, status, created_at FROM report_approvals '
+            . "WHERE status IN ('pending', 'approved') ORDER BY created_at DESC LIMIT 50"
+        );
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        return ['ok' => true, 'data' => is_array($rows) ? $rows : []];
+    } catch (\Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
 
 define('CMS_CACHE_INSTANCE', 'cms');
 define('CMS_CACHE_TTL', 600); // 10 minutes default
