@@ -86,9 +86,9 @@
                     </details>
                     <details class="group"><summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none">Special</summary>
                         <div class="mt-2 space-y-1">
-                            <button type="button" @click="addItem({label:'Home',link_type:'home'})" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Home Page</button>
-                            <button type="button" @click="addItem({label:'Blog',url:CMS_BASE+'/cms/blog',link_type:'custom'})" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Blog Archive</button>
-                            <button type="button" @click="addItem({label:'Search',url:CMS_BASE+'/cms/search',link_type:'custom'})" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Search Page</button>
+                            <button type="button" @click="addHomeItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Home Page</button>
+                            <button type="button" @click="addBlogItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Blog Archive</button>
+                            <button type="button" @click="addSearchItem()" class="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-lg">+ Search Page</button>
                         </div>
                     </details>
                 </div>
@@ -261,6 +261,10 @@ function menuManager() {
         },
 
         addItem(d) { this.items.push(this._mk(d,0)); },
+
+        addHomeItem() { this.addItem({label:'Home',link_type:'home'}); },
+        addBlogItem() { var _u=CMS_BASE+'/cms/blog'; this.addItem({label:'Blog',url:_u,link_type:'custom'}); },
+        addSearchItem() { var _u=CMS_BASE+'/cms/search'; this.addItem({label:'Search',url:_u,link_type:'custom'}); },
 
         addCustomLink() {
             const l=(this.customLabel||'').trim(), u=(this.customUrl||'').trim();
