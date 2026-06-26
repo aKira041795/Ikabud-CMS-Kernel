@@ -45,12 +45,16 @@
         {foreach media as item}
         <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden relative" x-data="{ copied: false }">
             {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
-            <img class="w-full h-32 object-cover bg-slate-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
+            <a href="{item.url}" target="_blank" rel="noopener" class="block">
+                <img class="w-full h-32 object-cover bg-slate-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
+            </a>
             {else}
-            <div class="w-full h-32 flex items-center justify-center bg-slate-50 text-slate-400 text-xs font-mono">{item.mime_type}</div>
+            <a href="{item.url}" target="_blank" rel="noopener" class="block">
+                <div class="w-full h-32 flex items-center justify-center bg-slate-50 text-slate-400 text-xs font-mono">{item.mime_type}</div>
+            </a>
             {/if}
             <div class="px-2.5 py-2">
-                <div class="text-xs font-medium text-slate-700 truncate" title="{item.original_name}">{item.original_name}</div>
+                <a href="{item.url}" target="_blank" rel="noopener" class="text-xs font-medium text-slate-700 truncate block hover:text-sky-600 transition-colors" title="{item.original_name}">{item.original_name}</a>
                 <div class="text-[10px] text-slate-400 mt-0.5">{item.created_at}</div>
             </div>
             <div class="absolute top-1.5 right-1.5 hidden group-hover:flex gap-1">
@@ -84,14 +88,16 @@
                 {foreach media as item}
                 <tr class="group hover:bg-slate-50/40 transition-colors" x-data="{ copied: false }">
                     <td class="px-4 py-3">
+                        <a href="{item.url}" target="_blank" rel="noopener">
                         {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
                         <img class="w-10 h-10 object-cover rounded-xl bg-slate-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
                         {else}
                         <div class="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-xl text-slate-400 text-[9px] font-mono">{item.mime_type}</div>
                         {/if}
+                        </a>
                     </td>
                     <td class="px-4 py-3">
-                        <span class="text-sm font-medium text-slate-700" title="{item.original_name}">{item.original_name}</span>
+                        <a href="{item.url}" target="_blank" rel="noopener" class="text-sm font-medium text-slate-700 hover:text-sky-600 transition-colors" title="{item.original_name}">{item.original_name}</a>
                     </td>
                     <td class="px-4 py-3 hidden md:table-cell"><span class="text-xs text-slate-400">{item.mime_type}</span></td>
                     <td class="px-4 py-3 hidden sm:table-cell"><span class="text-xs text-slate-400">{item.created_at}</span></td>
