@@ -318,6 +318,7 @@ switch ($command) {
         out('    ' . green('disyl:lint') . ' [path]           Lint templates for syntax errors');
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
+        out('    ' . green('disyl:inspect') . ' <file>       Inspect template variables, components, sources');
         out('    ' . green('entity:list') . '               List all entity sources with schema');
         out('    ' . green('entity:context') . ' <source>    Show resolved context for a source');
         out('    ' . green('entity:describe') . ' <source>   Full entity description with views, caps, callers');
@@ -5062,6 +5063,118 @@ PHP;
             out('');
             out('  Total: ' . cyan((string)count($sources)) . ' entity source(s)');
         }
+        out('');
+        exit(0);
+
+    // ── disyl:inspect ───────────────────────────────────────────────
+    case 'disyl:inspect':
+        banner();
+        $target = $params[0] ?? '';
+        if ($target === '') {
+            out(red('  Usage: php ikabud disyl:inspect <template.disyl>'));
+            out('  Example: php ikabud disyl:inspect templates/modules/cms/admin/dashboard.disyl');
+            exit(1);
+        }
+
+        $tmplPath = $target;
+        if (!file_exists($tmplPath)) {
+            $candidates = [
+                $tmplPath,
+                BASE_PATH . '/' . $tmplPath,
+                defined('TEMPLATES_PATH') ? TEMPLATES_PATH . '/' . $tmplPath : null,
+            ];
+            $found = false;
+            foreach (array_filter($candidates) as $c) {
+                if (file_exists($c)) { $tmplPath = $c; $found = true; break; }
+            }
+            if (!$found) {
+                out(red("  ✗ Template not found: {$target}"));
+                exit(1);
+            }
+        }
+
+        $content = @file_get_contents($tmplPath);
+        if (!is_string($content) || $content === '') {
+            out(red('  ✗ Could not read template'));
+            exit(1);
+        }
+
+        out('  ' . bold('Template: ') . green(str_replace(BASE_PATH . '/', '', $tmplPath)));
+        out('');
+
+        // 1. Variables
+        $allVars = [];
+        if (preg_match_all('/\{([a-zA-Z_][\w.]*(?:\s*\|\s*[a-zA-Z_][\w]*)*)\}/', $content, $vm)) {
+            $allVars = array_unique($vm[1]);
+        }
+        $variables = array_filter($allVars, fn($v) => !str_contains($v, ' ') && !str_contains($v, '/'));
+        if (!empty($variables)) {
+            out('  ' . dim('Variables'));
+            foreach ($variables as $v) {
+                out('    ' . (str_contains($v, '|') ? dim('• ' . $v) : '• ' . cyan($v)));
+            }
+            out('');
+        }
+
+        // 2. Components
+        $components = [];
+        if (preg_match_all('/\{(ikb_\w+)/', $content, $cm)) {
+            $components = array_unique($cm[1]);
+        }
+        if (!empty($components)) {
+            out('  ' . dim('Components'));
+            foreach ($components as $c) {
+                out('    ' . green('→') . ' ' . cyan($c));
+            }
+            out('');
+        }
+
+        // 3. Entity sources
+        $sources = [];
+        if (preg_match_all('/\bikb_entity_list\b[^}]*\bsource\s*=\s*["\']([^"\']+)["\']/', $content, $sm)) {
+            $sources = array_unique($sm[1]);
+        }
+        if (preg_match_all('/\bikb_entity_detail\b[^}]*\bsource\s*=\s*["\']([^"\']+)["\']/', $content, $sdm)) {
+            $sources = array_merge($sources, array_unique($sdm[1]));
+        }
+        if (!empty($sources)) {
+            out('  ' . dim('Entity sources'));
+            foreach (array_unique($sources) as $s) {
+                out('    ' . cyan('◈') . ' ' . cyan($s));
+            }
+            out('');
+        }
+
+        // 4. Includes
+        $includes = [];
+        if (preg_match_all('/\{include\s+"([^"]+)"/', $content, $im)) {
+            $includes = array_unique($im[1]);
+        }
+        if (!empty($includes)) {
+            out('  ' . dim('Includes'));
+            foreach ($includes as $inc) {
+                out('    ' . dim('→ ' . $inc));
+            }
+            out('');
+        }
+
+        // 5. Control structures
+        $structures = [];
+        $ctrlKeywords = ['if', 'elseif', 'else', 'for', 'foreach', 'each', 'while', 'match', 'set', 'block', 'extends', 'macro', 'call', 'await', 'parallel', 'suspense', 'cache', 'trans', 'sandbox', 'debug'];
+        foreach ($ctrlKeywords as $kw) {
+            if (str_contains($content, '{' . $kw)) {
+                $structures[] = $kw;
+            }
+        }
+        if (!empty($structures)) {
+            out('  ' . dim('Control structures'));
+            foreach ($structures as $s) {
+                out('    ' . yellow('◇') . ' ' . $s);
+            }
+            out('');
+        }
+
+        out('  ' . dim('Lines: ') . count(preg_split('/\R/', $content)) . dim('  Size: ') . strlen($content) . ' bytes');
         out('');
         exit(0);
 
