@@ -38,12 +38,16 @@ function cmsAdminDashboard(array $params = []): void
     $mediaCnt = 0;
     try {
         $mediaCnt = (int)$db->query("SELECT COUNT(*) FROM cms_media")->fetchColumn();
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('cmsAdminDashboard: count media failed: ' . $e->getMessage(), 'warning');
+    }
 
     $userCnt = 0;
     try {
         $userCnt = (int)$db->query("SELECT COUNT(*) FROM cms_users WHERE is_active = 1")->fetchColumn();
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('cmsAdminDashboard: count active users failed: ' . $e->getMessage(), 'warning');
+    }
 
     $recentContent = [];
     try {
@@ -58,7 +62,9 @@ function cmsAdminDashboard(array $params = []): void
              LIMIT 10"
         );
         $recentContent = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('cmsAdminDashboard: recent content query failed: ' . $e->getMessage(), 'warning');
+    }
 
     $activityFeed = [];
     try {
@@ -72,7 +78,9 @@ function cmsAdminDashboard(array $params = []): void
              LIMIT 15"
         );
         $activityFeed = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('cmsAdminDashboard: activity feed query failed: ' . $e->getMessage(), 'warning');
+    }
 
     $postTotal = 0;
     $pageTotal = 0;
@@ -336,7 +344,9 @@ function cmsAdminContentList(array $params = []): void
             $tagStmt = $db->prepare("SELECT id FROM cms_tags WHERE slug = :ts OR name = :tn LIMIT 1");
             $tagStmt->execute([':ts' => $tag, ':tn' => $tag]);
             $tagRow = $tagStmt->fetch(PDO::FETCH_ASSOC);
-        } catch (Throwable $e) {}
+        } catch (Throwable $e) {
+            write_log('Tag lookup: ' . $e->getMessage(), 'warning');
+        }
         if ($tagRow) {
             $joinTag = "INNER JOIN cms_content_tags ctag ON ctag.content_id = c.id AND ctag.tag_id = :tag_id";
             $bind[':tag_id'] = (int)$tagRow['id'];
@@ -351,7 +361,9 @@ function cmsAdminContentList(array $params = []): void
         $cStmt = $db->prepare("SELECT COUNT(DISTINCT c.id) FROM cms_content c {$joins} WHERE {$whereStr}");
         $cStmt->execute($bind);
         $total = (int)$cStmt->fetchColumn();
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Content count query: ' . $e->getMessage(), 'warning');
+    }
 
     $offset = ($page - 1) * $perPage;
     $rows   = [];
@@ -375,7 +387,9 @@ function cmsAdminContentList(array $params = []): void
         );
         $stmt->execute($bind);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Content list query: ' . $e->getMessage(), 'warning');
+    }
 
     foreach ($rows as $i => &$row) {
         $row['row_number'] = ($page - 1) * $perPage + $i + 1;
@@ -410,14 +424,18 @@ function cmsAdminContentList(array $params = []): void
                 $aStmt->execute([':type' => $type]);
             }
             $authorList = $aStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (Throwable $e) {}
+        } catch (Throwable $e) {
+            write_log('Author list query: ' . $e->getMessage(), 'warning');
+        }
     }
 
     $categoryList = [];
     try {
         $catListStmt = $db->query("SELECT id, name, slug FROM cms_categories WHERE parent_id IS NULL ORDER BY name ASC");
         $categoryList = $catListStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Category list query: ' . $e->getMessage(), 'warning');
+    }
 
     // Active custom content types (beyond post/page) for tab navigation
     $customTypes = [];
@@ -426,7 +444,9 @@ function cmsAdminContentList(array $params = []): void
             "SELECT slug, label FROM cms_content_types WHERE is_active = 1 AND slug NOT IN ('post','page') ORDER BY sort_order ASC, slug ASC"
         );
         $customTypes = $ctStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Custom content types query: ' . $e->getMessage(), 'warning');
+    }
 
     // Trash item count for the badge on the Trash tab
     $trashCount = 0;
@@ -440,7 +460,9 @@ function cmsAdminContentList(array $params = []): void
             $trashStmt->execute([':trash_type' => $type]);
         }
         $trashCount = (int)$trashStmt->fetchColumn();
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Trash count query: ' . $e->getMessage(), 'warning');
+    }
 
     $payload = [
         'page_title'         => $type === 'all' ? 'All Content' : ucfirst($type) . 's',
@@ -697,7 +719,9 @@ function cmsAdminContentEdit(array $params = []): void
              ON DUPLICATE KEY UPDATE meta_value = :val2"
         );
         $upsertStmt->execute([':cid' => $id, ':val' => $lockJson, ':val2' => $lockJson]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Edit lock upsert: ' . $e->getMessage(), 'warning');
+    }
 
     $cmsSettings        = readCmsSettings();
     $builderSupported   = cmsBuilderSupportedForType($contentType);
@@ -756,7 +780,9 @@ function cmsAdminContentEdit(array $params = []): void
             if ($row && !empty($row['file_path'])) {
                 $featuredImageUrl = cmsResolveUploadUrl((string)$row['file_path']);
             }
-        } catch (Throwable $e) {}
+        } catch (Throwable $e) {
+            write_log('Featured image query: ' . $e->getMessage(), 'warning');
+        }
     }
 
     echo cmsRender('modules/cms/admin/content-editor.disyl', array_merge(cmsAdminContext($user, $currentPage, [
@@ -828,7 +854,9 @@ function cmsAdminMedia(array $params = []): void
     $total = 0;
     try {
         $total = (int)$db->query("SELECT COUNT(*) FROM cms_media")->fetchColumn();
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Media count query: ' . $e->getMessage(), 'warning');
+    }
 
     $rows = [];
     try {
@@ -841,7 +869,9 @@ function cmsAdminMedia(array $params = []): void
         );
         $stmt->execute();
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Media list query: ' . $e->getMessage(), 'warning');
+    }
 
     $totalPages = max(1, (int)ceil($total / $perPage));
 
@@ -922,11 +952,15 @@ function cmsAdminUsers(array $params = []): void
                 foreach ($rows as $row) {
                     $storeAssignmentsMap[(int)$row['user_id']][] = $row;
                 }
-            } catch (\Throwable $ignored) {}
+            } catch (\Throwable $ignored) {
+                write_log('Store assignments query: ' . $ignored->getMessage(), 'warning');
+            }
         }
         try {
             $allStores = ecStoreList(['active_only' => true, 'limit' => 200])['items'];
-        } catch (\Throwable $ignored) {}
+        } catch (\Throwable $ignored) {
+            write_log('Store list query: ' . $ignored->getMessage(), 'warning');
+        }
     }
 
     $payload = [

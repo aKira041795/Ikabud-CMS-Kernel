@@ -120,7 +120,7 @@ final class ReportManager
             if (\function_exists('app') && \app()->capabilities()->has($capId)) {
                 return true;
             }
-        } catch (\Throwable $e) {}
+        } catch (\Throwable $e) {\n            if (function_exists('write_log')) {\n                write_log('ReportManager capability check failed: ' . $e->getMessage(), 'warning');\n            }\n        }
 
         // Editors can export common formats
         if ($role === 'editor' && in_array($format, ['csv', 'pdf'], true)) return true;

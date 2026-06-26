@@ -122,7 +122,9 @@ function cmsApiContentList(array $params = []): void
         $cStmt = $db->prepare("SELECT COUNT(DISTINCT c.id) FROM cms_content c {$joins} WHERE {$whereStr}");
         $cStmt->execute($bind);
         $total = (int)$cStmt->fetchColumn();
-    } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {
+        write_log('Content count query: ' . $e->getMessage(), 'warning');
+    }
 
     $stmt = $db->prepare(
         "SELECT c.id, c.uuid, c.title, c.slug, c.excerpt, c.type, c.status,
@@ -1496,7 +1498,9 @@ function cmsApiContentCreate(array $params = []): void
             'entity_id'   => (string)$contentId,
             'new_data'    => ['title' => $title, 'type' => $type, 'status' => $status],
         ]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Audit record creation (create): ' . $e->getMessage(), 'warning');
+    }
 
     // Event
     if ($ctx = module('cms')) {
@@ -1810,7 +1814,9 @@ function cmsApiContentUpdate(array $params = []): void
             'old_data'    => ['title' => $existing['title'], 'status' => $existing['status']],
             'new_data'    => $input,
         ]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Audit record creation (update): ' . $e->getMessage(), 'warning');
+    }
 
     // Event + cache invalidation
     if ($ctx = module('cms')) {
@@ -1878,7 +1884,9 @@ function cmsApiContentTrash(array $params = []): void
             'entity_type' => 'cms_content', 'entity_id' => (string)$id,
             'old_data' => ['status' => $existing['status']],
         ]);
-    } catch (Throwable $e) {}
+    } catch (Throwable $e) {
+        write_log('Audit record creation (trash): ' . $e->getMessage(), 'warning');
+    }
 
     // Event + cache invalidation
     if ($ctx = module('cms')) {

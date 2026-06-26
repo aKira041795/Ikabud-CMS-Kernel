@@ -28,7 +28,7 @@ applyTo: "**/*.php **/*.disyl"
 | Control: assignment | `{set var = expr}` | `{set total = price * qty}` |
 | Template inheritance | `{extends 'parent'}` `{block name}` `{/block}` | — |
 | Macros | `{macro name(args)}` `{call name(args)}` | — |
-| Whilisted functions | `range`, `abs`, `round`, `floor`, `ceil`, `min`, `max`, `count`, `length`, `str_pad`, `str_repeat`, `str_replace`, `strtolower`, `strtoupper`, `trim`, `ltrim`, `rtrim`, `substr`, `strlen`, `number_format` | — |
+| Whilisted functions | `range`, `abs`, `round`, `floor`, `ceil`, `min`, `max`, `count`, `length`, `str_pad`, `str_repeat`, `str_replace`, `strtolower`, `strtoupper`, `trim`, `ltrim`, `rtrim`, `substr`, `strlen`, `number_format`, `isset`, `empty`, `is_array`, `eq` | — |
 
 ## PHP syntax NOT supported (gaps)
 
@@ -44,8 +44,8 @@ applyTo: "**/*.php **/*.disyl"
 
 | Gap | Usage found in | DiSyL limitation |
 |---|---|---|
-| `{math equation="..."}` helper | `templates/modules/cms/admin/weather.disyl` | Not a DiSyL built-in — handled externally. Relies on legacy CMS helper |
-| `eq()` custom helper | `modules/wms/templates/pages/movements.disyl:7` | Not registered in `FunctionRegistry` — works only if registered externally |
+| `{math equation="..."}` helper | `templates/modules/cms/admin/weather.disyl` | **NEVER IMPLEMENTED** — `{math}` was put into templates but has no parser rule, no component registration, and no evaluator. Renders as empty string or broken output. Use DiSyL expressions directly: `{(current.temperature_c)|round}` instead. |
+| `eq()` custom helper | `modules/wms/templates/pages/movements.disyl:7` | **NOW REGISTERED** — `eq()` was never in `FunctionRegistry` (always returned null, so `selected` was never applied). Added to `FunctionRegistry::init()` as `eq(a, b) => a == b`. Fixes `<option selected>` in WMS filter dropdowns. |
 
 ### Missing PHP operators
 

@@ -125,7 +125,9 @@ function cmsApiContentDuplicate(array $params = []): void
             'entity_id'   => (string)$newId,
             'new_data'    => ['source_id' => $id, 'title' => $newTitle, 'type' => $original['type']],
         ]);
-    } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {
+        write_log('Audit record creation (duplicate): ' . $e->getMessage(), 'warning');
+    }
 
     if ($ctx = module('cms')) {
         $ctx->fireEvent('cms.content.created', [
@@ -257,7 +259,9 @@ function cmsApiContentBulk(array $params = []): void
                     'entity_id'   => (string)$id,
                     'old_data'    => ['status' => $row['status']],
                 ]);
-            } catch (\Throwable $ae) {}
+            } catch (\Throwable $ae) {
+                write_log('Audit record creation (bulk): ' . $ae->getMessage(), 'warning');
+            }
 
         } catch (\Throwable $e) {
             $results[$id] = ['ok' => false, 'error' => 'Database error'];
@@ -383,7 +387,9 @@ function cmsApiContentPublishScheduled(array $params = []): void
                     'entity_id'   => (string)$row['id'],
                     'new_data'    => ['status' => 'published', 'source' => 'scheduled'],
                 ]);
-            } catch (\Throwable $ae) {}
+            } catch (\Throwable $ae) {
+                write_log('Audit record creation (auto_publish): ' . $ae->getMessage(), 'warning');
+            }
         } catch (\Throwable $e) {
             // Log but keep processing remaining items
             write_log('warning', 'Failed auto-publishing content ' . $row['id'] . ': ' . $e->getMessage(), 'cms');
@@ -460,7 +466,9 @@ function cmsApiEmptyTrash(array $params = []): void
             'entity_id'   => '0',
             'old_data'    => ['type' => $type ?: 'all', 'deleted' => $deleted],
         ]);
-    } catch (\Throwable $e) {}
+    } catch (\Throwable $e) {
+        write_log('Audit record creation (empty_trash): ' . $e->getMessage(), 'warning');
+    }
 
     echo json_encode(['ok' => true, 'deleted' => $deleted]);
     exit;

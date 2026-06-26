@@ -117,6 +117,10 @@ final class FunctionRegistry
             'isset'    => static fn(mixed $var): bool => $var !== null,
             'empty'    => static fn(mixed $var): bool => empty($var),
             'is_array' => static fn(mixed $var): bool => is_array($var),
+
+            // String equality — used extensively in WMS templates for <option selected> logic:
+            //   {eq($_GET['type'] ?? '', 'receipt') ? 'selected' : ''}
+            'eq' => static fn(mixed $a, mixed $b): bool => $a == $b,
         ];
     }
 }
