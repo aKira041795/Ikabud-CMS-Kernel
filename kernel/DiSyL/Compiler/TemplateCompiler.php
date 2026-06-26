@@ -220,6 +220,7 @@ PHP;
             '*' => "({$left} * {$right})",
             '/' => "({$right} != 0 ? {$left} / {$right} : 0)",
             '%' => "({$right} != 0 ? {$left} % {$right} : 0)",
+            '~' => "((string)({$left}) . (string)({$right}))",
             default => "null",
         };
     }

@@ -109,6 +109,14 @@ final class FunctionRegistry
             // Number formatting
             'number_format' => static fn(mixed $v, mixed $dec = 0, mixed $dp = '.', mixed $ts = ','): string
                 => number_format((float)$v, (int)$dec, (string)$dp, (string)$ts),
+
+            // PHP utility functions — needed by templates that use isset/empty/is_array
+            // in conditions (e.g. weather.disyl, entry-module-unavailable.disyl).
+            // Note: DiSyL strips $ prefix from variable names before resolution, so
+            // {if isset(source_label)} and {if isset($source_label)} both work.
+            'isset'    => static fn(mixed $var): bool => $var !== null,
+            'empty'    => static fn(mixed $var): bool => empty($var),
+            'is_array' => static fn(mixed $var): bool => is_array($var),
         ];
     }
 }

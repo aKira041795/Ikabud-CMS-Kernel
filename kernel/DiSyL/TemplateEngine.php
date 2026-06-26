@@ -1321,16 +1321,16 @@ class TemplateEngine
             return $val !== null ? (bool)$val : null;
         }
 
-        // Supported operators
-        $ops = ['!=', '==', '>=', '<=', '>', '<'];
+        // Supported operators (longer operators must come first for correct explode)
+        $ops = ['!==', '===', '!=', '==', '>=', '<=', '>', '<'];
         foreach ($ops as $op) {
             $parts = explode($op, $expr, 2);
             if (count($parts) !== 2) continue;
             $left = trim($parts[0]);
             $right = trim($parts[1]);
 
-            // Resolve left side — must be a variable path
-            if (!preg_match('/^(\w[\w.]*)$/', $left, $lm)) continue;
+            // Resolve left side — must be a variable path (may start with $)
+            if (!preg_match('/^(\$?\w[\w.]*)$/', $left, $lm)) continue;
             $leftVal = $this->resolveValue($lm[1], $context);
 
             // Resolve right side — quoted string, numeric, or variable
@@ -1338,13 +1338,15 @@ class TemplateEngine
                 $rightVal = $rm[1];
             } elseif (is_numeric($right)) {
                 $rightVal = $right + 0;
-            } elseif (preg_match('/^(\w[\w.]*)$/', $right, $rm)) {
+            } elseif (preg_match('/^(\$?\w[\w.]*)$/', $right, $rm)) {
                 $rightVal = $this->resolveValue($rm[1], $context);
             } else {
                 continue;
             }
 
             return match($op) {
+                '!==' => $leftVal !== $rightVal,
+                '===' => $leftVal === $rightVal,
                 '!=' => $leftVal != $rightVal,
                 '==' => $leftVal == $rightVal,
                 '>=' => $leftVal >= $rightVal,
@@ -1503,6 +1505,71 @@ class TemplateEngine
             return $val;
         }
         return null;
+    }
+
+    /**
+     * Evaluate string concatenation using the ~ operator.
+     *
+     * Splits $expr on ~ at top level (outside quotes), resolves each part,
+     * and concatenates. Returns null if no ~ operator found.
+     *
+     * Examples:
+     *   {'INV#'~s.id}         → 'INV#' . (string)s.id
+     *   {prefix~user.name}    → (string)prefix . (string)user.name
+     */
+    private function evaluateConcat(string $expr, array $context): ?string
+    {
+        $parts = $this->splitByTilde($expr);
+        if (count($parts) < 2) {
+            return null;
+        }
+        $result = '';
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '') continue;
+            // Quoted string literal
+            if (preg_match('/^["\'](.*)["\']$/', $part, $m)) {
+                $result .= $m[1];
+            } else {
+                // Resolve as variable/expression (may include filters)
+                $resolved = $this->resolveValueWithFilters($part, $context);
+                $result .= $resolved !== null ? (string)$resolved : '';
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Split an expression on ~ operators at the top level (outside quotes).
+     *
+     * @return list<string>
+     */
+    private function splitByTilde(string $expr): array
+    {
+        $parts = [];
+        $current = '';
+        $inSingle = false;
+        $inDouble = false;
+        for ($i = 0, $len = strlen($expr); $i < $len; $i++) {
+            $ch = $expr[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble) && $i + 1 < $len) {
+                $current .= $ch . $expr[++$i];
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $current .= $ch; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $current .= $ch; continue; }
+            if ($inSingle || $inDouble) { $current .= $ch; continue; }
+            if ($ch === '~') {
+                $parts[] = $current;
+                $current = '';
+                continue;
+            }
+            $current .= $ch;
+        }
+        if ($current !== '') {
+            $parts[] = $current;
+        }
+        return $parts;
     }
 
     /**
@@ -4503,6 +4570,47 @@ class TemplateEngine
                     }
                 }
 
+                // 1.5. String concatenation with ~ operator: {a ~ b}, {'INV#'~s.id}
+                //     Precedence: ~ binds at the same level as +/-, so must be checked
+                //     before filter-less arithmetic to catch filters in operands.
+                //     Works both bare and with filters: {prefix~name | upper}
+                if (str_contains($expr, '~') && !preg_match('/^["\'].*["\']$/', $expr)) {
+                    $pipePos = strpos($expr, '|');
+                    if ($pipePos === false) {
+                        // No filters: evaluate concat directly
+                        $result = $this->evaluateConcat($expr, $context);
+                        if ($result !== null) {
+                            return htmlspecialchars($result, ENT_QUOTES, 'UTF-8');
+                        }
+                    } else {
+                        // Concat with filters: resolve concat first, then pipe through filter chain
+                        $concatPart = trim(substr($expr, 0, $pipePos));
+                        if (str_contains($concatPart, '~')) {
+                            $concatResult = $this->evaluateConcat($concatPart, $context);
+                            if ($concatResult !== null) {
+                                $filterPart = substr($expr, $pipePos + 1);
+                                $value = $concatResult;
+                                $hasRaw = false;
+                                $filterNames = [];
+                                $filterParts = $this->splitByPipe($filterPart);
+                                foreach ($filterParts as $filter) {
+                                    $filter = trim($filter);
+                                    if ($filter === '') continue;
+                                    $filterName = trim(explode(':', $filter, 2)[0]);
+                                    if ($filterName === 'raw') { $hasRaw = true; continue; }
+                                    $filterNames[] = $filterName;
+                                    $value = $this->applyFilter($filter, $value, $context);
+                                }
+                                if (!is_scalar($value)) return '';
+                                if (!$hasRaw && !$this->hasEscapeFilter($expr, $filterNames)) {
+                                    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+                                }
+                                return (string) $value;
+                            }
+                        }
+                    }
+                }
+
                 // 2. Arithmetic/expression: contains operators or parentheses.
                 //    Supports bare {a + b}, parenthesized {(a + b) * c}, and
                 //    arithmetic with filters: {a + b | number_format:2}.
@@ -4653,6 +4761,11 @@ class TemplateEngine
             return true;
         }
 
+        // String concatenation with ~ operator
+        if (str_contains($expr, '~') && !preg_match('/^["\'].*["\']$/', $expr)) {
+            return true;
+        }
+
         $filters = $this->splitByPipe($expr);
         $varPath = trim((string) array_shift($filters));
 
@@ -4773,6 +4886,20 @@ class TemplateEngine
         // v4.8: track current expression for error context
         $prevExpr = $this->currentExpression;
         $this->currentExpression = $path;
+
+        // Strip leading $ for PHP-style variable references e.g. isset($var)
+        if (str_starts_with($path, '$')) {
+            $path = substr($path, 1);
+        }
+
+        // String concatenation with ~ operator: resolve each part and join
+        if (str_contains($path, '~') && !preg_match('/^["\'].*["\']$/', $path)) {
+            $result = $this->evaluateConcat($path, $context);
+            if ($result !== null) {
+                $this->currentExpression = $prevExpr;
+                return $result;
+            }
+        }
 
         // Boolean and null literals
         $lower = strtolower($path);

@@ -283,11 +283,15 @@ final class Parser
 
     private function containsArithmeticOperator(string $expr): bool
     {
-        if (!strpbrk($expr, '+-*/%()')) {
+        if (!strpbrk($expr, '+-*/%()') && !str_contains($expr, '~')) {
             return false;
         }
 
-        return $this->findLastBinaryOp($expr, ['+', '-'], true) !== false
+        // String concatenation ~ has same precedence as +/-
+        $tildeCheck = $this->findLastBinaryOp($expr, ['~'], true) !== false;
+
+        return $tildeCheck
+            || $this->findLastBinaryOp($expr, ['+', '-'], true) !== false
             || $this->findLastBinaryOp($expr, ['*', '/', '%']) !== false
             || ($expr[0] ?? '') === '('
             || (($expr[0] ?? '') === '-' && strlen($expr) > 1);
@@ -1008,7 +1012,8 @@ final class Parser
 
     private function parseAddExpr(string $expr): AbstractNode
     {
-        $split = $this->findLastBinaryOp($expr, ['+', '-'], true);
+        // ~ (string concat) has same precedence as +/-
+        $split = $this->findLastBinaryOp($expr, ['~', '+', '-'], true);
         if ($split !== false && trim($split[1]) !== '') {
             return new BinaryOpNode(
                 [],
