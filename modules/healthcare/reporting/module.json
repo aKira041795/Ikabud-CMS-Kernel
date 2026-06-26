@@ -8,7 +8,8 @@
     "reads_tables": [
         "ehr_appointments",
         "ehr_encounters",
-        "ehr_lab_results"
+        "ehr_lab_results",
+        "audit_logs"
     ],
     "migrations": [],
     "capabilities": {

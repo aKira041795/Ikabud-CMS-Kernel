@@ -64,7 +64,8 @@
         "depends": [
             "kernel.audit.record@1",
             "ehr.core.status.catalog@1",
-            "ehr.order.view@1"
+            "ehr.order.view@1",
+            "ehr.document.upload@1"
         ],
         "policy": {
             "capabilities": {

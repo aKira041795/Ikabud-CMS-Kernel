@@ -101,6 +101,8 @@
         "description": "Create a support ticket"
       }
     ],
-    "depends": []
+    "depends": [
+      "sms.send@1"
+    ]
   }
 }

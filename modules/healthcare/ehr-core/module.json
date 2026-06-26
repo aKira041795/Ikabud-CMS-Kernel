@@ -56,7 +56,9 @@
     ],
     "depends": [
       "kernel.auth.user@1",
-      "kernel.audit.record@1"
+      "kernel.audit.record@1",
+      "ehr.consent.active@1",
+      "ehr.break_glass.active@1"
     ],
     "policy": {
       "capabilities": {

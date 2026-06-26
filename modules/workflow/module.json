@@ -14,7 +14,10 @@
   "nav": [],
   "capabilities": {
     "exposes": [],
-    "depends": [],
+    "depends": [
+      "workflow.state.get@1",
+      "workflow.transition@1"
+    ],
     "policy": {}
   },
   "routes": true,
