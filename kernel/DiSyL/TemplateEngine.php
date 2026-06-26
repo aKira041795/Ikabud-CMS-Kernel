@@ -95,17 +95,37 @@ class TemplateEngine
     /** @var array<string, string> {@var} declarations: variable name => type string */
     private array $declaredVars = [];
     
+    /** @var ExpressionEvaluator Lazy-instantiated expression evaluator */
+    private ?ExpressionEvaluator $evaluator = null;
+
     public function __construct(string $templateDir, string $cacheDir, bool $cacheEnabled = true)
     {
         $this->templateDir = rtrim($templateDir, '/');
         $this->cacheDir = rtrim($cacheDir, '/');
         $this->cacheEnabled = $cacheEnabled;
         $this->extendsCacheDir = $this->cacheDir . '/disyl-extends';
-        
+
         $this->registerDefaultFilters();
         $this->registerDefaultComponents();
     }
-    
+
+    /**
+     * Get or create the shared expression evaluator.
+     */
+    private function evaluator(): ExpressionEvaluator
+    {
+        if ($this->evaluator === null) {
+            $this->evaluator = new ExpressionEvaluator();
+            $this->evaluator->setStrictMode($this->strictMode);
+            $this->evaluator->setDeclaredVars($this->declaredVars);
+            $this->evaluator->setFilters($this->filters);
+            $this->evaluator->setScriptContext($this->scriptContext);
+            $this->evaluator->setCurrentTemplatePath($this->currentTemplatePath);
+            $this->evaluator->setLogErrorCallback(\Closure::fromCallable([$this, 'logError']));
+        }
+        return $this->evaluator;
+    }
+
     public function setDebug(bool $debug): void
     {
         $this->debug = $debug;
@@ -118,6 +138,9 @@ class TemplateEngine
     public function enableStrictMode(bool $enable = true): void
     {
         $this->strictMode = $enable;
+        if ($this->evaluator !== null) {
+            $this->evaluator->setStrictMode($enable);
+        }
     }
 
     /**
@@ -719,6 +742,9 @@ class TemplateEngine
                     $type = $match[1];
                     $name = $match[2];
                     $this->declaredVars[$name] = $type;
+                    if ($this->evaluator !== null) {
+                        $this->evaluator->setDeclaredVars($this->declaredVars);
+                    }
                     return ''; // {@var} produces no output
                 },
                 $content
@@ -1260,56 +1286,7 @@ class TemplateEngine
      */
     private function coerceType(mixed $value, ?string $type, string $varName): mixed
     {
-        if ($type === null || $type === '' || $type === 'mixed') {
-            return $value;
-        }
-
-        // Nullable: "?string", "?int", etc.
-        $nullable = false;
-        if (str_starts_with($type, '?')) {
-            $nullable = true;
-            $type = substr($type, 1);
-            if ($value === null || $value === '') {
-                return null;
-            }
-        }
-
-        // v4.8: literal union types — "open"|"closed"|"pending"
-        if (str_starts_with($type, '"') || str_starts_with($type, "'")) {
-            $allowed = [];
-            $q = $type[0];
-            preg_match_all('/' . preg_quote($q, '/') . '([^' . preg_quote($q, '/') . ']*)' . preg_quote($q, '/') . '/', $type, $matches);
-            $allowed = $matches[1] ?? [];
-
-            if (!empty($allowed)) {
-                $strVal = (string)$value;
-                if (!in_array($strVal, $allowed, true)) {
-                    if ($this->strictMode) {
-                        $this->logError("DISYL_LITERAL_MISMATCH: {set {$varName}} — value '{$strVal}' not in allowed set: " . implode('|', $allowed) . ". Using first allowed: '{$allowed[0]}'");
-                    }
-                    return $allowed[0]; // default to first allowed value
-                }
-                return $strVal;
-            }
-        }
-
-        $original = $value;
-
-        $coerced = match ($type) {
-            'string' => (string) $value,
-            'int', 'integer' => (int) $value,
-            'float', 'number' => (float) $value,
-            'bool', 'boolean' => (bool) $value,
-            'array' => is_array($value) ? $value : [$value],
-            default => $value, // unknown type → pass through
-        };
-
-        // Log mismatches in strict mode
-        if ($this->strictMode && $coerced !== $original && !($nullable && $original === null)) {
-            $this->logError("DISYL_TYPE_MISMATCH: {set {$varName}: {$type}} — value coerced from " . gettype($original) . " to " . gettype($coerced));
-        }
-
-        return $coerced;
+        return $this->evaluator()->coerceType($value, $type, $varName);
     }
 
     /**
@@ -1319,70 +1296,7 @@ class TemplateEngine
      */
     private function evaluateComparison(string $expr, array $context): ?bool
     {
-        // Handle boolean operators: && and ||
-        if (preg_match('/^(.*?)\s*\|\|\s*(.*)$/', $expr, $m)) {
-            $left = $this->evaluateComparison(trim($m[1]), $context);
-            $right = $this->evaluateComparison(trim($m[2]), $context);
-            if ($left !== null && $right !== null) { return $left || $right; }
-        }
-        if (preg_match('/^(.*?)\s*&&\s*(.*)$/', $expr, $m)) {
-            $left = $this->evaluateComparison(trim($m[1]), $context);
-            $right = $this->evaluateComparison(trim($m[2]), $context);
-            if ($left !== null && $right !== null) { return $left && $right; }
-        }
-
-        // Handle negation: !var or !(expr)
-        if (str_starts_with($expr, '!')) {
-            $inner = trim(substr($expr, 1));
-            if ($inner !== '' && $inner[0] === '(' && $inner[-1] === ')') {
-                $inner = trim(substr($inner, 1, -1));
-            }
-            $val = $this->evaluateComparison($inner, $context);
-            return $val !== null ? !$val : null;
-        }
-
-        // Handle truthy check: bare variable without operator (must start with letter)
-        if (preg_match('/^([a-zA-Z_][\w.]*)$/', $expr, $m)) {
-            $val = $this->resolveValue($m[1], $context);
-            return $val !== null ? (bool)$val : null;
-        }
-
-        // Supported operators (longer operators must come first for correct explode)
-        $ops = ['!==', '===', '!=', '==', '>=', '<=', '>', '<'];
-        foreach ($ops as $op) {
-            $parts = explode($op, $expr, 2);
-            if (count($parts) !== 2) continue;
-            $left = trim($parts[0]);
-            $right = trim($parts[1]);
-
-            // Resolve left side — must be a variable path (may start with $)
-            if (!preg_match('/^(\$?\w[\w.]*)$/', $left, $lm)) continue;
-            $leftVal = $this->resolveValue($lm[1], $context);
-
-            // Resolve right side — quoted string, numeric, or variable
-            if (preg_match('/^["\'](.*)["\']$/', $right, $rm)) {
-                $rightVal = $rm[1];
-            } elseif (is_numeric($right)) {
-                $rightVal = $right + 0;
-            } elseif (preg_match('/^(\$?\w[\w.]*)$/', $right, $rm)) {
-                $rightVal = $this->resolveValue($rm[1], $context);
-            } else {
-                continue;
-            }
-
-            return match($op) {
-                '!==' => $leftVal !== $rightVal,
-                '===' => $leftVal === $rightVal,
-                '!=' => $leftVal != $rightVal,
-                '==' => $leftVal == $rightVal,
-                '>=' => $leftVal >= $rightVal,
-                '<=' => $leftVal <= $rightVal,
-                '>'  => $leftVal > $rightVal,
-                '<'  => $leftVal < $rightVal,
-                default => null,
-            };
-        }
-        return null;
+        return $this->evaluator()->evaluateComparison($expr, $context);
     }
     
     /**
@@ -1391,32 +1305,7 @@ class TemplateEngine
      */
     private function evaluateArithmetic(string $expr, array $context): int|float|null
     {
-        $tokens = $this->tokenizeArithExpr($expr);
-        if ($tokens === null || count($tokens) === 0) {
-            return null;
-        }
-        // Require at least one arithmetic operator — bare variable/literal lookups
-        // must not be handled here (they are handled by resolveValue elsewhere).
-        $hasOp = false;
-        foreach ($tokens as $tok) {
-            if (is_string($tok) && in_array($tok, ['+', '-', '*', '/', '%'], true)) {
-                $hasOp = true;
-                break;
-            }
-        }
-        if (!$hasOp) {
-            return null;
-        }
-        $pos = 0;
-        $result = $this->exprAdd($tokens, $pos, $context);
-        if ($result === null || $pos !== count($tokens)) {
-            return null; // Not all tokens consumed — not a pure arithmetic expression
-        }
-        // Return as int when value is a whole number
-        if (is_float($result) && $result == (int)$result) {
-            return (int)$result;
-        }
-        return $result;
+        return $this->evaluator()->evaluateArithmetic($expr, $context);
     }
 
     /**
@@ -1428,110 +1317,16 @@ class TemplateEngine
      */
     private function tokenizeArithExpr(string $expr): ?array
     {
-        $tokens = [];
-        $i = 0;
-        $len = strlen($expr);
-        while ($i < $len) {
-            $c = $expr[$i];
-            if ($c === ' ') { $i++; continue; }
-            if ($c === '(' || $c === ')' || in_array($c, ['+', '-', '*', '/', '%'], true)) {
-                $tokens[] = $c;
-                $i++;
-                continue;
-            }
-            // Numeric literal (integer or decimal)
-            if (ctype_digit($c) || ($c === '.' && $i + 1 < $len && ctype_digit($expr[$i + 1]))) {
-                $j = $i;
-                while ($j < $len && (ctype_digit($expr[$j]) || $expr[$j] === '.')) {
-                    $j++;
-                }
-                $num = substr($expr, $i, $j - $i);
-                $tokens[] = str_contains($num, '.') ? (float)$num : (int)$num;
-                $i = $j;
-                continue;
-            }
-            // Identifier / variable path (dot-notation)
-            if (ctype_alpha($c) || $c === '_') {
-                $j = $i;
-                while ($j < $len && (ctype_alnum($expr[$j]) || $expr[$j] === '_' || $expr[$j] === '.')) {
-                    $j++;
-                }
-                $tokens[] = ['var', substr($expr, $i, $j - $i)];
-                $i = $j;
-                continue;
-            }
-            return null; // Unknown character — not a valid arithmetic expression
-        }
-        return $tokens;
+        return $this->evaluator()->tokenizeArithExpr($expr);
     }
 
-    /** Recursive-descent: additive level (+, -) */
-    private function exprAdd(array $tokens, int &$pos, array $context): int|float|null
-    {
-        $left = $this->exprMul($tokens, $pos, $context);
-        if ($left === null) return null;
-        $n = count($tokens);
-        while ($pos < $n && ($tokens[$pos] === '+' || $tokens[$pos] === '-')) {
-            $op = $tokens[$pos++];
-            $right = $this->exprMul($tokens, $pos, $context);
-            if ($right === null) return null;
-            $left = $op === '+' ? $left + $right : $left - $right;
-        }
-        return $left;
-    }
 
-    /** Recursive-descent: multiplicative level (*, /, %) */
-    private function exprMul(array $tokens, int &$pos, array $context): int|float|null
-    {
-        $left = $this->exprUnary($tokens, $pos, $context);
-        if ($left === null) return null;
-        $n = count($tokens);
-        while ($pos < $n && in_array($tokens[$pos], ['*', '/', '%'], true)) {
-            $op = $tokens[$pos++];
-            $right = $this->exprUnary($tokens, $pos, $context);
-            if ($right === null) return null;
-            if ($op === '*') $left = $left * $right;
-            elseif ($op === '/') $left = $right != 0 ? $left / $right : 0;
-            else $left = $right != 0 ? (int)$left % (int)$right : 0;
-        }
-        return $left;
-    }
 
-    /** Recursive-descent: unary minus */
-    private function exprUnary(array $tokens, int &$pos, array $context): int|float|null
-    {
-        if ($pos < count($tokens) && $tokens[$pos] === '-') {
-            $pos++;
-            $val = $this->exprPrimary($tokens, $pos, $context);
-            return $val !== null ? -$val : null;
-        }
-        return $this->exprPrimary($tokens, $pos, $context);
-    }
 
-    /** Recursive-descent: primary (literal, variable, parenthesized expression) */
-    private function exprPrimary(array $tokens, int &$pos, array $context): int|float|null
-    {
-        if ($pos >= count($tokens)) return null;
-        $tok = $tokens[$pos];
-        if (is_int($tok) || is_float($tok)) {
-            $pos++;
-            return $tok;
-        }
-        if (is_array($tok)) { // ['var', 'path.name']
-            $pos++;
-            $val = $this->resolveValue($tok[1], $context);
-            return ($val !== null && is_numeric($val)) ? (float)$val : null;
-        }
-        if ($tok === '(') {
-            $pos++; // consume '('
-            $val = $this->exprAdd($tokens, $pos, $context);
-            if ($pos < count($tokens) && $tokens[$pos] === ')') {
-                $pos++; // consume ')'
-            }
-            return $val;
-        }
-        return null;
-    }
+
+
+
+
 
     /**
      * Evaluate string concatenation using the ~ operator.
@@ -1545,24 +1340,7 @@ class TemplateEngine
      */
     private function evaluateConcat(string $expr, array $context): ?string
     {
-        $parts = $this->splitByTilde($expr);
-        if (count($parts) < 2) {
-            return null;
-        }
-        $result = '';
-        foreach ($parts as $part) {
-            $part = trim($part);
-            if ($part === '') continue;
-            // Quoted string literal
-            if (preg_match('/^["\'](.*)["\']$/', $part, $m)) {
-                $result .= $m[1];
-            } else {
-                // Resolve as variable/expression (may include filters)
-                $resolved = $this->resolveValueWithFilters($part, $context);
-                $result .= $resolved !== null ? (string)$resolved : '';
-            }
-        }
-        return $result;
+        return $this->evaluator()->evaluateConcat($expr, $context);
     }
 
     /**
@@ -1572,30 +1350,7 @@ class TemplateEngine
      */
     private function splitByTilde(string $expr): array
     {
-        $parts = [];
-        $current = '';
-        $inSingle = false;
-        $inDouble = false;
-        for ($i = 0, $len = strlen($expr); $i < $len; $i++) {
-            $ch = $expr[$i];
-            if ($ch === '\\' && ($inSingle || $inDouble) && $i + 1 < $len) {
-                $current .= $ch . $expr[++$i];
-                continue;
-            }
-            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $current .= $ch; continue; }
-            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $current .= $ch; continue; }
-            if ($inSingle || $inDouble) { $current .= $ch; continue; }
-            if ($ch === '~') {
-                $parts[] = $current;
-                $current = '';
-                continue;
-            }
-            $current .= $ch;
-        }
-        if ($current !== '') {
-            $parts[] = $current;
-        }
-        return $parts;
+        return $this->evaluator()->splitByTilde($expr);
     }
 
     /**
@@ -4871,40 +4626,7 @@ class TemplateEngine
      */
     private function evaluateTernary(string $expr, array $context): string
     {
-        // Split on ? and : — find the top-level ? and :
-        $qPos = strpos($expr, '?');
-        if ($qPos === false) return '';
-        
-        $condition = trim(substr($expr, 0, $qPos));
-        $rest = substr($expr, $qPos + 1);
-        
-        // Find the : separator (not inside quotes)
-        $colonPos = $this->findUnquotedChar($rest, ':');
-        if ($colonPos === false) return '';
-        
-        $trueExpr = trim(substr($rest, 0, $colonPos));
-        $falseExpr = trim(substr($rest, $colonPos + 1));
-        
-        $result = $this->evaluateCondition($condition, $context) ? $trueExpr : $falseExpr;
-        
-        // Resolve the chosen expression
-        if (preg_match('/^["\'](.*)["\']\s*$/', $result, $m)) {
-            // Quoted string literal
-            return htmlspecialchars($m[1], ENT_QUOTES, 'UTF-8');
-        }
-        
-        // Try as variable
-        $resolved = $this->resolveValueWithFilters($result, $context);
-        if (is_scalar($resolved)) {
-            return htmlspecialchars((string) $resolved, ENT_QUOTES, 'UTF-8');
-        }
-        
-        // Try as number
-        if (is_numeric($result)) {
-            return $result;
-        }
-        
-        return htmlspecialchars($result, ENT_QUOTES, 'UTF-8');
+        return $this->evaluator()->evaluateTernary($expr, $context);
     }
     
     /**
@@ -4912,23 +4634,7 @@ class TemplateEngine
      */
     private function findUnquotedChar(string $str, string $char): int|false
     {
-        $inQuote = false;
-        $quoteChar = '';
-        $len = strlen($str);
-        
-        for ($i = 0; $i < $len; $i++) {
-            $c = $str[$i];
-            if (!$inQuote && ($c === '"' || $c === "'")) {
-                $inQuote = true;
-                $quoteChar = $c;
-            } elseif ($inQuote && $c === $quoteChar) {
-                $inQuote = false;
-            } elseif (!$inQuote && $c === $char) {
-                return $i;
-            }
-        }
-        
-        return false;
+        return $this->evaluator()->findUnquotedChar($str, $char);
     }
     
     /**
@@ -4938,25 +4644,7 @@ class TemplateEngine
      */
     private function hasEscapeFilter(string $expr, array $parsedFilterNames = []): bool
     {
-        $escapeFilters = ['esc_html', 'esc_attr', 'esc_url', 'esc_js', 'json', 'json_attr', 'url_encode', 'base64', 'nl2br'];
-        if ($parsedFilterNames !== []) {
-            foreach ($parsedFilterNames as $name) {
-                if (in_array($name, $escapeFilters, true)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        // Fallback: scan pipe-split names from the raw expression to avoid substring matches
-        $parts = $this->splitByPipe($expr);
-        array_shift($parts); // drop variable path
-        foreach ($parts as $part) {
-            $filterName = trim(explode(':', trim($part), 2)[0]);
-            if (in_array($filterName, $escapeFilters, true)) {
-                return true;
-            }
-        }
-        return false;
+        return $this->evaluator()->hasEscapeFilter($expr, $parsedFilterNames);
     }
     
     /**
@@ -4964,124 +4652,7 @@ class TemplateEngine
      */
     private function resolveValue(string $path, array $context)
     {
-        $path = trim($path);
-        if ($path === '') return null;
-
-        // v4.8: track current expression for error context
-        $prevExpr = $this->currentExpression;
-        $this->currentExpression = $path;
-
-        // Strip leading $ for PHP-style variable references e.g. isset($var)
-        if (str_starts_with($path, '$')) {
-            $path = substr($path, 1);
-        }
-
-        // String concatenation with ~ operator: resolve each part and join
-        if (str_contains($path, '~') && !preg_match('/^["\'].*["\']$/', $path)) {
-            $result = $this->evaluateConcat($path, $context);
-            if ($result !== null) {
-                $this->currentExpression = $prevExpr;
-                return $result;
-            }
-        }
-
-        // Boolean and null literals
-        $lower = strtolower($path);
-        if ($lower === 'true') return true;
-        if ($lower === 'false') return false;
-        if ($lower === 'null') return null;
-
-        // keyof expression: resolve to field list from entity view contract
-        if (str_starts_with($lower, 'keyof ')) {
-            $this->currentExpression = $prevExpr;
-            return $this->resolveKeyof(substr($path, 6));
-        }
-
-        // Numeric literals
-        if (is_numeric($path)) {
-            return str_contains($path, '.') ? (float)$path : (int)$path;
-        }
-
-        // Function call: funcname(args...)
-        if (preg_match('/^([a-zA-Z_]\w*)\s*\(/', $path, $fcm)) {
-            $parenStart = strpos($path, '(', strlen($fcm[1]));
-            if ($parenStart !== false) {
-                // Find the matching close paren
-                $depth = 0;
-                $close = -1;
-                for ($i = $parenStart, $plen = strlen($path); $i < $plen; $i++) {
-                    if ($path[$i] === '(') $depth++;
-                    elseif ($path[$i] === ')') {
-                        $depth--;
-                        if ($depth === 0) { $close = $i; break; }
-                    }
-                }
-                if ($close === strlen($path) - 1) {
-                    $funcName = $fcm[1];
-                    $argsStr  = trim(substr($path, $parenStart + 1, $close - $parenStart - 1));
-                    $argParts = $argsStr !== '' ? $this->splitCallArgs($argsStr) : [];
-                    $resolved = [];
-                    foreach ($argParts as $arg) {
-                        $arg = trim($arg);
-                        if (is_numeric($arg)) {
-                            $resolved[] = str_contains($arg, '.') ? (float)$arg : (int)$arg;
-                        } else {
-                            $arith = $this->evaluateArithmetic($arg, $context);
-                            $resolved[] = $arith !== null ? $arith : $this->resolveValue($arg, $context);
-                        }
-                    }
-                    return \Ikabud\Kernel\DiSyL\v4\FunctionRegistry::call($funcName, $resolved);
-                }
-            }
-        }
-
-        // Array literal: [val1, val2, ...]
-        if ($path !== '' && $path[0] === '[') {
-            $close = $this->findUnquotedChar($path, ']');
-            if ($close !== false && $close === strlen($path) - 1) {
-                $inner = trim(substr($path, 1, -1));
-                if ($inner === '') {
-                    $this->currentExpression = $prevExpr;
-                    return [];
-                }
-                $parts = $this->splitByComma($inner);
-                $result = [];
-                foreach ($parts as $part) {
-                    $part = trim($part);
-                    if ($part === '') continue;
-                    if (preg_match('/^["\'](.*)["\']$/', $part, $m)) {
-                        $result[] = $m[1];
-                    } elseif (is_numeric($part)) {
-                        $result[] = str_contains($part, '.') ? (float)$part : (int)$part;
-                    } elseif (strtolower($part) === 'true') {
-                        $result[] = true;
-                    } elseif (strtolower($part) === 'false') {
-                        $result[] = false;
-                    } elseif (strtolower($part) === 'null') {
-                        $result[] = null;
-                    } else {
-                        $result[] = $this->resolveValue($part, $context);
-                    }
-                }
-                $this->currentExpression = $prevExpr;
-                return $result;
-            }
-        }
-
-        $parts = explode('.', $path);
-        $value = $context;
-        
-        foreach ($parts as $part) {
-            if (is_array($value) && array_key_exists($part, $value)) {
-                $value = $value[$part];
-            } elseif (is_object($value) && isset($value->$part)) {
-                $value = $value->$part;
-            } else {
-                return null;
-            }
-        }
-        
-        return $value;
+        return $this->evaluator()->resolveValue($path, $context);
     }
 
     /**
@@ -5090,29 +4661,7 @@ class TemplateEngine
      */
     private function splitCallArgs(string $str): array
     {
-        $parts    = [];
-        $cur      = '';
-        $inSingle = false;
-        $inDouble = false;
-        $depth    = 0;
-        for ($i = 0, $len = strlen($str); $i < $len; $i++) {
-            $ch = $str[$i];
-            if ($ch === '\\' && ($inSingle || $inDouble) && $i + 1 < $len) {
-                $cur .= $ch . $str[++$i];
-                continue;
-            }
-            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $cur .= $ch; continue; }
-            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $cur .= $ch; continue; }
-            if ($inSingle || $inDouble) { $cur .= $ch; continue; }
-            if ($ch === '(' || $ch === '[') { $depth++; $cur .= $ch; continue; }
-            if ($ch === ')' || $ch === ']') { $depth--; $cur .= $ch; continue; }
-            if ($ch === ',' && $depth === 0) { $parts[] = trim($cur); $cur = ''; continue; }
-            $cur .= $ch;
-        }
-        if (($t = trim($cur)) !== '') {
-            $parts[] = $t;
-        }
-        return $parts;
+        return $this->evaluator()->splitCallArgs($str);
     }
 
     /**
@@ -5127,55 +4676,7 @@ class TemplateEngine
      */
     private function resolveKeyof(string $expr): array
     {
-        $expr = trim($expr);
-        if ($expr === '') {
-            $this->logError('keyof: empty expression');
-            return [];
-        }
-
-        // Parse "entity_type.view" — default view is "compact"
-        $dotPos = strrpos($expr, '.');
-        if ($dotPos === false) {
-            $entityType = $expr;
-            $view = 'compact';
-        } else {
-            $entityType = substr($expr, 0, $dotPos);
-            $view = substr($expr, $dotPos + 1);
-        }
-
-        if ($entityType === '') {
-            $this->logError("keyof: invalid expression '{$expr}'");
-            return [];
-        }
-
-        // Look up the view contract
-        $resolverClass = 'Ikabud\\Kernel\\EntityContext\\EntityViewResolver';
-        if (!class_exists($resolverClass, true)) {
-            $this->logError("keyof: EntityViewResolver not available");
-            return [];
-        }
-
-        $resolver = $resolverClass::getInstance();
-        $contract = $resolver->viewContract($entityType, $view);
-
-        if ($contract === null) {
-            $this->logError("keyof: no view contract for '{$entityType}.{$view}'");
-            return [];
-        }
-
-        $fields = $contract['fields'] ?? null;
-
-        // Wildcard '*' means unknown fields — can't keyof
-        if ($fields === '*') {
-            $this->logError("keyof: entity '{$entityType}' view '{$view}' uses wildcard fields — cannot resolve field list");
-            return [];
-        }
-
-        if (!is_array($fields) || $fields === []) {
-            return [];
-        }
-
-        return array_values($fields);
+        return $this->evaluator()->resolveKeyof($expr);
     }
 
     /** Maximum number of filters allowed in a single filter chain */
@@ -5186,27 +4687,9 @@ class TemplateEngine
      */
     private function resolveValueWithFilters(string $expr, array $context)
     {
-        if (!str_contains($expr, '|')) {
-            return $this->resolveValue($expr, $context);
-        }
-
-        $parts = $this->splitByPipe($expr);
-        $varPath = trim(array_shift($parts));
-        
-        $value = $this->resolveValue($varPath, $context);
-        
-        $filterCount = 0;
-        foreach ($parts as $filter) {
-            if (++$filterCount > self::FILTER_CHAIN_MAX) {
-                $this->logError("Filter chain exceeds maximum depth (" . self::FILTER_CHAIN_MAX . ") on: {$expr}");
-                break;
-            }
-            $value = $this->applyFilter(trim($filter), $value, $context);
-        }
-        
-        return $value;
+        return $this->evaluator()->resolveValueWithFilters($expr, $context);
     }
-    
+
     /**
      * Evaluate a condition expression to a boolean.
      * 
@@ -5215,73 +4698,7 @@ class TemplateEngine
      */
     private function evaluateCondition(string $condition, array $context): bool
     {
-        $condition = trim($condition);
-        if ($condition === '') return false;
-        
-        // Strip outer parentheses: (expr) → expr
-        // Allows {if (items | count) > 0} and {if (items | count)}
-        if (preg_match('/^\((.+)\)$/', $condition, $pm)) {
-            // Only unwrap if the parens are balanced (not part of a larger expression)
-            $inner = $pm[1];
-            $depth = 0;
-            $balanced = true;
-            for ($ci = 0, $cl = strlen($inner); $ci < $cl; $ci++) {
-                if ($inner[$ci] === '(') $depth++;
-                elseif ($inner[$ci] === ')') { $depth--; if ($depth < 0) { $balanced = false; break; } }
-            }
-            if ($balanced && $depth === 0) {
-                $condition = $inner;
-            }
-        }
-        
-        // Handle negation: ! prefix or 'not' keyword
-        if (preg_match('/^!\s*(.+)$/', $condition, $nm)) {
-            return !$this->evaluateCondition($nm[1], $context);
-        }
-        if (preg_match('/^not\s+(.+)$/i', $condition, $nm)) {
-            return !$this->evaluateCondition($nm[1], $context);
-        }
-        
-        // Handle AND/OR (simple support)
-        if (preg_match('/^(.+?)\s+(and|&&)\s+(.+)$/i', $condition, $m)) {
-            return $this->evaluateCondition($m[1], $context) && $this->evaluateCondition($m[3], $context);
-        }
-        if (preg_match('/^(.+?)\s+(or|\|\|)\s+(.+)$/i', $condition, $m)) {
-            return $this->evaluateCondition($m[1], $context) || $this->evaluateCondition($m[3], $context);
-        }
-        
-        // Handle comparison operators.
-        // Use a regex that won't split on operators inside a piped filter expression.
-        // Strategy: find the LAST comparison operator not inside parens, since filter
-        // expressions (left side) may contain | but never contain >, <, ==, != outside quotes.
-        if (preg_match('/^(.+?)\s*(===|!==|==|!=|>=|<=|>|<)\s*(.+)$/', $condition, $match)) {
-            $left = $this->resolveConditionOperand(trim($match[1]), $context);
-            $op = $match[2];
-            $right = $this->resolveConditionOperand(trim($match[3]), $context);
-            
-            // Coerce numeric strings for non-strict comparisons
-            if ($op !== '===' && $op !== '!==' && is_numeric($left)) $left = $left + 0;
-            if ($op !== '===' && $op !== '!==' && is_numeric($right)) $right = $right + 0;
-            
-            return match($op) {
-                '===' => $left === $right,
-                '!==' => $left !== $right,
-                '==' => $left == $right,
-                '!=' => $left != $right,
-                '>=' => $left >= $right,
-                '<=' => $left <= $right,
-                '>' => $left > $right,
-                '<' => $left < $right,
-                default => false,
-            };
-        }
-        
-        // Simple truthy check (may include arithmetic: {if count - 1})
-        $value = $this->evaluateArithmetic($condition, $context);
-        if ($value === null) {
-            $value = $this->resolveValueWithFilters($condition, $context);
-        }
-        return !empty($value);
+        return $this->evaluator()->evaluateCondition($condition, $context);
     }
     
     /**
@@ -5290,38 +4707,7 @@ class TemplateEngine
      */
     private function resolveConditionOperand(string $raw, array $context)
     {
-        // Strip balanced outer parentheses: (items | count) → items | count
-        if (preg_match('/^\((.+)\)$/', $raw, $pm)) {
-            $inner = $pm[1];
-            $depth = 0;
-            $balanced = true;
-            for ($ci = 0, $cl = strlen($inner); $ci < $cl; $ci++) {
-                if ($inner[$ci] === '(') $depth++;
-                elseif ($inner[$ci] === ')') { $depth--; if ($depth < 0) { $balanced = false; break; } }
-            }
-            if ($balanced && $depth === 0) {
-                $raw = $inner;
-            }
-        }
-        
-        // Quoted string
-        if (preg_match('/^["\'](.*)["\']\s*$/', $raw, $qm)) {
-            return $qm[1];
-        }
-        
-        // Try arithmetic (e.g. "page + 1")
-        $arith = $this->evaluateArithmetic($raw, $context);
-        if ($arith !== null) return $arith;
-        
-        // Try variable resolution (supports piped filters: items | count)
-        $resolved = $this->resolveValueWithFilters($raw, $context);
-        if ($resolved !== null) return $resolved;
-        
-        // Numeric literal
-        if (is_numeric($raw)) return $raw + 0;
-        
-        // Fallback: return as string literal
-        return $raw;
+        return $this->evaluator()->resolveConditionOperand($raw, $context);
     }
     
     /**
@@ -5401,7 +4787,7 @@ class TemplateEngine
      */
     private function splitByPipe(string $expr): array
     {
-        return $this->splitByChar($expr, '|');
+        return $this->evaluator()->splitByPipe($expr);
     }
     
     /**
@@ -5409,7 +4795,7 @@ class TemplateEngine
      */
     private function splitByComma(string $expr): array
     {
-        return $this->splitByChar($expr, ',');
+        return $this->evaluator()->splitByComma($expr);
     }
     
     /**
@@ -5417,36 +4803,7 @@ class TemplateEngine
      */
     private function splitByChar(string $expr, string $delimiter): array
     {
-        $parts = [];
-        $current = '';
-        $inQuote = false;
-        $quoteChar = '';
-        $len = strlen($expr);
-        
-        for ($i = 0; $i < $len; $i++) {
-            $char = $expr[$i];
-            
-            if (!$inQuote && ($char === '"' || $char === "'")) {
-                $inQuote = true;
-                $quoteChar = $char;
-                $current .= $char;
-            } elseif ($inQuote && $char === $quoteChar) {
-                $inQuote = false;
-                $quoteChar = '';
-                $current .= $char;
-            } elseif (!$inQuote && $char === $delimiter) {
-                $parts[] = $current;
-                $current = '';
-            } else {
-                $current .= $char;
-            }
-        }
-        
-        if ($current !== '') {
-            $parts[] = $current;
-        }
-        
-        return $parts;
+        return $this->evaluator()->splitByChar($expr, $delimiter);
     }
     
     /**
@@ -5454,49 +4811,12 @@ class TemplateEngine
      */
     private function normalizeFilterArg(string $filterName, string $arg, array $context)
     {
-        $arg = trim($arg);
-        if ($arg === '') {
-            return '';
-        }
-
-        if (preg_match('/^["\'](.*)["\']\s*$/', $arg, $matches)) {
-            return $matches[1];
-        }
-
-        if ($filterName === 'default') {
-            if (is_numeric($arg)) {
-                return $arg + 0;
-            }
-
-            return $this->resolveValueWithFilters($arg, $context);
-        }
-
-        return $arg;
+        return $this->evaluator()->normalizeFilterArg($filterName, $arg, $context);
     }
 
     private function applyFilter(string $filter, $value, array $context)
     {
-        $parts = explode(':', $filter, 2);
-        $filterName = trim($parts[0]);
-        $rawArgs = isset($parts[1]) ? $this->splitByComma($parts[1]) : [];
-
-        // v4.8: parse named args (key=value) alongside positional args
-        $positional = [];
-        $named = [];
-        foreach ($rawArgs as $arg) {
-            $arg = trim($arg);
-            if (preg_match('/^(\w+)\s*=\s*(.+)$/s', $arg, $m)) {
-                $named[$m[1]] = $this->normalizeFilterArg($filterName, $m[2], $context);
-            } else {
-                $positional[] = $this->normalizeFilterArg($filterName, $arg, $context);
-            }
-        }
-
-        if (isset($this->filters[$filterName])) {
-            return call_user_func($this->filters[$filterName], $value, $positional, $named, $context);
-        }
-
-        return $value;
+        return $this->evaluator()->applyFilter($filter, $value, $context);
     }
     
     /**
@@ -5531,6 +4851,9 @@ class TemplateEngine
     public function registerFilter(string $name, callable $callback): void
     {
         $this->filters[$name] = $callback;
+        if ($this->evaluator !== null) {
+            $this->evaluator->setFilters($this->filters);
+        }
     }
     
     public function registerComponent(string $name, callable $callback): void
