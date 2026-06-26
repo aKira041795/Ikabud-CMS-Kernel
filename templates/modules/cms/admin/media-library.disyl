@@ -550,13 +550,17 @@ function cmsMediaLibrary() {
             this.urlCopied = false;
         },
         copyUrl() {
-            navigator.clipboard.writeText(this.urlModalUrl).then(() => {
+            const input = this.$refs.urlInput;
+            if (!input) return;
+            input.select();
+            input.setSelectionRange(0, 99999);
+            try {
+                document.execCommand('copy');
                 this.urlCopied = true;
                 setTimeout(() => this.urlCopied = false, 2000);
-            }).catch(() => {
-                // Fallback: select the input text for manual copy
-                this.$refs.urlInput.select();
-            });
+            } catch (e) {
+                // Text is already selected for manual copy
+            }
         },
         handleEditorImageLoad(event) {
             const image = event.target;
