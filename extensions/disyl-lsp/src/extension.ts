@@ -249,7 +249,79 @@ export function activate(context: vscode.ExtensionContext) {
                     return resolveTemplatePath(document, target);
                 }
 
+                // Close-tag auto-insertion
+                const precedingText = line.substring(0, position.character);
+                const openTagMatch = precedingText.match(/\{(\/?)([a-z_]+)?$/);
+                if (openTagMatch && openTagMatch[1] !== '/') {
+                    const tagName = openTagMatch[2] || '';
+                    if (tagName && CLOSE_TAG_MAP[tagName]) {
+                        const item = new vscode.CompletionItem('/' + tagName, vscode.CompletionItemKind.Keyword);
+                        item.insertText = '/' + tagName + '}';
+                        item.filterText = '/' + tagName;
+                        return [item];
+                    }
+                }
+
                 return null;
+            }
+        }, '|') // Trigger after pipe for filters
+    );
+
+    // ── Hover: show docs for block keywords & components ──
+    context.subscriptions.push(
+        vscode.languages.registerHoverProvider('disyl', {
+            provideHover(document, position) {
+                const range = document.getWordRangeAtPosition(position, /\{(\/)?([a-zA-Z_][a-zA-Z0-9_]*)\}/);
+                if (!range) return null;
+
+                const word = document.getText(range);
+                const inner = word.replace(/[{}]/g, '');
+                const isClose = inner.startsWith('/');
+                const keyword = isClose ? inner.substring(1) : inner;
+
+                // Block keyword docs
+                if (BLOCK_KEYWORD_DOCS[keyword]) {
+                    const md = new vscode.MarkdownString();
+                    md.appendMarkdown(BLOCK_KEYWORD_DOCS[keyword]);
+                    if (keyword === 'if') {
+                        md.appendMarkdown('\n\nSupported operators: `==`, `!=`, `>`, `<`, `>=`, `<=`, `&&`, `||`, `!`');
+                    }
+                    return new vscode.Hover(md, range);
+                }
+
+                // Component docs
+                const compInfo = GOVERNED_COMPONENT_DOCS[keyword];
+                if (compInfo) {
+                    const md = new vscode.MarkdownString();
+                    md.appendMarkdown(`**${keyword}** — ${compInfo.category}\n\n`);
+                    md.appendMarkdown(compInfo.description);
+                    if (compInfo.attributes.length > 0) {
+                        md.appendMarkdown('\n\n**Attributes:**\n');
+                        for (const attr of compInfo.attributes) {
+                            md.appendMarkdown(`\n- \`${attr}\``);
+                        }
+                    }
+                    return new vscode.Hover(md, range);
+                }
+
+                return null;
+            }
+        })
+    );
+
+    // ── Go-to-definition: {include "..."} → file ──
+    context.subscriptions.push(
+        vscode.languages.registerDefinitionProvider('disyl', {
+            provideDefinition(document, position) {
+                const range = document.getWordRangeAtPosition(position, /\{include\s+"([^"]+)"\}/);
+                if (!range) return null;
+
+                const text = document.getText(range);
+                const match = text.match(/\{include\s+"([^"]+)"\}/);
+                if (!match) return null;
+
+                const target = match[1];
+                return resolveTemplatePath(document, target);
             }
         })
     );
@@ -486,4 +558,50 @@ const BLOCK_KEYWORD_DOCS: Record<string, string> = {
     'verbatim': 'Raw content — no DiSyL processing',
     'literal': 'Raw content — no DiSyL processing (alias)',
     'sandbox': 'Restrict allowed HTML tags for child {untrusted} blocks',
+};
+
+const CLOSE_TAG_MAP: Record<string, string> = {
+    if: '/if', for: '/for', foreach: '/foreach', each: '/each',
+    block: '/block', slot: '/slot', component: '/component',
+    match: '/match', when: '/when',
+    macro: '/macro', call: '/call',
+    await: '/await', parallel: '/parallel',
+    sandbox: '/sandbox', trusted: '/trusted', untrusted: '/untrusted',
+    cache: '/cache', trans: '/trans',
+    federated_query: '/federated_query',
+    ai_generate: '/ai_generate', ai_query: '/ai_query', ai_complete: '/ai_complete',
+};
+
+const GOVERNED_COMPONENT_DOCS: Record<string, { category: string; description: string; attributes: string[] }> = {
+    'ikb_section': { category: 'Structural', description: 'A semantic page section. Groups content into themed blocks.', attributes: ['tone', 'spacing', 'background', 'padding'] },
+    'ikb_container': { category: 'Structural', description: 'A constrained-width wrapper. Centers content with optional max-width.', attributes: ['max_width', 'padding', 'class'] },
+    'ikb_grid': { category: 'Structural', description: 'Responsive CSS grid layout. Arranges children in columns.', attributes: ['cols', 'gap', 'align'] },
+    'ikb_panel': { category: 'Structural', description: 'Themed panel with header, body, footer slots. Uses design tokens for tone/spacing/radius.', attributes: ['tone', 'spacing', 'radius', 'title', 'variant'] },
+    'ikb_entity_list': { category: 'Data', description: 'Database-driven table or card grid from entity views. Supports filter, sort, pagination, row actions.', attributes: ['source', 'view', 'filter', 'limit', 'layout', 'actions'] },
+    'ikb_entity_detail': { category: 'Data', description: 'Single-entity detail view. Renders fields from a registered entity view contract.', attributes: ['source', 'view', 'id', 'fields'] },
+    'ikb_stat_card': { category: 'Data', description: 'KPI/metric card with label, value, trend, and optional icon.', attributes: ['label', 'value', 'trend', 'icon', 'color'] },
+    'ikb_timeline': { category: 'Data', description: 'Chronological event timeline. Each child is rendered as a timeline entry.', attributes: ['source', 'date_field', 'title_field', 'limit'] },
+    'ikb_audit_log': { category: 'Data', description: 'Audit trail viewer. Shows who did what and when.', attributes: ['source', 'entity_type', 'entity_id', 'limit'] },
+    'ikb_table': { category: 'Data', description: 'Generic data table with columns, sorting, and row actions.', attributes: ['source', 'columns', 'sortable', 'actions'] },
+    'ikb_badge': { category: 'Data', description: 'Status badge with color mapping. Supports dynamic badge:map patterns.', attributes: ['value', 'map', 'color', 'size', 'variant'] },
+    'ikb_form': { category: 'Form', description: 'Form wrapper with CSRF protection and validation.', attributes: ['action', 'method', 'enctype', 'class'] },
+    'ikb_input': { category: 'Form', description: 'Text/number/email/password input field.', attributes: ['name', 'type', 'label', 'value', 'placeholder', 'required', 'class'] },
+    'ikb_textarea': { category: 'Form', description: 'Multi-line text input.', attributes: ['name', 'label', 'value', 'rows', 'placeholder', 'class'] },
+    'ikb_select': { category: 'Form', description: 'Dropdown select with options.', attributes: ['name', 'label', 'options', 'value', 'multiple', 'class'] },
+    'ikb_button': { category: 'Interactive', description: 'Action button with style variants.', attributes: ['label', 'variant', 'size', 'icon', 'href', 'disabled', 'class'] },
+    'ikb_export_button': { category: 'Interactive', description: 'Governed document download link with format selection.', attributes: ['source', 'format', 'variant', 'size', 'label'] },
+    'ikb_confirm_action': { category: 'Interactive', description: 'Destructive action with confirmation dialog.', attributes: ['action', 'label', 'confirm_text', 'variant', 'icon', 'method'] },
+    'ikb_card': { category: 'Layout', description: 'Content card with optional image, header, body, footer.', attributes: ['image', 'title', 'subtitle', 'variant', 'class'] },
+    'ikb_modal': { category: 'Layout', description: 'Overlay modal dialog.', attributes: ['title', 'size', 'closeable', 'class'] },
+    'ikb_drawer': { category: 'Layout', description: 'Slide-in side panel.', attributes: ['title', 'position', 'width', 'class'] },
+    'ikb_alert': { category: 'Layout', description: 'Contextual alert/notification banner.', attributes: ['tone', 'dismissible', 'icon', 'title', 'class'] },
+    'ikb_spinner': { category: 'Layout', description: 'Loading spinner indicator.', attributes: ['size', 'color', 'label'] },
+    'ikb_text': { category: 'Content', description: 'Rich text content block. Supports HTML and inline DiSyL expressions.', attributes: ['content', 'tag', 'class'] },
+    'ikb_image': { category: 'Content', description: 'Image with responsive srcset and lazy loading.', attributes: ['src', 'alt', 'width', 'height', 'class', 'loading'] },
+    'ikb_icon': { category: 'Content', description: 'SVG icon from the icon library.', attributes: ['name', 'size', 'color', 'class'] },
+    'ikb_link': { category: 'Content', description: 'Hyperlink with optional external icon.', attributes: ['href', 'label', 'target', 'class', 'external'] },
+    'ikb_report': { category: 'Report', description: 'Report container with header, body, and signature sections.', attributes: ['title', 'source', 'format', 'variant'] },
+    'ikb_signature_block': { category: 'Report', description: 'Signature lines by role for reports.', attributes: ['roles', 'label'] },
+    'ikb_ai_summary': { category: 'AI', description: 'Governed AI summarization block with review badge.', attributes: ['source', 'model', 'max_tokens', 'review_badge'] },
+    'ikb_ai_assist': { category: 'AI', description: 'Governed AI drafting block (draft_only/suggest/auto_publish modes).', attributes: ['mode', 'model', 'prompt', 'redaction'] },
 };
