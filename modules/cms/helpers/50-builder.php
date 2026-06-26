@@ -1493,8 +1493,20 @@ function cmsBuilderEditorBlocksToDocument(array $blocks, string $title = ''): ar
     ]);
 }
 
-function cmsPageBuilderEnabled(array $meta): bool
+/**
+ * Check if builder is enabled for a content item.
+ *
+ * Prefers content_mode from the content row (source of truth).
+ * Falls back to _builder_enabled meta for legacy data.
+ */
+function cmsPageBuilderEnabled(array $meta, ?array $contentRow = null): bool
 {
+    // content_mode is the canonical source of truth
+    if ($contentRow !== null && isset($contentRow['content_mode'])) {
+        return $contentRow['content_mode'] === 'builder';
+    }
+
+    // Fallback: legacy _builder_enabled meta key
     $raw = $meta['_builder_enabled'] ?? null;
     if (is_bool($raw)) {
         return $raw;
@@ -1503,8 +1515,26 @@ function cmsPageBuilderEnabled(array $meta): bool
     return in_array($value, ['1', 'true', 'yes', 'on'], true);
 }
 
-function cmsPageBuilderSettings(array $meta): array
+/**
+ * Get builder page settings (global styles, layout config).
+ *
+ * Prefers settings from the published builder document (source of truth).
+ * Falls back to _builder_page_settings meta for legacy data.
+ */
+function cmsPageBuilderSettings(array $meta, ?array $contentRow = null): array
 {
+    // Prefer settings from the published builder document
+    if ($contentRow !== null && !empty($contentRow['id'])) {
+        $doc = cmsBuilderLoadDocumentRow((int)$contentRow['id'], 'published');
+        if ($doc && !empty($doc['document_json'])) {
+            $parsed = json_decode((string)$doc['document_json'], true);
+            if (is_array($parsed) && isset($parsed['page_settings']) && is_array($parsed['page_settings'])) {
+                return $parsed['page_settings'];
+            }
+        }
+    }
+
+    // Fallback: legacy _builder_page_settings meta key
     $raw = $meta['_builder_page_settings'] ?? null;
     if (!is_string($raw) || trim($raw) === '') {
         return [];

@@ -61,12 +61,12 @@ function cmsApiBuilderDocumentGet(array $params = []): void
                 'type' => (string)($content['type'] ?? ''),
                 'status' => (string)($content['status'] ?? 'draft'),
                 'content_mode' => (string)($content['content_mode'] ?? 'standard'),
-                'builder_enabled' => cmsPageBuilderEnabled($meta),
+                'builder_enabled' => cmsPageBuilderEnabled($meta, $content),
             ],
             'document' => $documentHasContent ? $documentNode : null,
             'document_id' => (int)($draftRow['id'] ?? 0),
             'source' => $draftRow ? 'builder_document' : 'react_default',
-            'global_styles' => cmsPageBuilderSettings($meta),
+            'global_styles' => cmsPageBuilderSettings($meta, $content),
             'seo_settings' => $seoSettings !== '' ? $seoSettings : null,
         ],
     ]);
@@ -287,6 +287,15 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
     }
 
     $document = cmsBuilderNormalizeDocument((string)$draft['document_json']);
+
+    // Publish-time validation — re-validate before promoting draft to published
+    $validationErrors = cmsBuilderValidateDocument($document);
+    if ($validationErrors !== []) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Document validation failed', 'errors' => $validationErrors]);
+        exit;
+    }
+
     $actorId = (int)($user['id'] ?? 0);
     $title = trim((string)($content['title'] ?? $draft['title'] ?? 'Untitled Page'));
     $meta = cmsLoadContentMeta(cmsDb(), $id);
@@ -295,6 +304,10 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
 
     try {
         $db = cmsDb();
+
+        // Wrap document + meta writes in a transaction to prevent dual-write desync
+        $db->beginTransaction();
+
         $publishedId = cmsBuilderPersistDocument($id, $document, 'published', $title, $actorId);
         cmsBuilderCreateRevision($publishedId, $document, $actorId, 'Published');
 
@@ -312,6 +325,8 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
             '_builder_page_settings' => $builderSettingsJson,
         ]);
 
+        $db->commit();
+
         $content['builder_document_id'] = $publishedId;
         $content['content_mode'] = 'builder';
         $content['status'] = 'published';
@@ -328,6 +343,7 @@ function cmsApiBuilderDocumentPublish(array $params = []): void
         echo json_encode(['ok' => true, 'data' => ['document_id' => $publishedId, 'content_id' => $id, 'status' => 'published']]);
         exit;
     } catch (Throwable $e) {
+        $db->rollBack();
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Failed to publish builder document']);
         exit;

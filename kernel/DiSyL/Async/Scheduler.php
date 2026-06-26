@@ -7,12 +7,12 @@ namespace Ikabud\Kernel\DiSyL\Async;
 /**
  * DiSyL 4.5 async scheduler — synchronous default backend.
  *
- * Public API is the surface that {parallel}/{await} consume. The 4.5.0
- * implementation drives Promises synchronously; results return in source
- * order regardless of resolution order so determinism is preserved.
+ * Public API is the surface that {parallel}/{await} consume. Results
+ * return in source order for template determinism.
  *
- * 4.5.1 will swap the internal driver for a Fibers-based scheduler with
- * multi-curl I/O multiplexing — the public surface here will not change.
+ * HttpClient provides multi-curl multiplexing for concurrent HTTP I/O.
+ * The Scheduler remains synchronous — proven and sufficient for
+ * current workloads.
  */
 final class Scheduler
 {
@@ -61,7 +61,6 @@ final class Scheduler
                     static function (\Throwable $e) use (&$resolved, &$err): void { $resolved = true; $err = $e; },
                 );
                 if (!$resolved) {
-                    // Sync backend cannot drive pending promises; treat as timeout.
                     $out[$i] = ['error' => new \RuntimeException('DISYL_AWAIT_TIMEOUT: pending promise without driver')];
                 } elseif ($err !== null) {
                     $out[$i] = ['error' => $err];

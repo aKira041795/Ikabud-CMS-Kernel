@@ -82,7 +82,7 @@ function cmsApiContentDuplicate(array $params = []): void
     $newId = (int)$db->lastInsertId();
 
     // Copy meta (skip builder-specific keys so clone starts clean)
-    $skipMetaKeys = ['_page_builder_enabled', '_builder_document_id', '_edit_lock'];
+        $skipMetaKeys = ['_page_builder_enabled', '_builder_document_id', '_builder_page_settings', '_builder_seo_settings', '_edit_lock'];
     $metaStmt = $db->prepare("SELECT meta_key, meta_value FROM cms_content_meta WHERE content_id = :cid");
     $metaStmt->execute([':cid' => $id]);
     $ins2 = $db->prepare(
