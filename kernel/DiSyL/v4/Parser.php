@@ -543,7 +543,7 @@ final class Parser
 
         // Parse "name(param1, param2 = default)"
         if (!preg_match('/^(\w+)\s*\((.*)\)\s*$/s', $inner, $m)) {
-            return $this->makeTextFallback('{' . $tag . '}');
+            throw new \RuntimeException("Invalid {macro} syntax in '{$inner}'");
         }
         $name = $m[1];
         $paramsRaw = $m[2];
@@ -600,7 +600,7 @@ final class Parser
                     null, null
                 );
             }
-            return $this->makeTextFallback('{' . $tag . '}');
+            throw new \RuntimeException("Invalid {call} syntax in '{$inner}'");
         }
         $name = $m[1];
         $argsRaw = $m[2];
@@ -697,7 +697,7 @@ final class Parser
 
         // Parse "item in iterable"
         if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', $expr, $m)) {
-            return $this->makeTextFallback('{' . $tag . '}');
+            throw new \RuntimeException("Invalid {for} syntax: expected 'item in list' or 'init; condition; increment', got '{$expr}'");
         }
         $itemName = $m[1];
         $iterable = trim($m[2]);
@@ -739,7 +739,7 @@ final class Parser
             $iterable = trim($m[1]);
             $itemName = $m[2];
         } else {
-            return $this->makeTextFallback('{' . $tag . '}');
+            throw new \RuntimeException("Invalid {foreach} syntax: expected 'list as value' or 'list as key => value', got '{$expr}'");
         }
 
         $body = $this->parseChildren(['{/foreach}', '{empty}']);
@@ -778,7 +778,7 @@ final class Parser
             $iterable = trim($m[1]);
             $itemName = $m[2];
         } else {
-            return $this->makeTextFallback('{' . $tag . '}');
+            throw new \RuntimeException("Invalid {each} syntax: expected 'list as value' or 'list as key => value', got '{$expr}'");
         }
 
         $body = $this->parseChildren(['{/each}', '{empty}']);
@@ -822,7 +822,7 @@ final class Parser
         }
 
         if ($eqPos === false) {
-            return $this->makeTextFallback('{' . $tag . '}');
+            throw new \RuntimeException("Invalid {set} syntax: missing '=' in '{$inner}'");
         }
 
         $namePart = trim(substr($inner, 0, $eqPos));
