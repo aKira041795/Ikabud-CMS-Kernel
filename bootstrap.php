@@ -1668,15 +1668,25 @@ set_exception_handler(function (Throwable $e): void {
 });
 
 spl_autoload_register(static function (string $class): void {
+    // Kernel namespace
     $kernelPrefix = 'Ikabud\\Kernel\\';
-    if (strncmp($class, $kernelPrefix, strlen($kernelPrefix)) !== 0) {
+    if (strncmp($class, $kernelPrefix, strlen($kernelPrefix)) === 0) {
+        $relative = substr($class, strlen($kernelPrefix));
+        $path = KERNEL_PATH . '/' . str_replace('\\', '/', $relative) . '.php';
+        if (file_exists($path)) {
+            require_once $path;
+        }
         return;
     }
 
-    $relative = substr($class, strlen($kernelPrefix));
-    $path = KERNEL_PATH . '/' . str_replace('\\', '/', $relative) . '.php';
-    if (file_exists($path)) {
-        require_once $path;
+    // CMS module namespace
+    $cmsPrefix = 'Ikabud\\Cms\\';
+    if (strncmp($class, $cmsPrefix, strlen($cmsPrefix)) === 0) {
+        $relative = substr($class, strlen($cmsPrefix));
+        $path = BASE_PATH . '/modules/cms/' . str_replace('\\', '/', $relative) . '.php';
+        if (file_exists($path)) {
+            require_once $path;
+        }
     }
 });
 

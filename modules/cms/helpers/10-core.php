@@ -4,107 +4,69 @@ declare(strict_types=1);
 
 function cmsNormalizeRole(string $role): string
 {
-    $role = trim($role);
-    return $role === 'superadmin' ? 'administrator' : $role;
+    return \Ikabud\Cms\Cms::normalizeRole($role);
 }
 
 function cmsNormalizeUserContext(?array $user): ?array
 {
-    if (!is_array($user)) {
-        return $user;
-    }
-
-    if ((string)($user['source'] ?? '') !== 'cms') {
-        return $user;
-    }
-
-    $role = trim((string)($user['role'] ?? ''));
-    $normalizedRole = cmsNormalizeRole($role);
-    if ($normalizedRole === $role) {
-        return $user;
-    }
-
-    $user['legacy_role'] = $role;
-    $user['role'] = $normalizedRole;
-    return $user;
+    return \Ikabud\Cms\Cms::normalizeUser($user);
 }
 
 function cmsRoleAtLeast(string $role, string $minimum): bool
 {
-    $roleLevel = CMS_ROLES[cmsNormalizeRole($role)] ?? 0;
-    $minLevel  = CMS_ROLES[cmsNormalizeRole($minimum)] ?? 999;
-    return $roleLevel >= $minLevel;
+    return \Ikabud\Cms\Cms::roleAtLeast($role, $minimum);
 }
 
 function cmsIsLearnerRole(string $role): bool
 {
-    $role = trim($role);
-    return $role === 'subscriber' || $role === 'customer';
+    return \Ikabud\Cms\Cms::isLearnerRole($role);
 }
 
 function cmsDb(): \Ikabud\Kernel\Contracts\ModuleDB
 {
-    $ctx = module('cms');
-    if (!$ctx) {
-        throw new \RuntimeException('Module context unavailable');
-    }
-
-    return $ctx->db();
+    return \Ikabud\Cms\Cms::db();
 }
 
 function cmsCtx(): \Ikabud\Kernel\Contracts\ModuleContext
 {
-    $ctx = module('cms');
-    if (!$ctx) {
-        throw new \RuntimeException('Module context unavailable');
-    }
-
-    return $ctx;
+    return \Ikabud\Cms\Cms::ctx();
 }
 
 function cmsCtxUser(): ?array
 {
-    return cmsNormalizeUserContext(cmsCtx()->user());
+    return \Ikabud\Cms\Cms::ctxUser();
 }
 
 function cmsInput(?string $key = null, mixed $default = null): mixed
 {
-    return cmsCtx()->input($key, $default);
+    return \Ikabud\Cms\Cms::input($key, $default);
 }
 
 function cmsRender(string $template, array $context = []): string
 {
-    return cmsCtx()->render($template, $context);
+    return \Ikabud\Cms\Cms::render($template, $context);
 }
 
 function cmsRedirect(string $url, int $status = 302): void
 {
-    cmsCtx()->redirect($url, $status);
+    \Ikabud\Cms\Cms::redirect($url, $status);
 }
 
 function cmsIsHtmx(): bool
 {
-    return cmsCtx()->isHtmx();
+    return \Ikabud\Cms\Cms::isHtmx();
 }
 
 function cmsHtmxResponse(array $headers = []): void
 {
-    cmsCtx()->htmxResponse($headers);
+    \Ikabud\Cms\Cms::htmxResponse($headers);
 }
 
 // ── CMS SEO Helpers ─────────────────────────────────────────────────
 
 function cmsUser(): ?array
 {
-    $user = cmsCtxUser();
-    if (!$user) {
-        return null;
-    }
-    // CMS users have source=cms in their JWT payload
-    if (($user['source'] ?? '') !== 'cms') {
-        return null;
-    }
-    return $user;
+    return \Ikabud\Cms\Cms::user();
 }
 
 /**
@@ -116,14 +78,14 @@ function cmsRequireRole(string $minimum = 'subscriber'): array
 {
     $requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
     $isApiRoute = str_starts_with($requestUri, '/api/');
-    $user = cmsCtxUser();
+    $user = \Ikabud\Cms\Cms::ctxUser();
     if (!$user) {
         if ($isApiRoute) {
             http_response_code(401);
             header('Content-Type: application/json');
             echo json_encode(['ok' => false, 'error' => 'Auth required']);
         } else {
-            cmsRedirect('/cms/login');
+            \Ikabud\Cms\Cms::redirect('/cms/login');
         }
         exit;
     }
@@ -143,18 +105,18 @@ function cmsRequireRole(string $minimum = 'subscriber'): array
             header('Content-Type: application/json');
             echo json_encode(['ok' => false, 'error' => 'Access denied']);
         } else {
-            echo cmsRender('pages/404.disyl', ['page_title' => 'Access Denied']);
+            echo \Ikabud\Cms\Cms::render('pages/404.disyl', ['page_title' => 'Access Denied']);
         }
         exit;
     }
 
-    if (!cmsRoleAtLeast($role, $minimum)) {
+    if (!\Ikabud\Cms\Cms::roleAtLeast($role, $minimum)) {
         http_response_code(403);
         if ($isApiRoute) {
             header('Content-Type: application/json');
             echo json_encode(['ok' => false, 'error' => 'Access denied']);
         } else {
-            echo cmsRender('pages/404.disyl', ['page_title' => 'Access Denied']);
+            echo \Ikabud\Cms\Cms::render('pages/404.disyl', ['page_title' => 'Access Denied']);
         }
         exit;
     }
