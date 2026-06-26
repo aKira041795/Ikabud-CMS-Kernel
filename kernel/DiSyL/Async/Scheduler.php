@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace Ikabud\Kernel\DiSyL\Async;
 
 /**
- * DiSyL 4.5 async scheduler — synchronous default backend.
+ * DiSyL 4.5.1 async scheduler — Fibers-based concurrency backend.
  *
- * Public API is the surface that {parallel}/{await} consume. Results
- * return in source order for template determinism.
+ * Drives Promise resolution using PHP 8.1+ Fibers for cooperative
+ * multitasking. Multi-curl I/O is ticked between fiber resumptions
+ * via HttpClient::tick(). Results always return in source order.
  *
- * HttpClient provides multi-curl multiplexing for concurrent HTTP I/O.
- * The Scheduler remains synchronous — proven and sufficient for
- * current workloads.
+ * The public API is unchanged from 4.5.0 (add/run).
  */
 final class Scheduler
 {
@@ -31,10 +30,11 @@ final class Scheduler
     }
 
     /**
-     * Run all registered tasks. Returns ordered results: each entry is
-     * either ['value' => mixed] or ['error' => Throwable].
+     * Run all registered tasks using PHP Fibers for concurrency.
      *
-     * Cap on concurrent tasks per render = 64 (4.5 acceptance criterion).
+     * Each task runs in its own Fiber. Fibers that return a resolved
+     * Promise complete immediately; fibers with pending Promises suspend
+     * and are resumed after multi-curl I/O ticks.
      *
      * @return array<int, array{value?: mixed, error?: \Throwable}>
      */
@@ -47,31 +47,132 @@ final class Scheduler
                 $maxConcurrent,
             ));
         }
+
         $out = [];
+        $fibers = [];
+
+        // Step 1: Create and start all fibers
         foreach ($this->tasks as $i => $factory) {
             try {
                 $promise = $factory();
+
                 if (!($promise instanceof Promise)) {
                     $out[$i] = ['value' => $promise];
                     continue;
                 }
-                $resolved = false; $value = null; $err = null;
-                $promise->then(
-                    static function ($v) use (&$resolved, &$value): void { $resolved = true; $value = $v; },
-                    static function (\Throwable $e) use (&$resolved, &$err): void { $resolved = true; $err = $e; },
-                );
-                if (!$resolved) {
-                    $out[$i] = ['error' => new \RuntimeException('DISYL_AWAIT_TIMEOUT: pending promise without driver')];
-                } elseif ($err !== null) {
-                    $out[$i] = ['error' => $err];
-                } else {
-                    $out[$i] = ['value' => $value];
+
+                // For already-settled Promises, resolve synchronously
+                if ($promise->isFulfilled()) {
+                    try {
+                        $out[$i] = ['value' => $promise->wait()];
+                    } catch (\Throwable $e) {
+                        $out[$i] = ['error' => $e];
+                    }
+                    continue;
+                }
+
+                if ($promise->isRejected()) {
+                    try {
+                        $promise->wait();
+                    } catch (\Throwable $e) {
+                        $out[$i] = ['error' => $e];
+                    }
+                    continue;
+                }
+
+                // Pending Promise — wrap in a Fiber that suspends
+                $fiber = new \Fiber(function () use ($promise) {
+                    $resolved = false;
+                    $result = null;
+                    $error = null;
+
+                    $promise->then(
+                        function ($v) use (&$resolved, &$result) { $resolved = true; $result = $v; },
+                        function (\Throwable $e) use (&$resolved, &$error) { $resolved = true; $error = $e; },
+                    );
+
+                    if ($resolved) {
+                        if ($error !== null) throw $error;
+                        return $result;
+                    }
+
+                    // Suspend — the scheduler loop will tick I/O and resume
+                    \Fiber::suspend();
+
+                    // Check again after resume
+                    $promise->then(
+                        function ($v) use (&$resolved, &$result) { $resolved = true; $result = $v; },
+                        function (\Throwable $e) use (&$resolved, &$error) { $resolved = true; $error = $e; },
+                    );
+
+                    if (!$resolved) {
+                        throw new \RuntimeException('DISYL_AWAIT_TIMEOUT');
+                    }
+                    if ($error !== null) throw $error;
+                    return $result;
+                });
+
+                $fiber->start();
+                $fibers[$i] = $fiber;
+
+                if ($fiber->isTerminated()) {
+                    try {
+                        $out[$i] = ['value' => $fiber->getReturn()];
+                    } catch (\Throwable $e) {
+                        $out[$i] = ['error' => $e];
+                    }
+                    unset($fibers[$i]);
                 }
             } catch (\Throwable $e) {
                 $out[$i] = ['error' => $e];
             }
         }
+
+        // Step 2: Round-robin resume pending fibers, ticking I/O
+        $maxIterations = 10000;
+        $iteration = 0;
+
+        while (!empty($fibers) && $iteration < $maxIterations) {
+            $iteration++;
+            $anyProgress = false;
+
+            HttpClient::tick();
+
+            foreach ($fibers as $i => $fiber) {
+                if (!$fiber->isSuspended()) continue;
+
+                try {
+                    $fiber->resume();
+                    $anyProgress = true;
+
+                    if ($fiber->isTerminated()) {
+                        try {
+                            $out[$i] = ['value' => $fiber->getReturn()];
+                        } catch (\Throwable $e) {
+                            $out[$i] = ['error' => $e];
+                        }
+                        unset($fibers[$i]);
+                    }
+                } catch (\Throwable $e) {
+                    $out[$i] = ['error' => $e];
+                    unset($fibers[$i]);
+                    $anyProgress = true;
+                }
+            }
+
+            if (!$anyProgress && !empty($fibers)) {
+                HttpClient::tick();
+                usleep(1000); // 1ms — prevent busy-wait
+            }
+        }
+
+        // Remaining fibers = timeout
+        foreach ($fibers as $i => $fiber) {
+            $out[$i] = ['error' => new \RuntimeException('DISYL_AWAIT_TIMEOUT')];
+        }
+
         $this->tasks = [];
+        ksort($out); // preserve source order
         return $out;
     }
 
