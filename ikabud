@@ -320,6 +320,7 @@ switch ($command) {
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
         out('    ' . green('entity:list') . '               List all entity sources with schema');
         out('    ' . green('entity:context') . ' <source>    Show resolved context for a source');
+        out('    ' . green('entity:describe') . ' <source>   Full entity description with views, caps, callers');
         out('');
         out('  ' . bold('API'));
         out('    ' . green('openapi:generate') . '            Generate OpenAPI 3.0 spec from routes');
@@ -5172,4 +5173,125 @@ PHP;
         }
         out('');
         exit(0);
-}
+
+    // ── entity:describe ──────────────────────────────────────────────
+    case 'entity:describe':
+        banner();
+        $sourceId = $params[0] ?? '';
+        if ($sourceId === '') {
+            out(red('  Usage: php ikabud entity:describe <source_id>'));
+            out('  Example: php ikabud entity:describe pal.expense');
+            exit(1);
+        }
+
+        require_once __DIR__ . '/bootstrap.php';
+        if (function_exists('app') && ($app = app()) !== null) {
+            $app->boot();
+        }
+        if (function_exists('loadModuleRoutes')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
+        }
+
+        // 1. Entity source definition
+        out('  ' . bold('Entity: ') . green($sourceId));
+        out('');
+        if (method_exists($app ?? null, 'entitySources')) {
+            $def = $app->entitySources()->get($sourceId);
+            if ($def !== null) {
+                out('  ' . dim('Source definition'));
+                out('    Entity Type:   ' . ($def['entity_type'] ?? '—'));
+                out('    List Cap:      ' . ($def['list_capability'] ?? '—'));
+                out('    Detail Cap:    ' . ($def['detail_capability'] ?? '—'));
+                out('    Timeout:       ' . ($def['timeout_ms'] ?? 10000) . 'ms');
+                out('    Max Limit:     ' . ($def['max_limit'] ?? 100));
+                if (!empty($def['filters'])) {
+                    out('    Filters:');
+                    foreach ($def['filters'] as $name => $rule) {
+                        $type = $rule['type'] ?? 'string';
+                        $vals = !empty($rule['values']) ? ' [' . implode(', ', $rule['values']) . ']' : '';
+                        out('      └─ ' . $name . ': ' . $type . $vals);
+                    }
+                }
+                if (!empty($def['sort'])) {
+                    out('    Sortable: ' . implode(', ', (array)$def['sort']));
+                }
+            } else {
+                out('  ' . yellow('Not registered in EntitySourceRegistry'));
+            }
+        }
+
+        // 2. View contracts
+        out('');
+        out('  ' . dim('View contracts'));
+        if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
+            $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
+            $found = false;
+            foreach (['table', 'compact', 'card_grid', 'detailed', 'summary'] as $view) {
+                $contract = $resolver->viewContract($sourceId, $view);
+                if ($contract !== null) {
+                    if (!$found) { $found = true; }
+                    $fields = $contract['fields'] ?? [];
+                    $fieldStr = is_array($fields) ? implode(', ', $fields) : (string)$fields;
+                    $roleFields = '';
+                    if (!empty($contract['role_fields'])) {
+                        $rf = [];
+                        foreach ((array)$contract['role_fields'] as $role => $fld) {
+                            $rf[] = "$role=$fld";
+                        }
+                        $roleFields = ' [' . implode(', ', $rf) . ']';
+                    }
+                    out('    ' . bold($view) . ': ' . $fieldStr . dim($roleFields));
+                }
+            }
+            if (!$found) {
+                out('    ' . dim('none registered'));
+            }
+        }
+
+        // 3. Capabilities used by this entity
+        out('');
+        out('  ' . dim('Capabilities'));
+        $mods = discoverModules();
+        $mods = function_exists('getEnabledModules') ? getEnabledModules() : $mods;
+        $found = false;
+        foreach ($mods as $mid => $manifest) {
+            $caps = (array)($manifest['capabilities'] ?? []);
+            $exposes = (array)($caps['exposes'] ?? []);
+            foreach ($exposes as $cap) {
+                $cid = is_string($cap) ? $cap : ($cap['id'] ?? '');
+                if ($cid !== '' && (str_contains($cid, $sourceId) || str_contains($cid, explode('.', $sourceId)[0] ?? ''))) {
+                    $mode = is_array($cap) ? ($cap['mode'] ?? 'first') : 'first';
+                    out('    ' . green('→') . ' ' . cyan($cid) . dim(" ({$mode})") . ' — ' . cyan($mid));
+                    $found = true;
+                }
+            }
+        }
+        if (!$found) {
+            out('    ' . dim('none found'));
+        }
+
+        // 4. Template usage across modules
+        out('');
+        out('  ' . dim('Template usage'));
+        $tmplDir = defined('TEMPLATES_PATH') ? TEMPLATES_PATH : (BASE_PATH . '/templates');
+        $usage = [];
+        $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmplDir, FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $fi) {
+            if (!$fi->isFile() || $fi->getExtension() !== 'disyl') continue;
+            $content = @file_get_contents((string)$fi->getRealPath());
+            if (is_string($content) && str_contains($content, $sourceId)) {
+                $rel = str_replace(BASE_PATH . '/', '', (string)$fi->getRealPath());
+                $usage[] = $rel;
+            }
+        }
+        if (!empty($usage)) {
+            foreach ($usage as $u) {
+                out('    ' . dim($u));
+            }
+        } else {
+            out('    ' . dim('no templates reference this source'));
+        }
+
+        out('');
+        exit(0);
+    }
