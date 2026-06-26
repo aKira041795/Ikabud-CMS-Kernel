@@ -4,6 +4,8 @@
 
 Syntax highlighting, hover documentation, go-to-definition, close-tag completion, diagnostics, and autocomplete for `.disyl` template files.
 
+> **Note:** This extension uses native VS Code extension providers (not the Language Server Protocol). The features are identical to what an LSP-based extension would provide, but the implementation is direct through the VS Code extension API.
+
 ## Features
 
 ### Syntax Highlighting

@@ -9,7 +9,8 @@
 - CLI tools reference (architecture enforcement, scaffolding, diagnostics): [docs/kernel/cli-tools-reference.md](../docs/kernel/cli-tools-reference.md)
 - Workflow system (state machine + multi-step engine): [docs/kernel/workflow-system.md](../docs/kernel/workflow-system.md)
 - DiSyL async Fibers scheduler: [docs/kernel/disyl-async-fibers-scheduler.md](../docs/kernel/disyl-async-fibers-scheduler.md)
-- DiSyL LSP VS Code extension: [extensions/disyl-lsp/README.md](../extensions/disyl-lsp/README.md)
+- DiSyL VS Code Extension: [extensions/disyl-lsp/README.md](../extensions/disyl-lsp/README.md)
+- Script block interpolation safety: [docs/kernel/script-block-interpolation.md](../docs/kernel/script-block-interpolation.md)
 - Latest release notes: [docs/releases/release-notes-2026-06-26-kernel-6.1-intercoherence.md](../docs/releases/release-notes-2026-06-26-kernel-6.1-intercoherence.md)
 - CMS is the main feature module under [modules/cms](../modules/cms):
   - route map in [modules/cms/routes.php](../modules/cms/routes.php)

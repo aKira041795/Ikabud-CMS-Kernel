@@ -5,8 +5,12 @@
 > **Updated:** June 26, 2026
 
 The DiSyL async system provides **Fiber-based cooperative multitasking** for
-concurrent template rendering. Multiple `fetch()` calls inside `{await}` blocks
+concurrent HTTP operations inside `{await}` blocks. Multiple `fetch()` calls
 run in parallel via PHP 8.1 Fibers and multi-curl I/O multiplexing.
+
+> **Scope:** Only scheduler-integrated HTTP `fetch()` calls are concurrent.
+> PDO queries, filesystem access, blocking PHP libraries, and arbitrary
+> capability handlers remain synchronous.
 
 ---
 

@@ -49,11 +49,13 @@ All 9 architect-recommended tools are now available via `php ikabud`:
 
 ---
 
-## 2. DiSyL Fibers Async Scheduler
+## 2. DiSyL Async Scheduler (Fibers)
 
 **Files:** `kernel/DiSyL/Async/Scheduler.php`, `kernel/DiSyL/Async/HttpClient.php`
 
 **Upgraded from:** v4.5.0 sync `foreach` → PHP 8.1+ Fibers-based cooperative multitasking.
+
+> **Scope:** HTTP `fetch()` calls only. PDO queries, filesystem access, blocking PHP libraries, and arbitrary capability handlers remain synchronous. The scheduler multiplexes only scheduler-integrated I/O.
 
 ### Architecture
 
@@ -201,11 +203,11 @@ tests/workflow_engine_test.php: 32 PASS, 0 FAIL
 
 ---
 
-## 5. DiSyL LSP — VS Code Extension Features
+## 5. DiSyL VS Code Extension
 
 **File:** `extensions/disyl-lsp/src/extension.ts` (561 lines)
 
-Three new language server features that make DiSyL development feel like a
+Three new extension features that make DiSyL development feel more like a
 first-class language:
 
 ### Hover Provider
@@ -279,7 +281,7 @@ Plus: Content duplication skips `_builder_page_settings` and `_builder_seo_setti
 | Component | From | To |
 |---|---|---|
 | DiSyL Async Scheduler | 4.5.0 | **4.5.1** (Fibers) |
-| DiSyL LSP Extension | — | **1.0.0** (hover, go-to-def, close-tag) |
+| DiSyL VS Code Extension | — | **1.0.0** (hover, go-to-def, close-tag) |
 | Kernel CLI | 6.1.0 | **6.1.0** (13 new tools) |
 | WorkflowEngine | — | **1.0.0** (new subsystem) |
 | Report Approval | — | **1.0.0** (new feature) |
@@ -304,7 +306,7 @@ Plus: Content duplication skips `_builder_page_settings` and `_builder_seo_setti
 >
 > Yes — WorkflowEngine with 32 lifecycle tests
 
-> **"Can I navigate DiSyL templates with IDE-grade features?"**
+> **"Can I navigate DiSyL templates with IDE-assisted features?"**
 >
 > Yes — Hover docs, go-to-definition for includes, close-tag completion
 

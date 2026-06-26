@@ -10,7 +10,7 @@
 
 Kernel OS 6.1 is a **tooled, coherent, observable, async-capable, IDE-supported
 business operating system**. All 9 architect-recommended CLI tools are live.
-DiSyL now supports PHP 8.1 Fibers for concurrent async rendering. A multi-step
+The DiSyL runtime can resolve independent asynchronous HTTP operations concurrently through a Fiber-based scheduler and multi-curl transport. A multi-step
 WorkflowEngine orchestrates business processes with event-triggered auto-start.
 The DiSyL LSP extension brings IDE features (hover, go-to-def, close-tag) to
 VS Code. Builder hardening closes 5 seams. Report approvals are end-to-end.
@@ -30,7 +30,7 @@ VS Code. Builder hardening closes 5 seams. Report approvals are end-to-end.
 | HttpClient | `4.5.1` | `kernel/DiSyL/Async/HttpClient.php` |
 | WorkflowEngine | `1.0.0` | `kernel/WorkflowEngine.php` |
 | WorkflowRuntime | `1.0.0` | `kernel/WorkflowRuntime.php` |
-| DiSyL LSP | `1.0.0` | `extensions/disyl-lsp/src/extension.ts` |
+| DiSyL VS Code Extension | `1.0.0` | `extensions/disyl-lsp/src/extension.ts` |
 | CLI tools (9 new) | `6.1.0` | `ikabud` |
 | Parser (v4) | `4.7.0` | `kernel/DiSyL/v4/Parser.php` (per-block error recovery) |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
@@ -47,9 +47,9 @@ All April 2026 audit items resolved. Compiled mode is now the **default** (v4.7+
 **DiSyL 4.7 improvements (June 19, 2026):**
 - Compiled mode default (was opt-in `enableCompiledMode()`)
 - Per-block parser error recovery (`recoverableParse()` wrapper on all 9 control structures)
-- TemplateEngine split: `DefaultEntityRenderer` extracted (compostable services replacing trait)
+- TemplateEngine split: `DefaultEntityRenderer` extracted (composable services replacing the trait)
 - `EntityRenderingTrait` fully removed in 6.1.0 — rendering via `DefaultEntityRenderer` + `CellRendererRegistry`
-- Grammar v11 dead code removed → archived to `docs/kernel/disyl-grammar-v11-planned-types.md`
+- Grammar v11 ([archived plan](disyl-grammar-v11-planned-types.md)) — dead code removed, not an active roadmap target
 - Grammar.php: 199 → 135 lines (-64)
 
 See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-evaluation-2026-04-15.md)
@@ -58,7 +58,7 @@ See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-eva
 
 ## Phase 2 — Shared Component Registry ✅
 
-31 governed DiSyL components built and registered with full attribute schemas:
+32 governed DiSyL components built and registered with full attribute schemas:
 
 | Category | Components |
 |---|---|
@@ -162,6 +162,7 @@ pipeline: DB → capability bus → entity resolver → DiSyL rendering.
 | Permission role preview — toggle admin/editor/author/subscriber/guest | ✅ |
 | Empty/error/loading state preview toggles | ✅ |
 | Export button format config — CSV/DOCX/PDF, variant, size | ✅ |
+| Report approval workflow integration | ✅ |
 | AI block config — mode (draft_only/suggest/auto_publish), review badge, redaction | ✅ |
 | Save contract patterns for reuse across pages | ✅ |
 | Theme token guidance → Global Styles panel | ✅ |
@@ -241,7 +242,10 @@ See: [Polyglot Service Developer Guide](polyglot-service-guide.md)
 | Example modules: hello-world (PHP), random-facts (Python), weather-service (Python) | ✅ |
 | Developer SDK: Polyglot Service Guide, Module Development Guide, Quickstart | ✅ |
 | Compatibility matrix via certification checks | ✅ |
-| Marketplace UI | 🔴 Deferred |
+| Marketplace backend + certification | ✅ |
+| Public marketplace UI (catalog/browse/install UX) | 🔴 Deferred |
+
+> **Note:** The ecosystem backend is complete — module certification, catalog API, compatibility matrix, and developer SDK all ship. The public marketplace storefront experience remains deferred.
 
 ---
 
@@ -268,15 +272,16 @@ See: [Polyglot Service Developer Guide](polyglot-service-guide.md)
 
 ---
 
-## Template Adoption (POC)
-
-Production templates using new 5.0 components:
+## Production DiSyL Component Adoption
 
 | Template | Components |
 |---|---|
 | `templates/modules/cms/admin/dashboard.disyl` | `ikb_stat_card` (4×), `ikb_entity_list` |
 | `templates/modules/cms/admin/content-list.disyl` | `ikb_confirm_action`, `ikb_export_button` |
 | `templates/modules/guidance/pages/dashboard.disyl` | `ikb_panel`, `ikb_entity_list` |
+| PAL module (10 templates) | `ikb_entity_list`, `ikb_entity_detail`, `ikb_stat_card` |
+| Guidance case views | `ikb_entity_list`, `ikb_entity_detail` |
+| Report approval queue | `ikb_table`, `ikb_button`, `ikb_confirm_action` |
 
 ---
 
@@ -284,10 +289,10 @@ Production templates using new 5.0 components:
 
 | Item | Priority |
 |---|---|
-| Phase 9: Marketplace UI | 🔴 Deferred |
+| Phase 9: Public marketplace UI (catalog/browse/install UX) | 🔴 Deferred |
 | Remaining module certification fixes (20/41 pass) | 🟡 Mechanical |
 | Real AI provider in production | 🔴 Needs API keys |
-| Polyglot service health-check monitoring in superadmin | 🟡 Nice to have |
+| Service health active alerts / historical uptime | 🟡 Nice to have |
 | loadViewConfigs throws on parse errors with per-file diagnostics | ✅ |
 | validateViewContract() — duplicate fields, roles, URL placeholders | ✅ |
 | renderUnknownComponent levenshtein suggestion | ✅ |
@@ -391,7 +396,7 @@ ComponentRegistry
 | PDF support | ✅ |
 | Report template manager | ✅ |
 | Scheduled reports | ✅ |
-| Report approval workflows | 🟡 |
+| Report approval workflows | ✅ |
 | Signature block presets | ✅ |
 | Report archive | ✅ |
 | Export audit logs | ✅ |
@@ -424,7 +429,7 @@ ComponentRegistry
 
 | Priority | Status |
 |---|---|
-| Marketplace UI | 🔴 |
+| Marketplace backend complete; public storefront deferred | 🔴 |
 | Module certification dashboard | ✅ |
 | Module install/update flow | 🟡 |
 | Compatibility matrix | ✅ |
@@ -433,11 +438,10 @@ ComponentRegistry
 | Module scaffolding improvements | ✅ |
 | Example modules | ✅ |
 | Official docs site | ✅ |
-| DiSyL language server | ✅ |
-| VS Code extension | ✅ |
+| DiSyL VS Code Extension | ✅ |
 | Test harness for third-party modules | ✅ |
 
-**Answers:** \"Can other developers build safely on this platform?\" — **Yes, with scaffolding, examples, SDK, certification, and test harness.**
+**Answers:** "Can other developers build through governed scaffolding, certification, inspection, and test tools?" — **Yes. Full safety still depends on resolving current architecture violations and enforcing CI gates.**
 
 ---
 
@@ -496,7 +500,7 @@ ComponentRegistry
 | `migrations/010_report_approvals.sql` | ✅ |
 | `tests/report_approval_workflow_test.php`: 18/18 PASS | ✅ |
 
-### DiSyL LSP — VS Code Extension
+### DiSyL VS Code Extension
 
 | Feature | Status |
 |---|---|
@@ -535,11 +539,25 @@ ComponentRegistry
 
 6.1 gives every developer the ability to:
 - **Inspect** the full capability call chain from provider to consumer
-- **Trace** async template execution through Fibers and multi-curl
+- **Trace** async template execution (HTTP only; PDO/filesystem/blocking calls remain synchronous) through Fibers and multi-curl
 - **Validate** module boundaries automatically in CI
-- **Navigate** DiSyL templates with IDE-grade LSP features
+- **Navigate** DiSyL templates with IDE-assisted features (hover docs, go-to-definition, close-tag completion)
 - **Orchestrate** multi-step business workflows with event triggers
 - **Verify** environment health before deployment
 
 The platform is no longer just extensible — it is **instrumented**.
+
+---
+
+### Version Compatibility
+
+```
+Kernel OS 6.1
+├── DiSyL language/runtime 4.7
+├── DiSyL async API 4.5.1 (scheduler-integrated HTTP only)
+├── DiSyL manifest schema 1.x
+└── Service protocol 1.x
+```
+
+> **DiSyL v11** (referenced in older docs as `docs/kernel/disyl-grammar-v11-planned-types.md`) was an experimental grammar expansion that was never implemented. The dead code was removed in 4.7.0. The archived plan remains for reference only — there are no active plans to pursue v11.
 
