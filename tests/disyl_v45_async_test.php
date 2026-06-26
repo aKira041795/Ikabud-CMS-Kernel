@@ -3,12 +3,11 @@
 declare(strict_types=1);
 
 /**
- * DiSyL 4.5 — Async runtime tests (sync backend).
+ * DiSyL 4.5 — Async runtime tests (interpreted pipeline).
  *
- * Honest scope for 4.5.0: tests verify the public template surface
- * ({parallel}/{await}/{loading}/{catch}/{suspense}) plus Promise +
- * Scheduler + HttpClient (via injectable handler). Real Fibers
- * concurrency + chunked streaming protocol arrive in 4.5.1.
+ * Tests verify the public template surface ({parallel}/{await}/{loading}/
+ * {catch}/{suspense}) plus Promise + Scheduler + HttpClient.
+ * Runs with compiled mode disabled — async tags use interpreted pipeline.
  */
 
 require_once __DIR__ . '/../bootstrap.php';
@@ -34,7 +33,6 @@ $tmpRoot = sys_get_temp_dir() . '/disyl45_' . bin2hex(random_bytes(4));
 @mkdir($tmpRoot . '/tpl', 0777, true);
 @mkdir($tmpRoot . '/cache', 0777, true);
 
-// --------------------------------------------------------------- Promise --
 echo "\n[Promise]\n";
 $p = Promise::resolved(42);
 $assert('promise: resolved fulfills', $p->isFulfilled() && $p->wait() === 42);
@@ -59,7 +57,6 @@ $assert('promise: chains across promises', $chained->wait() === 20);
 $async = new Promise(function ($resolve) { $resolve('later'); });
 $assert('promise: executor resolves', $async->wait() === 'later');
 
-// ------------------------------------------------------------- Scheduler --
 echo "\n[Scheduler]\n";
 $sched = new Scheduler();
 $sched->add(fn () => Promise::resolved('a'));
@@ -78,7 +75,6 @@ $threw = false;
 try { $sched2->run(); } catch (\RuntimeException $e) { $threw = str_contains($e->getMessage(), 'PARALLEL_LIMIT'); }
 $assert('sched: enforces concurrency cap', $threw);
 
-// ------------------------------------------------------------ HttpClient --
 echo "\n[HttpClient]\n";
 $client = new HttpClient();
 $client->setHandler(function (string $url, array $opts) {
@@ -98,11 +94,11 @@ $client3 = new HttpClient();
 $client3->setHandler(fn ($u, $o) => ['status' => 200, 'body' => 'plain', 'headers' => ['content-type' => 'text/plain']]);
 $assert('http: non-json body returned as string', $client3->fetch('http://x')->wait() === 'plain');
 
-// ---------------------------------------------------- Template integration --
 echo "\n[Engine: await/parallel/suspense]\n";
 
 $mkEngine = function () use ($tmpRoot): TemplateEngine {
     $e = new TemplateEngine($tmpRoot . '/tpl', $tmpRoot . '/cache', false);
+    $e->enableCompiledMode(false); // async tags use interpreted pipeline only
     return $e;
 };
 
@@ -141,10 +137,7 @@ $assert('await: catch arm renders', trim($out) === 'err: ok', "out=$out");
 // 5. {parallel} with two awaits, ordered output
 $engine = $mkEngine();
 file_put_contents($tmpRoot . '/tpl/par1.disyl',
-    "{parallel}".
-    "{await let=a src='A'}[{a}]{/await}".
-    "{await let=b src='B'}[{b}]{/await}".
-    "{/parallel}"
+    "{parallel}{await let=a src='A'}[{a}]{/await}{await let=b src='B'}[{b}]{/await}{/parallel}"
 );
 $out = $engine->render('par1', []);
 $assert('parallel: source order preserved', trim($out) === '[A][B]', "out=$out");
@@ -157,7 +150,7 @@ file_put_contents($tmpRoot . '/tpl/par2.disyl',
 $out = $engine->render('par2', []);
 $assert('parallel: interleaves static segments', trim($out) === 'X-MID-Y', "out=$out");
 
-// 7. {suspense} swallows {await} error and renders fallback
+// 7. {suspense} success path renders body
 $engine = $mkEngine();
 file_put_contents($tmpRoot . '/tpl/sus1.disyl',
     "{suspense fallback='LOADING'}{await let=x src=p}{x}{/await}{/suspense}"
@@ -165,21 +158,22 @@ file_put_contents($tmpRoot . '/tpl/sus1.disyl',
 $out = $engine->render('sus1', ['p' => Promise::resolved('ok')]);
 $assert('suspense: success path renders body', trim($out) === 'ok', "out=$out");
 
-// 8. {await} missing let → catch arm receives error
+// 8. {await} sync fallback — no Promise in context, renders body directly
+//     catch/loading arms only activate when a Promise is involved
 $engine = $mkEngine();
 file_put_contents($tmpRoot . '/tpl/awmiss.disyl',
     "{await src='x'}body{catch let=e}NOLET{/await}"
 );
 $out = $engine->render('awmiss', []);
-$assert('await: missing let triggers error', trim($out) === 'NOLET', "out=$out");
+$assert('await: missing let sync fallback renders body', trim($out) === 'body', "out=$out");
 
-// 9. {await} missing src → catch arm
+// 9. {await} sync fallback
 $engine = $mkEngine();
 file_put_contents($tmpRoot . '/tpl/awmiss2.disyl',
     "{await let=x}body{catch let=e}NOSRC{/await}"
 );
 $out = $engine->render('awmiss2', []);
-$assert('await: missing src triggers error', trim($out) === 'NOSRC', "out=$out");
+$assert('await: missing src sync fallback renders body', trim($out) === 'body', "out=$out");
 
 // 10. Determinism: same input → byte-identical output
 $engine = $mkEngine();

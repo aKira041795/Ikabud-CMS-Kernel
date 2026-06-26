@@ -2940,12 +2940,36 @@ class TemplateEngine
     {
         $info = $this->parseAwaitArms($expr, $innerContent);
 
-        // v4.8: resolve the expression from context. If it's a Promise, await it.
-        // Otherwise render the body immediately (synchronous path).
-        $resolved = $this->resolveValue(trim($expr), $context);
+        // v4.8: resolve src from expression. If it's a Promise, await it.
+        // Literal strings like src='hello' are parsed by parseAttrPairs.
+        $attrs = $this->parseAttrPairs($expr, $context);
+        $hasSrc = array_key_exists('src', $attrs);
+        $src = $attrs['src'] ?? null;
 
-        // If resolved is a Promise, try to get its value
-        if ($resolved instanceof \Ikabud\Kernel\DiSyL\Async\Promise) {
+        // Resolve the source value
+        $resolved = null;
+        $isPromise = false;
+
+        if ($hasSrc) {
+            // parseAttrPairs already parsed the src value (strips quotes).
+            // If it's a Promise in context, use it; otherwise use value directly.
+            $resolved = $this->resolveValue($src, $context);
+            if ($resolved instanceof \Ikabud\Kernel\DiSyL\Async\Promise) {
+                $isPromise = true;
+            } elseif ($resolved === null && !array_key_exists($src, $context)) {
+                // Not a context variable — use the literal src value as-is
+                $resolved = $src;
+            }
+        } else {
+            // No explicit src — resolve the entire expression as a variable
+            $resolved = $this->resolveValue(trim($expr), $context);
+            if ($resolved instanceof \Ikabud\Kernel\DiSyL\Async\Promise) {
+                $isPromise = true;
+            }
+        }
+
+        // If resolved is a Promise, await it via the scheduler
+        if ($isPromise) {
             try {
                 require_once __DIR__ . '/Async/Scheduler.php';
                 $sched = new \Ikabud\Kernel\DiSyL\Async\Scheduler();
@@ -2958,16 +2982,13 @@ class TemplateEngine
             }
         }
 
-        // Synchronous path: render body (or {then} block) directly
+        // Synchronous path: render body with value bound
         $let = $info['let'] ?? $this->extractLetIdentifier($expr) ?: 'value';
-        if ($info['thenBody'] !== null) {
-            $childCtx = $context;
+        $childCtx = $context;
+        if ($resolved !== null) {
             $childCtx[$let] = $resolved;
-            return $this->compile($info['thenBody'], $childCtx);
         }
-
-        // No then block: render body with value bound
-        return $this->compile($info['body'], $context);
+        return $this->compile($info['body'], $childCtx);
     }
 
     /**
