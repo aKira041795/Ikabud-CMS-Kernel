@@ -813,8 +813,7 @@ class TemplateEngine
             $content = $this->processBlocks($content, $context);
         }
         
-        // 4b. Extract <script> blocks as raw passthrough — no DiSyL evaluation
-        //     inside script bodies. Variables in tag attributes still resolve.
+        // 4b. Extract <script> blocks — process DiSyL variables inside script bodies
         $scripts = [];
         if (stripos($content, '<script') !== false) {
             $t = microtime(true);
@@ -824,6 +823,10 @@ class TemplateEngine
                 
                 // Resolve DiSyL variables in tag attributes only (e.g. src="{base_url}/...")
                 $attrs = $this->processVariables($attrs, $context);
+                
+                // Resolve DiSyL variables inside script body — protects JS curly braces
+                // from being mistaken for DiSyL tags, then resolves {variable} references.
+                $body = $this->compileScriptBody($body, $context);
                 
                 $key = '___SCRIPT_' . count($scripts) . '___';
                 $scripts[$key] = '<script' . $attrs . '>' . $body . '</script>';
