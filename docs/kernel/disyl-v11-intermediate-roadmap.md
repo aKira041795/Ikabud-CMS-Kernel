@@ -1,8 +1,14 @@
-# DiSyL v11 — Intermediate Roadmap
+# DiSyL v11 — Intermediate Roadmap (Archived)
 
-> **Goal:** Narrow the gap between current DiSyL (v6.0) and the v11 vision (type operators, Islands, reactive, Fibers) through incremental, high-impact intermediate steps.
+> **Status: ARCHIVED.** This roadmap described a versioning scheme (v7–v11) that was never adopted. Current stable is **DiSyL 4.7** (Kernel OS 6.1). The v11 planned types were archived to `docs/kernel/disyl-grammar-v11-planned-types.md` and dead code was removed in DiSyL 4.7.0.
 >
-> **Status:** Intermediate roadmap implementation complete. Active hardening + guidance module POC pilot: bridge capability contracts, binding primitives, JWT CSRF hardening, manifest schema v1, entity view integration. See [`tests/disyl_v11_verify_test.php`](../../tests/disyl_v11_verify_test.php) for v11 features (64 tests) and [`tests/guidance_entity_view_test.php`](../../tests/guidance_entity_view_test.php) for entity view integration (44 tests).
+> See [docs/kernel/kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the authoritative current-state roadmap.
+>
+> *Kept for historical reference only.*
+
+> ~~**Goal:** Narrow the gap between current DiSyL (v6.0) and the v11 vision (type operators, Islands, reactive, Fibers) through incremental, high-impact intermediate steps.~~
+>
+> ~~**Status:** Intermediate roadmap implementation complete. Active hardening + guidance module POC pilot: bridge capability contracts, binding primitives, JWT CSRF hardening, manifest schema v1, entity view integration. See [`tests/disyl_v11_verify_test.php`](../../tests/disyl_v11_verify_test.php) for v11 features (64 tests) and [`tests/guidance_entity_view_test.php`](../../tests/guidance_entity_view_test.php) for entity view integration (44 tests).~~
 >
 > **Architecture highlight:** The **Bridge System** (`kernel/DiSyL/Bridge/`) is a pluggable output abstraction that makes `{ikb_component}` and `{state}` framework-agnostic. Bridges now declare capability contracts (`supports()` + `capabilities()`) so the compiler can catch incompatible template usage at compile time. Binding primitives (`bind`/`model` attributes on `ikb_text`/`ikb_input`) let templates express intent in a framework-neutral way.
 >

@@ -1,4 +1,6 @@
-# Guidance DiSyL v11 POC — Tracking
+# Guidance Entity View POC — Tracking
+
+> **Note:** This file was originally named "Guidance DiSyL v11 POC" when entity views were considered v11 features. The work tracked here is now part of the standard entity-view system (Kernel OS 6.0+) and DiSyL 4.7. See [docs/kernel/entity-view-adoption-plan.md](kernel/entity-view-adoption-plan.md) for the current adoption plan.
 
 **Status**: POC complete — entity views and bridges proven. State, manifest consumption, and browser parity gates remain.  
 **Last Updated**: 2026-06-21
