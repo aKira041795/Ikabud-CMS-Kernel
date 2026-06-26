@@ -1174,53 +1174,79 @@ class TemplateEngine
     {
         // Normalize shorthand {var = expr} to {set var = expr} before processing
         $content = preg_replace('/\{(?!set\s)(\w+)\s*=\s*([^}]+)\}/', '{set $1 = $2}', $content);
+
+        // Match {set ...}, {set ... += ...}, {set ... ++}, etc.
+        // Uses `#` as delimiter to avoid escaping / inside character classes.
         return preg_replace_callback(
-            '/\{set\s+(\w+)(?:\s*:\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*=\s*([^}]+)\}/',
+            '#\{set\s+(\w+)(?::\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*(?:(?:([+\-*\/]))?\s*=\s*([^}]+)|(\+\+|--))\}#',
             function($match) use (&$context) {
                 $varName = trim($match[1]);
-                $varType = isset($match[2]) ? trim($match[2]) : null;
-                $expr = trim($match[3]);
+                $varType = isset($match[2]) && $match[2] !== '' ? trim($match[2]) : null;
 
-                // Try arithmetic first
-                $value = $this->evaluateArithmetic($expr, $context);
-                if ($value !== null) {
+                // Case 1: {set x++} or {set x--} (postfix)
+                if (isset($match[5]) && ($match[5] === '++' || $match[5] === '--')) {
+                    $current = (int)($context[$varName] ?? 0);
+                    $context[$varName] = $match[5] === '++' ? $current + 1 : $current - 1;
+                    return '';
+                }
+
+                // Case 2: compound assignment {set x += val} or simple {set x = val}
+                $compoundOp = isset($match[3]) && $match[3] !== '' ? trim($match[3]) : null;
+                $expr = isset($match[4]) ? trim($match[4]) : '';
+
+                $value = $this->resolveSetValue($expr, $context, $varType);
+
+                if ($compoundOp !== null) {
+                    $current = (int)($context[$varName] ?? 0);
+                    $value = match ($compoundOp) {
+                        '+' => $current + $value,
+                        '-' => $current - $value,
+                        '*' => $current * $value,
+                        '/' => $current / $value,
+                        default => $value,
+                    };
                     $value = $this->coerceType($value, $varType, $varName);
                     $context[$varName] = $value;
                     return '';
                 }
 
-                // Try boolean/comparison expression
-                $value = $this->evaluateComparison($expr, $context);
-                if ($value !== null) {
-                    $value = $this->coerceType($value, $varType, $varName);
-                    $context[$varName] = $value;
-                    return '';
-                }
-
-                // Try quoted string literal
-                if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
-                    $value = $qm[1];
-                    $value = $this->coerceType($value, $varType, $varName);
-                    $context[$varName] = $value;
-                    return '';
-                }
-
-                // Try numeric literal
-                if (is_numeric($expr)) {
-                    $value = $expr + 0;
-                    $value = $this->coerceType($value, $varType, $varName);
-                    $context[$varName] = $value;
-                    return '';
-                }
-
-                // Fall back to variable with filters
-                $value = $this->resolveValueWithFilters($expr, $context);
-                $value = $this->coerceType($value, $varType, $varName);
                 $context[$varName] = $value;
-                return ''; // Remove the {set} tag from output
+                return '';
             },
             $content
         );
+    }
+
+    /**
+     * Resolve a {set} expression value through multiple strategies.
+     */
+    private function resolveSetValue(string $expr, array $context, ?string $varType): mixed
+    {
+        // Try arithmetic first
+        $value = $this->evaluateArithmetic($expr, $context);
+        if ($value !== null) {
+            return $this->coerceType($value, $varType, '');
+        }
+
+        // Try boolean/comparison expression
+        $value = $this->evaluateComparison($expr, $context);
+        if ($value !== null) {
+            return $this->coerceType($value, $varType, '');
+        }
+
+        // Try quoted string literal
+        if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
+            return $this->coerceType($qm[1], $varType, '');
+        }
+
+        // Try numeric literal
+        if (is_numeric($expr)) {
+            return $this->coerceType($expr + 0, $varType, '');
+        }
+
+        // Fall back to variable with filters
+        $value = $this->resolveValueWithFilters($expr, $context);
+        return $this->coerceType($value, $varType, '');
     }
 
     /**
@@ -4539,7 +4565,7 @@ class TemplateEngine
         $resolveCache = [];
 
         $content = preg_replace_callback(
-            '/(?<!\$)\{((?:[a-zA-Z_(]|\d)[^{}]*)\}/',
+            '/(?<!\$)\{((?:[a-zA-Z_([\d])[^{}]*)\}/',
             function($match) use ($context, &$resolveCache) {
                 $expr = trim($match[1]);
 
@@ -4814,6 +4840,16 @@ class TemplateEngine
             return true;
         }
 
+        // Array literal: [val1, val2, ...]
+        if ($expr[0] === '[') {
+            return true;
+        }
+
+        // Postfix ++/--
+        if (str_ends_with($expr, '++') || str_ends_with($expr, '--')) {
+            return true;
+        }
+
         $filters = $this->splitByPipe($expr);
         $varPath = trim((string) array_shift($filters));
 
@@ -4996,6 +5032,39 @@ class TemplateEngine
                     }
                     return \Ikabud\Kernel\DiSyL\v4\FunctionRegistry::call($funcName, $resolved);
                 }
+            }
+        }
+
+        // Array literal: [val1, val2, ...]
+        if ($path !== '' && $path[0] === '[') {
+            $close = $this->findUnquotedChar($path, ']');
+            if ($close !== false && $close === strlen($path) - 1) {
+                $inner = trim(substr($path, 1, -1));
+                if ($inner === '') {
+                    $this->currentExpression = $prevExpr;
+                    return [];
+                }
+                $parts = $this->splitByComma($inner);
+                $result = [];
+                foreach ($parts as $part) {
+                    $part = trim($part);
+                    if ($part === '') continue;
+                    if (preg_match('/^["\'](.*)["\']$/', $part, $m)) {
+                        $result[] = $m[1];
+                    } elseif (is_numeric($part)) {
+                        $result[] = str_contains($part, '.') ? (float)$part : (int)$part;
+                    } elseif (strtolower($part) === 'true') {
+                        $result[] = true;
+                    } elseif (strtolower($part) === 'false') {
+                        $result[] = false;
+                    } elseif (strtolower($part) === 'null') {
+                        $result[] = null;
+                    } else {
+                        $result[] = $this->resolveValue($part, $context);
+                    }
+                }
+                $this->currentExpression = $prevExpr;
+                return $result;
             }
         }
 

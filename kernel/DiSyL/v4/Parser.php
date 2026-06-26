@@ -157,8 +157,8 @@ final class Parser
         if (ctype_alpha($next) || $next === '_') {
             return true;
         }
-        // Parenthesized expressions {(a + b) * c} and numeric literals {503}
-        if ($next === '(' || ctype_digit($next)) {
+        // Parenthesized expressions {(a + b) * c}, array literals {[1, 2]}, and numeric literals {503}
+        if ($next === '(' || $next === '[' || ctype_digit($next)) {
             return true;
         }
         return false;
@@ -806,12 +806,29 @@ final class Parser
         $tag = $this->readTagContent();              // "set name = expr" or "set name: type = expr"
         $inner = trim(substr($tag, 3));               // strip "set"
 
-        $eqPos = strpos($inner, '=');
+        // Support compound assignment: +=, -=, *=, /=
+        $compoundOp = null;
+        $eqPos = false;
+        foreach (['+=', '-=', '*=', '/='] as $op) {
+            $pos = strpos($inner, $op);
+            if ($pos !== false && ($pos + strlen($op) < strlen($inner))) {
+                $compoundOp = $op;
+                $eqPos = $pos + strlen($op) - 1; // position of =
+                break;
+            }
+        }
+        if ($eqPos === false) {
+            $eqPos = strpos($inner, '=');
+        }
+
         if ($eqPos === false) {
             return $this->makeTextFallback('{' . $tag . '}');
         }
 
         $namePart = trim(substr($inner, 0, $eqPos));
+        if ($compoundOp !== null) {
+            $namePart = rtrim($namePart, '+-*/'); // strip the operator
+        }
         $value = trim(substr($inner, $eqPos + 1));
 
         // Parse optional type annotation: "name: type" or just "name"
@@ -830,6 +847,9 @@ final class Parser
         ];
         if ($varType !== null) {
             $attrs['type'] = $varType;
+        }
+        if ($compoundOp !== null) {
+            $attrs['compound'] = $compoundOp;
         }
 
         return new ControlNode([], 'set', $attrs);
@@ -1049,9 +1069,53 @@ final class Parser
         if ($split !== false) {
             return new BinaryOpNode(
                 [],
-                $this->parseAddExpr(trim($split[1])),
+                $this->parseBitwiseExpr(trim($split[1])),
+                trim($split[0]),
+                $this->parseBitwiseExpr(trim($split[2]))
+            );
+        }
+        return $this->parseBitwiseExpr($expr);
+    }
+
+    private function parseBitwiseExpr(string $expr): AbstractNode
+    {
+        // Bitwise operators: &, ^, |, <<, >> — match from highest to lowest precedence
+        // << and >> have highest precedence among bitwise
+        $split = $this->findLastBinaryOp($expr, ['<<', '>>']);
+        if ($split !== false && trim($split[1]) !== '') {
+            return new BinaryOpNode(
+                [],
+                $this->parseBitwiseExpr(trim($split[1])),
                 trim($split[0]),
                 $this->parseAddExpr(trim($split[2]))
+            );
+        }
+        // & then ^ then | (in order of precedence)
+        $split = $this->findLastBinaryOp($expr, ['&']);
+        if ($split !== false && trim($split[1]) !== '') {
+            return new BinaryOpNode(
+                [],
+                $this->parseBitwiseExpr(trim($split[1])),
+                trim($split[0]),
+                $this->parseBitwiseExpr(trim($split[2]))
+            );
+        }
+        $split = $this->findLastBinaryOp($expr, ['^']);
+        if ($split !== false && trim($split[1]) !== '') {
+            return new BinaryOpNode(
+                [],
+                $this->parseBitwiseExpr(trim($split[1])),
+                trim($split[0]),
+                $this->parseBitwiseExpr(trim($split[2]))
+            );
+        }
+        $split = $this->findLastBinaryOp($expr, ['|']);
+        if ($split !== false && trim($split[1]) !== '') {
+            return new BinaryOpNode(
+                [],
+                $this->parseBitwiseExpr(trim($split[1])),
+                trim($split[0]),
+                $this->parseBitwiseExpr(trim($split[2]))
             );
         }
         return $this->parseAddExpr($expr);
@@ -1173,9 +1237,33 @@ final class Parser
             }
         }
 
+        // Postfix ++/-- on identifier or property access
+        if (str_ends_with($expr, '++') || str_ends_with($expr, '--')) {
+            $op = str_ends_with($expr, '++') ? 'postinc' : 'postdec';
+            $base = substr($expr, 0, -2);
+            if (preg_match('/^[a-zA-Z_][\w.]*$/', $base)) {
+                return new UnaryOpNode([], $op, $this->buildDotPath($base));
+            }
+        }
+
         // Dot-path variable (e.g. "user.profile.name")
         if (preg_match('/^[a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*$/', $expr)) {
             return $this->buildDotPath($expr);
+        }
+
+        // Array literal: [element1, element2, ...]
+        if ($expr[0] === '[') {
+            $close = $this->findMatchingBracket($expr, 0);
+            if ($close === strlen($expr) - 1) {
+                $inner = trim(substr($expr, 1, -1));
+                $elements = [];
+                if ($inner !== '') {
+                    foreach ($this->splitCommaTopLevel($inner) as $el) {
+                        $elements[] = $this->parseExprValue(trim($el));
+                    }
+                }
+                return new ArrayNode([], $elements);
+            }
         }
 
         // Fallback: bare identifier
@@ -1647,6 +1735,25 @@ final class Parser
             if ($str[$i] === '(') {
                 $depth++;
             } elseif ($str[$i] === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Find the position of the matching closing bracket.
+     */
+    private function findMatchingBracket(string $str, int $openPos): int
+    {
+        $depth = 0;
+        for ($i = $openPos, $len = strlen($str); $i < $len; $i++) {
+            if ($str[$i] === '[') {
+                $depth++;
+            } elseif ($str[$i] === ']') {
                 $depth--;
                 if ($depth === 0) {
                     return $i;

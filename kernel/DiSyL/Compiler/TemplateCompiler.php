@@ -221,6 +221,11 @@ PHP;
             '/' => "({$right} != 0 ? {$left} / {$right} : 0)",
             '%' => "({$right} != 0 ? {$left} % {$right} : 0)",
             '~' => "((string)({$left}) . (string)({$right}))",
+            '&' => "({$left} & {$right})",
+            '|' => "({$left} | {$right})",
+            '^' => "({$left} ^ {$right})",
+            '<<' => "({$left} << {$right})",
+            '>>' => "({$left} >> {$right})",
             default => "null",
         };
     }
@@ -232,6 +237,8 @@ PHP;
         return match ($node->getOperator()) {
             'not' => "!\$this->isTruthy({$operand})",
             '-' => "-({$operand})",
+            'postinc' => "({$operand}++)",
+            'postdec' => "({$operand}--)",
             default => $operand,
         };
     }
@@ -418,6 +425,19 @@ PHP;
     {
         $name = var_export($node->getAttribute('name'), true);
         $value = $this->compileExpressionValue($node->getAttribute('value'));
+        $compound = $node->getAttribute('compound');
+        if ($compound !== null) {
+            $op = match ($compound) {
+                '+=' => '+',
+                '-=' => '-',
+                '*=' => '*',
+                '/=' => '/',
+                default => null,
+            };
+            if ($op !== null) {
+                return $this->line("\$ctx->set({$name}, \$ctx->get({$name}) {$op} {$value});");
+            }
+        }
         return $this->line("\$ctx->set({$name}, {$value});");
     }
     
