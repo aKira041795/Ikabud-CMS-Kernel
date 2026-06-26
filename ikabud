@@ -302,6 +302,7 @@ switch ($command) {
         out('    ' . green('module:uninstall') . ' <id>       Remove module files and disable it');
         out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, routes, tables, migrations)');
         out('    ' . green('module:check-boundaries') . '     Validate module boundary rules');
+        out('    ' . green('architecture:check') . '         Cross-module table/capability/template audit');
         out('    ' . green('module:graph') . ' [id]           Dependency graph + impact analysis');
         out('');
         out('  ' . bold('Capabilities'));
@@ -3123,7 +3124,248 @@ MD;
         }
         break;
 
-    // ── module:check-boundaries ───────────────────────────────────
+    // ── architecture:check ──────────────────────────────────────────
+    case 'architecture:check':
+        banner();
+        out('  ' . bold('Architecture Check') . dim(' — boundary rules + cross-module audit'));
+        out('');
+
+        $mods = discoverModules();
+        $allTables = []; // table_name => owning_module_id
+        $allCapExposes = []; // capability_id => owning_module_id
+        $failCount = 0;
+        $totalChecks = 0;
+
+        // Phase 1: Build table ownership map + capability exposes map
+        foreach ($mods as $mid => $manifest) {
+            $owns = (array)($manifest['owns_tables'] ?? []);
+            foreach ($owns as $tbl) {
+                $allTables[$tbl] = $mid;
+            }
+            $coOwns = (array)($manifest['co_owns_tables'] ?? []);
+            foreach ($coOwns as $tbl) {
+                // co-owned: don't override if already owned by another module
+                if (!isset($allTables[$tbl])) {
+                    $allTables[$tbl] = $mid;
+                }
+            }
+
+            // Build capability exposes map
+            $capSection = $manifest['capabilities'] ?? [];
+            $exposes = (array)($capSection['exposes'] ?? []);
+            foreach ($exposes as $cap) {
+                $cid = is_string($cap) ? $cap : ($cap['id'] ?? '');
+                if ($cid !== '') {
+                    $allCapExposes[$cid] = $mid;
+                }
+            }
+        }
+        $totalChecks++;
+        out('  ' . green('✓') . ' Table ownership map: ' . count($allTables) . ' tables across ' . count($mods) . ' modules');
+
+        // Phase 2: Scan module PHP files for cross-module table access
+        out('');
+        out('  ' . bold('Phase 1: Cross-module table access'));
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(BASE_PATH . '/modules', FilesystemIterator::SKIP_DOTS)
+        );
+        $tableAccessViolations = [];
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo->isFile() || strtolower($fileInfo->getExtension()) !== 'php') continue;
+            $path = (string) $fileInfo->getPathname();
+            if (str_contains($path, '/vendor/') || str_contains($path, '/node_modules/')) continue;
+
+            $rel = str_replace(BASE_PATH . '/', '', $path);
+            $moduleId = null;
+            if (preg_match('#^modules/(?:.+/)?([^/]+)/#', $rel, $mm)) {
+                $moduleId = $mm[1];
+            }
+            if (!$moduleId || !isset($mods[$moduleId])) continue;
+
+            $manifest = $mods[$moduleId];
+            $owned = (array)($manifest['owns_tables'] ?? []);
+            $coOwned = (array)($manifest['co_owns_tables'] ?? []);
+            $allowedRead = (array)($manifest['reads_tables'] ?? []);
+            $allowedTables = array_merge($owned, $coOwned, $allowedRead);
+
+            $content = @file_get_contents($path);
+            if (!is_string($content)) continue;
+
+            // Check for SQL FROM/JOIN referencing tables owned by other modules
+            foreach (preg_split('/\R/', $content) as $lineNo => $line) {
+                // Look for SQL table references: FROM table, JOIN table, UPDATE table, INSERT INTO table
+                if (preg_match('/(?:FROM|JOIN|INTO|UPDATE)\s+`?(\w+)`?/i', $line, $tm)) {
+                    $tbl = $tm[1];
+                    if (isset($allTables[$tbl]) && $allTables[$tbl] !== $moduleId && !in_array($tbl, $allowedTables, true)) {
+                        $tableAccessViolations[] = [
+                            'file' => $rel,
+                            'line' => $lineNo + 1,
+                            'table' => $tbl,
+                            'owner' => $allTables[$tbl],
+                            'snippet' => trim($line),
+                        ];
+                    }
+                }
+            }
+        }
+        $totalChecks++;
+
+        if (empty($tableAccessViolations)) {
+            out('    ' . green('✓') . ' No cross-module table access violations');
+        } else {
+            foreach ($tableAccessViolations as $v) {
+                $failCount++;
+                out('    ' . red('✗') . ' ' . $v['file'] . ':' . $v['line']);
+                out('      ' . yellow("Accesses table '{$v['table']}' owned by '{$v['owner']}' without reads_tables declaration"));
+                out('      ' . dim($v['snippet']));
+            }
+        }
+
+        // Phase 3: Check undeclared capability calls
+        out('');
+        out('  ' . bold('Phase 2: Undeclared capability calls'));
+        $undeclaredCaps = [];
+        $allCapIds = array_keys($allCapExposes);
+
+        foreach ($iterator as $fileInfo) {
+            if (!$fileInfo->isFile() || strtolower($fileInfo->getExtension()) !== 'php') continue;
+            $path = (string) $fileInfo->getPathname();
+            if (str_contains($path, '/vendor/') || str_contains($path, '/node_modules/')) continue;
+
+            $rel = str_replace(BASE_PATH . '/', '', $path);
+            $moduleId = null;
+            if (preg_match('#^modules/(?:.+/)?([^/]+)/#', $rel, $mm)) {
+                $moduleId = $mm[1];
+            }
+            if (!$moduleId || !isset($mods[$moduleId])) continue;
+
+            $manifest = $mods[$moduleId];
+            $capSection = $manifest['capabilities'] ?? [];
+            $declaredDepends = (array)($capSection['depends'] ?? []);
+            $declaredDependsIds = [];
+            foreach ($declaredDepends as $dep) {
+                $did = is_string($dep) ? $dep : ($dep['id'] ?? '');
+                if ($did !== '') $declaredDependsIds[] = $did;
+            }
+
+            $content = @file_get_contents($path);
+            if (!is_string($content)) continue;
+
+            // Check for app()->cap()->call('cap.id') patterns
+            if (preg_match_all("/app\(\)\s*->\s*cap\s*\(\s*\)\s*->\s*call\s*\(\s*'([^']+)'/i", $content, $calls)) {
+                foreach ($calls[1] as $calledCap) {
+                    if (!in_array($calledCap, $declaredDependsIds, true) && !str_starts_with($calledCap, 'kernel.')) {
+                        // Check if it's exposed by this module itself
+                        $isSelfExposed = false;
+                        foreach ((array)($capSection['exposes'] ?? []) as $exp) {
+                            $eid = is_string($exp) ? $exp : ($exp['id'] ?? '');
+                            if ($eid === $calledCap) { $isSelfExposed = true; break; }
+                        }
+                        if (!$isSelfExposed) {
+                            $undeclaredCaps[] = [
+                                'file' => $rel,
+                                'capability' => $calledCap,
+                                'module' => $moduleId,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+        $totalChecks++;
+
+        if (empty($undeclaredCaps)) {
+            out('    ' . green('✓') . ' No undeclared capability calls');
+        } else {
+            foreach ($undeclaredCaps as $v) {
+                $failCount++;
+                out('    ' . red('✗') . ' ' . $v['file']);
+                out('      ' . yellow("Calls capability '{$v['capability']}' not declared in capabilities.depends"));
+            }
+        }
+
+        // Phase 4: Check template entity source authorization
+        out('');
+        out('  ' . bold('Phase 3: Template entity source usage'));
+        $templateIterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator(BASE_PATH . '/templates/modules', FilesystemIterator::SKIP_DOTS)
+        );
+        $templateViolations = [];
+        $moduleEntitySources = [];
+
+        // Build entity source map per module
+        foreach ($mods as $mid => $manifest) {
+            $sources = [];
+            $entitySection = $manifest['entity_sources'] ?? [];
+            if (is_array($entitySection)) {
+                foreach ($entitySection as $src) {
+                    $sid = is_string($src) ? $src : ($src['id'] ?? '');
+                    if ($sid !== '') $sources[] = $sid;
+                }
+            }
+            $moduleEntitySources[$mid] = $sources;
+        }
+
+        foreach ($templateIterator as $fileInfo) {
+            if (!$fileInfo->isFile() || $fileInfo->getExtension() !== 'disyl') continue;
+            $path = (string) $fileInfo->getPathname();
+            $rel = str_replace(BASE_PATH . '/', '', $path);
+
+            // Determine owning module from template path
+            $moduleId = null;
+            if (preg_match('#^templates/modules/([^/]+)/#', $rel, $mm)) {
+                $moduleId = $mm[1];
+            }
+            if (!$moduleId) continue;
+
+            $content = @file_get_contents($path);
+            if (!is_string($content)) continue;
+
+            // Check for ikb_entity_list source usage
+            if (preg_match_all('/\bikb_entity_list\b[^}]*\bsource\s*=\s*["\']([^"\']+)["\']/', $content, $srcMatches)) {
+                foreach ($srcMatches[1] as $srcVal) {
+                    // Check if source is in this module's entity_sources
+                    $allowedSources = $moduleEntitySources[$moduleId] ?? [];
+                    if ($allowedSources !== [] && !in_array($srcVal, $allowedSources, true)) {
+                        // Source may be from kernel or CMS (common cross-module sources)
+                        $kernelSources = $moduleEntitySources['kernel'] ?? $moduleEntitySources['cms'] ?? [];
+                        if (!in_array($srcVal, $kernelSources, true)) {
+                            $templateViolations[] = [
+                                'file' => $rel,
+                                'source' => $srcVal,
+                                'module' => $moduleId,
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+        $totalChecks++;
+
+        if (empty($templateViolations)) {
+            out('    ' . green('✓') . ' No template entity source violations');
+        } else {
+            foreach ($templateViolations as $v) {
+                $failCount++;
+                out('    ' . red('✗') . ' ' . $v['file']);
+                out('      ' . yellow("Uses entity source '{$v['source']}' not declared in module's entity_sources"));
+            }
+        }
+
+        // Summary
+        out('');
+        if ($failCount === 0) {
+            out('  ' . green('✓') . " All architecture checks passed ({$totalChecks} checks)");
+            out('');
+        } else {
+            out('  ' . red("✗ {$failCount} architecture violation(s) found"));
+            out('  ' . yellow('Fix violations before merge. Use module:validate for per-module details.'));
+            out('');
+            exit(1);
+        }
+        break;
+
     case 'module:check-boundaries':
         banner();
         $scanExtensions = ['php'];
