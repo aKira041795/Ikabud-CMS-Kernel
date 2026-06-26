@@ -1,6 +1,6 @@
-# Kernel OS 6.0 + DiSyL — Implementation Status
+# Kernel OS 6.x — Implementation Status
 
-> **Release: 6.0.0 (ecosystem)** | Assessment: June 7, 2026
+> **Release: 6.1.0 (intercoherence)** | Assessment: June 26, 2026
 > Source roadmap: `kernel_os_disyl_consolidated_roadmap.md`
 > Legend: ✅ Done · 🟡 Partial · 🔴 Not started
 
@@ -8,30 +8,35 @@
 
 ## Executive Summary
 
-Kernel OS 6.0 is a **governed, polyglot, observable, report-ready, AI-safe,
-extendable business operating system**. All 9 roadmap phases have implementation
-artifacts. The platform is proven end-to-end: capability bus → ServiceProxy →
-external services → entity-view resolver → DiSyL rendering → governed export.
+Kernel OS 6.1 is a **tooled, coherent, observable, async-capable, IDE-supported
+business operating system**. All 9 architect-recommended CLI tools are live.
+DiSyL now supports PHP 8.1 Fibers for concurrent async rendering. A multi-step
+WorkflowEngine orchestrates business processes with event-triggered auto-start.
+The DiSyL LSP extension brings IDE features (hover, go-to-def, close-tag) to
+VS Code. Builder hardening closes 5 seams. Report approvals are end-to-end.
 
-PHP is the kernel host. Capabilities can live anywhere — Python, Node, Go, Rust,
-or any language that speaks HTTP+JSON.
-
-**429 tests pass (385 kernel + 44 entity view integration), 0 linter errors, 400 templates scanned, 22 superadmin APIs.**
+**502+ tests pass** (429 pre-6.1 + 73 new), 0 linter errors.
 
 ---
 
-## Quick Reference — What Ships in 6.0
+## Quick Reference — What Ships in 6.1
 
 | Component | Version | File |
 |---|---|---|
-| Kernel OS | `6.0.0` (ecosystem) | `kernel/App.php` |
+| Kernel OS | `6.1.0` (intercoherence) | `kernel/App.php` |
 | DiSyL | `4.7.0` | `kernel/DiSyL/Grammar.php` |
-| TemplateEngine | `6.1.0` | `kernel/DiSyL/TemplateEngine.php`; entity rendering via `kernel/EntityContext/DefaultEntityRenderer.php`; `RowRenderContext` value object |
-| TemplateEngine | `4.7.0` | Entity rendering extracted from TemplateEngine to `DefaultEntityRenderer` service |
+| TemplateEngine | `6.1.0` | `kernel/DiSyL/TemplateEngine.php` |
+| Async Scheduler | `4.5.1` | `kernel/DiSyL/Async/Scheduler.php` |
+| HttpClient | `4.5.1` | `kernel/DiSyL/Async/HttpClient.php` |
+| WorkflowEngine | `1.0.0` | `kernel/WorkflowEngine.php` |
+| WorkflowRuntime | `1.0.0` | `kernel/WorkflowRuntime.php` |
+| DiSyL LSP | `1.0.0` | `extensions/disyl-lsp/src/extension.ts` |
+| CLI tools (9 new) | `6.1.0` | `ikabud` |
 | Parser (v4) | `4.7.0` | `kernel/DiSyL/v4/Parser.php` (per-block error recovery) |
 | ComponentRegistry | `1.0.0` | `kernel/DiSyL/ComponentRegistry.php` |
 | EntityViewResolver | `1.0.0` | `kernel/EntityContext/EntityViewResolver.php` |
 | ServiceProxy | `1.0.0` | `kernel/Capabilities/ServiceProxy.php` |
+| ExpressionEvaluator | `1.0.0` | `kernel/DiSyL/ExpressionEvaluator.php` |
 
 ---
 
@@ -249,10 +254,13 @@ See: [Polyglot Service Developer Guide](polyglot-service-guide.md)
 | 20 ServiceProxy unit tests | ✅ |
 | 17 polyglot weather E2E tests | ✅ |
 | 15 CMS weather entity-view E2E tests | ✅ |
+| 23 DiSyL async Fibers tests | ✅ |
+| 32 WorkflowEngine lifecycle tests | ✅ |
+| 18 report approval workflow tests | ✅ |
 | Linter: 0 errors across 398 templates | ✅ |
 | Load test: 22ms for 100 iterations across 6 paths | ✅ |
 | 4 critical bugs fixed (capabilities()->call → cap()->call, content_type → type, module() guard, log level) | ✅ |
-| Version bumped: 4.6.0 → 5.0.0 | ✅ |
+| Version bumped: 6.0.0 → 6.1.0 | ✅ |
 | error.log: clean | ✅ |
 | loadViewConfigs throws on parse errors | ✅ |
 | validateViewContract() duplicate/role/URL checks | ✅ |
@@ -425,9 +433,113 @@ ComponentRegistry
 | Module scaffolding improvements | ✅ |
 | Example modules | ✅ |
 | Official docs site | ✅ |
-| DiSyL language server | 🔴 |
-| VS Code extension | 🔴 |
+| DiSyL language server | ✅ |
+| VS Code extension | ✅ |
 | Test harness for third-party modules | ✅ |
 
 **Answers:** \"Can other developers build safely on this platform?\" — **Yes, with scaffolding, examples, SDK, certification, and test harness.**
+
+---
+
+## Kernel OS 6.1 — Intercoherence ✅
+**Release:** June 26, 2026
+**Theme:** Developer tooling, engine coherence, polyglot async, architectural enforcement.
+
+### Architecture Enforcement CLI (9 tools)
+
+| Tool | Purpose | Status |
+|---|---|---|
+| `architecture:check` | Cross-module table access, undeclared capability calls, template entity source misuse | ✅ |
+| `entity:describe` | Schema, relationships, entity-view contracts, module ownership | ✅ |
+| `disyl:inspect` | View contracts, component usage, template dependencies | ✅ |
+| `make:entity` | Scaffold full entity: migration, handlers, routes, view contracts | ✅ |
+| `make:capability` | Scaffold capability handler registration + module.json entries | ✅ |
+| `doctor` | Environment health checker | ✅ |
+| `capability:trace` | Provider detection, consumer scan, auth status, source references | ✅ |
+| `module:check-boundaries` | Cross-module boundary enforcement (enhanced) | ✅ |
+| `trigger:trace` | Event trigger emission path and handler resolution | ✅ |
+
+**Detection results:** `architecture:check` finds 9 real violations (1 cross-module table + 8 undeclared capability calls).
+
+### DiSyL Fibers Async Scheduler (v4.5.1)
+
+| Component | Status |
+|---|---|
+| PHP 8.1+ Fibers-based cooperative multitasking | ✅ |
+| Multi-curl HTTP multiplexing (`curl_multi_select`) | ✅ |
+| Sync fallback outside Fiber context | ✅ |
+| Settled promises complete synchronously | ✅ |
+| Interface unchanged from v4.5.0 | ✅ |
+| `tests/disyl_v45_async_test.php`: 23/23 PASS | ✅ |
+
+### Multi-Step WorkflowEngine
+
+| Component | Status |
+|---|---|
+| YAML-defined ordered steps | ✅ |
+| Step types: validate, transition, notify, webhook, export | ✅ |
+| Argument resolution from step context | ✅ |
+| Retry with configurable max attempts | ✅ |
+| Cancel / replay from any step | ✅ |
+| Event-triggered auto-start (EventBus subscriptions) | ✅ |
+| `migrations/009_kernel_workflow_runs.sql` | ✅ |
+| `tests/workflow_engine_test.php`: 32/32 PASS | ✅ |
+
+### Report Approval Workflow
+
+| Component | Status |
+|---|---|
+| `report.export.request_approval@1` capability | ✅ |
+| `report.export.approve@1` / `reject@1` / `list_pending@1` | ✅ |
+| Admin approval queue page (`/cms/admin/report-approvals`) | ✅ |
+| WorkflowEngine integration (auto-start on request) | ✅ |
+| `migrations/010_report_approvals.sql` | ✅ |
+| `tests/report_approval_workflow_test.php`: 18/18 PASS | ✅ |
+
+### DiSyL LSP — VS Code Extension
+
+| Feature | Status |
+|---|---|
+| Hover provider — block keyword docs + 32 governed component docs | ✅ |
+| Go-to-definition for `{include}` navigation | ✅ |
+| Close-tag completion (8 control structure pairs) | ✅ |
+| `GOVERNED_COMPONENT_DOCS` data (attributes, examples) | ✅ |
+| `extensions/disyl-lsp/src/extension.ts`: 561 lines | ✅ |
+
+### Builder Hardening
+
+| Fix | Status |
+|---|---|
+| Publish-time document validation (`cmsBuilderValidateDocument`) | ✅ |
+| Publish wrapped in DB transaction | ✅ |
+| Content mode preference over legacy meta | ✅ |
+| Document settings preference over legacy meta | ✅ |
+| Context row passed to `builder_enabled`/`global_styles` helpers | ✅ |
+| Content duplication skips `_builder_page_settings`, `_builder_seo_settings` | ✅ |
+
+### DiSyL Engine Fixes
+
+| Fix | Status |
+|---|---|
+| `<script>` block variable resolution re-enabled (`compileScriptBody()`) | ✅ |
+| `evaluateAwaitBody` double-resolve bug fix (Promise → resolveValue) | ✅ |
+| ExpressionEvaluator extraction (7,698L → 7,021L) | ✅ |
+| ControlNode return type mismatch in v4 Parser | ✅ |
+| `++`/`--`, `+=`/`-=`, array literals, bitwise operators | ✅ |
+
+---
+
+### Strategic Position (Post-6.1)
+
+> **From architecture proof to operating discipline — now with the tools to enforce it.**
+
+6.1 gives every developer the ability to:
+- **Inspect** the full capability call chain from provider to consumer
+- **Trace** async template execution through Fibers and multi-curl
+- **Validate** module boundaries automatically in CI
+- **Navigate** DiSyL templates with IDE-grade LSP features
+- **Orchestrate** multi-step business workflows with event triggers
+- **Verify** environment health before deployment
+
+The platform is no longer just extensible — it is **instrumented**.
 

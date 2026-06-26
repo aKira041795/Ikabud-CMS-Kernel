@@ -1,13 +1,43 @@
 # DiSyL Language Support for VS Code
 
-Syntax highlighting, diagnostics, autocomplete, and navigation for `.disyl` template files.
+**Version:** 1.0.0 | **Extension ID:** `disyl-lsp`
+
+Syntax highlighting, hover documentation, go-to-definition, close-tag completion, diagnostics, and autocomplete for `.disyl` template files.
 
 ## Features
 
-- **Syntax highlighting** — Full DiSyL grammar including variables, filters, blocks, governed components, and 4.x extensions
-- **Diagnostics** — Runs `php ikabud disyl:lint` on save to detect unclosed components and syntax issues
-- **Autocomplete** — 23 DiSyL filters, 31 governed components, and all block keywords
-- **Hover documentation** — Filter descriptions and component docs on hover
+### Syntax Highlighting
+Full DiSyL grammar including variables, filters, blocks, governed components, and 4.x extensions.
+
+### Hover Provider (New in 1.0.0)
+Hover over any DiSyL keyword or governed component to see documentation:
+
+| Keyword | Docs |
+|---|---|
+| `{if}` / `{elseif}` / `{else}` | Conditional rendering details |
+| `{for}` / `{forelse}` | Loop syntax and semantics |
+| `{await}` / `{parallel}` | Async block with Fibers |
+| `{include}` | Template inclusion |
+| `{ikb_entity_list}` | Entity list rendering docs |
+| `{ikb_entity_view}` | View contract registration |
+| All 32 `ikb_*` components | Purpose, attributes, examples |
+
+### Go-to-Definition (New in 1.0.0)
+- **`{include "path/to/template.disyl"}`** — Ctrl+Click or F12 navigates to the included file
+- Resolves both relative and absolute template paths
+
+### Close-Tag Completion (New in 1.0.0)
+| Open | Completes |
+|---|---|
+| `{if}` → `{endif}` | `{for}` → `{endfor}` |
+| `{while}` → `{endwhile}` | `{await}` → `{endawait}` |
+| `{parallel}` → `{endparallel}` | `{capture}` → `{endcapture}` |
+
+### Diagnostics
+Runs `php ikabud disyl:lint` on save to detect unclosed components and syntax issues.
+
+### Autocomplete
+23 DiSyL filters, 31 governed components, and all block keywords.
 - **Go to definition** — `{extends}`, `{include}`, and `{component}` paths navigate to source files
 - **Bracket matching** — `{if}`/`{/if}`, `{foreach}`/`{/foreach}`, `{block}`/`{/block}`
 - **Comment support** — `{! ... !}` block comments with toggle

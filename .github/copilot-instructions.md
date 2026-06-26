@@ -5,7 +5,12 @@
 - Bootstrapping and global infra live in [bootstrap.php](../bootstrap.php): env loading, path constants, exception handler, `write_log()`, request IDs, and log paths.
 - Module system is manifest-driven via [src/helpers/module-manager.php](../src/helpers/module-manager.php): discover/enable/disable modules, load routes, capability dependency safety checks.
 - Entity view system (Kernel OS 6.0+) is the primary rendering engine: `EntityViewResolver` resolves source/view to data via capability bus, `DefaultEntityRenderer` produces HTML. See [docs/kernel/entity-context-system.md](../docs/kernel/entity-context-system.md) and [docs/kernel/entity-view-adoption-plan.md](../docs/kernel/entity-view-adoption-plan.md).
-- Kernel OS 6.0 roadmap status: [docs/kernel/kernel-os-disyl-roadmap-status.md](../docs/kernel/kernel-os-disyl-roadmap-status.md) — check before designing rendering or capabilities.
+- Kernel OS 6.0/6.1 roadmap status: [docs/kernel/kernel-os-disyl-roadmap-status.md](../docs/kernel/kernel-os-disyl-roadmap-status.md) — check before designing rendering or capabilities.
+- CLI tools reference (architecture enforcement, scaffolding, diagnostics): [docs/kernel/cli-tools-reference.md](../docs/kernel/cli-tools-reference.md)
+- Workflow system (state machine + multi-step engine): [docs/kernel/workflow-system.md](../docs/kernel/workflow-system.md)
+- DiSyL async Fibers scheduler: [docs/kernel/disyl-async-fibers-scheduler.md](../docs/kernel/disyl-async-fibers-scheduler.md)
+- DiSyL LSP VS Code extension: [extensions/disyl-lsp/README.md](../extensions/disyl-lsp/README.md)
+- Latest release notes: [docs/releases/release-notes-2026-06-26-kernel-6.1-intercoherence.md](../docs/releases/release-notes-2026-06-26-kernel-6.1-intercoherence.md)
 - CMS is the main feature module under [modules/cms](../modules/cms):
   - route map in [modules/cms/routes.php](../modules/cms/routes.php)
   - handlers in [modules/cms/handlers.php](../modules/cms/handlers.php)

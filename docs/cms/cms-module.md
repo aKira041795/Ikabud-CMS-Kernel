@@ -259,6 +259,56 @@ CMS sub-modules are add-ons installed through the CMS admin UI (`/cms/admin/modu
 - The installer guards against overwriting kernel/bundled modules: true kernel modules (no `.cms-owned` marker) cannot be overwritten via ZIP upload.
 - **Superadmin visibility**: The superadmin settings page shows CMS sub-module settings per tenant. For tenants whose `entry_module_id` is `cms`, the page displays settings for the CMS module itself plus any modules listed in that tenant's `_installed_submodules` registry. This allows cross-tenant management of CMS add-on configuration without switching tenant contexts.
 
+---
+
+## 7. Recent Updates (Kernel OS 6.1 — June 2026)
+
+### Builder Hardening
+
+| Fix | File | Description |
+|---|---|---|
+| Publish validation | `handlers/20-api-builder.php` | `cmsBuilderValidateDocument()` called before publish — prevents publishing broken documents |
+| Publish transaction | `handlers/20-api-builder.php` | Builder publish wrapped in DB transaction — atomic commit or rollback |
+| Content mode preference | `helpers/50-builder.php` | `cmsPageBuilderEnabled()` prefers `content_mode` from content row over legacy `_builder_enabled` meta |
+| Document settings preference | `helpers/50-builder.php` | `cmsPageBuilderSettings()` prefers published document settings over legacy meta |
+| Context passing | `helpers/50-builder.php` | `builder_enabled`/`global_styles` pass content row to helper functions instead of re-fetching |
+| Content duplication | `handlers/36-api-content-actions.php` | Duplication skips `_builder_page_settings` and `_builder_seo_settings` meta keys — prevents stale config inheritance |
+
+### Report Approval Workflow
+
+New feature: exports can require approval before delivery.
+
+**Capabilities** (in `helpers/55-capabilities.php`):
+- `report.export.request_approval@1` — Submit export for approval
+- `report.export.approve@1` — Approve a pending export
+- `report.export.reject@1` — Reject a pending export
+- `report.export.list_pending@1` — List pending approvals
+
+**API Endpoints** (in `handlers/78-import-export.php`):
+- `POST /api/v1/cms/export/approve` — Approve export
+- `POST /api/v1/cms/export/reject` — Reject export
+- `GET /api/v1/cms/export/pending` — List pending approvals
+
+**Admin page**:
+- `/cms/admin/report-approvals` — Approval queue (see `templates/modules/cms/admin/report-approvals.disyl`)
+
+**Flow:**
+```
+Export requested with ?requires_approval=1
+  → Approval record created (status: pending)
+  → WorkflowEngine run auto-started
+  → Returns {status: 'pending', id: ...}
+
+Approver reviews → approves/rejects via API
+  → Approval record updated
+  → Workflow advances to next step
+  → Requester notified
+```
+
+**Test coverage:**
+- `tests/report_approval_workflow_test.php`: 18 tests
+- `tests/workflow_engine_test.php`: 32 tests
+
 See `docs/kernel/module-development-guide.md` → *Packaging & Installation* for the full ZIP format spec, API reference, cross-tenant adoption details, and multi-tenant-safe delete behavior.
 
 ### WordPress importer behavior
