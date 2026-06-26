@@ -43,7 +43,7 @@
     <!-- Grid view -->
     <div x-show="viewMode === 'grid'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {foreach media as item}
-        <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden relative" x-data="{ copied: false }">
+        <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden relative">
             {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
             <a href="{item.url}" target="_blank" rel="noopener" class="block">
                 <img class="w-full h-32 object-cover bg-slate-100" src="{item.url}" alt="{item.alt_text}" loading="lazy">
@@ -63,8 +63,7 @@
                     @click.stop="openEditor({item.id}, '{item.url}', '{item.mime_type}')">Edit</button>
                 {/if}
                 <button class="px-2 py-1 bg-sky-600 text-white text-[10px] font-medium rounded shadow-sm hover:bg-sky-700"
-                    @click.stop="navigator.clipboard.writeText('{item.url}'); copied=true; setTimeout(()=>copied=false,1500)"
-                        x-text="copied ? '✓' : 'URL'"></button>
+                    @click.stop="openUrlModal({item.id}, '{item.url}', '{item.original_name}')">URL</button>
                 <button class="px-2 py-1 bg-red-600 text-white text-[10px] font-medium rounded shadow-sm hover:bg-red-700"
                         @click.stop="deleteMedia({item.id})">Del</button>
             </div>
@@ -86,7 +85,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
                 {foreach media as item}
-                <tr class="group hover:bg-slate-50/40 transition-colors" x-data="{ copied: false }">
+                <tr class="group hover:bg-slate-50/40 transition-colors">
                     <td class="px-4 py-3">
                         <a href="{item.url}" target="_blank" rel="noopener">
                         {if item.mime_type == 'image/jpeg' || item.mime_type == 'image/png' || item.mime_type == 'image/gif' || item.mime_type == 'image/webp'}
@@ -108,8 +107,7 @@
                                 @click.stop="openEditor({item.id}, '{item.url}', '{item.mime_type}')">Edit</button>
                             {/if}
                                 <button class="px-2 py-1 text-[11px] font-medium text-sky-600 bg-sky-50 rounded hover:bg-sky-100 transition-colors"
-                                    @click.stop="navigator.clipboard.writeText('{item.url}'); copied=true; setTimeout(()=>copied=false,1500)"
-                                    x-text="copied ? 'Copied!' : 'Copy URL'"></button>
+                                    @click.stop="openUrlModal({item.id}, '{item.url}', '{item.original_name}')">Copy URL</button>
                             <button class="px-2 py-1 text-[11px] font-medium text-red-500 bg-red-50 rounded hover:bg-red-100 transition-colors"
                                     @click.stop="deleteMedia({item.id})">Delete</button>
                         </div>
@@ -310,6 +308,43 @@
         </div>
     </div>
 
+    <!-- URL info modal -->
+    <div x-show="urlModalOpen" x-cloak class="fixed inset-0 z-[70] flex items-center justify-center p-4" @keydown.escape.window="closeUrlModal()">
+        <div class="absolute inset-0 bg-black/40" @click="closeUrlModal()"></div>
+        <div class="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200 shadow-2xl shadow-slate-900/20 overflow-hidden">
+            <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-slate-800 truncate" x-text="urlModalName || 'Media URL'"></h3>
+                <button class="text-slate-400 hover:text-slate-600" @click="closeUrlModal()">✕</button>
+            </div>
+            <div class="p-5 space-y-4">
+                {if true}
+                <img class="w-full max-h-64 object-contain rounded-lg border border-slate-200 bg-slate-50" :src="urlModalUrl" alt="Preview">
+                {/if}
+                <div>
+                    <label class="text-xs font-medium text-slate-500 mb-1 block">File URL</label>
+                    <div class="flex gap-2">
+                        <input x-ref="urlInput" type="text" :value="urlModalUrl" readonly
+                            class="flex-1 px-3 py-2 text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg font-mono select-all"
+                            @click="$el.select()">
+                        <button class="px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors shrink-0"
+                            :class="urlCopied ? 'bg-emerald-500' : 'bg-sky-600 hover:bg-sky-700'"
+                            @click="copyUrl()"
+                            x-text="urlCopied ? 'Copied!' : 'Copy'"></button>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-medium text-slate-500 mb-1 block">HTML embed</label>
+                    <input type="text" :value="'<img src=\\'' + urlModalUrl + '\\' alt=\\'' + (urlModalName || '') + '\\'>'" readonly
+                        class="w-full px-3 py-2 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg font-mono select-all"
+                        @click="$el.select()">
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-slate-200 flex items-center justify-end">
+                <button class="px-4 py-2 text-sm text-slate-600 rounded-2xl hover:bg-slate-50 transition-colors" @click="closeUrlModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
 {if total_pages > 1}
 <div class="flex items-center justify-center gap-2 mt-5">
     {if page_num > 1}<a href="{base_url}/cms/admin/media?page=1" class="px-3 py-1.5 text-sm border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors">«</a>{/if}
@@ -326,6 +361,10 @@ function cmsMediaLibrary() {
     return {
         viewMode: localStorage.getItem('cms_media_view') || 'grid',
         editorOpen: false,
+        urlModalOpen: false,
+        urlModalUrl: '',
+        urlModalName: '',
+        urlCopied: false,
         editorBusy: false,
         editorMediaId: 0,
         editorImageUrl: '',
@@ -499,6 +538,25 @@ function cmsMediaLibrary() {
             this.cropResizeCorner = null;
             this.cropStartBox = null;
             this.editorOpen = false;
+        },
+        openUrlModal(id, url, name) {
+            this.urlModalUrl = url;
+            this.urlModalName = name;
+            this.urlCopied = false;
+            this.urlModalOpen = true;
+        },
+        closeUrlModal() {
+            this.urlModalOpen = false;
+            this.urlCopied = false;
+        },
+        copyUrl() {
+            navigator.clipboard.writeText(this.urlModalUrl).then(() => {
+                this.urlCopied = true;
+                setTimeout(() => this.urlCopied = false, 2000);
+            }).catch(() => {
+                // Fallback: select the input text for manual copy
+                this.$refs.urlInput.select();
+            });
         },
         handleEditorImageLoad(event) {
             const image = event.target;
