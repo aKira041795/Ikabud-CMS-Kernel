@@ -21,10 +21,10 @@
 
     {# Preserve existing filter params (category, tag, sort, etc.) #}
     {if search_filters}
-        {for key, value in search_filters}
+        {foreach search_filters as key => value}
             {if key != 's' and key != 'page' and value}
             <input type="hidden" name="{key}" value="{value}" />
             {/if}
-        {/for}
+        {/foreach}
     {/if}
 </form>

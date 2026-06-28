@@ -19,7 +19,7 @@
 declare(strict_types=1);
 
 // ── Guard: only register if TemplateEngine is available ──────────────────
-if (!function_exists('app') || !app()->has('templateEngine')) {
+if (!function_exists('app') || !method_exists(app(), 'templateEngine')) {
     return;
 }
 
