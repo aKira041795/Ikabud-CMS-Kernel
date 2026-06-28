@@ -57,37 +57,47 @@
 
     {block header}
     {ikb_slot name="header.main" /}
-    {# ARK is self-contained — always renders its own header #}
-    {# Top bar (above header, only when social_links have content) #}
-    {if social_links}
-    <div class="ark-topbar" aria-label="Site highlights">
-        <div class="ark-topbar__inner">
-            <div class="ark-topbar__left">
-                {if site_tagline}<span>{site_tagline}</span>{/if}
+
+    {# Customizer-aware header: use customizer output when available,
+       fall back to ARK's own header when no customizer data exists. #}
+    {if show_header|default:true}
+        {if has_customized_header}
+            {customized_header|raw}
+        {else}
+            {# ARK default top bar — tagline + social links #}
+            {if social_links}
+            <div class="ark-topbar" aria-label="Site highlights">
+                <div class="ark-topbar__inner">
+                    <div class="ark-topbar__left">
+                        {if site_tagline}<span>{site_tagline}</span>{/if}
+                    </div>
+                    <div class="ark-topbar__right">
+                        {if social_links}
+                            {for link in social_links}
+                            <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                            {/for}
+                        {/if}
+                    </div>
+                </div>
             </div>
-            <div class="ark-topbar__right">
-                {if social_links}
-                    {for link in social_links}
-                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
-                    {/for}
-                {/if}
-            </div>
-        </div>
-    </div>
+            {/if}
+
+            {# ARK default header bar #}
+            <header class="ark-header" role="banner">
+                <div class="ark-header__inner">
+                    <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
+                    <nav class="ark-header__nav" aria-label="Main navigation">
+                        {if primary_menu}{primary_menu|raw}{/if}
+                        {if cart_enabled}
+                        <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
+                            Cart{if cart_count > 0} ({cart_count}){/if}
+                        </a>
+                        {/if}
+                    </nav>
+                </div>
+            </header>
+        {/if}
     {/if}
-    <header class="ark-header" role="banner">
-        <div class="ark-header__inner">
-            <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
-            <nav class="ark-header__nav" aria-label="Main navigation">
-                {if primary_menu}{primary_menu|raw}{/if}
-                {if cart_enabled}
-                <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
-                    Cart{if cart_count > 0} ({cart_count}){/if}
-                </a>
-                {/if}
-            </nav>
-        </div>
-    </header>
     {/block}
     {ikb_slot name="header.after" /}
 
@@ -110,7 +120,11 @@
         </aside>
     </div>
 
-    {# ARK is self-contained — always renders its own footer, no customizer override #}
+    {# Customizer-aware footer: use customizer output when available,
+       fall back to ARK's own footer when no customizer data exists. #}
+    {if has_customized_footer}
+        {customized_footer|raw}
+    {else}
     <footer class="ark-footer" role="contentinfo">
         {ikb_slot name="footer.before" /}
         {ikb_slot name="footer.main" /}
@@ -140,6 +154,7 @@
         </div>
         {ikb_slot name="footer.after" /}
     </footer>
+    {/if}
 
     {ikb_slot name="site.after" /}
     {ikb_slot name="notifications" /}

@@ -5,6 +5,14 @@
 
 {extends "_cms_active_theme/layouts/public.disyl"}
 
+{block head}
+{include "partials/canonical-entity-styles.disyl"}
+{if is_ecommerce_public or is_ecommerce_entity_route}
+{include "partials/storefront-styles.disyl"}
+{/if}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
+
 {block content}
 {ikb_section padding="large"}
     {ikb_container size="xlarge"}

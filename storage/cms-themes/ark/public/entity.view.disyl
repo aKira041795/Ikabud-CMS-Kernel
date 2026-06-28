@@ -5,10 +5,15 @@
 
 {extends "_cms_active_theme/layouts/public.disyl"}
 
-{block content}
-{ikb_section padding="large"}
-    {ikb_container size="medium"}
+{block head}
+{include "partials/canonical-entity-styles.disyl"}
+{if is_ecommerce_public or is_ecommerce_entity_route}
+{include "partials/storefront-styles.disyl"}
+{/if}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
 
+{block content}
         {if entity}
         <article class="ark-detail">
 
@@ -111,7 +116,4 @@
             <div class="ark-empty__text">{error_state|default:'Unable to load entity.'}</div>
         </div>
         {/if}
-
-    {/ikb_container}
-{/ikb_section}
 {/block}
