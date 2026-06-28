@@ -197,6 +197,8 @@
 </head>
 <body>
 
+{ikb_slot name="site.before" /}
+
 {block header}
 <header class="en-header">
     <div class="en-header__inner">
@@ -220,14 +222,25 @@
 </header>
 {/block}
 
+{ikb_slot name="header.after" /}
+
+{ikb_slot name="hero" /}
+
+{ikb_slot name="breadcrumbs" /}
+
 <main class="en-main">
+    {ikb_slot name="content.before" /}
 {block content}
     {# Default: render whatever the handler provides #}
     {if body}{body|raw}{/if}
 {/block}
+    {ikb_slot name="content.after" /}
 </main>
 
+{ikb_slot name="sidebar.primary" /}
+
 <footer class="en-footer">
+    {ikb_slot name="footer.before" /}
     {if customized_footer}{customized_footer|raw}{else}
     <div class="en-footer__inner">
         <div class="en-footer__col">
@@ -247,7 +260,10 @@
     <div class="en-footer__bottom">
         Built on Ikabud Kernel OS + DiSyL · Entity-Native Theme
     </div>
+    {ikb_slot name="footer.after" /}
 </footer>
+
+{ikb_slot name="site.after" /}
 
 {if body_end_code}{body_end_code|raw}{/if}
 

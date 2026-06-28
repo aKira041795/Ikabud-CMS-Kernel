@@ -480,6 +480,12 @@ function cmsThemeManifestForSlug(?string $slug): array
         }
     }
 
+    // Run manifest validation (Phase 2 — Theme Manifest Standardization)
+    if (class_exists('\\Ikabud\\Kernel\\Services\\ThemeManifestValidator')) {
+        $validation = \Ikabud\Kernel\Services\ThemeManifestValidator::validate($slug, $manifest, $themeDir);
+        $manifest['_validation'] = $validation;
+    }
+
     return $manifest;
 }
 
@@ -553,7 +559,20 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $resolvedScope = !empty($resolvedManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
         ? cmsThemeCustomizerScopeFromManifest($resolvedManifest)
         : 'native';
-    $resolvedMode = ($isEcommerceEntityRouteKind && $resolvedScope === 'ecommerce') ? 'entity_view' : 'traditional';
+    $resolvedMode = 'traditional';
+    if ($isEcommerceEntityRouteKind && $resolvedScope === 'ecommerce') {
+        $resolvedMode = 'entity_view';
+    } elseif ($isEcommerceEntityRouteKind && is_array($resolvedManifest)) {
+        $themeEcom = $resolvedManifest['ecommerce'] ?? [];
+        if (is_array($themeEcom) && ($themeEcom['presentation_mode'] ?? '') === 'entity_view') {
+            $storefrontRoutes = is_array($themeEcom['storefront_routes'] ?? null)
+                ? $themeEcom['storefront_routes']
+                : $entityRouteKinds;
+            if (in_array($routeKind, $storefrontRoutes, true)) {
+                $resolvedMode = 'entity_view';
+            }
+        }
+    }
 
     return [
         'public_render_origin' => $origin !== '' ? $origin : 'cms',
@@ -900,7 +919,11 @@ function cmsActiveThemeManifest(): array
         return [];
     }
 
-    $manifestFile = cmsThemesPath() . '/' . $active . '/theme.json';
+    // Phase 2: prefer theme.manifest.json, fall back to theme.json
+    $manifestFile = cmsThemesPath() . '/' . $active . '/theme.manifest.json';
+    if (!is_file($manifestFile)) {
+        $manifestFile = cmsThemesPath() . '/' . $active . '/theme.json';
+    }
     if (!is_file($manifestFile)) {
         $GLOBALS[$valueKey] = ['slug' => $active];
         return $GLOBALS[$valueKey];
@@ -1109,6 +1132,41 @@ function cmsPublicRender(string $subPath, array $context = []): string
 {
     $template = cmsResolveTemplate($subPath);
     return cmsRender($template, $context);
+}
+
+/**
+ * Resolve a fallback entity-view template from the active theme manifest.
+ *
+ * When an entity type has no registered view contract (unknown module), the
+ * system checks the active theme's theme.manifest.json fallback_views map
+ * for a generic template matching the requested view type (card, table, detail, compact).
+ *
+ * @param string $viewType One of: card, table, detail, compact
+ * @return string Resolved template path, or empty string if no fallback declared
+ */
+function cmsResolveEntityFallbackView(string $viewType): string
+{
+    $manifest = cmsActiveThemeManifest();
+    if (empty($manifest)) {
+        return '';
+    }
+
+    $fallbacks = $manifest['fallback_views'] ?? [];
+    if (!is_array($fallbacks) || empty($fallbacks)) {
+        return '';
+    }
+
+    $fallbackPath = (string)($fallbacks[$viewType] ?? '');
+    if ($fallbackPath === '') {
+        return '';
+    }
+
+    $resolved = cmsResolveTemplate($fallbackPath);
+    if ($resolved !== '') {
+        return $resolved;
+    }
+
+    return '';
 }
 
 function cmsPublicRenderNotFound(array $context = []): string

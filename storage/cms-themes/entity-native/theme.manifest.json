@@ -5,6 +5,8 @@
     "description": "A pure entity-view theme — all content rendered through governed ikb_* components. No CMS-specific context injection. Themes present meaning; modules own truth.",
     "author": "Ikabud",
     "license": "MIT",
+    "kernel_os_compat": "6.1.0",
+    "disyl_compat": "4.7.0",
     "tokens": "tokens.json",
     "shell": "shell.disyl",
     "sections": "sections/",
@@ -14,11 +16,59 @@
         "print",
         "email"
     ],
+    "supported_slots": [
+        "site.before",
+        "header.before",
+        "header.main",
+        "header.after",
+        "hero",
+        "breadcrumbs",
+        "content.before",
+        "content",
+        "content.after",
+        "sidebar.primary",
+        "footer.before",
+        "footer.main",
+        "footer.after",
+        "site.after"
+    ],
+    "fallback_views": {
+        "card": "entity-views/default-card.disyl",
+        "table": "entity-views/default-table.disyl",
+        "detail": "entity-views/default-detail.disyl",
+        "compact": "entity-views/default-compact.disyl"
+    },
     "design_language": {
         "type_scale": "inter",
         "color_system": "oklch",
         "grid": "tailwind-v3",
         "icon_set": "fontawesome-6"
+    },
+    "accessibility": {
+        "semantic_landmarks": true,
+        "skip_to_content": true,
+        "keyboard_navigation": true,
+        "visible_focus": true,
+        "reduced_motion": true,
+        "aria_current": true,
+        "contrast_ratio": "4.5:1"
+    },
+    "browser_support": [
+        "chrome >= 90",
+        "firefox >= 88",
+        "safari >= 14",
+        "edge >= 90"
+    ],
+    "required_assets": {
+        "css": [
+            "style.css"
+        ],
+        "js": []
+    },
+    "optional_assets": {
+        "js": [
+            "script.js"
+        ]
     },
     "theme": {
         "colors": {

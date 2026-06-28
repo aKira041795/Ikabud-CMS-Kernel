@@ -1,0 +1,190 @@
+{# Theme Studio — Design Token Editor
+   Visual editor for theme design tokens: colors, typography, spacing, radius, shadows. #}
+
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="p-6" x-data="tokenEditor()">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Design Tokens</h1>
+            <p class="text-gray-500">
+                {if active_theme}
+                Editing tokens for <strong>{theme_manifest.label|default:active_theme}</strong>
+                {:else}
+                No active theme selected
+                {/if}
+            </p>
+        </div>
+        <div class="flex gap-2">
+            <button @click="resetTokens()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Reset</button>
+            <button @click="saveTokens()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">Save Tokens</button>
+        </div>
+    </div>
+
+    {if !active_theme}
+    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-800">
+        No active theme is configured. Tokens cannot be edited without an active theme.
+    </div>
+    {/if}
+
+    {# Token sections — each category rendered as a card #}
+    <div class="space-y-6">
+
+        {# ── Colors ── #}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Colors</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {for key, def in token_definitions}
+                {if key matches '/^color[-.].+/' or key matches '/^--color[-.].+/'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="color" x-model="tokens['{key}']" class="w-10 h-10 rounded border border-gray-300 cursor-pointer">
+                        <input type="text" x-model="tokens['{key}']" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
+                    </div>
+                </div>
+                {/if}
+                {/for}
+                {if !token_definitions|length or !(token_definitions|keys|join(' ') matches '/color/')}
+                <div class="col-span-full text-sm text-gray-400">
+                    <p>No color tokens defined in the active theme manifest.</p>
+                    <p class="mt-1">Add custom overrides below:</p>
+                    <div class="mt-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Add custom token</label>
+                        <div class="flex gap-2">
+                            <input type="text" x-model="customKey" placeholder="color.primary" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono">
+                            <input type="color" x-model="customVal" class="w-10 h-10 rounded border border-gray-300 cursor-pointer">
+                            <button @click="addCustomToken()" class="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Add</button>
+                        </div>
+                    </div>
+                </div>
+                {/if}
+            </div>
+        </div>
+
+        {# ── Typography ── #}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Typography</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {for key, def in token_definitions}
+                {if key matches '/^typography[-.].+/' or key matches '/^font[-.].+/' or key matches '/^--font[-.].+/'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
+                    <input type="text" x-model="tokens['{key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
+                </div>
+                {/if}
+                {/for}
+            </div>
+        </div>
+
+        {# ── Spacing ── #}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Spacing</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {for key, def in token_definitions}
+                {if key matches '/^spacing[-.].+/' or key matches '/^--spacing[-.].+/'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{key} <span class="text-gray-400 text-xs">({def|default:''})</span></label>
+                    <div class="flex gap-2 items-center">
+                        <input type="range" min="0" max="8" step="0.25" x-model="tokens['{key}']" class="flex-1" oninput="this.nextElementSibling.textContent=this.value+'rem'">
+                        <span class="text-sm font-mono text-gray-500 w-16 text-right">{def|default:'0'}</span>
+                    </div>
+                </div>
+                {/if}
+                {/for}
+            </div>
+        </div>
+
+        {# ── Radius ── #}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Border Radius</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {for key, def in token_definitions}
+                {if key matches '/^radius[-.].+/' or key matches '/^--radius[-.].+/'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="range" min="0" max="2" step="0.125" x-model="tokens['{key}']" class="flex-1">
+                        <input type="text" x-model="tokens['{key}']" class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono text-right">
+                    </div>
+                </div>
+                {/if}
+                {/for}
+            </div>
+        </div>
+
+        {# ── Shadows ── #}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Shadows</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {for key, def in token_definitions}
+                {if key matches '/^shadow[-.].+/' or key matches '/^--shadow[-.].+/'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
+                    <input type="text" x-model="tokens['{key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
+                </div>
+                {/if}
+                {/for}
+            </div>
+        </div>
+
+        {# ── Layout ── #}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Layout</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {for key, def in token_definitions}
+                {if key matches '/^(layout|max_width|header_height|sidebar_width|gutter|container)[-.].+/' or key matches '/^--(layout|max|header|sidebar|container)[-.].+/'}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
+                    <input type="text" x-model="tokens['{key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
+                </div>
+                {/if}
+                {/for}
+            </div>
+        </div>
+    </div>
+
+    {# Alpine.js state management #}
+    <script>
+    function tokenEditor() {
+        return {
+            tokens: {json_encode(token_overrides)|default:'{}'|raw},
+            customKey: '',
+            customVal: '#000000',
+            addCustomToken() {
+                if (this.customKey) {
+                    this.tokens[this.customKey] = this.customVal;
+                    this.customKey = '';
+                    this.customVal = '#000000';
+                }
+            },
+            saveTokens() {
+                fetch('/api/v1/theme-studio/tokens/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        tokens: this.tokens,
+                        theme_slug: '{active_theme}'
+                    })
+                }).then(r => r.json()).then(d => {
+                    if (d.ok) { alert('Tokens saved!'); }
+                    else { alert('Save failed: ' + (d.error || 'unknown')); }
+                }).catch(e => alert('Error: ' + e.message));
+            },
+            resetTokens() {
+                if (!confirm('Reset all token overrides to theme defaults?')) return;
+                fetch('/api/v1/theme-studio/tokens/reset', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ theme_slug: '{active_theme}' })
+                }).then(r => r.json()).then(d => {
+                    if (d.ok) { this.tokens = {}; alert('Tokens reset!'); }
+                    else { alert('Reset failed'); }
+                });
+            }
+        };
+    }
+    </script>
+</div>
+{/block}

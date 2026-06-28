@@ -131,20 +131,28 @@
             <div>
                 <div class="flex items-center gap-2">
                     <h2 class="text-xl font-bold text-slate-900">{if customizer_title}{customizer_title}{else}Theme Customizer{/if}</h2>
-                    {if customizer_scope == 'ecommerce'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">Storefront Studio</span>{/if}
+                    {if customizer_scope_base == 'ecommerce'}<span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-700">Storefront Studio</span>{/if}
                 </div>
                 <p class="mt-0.5 text-sm text-slate-500" x-text="tabDescription()"></p>
                 {if customizer_intro}<p class="mt-1 text-xs text-slate-400">{customizer_intro}</p>{/if}
                 <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                    <a href="{native_customizer_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 font-medium transition-colors {if customizer_scope == 'native'}border-slate-900 bg-slate-900 text-white{else}border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900{/if}">Native Workspace</a>
-                    <a href="{ecommerce_customizer_url}" class="inline-flex items-center rounded-full border px-3 py-1.5 font-medium transition-colors {if customizer_scope == 'ecommerce'}border-amber-600 bg-amber-600 text-white{else}border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300{/if}">E-commerce Workspace</a>
+                    {if customizer_workspaces}
+                    {foreach customizer_workspaces as ws}
+                    <a href="{ws.url}" class="inline-flex items-center rounded-full border px-3 py-1.5 font-medium transition-colors
+                        {if ws.active}
+                            {if ws.scope|strpos:'ecommerce' === 0}border-amber-600 bg-amber-600 text-white{else}border-slate-900 bg-slate-900 text-white{/if}
+                        {else}
+                            {if ws.scope|strpos:'ecommerce' === 0}border-amber-200 bg-amber-50 text-amber-700 hover:border-amber-300{else}border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900{/if}
+                        {/if}">{ws.label}</a>
+                    {/foreach}
+                    {/if}
                 </div>
-                {if customizer_scope == 'ecommerce'}
+                {if customizer_scope_base == 'ecommerce'}
                 <div class="mt-3 rounded-xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-sky-50 px-3 py-3 text-xs text-slate-700">
                     Shape the storefront shell here: header, navigation, sidebar, footer, palette, and shell layout. Use Entities for the canonical entity view and entity list contract.
                 </div>
                 {/if}
-                {if customizer_scope != 'ecommerce'}
+                {if customizer_scope_base != 'ecommerce'}
                 <div class="mt-3 rounded-xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-emerald-50 px-3 py-3 text-xs text-slate-700">
                     The active theme shell stays in charge here. Use Entities for canonical page, post, list, and commerce presentation inside that shell.
                 </div>

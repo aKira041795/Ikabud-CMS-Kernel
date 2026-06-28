@@ -5,6 +5,8 @@
     "description": "The default Ikabud CMS theme — clean, modern, Tailwind-powered.",
     "author": "Ikabud",
     "license": "MIT",
+    "kernel_os_compat": "6.1.0",
+    "disyl_compat": "4.7.0",
     "tokens": "tokens.json",
     "components": "components.json",
     "shell": "shell.disyl",
@@ -17,11 +19,42 @@
         "email",
         "export"
     ],
+    "supported_slots": [
+        "content.before",
+        "content",
+        "content.after"
+    ],
+    "fallback_views": {
+        "card": "public/entity.list.disyl",
+        "table": "public/entity.list.disyl",
+        "detail": "public/entity.view.disyl",
+        "compact": "public/entity.list.disyl"
+    },
     "design_language": {
         "type_scale": "inter",
         "color_system": "oklch",
         "grid": "tailwind-v3",
         "icon_set": "fontawesome-6"
+    },
+    "accessibility": {
+        "semantic_landmarks": true,
+        "skip_to_content": true,
+        "keyboard_navigation": true,
+        "visible_focus": true
+    },
+    "browser_support": [
+        "chrome >= 90",
+        "firefox >= 88",
+        "safari >= 14",
+        "edge >= 90"
+    ],
+    "required_assets": {
+        "css": [
+            "style.css"
+        ],
+        "js": [
+            "script.js"
+        ]
     },
     "theme": {
         "colors": {

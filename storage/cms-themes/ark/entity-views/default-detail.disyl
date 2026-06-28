@@ -1,0 +1,60 @@
+{# Entity-Native: Generic fallback detail view for unknown entity types
+   Renders when no module-specific entity detail contract is registered.
+   Auto-discovers entity fields and renders them as a structured display. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{ikb_section padding_y="lg"}
+    {ikb_container max_width="800px" padding="md"}
+        {if entity}
+        <article class="en-detail" style="max-width:800px;">
+            {# Title #}
+            {if entity.title or entity.name}
+            <h1 class="en-detail__title" style="font-size:2rem;font-weight:700;margin:0 0 var(--spacing-sm);letter-spacing:-0.02em;color:var(--color-text);">
+                {entity.title|default:entity.name}
+            </h1>
+            {/if}
+
+            {# Featured image #}
+            {if entity.featured_image_url or entity.image or entity.thumbnail_url}
+            <img src="{entity.featured_image_url|default:entity.image|default:entity.thumbnail_url}" alt="{entity.title|default:entity.name|default:''}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
+            {/if}
+
+            {# Meta line #}
+            {if entity.status or entity.published_at or entity.author_name}
+            <div class="en-detail__meta" style="color:var(--color-text-secondary);font-size:0.875rem;margin-bottom:var(--spacing-lg);">
+                {if entity.status}
+                <span class="en-badge" style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.75rem;font-weight:500;background:var(--color-surface-muted);color:var(--color-text-secondary);margin-right:0.5rem;">{entity.status}</span>
+                {/if}
+                {if entity.published_at}{entity.published_at}{/if}
+                {if entity.author_name} by {entity.author_name}{/if}
+            </div>
+            {/if}
+
+            {# Body / description #}
+            {if entity.body or entity.description or entity.content}
+            <div class="en-detail__body" style="line-height:1.75;color:var(--color-text);">
+                {entity.body|default:entity.description|default:entity.content|raw}
+            </div>
+            {/if}
+
+            {# Auto-discovered fields intentionally omitted for safe fallback.
+               Unknown entity types are supported; unknown fields are hidden.
+               Only explicitly safe known fields (title, image, meta, body)
+               are rendered in the generic fallback. #}
+
+            {# Back link #}
+            <div style="margin-top:var(--spacing-lg);">
+                <a href="javascript:history.back()" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">← Back</a>
+            </div>
+        </article>
+        {else}
+        <div class="en-empty" style="text-align:center;padding:var(--spacing-xl);color:var(--color-text-secondary);">
+            <div class="en-empty__icon" style="font-size:2.5rem;margin-bottom:var(--spacing-sm);">📄</div>
+            <div class="en-empty__text">{error_state|default:'Unable to load entity.'}</div>
+        </div>
+        {/if}
+    {/ikb_container}
+{/ikb_section}
+{/block}

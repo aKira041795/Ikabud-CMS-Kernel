@@ -32,32 +32,71 @@ define('PAGE_CACHE_MODULE_TTLS', [
     'ecommerce'  => 180,  // 3 min — product listings, shop pages
 ]);
 
-// ── Routes that must NEVER be page-cached ────────────────────────────
-// Session-dependent, user-specific, or mutation-triggering pages.
-define('PAGE_CACHE_SKIP_PREFIXES', [
-    '/api/',
-    '/admin/',
-    '/login',
-    '/logout',
-    '/register',
-    '/lock.php',
-    '/superadmin',
-    '/ecommerce/cart',
-    '/ecommerce/checkout',
-    '/ecommerce/my-orders',
-    '/ecommerce/my-wishlist',
-    '/ecommerce/recover-cart',
-    '/ecommerce/compare',
-    '/ecommerce/admin',
-    '/ecommerce/store-admin',
-    '/cms/login',
-    '/cms/register',
-    '/cms/admin',
-    '/cms/auth',
-    '/portal',
-    '/ehr/queue-monitor',
-    '/attendance-wage/',
-]);
+// ── Skip prefixes (single source of truth from shared config) ──
+define('PAGE_CACHE_SKIP_PREFIXES', require __DIR__ . '/../../config/page-cache-prefixes.php');
+
+// ── Cache version tracking ──
+// Monotonically increasing counter bumped on every invalidation.
+// Stored in APCu + file so both the fast-path (pre-bootstrap, APCu)
+// and the full kernel (file fallback) can read it.
+
+function pageCacheVersionKey(string $instance): string
+{
+    return 'pagecache:version:' . $instance;
+}
+
+function pageCacheVersionFile(string $instance): string
+{
+    return rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : dirname(__DIR__, 3) . '/storage')), '/') . '/cache/' . $instance . '/.cache_version';
+}
+
+function pageCacheReadVersion(string $instance): int
+{
+    if (function_exists('apcu_fetch')) {
+        $v = apcu_fetch(pageCacheVersionKey($instance));
+        if (is_int($v) && $v > 0) {
+            return $v;
+        }
+    }
+    $f = pageCacheVersionFile($instance);
+    if (is_file($f)) {
+        $v = (int)@file_get_contents($f);
+        if ($v > 0) {
+            return $v;
+        }
+    }
+    return 0;
+}
+
+function pageCacheBumpVersion(string $instance): void
+{
+    $v = pageCacheReadVersion($instance) + 1;
+    if (function_exists('apcu_store')) {
+        apcu_store(pageCacheVersionKey($instance), $v, 86400);
+    }
+    $dir = dirname(pageCacheVersionFile($instance));
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    @file_put_contents(pageCacheVersionFile($instance), (string)$v);
+}
+
+// ── Flush file for mtime-based fast-path invalidation ──
+
+function pageCacheFlushFilePath(string $instance): string
+{
+    return rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : dirname(__DIR__, 3) . '/storage')), '/') . '/cache/' . $instance . '/.flush';
+}
+
+function pageCacheTouchFlush(string $instance): void
+{
+    $f = pageCacheFlushFilePath($instance);
+    $dir = dirname($f);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    @touch($f);
+}
 
 // ── Instance & TTL ───────────────────────────────────────────────────
 
@@ -222,6 +261,7 @@ function pageCacheSet(string $uri, string $html, string $moduleId, int $status =
         'cached_at' => date('Y-m-d H:i:s'),
         'uri' => $uri,
         'module' => $moduleId,
+        '_cache_version' => pageCacheReadVersion(pageCacheInstance()),
     ];
     app()->cache()->setWithTags(pageCacheInstance(), $key, $data, $tags, pageCacheTtlForModule($moduleId));
 }
@@ -304,7 +344,10 @@ function pageCacheInvalidateModule(string $moduleId): int
     if (!function_exists('app')) {
         return 0;
     }
-    return app()->cache()->clearByTags(pageCacheInstance(), ['pagecache:module:' . $moduleId]);
+    $instance = pageCacheInstance();
+    pageCacheBumpVersion($instance);
+    pageCacheTouchFlush($instance);
+    return app()->cache()->clearByTags($instance, ['pagecache:module:' . $moduleId]);
 }
 
 /**
@@ -312,7 +355,10 @@ function pageCacheInvalidateModule(string $moduleId): int
  */
 function pageCacheInvalidateUrl(string $uri): int
 {
-    return app()->cache()->clearByTags(pageCacheInstance(), ['pagecache:uri:' . md5($uri)]);
+    $instance = pageCacheInstance();
+    pageCacheBumpVersion($instance);
+    pageCacheTouchFlush($instance);
+    return app()->cache()->clearByTags($instance, ['pagecache:uri:' . md5($uri)]);
 }
 
 /**
@@ -320,9 +366,11 @@ function pageCacheInvalidateUrl(string $uri): int
  */
 function pageCacheFlushAll(): int
 {
-    // Clean up any stale lock files
     pageCacheLockCleanup();
-    return app()->cache()->clearByTags(pageCacheInstance(), ['pagecache:all']);
+    $instance = pageCacheInstance();
+    pageCacheBumpVersion($instance);
+    pageCacheTouchFlush($instance);
+    return app()->cache()->clearByTags($instance, ['pagecache:all']);
 }
 
 // ── Cache Warm-Up ────────────────────────────────────────────────────

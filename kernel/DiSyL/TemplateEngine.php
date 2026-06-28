@@ -1203,6 +1203,8 @@ class TemplateEngine
     {
         // Normalize shorthand {var = expr} to {set var = expr} before processing
         $content = preg_replace('/\{(?!set\s)(\w+)\s*=\s*([^}]+)\}/', '{set $1 = $2}', $content);
+        // Normalize {var++} to {set var++} and {var--} to {set var--}
+        $content = preg_replace('/\{(?!set\s)(\w+)(\+\+|--)\}/', '{set $1$2}', $content);
 
         // Match {set ...}, {set ... += ...}, {set ... ++}, etc.
         // Uses `#` as delimiter to avoid escaping / inside character classes.
@@ -3853,7 +3855,7 @@ class TemplateEngine
         
         while ($iteration < $maxIterations && preg_match('/\{include\s+"([^"]+)"/', $content)) {
             $content = preg_replace_callback(
-                '/\{include\s+"([^"]+)"(?:\s+with\s+(\{[^}]+\}))?\s*\}/',
+                '/\{include\s+"([^"]+)"(?:\s+with:?\s+(\{(?:[^{}]|\{[^}]*\})*\}?))?\s*\}/',
                 function($match) use ($context) {
                     $includePath = $this->resolveTemplatePath($match[1]);
                     if (!file_exists($includePath)) {
@@ -4786,21 +4788,100 @@ class TemplateEngine
     private function parseInlineObject(string $str, array $context): array
     {
         $result = [];
-        $str = trim($str, '{}');
+        $str = trim($str);
         
-        // Split by comma, respecting quotes
-        $pairs = $this->splitByComma($str);
+        // Strip outer braces
+        if (str_starts_with($str, '{') && str_ends_with($str, '}')) {
+            $str = trim(substr($str, 1, -1));
+        }
+        
+        // Split by comma at the top level only (not inside nested braces)
+        $pairs = $this->splitTopLevelPairs($str);
         
         foreach ($pairs as $pair) {
-            if (strpos($pair, ':') !== false) {
-                list($key, $value) = explode(':', $pair, 2);
-                $key = trim($key);
-                $value = trim($value, ' "\'');
-                $result[$key] = $this->resolveValue($value, $context) ?? $value;
+            $pair = trim($pair);
+            if ($pair === '') {
+                continue;
+            }
+            $colonPos = strpos($pair, ':');
+            if ($colonPos === false) {
+                continue;
+            }
+            $key = trim(substr($pair, 0, $colonPos));
+            $rawValue = trim(substr($pair, $colonPos + 1));
+            
+            // Handle nested object recursively
+            if (str_starts_with($rawValue, '{') && str_ends_with($rawValue, '}')) {
+                $result[$key] = $this->parseInlineObject($rawValue, $context);
+            } else {
+                // Remove surrounding quotes from scalar values
+                $cleanValue = trim($rawValue, ' "\'');
+                $resolved = $this->resolveValue($cleanValue, $context);
+                $result[$key] = $resolved ?? $cleanValue;
             }
         }
         
         return $result;
+    }
+    
+    /**
+     * Split a string by commas at the top level, respecting nested braces and quotes.
+     */
+    private function splitTopLevelPairs(string $str): array
+    {
+        $parts = [];
+        $depth = 0;
+        $inQuote = null;
+        $current = '';
+        $len = strlen($str);
+        
+        for ($i = 0; $i < $len; $i++) {
+            $c = $str[$i];
+            
+            if ($inQuote !== null) {
+                if ($c === '\\') {
+                    $current .= $c . ($i + 1 < $len ? $str[++$i] : '');
+                    continue;
+                }
+                if ($c === $inQuote) {
+                    $inQuote = null;
+                }
+                $current .= $c;
+                continue;
+            }
+            
+            if ($c === '"' || $c === "'") {
+                $inQuote = $c;
+                $current .= $c;
+                continue;
+            }
+            
+            if ($c === '{') {
+                $depth++;
+                $current .= $c;
+                continue;
+            }
+            
+            if ($c === '}') {
+                $depth--;
+                $current .= $c;
+                continue;
+            }
+            
+            if ($c === ',' && $depth === 0) {
+                $parts[] = $current;
+                $current = '';
+                continue;
+            }
+            
+            $current .= $c;
+        }
+        
+        if ($current !== '') {
+            $parts[] = $current;
+        }
+        
+        return $parts;
     }
     
     /**
@@ -5116,6 +5197,7 @@ class TemplateEngine
             'ikb_timeline' => $this->renderTimeline($attrs, $children),
             'ikb_confirm_action' => $this->renderConfirmAction($attrs, $children),
             'ikb_panel' => $this->renderPanel($attrs, $children),
+            'ikb_slot' => $this->renderSlot($attrs, $children, $context),
             'ikb_drawer' => $this->renderDrawer($attrs, $children),
             'ikb_audit_log' => $this->renderAuditLog($attrs, $children, $context),
             'ikb_ai_summary' => $this->renderAiSummary($attrs, $children, $context),
@@ -5174,6 +5256,7 @@ class TemplateEngine
             'ikb_ai_assist',
             'ikb_report',
             'ikb_signature_block',
+            'ikb_slot',
         ];
 
         // Add any custom registered components
@@ -5921,6 +6004,48 @@ class TemplateEngine
         };
 
         return "<div class=\"ikb-panel {$toneClass} {$spacingClass} {$radiusClass} {$class}\">{$children}</div>";
+    }
+
+    /**
+     * Render a governed theme slot — resolves module-contributed content via SlotRegistry.
+     *
+     * Attributes:
+     *   name — slot identifier (required, e.g. "content.after", "header.main")
+     *
+     * At render time, queries SlotRegistry for all contributions matching the current
+     * rendering context (entity_type, view, route, role, capabilities). Each matching
+     * contribution is rendered using the contributed component with its attributes.
+     */
+    private function renderSlot(array $attrs, string $children, array $context): string
+    {
+        $slotName = (string)($attrs['name'] ?? '');
+        if ($slotName === '') {
+            return '<!-- ikb_slot: missing name attribute -->';
+        }
+
+        $contributions = \Ikabud\Kernel\Services\SlotRegistry::resolve($slotName, $context);
+
+        if (empty($contributions)) {
+            // Render children as fallback content when no contributions match
+            return $children;
+        }
+
+        $output = '';
+        foreach ($contributions as $contribution) {
+            $component = $contribution['component'] ?? 'ikb_panel';
+            $contributionAttrs = $contribution['attrs'] ?? [];
+
+            // Render the contributed component with its children
+            $contributionChildren = $contribution['children'] ?? '';
+            $output .= $this->renderComponent($component, $contributionAttrs, $contributionChildren, $context);
+        }
+
+        // Wrap with an identifying comment for debugging
+        if ($this->debug) {
+            $output = '<!-- slot:' . htmlspecialchars($slotName, ENT_QUOTES, 'UTF-8') . ' -->' . $output;
+        }
+
+        return $output;
     }
 
     /**

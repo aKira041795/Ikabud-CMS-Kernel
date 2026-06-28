@@ -1,0 +1,44 @@
+{# Entity-Native: Generic fallback compact view for unknown entity types
+   Minimal inline rendering — used in sidebars, meta panels, related-item lists. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{ikb_section padding_y="md"}
+    {ikb_container max_width="1200px" padding="sm"}
+        {if rows}
+        <div style="display:flex;flex-direction:column;gap:var(--spacing-sm);">
+            {for row in rows}
+            <div style="display:flex;align-items:center;gap:var(--spacing-sm);padding:var(--spacing-sm);border-radius:var(--radius-sm);transition:background 0.1s;">
+                {if row.image or row.thumbnail_url or row.featured_image_url}
+                <img src="{row.image|default:row.thumbnail_url|default:row.featured_image_url}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:var(--radius-sm);background:var(--color-surface-muted);flex-shrink:0;" />
+                {/if}
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:0.875rem;font-weight:500;color:var(--color-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        {if row.url}<a href="{row.url}" style="color:inherit;text-decoration:none;">{/if}
+                        {row.title|default:row.name|default:row.label|default:'Item'}
+                        {if row.url}</a>{/if}
+                    </div>
+                    {if row.excerpt or row.description}
+                    <div style="font-size:0.75rem;color:var(--color-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                        {row.excerpt|default:row.description}
+                    </div>
+                    {/if}
+                </div>
+                {if row.price or row.status}
+                <div style="text-align:right;flex-shrink:0;">
+                    {if row.price}<div style="font-size:0.8rem;font-weight:600;color:var(--color-primary);">{row.price}</div>{/if}
+                    {if row.status}<span style="display:inline-block;padding:0.1rem 0.4rem;border-radius:999px;font-size:0.65rem;font-weight:500;background:var(--color-surface-muted);color:var(--color-text-secondary);">{row.status}</span>{/if}
+                </div>
+                {/if}
+            </div>
+            {/for}
+        </div>
+        {else}
+        <div style="text-align:center;padding:var(--spacing-md);color:var(--color-text-secondary);font-size:0.85rem;">
+            {empty_state|default:'No items.'}
+        </div>
+        {/if}
+    {/ikb_container}
+{/ikb_section}
+{/block}

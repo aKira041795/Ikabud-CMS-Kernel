@@ -204,10 +204,47 @@ function cmsValidateColorsSettings(array $input): array
     return $validated;
 }
 
+/**
+ * Normalize a customizer scope identifier.
+ *
+ * Accepts composite scopes in the format "{base}_{theme_slug}" where base
+ * is "native" or "ecommerce" — e.g. "native_ark", "ecommerce_entity-commerce-poc".
+ * Legacy bare "native" / "ecommerce" values are still accepted for backward
+ * compatibility (themes without a distinct slug).
+ */
 function cmsNormalizeCustomizerScope(?string $scope, string $fallback = 'native'): string
 {
     $scope = trim((string)$scope);
-    return in_array($scope, ['native', 'ecommerce'], true) ? $scope : $fallback;
+    if ($scope === '') {
+        return $fallback;
+    }
+
+    // Direct match on base scopes (legacy / no theme slug)
+    if (in_array($scope, ['native', 'ecommerce'], true)) {
+        return $scope;
+    }
+
+    // Composite scope: {base}_{theme_slug}
+    if (preg_match('/^(native|ecommerce)_([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$/', $scope)) {
+        return $scope;
+    }
+
+    return $fallback;
+}
+
+/**
+ * Parse a composite customizer scope into its base and theme slug parts.
+ * Returns ['base' => 'native'|'ecommerce', 'theme' => string|null].
+ */
+function cmsParseCustomizerScope(string $scope): array
+{
+    if (preg_match('/^(native|ecommerce)_([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$/', $scope, $m)) {
+        return ['base' => $m[1], 'theme' => $m[2]];
+    }
+    if (in_array($scope, ['native', 'ecommerce'], true)) {
+        return ['base' => $scope, 'theme' => null];
+    }
+    return ['base' => 'native', 'theme' => null];
 }
 
 function cmsRequestedCustomizerScope(array $params = []): string
@@ -263,11 +300,28 @@ function cmsEcommercePublicPresentationMode(array $context = []): string
         return in_array($mode, ['traditional', 'entity_view'], true) ? $mode : 'traditional';
     }
 
+    // Check if active theme manifest declares ecommerce entity_view support
+    $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
+    $themeEcom = $manifest['ecommerce'] ?? [];
+    if (is_array($themeEcom) && ($themeEcom['presentation_mode'] ?? '') === 'entity_view') {
+        $routeKind = cmsNormalizeEcommercePublicRouteKind(
+            (string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? 'generic')
+        );
+        $storefrontRoutes = is_array($themeEcom['storefront_routes'] ?? null)
+            ? $themeEcom['storefront_routes']
+            : cmsEcommerceEntityViewRouteKinds();
+        if (in_array($routeKind, $storefrontRoutes, true)) {
+            return 'entity_view';
+        }
+        return 'traditional';
+    }
+
     $routeKind = cmsNormalizeEcommercePublicRouteKind(
         (string)($context['public_route_kind'] ?? $context['ecommerce_public_route'] ?? 'generic')
     );
 
-    if (cmsActiveCustomizerScope() !== 'ecommerce') {
+    $parsed = cmsParseCustomizerScope(cmsActiveCustomizerScope());
+    if ($parsed['base'] !== 'ecommerce') {
         return 'traditional';
     }
 
@@ -329,7 +383,13 @@ function cmsValidateCustomizerSectionSettings(string $section, array $settings, 
 
 function cmsThemeCustomizerScopeFromManifest(array $manifest): string
 {
-    return cmsNormalizeCustomizerScope((string)($manifest['customizer_scope'] ?? 'native'));
+    $base = cmsNormalizeCustomizerScope((string)($manifest['customizer_scope'] ?? 'native'));
+    $slug = trim((string)($manifest['slug'] ?? $manifest['name'] ?? ''));
+    if ($slug === '' || $slug === 'default' || !preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', $slug)) {
+        return $base;
+    }
+    // Composite scope: {base}_{theme_slug} — makes customizer per-theme
+    return $base . '_' . $slug;
 }
 
 function cmsThemeManifestEntityViewDefaults(?array $manifest = null): array
@@ -343,8 +403,9 @@ function cmsEntityPresentationSectionDefaults(?string $scope = null, ?array $man
 {
     $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
     $scope = cmsNormalizeCustomizerScope($scope, cmsThemeCustomizerScopeFromManifest($manifest));
+    $parsed = cmsParseCustomizerScope($scope);
     $defaults = cmsEntityPresentationSettingsDefaults();
-    if ($scope === 'ecommerce') {
+    if ($parsed['base'] === 'ecommerce') {
         $defaults['entity_layout_profile'] = 'commerce';
     }
 
@@ -479,7 +540,8 @@ function cmsThemeManifestColorsDefaults(?array $manifest = null): array
 function cmsThemeManifestThemeLayoutDefaults(?array $manifest = null, ?string $scope = null): array
 {
     $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
-    $scope = cmsNormalizeCustomizerScope($scope, cmsThemeCustomizerScopeFromManifest($manifest));
+    $resolvedScope = $scope !== null ? $scope : cmsThemeCustomizerScopeFromManifest($manifest);
+    $scope = cmsNormalizeCustomizerScope($resolvedScope, 'native');
     $tokens = function_exists('cmsThemeManifestTokens') ? cmsThemeManifestTokens($manifest) : [];
     $defaults = cmsThemeLayoutSettingsDefaults();
 
@@ -506,7 +568,10 @@ function cmsActiveCustomizerScope(): string
 {
     if (function_exists('cmsResolveEcommerceThemePolicy')) {
         $policy = cmsResolveEcommerceThemePolicy(cmsCurrentPublicThemeContext());
-        return cmsNormalizeCustomizerScope((string)($policy['active_theme_scope'] ?? 'native'));
+        $policyScope = (string)($policy['active_theme_scope'] ?? '');
+        if ($policyScope !== '') {
+            return cmsNormalizeCustomizerScope($policyScope, 'native');
+        }
     }
 
     return cmsThemeCustomizerScopeFromManifest(cmsActiveThemeManifest());
@@ -525,7 +590,8 @@ function cmsThemeShouldDeferCustomizerPresentation(?array $manifest = null): boo
         return !empty($manifest['defer_customizer_presentation']);
     }
 
-    return cmsThemeCustomizerScopeFromManifest($manifest) === 'ecommerce';
+    $parsed = cmsParseCustomizerScope(cmsThemeCustomizerScopeFromManifest($manifest));
+    return $parsed['base'] === 'ecommerce';
 }
 
 function cmsCustomizerSettingsEqual(array $left, array $right): bool
@@ -554,13 +620,42 @@ function cmsShouldRenderCustomizerPresentationCss(string $section, array $settin
 function cmsCustomizerScopeLabel(?string $scope = null): string
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    return $scope === 'ecommerce' ? 'E-commerce Theme Customizer' : 'Theme Customizer';
+    $parsed = cmsParseCustomizerScope($scope);
+
+    if ($parsed['theme'] !== null) {
+        // Look up theme label for a human-readable name
+        $available = cmsAvailableThemes();
+        foreach ($available as $theme) {
+            if (($theme['slug'] ?? '') === $parsed['theme']) {
+                $label = (string)($theme['label'] ?? $theme['name'] ?? $parsed['theme']);
+                return $label . ' Theme Customizer';
+            }
+        }
+        return ucfirst($parsed['theme']) . ' Theme Customizer';
+    }
+
+    return $parsed['base'] === 'ecommerce' ? 'E-commerce Theme Customizer' : 'Theme Customizer';
 }
 
 function cmsCustomizerScopeIntro(?string $scope = null): string
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    return $scope === 'ecommerce'
+    $parsed = cmsParseCustomizerScope($scope);
+
+    if ($parsed['theme'] !== null) {
+        $available = cmsAvailableThemes();
+        foreach ($available as $theme) {
+            if (($theme['slug'] ?? '') === $parsed['theme']) {
+                $description = (string)($theme['description'] ?? '');
+                if ($description !== '') {
+                    return $description;
+                }
+                break;
+            }
+        }
+    }
+
+    return $parsed['base'] === 'ecommerce'
         ? 'Customize the ecommerce presentation layer without inheriting native theme sidebar and layout concerns.'
         : 'Customize your site\'s shared presentation layer for the native theme experience.';
 }
@@ -568,7 +663,8 @@ function cmsCustomizerScopeIntro(?string $scope = null): string
 function cmsCustomizerStorefrontScope(?string $scope = null): bool
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    return $scope === 'ecommerce';
+    $parsed = cmsParseCustomizerScope($scope);
+    return $parsed['base'] === 'ecommerce';
 }
 
 function cmsCustomizerUsesStorefrontChrome(?string $scope = null, array $publicCtx = []): bool
@@ -632,10 +728,14 @@ function cmsCustomizerFallbackNavItems(string $baseUrl, ?string $scope = null, a
 function cmsCustomizerStorageSection(string $section, ?string $scope = null): string
 {
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    if ($scope === '' || $scope === 'native') {
+    $parsed = cmsParseCustomizerScope($scope);
+
+    // Legacy bare scopes ('native', 'ecommerce') use unprefixed section keys
+    if ($parsed['theme'] === null) {
         return $section;
     }
 
+    // Composite scopes ('native_ark', 'ecommerce_ark') get their own DB rows
     return $scope . ':' . $section;
 }
 
@@ -818,7 +918,8 @@ function cmsNormalizeEntityPresentationStorage(object $db, ?int $userId = null, 
     }
     $canonicalChanged = false;
 
-    $legacySections = $scope === 'ecommerce' ? ['storefront', 'theme'] : ['theme'];
+    $parsed = cmsParseCustomizerScope($scope);
+    $legacySections = $parsed['base'] === 'ecommerce' ? ['storefront', 'theme'] : ['theme'];
     foreach ($legacySections as $legacySection) {
         $legacyRecord = cmsCustomizerSectionRecord($db, $legacySection, $scope);
         if (!is_array($legacyRecord)) {
@@ -1007,6 +1108,34 @@ function cmsEnsureCustomizerScopeSeeded(object $db, ?string $scope = null): void
     }
 
     $GLOBALS[$requestCacheKey] = $requestCache;
+    cmsCustomizerClearPersistentCache(null, $scope);
+}
+
+/**
+ * Re-seed customizer DB rows with the active theme's manifest defaults.
+ * Called when the active theme changes so the customizer reflects the
+ * new theme's design tokens and entity view presets instead of stale values.
+ */
+function cmsReseedCustomizerForTheme(?string $scope = null): void
+{
+    $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
+    $db = cmsDb();
+    $manifest = cmsActiveThemeManifest();
+
+    foreach (['colors', 'entity_presentation', 'theme'] as $section) {
+        $newDefaults = cmsThemeManifestCustomizerDefaults($section, $manifest, $scope);
+        $row = cmsCustomizerSectionRecord($db, $section, $scope);
+        if ($row === null) {
+            // No saved settings yet — seed with theme defaults
+            cmsUpsertCustomizerSection($db, $section, $newDefaults, [], null, $scope);
+            continue;
+        }
+
+        // Merge saved widgets (preserve them), replace settings with new defaults
+        $widgets = json_decode((string)($row['widgets_json'] ?? '[]'), true) ?: [];
+        cmsUpsertCustomizerSection($db, $section, $newDefaults, $widgets, null, $scope);
+    }
+
     cmsCustomizerClearPersistentCache(null, $scope);
 }
 
@@ -1407,7 +1536,8 @@ function cmsRenderColorsStyle(object $db): string
     $storefrontVarsCss .= '--container-max:' . ($s['container_width'] ?? '1200') . 'px;';
     $storefrontVarsCss .= '}';
     if (!cmsShouldRenderCustomizerPresentationCss('colors', $data['settings'])) {
-        if (cmsActiveCustomizerScope() !== 'ecommerce') {
+        $activeParsed = cmsParseCustomizerScope(cmsActiveCustomizerScope());
+        if ($activeParsed['base'] !== 'ecommerce') {
             cmsCustomizerFragmentCacheSet('colors_style', ['html' => ''], ['cms:customizer:colors']);
             return '';
         }
@@ -2056,7 +2186,8 @@ function cmsRenderThemeLayoutCss(array $settings, ?string $scope = null): string
     $css .= '.header-topbar-inner>.cms-shell-entity-view--widget{display:flex;flex:0 0 auto;width:auto;max-width:100%;min-width:0;}';
     $css .= '.header-topbar-inner>.cms-shell-entity-view--widget>.cms-shell-entity-view__body,.header-topbar-inner>.cms-shell-entity-view--widget .header-widget{width:auto;max-width:100%;min-width:0;}';
 
-    if ($scope === 'ecommerce') {
+    $parsedScope = cmsParseCustomizerScope($scope);
+    if ($parsedScope['base'] === 'ecommerce') {
         $css .= '.header-topbar .cms-public-shell,.site-header .cms-public-shell,.footer-widgets .cms-public-shell,.footer-bottom .cms-public-shell{width:100%;max-width:var(--theme-site-max-width);margin-left:auto;margin-right:auto;}';
         $css .= '.entity-commerce-poc{--container-width:var(--theme-site-max-width);--container-max:var(--theme-site-max-width);}';
         $css .= '.entity-commerce-poc .poc-main__inner{width:min(var(--theme-site-max-width),calc(100vw - (var(--theme-content-px) * 2)));margin-left:auto;margin-right:auto;}';
@@ -2348,7 +2479,12 @@ function cmsCustomizerGet(object $db, string $section, ?string $scope = null): a
     }
 
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
-    $defaults = cmsCustomizerSectionDefaults($section, $scope);
+
+    // Use theme manifest defaults for sections the active theme can override,
+    // fall back to CMS built-in defaults for sections like footer/header.
+    $defaults = in_array($section, ['colors', 'theme'], true)
+        ? cmsThemeManifestCustomizerDefaults($section, null, $scope)
+        : cmsCustomizerSectionDefaults($section, $scope);
 
     try {
         $row = cmsCustomizerSectionRecord($db, $section, $scope);

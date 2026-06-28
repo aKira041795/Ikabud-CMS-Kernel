@@ -27,6 +27,7 @@ return [
         '/cms/admin/customize'             => 'cms:cmsAdminCustomizer',
         '/cms/admin/customize/native'      => 'cms:cmsAdminCustomizer',
         '/cms/admin/customize/ecommerce'   => 'cms:cmsAdminCustomizer',
+        '/cms/admin/customize/{scope}'     => 'cms:cmsAdminCustomizer',
         '/cms/admin/redirects'             => 'cms:cmsAdminRedirects',
         '/cms/admin/import-export'         => 'cms:cmsAdminImportExport',
         '/cms/admin/permissions'           => 'cms:cmsAdminPermissions',

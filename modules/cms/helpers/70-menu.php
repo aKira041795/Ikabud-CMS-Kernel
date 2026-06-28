@@ -544,3 +544,69 @@ function cmsRenderMenuById(object $db, int $menuId, string $cssClass = 'nav-menu
 /**
  * Get an SVG icon for a social network name.
  */
+
+/**
+ * Seed default menus from an active theme manifest into the CMS menu system.
+ * Reads the theme manifest's "default_menus" section and creates menu entries
+ * for any unassigned locations. Skips locations that already have a menu.
+ */
+function cmsSeedThemeDefaultMenus(): void
+{
+    $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
+    $defaultMenus = $manifest['default_menus'] ?? [];
+    if (empty($defaultMenus) || !is_array($defaultMenus)) {
+        return;
+    }
+
+    foreach ($defaultMenus as $location => $items) {
+        $location = trim((string)$location);
+        if ($location === '' || empty($items) || !is_array($items)) {
+            continue;
+        }
+
+        // Skip if menu already assigned to this location
+        $existing = cmsGetMenuByLocation($location);
+        if ($existing !== null) {
+            continue;
+        }
+
+        // Build a human-readable menu name from location slug
+        $menuName = ucwords(str_replace(['-', '_'], ' ', $location)) . ' Menu';
+
+        $result = cmsMenuCreate($menuName, '', $location);
+        if (!$result['ok'] || empty($result['id'])) {
+            write_log('warn', 'cms.theme.menu_seed_failed', [
+                'location' => $location,
+                'theme' => $manifest['slug'] ?? $manifest['name'] ?? 'unknown',
+            ]);
+            continue;
+        }
+
+        $menuId = (int)$result['id'];
+
+        // Convert manifest items to the format expected by cmsMenuItemsReplace
+        $menuItems = [];
+        foreach ($items as $item) {
+            if (empty($item['title']) || empty($item['url'])) {
+                continue;
+            }
+            $menuItems[] = [
+                'label' => $item['title'],
+                'url' => $item['url'],
+                'link_type' => 'custom',
+                'target' => '_self',
+            ];
+        }
+
+        if (!empty($menuItems)) {
+            cmsMenuItemsReplace($menuId, $menuItems);
+        }
+
+        write_log('info', 'cms.theme.menu_seeded', [
+            'location' => $location,
+            'menu_id' => $menuId,
+            'item_count' => count($menuItems),
+            'theme' => $manifest['slug'] ?? $manifest['name'] ?? 'unknown',
+        ]);
+    }
+}

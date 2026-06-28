@@ -226,7 +226,13 @@ final class EntityViewResolver
             return $ctx->toArray();
         }
 
-        return null;
+        // Ultimate fallback: generic contract with wildcard fields
+        $genericDefaults = $this->genericFallbackContract($entityType, $view);
+        $ctx = ResolvedEntityContext::fromContract($entityType, $view, $genericDefaults, [
+            ['provider' => 'kernel.generic', 'timestamp' => '1970-01-01T00:00:00+00:00'],
+        ]);
+        $this->resolvedCache[$key] = $ctx;
+        return $ctx->toArray();
     }
 
     // ── Data resolution (calls the capability bus) ──
@@ -661,6 +667,46 @@ final class EntityViewResolver
             'exportable' => false,
             'capability' => null,
             'provider' => 'kernel.builtin',
+        ];
+    }
+
+    /**
+     * Get a generic fallback contract for any entity type + view combination.
+     * Uses '*' for fields so the template can render whatever data is available.
+     * This is the absolute last resort when no view contract exists.
+     *
+     * @return array<string, mixed>
+     */
+    private function genericFallbackContract(string $entityType, string $view): array
+    {
+        if (\function_exists('write_log')) {
+            \write_log("EntityViewResolver: generic fallback used for '{$entityType}.{$view}' — no view contract registered", 'warning', [
+                'entity_type' => $entityType,
+                'view' => $view,
+            ]);
+        }
+
+        return [
+            'entity_type'     => $entityType,
+            'view'            => $view,
+            'fields'          => '*',
+            'actions'         => ['view'],
+            'action_urls'     => [],
+            'action_methods'  => [],
+            'action_confirm'  => [],
+            'action_show_if'  => [],
+            'action_labels'   => [],
+            'renderers'       => [],
+            'field_contracts' => [],
+            'limit'           => 25,
+            'sort'            => ['field' => 'created_at', 'direction' => 'desc'],
+            'empty_state'     => 'No records found.',
+            'error_state'     => 'Unable to load data.',
+            'exportable'      => false,
+            'capability'      => null,
+            'provider'        => 'kernel.generic',
+            'key_field'       => null,
+            'timeout_ms'      => 10000,
         ];
     }
 

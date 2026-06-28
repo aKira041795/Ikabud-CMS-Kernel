@@ -1,0 +1,327 @@
+/* ============================================================
+   CMS Module — Public Shared Styles (cms-public.css)
+   
+   Builder output, content typography, lightbox, and UI
+   component styles required by CMS public rendering.
+   
+   This file is auto-injected into every theme via the
+   cms_public_css_url context variable. Themes do NOT need
+   to copy these styles — just include {cms_public_css_url}.
+   ============================================================ */
+
+/* ── Content Body Typography (prose) ─────────────────── */
+.prose h2 {
+    margin: 2rem 0 0.75rem;
+    font-size: 1.4rem;
+    font-weight: 700;
+}
+
+.prose h3 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+
+.prose p {
+    margin: 0 0 1rem;
+}
+
+.prose img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-md, 0.75rem);
+    margin: 1rem 0;
+}
+
+.prose img[style*="float: left"],
+.prose img[style*="float:left"],
+.prose img.alignleft {
+    float: left;
+    margin: 0 1rem 0 0;
+    max-width: 50%;
+    height: auto;
+}
+
+.prose img[style*="float: right"],
+.prose img[style*="float:right"],
+.prose img.alignright {
+    float: right;
+    margin: 0 0 0 1rem;
+    max-width: 50%;
+    height: auto;
+}
+
+.prose img.aligncenter {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.prose blockquote {
+    border-left: 4px solid var(--color-primary, #3b82f6);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    background: var(--color-light-bg, #f8fafc);
+    border-radius: 0 var(--radius-md, 0.75rem) var(--radius-md, 0.75rem) 0;
+}
+
+.prose pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 1rem;
+    border-radius: var(--radius-md, 0.75rem);
+    overflow-x: auto;
+    font-size: 0.875rem;
+}
+
+.prose code {
+    background: var(--color-light-bg, #f8fafc);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.prose pre code {
+    background: none;
+    padding: 0;
+}
+
+.prose ul,
+.prose ol {
+    padding-left: 1.5rem;
+    margin: 0 0 1rem;
+}
+
+.prose ul {
+    list-style: disc;
+}
+
+.prose ol {
+    list-style: decimal;
+}
+
+.prose li {
+    margin-bottom: 0.4rem;
+}
+
+.prose a {
+    color: var(--color-link, var(--color-primary, #3b82f6));
+    text-decoration: underline;
+}
+
+/* ── Builder Page Components ─────────────────────────── */
+.cms-builder-fullwidth {
+    width: 100%;
+    max-width: 100%;
+}
+
+.cms-btn-wrap {
+    margin: 1.25rem 0;
+}
+
+.cms-btn {
+    display: inline-block;
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--radius-md, 0.75rem);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none !important;
+    transition: all 0.15s;
+}
+
+.cms-btn-primary {
+    background: var(--color-link, var(--color-primary, #3b82f6));
+    color: #fff;
+}
+
+.cms-btn-primary:hover {
+    opacity: 0.9;
+}
+
+.cms-btn-outline {
+    border: 2px solid var(--color-link, var(--color-primary, #3b82f6));
+    color: var(--color-link, var(--color-primary, #3b82f6));
+    background: transparent;
+}
+
+.cms-btn-outline:hover {
+    background: var(--color-light-bg, #f8fafc);
+}
+
+.cms-section {
+    width: 100%;
+}
+
+.cms-section-inner {
+    box-sizing: border-box;
+}
+
+.cms-columns {
+    margin: 1.25rem 0;
+}
+
+.cms-column {
+    min-width: 0;
+}
+
+.cms-gallery {
+    display: grid;
+    gap: 0.5rem;
+    margin: 1.25rem 0;
+}
+
+.cms-gallery-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.cms-gallery-cols-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.cms-gallery-cols-4 {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+.cms-gallery-item img {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    border-radius: var(--radius-md, 0.75rem);
+}
+
+.cms-embed {
+    margin: 1.25rem 0;
+}
+
+.cms-embed-responsive {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: var(--radius-md, 0.75rem);
+}
+
+.cms-embed-responsive iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.cms-spacer {}
+
+.cms-separator {
+    border: none;
+    border-top: 2px solid var(--color-border, #e2e8f0);
+    margin: 1.5rem 0;
+}
+
+.cms-nav .cms-menu {
+    list-style: none;
+    display: flex;
+    gap: 1rem;
+    padding: 0;
+    margin: 0;
+}
+
+.cms-nav .cms-menu a {
+    color: var(--color-text, #0f172a);
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.cms-nav .cms-menu a:hover {
+    color: var(--color-link, var(--color-primary, #3b82f6));
+}
+
+.cms-content-with-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, var(--sidebar-width, 300px));
+    gap: 2rem;
+    align-items: start;
+}
+
+.cms-content-with-sidebar.sidebar-left {
+    grid-template-columns: minmax(220px, var(--sidebar-width, 300px)) minmax(0, 1fr);
+}
+
+/* ── Image Lightbox ──────────────────────────────────── */
+.cms-lightbox-image {
+    cursor: zoom-in;
+}
+
+.cms-lightbox-image:focus-visible {
+    outline: 3px solid var(--color-primary, #3b82f6);
+    outline-offset: 4px;
+}
+
+.cms-lightbox-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(15, 23, 42, 0.94);
+    cursor: zoom-out;
+    backdrop-filter: blur(8px);
+}
+
+.cms-lightbox-stage {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(0.75rem, 3vw, 1.5rem);
+    box-sizing: border-box;
+}
+
+.cms-lightbox-figure {
+    position: relative;
+    width: min(100%, 1200px);
+    max-height: 100%;
+    margin: 0;
+    cursor: default;
+}
+
+.cms-lightbox-figure img {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 5rem);
+    margin: 0 auto;
+    object-fit: contain;
+    border-radius: var(--radius-lg, 1rem);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+}
+
+.cms-lightbox-caption {
+    margin-top: 0.75rem;
+    color: rgba(255, 255, 255, 0.84);
+    text-align: center;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 640px) {
+
+    .cms-gallery-cols-3,
+    .cms-gallery-cols-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .cms-columns-stack {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 1024px) {
+
+    .cms-content-with-sidebar,
+    .cms-content-with-sidebar.sidebar-left {
+        display: block;
+    }
+
+    .cms-content-with-sidebar .cms-sidebar-slot {
+        margin-top: 1.5rem;
+    }
+}

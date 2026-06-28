@@ -1,0 +1,19 @@
+{# ARK: 404 Not Found #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{ikb_section padding="xlarge"}
+    {ikb_container size="small" center=true}
+        <div style="text-align:center;">
+            <div style="font-size:4rem;font-weight:800;color:var(--color-primary);margin-bottom:var(--spacing-sm);">404</div>
+            <h1 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-sm);">{not_found_title|default:'Page not found'}</h1>
+            <p style="color:var(--color-text-secondary);margin:0 0 var(--spacing-lg);">{not_found_body|default:'The page you requested could not be found or may have moved.'}</p>
+            <div style="display:flex;gap:0.75rem;justify-content:center;">
+                <a href="{not_found_primary_href|default:'/'}" class="ark-btn ark-btn--primary" style="display:inline-block;padding:0.5rem 1.5rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-md);text-decoration:none;">{not_found_primary_label|default:'Go to Home'}</a>
+                <a href="{not_found_secondary_href|default:'/blog'}" class="ark-btn ark-btn--outline" style="display:inline-block;padding:0.5rem 1.5rem;border:2px solid var(--color-primary);color:var(--color-primary);border-radius:var(--radius-md);text-decoration:none;">{not_found_secondary_label|default:'Browse Posts'}</a>
+            </div>
+        </div>
+    {/ikb_container}
+{/ikb_section}
+{/block}

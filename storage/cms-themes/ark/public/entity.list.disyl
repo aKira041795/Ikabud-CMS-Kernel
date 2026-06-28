@@ -1,0 +1,89 @@
+{# ARK: Entity List Template (Phase 3)
+   Generic entity list with card, table, and compact views.
+   Uses governed {ikb_entity_list} for data resolution.
+   Module-agnostic — renders any entity type through fallback views (Phase 4). #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{ikb_section padding="large"}
+    {ikb_container size="xlarge"}
+
+        {# Page header #}
+        {if page_title}
+        <header style="margin-bottom:var(--spacing-lg);">
+            <h1 class="ark-page-title">{page_title}</h1>
+            {if list_description}
+            <p style="color:var(--color-text-secondary);margin:0;max-width:600px;">{list_description}</p>
+            {/if}
+        </header>
+        {/if}
+
+        {# CMS blog / archive / tag / search via governed entity list #}
+        {if public_route_kind == 'blog-home' or public_route_kind == 'archive' or public_route_kind == 'tag' or public_route_kind == 'search'}
+
+            {# Active filter summary #}
+            {if entity_list_context.result_label or entity_list_context.category_name or entity_list_context.search}
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:var(--spacing-md);font-size:0.85rem;">
+                {if entity_list_context.result_label}
+                <span style="color:var(--color-text-secondary);">{entity_list_context.result_label}</span>
+                {/if}
+                {if entity_list_context.category_name}
+                <span style="display:inline-flex;align-items:center;gap:0.25rem;background:var(--color-primary-light);color:var(--color-primary);padding:0.2rem 0.6rem;border-radius:999px;font-weight:500;">
+                    {entity_list_context.category_name}
+                    {if entity_list_context.all_items_url}
+                    <a href="{entity_list_context.all_items_url}" style="color:inherit;text-decoration:none;margin-left:0.25rem;" title="Clear filter">&times;</a>
+                    {/if}
+                </span>
+                {/if}
+                {if entity_list_context.search}
+                <span style="display:inline-flex;align-items:center;gap:0.25rem;background:#fef3c7;color:#92400e;padding:0.2rem 0.6rem;border-radius:999px;font-weight:500;">
+                    &ldquo;{entity_list_context.search}&rdquo;
+                </span>
+                {/if}
+            </div>
+            {/if}
+
+            {# Governed entity list — kernel resolves data, theme presents #}
+            {ikb_entity_list source="cms_post.recent" view="{entity_view|default:'card_grid'}" limit="10" /}
+
+            {# Pagination #}
+            {if pagination and pagination.total > 1}
+            <nav style="display:flex;align-items:center;justify-content:center;gap:0.5rem;margin-top:var(--spacing-lg);" aria-label="Pagination">
+                {if pagination.prev_url}
+                <a href="{pagination.prev_url}" style="padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:0.875rem;">&larr; Previous</a>
+                {/if}
+                <span style="padding:0.5rem 1rem;font-size:0.85rem;color:var(--color-text-secondary);">Page {pagination.current} of {pagination.total}</span>
+                {if pagination.next_url}
+                <a href="{pagination.next_url}" style="padding:0.5rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-md);color:var(--color-text);text-decoration:none;font-size:0.875rem;">Next &rarr;</a>
+                {/if}
+            </nav>
+            {/if}
+
+        {# Pure entity-view context (any module, any entity type) #}
+        {else if entity_type}
+            {if entity_list_context.result_label}
+            <p style="color:var(--color-text-secondary);margin-bottom:var(--spacing-md);">{entity_list_context.result_label}</p>
+            {/if}
+            {ikb_entity_list
+                source="{entity_type}.{qualifier|default:'recent'}"
+                view="{entity_view|default:'card_grid'}"
+                limit="{entity_limit|default:12}"
+            /}
+
+        {# Discovery dashboard (no context — show sample sections) #}
+        {else}
+            {ikb_section padding="medium"}
+                <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Latest Articles</h2>
+                {ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" /}
+            {/ikb_section}
+
+            {ikb_section padding="medium"}
+                <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);">Featured Products</h2>
+                {ikb_entity_list source="ecommerce_product.featured" view="card_grid" limit="4" /}
+            {/ikb_section}
+        {/if}
+
+    {/ikb_container}
+{/ikb_section}
+{/block}

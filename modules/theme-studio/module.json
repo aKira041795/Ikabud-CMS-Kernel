@@ -1,0 +1,115 @@
+{
+    "id": "theme-studio",
+    "name": "Theme Studio",
+    "version": "1.0.0",
+    "description": "Advanced theme companion — token editor, layout controls, Theme Elements, display rules, pattern import/export, preset management. The base theme works without this module.",
+    "author": "Ikabud Kernel Team",
+    "owns_tables": [
+        "theme_studio_presets",
+        "theme_studio_elements",
+        "theme_studio_token_overrides"
+    ],
+    "reads_tables": [
+        "tenant_module_settings"
+    ],
+    "settings_fields": [
+        {
+            "key": "studio_enabled",
+            "type": "select",
+            "label": "Theme Studio Enabled",
+            "default": "1",
+            "options": [
+                {
+                    "value": "1",
+                    "label": "Enabled"
+                },
+                {
+                    "value": "0",
+                    "label": "Disabled"
+                }
+            ]
+        },
+        {
+            "key": "active_preset",
+            "type": "text",
+            "label": "Active Preset Slug",
+            "default": ""
+        }
+    ],
+    "nav": [
+        {
+            "label": "Theme Studio",
+            "url": "/admin/theme-studio",
+            "icon": "paint-brush",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Theme Presets",
+            "url": "/admin/theme-studio/presets",
+            "icon": "clone",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Theme Elements",
+            "url": "/admin/theme-studio/elements",
+            "icon": "puzzle-piece",
+            "roles": [
+                "admin"
+            ]
+        }
+    ],
+    "routes": "routes.php",
+    "events": [],
+    "migrations": [
+        "001_create_theme_presets.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "theme.customize@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Access Theme Studio admin pages and modify theme settings"
+            },
+            {
+                "id": "theme.tokens@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Edit design tokens (colors, typography, spacing, radius)"
+            },
+            {
+                "id": "theme.presets@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Import, export, and manage theme presets"
+            },
+            {
+                "id": "theme.elements@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create and manage Theme Elements (hook content into slots)"
+            },
+            {
+                "id": "theme.token.apply@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Apply token overrides to theme rendering at runtime"
+            }
+        ],
+        "depends": []
+    }
+}

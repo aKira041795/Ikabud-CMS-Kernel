@@ -28,6 +28,7 @@ use Ikabud\Kernel\EntityContext\DefaultEntityRenderer;
 use Ikabud\Kernel\EntityContext\CellRendererRegistryInterface;
 use Ikabud\Kernel\EntityContext\CellRendererRegistry;
 use Ikabud\Kernel\EntityContext\EntitySourceRegistry;
+use Ikabud\Kernel\Services\SlotRegistry;
 
 use Ikabud\Kernel\TenantResolver;
 use Ikabud\Kernel\Database\ModuleDB;
@@ -595,6 +596,14 @@ final class App
             $this->entityViewResolver = EntityViewResolver::getInstance();
         }
         return $this->entityViewResolver;
+    }
+
+    /**
+     * Get the slot registry — manages module-contributed theme slot content.
+     */
+    public function slotRegistry(): SlotRegistry
+    {
+        return SlotRegistry::getInstance();
     }
 
     /**

@@ -210,6 +210,7 @@ function cmsPublicContext(array $extra = []): array
         'active_theme_slug' => $activeThemeSlug,
         'theme_style_url' => cmsThemeAssetUrl('style.css', $baseUrl),
         'theme_script_url' => cmsThemeAssetUrl('script.js', $baseUrl),
+        'cms_public_css_url' => rtrim($baseUrl, '/') . '/assets/cms/cms-public.css',
         'primary_menu'  => $primaryMenu,
         'footer_menu'   => $footerMenu,
         'social_links'  => $socialLinks,

@@ -1,0 +1,117 @@
+{# ARK: Entity Detail Template (Phase 3)
+   Capability-gated block rendering with variant system.
+   Demonstrates: pricing, inventory, action, progress, lessons blocks.
+   Module-agnostic — renders any entity type through fallbacks. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{ikb_section padding="large"}
+    {ikb_container size="medium"}
+
+        {if entity}
+        <article class="ark-detail">
+
+            {# Title #}
+            {if entity_view_context.show_header|default:1}
+                {if entity.title or content.title}
+                <h1 class="ark-detail__title">{entity.title|default:content.title}</h1>
+                {/if}
+
+                {# Meta — author, date, status #}
+                {if entity_view_context.show_meta|default:1}
+                    {if entity.author_name or entity.published_at or entity.status}
+                    <div class="ark-detail__meta">
+                        {if entity.author_name}By {entity.author_name}{/if}
+                        {if entity.published_at} &middot; {entity.published_at}{/if}
+                        {if entity.status}
+                            <span class="ark-card__status ark-card__status--{entity.status}">{entity.status}</span>
+                        {/if}
+                    </div>
+                    {/if}
+                {/if}
+            {/if}
+
+            {# Featured image #}
+            {if entity_view_context.show_media|default:1}
+                {if entity.featured_image_url or entity.image}
+                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
+                {/if}
+            {/if}
+
+            {# Body — rendered content from editor or builder #}
+            <div class="ark-detail__body ark-content">
+                {if post_html}{post_html|raw}
+                {else if content_html}{content_html|raw}
+                {else if entity.body}{entity.body|raw}
+                {else if entity.description}{entity.description|raw}
+                {/if}
+            </div>
+
+            {# ── Capability-gated blocks (Phase 4) ── #}
+            {if capability_data}
+
+                {# Pricing block — variant resolved from customizer or default #}
+                {if capability_data.pricing}
+                    {set pricing_variant = entity_presentation.block_variants.pricing|default:'default'}
+                    {if pricing_variant == 'compact'}
+                        {include "blocks/pricing/pricing.block.compact.disyl"}
+                    {elseif pricing_variant == 'featured'}
+                        {include "blocks/pricing/pricing.block.featured.disyl"}
+                    {else}
+                        {include "blocks/pricing/pricing.block.default.disyl"}
+                    {/if}
+                {/if}
+
+                {# Inventory block #}
+                {if capability_data.inventory}
+                    {set inventory_variant = entity_presentation.block_variants.inventory|default:'default'}
+                    {if inventory_variant == 'compact'}
+                        {include "blocks/inventory/inventory.block.compact.disyl"}
+                    {else}
+                        {include "blocks/inventory/inventory.block.default.disyl"}
+                    {/if}
+                {/if}
+
+                {# Action strip #}
+                {if capability_data.actions}
+                    {set action_variant = entity_presentation.block_variants.action|default:'default'}
+                    {if action_variant == 'inline'}
+                        {include "blocks/action/action.block.inline.disyl"}
+                    {else}
+                        {include "blocks/action/action.block.default.disyl"}
+                    {/if}
+                {/if}
+
+                {# Progress tracking #}
+                {if capability_data.progress_tracking}
+                    {set progress_variant = entity_presentation.block_variants.progress|default:'default'}
+                    {if progress_variant == 'inline'}
+                        {include "blocks/progress/progress.block.inline.disyl"}
+                    {else}
+                        {include "blocks/progress/progress.block.default.disyl"}
+                    {/if}
+                {/if}
+
+                {# Lessons / course index #}
+                {if capability_data.lessons}
+                    {include "blocks/lessons/lessons.block.disyl"}
+                {/if}
+            {/if}
+
+            {# Navigation — back link #}
+            <div style="margin-top:var(--spacing-lg);">
+                <a href="javascript:history.back()" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">&larr; Back</a>
+            </div>
+        </article>
+
+        {else}
+        <div class="ark-empty">
+            <div class="ark-empty__icon">&#x1F4C4;</div>
+            <div class="ark-empty__text">{error_state|default:'Unable to load entity.'}</div>
+        </div>
+        {/if}
+
+    {/ikb_container}
+{/ikb_section}
+{/block}

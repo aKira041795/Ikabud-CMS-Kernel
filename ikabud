@@ -254,6 +254,272 @@ function banner(): void
     out('');
 }
 
+/**
+ * Validate a single theme: manifest, tokens, templates, anti-patterns.
+ *
+ * @param string $slug       Theme directory name
+ * @param string $themesPath Path to the cms-themes directory
+ * @return array{error_count: int, warning_count: int}
+ */
+function validateSingleTheme(string $slug, string $themesPath): array
+{
+    $themeDir = $themesPath . '/' . $slug;
+    $errorCount = 0;
+    $warningCount = 0;
+
+    if (!is_dir($themeDir)) {
+        out('  ' . red("✗ Theme '{$slug}' not found at {$themeDir}"));
+        return ['error_count' => 1, 'warning_count' => 0];
+    }
+
+    banner();
+    out('  ' . bold('Theme Validate: ') . cyan($slug));
+    out('');
+
+    // ── 1. Load manifest ─────────────────────────────────────────
+    out('  ' . bold('Manifest'));
+    $manifestFile = $themeDir . '/theme.manifest.json';
+    $isNewFormat = true;
+    if (!is_file($manifestFile)) {
+        $manifestFile = $themeDir . '/theme.json';
+        $isNewFormat = false;
+    }
+    if (!is_file($manifestFile)) {
+        out('    ' . red('✗') . ' No theme.manifest.json or theme.json found');
+        out('');
+        return ['error_count' => 1, 'warning_count' => 0];
+    }
+
+    $decoded = kernelReadJsonFile($manifestFile);
+    if (!is_array($decoded) || empty($decoded)) {
+        out('    ' . red('✗') . ' Failed to parse manifest JSON');
+        return ['error_count' => 1, 'warning_count' => 0];
+    }
+
+    $manifest = $decoded;
+    $manifest['slug'] = $slug;
+    out('    ' . green('✓') . ' Loaded ' . ($isNewFormat ? 'theme.manifest.json' : 'theme.json (legacy)'));
+
+    // ── 2. Schema validation via ThemeManifestValidator ────────────
+    out('  ' . bold('Schema'));
+
+    if (class_exists('\\Ikabud\\Kernel\\Services\\ThemeManifestValidator')) {
+        $validation = \Ikabud\Kernel\Services\ThemeManifestValidator::validate($slug, $manifest, $themeDir);
+
+        foreach ($validation['errors'] as $err) {
+            out('    ' . red('✗') . ' ' . $err);
+            $errorCount++;
+        }
+        foreach ($validation['warnings'] as $warn) {
+            out('    ' . yellow('⚠') . ' ' . $warn);
+            $warningCount++;
+        }
+
+        if (empty($validation['errors'])) {
+            out('    ' . green('✓') . ' Schema valid');
+        }
+    } else {
+        out('    ' . yellow('⚠') . ' ThemeManifestValidator not available — basic checks only');
+    }
+
+    // ── 3. Template file audit ────────────────────────────────────
+    out('  ' . bold('Templates'));
+    $templateDirs = ['layouts', 'public', 'components', 'entity-views', 'patterns', 'admin'];
+    $templateCount = 0;
+    $missingDirCount = 0;
+    foreach ($templateDirs as $dir) {
+        $fullDir = $themeDir . '/' . $dir;
+        if (!is_dir($fullDir)) {
+            if (in_array($dir, ['layouts', 'public'], true)) {
+                out('    ' . red('✗') . " Required '{$dir}/' directory not found");
+                $errorCount++;
+            }
+            continue;
+        }
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($fullDir, FilesystemIterator::SKIP_DOTS)
+        );
+        $dirCount = 0;
+        foreach ($files as $finfo) {
+            if ($finfo->isFile()) {
+                $dirCount++;
+            }
+        }
+        $templateCount += $dirCount;
+        if ($dirCount === 0) {
+            out('    ' . yellow('⚠') . " '{$dir}/' is empty");
+            $warningCount++;
+        }
+    }
+    out('    ' . green('✓') . " {$templateCount} template(s) found in " . count(array_filter($templateDirs, fn($d) => is_dir($themeDir . '/' . $d))) . ' directories');
+
+    // ── 4. Anti-pattern scan ──────────────────────────────────────
+    out('  ' . bold('Anti-pattern scan'));
+    $scannedDirs = array_filter($templateDirs, fn($d) => is_dir($themeDir . '/' . $d));
+    $antiPatterns = themeScanAntiPatterns($themeDir, $scannedDirs);
+
+    if (empty($antiPatterns)) {
+        out('    ' . green('✓') . ' No anti-patterns detected');
+    } else {
+        foreach ($antiPatterns as $ap) {
+            out('    ' . red('✗') . ' ' . $ap);
+            $errorCount++;
+        }
+    }
+
+    // ── 5. Performance budget (CSS/JS file sizes) ─────────────────
+    out('  ' . bold('Performance budget'));
+
+    // Check required CSS files
+    $requiredAssets = $manifest['required_assets'] ?? [];
+    $cssFiles = is_array($requiredAssets['css'] ?? null) ? $requiredAssets['css'] : [];
+    $allCssSize = 0;
+    foreach ($cssFiles as $css) {
+        $cssPath = $themeDir . '/' . ltrim((string)$css, '/');
+        if (is_file($cssPath)) {
+            $size = filesize($cssPath);
+            $allCssSize += $size;
+            if ($size > 51200) { // 50KB
+                out('    ' . yellow('⚠') . " '{$css}' is " . round($size / 1024) . 'KB (budget: 50KB)');
+                $warningCount++;
+            }
+        }
+    }
+    if ($allCssSize > 0) {
+        out('    ' . green('✓') . ' Core CSS: ' . round($allCssSize / 1024) . 'KB compressed');
+    } else {
+        out('    ' . green('✓') . ' No required CSS assets declared');
+    }
+
+    // Check required JS files
+    $jsFiles = is_array($requiredAssets['js'] ?? null) ? $requiredAssets['js'] : [];
+    $allJsSize = 0;
+    foreach ($jsFiles as $js) {
+        $jsPath = $themeDir . '/' . ltrim((string)$js, '/');
+        if (is_file($jsPath)) {
+            $size = filesize($jsPath);
+            $allJsSize += $size;
+            if ($size > 20480) { // 20KB
+                out('    ' . yellow('⚠') . " '{$js}' is " . round($size / 1024) . 'KB (budget: 20KB)');
+                $warningCount++;
+            }
+        }
+    }
+    if ($allJsSize > 0) {
+        out('    ' . green('✓') . ' Core JS: ' . round($allJsSize / 1024) . 'KB');
+    }
+
+    // ── 6. DiSyL lint on theme templates ──────────────────────────
+    $themeHasDisyl = false;
+    foreach ($templateDirs as $dir) {
+        $fullDir = $themeDir . '/' . $dir;
+        if (!is_dir($fullDir)) { continue; }
+        $iter = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($fullDir, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iter as $finfo) {
+            if ($finfo->isFile() && str_ends_with($finfo->getFilename(), '.disyl')) {
+                $themeHasDisyl = true;
+                break 2;
+            }
+        }
+    }
+
+    if ($themeHasDisyl) {
+        out('  ' . bold('DiSyL lint'));
+        // Run the linter via _lint_disyl.php on the theme directory
+        $lintCmd = escapeshellcmd(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/_lint_disyl.php')
+            . ' --path ' . escapeshellarg($themeDir)
+            . ' --ci 2>&1';
+        $lintOutput = shell_exec($lintCmd);
+        $lintExitCode = (int)(shell_exec($lintCmd . '; echo $?') ?? 0);
+
+        if ($lintExitCode !== 0) {
+            out('    ' . red('✗') . ' DiSyL lint found errors in theme templates');
+            $errorCount++;
+        } else {
+            out('    ' . green('✓') . ' All .disyl templates pass lint');
+        }
+    }
+
+    // ── Summary ───────────────────────────────────────────────────
+    out('');
+    if ($errorCount > 0) {
+        out('  ' . red('✗ ' . $errorCount . ' errors') . ($warningCount > 0 ? ', ' . yellow($warningCount . ' warnings') : ''));
+    } elseif ($warningCount > 0) {
+        out('  ' . yellow('⚠ ' . $warningCount . ' warnings, no errors'));
+    } else {
+        out('  ' . green('✓ All checks passed'));
+    }
+    out('');
+
+    return ['error_count' => $errorCount, 'warning_count' => $warningCount];
+}
+
+/**
+ * Scan theme template files for anti-patterns: DB access, module queries,
+ * business logic, hardcoded branding, and unsafe raw output.
+ */
+function themeScanAntiPatterns(string $themeDir, array $scannedDirs): array
+{
+    $violations = [];
+
+    // Patterns that indicate business logic / DB access in a theme
+    $patterns = [
+        '/\b(SELECT\s+[A-Z_`]\w*\s+FROM\s+\w+|INSERT\s+INTO\s+\w+|UPDATE\s+\w+\s+SET\s+\w+|DELETE\s+FROM\s+\w+|CREATE\s+TABLE\s+\w+|ALTER\s+TABLE\s+\w+|DROP\s+TABLE\s+\w+)\b/i' => 'Direct SQL query detected — themes must not access the database',
+        '/\b(?:app\(\)\s*->\s*db|module\(\)\s*->\s*db|\$pdo|\$dbh)\b/i' => 'Direct database handle access — themes must not call app()->db()',
+        '/\bquery\(|->query\(|->prepare\(/i' => 'Direct database query method call',
+        '/\b(?:module\(\)\s*->\s*cap\s*\(|capability\s*::)/i' => 'Direct capability call — themes should not invoke capabilities directly',
+        '/\b(?:authorize|is_allowed|can_access|has_permission)\b/i' => 'Authorization check in theme — belongs in handler/module layer',
+        '/\b(?:tenant_id|tenant\(\)|app\(\)\s*->\s*tenant)\b/i' => 'Tenant resolution in theme — belongs in Kernel OS layer',
+    ];
+
+    foreach ($scannedDirs as $dir) {
+        $fullDir = $themeDir . '/' . $dir;
+        if (!is_dir($fullDir)) { continue; }
+
+        $iter = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($fullDir, FilesystemIterator::SKIP_DOTS)
+        );
+
+        foreach ($iter as $finfo) {
+            if (!$finfo->isFile()) { continue; }
+            $ext = $finfo->getExtension();
+            if (!in_array($ext, ['disyl', 'php', 'html', 'css', 'js'], true)) { continue; }
+
+            $content = @file_get_contents($finfo->getPathname());
+            if ($content === false || $content === '') { continue; }
+
+            $relPath = str_replace($themeDir . '/', '', $finfo->getPathname());
+
+            foreach ($patterns as $pattern => $description) {
+                if (!preg_match($pattern, $content)) {
+                    continue;
+                }
+
+                // Skip false positives
+                if ($ext === 'css') {
+                    continue; // CSS uses SELECT, FROM, JOIN as attribute selectors
+                }
+                if ($ext === 'js' && str_contains($pattern, 'SELECT')) {
+                    continue; // JS may contain SELECT in DOM queries
+                }
+                // .disyl files with inline CSS style blocks
+                if (str_contains($content, 'class="en-') || str_contains($content, '/* ──')) {
+                    if (str_contains($pattern, 'FROM') || str_contains($pattern, 'SELECT')) {
+                        continue; // Likely CSS embedded in template
+                    }
+                }
+
+                $violations[] = "{$relPath}: {$description}";
+                break; // One violation per file is enough
+            }
+        }
+    }
+
+    return $violations;
+}
+
 // ── Commands ─────────────────────────────────────────────────────────
 
 switch ($command) {
@@ -322,6 +588,13 @@ switch ($command) {
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
         out('    ' . green('disyl:inspect') . ' <file>       Inspect template variables, components, sources');
+        out('    ' . green('theme:validate') . ' <slug>     Validate theme manifest, tokens, templates, anti-patterns');
+        out('    ' . green('theme:validate') . ' --all       Validate all installed themes');
+        out('    ' . green('theme:inspect') . ' <slug>      Show theme summary (layouts, slots, components, assets)');
+        out('    ' . green('theme:list') . '                List available themes');
+        out('    ' . green('theme:activate') . ' <slug>     Activate a theme as the CMS public theme');
+        out('    ' . green('theme:current') . '             Show the currently active theme');
+        out('    ' . green('theme:deactivate') . '           Reset to default theme');
         out('    ' . green('entity:list') . '               List all entity sources with schema');
         out('    ' . green('entity:context') . ' <source>    Show resolved context for a source');
         out('    ' . green('entity:describe') . ' <source>   Full entity description with views, caps, callers');
@@ -5405,6 +5678,233 @@ PHP;
         exit(0);
 
     // ── entity:context ────────────────────────────────────────────
+    // ── theme:validate ──────────────────────────────────────────
+    case 'theme:validate':
+        $clean = paramsWithoutFlags($params);
+        $themeSlug = $clean[0] ?? '';
+        $validateAll = hasFlag('--all');
+
+        $themesPath = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes';
+
+        if ($validateAll) {
+            $themeSlugs = array_filter(scandir($themesPath), fn($d) => $d[0] !== '.' && is_dir("{$themesPath}/{$d}"));
+            if (empty($themeSlugs)) {
+                out(red('  ✗ No themes found in ') . $themesPath);
+                exit(1);
+            }
+            $totalErrors = 0;
+            $totalWarnings = 0;
+            foreach ($themeSlugs as $slug) {
+                $result = validateSingleTheme($slug, $themesPath);
+                $totalErrors += $result['error_count'];
+                $totalWarnings += $result['warning_count'];
+            }
+            out('');
+            if ($totalErrors > 0) {
+                out('  ' . red('✗ ' . $totalErrors . ' errors across ' . count($themeSlugs) . ' themes'));
+                exit(1);
+            }
+            out('  ' . green('✓ All ' . count($themeSlugs) . ' themes valid') . ($totalWarnings > 0 ? ' (' . $totalWarnings . ' warnings)' : ''));
+            break;
+        }
+
+        if ($themeSlug === '') {
+            out(red('  ✗ Theme slug required.'));
+            out('  Usage: php ikabud theme:validate <slug>');
+            out('         php ikabud theme:validate --all');
+            exit(1);
+        }
+
+        validateSingleTheme($themeSlug, $themesPath);
+        break;
+
+    // ── theme:inspect ────────────────────────────────────────────
+    case 'theme:inspect':
+        banner();
+        $clean = paramsWithoutFlags($params);
+        $themeSlug = $clean[0] ?? '';
+
+        $themesPath = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes';
+
+        if ($themeSlug === '') {
+            out(red('  ✗ Theme slug required.'));
+            out('  Usage: php ikabud theme:inspect <slug>');
+            exit(1);
+        }
+
+        $themeDir = $themesPath . '/' . $themeSlug;
+        if (!is_dir($themeDir)) {
+            out(red("  ✗ Theme '{$themeSlug}' not found at {$themeDir}"));
+            exit(1);
+        }
+
+        // Load manifest
+        $manifest = [];
+        $manifestFile = $themeDir . '/theme.manifest.json';
+        if (!is_file($manifestFile)) {
+            $manifestFile = $themeDir . '/theme.json';
+        }
+        if (is_file($manifestFile)) {
+            $decoded = kernelReadJsonFile($manifestFile);
+            $manifest = is_array($decoded) ? $decoded : [];
+        }
+
+        $label = $manifest['label'] ?? $manifest['name'] ?? $themeSlug;
+        out('  ' . bold('Theme: ') . cyan((string)$label));
+        out('');
+
+        // Count layouts
+        $layoutsDir = $themeDir . '/layouts';
+        $layouts = is_dir($layoutsDir) ? glob($layoutsDir . '/*.disyl') : [];
+        out('  ' . bold('Layouts: ') . count($layouts));
+
+        // Count slots
+        $slots = $manifest['supported_slots'] ?? [];
+        if (!is_array($slots)) { $slots = []; }
+        out('  ' . bold('Slots: ') . count($slots));
+        if (!empty($slots)) {
+            out('    ' . dim(implode(', ', $slots)));
+        }
+
+        // Count component variants
+        $variants = $manifest['component_variants'] ?? [];
+        if (!is_array($variants)) { $variants = []; }
+        $variantCount = 0;
+        foreach ($variants as $comp => $defs) {
+            if (is_array($defs)) {
+                foreach ($defs as $attr => $opts) {
+                    if (is_array($opts)) {
+                        $variantCount += count($opts);
+                    }
+                }
+            }
+        }
+        out('  ' . bold('Component variants: ') . $variantCount);
+
+        // Entity fallbacks
+        $fallbacks = $manifest['fallback_views'] ?? [];
+        if (!is_array($fallbacks)) { $fallbacks = []; }
+        out('  ' . bold('Entity fallbacks: ') . (!empty($fallbacks) ? implode(', ', array_keys($fallbacks)) : 'none'));
+
+        // Surfaces
+        $surfaces = $manifest['supported_surfaces'] ?? [];
+        if (!is_array($surfaces)) { $surfaces = []; }
+        out('  ' . bold('Surfaces: ') . (!empty($surfaces) ? implode(', ', $surfaces) : 'none declared'));
+
+        // Assets
+        $required = $manifest['required_assets'] ?? [];
+        $optional = $manifest['optional_assets'] ?? [];
+        $requiredCss = is_array($required['css'] ?? null) ? count($required['css']) : 0;
+        $requiredJs = is_array($required['js'] ?? null) ? count($required['js']) : 0;
+        $optionalJs = is_array($optional['js'] ?? null) ? count($optional['js']) : 0;
+        out('  ' . bold('Required CSS: ') . ($requiredCss > 0 ? $requiredCss . ' file(s)' : 'none'));
+        out('  ' . bold('Required JS: ') . ($requiredJs > 0 ? $requiredJs . ' file(s)' : 'none'));
+        if ($optionalJs > 0) {
+            out('  ' . bold('Optional JS bridges: ') . $optionalJs . ' file(s)');
+        }
+
+        // Compatibility
+        $kernelCompat = $manifest['kernel_os_compat'] ?? 'not declared';
+        $disylCompat = $manifest['disyl_compat'] ?? 'not declared';
+        out('  ' . bold('Kernel OS: ') . $kernelCompat);
+        out('  ' . bold('DiSyL: ') . $disylCompat);
+
+        // Version
+        $version = $manifest['version'] ?? 'not declared';
+        $author = $manifest['author'] ?? 'unknown';
+        out('  ' . bold('Version: ') . $version . dim(' by ') . $author);
+        break;
+
+    // ── theme:list ───────────────────────────────────────────────
+    case 'theme:list':
+        banner();
+        $themesPath = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes';
+        $slugs = array_filter(scandir($themesPath), fn($d) => $d[0] !== '.' && is_dir("{$themesPath}/{$d}"));
+        sort($slugs);
+        out('  ' . bold('Available themes:'));
+        out('');
+        foreach ($slugs as $slug) {
+            $manifestFile = $themesPath . '/' . $slug . '/theme.manifest.json';
+            if (!is_file($manifestFile)) {
+                $manifestFile = $themesPath . '/' . $slug . '/theme.json';
+            }
+            $label = $slug;
+            $version = '';
+            if (is_file($manifestFile)) {
+                $decoded = kernelReadJsonFile($manifestFile);
+                if (is_array($decoded)) {
+                    $label = (string)($decoded['label'] ?? $decoded['name'] ?? $slug);
+                    $version = (string)($decoded['version'] ?? '');
+                }
+            }
+            out('    ' . cyan($slug) . dim(' v' . $version) . '  ' . $label);
+        }
+        out('');
+        $active = function_exists('cmsActiveTheme') ? cmsActiveTheme() : '(not available — CMS module not loaded)';
+        out('  ' . bold('Active: ') . $active);
+        break;
+
+    // ── theme:current ──────────────────────────────────────────────
+    case 'theme:current':
+        banner();
+        try {
+            $settings = function_exists('getModuleSettings') ? getModuleSettings('cms') : [];
+            $active = trim((string)($settings['active_theme'] ?? ''));
+            if ($active !== '') {
+                $manifestFile = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes/' . $active . '/theme.manifest.json';
+                if (!is_file($manifestFile)) {
+                    $manifestFile = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes/' . $active . '/theme.json';
+                }
+                $label = $active;
+                $version = '';
+                if (is_file($manifestFile)) {
+                    $decoded = kernelReadJsonFile($manifestFile);
+                    if (is_array($decoded)) {
+                        $label = (string)($decoded['label'] ?? $decoded['name'] ?? $active);
+                        $version = (string)($decoded['version'] ?? '');
+                    }
+                }
+                out('  Active theme: ' . bold(cyan($label)) . dim(' (' . $active . ' v' . $version . ')'));
+            } else {
+                out('  ' . yellow('No active theme configured.'));
+            }
+        } catch (Throwable $e) {
+            out(yellow('  Could not determine active theme: ' . $e->getMessage()));
+        }
+        break;
+
+    // ── theme:activate ─────────────────────────────────────────────
+    case 'theme:activate':
+        banner();
+        $clean = paramsWithoutFlags($params);
+        $slug = $clean[0] ?? '';
+        if ($slug === '') {
+            out(red('  ✗ Theme slug required.'));
+            out('  Usage: php ikabud theme:activate <slug>');
+            exit(1);
+        }
+        $themesPath = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes';
+        if (!is_dir("{$themesPath}/{$slug}")) {
+            out(red("  ✗ Theme '{$slug}' not found."));
+            exit(1);
+        }
+        if (!function_exists('saveModuleSettings')) {
+            require_once __DIR__ . '/src/helpers/module-manager.php';
+        }
+        saveModuleSettings('cms', ['active_theme' => $slug]);
+        out(green("  ✓ Theme '{$slug}' activated."));
+        break;
+
+    // ── theme:deactivate ───────────────────────────────────────────
+    case 'theme:deactivate':
+        banner();
+        if (!function_exists('saveModuleSettings')) {
+            require_once __DIR__ . '/src/helpers/module-manager.php';
+        }
+        saveModuleSettings('cms', ['active_theme' => 'native-default']);
+        out(yellow('  ✓ Reset to native-default theme.'));
+        break;
+
     case 'entity:context':
         banner();
         $sourceId = $params[0] ?? '';

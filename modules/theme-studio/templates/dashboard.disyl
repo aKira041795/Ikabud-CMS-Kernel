@@ -1,0 +1,44 @@
+{# Theme Studio — Dashboard
+   Overview page showing active preset, token status, and quick actions. #}
+
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="p-6">
+    <h1 class="text-2xl font-bold mb-2">Theme Studio</h1>
+    <p class="text-gray-500 mb-6">Advanced theme customization — presets, tokens, elements, and layout controls.</p>
+
+    {# Status cards #}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Active Theme</div>
+            <div class="text-lg font-semibold">{theme_label|default:'None'}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Active Preset</div>
+            <div class="text-lg font-semibold">{active_preset|default:'None (Foundation)'}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Studio Status</div>
+            <div class="text-lg font-semibold">{if studio_enabled == '1'}Enabled{:else}Disabled{/if}</div>
+        </div>
+    </div>
+
+    {# Quick actions #}
+    <h2 class="text-lg font-semibold mb-3">Quick Actions</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <a href="/admin/theme-studio/tokens" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="font-medium text-indigo-600 mb-1">✎ Edit Tokens</div>
+            <p class="text-sm text-gray-500">Colors, typography, spacing, radius</p>
+        </a>
+        <a href="/admin/theme-studio/presets" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="font-medium text-indigo-600 mb-1">✦ Manage Presets</div>
+            <p class="text-sm text-gray-500">Save, apply, import, export theme presets</p>
+        </a>
+        <a href="/admin/theme-studio/elements" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="font-medium text-indigo-600 mb-1">🧩 Theme Elements</div>
+            <p class="text-sm text-gray-500">Inject governed content into theme slots</p>
+        </a>
+    </div>
+</div>
+{/block}

@@ -464,6 +464,14 @@ function cmsApiThemeActivate(array $params = []): void
             'error' => $e->getMessage(),
         ]);
     }
+    try {
+        cmsSeedThemeDefaultMenus();
+    } catch (\Throwable $e) {
+        write_log('warn', 'cms.theme.menu_seed_failed', [
+            'theme' => $slug,
+            'error' => $e->getMessage(),
+        ]);
+    }
     // Flush all cached pages since theme-dependent rendering has changed
     cmsCacheFlushAll();
     cmsTemplateCacheFlush();
@@ -689,6 +697,28 @@ function cmsApiModuleUpload(array $params = []): void
             ]);
             echo json_encode($installResult);
             exit;
+        }
+
+        // Auto-approve CMS-owned modules in the platform catalog.
+        // When a module has the .cms-owned marker (installed via CMS by any tenant),
+        // register it as approved so the catalog check below passes automatically.
+        // This eliminates manual superadmin approval for cross-tenant adopts.
+        if (!moduleCatalogIsApproved($moduleId)) {
+            $modulesDir = rtrim((string)(defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 2)), '/') . '/modules';
+            $cmsOwnedMarker = $modulesDir . '/' . $moduleId . '/.cms-owned';
+            if (is_file($cmsOwnedMarker)) {
+                $meta = moduleCatalogEntryRefresh($moduleId);
+                if ($meta === null) {
+                    $manifest = [];
+                    $manifestPath = $modulesDir . '/' . $moduleId . '/module.json';
+                    if (is_file($manifestPath)) {
+                        $decoded = kernelReadJsonFile($manifestPath);
+                        $manifest = is_array($decoded) ? $decoded : [];
+                    }
+                    $installPath = 'modules/' . $moduleId;
+                    registerApprovedModuleCatalogInstall($manifest, $installPath);
+                }
+            }
         }
 
         if (!moduleCatalogIsApproved($moduleId)) {

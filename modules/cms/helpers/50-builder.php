@@ -1633,15 +1633,236 @@ function cmsPageBuilderRenderedHtml(array $contentRow): string
 {
     $contentId = (int)($contentRow['id'] ?? 0);
     if ($contentId > 0) {
-        // Only published builder documents should be rendered publicly.
-        // Never fall back to draft — that would leak unpublished content.
         $published = cmsBuilderLoadDocumentRow($contentId, 'published');
         if ($published && !empty($published['document_json'])) {
-            return cmsBuilderRenderDocument(cmsBuilderNormalizeDocument((string)$published['document_json']), $contentRow);
+            $normalized = cmsBuilderNormalizeDocument((string)$published['document_json']);
+
+            // Phase 6: Prefer DiSyL contract rendering when available.
+            // If the builder document includes a 'disyl' key alongside the React
+            // document tree, render through the governed component system instead.
+            $disylDoc = $normalized['disyl'] ?? null;
+            if (is_array($disylDoc) && !empty($disylDoc['component'])) {
+                $disylHtml = cmsRenderDiSyLDocument($disylDoc, $contentRow);
+                if ($disylHtml !== '') {
+                    return $disylHtml;
+                }
+            }
+
+            return cmsBuilderRenderDocument($normalized, $contentRow);
         }
     }
 
     return '';
+}
+
+/**
+ * Render a DiSyL component tree JSON structure as HTML.
+ *
+ * Converts a governed component tree into rendered output using the
+ * existing ComponentRegistry and TemplateEngine. This is Phase 6 of
+ * the theme infrastructure plan — builder can emit DiSyL contracts
+ * instead of raw HTML node trees.
+ *
+ * Input format:
+ *   {
+ *     "component": "ikb_section",
+ *     "attrs": { "tone": "muted", "padding_y": "lg" },
+ *     "children": [
+ *       {
+ *         "component": "ikb_container",
+ *         "attrs": { "max_width": "1200px" },
+ *         "children": [
+ *           { "component": "ikb_entity_list", "attrs": { "source": "cms_post.recent", "view": "card_grid" } }
+ *         ]
+ *       }
+ *     ]
+ *   }
+ *
+ * @param array $node      DiSyL component node
+ * @param array $context   Rendering context (content row, entity data, etc.)
+ * @return string Rendered HTML
+ */
+function cmsRenderDiSyLDocument(array $node, array $context = []): string
+{
+    if (empty($node['component'])) {
+        return '';
+    }
+
+    // If the node has children, render them recursively first.
+    // Then wrap the rendered children in the parent component.
+    return cmsRenderDiSyLNode($node, $context);
+}
+
+/**
+ * Recursively render a single DiSyL node through the governed component system.
+ *
+ * @param array $node     {component: string, attrs: array, children: array|string}
+ * @param array $context  Rendering context
+ * @return string Rendered HTML fragment
+ */
+function cmsRenderDiSyLNode(array $node, array $context = []): string
+{
+    $component = (string)($node['component'] ?? '');
+    if ($component === '') {
+        return '';
+    }
+
+    // Render children recursively
+    $childrenHtml = '';
+    $rawChildren = $node['children'] ?? [];
+
+    if (is_string($rawChildren)) {
+        // String children — pass through as-is (raw HTML or text)
+        $childrenHtml = $rawChildren;
+    } elseif (is_array($rawChildren)) {
+        // Array children — recurse
+        foreach ($rawChildren as $child) {
+            if (is_string($child)) {
+                $childrenHtml .= $child;
+            } elseif (is_array($child)) {
+                $childrenHtml .= cmsRenderDiSyLNode($child, $context);
+            }
+        }
+    }
+
+    $attrs = $node['attrs'] ?? [];
+    if (!is_array($attrs)) {
+        $attrs = [];
+    }
+
+    // Check if the component is a governed ikb_* component
+    if (str_starts_with($component, 'ikb_')) {
+        // Try kernel-level rendering via app()->templates()
+        try {
+            $engine = null;
+            if (function_exists('app') && ($app = app()) !== null && method_exists($app, 'templates')) {
+                $engine = $app->templates();
+            }
+
+            if ($engine !== null && method_exists($engine, 'renderString')) {
+                // Build a DiSyL template string from the component tree
+                $disylTemplate = cmsBuildDiSyLTemplateString($component, $attrs, $childrenHtml);
+                return $engine->renderString($disylTemplate, $context);
+            }
+        } catch (Throwable $e) {
+            write_log('cmsRenderDiSyLNode: render failed for ' . $component . ': ' . $e->getMessage(), 'warning');
+        }
+
+        // Fallback: use the CMS builder renderers
+        return cmsRenderWidgetFromDiSyL($component, $attrs, $childrenHtml);
+    }
+
+    // Non-governed component — wrap as a generic div
+    $attrString = cmsBuildHtmlAttrs($attrs);
+    $tag = $component;
+    if ($childrenHtml !== '') {
+        return "<{$tag}{$attrString}>{$childrenHtml}</{$tag}>";
+    }
+    return "<{$tag}{$attrString} />";
+}
+
+/**
+ * Build a DiSyL template tag string from a component name, attrs, and children.
+ *
+ * Converts:
+ *   component=ikb_section, attrs={tone:muted}, children=...
+ * Into:
+ *   {ikb_section tone="muted"}...children...{/ikb_section}
+ */
+function cmsBuildDiSyLTemplateString(string $component, array $attrs, string $children): string
+{
+    $attrParts = [];
+    foreach ($attrs as $key => $value) {
+        if ($value === null || $value === false) {
+            continue;
+        }
+        if ($value === true) {
+            $attrParts[] = $key;
+            continue;
+        }
+        $escaped = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+        $attrParts[] = "{$key}=\"{$escaped}\"";
+    }
+
+    $attrString = !empty($attrParts) ? ' ' . implode(' ', $attrParts) : '';
+
+    if ($children !== '') {
+        return "{{$component}{$attrString}}{$children}{/{$component}}";
+    }
+    return "{{$component}{$attrString} /}";
+}
+
+/**
+ * Build an HTML attribute string from an associative array.
+ */
+function cmsBuildHtmlAttrs(array $attrs): string
+{
+    $parts = [];
+    foreach ($attrs as $key => $value) {
+        if ($value === null || $value === false) {
+            continue;
+        }
+        if ($value === true) {
+            $parts[] = $key;
+            continue;
+        }
+        $escaped = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+        $parts[] = "{$key}=\"{$escaped}\"";
+    }
+    return !empty($parts) ? ' ' . implode(' ', $parts) : '';
+}
+
+/**
+ * Fallback renderer for governed components when TemplateEngine is unavailable.
+ * Maps ikb_* component names to simple HTML wrappers with Tailwind classes.
+ */
+function cmsRenderWidgetFromDiSyL(string $component, array $attrs, string $children): string
+{
+    // Map governed components to semantic CSS classes
+    $tagMap = [
+        'ikb_section' => 'section',
+        'ikb_container' => 'div',
+        'ikb_grid' => 'div',
+        'ikb_panel' => 'div',
+        'ikb_card' => 'div',
+        'ikb_alert' => 'div',
+        'ikb_modal' => 'div',
+        'ikb_drawer' => 'div',
+        'ikb_text' => 'div',
+        'ikb_link' => 'a',
+        'ikb_button' => 'a',
+        'ikb_badge' => 'span',
+        'ikb_spinner' => 'div',
+    ];
+
+    $tag = $tagMap[$component] ?? 'div';
+
+    // Build CSS classes from semantic attrs
+    $classes = ['ikb-widget', 'ikb-widget--' . str_replace('ikb_', '', $component)];
+
+    if (isset($attrs['tone'])) {
+        $classes[] = 'ikb-tone--' . $attrs['tone'];
+    }
+    if (isset($attrs['spacing'])) {
+        $classes[] = 'ikb-spacing--' . $attrs['spacing'];
+    }
+    if (isset($attrs['radius'])) {
+        $classes[] = 'ikb-radius--' . $attrs['radius'];
+    }
+    if (isset($attrs['variant'])) {
+        $classes[] = 'ikb-variant--' . $attrs['variant'];
+    }
+
+    $attrs['class'] = isset($attrs['class'])
+        ? $attrs['class'] . ' ' . implode(' ', $classes)
+        : implode(' ', $classes);
+
+    $attrString = cmsBuildHtmlAttrs($attrs);
+
+    if ($children !== '') {
+        return "<{$tag}{$attrString}>{$children}</{$tag}>";
+    }
+    return "<{$tag}{$attrString} />";
 }
 
 function cmsContentRenderedHtml(array $contentRow): string

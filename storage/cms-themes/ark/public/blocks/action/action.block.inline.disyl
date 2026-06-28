@@ -1,0 +1,10 @@
+{# ARK: Action Strip — Inline (Phase 4)
+   Compact inline action buttons, no panel wrapper. #}
+
+<div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
+    {for action in capability_data.actions}
+    <a href="{action.url|default:'#'}" style="display:inline-block;padding:0.35rem 0.75rem;font-size:0.8rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);text-decoration:none;">
+        {action.label|default:'Action'}
+    </a>
+    {/for}
+</div>

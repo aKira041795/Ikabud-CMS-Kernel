@@ -276,6 +276,20 @@ class ComponentRegistry
             'leaf' => false
         ]);
         
+        // Structural: ikb_slot (governed theme slot)
+        self::register('ikb_slot', [
+            'category' => self::CATEGORY_STRUCTURAL,
+            'description' => 'Governed theme slot — modules may register content contributions via SlotRegistry. Renders all matching contributions in priority order, each wrapped in its contributed component.',
+            'attributes' => [
+                'name' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Slot identifier (e.g., "content.after", "header.main")'
+                ]
+            ],
+            'leaf' => false
+        ]);
+        
         // Data: ikb_query
         self::register('ikb_query', [
             'category' => self::CATEGORY_DATA,

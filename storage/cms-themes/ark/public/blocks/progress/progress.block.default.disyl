@@ -1,0 +1,19 @@
+{# ARK: Progress Block — Default (Phase 4)
+   Full progress bar with percentage and label. #}
+
+{ikb_panel tone="surface" spacing="md" radius="md"}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+        <span style="font-size:0.875rem;font-weight:500;color:var(--color-text);">
+            {capability_data.progress_tracking.label|default:'Progress'}
+        </span>
+        <span style="font-size:0.8rem;color:var(--color-text-secondary);">
+            {capability_data.progress_tracking.percentage|default:0}%
+        </span>
+    </div>
+    <div style="background:var(--color-surface-muted);border-radius:999px;height:8px;overflow:hidden;">
+        <div style="width:{capability_data.progress_tracking.percentage|default:0}%;height:100%;background:var(--color-primary);border-radius:999px;transition:width 0.3s;"></div>
+    </div>
+    {if capability_data.progress_tracking.detail}
+    <p style="margin:0.5rem 0 0;font-size:0.8rem;color:var(--color-text-muted);">{capability_data.progress_tracking.detail}</p>
+    {/if}
+{/ikb_panel}

@@ -26,7 +26,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     $views = $app->entityViews();
 
     // ── CMS Pages ──
-    $views->registerView('cms.page', 'default', [
+    $views->registerView('cms_page', 'default', [
         'fields' => ['id', 'title', 'slug', 'status', 'author_name', 'created_at', 'updated_at'],
         'actions' => ['view', 'edit'],
         'limit' => 25,
@@ -36,7 +36,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'capability' => 'cms.content.list@1',
     ]);
 
-    $views->registerView('cms.page', 'compact', [
+    $views->registerView('cms_page', 'compact', [
         'fields' => ['title', 'status', 'updated_at'],
         'actions' => ['view'],
         'limit' => 15,
@@ -44,7 +44,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No pages found.',
     ]);
 
-    $views->registerView('cms.page', 'admin_row', [
+    $views->registerView('cms_page', 'admin_row', [
         'fields' => ['id', 'title', 'status', 'author_name', 'created_at'],
         'actions' => ['view', 'edit', 'delete'],
         'limit' => 50,
@@ -53,7 +53,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ]);
 
     // ── CMS Posts / Blog ──
-    $views->registerView('cms.post', 'default', [
+    $views->registerView('cms_post', 'default', [
         'fields' => ['id', 'title', 'slug', 'status', 'excerpt', 'author_name', 'published_at'],
         'actions' => ['view', 'edit'],
         'limit' => 25,
@@ -62,7 +62,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'exportable' => true,
     ]);
 
-    $views->registerView('cms.post', 'card_grid', [
+    $views->registerView('cms_post', 'card_grid', [
         'fields' => ['title', 'excerpt', 'image', 'author_name', 'published_at'],
         'actions' => ['view'],
         'limit' => 12,
@@ -70,7 +70,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No posts to display.',
     ]);
 
-    $views->registerView('cms.post', 'compact', [
+    $views->registerView('cms_post', 'compact', [
         'fields' => ['title', 'published_at'],
         'actions' => ['view'],
         'limit' => 10,
@@ -78,7 +78,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No recent posts.',
     ]);
 
-    $views->registerView('cms.post', 'admin_row', [
+    $views->registerView('cms_post', 'admin_row', [
         'fields' => ['id', 'title', 'status', 'author_name', 'published_at'],
         'actions' => ['view', 'edit', 'delete'],
         'limit' => 50,
@@ -87,7 +87,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ]);
 
     // ── CMS Products (ecommerce) ──
-    $views->registerView('cms.product', 'default', [
+    $views->registerView('cms_product', 'default', [
         'fields' => ['id', 'name', 'price', 'status', 'image', 'created_at'],
         'actions' => ['view', 'edit'],
         'limit' => 25,
@@ -96,7 +96,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'exportable' => true,
     ]);
 
-    $views->registerView('cms.product', 'card_grid', [
+    $views->registerView('cms_product', 'card_grid', [
         'fields' => ['name', 'price', 'image', 'status'],
         'actions' => ['view', 'add_to_cart'],
         'limit' => 20,
@@ -104,7 +104,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No products available.',
     ]);
 
-    $views->registerView('cms.product', 'compact', [
+    $views->registerView('cms_product', 'compact', [
         'fields' => ['name', 'price'],
         'actions' => ['view'],
         'limit' => 10,
@@ -112,7 +112,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No featured products.',
     ]);
 
-    $views->registerView('cms.product', 'admin_row', [
+    $views->registerView('cms_product', 'admin_row', [
         'fields' => ['id', 'name', 'price', 'status', 'inventory', 'created_at'],
         'actions' => ['view', 'edit', 'delete'],
         'limit' => 50,
@@ -121,7 +121,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ]);
 
     // ── CMS Users ──
-    $views->registerView('cms.user', 'admin_row', [
+    $views->registerView('cms_user', 'admin_row', [
         'fields' => ['id', 'display_name', 'email', 'role', 'is_active', 'created_at'],
         'actions' => ['view', 'edit'],
         'limit' => 50,
@@ -131,7 +131,7 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
     ]);
 
     // ── CMS Media ──
-    $views->registerView('cms.media', 'card_grid', [
+    $views->registerView('cms_media', 'card_grid', [
         'fields' => ['filename', 'thumbnail_url', 'file_size', 'mime_type', 'created_at'],
         'actions' => ['view', 'delete'],
         'limit' => 30,

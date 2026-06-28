@@ -218,6 +218,18 @@ function ecCartGet(): array
         if (function_exists('ecHydrateLineItemOptions')) {
             $item = ecHydrateLineItemOptions($item, $currencyCode);
         }
+        // Hydrate product image URL from product data
+        $item['image_url'] = '';
+        $productId = (int)($item['product_id'] ?? 0);
+        if ($productId > 0 && function_exists('ecProductGet')) {
+            $product = ecProductGet($productId, false);
+            if ($product) {
+                $featuredImage = trim((string)($product['featured_image'] ?? ''));
+                if ($featuredImage !== '' && function_exists('cmsResolveUploadUrl')) {
+                    $item['image_url'] = cmsResolveUploadUrl($featuredImage);
+                }
+            }
+        }
         $itemCurrency = ecCurrencyNormalizeCode($item['currency'] ?? '') ?: $currencyCode;
         $unitPrice = round((float)($item['price_snapshot'] ?? 0), 2);
         $lineTotal = round($unitPrice * max(1, (int)($item['qty'] ?? 1)), 2);

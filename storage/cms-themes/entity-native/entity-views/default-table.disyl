@@ -1,0 +1,67 @@
+{# Entity-Native: Generic fallback table for unknown entity types
+   Renders when no module-specific view contract is registered.
+   Header row auto-detected from first entity's keys. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block content}
+{ikb_section padding_y="lg"}
+    {ikb_container max_width="1200px" padding="md"}
+        {if entity_list_title}
+        <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);color:var(--color-text);">{entity_list_title}</h2>
+        {/if}
+
+        {if rows}
+        {set headers = rows[0]|array_keys}
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
+                <thead>
+                    <tr style="border-bottom:2px solid var(--color-border);background:var(--color-surface-muted);">
+                        {for header in headers}
+                        <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;color:var(--color-text);white-space:nowrap;">{header}</th>
+                        {/for}
+                        {if actions}
+                        <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;color:var(--color-text);">Actions</th>
+                        {/if}
+                    </tr>
+                </thead>
+                <tbody>
+                    {for row in rows}
+                    <tr style="border-bottom:1px solid var(--color-border);transition:background 0.1s;">
+                        {for header in headers}
+                        <td style="padding:0.75rem 1rem;color:var(--color-text);">
+                            {if header == 'url' and row[header]}
+                            <a href="{row[header]}" style="color:var(--color-primary);text-decoration:none;">{row.title|default:'View'}</a>
+                            {else if header == 'image' or header == 'thumbnail_url' or header == 'featured_image_url'}
+                                {if row[header]}
+                                <img src="{row[header]}" alt="" style="width:40px;height:40px;object-fit:cover;border-radius:var(--radius-sm);background:var(--color-surface-muted);" />
+                                {/if}
+                            {else if header == 'status' or header == 'type'}
+                            <span class="en-badge" style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.75rem;font-weight:500;background:var(--color-surface-muted);color:var(--color-text-secondary);">{row[header]}</span>
+                            {else if header == 'price' or header == 'amount' or header == 'total'}
+                            <span style="font-weight:600;color:var(--color-primary);">{row[header]}</span>
+                            {else}
+                            {row[header]|default:''}
+                            {/if}
+                        </td>
+                        {/for}
+                        {if actions}
+                        <td style="padding:0.75rem 1rem;text-align:right;">
+                            {if row.url}
+                            <a href="{row.url}" style="color:var(--color-primary);font-size:0.8rem;text-decoration:none;">View →</a>
+                            {/if}
+                        </td>
+                        {/if}
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <div class="en-empty" style="text-align:center;padding:var(--spacing-xl);color:var(--color-text-secondary);">
+            <div class="en-empty__text">{empty_state|default:'No records found.'}</div>
+        </div>
+        {/if}
+    {/ikb_container}
+{/ikb_section}
+{/block}

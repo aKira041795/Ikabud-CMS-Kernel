@@ -388,9 +388,15 @@ PHP;
     /** {for init; condition; increment}...{/for} — C-style for loop */
     private function compileCFor(ControlNode $node): string
     {
-        $init = $this->compileExpressionValue($node->getAttribute('init'));
+        $initNode = $node->getAttribute('init');
         $condition = $this->compileExpressionValue($node->getAttribute('condition'));
-        $increment = $this->compileExpressionValue($node->getAttribute('increment'));
+        $incNode = $node->getAttribute('increment');
+
+        // Compile init: handle "var = expr" by using ctx->set
+        $init = $this->compileCForInit($initNode);
+
+        // Compile increment: handle postinc/postdec by using ctx->set
+        $increment = $this->compileCForIncrement($incNode);
 
         $code = $this->line("for ({$init}; \$this->isTruthy({$condition}); {$increment}) {");
         $this->indentLevel++;
@@ -402,6 +408,61 @@ PHP;
         $this->indentLevel--;
         $code .= $this->line("}");
         return $code;
+    }
+
+    /** Compile a C-style for-loop init expression, handling "var = expr" assignment. */
+    private function compileCForInit(AbstractNode $node): string
+    {
+        // If it's a LiteralNode like "i = 1", parse it as a set operation
+        if ($node instanceof LiteralNode && is_string($node->getValue())) {
+            $val = $node->getValue();
+            if (preg_match('/^(\w+)\s*=\s*(.+)$/s', $val, $m)) {
+                $varName = var_export($m[1], true);
+                $exprVal = $m[2];
+                // Try to resolve the value expression
+                $resolved = $this->compileCForValue($exprVal);
+                return "\$ctx->set({$varName}, {$resolved})";
+            }
+        }
+        // Fall back to standard expression compilation
+        return $this->compileExpressionValue($node);
+    }
+
+    /** Compile a C-style for-loop increment, handling ++/-- as ctx->set. */
+    private function compileCForIncrement(AbstractNode $node): string
+    {
+        if ($node instanceof UnaryOpNode) {
+            $op = $node->getOperator();
+            if ($op === 'postinc' || $op === 'postdec') {
+                $operand = $node->getOperand();
+                if ($operand instanceof IdentifierNode) {
+                    $varName = var_export($operand->getName(), true);
+                    $opChar = $op === 'postinc' ? '+' : '-';
+                    return "\$ctx->set({$varName}, \$ctx->get({$varName}) {$opChar} 1)";
+                }
+            }
+        }
+        // Fall back to standard expression compilation
+        return $this->compileExpressionValue($node);
+    }
+
+    /** Resolve a simple expression string to a compiled value. */
+    private function compileCForValue(string $expr): string
+    {
+        // Numeric literal
+        if (is_numeric($expr)) {
+            return var_export($expr + 0, true);
+        }
+        // String literal
+        if (preg_match('/^["\'](.*)["\']$/s', $expr, $m)) {
+            return var_export($m[1], true);
+        }
+        // Variable reference (identifier)
+        if (preg_match('/^[a-zA-Z_]\w*$/', $expr)) {
+            return "\$ctx->get(" . var_export($expr, true) . ")";
+        }
+        // Last resort: treat as literal string
+        return var_export($expr, true);
     }
 
     /** {while condition}...{/while} */

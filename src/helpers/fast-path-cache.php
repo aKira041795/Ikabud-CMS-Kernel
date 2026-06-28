@@ -31,32 +31,12 @@ declare(strict_types=1);
         $uri = '/';
     }
 
-    // ── 3. Skip ineligible paths ──────────────────────────────────────
-    static $skipPrefixes = [
-        '/api/',
-        '/admin/',
-        '/login',
-        '/logout',
-        '/register',
-        '/lock.php',
-        '/superadmin',
-        '/ecommerce/cart',
-        '/ecommerce/checkout',
-        '/ecommerce/my-orders',
-        '/ecommerce/my-wishlist',
-        '/ecommerce/recover-cart',
-        '/ecommerce/compare',
-        '/ecommerce/admin',
-        '/ecommerce/store-admin',
-        '/cms/login',
-        '/cms/register',
-        '/cms/admin',
-        '/cms/auth',
-        '/portal',
-        '/ehr/queue-monitor',
-        '/attendance-wage/',
-        '/assets/',
-    ];
+    // ── 3. Skip ineligible paths (from shared config) ─────────────────
+    static $skipPrefixes = null;
+    if ($skipPrefixes === null) {
+        $configFile = dirname(__DIR__, 2) . '/config/page-cache-prefixes.php';
+        $skipPrefixes = is_file($configFile) ? (require $configFile) : [];
+    }
     foreach ($skipPrefixes as $prefix) {
         if (str_starts_with($uri, $prefix)) {
             return;
@@ -191,7 +171,24 @@ declare(strict_types=1);
     $cacheKey = 'page:' . $origin . ':' . md5($raw);
     $cacheFile = $instanceDir . '/' . md5($cacheKey) . '.cache';
 
-    // ── 7. APCu L1: try in-memory first ──────────────────────────────
+    // ── 7. Check cache version ────────────────────────────────────────
+    $instanceDirName = 'pagecache_t' . $tenantId;
+    $versionFile = $storagePath . '/cache/' . $instanceDirName . '/.cache_version';
+    $flushFile = $storagePath . '/cache/' . $instanceDirName . '/.flush';
+    $versionApcuKey = 'pagecache:version:' . $instanceDirName;
+
+    $currentVersion = 0;
+    if (function_exists('apcu_fetch')) {
+        $v = apcu_fetch($versionApcuKey);
+        if (is_int($v) && $v > 0) {
+            $currentVersion = $v;
+        }
+    }
+    if ($currentVersion === 0 && is_file($versionFile)) {
+        $currentVersion = (int)@file_get_contents($versionFile);
+    }
+
+    // ── 8. APCu L1: try in-memory first ──────────────────────────────
     $apcuCacheKey = 'cache_pagecache_t' . $tenantId . '_' . md5($cacheKey);
     $entry = null;
 
@@ -200,12 +197,18 @@ declare(strict_types=1);
         if ($apcuHit && is_array($cached)) {
             // Check expiry
             if (isset($cached['_cache_expires_at']) && time() < (int)$cached['_cache_expires_at']) {
-                $entry = $cached;
+                // Check version match
+                if (!isset($cached['_cache_version']) || $cached['_cache_version'] === $currentVersion) {
+                    // Check .flush file mtime
+                    if (!is_file($flushFile) || !isset($cached['_cached_at_ts']) || filemtime($flushFile) <= $cached['_cached_at_ts']) {
+                        $entry = $cached;
+                    }
+                }
             }
         }
     }
 
-    // ── 8. File L2: read cache file directly ─────────────────────────
+    // ── 9. File L2: read cache file directly ─────────────────────────
     if ($entry === null) {
         if (!is_file($cacheFile)) {
             return;
@@ -234,21 +237,38 @@ declare(strict_types=1);
             return;
         }
 
-        // Promote to APCu L1 for next request
-        if (function_exists('apcu_store')) {
+        // Check version match against current cache version
+        if (isset($entry['_cache_version']) && $currentVersion > 0 && $entry['_cache_version'] !== $currentVersion) {
+            @unlink($cacheFile);
+            return;
+        }
+
+        // Check .flush file
+        if (!isset($entry['_cached_at_ts'])) {
+            $entry['_cached_at_ts'] = isset($entry['cached_at'])
+                ? strtotime((string)$entry['cached_at']) ?: time()
+                : time();
+        }
+        if (is_file($flushFile) && filemtime($flushFile) > $entry['_cached_at_ts']) {
+            @unlink($cacheFile);
+            return;
+        }
+
+        // Promote to APCu L1 for next request (stampede-safe: only first writer wins)
+        if (function_exists('apcu_add')) {
             $remainingTtl = (int)$entry['_cache_expires_at'] - time();
             if ($remainingTtl > 0) {
-                apcu_store($apcuCacheKey, $entry, $remainingTtl);
+                apcu_add($apcuCacheKey, $entry, $remainingTtl);
             }
         }
     }
 
-    // ── 9. Validate entry ─────────────────────────────────────────────
+    // ── 10. Validate entry ────────────────────────────────────────────
     if (!isset($entry['html']) || !is_string($entry['html']) || strlen($entry['html']) < 100) {
         return;
     }
 
-    // ── 10. ETag conditional ──────────────────────────────────────────
+    // ── 11. ETag conditional ──────────────────────────────────────────
     $etag = '"' . ($entry['etag'] ?? md5($entry['html'])) . '"';
     $clientEtag = trim((string)($_SERVER['HTTP_IF_NONE_MATCH'] ?? ''));
 
@@ -260,7 +280,7 @@ declare(strict_types=1);
         exit;
     }
 
-    // ── 11. Serve ─────────────────────────────────────────────────────
+    // ── 12. Serve ─────────────────────────────────────────────────────
     http_response_code((int)($entry['status'] ?? 200));
     header('Content-Type: text/html; charset=UTF-8');
     header('ETag: ' . $etag);

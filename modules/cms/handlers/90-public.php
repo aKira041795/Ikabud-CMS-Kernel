@@ -2482,6 +2482,7 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
 
     $viewSettings = [
         'show_header' => empty($builderSettings['page']['hidePageTitle']),
+        'show_footer' => true,
         'show_meta' => $type !== 'page',
         'show_media' => $type !== 'page',
         'bypass_shell' => $builderEnabled && in_array($type, ['post', 'page'], true),
@@ -2912,7 +2913,9 @@ function cmsPublicCanonicalRenderEntityList(array $items, array $options = []): 
         $pageContext['query'] = (string)($listContext['search'] ?? '');
         $pageContext['total'] = (int)($listContext['result_count'] ?? count($normalizedItems));
         $pageContext['page_num'] = (int)($pagination['current'] ?? 1);
+        $pageContext['current_page'] = (int)($pagination['current'] ?? 1);
         $pageContext['total_pages'] = (int)($pagination['total'] ?? 1);
+        $pageContext['pagination_url'] = (string)($listContext['base_list_url'] ?? '');
         $pageContext['next_page'] = min(
             max(1, (int)($pagination['current'] ?? 1)) + 1,
             max(1, (int)($pagination['total'] ?? 1))

@@ -113,6 +113,21 @@ function cmsApiSettingsSave(array $params = []): void
     if ($oldTheme !== $newTheme) {
         $slug = ($newTheme === '' || $newTheme === 'default') ? null : $newTheme;
         cmsActivateThemeSymlink($slug);
+
+        // Re-seed customizer DB rows with the new theme's manifest defaults
+        // so the customizer UI reflects the active theme's tokens and presets.
+        $scope = cmsThemeCustomizerScopeFromManifest(cmsActiveThemeManifest());
+        cmsReseedCustomizerForTheme($scope);
+
+        // Seed default menus for the new theme if none exist for its locations
+        try {
+            cmsSeedThemeDefaultMenus();
+        } catch (\Throwable $e) {
+            write_log('warn', 'cms.theme.settings_menu_seed_failed', [
+                'theme' => $slug,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
     if ($themeChanged || $ecommerceThemeChanged) {
         cmsResetThemeRuntimeCache();

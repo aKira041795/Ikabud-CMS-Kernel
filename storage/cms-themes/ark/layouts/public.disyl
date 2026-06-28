@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en" class="ark-theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title|default:site_title|default:'ARK Theme'}</title>
+    <meta name="description" content="{page_description|default:''}">
+
+    {# ARK Reference Theme — demonstrates every Kernel OS concept
+       Manifest: theme.manifest.json, Tokens: tokens.json
+       Shell: layouts/public.disyl, Style: style.css
+       Slots: 17 governed {ikb_slot} markers
+       Entity views: public/entity.view.disyl, public/entity.list.disyl
+       Blocks: public/blocks/ (pricing, inventory, action, progress, list-card)
+       Partials: public/partials/ (header, footer, navigation, breadcrumbs, pagination)
+    #}
+
+    {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
+    {if colors_style}{colors_style|raw}{/if}
+    {if theme_layout_style}{theme_layout_style|raw}{/if}
+    {if custom_css}{custom_css|raw}{/if}
+    {if head_code}{head_code|raw}{/if}
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        :root {
+            --color-primary: #6366f1; --color-primary-dark: #4f46e5; --color-primary-light: #eef2ff;
+            --color-surface: #fff; --color-surface-muted: #f8fafc;
+            --color-text: #0f172a; --color-text-secondary: #475569; --color-text-muted: #94a3b8;
+            --color-border: #e2e8f0;
+            --font-family: Inter, system-ui, -apple-system, sans-serif;
+            --font-size-base: 16px; --line-height: 1.6;
+            --max-width: 1280px; --header-height: 64px;
+            --radius-sm: 0.375rem; --radius-md: 0.75rem; --radius-lg: 1rem;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+            --spacing-sm: 0.75rem; --spacing-md: 1.25rem; --spacing-lg: 2rem; --spacing-xl: 3rem;
+        }
+    </style>
+    {# ARK CSS served via theme_style_url above (cmsThemeAssetUrl resolves to public/assets/cms/themes/ark/style.css) #}
+</head>
+<body>
+
+    {# Skip-to-content link for accessibility #}
+    <a href="#main-content" class="ark-skip">Skip to content</a>
+
+    {# ── Governed theme slots (Phase 1) ── #}
+    {ikb_slot name="site.before" /}
+
+    {block header}
+    {# ARK is self-contained — always renders its own header #}
+    <header class="ark-header" role="banner">
+        {# Top bar (only when social_links or site_tagline exist) #}
+        {if social_links or site_tagline}
+        <div class="ark-topbar">
+            <div class="ark-topbar__inner">
+                <div class="ark-topbar__left">
+                    {if site_tagline}<span>{site_tagline}</span>{/if}
+                </div>
+                <div class="ark-topbar__right">
+                    {if social_links}
+                        {for link in social_links}
+                        <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                        {/for}
+                    {/if}
+                </div>
+            </div>
+        </div>
+        {/if}
+        <div class="ark-header__inner">
+            <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
+            <nav class="ark-header__nav" aria-label="Main navigation">
+                {if primary_menu}{primary_menu|raw}{/if}
+                {if cart_enabled}
+                <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
+                    Cart{if cart_count > 0} ({cart_count}){/if}
+                </a>
+                {/if}
+                {if user}
+                <span class="ark-header__user">{user.display_name|default:user.username}</span>
+                {/if}
+            </nav>
+        </div>
+    </header>
+    {/block}
+
+    {ikb_slot name="hero" /}
+    {ikb_slot name="breadcrumbs" /}
+
+    <main id="main-content" class="ark-main" tabindex="-1">
+        {ikb_slot name="content.before" /}
+        {block content}
+            {if body}{body|raw}{/if}
+        {/block}
+        {ikb_slot name="content.after" /}
+    </main>
+
+    {ikb_slot name="sidebar.primary" /}
+    {ikb_slot name="sidebar.secondary" /}
+
+    {# ARK is self-contained — always renders its own footer, no customizer override #}
+    <footer class="ark-footer" role="contentinfo">
+        {ikb_slot name="footer.before" /}
+        <div class="ark-footer__inner">
+            <div class="ark-footer__col">
+                <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
+                <p class="ark-footer__text">{site_tagline|default:'A governed application platform.'}</p>
+                {if social_links}
+                <div class="ark-footer__social">
+                    {for link in social_links}
+                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                    {/for}
+                </div>
+                {/if}
+            </div>
+            <div class="ark-footer__col">
+                <h4 class="ark-footer__heading">Navigate</h4>
+                {if footer_menu}{footer_menu|raw}{/if}
+            </div>
+            <div class="ark-footer__col">
+                <h4 class="ark-footer__heading">Info</h4>
+                <p class="ark-footer__text">&copy; {current_year|default:'2026'} {site_title|default:'ARK Theme'}</p>
+            </div>
+        </div>
+        <div class="ark-footer__bottom">
+            Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
+        </div>
+        {ikb_slot name="footer.after" /}
+    </footer>
+
+    {ikb_slot name="site.after" /}
+    {ikb_slot name="notifications" /}
+
+    {if body_end_code}{body_end_code|raw}{/if}
+    {block scripts}{/block}
+</body>
+</html>

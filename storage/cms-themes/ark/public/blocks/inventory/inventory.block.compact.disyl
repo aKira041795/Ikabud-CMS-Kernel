@@ -1,0 +1,12 @@
+{# ARK: Inventory Block — Compact (Phase 4)
+   Minimal stock indicator — dot + label. #}
+
+<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.8rem;font-weight:500;">
+    {if capability_data.inventory.in_stock}
+    <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+    In Stock
+    {else}
+    <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+    Out of Stock
+    {/if}
+</span>

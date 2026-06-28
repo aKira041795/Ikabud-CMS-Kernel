@@ -5,6 +5,42 @@ declare(strict_types=1);
 // Load per-widget builder renderers (dispatch-table pattern)
 require_once dirname(__DIR__) . '/builder-renderers.php';
 
+// ── Slot Contribution Registration ─────────────────────────────
+// Modules declare slot contributions here so themes can render them
+// via {ikb_slot name="..."} in shell layouts.
+//
+// Slot conditions are evaluated at render time against the current
+// rendering context (entity_type, view, route, role, capabilities).
+
+\Ikabud\Kernel\Services\SlotRegistry::register('content.after', [
+    'id' => 'cms.related_content',
+    'component' => 'ikb_entity_list',
+    'attrs' => [
+        'source' => 'cms_post.recent',
+        'view' => 'card_grid',
+        'limit' => '3',
+    ],
+    'priority' => 10,
+    'conditions' => [
+        'entity_type' => 'cms.post',
+        'view' => 'detail',
+    ],
+]);
+
+\Ikabud\Kernel\Services\SlotRegistry::register('hero', [
+    'id' => 'cms.page_hero',
+    'component' => 'ikb_section',
+    'attrs' => [
+        'type' => 'hero',
+        'padding' => 'large',
+        'bg' => 'primary',
+    ],
+    'priority' => 10,
+    'conditions' => [
+        'entity_type' => 'cms.page',
+    ],
+]);
+
 // Load animation definitions
 require_once dirname(__DIR__) . '/animation-definitions.php';
 

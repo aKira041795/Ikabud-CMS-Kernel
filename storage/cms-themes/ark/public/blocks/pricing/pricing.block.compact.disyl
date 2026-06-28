@@ -1,0 +1,9 @@
+{# ARK: Pricing Block — Compact (Phase 4) #}
+<span style="font-weight:700;color:var(--color-primary);font-size:1.1rem;">
+    {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
+    {if capability_data.pricing.compare_at_price and capability_data.pricing.compare_at_price > capability_data.pricing.price}
+    <span style="font-size:0.8rem;color:var(--color-text-muted);text-decoration:line-through;margin-left:0.25rem;">
+        {capability_data.pricing.currency|default:'$'}{capability_data.pricing.compare_at_price|number_format:2}
+    </span>
+    {/if}
+</span>

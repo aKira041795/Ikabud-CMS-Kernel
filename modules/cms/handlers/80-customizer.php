@@ -72,16 +72,58 @@ function cmsAdminCustomizer(array $params = []): void
 
     $settings = readCmsSettings();
 
+    // Build workspace toggle URLs — one per available theme
+    $workspaces = [];
+    $availableThemes = cmsAvailableThemes();
+    foreach ($availableThemes as $theme) {
+        $slug = (string)($theme['slug'] ?? '');
+        if ($slug === '' || $slug === 'default') {
+            continue;
+        }
+        $manifestPath = cmsThemesPath() . '/' . $slug . '/theme.json';
+        $manifest = is_file($manifestPath) ? kernelReadJsonFile($manifestPath) : [];
+        $themeScope = cmsThemeCustomizerScopeFromManifest(array_merge($manifest, ['slug' => $slug]));
+        $workspaces[] = [
+            'slug'  => $slug,
+            'label' => (string)($theme['label'] ?? $theme['name'] ?? ucfirst($slug)),
+            'scope' => $themeScope,
+            'url'   => $baseUrl . '/cms/admin/customize/' . $themeScope,
+            'active' => $scope === $themeScope,
+        ];
+    }
+
+    // Always include the default bare native scope as fallback
+    $hasNative = false;
+    foreach ($workspaces as $w) {
+        $parsed = cmsParseCustomizerScope($w['scope']);
+        if ($parsed['base'] === 'native' && $parsed['theme'] === null) {
+            $hasNative = true;
+            break;
+        }
+    }
+    if (!$hasNative) {
+        $workspaces[] = [
+            'slug'   => '',
+            'label'  => 'Native (fallback)',
+            'scope'  => 'native',
+            'url'    => $baseUrl . '/cms/admin/customize/native',
+            'active' => $scope === 'native',
+        ];
+    }
+
+    $parsedScope = cmsParseCustomizerScope($scope);
+
     $payload = [
         'page_title'          => $customizerTitle,
         'customizer_title'    => $customizerTitle,
         'customizer_intro'    => $customizerIntro,
         'customizer_scope'    => $scope,
+        'customizer_scope_base' => $parsedScope['base'],
         'active_theme_customizer_scope' => $activeThemeScope,
         'customizer_scope_notice' => $scopeNotice,
         'customizer_api_base' => $baseUrl . '/api/v1/cms/customizer/' . $scope,
-        'native_customizer_url' => $baseUrl . '/cms/admin/customize/native',
-        'ecommerce_customizer_url' => $baseUrl . '/cms/admin/customize/ecommerce',
+        'customizer_workspaces' => $workspaces,
+        'customizer_workspaces_json' => json_encode($workspaces, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
         'footer_settings'     => $footer['settings'],
         'footer_widgets'      => $footer['widgets'],
         'footer_settings_json' => json_encode($footer['settings'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
