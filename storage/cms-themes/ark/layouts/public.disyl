@@ -16,7 +16,7 @@
     #}
 
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
-    {if cms_public_css_url}<link rel="stylesheet" href="{cms_public_css_url}">{/if}
+    <link rel="stylesheet" href="{cms_public_css_url}">
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
     {if custom_css}{custom_css|raw}{/if}
