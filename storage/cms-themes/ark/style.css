@@ -185,6 +185,18 @@ body {
     align-items: flex-start;
 }
 
+/* Builder pages: remove max-width so full-bleed sections
+   (slideshows, hero banners) span the full viewport width. */
+.ark-content-area--builder {
+    max-width: 100%;
+    display: block;
+}
+
+.ark-main--builder {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
 .ark-main {
     flex: 1;
     min-width: 0;

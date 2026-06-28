@@ -105,8 +105,8 @@
     {ikb_slot name="hero" /}
     {ikb_slot name="breadcrumbs" /}
 
-    <div class="ark-content-area">
-        <main id="main-content" class="ark-main" tabindex="-1">
+    <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}">
+        <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}" tabindex="-1">
             {ikb_slot name="content.before" /}
             {block content}
                 {ikb_slot name="content"}
