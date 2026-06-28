@@ -15,9 +15,10 @@
 
 {block content}
         {if entity}
-        <article class="ark-detail">
+        <article class="ark-detail{if builder_enabled} ark-detail--builder{/if}">
 
-            {# Title #}
+            {# Title + Meta — suppressed when builder handles layout #}
+            {if not builder_enabled}
             {if entity_view_context.show_header|default:1}
                 {if entity.title or content.title}
                 <h1 class="ark-detail__title">{entity.title|default:content.title}</h1>
@@ -37,11 +38,12 @@
                 {/if}
             {/if}
 
-            {# Featured image #}
+            {# Featured image — builder pages use their own media blocks #}
             {if entity_view_context.show_media|default:1}
                 {if entity.featured_image_url or entity.image}
                 <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
                 {/if}
+            {/if}
             {/if}
 
             {# Body — rendered content from editor or builder #}

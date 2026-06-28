@@ -38,8 +38,13 @@
 
 html {
     scroll-behavior: smooth;
-    /* Allow builder full-width breakouts; hidden hides scrollbar without clipping overflow */
-    overflow-x: hidden;
+    /* overflow-x: hidden would clip builder full-bleed slideshows.
+       Use overflow-x: clip on body instead, which prevents horizontal
+       scrollbars without clipping positioned/stretched children. */
+}
+
+body {
+    overflow-x: clip;
 }
 
 body {
@@ -320,6 +325,24 @@ body {
 /* ── Entity detail ── */
 .ark-detail {
     flex: 1;
+}
+
+/* Builder-enabled pages: remove detail width constraint so
+   full-bleed sections (slideshows, hero banners) can stretch
+   edge-to-edge. The builder owns layout when active. */
+.ark-detail--builder {
+    max-width: 100%;
+    flex: 1;
+}
+
+.ark-detail--builder .ark-detail__body {
+    max-width: 100%;
+}
+
+/* Builder full-bleed breakout: slideshows use width:100vw +
+   negative margin to break out of constrained containers. */
+.cms-builder-node--slideshow[style*="margin-left:calc"] {
+    position: relative;
 }
 
 .ark-detail__title {
