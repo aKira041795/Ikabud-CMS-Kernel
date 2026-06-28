@@ -1,0 +1,50 @@
+{# ARK: Site Footer Partial (Phase 2)
+   Extracted from layouts/public.disyl.
+   Referenced via {include "partials/footer.disyl"}. #}
+
+<footer class="ark-footer" role="contentinfo">
+    {ikb_slot name="footer.before" /}
+    {ikb_slot name="footer.main" /}
+
+    <div class="ark-footer__inner">
+        {# Column 1: Branding #}
+        <div class="ark-footer__col">
+            <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
+            <p class="ark-footer__text">{site_tagline|default:'A governed application platform.'}</p>
+            {if social_links}
+            <div class="ark-footer__social">
+                {for link in social_links}
+                <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                {/for}
+            </div>
+            {/if}
+        </div>
+
+        {# Column 2: Navigation #}
+        <div class="ark-footer__col">
+            <h4 class="ark-footer__heading">Navigate</h4>
+            {if footer_menu}{footer_menu|raw}
+            {else}
+            <ul class="ark-footer__menu">
+                <li><a href="{base_url}/">Home</a></li>
+                <li><a href="{base_url}/blog">Blog</a></li>
+                {if ecommerce_enabled|default:false}<li><a href="{base_url}/ecommerce/shop">Shop</a></li>{/if}
+            </ul>
+            {/if}
+        </div>
+
+        {# Column 3: Info #}
+        <div class="ark-footer__col">
+            <h4 class="ark-footer__heading">Info</h4>
+            <p class="ark-footer__text">&copy; {current_year|default:'2026'} {site_title|default:'ARK Theme'}</p>
+            {if footer_legal_menu}{footer_legal_menu|raw}{/if}
+        </div>
+    </div>
+
+    {# Bottom bar #}
+    <div class="ark-footer__bottom">
+        Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
+    </div>
+
+    {ikb_slot name="footer.after" /}
+</footer>

@@ -1,0 +1,59 @@
+{# ARK: Site Header Partial (Phase 2)
+   Extracted inline header from layouts/public.disyl.
+   Referenced via {include "partials/header.disyl"} from the shell layout. #}
+
+{ikb_slot name="header.before" /}
+{ikb_slot name="header.main" /}
+
+{# Top bar — site tagline + social links #}
+{if social_links}
+<div class="ark-topbar" aria-label="Site highlights">
+    <div class="ark-topbar__inner">
+        <div class="ark-topbar__left">
+            {if site_tagline}<span>{site_tagline}</span>{/if}
+        </div>
+        <div class="ark-topbar__right">
+            {if social_links}
+                {for link in social_links}
+                <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                {/for}
+            {/if}
+        </div>
+    </div>
+</div>
+{/if}
+
+{# Main header bar #}
+<header class="ark-header" role="banner" x-data="{ mobileMenuOpen: false }">
+    <div class="ark-header__inner">
+        {# Branding #}
+        <a href="{base_url}/" class="ark-header__brand">
+            {if site_logo_url}
+            <img src="{site_logo_url}" alt="{site_title|default:'ARK Theme'}" class="ark-header__logo" style="height:32px;width:auto;" />
+            {else}
+            {site_title|default:'ARK Theme'}
+            {/if}
+        </a>
+
+        {# Desktop navigation #}
+        <nav class="ark-header__nav" aria-label="Main navigation">
+            {if primary_menu}{primary_menu|raw}{/if}
+            {if cart_enabled}
+            <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                {if cart_count > 0}<span class="ark-header__cart-count">({cart_count})</span>{/if}
+            </a>
+            {/if}
+        </nav>
+
+        {# Mobile menu toggle #}
+        <button class="ark-header__mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle menu" aria-expanded="false">
+            <span class="ark-header__hamburger"></span>
+        </button>
+    </div>
+
+    {# Mobile menu panel #}
+    <div class="ark-header__mobile-panel" x-show="mobileMenuOpen" x-transition @click.away="mobileMenuOpen = false" style="display:none;">
+        {if primary_menu}{primary_menu|raw}{/if}
+    </div>
+</header>

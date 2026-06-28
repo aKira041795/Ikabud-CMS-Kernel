@@ -1,0 +1,43 @@
+{# ARK: List Card Block — Inventory Compact (Phase 4)
+   Card container with minimal stock indicator — inline dot + label only.
+   No quantity, no panel — just the essential stock signal. #}
+
+<article class="ark-card">
+    {if row.image or row.featured_image_url or row.thumbnail_url}
+    <a href="{row.url|default:'#'}" class="ark-card__image-link" aria-hidden="true" tabindex="-1">
+        <img
+            src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}"
+            alt="{row.title|default:row.name|default:''}"
+            class="ark-card__image"
+            loading="lazy"
+        />
+    </a>
+    {/if}
+    <div class="ark-card__body">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
+            <h3 class="ark-card__title" style="margin:0;">
+                {if row.url}<a href="{row.url}">{/if}
+                {row.title|default:row.name|default:row.label|default:'Untitled'}
+                {if row.url}</a>{/if}
+            </h3>
+
+            {# Compact stock dot — just the indicator #}
+            {if capability_data and capability_data.inventory}
+                {if capability_data.inventory.in_stock}
+                <span style="display:inline-flex;align-items:center;gap:0.2rem;font-size:0.7rem;font-weight:500;color:#166534;flex-shrink:0;" title="In Stock">
+                    <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+                </span>
+                {else}
+                <span style="display:inline-flex;align-items:center;gap:0.2rem;font-size:0.7rem;font-weight:500;color:#991b1b;flex-shrink:0;" title="Out of Stock">
+                    <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+                </span>
+                {/if}
+            {/if}
+        </div>
+        {if row.excerpt or row.description}
+        <p class="ark-card__excerpt">
+            {row.excerpt|default:row.description}
+        </p>
+        {/if}
+    </div>
+</article>

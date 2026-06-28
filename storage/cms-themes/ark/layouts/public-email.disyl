@@ -1,0 +1,50 @@
+{# ARK: Email-Safe Layout (Phase 8 — Multi-Surface)
+   Table-based layout (no flexbox/grid), inline styles, no JS, no external assets.
+   Used when output_target == 'email'. #}
+
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{page_title|default:site_title|default:'ARK Theme'}</title>
+    <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#f8fafc;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.6;color:#0f172a;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+    {# Preheader (hidden preview text in email clients) #}
+    <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">
+        {page_description|default:site_tagline|default:''}
+    </div>
+
+    {# Outer wrapper table #}
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f8fafc;">
+        <tr>
+            <td align="center" style="padding:24px 16px;">
+                {# Inner container table #}
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;">
+                    {# Header row #}
+                    <tr>
+                        <td style="padding:32px 32px 16px;text-align:center;border-bottom:2px solid #6366f1;">
+                            <h1 style="margin:0;font-size:22px;font-weight:700;color:#6366f1;">{site_title|default:'ARK Theme'}</h1>
+                        </td>
+                    </tr>
+                    {# Content row #}
+                    <tr>
+                        <td style="padding:24px 32px 32px;">
+                            {block content}{/block}
+                        </td>
+                    </tr>
+                    {# Footer row #}
+                    <tr>
+                        <td style="padding:16px 32px 24px;border-top:1px solid #e2e8f0;text-align:center;font-size:12px;color:#94a3b8;">
+                            <p style="margin:0 0 4px;">&copy; {current_year|default:'2026'} {site_title|default:'ARK Theme'}</p>
+                            <p style="margin:0;">Built on Ikabud Kernel OS 6.1</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

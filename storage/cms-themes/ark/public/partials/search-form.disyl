@@ -1,0 +1,30 @@
+{# ARK: Search Form Partial (Phase 2)
+   Reusable search form with attribute filter preservation.
+   Referenced via {include "partials/search-form.disyl"}. #}
+
+<form action="{search_action|default:base_url}" method="GET" class="ark-search-form" role="search" aria-label="Search">
+    <div class="ark-search-form__inner">
+        <label for="ark-search-input" class="ark-sr-only">Search</label>
+        <input
+            id="ark-search-input"
+            type="search"
+            name="s"
+            value="{search_query|default:''}"
+            placeholder="{search_placeholder|default:'Search...'}"
+            class="ark-search-form__input"
+            autocomplete="off"
+        />
+        <button type="submit" class="ark-search-form__submit" aria-label="Submit search">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+    </div>
+
+    {# Preserve existing filter params (category, tag, sort, etc.) #}
+    {if search_filters}
+        {for key, value in search_filters}
+            {if key != 's' and key != 'page' and value}
+            <input type="hidden" name="{key}" value="{value}" />
+            {/if}
+        {/for}
+    {/if}
+</form>

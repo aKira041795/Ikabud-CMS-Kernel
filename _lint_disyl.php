@@ -100,53 +100,58 @@ foreach ($files as $filePath) {
         continue;
     }
 
+    // Strip DiSyL comments ({# ... #}) before structural checks so that
+    // example include/extends paths in documentation comments don't
+    // produce false-positive "path not found" errors.
+    $sourceStripped = preg_replace('/\{#.*?#\}/s', '', $source);
+
     // ── Basic structural checks ──
     $lines = explode("\n", $source);
     $fileErrors = [];
 
     // Check 1: Balanced {block} / {/block}
-    $blockOpen = preg_match_all('/\{block\s/', $source);
-    $blockClose = preg_match_all('/\{\/block\}/', $source);
+    $blockOpen = preg_match_all('/\{block\s/', $sourceStripped);
+    $blockClose = preg_match_all('/\{\/block\}/', $sourceStripped);
     if ($blockOpen !== $blockClose) {
         $fileErrors[] = "Mismatched {block}/{\/block}: {$blockOpen} opening(s), {$blockClose} closing(s)";
     }
 
     // Check 2: Balanced {if} / {/if}
-    $ifOpen = preg_match_all('/\{if\s/', $source);
-    $ifClose = preg_match_all('/\{\/if\}/', $source);
+    $ifOpen = preg_match_all('/\{if\s/', $sourceStripped);
+    $ifClose = preg_match_all('/\{\/if\}/', $sourceStripped);
     if ($ifOpen !== $ifClose) {
         $fileErrors[] = "Mismatched {if}/{\/if}: {$ifOpen} opening(s), {$ifClose} closing(s)";
     }
 
     // Check 3: Balanced {for} / {/for}
-    $forOpen = preg_match_all('/\{for\s/', $source);
-    $forClose = preg_match_all('/\{\/for\}/', $source);
+    $forOpen = preg_match_all('/\{for\s/', $sourceStripped);
+    $forClose = preg_match_all('/\{\/for\}/', $sourceStripped);
     if ($forOpen !== $forClose) {
         $fileErrors[] = "Mismatched {for}/{\/for}: {$forOpen} opening(s), {$forClose} closing(s)";
     }
 
     // Check 4: Balanced {foreach} / {/foreach}
-    $feOpen = preg_match_all('/\{foreach\s/', $source);
-    $feClose = preg_match_all('/\{\/foreach\}/', $source);
+    $feOpen = preg_match_all('/\{foreach\s/', $sourceStripped);
+    $feClose = preg_match_all('/\{\/foreach\}/', $sourceStripped);
     if ($feOpen !== $feClose) {
         $fileErrors[] = "Mismatched {foreach}/{\/foreach}: {$feOpen} opening(s), {$feClose} closing(s)";
     }
 
     // Check 5: Balanced {while} / {/while}
-    $whileOpen = preg_match_all('/\{while\s/', $source);
-    $whileClose = preg_match_all('/\{\/while\}/', $source);
+    $whileOpen = preg_match_all('/\{while\s/', $sourceStripped);
+    $whileClose = preg_match_all('/\{\/while\}/', $sourceStripped);
     if ($whileOpen !== $whileClose) {
         $fileErrors[] = "Mismatched {while}/{\/while}: {$whileOpen} opening(s), {$whileClose} closing(s)";
     }
 
     // Check 6: {include} paths resolve to existing files
-    if (preg_match_all('/\{include\s+"([^"]+)"/', $source, $includeMatches)) {
+    if (preg_match_all('/\{include\s+"([^"]+)"/', $sourceStripped, $includeMatches)) {
         foreach ($includeMatches[1] as $includePath) {
             // Skip dynamic includes (resolved at runtime by CMS theme system)
             if (str_starts_with($includePath, '_cms_')) {
                 continue;
             }
-            $resolved = resolveTemplatePathForLint($includePath, $projectRoot);
+            $resolved = resolveTemplatePathForLint($includePath, $projectRoot, dirname($filePath));
             if ($resolved === null) {
                 $fileErrors[] = "Include path not found: '{$includePath}'";
             }
@@ -154,10 +159,10 @@ foreach ($files as $filePath) {
     }
 
     // Check 7: {extends} paths resolve
-    if (preg_match('/\{extends\s+"([^"]+)"/', $source, $extMatches)) {
-        // Skip dynamic extends
+    if (preg_match('/\{extends\s+"([^"]+)"/', $sourceStripped, $extMatches)) {
+        // Skip dynamic extends (resolved at runtime by CMS theme system)
         if (!str_starts_with($extMatches[1], '_cms_')) {
-            $resolved = resolveTemplatePathForLint($extMatches[1], $projectRoot);
+            $resolved = resolveTemplatePathForLint($extMatches[1], $projectRoot, dirname($filePath));
             if ($resolved === null) {
                 $fileErrors[] = "Extends path not found: '{$extMatches[1]}'";
             }
@@ -247,24 +252,39 @@ exit($errorCount > 0 ? 1 : 0);
 
 /**
  * Resolve a DiSyL template include/extends path to an actual file.
+ *
+ * @param string $path        The include/extends path from the template
+ * @param string $projectRoot Project root directory
+ * @param string $fromDir     Directory of the file containing the include (for relative resolution)
  */
-function resolveTemplatePathForLint(string $path, string $projectRoot): ?string
+function resolveTemplatePathForLint(string $path, string $projectRoot, string $fromDir = ''): ?string
 {
     $projectRoot = __DIR__;
 
-    // Direct path
+    // 0. Resolve relative to the file being linted (e.g., blocks/pricing/... relative to theme/public/)
+    if ($fromDir !== '') {
+        $relative = $fromDir . '/' . ltrim($path, '/');
+        if (is_file($relative)) {
+            return $relative;
+        }
+        if (is_file($relative . '.disyl')) {
+            return $relative . '.disyl';
+        }
+    }
+
+    // 1. Direct path
     $direct = $projectRoot . '/' . ltrim($path, '/');
     if (is_file($direct)) {
         return $direct;
     }
 
-    // Try with .disyl extension
+    // 2. Try with .disyl extension
     $withExt = $direct . '.disyl';
     if (is_file($withExt)) {
         return $withExt;
     }
 
-    // Relative to templates/
+    // 3. Relative to templates/
     $inTemplates = $projectRoot . '/templates/' . ltrim($path, '/');
     if (is_file($inTemplates)) {
         return $inTemplates;
@@ -273,7 +293,7 @@ function resolveTemplatePathForLint(string $path, string $projectRoot): ?string
         return $inTemplates . '.disyl';
     }
 
-    // Module template alias resolution
+    // 4. Module template alias resolution
     if (preg_match('#^modules/([^/]+)/(.*)$#', $path, $m)) {
         $moduleTemplate = $projectRoot . '/templates/' . $path;
         if (is_file($moduleTemplate)) {

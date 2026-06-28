@@ -1,0 +1,15 @@
+{# ARK: Sidebar Partial (Phase 2)
+   Optional sidebar rendered when slots have contributions or customizer enables it.
+   Referenced via {include "partials/sidebar.disyl"}. #}
+
+<aside class="ark-sidebar-region" aria-label="Sidebar">
+    {# Primary sidebar area — widgets, nav, filters #}
+    <div class="ark-sidebar ark-sidebar--primary">
+        {ikb_slot name="sidebar.primary" /}
+    </div>
+
+    {# Secondary sidebar area — supplementary widgets #}
+    <div class="ark-sidebar ark-sidebar--secondary">
+        {ikb_slot name="sidebar.secondary" /}
+    </div>
+</aside>

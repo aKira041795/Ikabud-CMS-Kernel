@@ -1,0 +1,166 @@
+{# ARK: Theme Info Panel (Phase 6)
+   Admin panel displaying theme metadata, capabilities, slots, and variants.
+   Rendered in the CMS admin theme management area. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{block head}
+<style>
+    .ark-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--spacing-md);
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .ark-info-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md);
+    }
+
+    .ark-info-card__heading {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+        margin: 0 0 0.75rem;
+    }
+
+    .ark-info-chip {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 500;
+        background: var(--color-primary-light);
+        color: var(--color-primary);
+        margin: 0.15rem;
+    }
+
+    .ark-info-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+</style>
+{/block}
+
+{block content}
+<div style="max-width:960px;margin:0 auto;padding:var(--spacing-lg) var(--spacing-md);">
+    <h1 style="font-size:1.75rem;font-weight:700;margin:0 0 0.5rem;">{theme_label|default:'ARK Reference Theme'}</h1>
+    <p style="color:var(--color-text-secondary);margin:0 0 var(--spacing-lg);max-width:600px;">
+        {theme_description|default:'Production reference theme and executable theme specification for Kernel OS 6.1+.'}
+    </p>
+
+    <div class="ark-info-grid">
+        {# Overview #}
+        <div class="ark-info-card">
+            <h2 class="ark-info-card__heading">Overview</h2>
+            <dl style="margin:0;font-size:0.875rem;">
+                <dt style="font-weight:600;color:var(--color-text);">Version</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">{theme_version|default:'1.0.0'}</dd>
+                <dt style="font-weight:600;color:var(--color-text);">Author</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">{theme_author|default:'Ikabud Kernel Team'}</dd>
+                <dt style="font-weight:600;color:var(--color-text);">License</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">MIT</dd>
+                <dt style="font-weight:600;color:var(--color-text);">Kernel OS</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">6.1.0+</dd>
+                <dt style="font-weight:600;color:var(--color-text);">DiSyL</dt>
+                <dd style="margin:0;color:var(--color-text-secondary);">4.7.0+</dd>
+            </dl>
+        </div>
+
+        {# Supported Surfaces #}
+        <div class="ark-info-card">
+            <h2 class="ark-info-card__heading">Surfaces</h2>
+            <ul class="ark-info-list">
+                <li class="ark-info-chip">Public</li>
+                <li class="ark-info-chip">Print</li>
+                <li class="ark-info-chip">Email</li>
+            </ul>
+        </div>
+
+        {# Slots #}
+        <div class="ark-info-card">
+            <h2 class="ark-info-card__heading">Governed Slots</h2>
+            <ul class="ark-info-list">
+                <li class="ark-info-chip">site.before</li>
+                <li class="ark-info-chip">header.before</li>
+                <li class="ark-info-chip">header.main</li>
+                <li class="ark-info-chip">header.after</li>
+                <li class="ark-info-chip">hero</li>
+                <li class="ark-info-chip">breadcrumbs</li>
+                <li class="ark-info-chip">content.before</li>
+                <li class="ark-info-chip">content</li>
+                <li class="ark-info-chip">content.after</li>
+                <li class="ark-info-chip">sidebar.primary</li>
+                <li class="ark-info-chip">sidebar.secondary</li>
+                <li class="ark-info-chip">footer.before</li>
+                <li class="ark-info-chip">footer.main</li>
+                <li class="ark-info-chip">footer.after</li>
+                <li class="ark-info-chip">site.after</li>
+                <li class="ark-info-chip">notifications</li>
+            </ul>
+            <p style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.5rem;">16 slots — stable public API</p>
+        </div>
+
+        {# Entity Fallbacks #}
+        <div class="ark-info-card">
+            <h2 class="ark-info-card__heading">Entity Fallbacks</h2>
+            <ul class="ark-info-list">
+                <li class="ark-info-chip">Card</li>
+                <li class="ark-info-chip">Table</li>
+                <li class="ark-info-chip">Detail</li>
+                <li class="ark-info-chip">Compact</li>
+            </ul>
+            <p style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.5rem;">Generic fallbacks for unknown entity types</p>
+        </div>
+
+        {# Design Language #}
+        <div class="ark-info-card">
+            <h2 class="ark-info-card__heading">Design Language</h2>
+            <dl style="margin:0;font-size:0.875rem;">
+                <dt style="font-weight:600;color:var(--color-text);">Type Scale</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">Inter</dd>
+                <dt style="font-weight:600;color:var(--color-text);">Color System</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">OKLCH</dd>
+                <dt style="font-weight:600;color:var(--color-text);">Grid</dt>
+                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">Tailwind v3</dd>
+                <dt style="font-weight:600;color:var(--color-text);">Icon Set</dt>
+                <dd style="margin:0;color:var(--color-text-secondary);">Font Awesome 6</dd>
+            </dl>
+        </div>
+
+        {# Accessibility #}
+        <div class="ark-info-card">
+            <h2 class="ark-info-card__heading">Accessibility</h2>
+            <ul style="margin:0;padding:0 0 0 1rem;font-size:0.85rem;color:var(--color-text-secondary);line-height:1.7;">
+                <li>Semantic landmarks</li>
+                <li>Skip-to-content link</li>
+                <li>Keyboard navigation</li>
+                <li>Visible focus indicators</li>
+                <li>Reduced motion support</li>
+                <li>ARIA current/sort</li>
+                <li>4.5:1 contrast ratio</li>
+            </ul>
+        </div>
+    </div>
+
+    {# Theme Doctrine #}
+    <div class="ark-info-card" style="margin-bottom:var(--spacing-lg);">
+        <h2 class="ark-info-card__heading">Theme Doctrine</h2>
+        <pre style="margin:0;font-size:0.85rem;color:var(--color-text-secondary);line-height:1.6;white-space:pre-wrap;">
+Theme presents.
+Modules provide.
+DiSyL declares.
+Kernel OS governs.
+        </pre>
+    </div>
+</div>
+{/block}

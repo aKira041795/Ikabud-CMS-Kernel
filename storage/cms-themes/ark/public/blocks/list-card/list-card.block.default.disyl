@@ -1,0 +1,41 @@
+{# ARK: List Card Block — Default (Phase 4)
+   Standard card container for entity list items.
+   Renders image + title + excerpt + price + badge + meta. #}
+
+<article class="ark-card">
+    {if row.image or row.featured_image_url or row.thumbnail_url}
+    <a href="{row.url|default:'#'}" class="ark-card__image-link" aria-hidden="true" tabindex="-1">
+        <img
+            src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}"
+            alt="{row.title|default:row.name|default:''}"
+            class="ark-card__image"
+            loading="lazy"
+        />
+    </a>
+    {/if}
+    <div class="ark-card__body">
+        {if row.status or row.type}
+        <span class="ark-card__badge">{row.status|default:row.type}</span>
+        {/if}
+        <h3 class="ark-card__title">
+            {if row.url}<a href="{row.url}">{/if}
+            {row.title|default:row.name|default:row.label|default:'Untitled'}
+            {if row.url}</a>{/if}
+        </h3>
+        {if row.excerpt or row.description}
+        <p class="ark-card__excerpt">
+            {row.excerpt|default:row.description}
+        </p>
+        {/if}
+        {if row.price}
+        <div class="ark-card__price">{row.price}</div>
+        {/if}
+        {if row.published_at or row.created_at or row.date or row.author_name}
+        <div class="ark-card__meta">
+            {row.author_name|default:''}
+            {if row.author_name and (row.published_at or row.date)} &middot; {/if}
+            {row.published_at|default:row.created_at|default:row.date|default:''}
+        </div>
+        {/if}
+    </div>
+</article>

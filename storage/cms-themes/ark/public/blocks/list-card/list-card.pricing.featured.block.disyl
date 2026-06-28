@@ -1,0 +1,60 @@
+{# ARK: List Card Block — Pricing Featured (Phase 4)
+   Highlighted card with "Best Value" or "Featured" ribbon badge.
+   Prominent pricing display for featured/commercial products. #}
+
+<article class="ark-card" style="position:relative;border-color:var(--color-primary);border-width:2px;">
+    {# Featured ribbon #}
+    {if capability_data and capability_data.pricing and capability_data.pricing.featured_badge}
+    <div style="position:absolute;top:0;right:0;background:var(--color-primary);color:#fff;padding:0.25rem 1rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border-radius:0 var(--radius-md) 0 var(--radius-md);z-index:1;">
+        {capability_data.pricing.featured_badge}
+    </div>
+    {else if row.featured}
+    <div style="position:absolute;top:0;right:0;background:var(--color-primary);color:#fff;padding:0.25rem 1rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border-radius:0 var(--radius-md) 0 var(--radius-md);z-index:1;">
+        Featured
+    </div>
+    {/if}
+
+    {if row.image or row.featured_image_url or row.thumbnail_url}
+    <a href="{row.url|default:'#'}" class="ark-card__image-link" aria-hidden="true" tabindex="-1">
+        <img
+            src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}"
+            alt="{row.title|default:row.name|default:''}"
+            class="ark-card__image"
+            loading="lazy"
+        />
+    </a>
+    {/if}
+    <div class="ark-card__body">
+        <h3 class="ark-card__title">
+            {if row.url}<a href="{row.url}">{/if}
+            {row.title|default:row.name|default:row.label|default:'Untitled'}
+            {if row.url}</a>{/if}
+        </h3>
+        {if row.excerpt or row.description}
+        <p class="ark-card__excerpt">
+            {row.excerpt|default:row.description}
+        </p>
+        {/if}
+
+        {# Featured pricing — larger, highlight color #}
+        {if capability_data and capability_data.pricing}
+        <div style="margin-top:var(--spacing-sm);">
+            <div style="font-size:1.5rem;font-weight:800;color:var(--color-primary);">
+                {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
+            </div>
+            {if capability_data.pricing.description}
+            <p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--color-text-secondary);">{capability_data.pricing.description}</p>
+            {/if}
+        </div>
+        {else if row.price}
+        <div class="ark-card__price" style="font-size:1.25rem;">{row.price}</div>
+        {/if}
+
+        {# CTA #}
+        {if row.url}
+        <a href="{row.url}" style="display:block;margin-top:var(--spacing-sm);padding:0.5rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);text-align:center;text-decoration:none;font-weight:600;font-size:0.875rem;">
+            View Details
+        </a>
+        {/if}
+    </div>
+</article>

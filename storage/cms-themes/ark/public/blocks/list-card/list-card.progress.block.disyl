@@ -1,0 +1,55 @@
+{# ARK: List Card Block — With Progress (Phase 4)
+   Card container with integrated progress bar.
+   Shows completion percentage for courses, tasks, or tracked entities. #}
+
+<article class="ark-card">
+    {if row.image or row.featured_image_url or row.thumbnail_url}
+    <a href="{row.url|default:'#'}" class="ark-card__image-link" aria-hidden="true" tabindex="-1">
+        <img
+            src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}"
+            alt="{row.title|default:row.name|default:''}"
+            class="ark-card__image"
+            loading="lazy"
+        />
+        {# Progress overlay on image #}
+        {if capability_data and capability_data.progress_tracking and capability_data.progress_tracking.percentage}
+        <div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.2);">
+            <div style="height:100%;width:{capability_data.progress_tracking.percentage}%;background:var(--color-primary);transition:width 0.3s;"></div>
+        </div>
+        {/if}
+    </a>
+    {/if}
+    <div class="ark-card__body">
+        <h3 class="ark-card__title">
+            {if row.url}<a href="{row.url}">{/if}
+            {row.title|default:row.name|default:row.label|default:'Untitled'}
+            {if row.url}</a>{/if}
+        </h3>
+        {if row.excerpt or row.description}
+        <p class="ark-card__excerpt">
+            {row.excerpt|default:row.description}
+        </p>
+        {/if}
+
+        {# Progress bar #}
+        {if capability_data and capability_data.progress_tracking}
+        <div style="margin-top:var(--spacing-sm);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+                <span style="font-size:0.75rem;font-weight:500;color:var(--color-text);">
+                    {capability_data.progress_tracking.label|default:'Progress'}
+                </span>
+                <span style="font-size:0.72rem;color:var(--color-text-secondary);">
+                    {capability_data.progress_tracking.percentage|default:0}%
+                </span>
+            </div>
+            <div style="background:var(--color-surface-muted);border-radius:999px;height:6px;overflow:hidden;">
+                <div style="width:{capability_data.progress_tracking.percentage|default:0}%;height:100%;background:var(--color-primary);border-radius:999px;transition:width 0.3s;"></div>
+            </div>
+        </div>
+        {/if}
+
+        {if row.status}
+        <span class="ark-card__badge" style="margin-top:0.5rem;">{row.status}</span>
+        {/if}
+    </div>
+</article>

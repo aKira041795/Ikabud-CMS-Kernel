@@ -1,0 +1,44 @@
+{# ARK: List Card Block — With Pricing (Phase 4)
+   Card container with integrated price display.
+   Uses pricing capability data when available, falls back to row.price. #}
+
+<article class="ark-card">
+    {if row.image or row.featured_image_url or row.thumbnail_url}
+    <a href="{row.url|default:'#'}" class="ark-card__image-link" aria-hidden="true" tabindex="-1">
+        <img
+            src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}"
+            alt="{row.title|default:row.name|default:''}"
+            class="ark-card__image"
+            loading="lazy"
+        />
+    </a>
+    {/if}
+    <div class="ark-card__body">
+        <h3 class="ark-card__title">
+            {if row.url}<a href="{row.url}">{/if}
+            {row.title|default:row.name|default:row.label|default:'Untitled'}
+            {if row.url}</a>{/if}
+        </h3>
+        {if row.excerpt or row.description}
+        <p class="ark-card__excerpt">
+            {row.excerpt|default:row.description}
+        </p>
+        {/if}
+
+        {# Pricing — from capability data or row #}
+        {if capability_data and capability_data.pricing}
+        <div class="ark-card__price" style="display:flex;align-items:baseline;gap:0.35rem;">
+            {if capability_data.pricing.compare_at_price and capability_data.pricing.compare_at_price > capability_data.pricing.price}
+            <span style="font-size:0.8rem;color:var(--color-text-muted);text-decoration:line-through;">
+                {capability_data.pricing.currency|default:'$'}{capability_data.pricing.compare_at_price|number_format:2}
+            </span>
+            {/if}
+            <span style="font-size:1.1rem;font-weight:700;color:var(--color-primary);">
+                {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
+            </span>
+        </div>
+        {else if row.price}
+        <div class="ark-card__price">{row.price}</div>
+        {/if}
+    </div>
+</article>

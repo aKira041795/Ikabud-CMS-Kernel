@@ -1,0 +1,79 @@
+{# ARK: Macro Library (Phase 5)
+   Reusable DiSyL v4.7 macros for common UI patterns.
+   Import via {include "partials/macros.disyl"} at the top of any template.
+   All styling driven by CSS custom properties (tokens.json). #}
+
+{* ── Button macro ─────────────────────────────────────── *}
+{macro ark_button(label, url, variant = 'primary', size = 'md', icon = '')}
+    <a href="{url}" class="ark-btn ark-btn--{variant} ark-btn--{size}"{if icon} data-icon="{icon}"{/if}>
+        {if icon}<span class="ark-btn__icon">{icon|raw}</span>{/if}
+        <span class="ark-btn__label">{label}</span>
+    </a>
+{/macro}
+
+{* ── Badge macro ──────────────────────────────────────── *}
+{macro ark_badge(text, variant = 'default')}
+    <span class="ark-badge ark-badge--{variant}">{text}</span>
+{/macro}
+
+{* ── Price display macro ──────────────────────────────── *}
+{macro ark_price(amount, currency = '$', sale_amount = '', suffix = '')}
+    {if sale_amount}
+        <span class="ark-price ark-price--sale">
+            <span class="ark-price__original">{currency}{amount|number_format:2}</span>
+            <span class="ark-price__sale">{currency}{sale_amount|number_format:2}</span>
+        </span>
+    {else}
+        <span class="ark-price">
+            <span class="ark-price__amount">{currency}{amount|number_format:2}</span>
+            {if suffix}<span class="ark-price__suffix">/{suffix}</span>{/if}
+        </span>
+    {/if}
+{/macro}
+
+{* ── Progress bar macro ───────────────────────────────── *}
+{macro ark_progress(percent, label = '', color = 'primary')}
+    <div class="ark-progress" role="progressbar" aria-valuenow="{percent}" aria-valuemin="0" aria-valuemax="100">
+        {if label}<span class="ark-progress__label">{label}</span>{/if}
+        <div class="ark-progress__track">
+            <div class="ark-progress__fill ark-progress__fill--{color}" style="width:{percent}%"></div>
+        </div>
+        <span class="ark-progress__percent">{percent|number_format:0}%</span>
+    </div>
+{/macro}
+
+{* ── Card macro ───────────────────────────────────────── *}
+{macro ark_card(title, url, image = '', excerpt = '', price = '', badge = '', meta = '')}
+    <article class="ark-card">
+        {if image}
+        <a href="{url}" class="ark-card__image-link" aria-hidden="true" tabindex="-1">
+            <img src="{image}" alt="" class="ark-card__image" loading="lazy" />
+        </a>
+        {/if}
+        <div class="ark-card__body">
+            {if badge}<span class="ark-card__badge">{badge}</span>{/if}
+            <h3 class="ark-card__title"><a href="{url}">{title}</a></h3>
+            {if excerpt}<p class="ark-card__excerpt">{excerpt}</p>{/if}
+            {if price}<div class="ark-card__price">{price}</div>{/if}
+            {if meta}<div class="ark-card__meta">{meta}</div>{/if}
+        </div>
+    </article>
+{/macro}
+
+{* ── Section wrapper macro ────────────────────────────── *}
+{macro ark_section(heading = '', padding = 'lg', background = 'white')}
+    <section class="ark-section ark-section--{background} ark-section--p-{padding}">
+        {if heading}<h2 class="ark-section__heading">{heading}</h2>{/if}
+        <div class="ark-section__body">
+            {# Children rendered by caller #}
+        </div>
+    </section>
+{/macro}
+
+{* ── Empty state macro ────────────────────────────────── *}
+{macro ark_empty(icon = '📄', message = 'No records found.')}
+    <div class="ark-empty">
+        <div class="ark-empty__icon">{icon}</div>
+        <div class="ark-empty__text">{message}</div>
+    </div>
+{/macro}

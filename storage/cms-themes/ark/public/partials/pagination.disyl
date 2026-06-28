@@ -1,0 +1,32 @@
+{# ARK: Pagination Partial (Phase 2)
+   Reusable pagination chrome used across entity lists, archives, and search results.
+   Referenced via {include "partials/pagination.disyl"}. #}
+
+{if pagination and pagination.total > 1}
+<nav class="ark-pagination" aria-label="Pagination" data-total-pages="{pagination.total}">
+    <div class="ark-pagination__inner">
+        {# Previous page #}
+        {if pagination.prev_url}
+        <a href="{pagination.prev_url}" class="ark-pagination__link ark-pagination__prev" rel="prev" aria-label="Previous page">
+            <span aria-hidden="true">&larr;</span> Previous
+        </a>
+        {else}
+        <span class="ark-pagination__link ark-pagination__prev ark-pagination__link--disabled" aria-hidden="true">&larr; Previous</span>
+        {/if}
+
+        {# Page indicator #}
+        <span class="ark-pagination__info">
+            Page {pagination.current|default:'1'} of {pagination.total}
+        </span>
+
+        {# Next page #}
+        {if pagination.next_url}
+        <a href="{pagination.next_url}" class="ark-pagination__link ark-pagination__next" rel="next" aria-label="Next page">
+            Next <span aria-hidden="true">&rarr;</span>
+        </a>
+        {else}
+        <span class="ark-pagination__link ark-pagination__next ark-pagination__link--disabled" aria-hidden="true">Next &rarr;</span>
+        {/if}
+    </div>
+</nav>
+{/if}

@@ -1,0 +1,22 @@
+{# ARK: Breadcrumb Navigation Partial (Phase 2)
+   Renders breadcrumb trail when available.
+   Referenced via {include "partials/breadcrumb.disyl"} or via {ikb_slot name="breadcrumbs"}. #}
+
+{ikb_slot name="breadcrumbs"}
+    {# Fallback: auto-generated breadcrumbs when no slot contribution #}
+    {if breadcrumbs}
+    <nav class="ark-breadcrumbs" aria-label="Breadcrumb">
+        <ol class="ark-breadcrumbs__list">
+            {for crumb in breadcrumbs}
+            <li class="ark-breadcrumbs__item">
+                {if crumb.url and not loop.last}
+                <a href="{crumb.url}" class="ark-breadcrumbs__link">{crumb.label}</a>
+                {else}
+                <span class="ark-breadcrumbs__current" aria-current="page">{crumb.label}</span>
+                {/if}
+            </li>
+            {/for}
+        </ol>
+    </nav>
+    {/if}
+{/ikb_slot}

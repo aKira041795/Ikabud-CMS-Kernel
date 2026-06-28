@@ -1,0 +1,69 @@
+{# ARK: Customizer Preview Frame (Phase 6)
+   Live preview iframe shell for the CMS customizer.
+   Receives token/variant changes via postMessage and applies them in real-time.
+   Loaded inside the customizer panel iframe. #}
+
+{extends "_cms_active_theme/layouts/admin-preview.disyl"}
+
+{block content}
+<div class="ark-preview-section">
+    <div class="ark-preview-section__label">Typography</div>
+    <h1 style="font-size:var(--font-size-3xl,1.875rem);font-weight:var(--heading-weight,700);margin:0 0 0.5rem;">
+        {site_title|default:'ARK Theme'}
+    </h1>
+    <p style="font-size:var(--font-size-base,16px);line-height:var(--line-height,1.6);color:var(--color-text-secondary);">
+        The quick brown fox jumps over the lazy dog. ABCDEFGHIJKLMNOPQRSTUVWXYZ.
+    </p>
+    <p style="font-size:var(--font-size-sm,0.875rem);color:var(--color-text-muted);">
+        Secondary text — smaller, muted. 0123456789.
+    </p>
+</div>
+
+<div class="ark-preview-section">
+    <div class="ark-preview-section__label">Color Palette</div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-primary);" title="Primary"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-primary-dark);" title="Primary Dark"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-primary-light);" title="Primary Light"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-surface);border:1px solid var(--color-border);" title="Surface"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-surface-muted);" title="Surface Muted"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-success);" title="Success"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-warning);" title="Warning"></div>
+        <div style="width:64px;height:64px;border-radius:var(--radius-md);background:var(--color-danger);" title="Danger"></div>
+    </div>
+</div>
+
+<div class="ark-preview-section">
+    <div class="ark-preview-section__label">Buttons</div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
+        <a href="#" class="ark-btn" style="display:inline-block;padding:0.5rem 1.5rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-md);text-decoration:none;font-weight:500;">Primary</a>
+        <a href="#" class="ark-btn" style="display:inline-block;padding:0.5rem 1.5rem;border:2px solid var(--color-primary);color:var(--color-primary);border-radius:var(--radius-md);text-decoration:none;font-weight:500;">Outline</a>
+        <a href="#" class="ark-btn" style="display:inline-block;padding:0.35rem 1rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);text-decoration:none;font-size:0.85rem;font-weight:500;">Small</a>
+    </div>
+</div>
+
+<div class="ark-preview-section">
+    <div class="ark-preview-section__label">Cards</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;">
+        <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:1rem;">
+            <div style="font-weight:600;margin-bottom:0.25rem;color:var(--color-text);">Card Title</div>
+            <div style="font-size:0.85rem;color:var(--color-text-secondary);">Card excerpt text for preview.</div>
+            <div style="font-weight:700;color:var(--color-primary);margin-top:0.5rem;">$49.99</div>
+        </div>
+        <div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:1rem;box-shadow:var(--shadow-md);">
+            <div style="font-weight:600;margin-bottom:0.25rem;color:var(--color-text);">Elevated Card</div>
+            <div style="font-size:0.85rem;color:var(--color-text-secondary);">With shadow applied.</div>
+        </div>
+    </div>
+</div>
+
+<div class="ark-preview-section">
+    <div class="ark-preview-section__label">Badges &amp; Status</div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+        <span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;background:var(--color-surface-muted);color:var(--color-text-secondary);">Default</span>
+        <span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;background:#dcfce7;color:#166534;">Success</span>
+        <span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;background:#fee2e2;color:#991b1b;">Danger</span>
+        <span style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;background:#fef3c7;color:#92400e;">Warning</span>
+    </div>
+</div>
+{/block}

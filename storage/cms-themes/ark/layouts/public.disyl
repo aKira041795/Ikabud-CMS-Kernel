@@ -24,6 +24,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
+    {# CSS fallback: only inject token defaults when theme style URL is unavailable.
+       When theme_style_url is set, style.css provides the authoritative token values
+       and this block is skipped to avoid precedence conflicts with customizer overrides. #}
+    {if !theme_style_url}
     <style>
         :root {
             --color-primary: #6366f1; --color-primary-dark: #4f46e5; --color-primary-light: #eef2ff;
@@ -40,7 +44,7 @@
             --spacing-sm: 0.75rem; --spacing-md: 1.25rem; --spacing-lg: 2rem; --spacing-xl: 3rem;
         }
     </style>
-    {# ARK CSS served via theme_style_url above (cmsThemeAssetUrl resolves to public/assets/cms/themes/ark/style.css) #}
+    {/if}
 </head>
 <body>
 
@@ -49,27 +53,29 @@
 
     {# ── Governed theme slots (Phase 1) ── #}
     {ikb_slot name="site.before" /}
+    {ikb_slot name="header.before" /}
 
     {block header}
+    {ikb_slot name="header.main" /}
     {# ARK is self-contained — always renders its own header #}
-    <header class="ark-header" role="banner">
-        {# Top bar (only when social_links or site_tagline exist) #}
-        {if social_links or site_tagline}
-        <div class="ark-topbar">
-            <div class="ark-topbar__inner">
-                <div class="ark-topbar__left">
-                    {if site_tagline}<span>{site_tagline}</span>{/if}
-                </div>
-                <div class="ark-topbar__right">
-                    {if social_links}
-                        {for link in social_links}
-                        <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
-                        {/for}
-                    {/if}
-                </div>
+    {# Top bar (above header, only when social_links have content) #}
+    {if social_links}
+    <div class="ark-topbar" aria-label="Site highlights">
+        <div class="ark-topbar__inner">
+            <div class="ark-topbar__left">
+                {if site_tagline}<span>{site_tagline}</span>{/if}
+            </div>
+            <div class="ark-topbar__right">
+                {if social_links}
+                    {for link in social_links}
+                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                    {/for}
+                {/if}
             </div>
         </div>
-        {/if}
+    </div>
+    {/if}
+    <header class="ark-header" role="banner">
         <div class="ark-header__inner">
             <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
             <nav class="ark-header__nav" aria-label="Main navigation">
@@ -79,31 +85,35 @@
                     Cart{if cart_count > 0} ({cart_count}){/if}
                 </a>
                 {/if}
-                {if user}
-                <span class="ark-header__user">{user.display_name|default:user.username}</span>
-                {/if}
             </nav>
         </div>
     </header>
     {/block}
+    {ikb_slot name="header.after" /}
 
     {ikb_slot name="hero" /}
     {ikb_slot name="breadcrumbs" /}
 
-    <main id="main-content" class="ark-main" tabindex="-1">
-        {ikb_slot name="content.before" /}
-        {block content}
-            {if body}{body|raw}{/if}
-        {/block}
-        {ikb_slot name="content.after" /}
-    </main>
-
-    {ikb_slot name="sidebar.primary" /}
-    {ikb_slot name="sidebar.secondary" /}
+    <div class="ark-content-area">
+        <main id="main-content" class="ark-main" tabindex="-1">
+            {ikb_slot name="content.before" /}
+            {block content}
+                {ikb_slot name="content"}
+                    {if body}{body|raw}{/if}
+                {/ikb_slot}
+            {/block}
+            {ikb_slot name="content.after" /}
+        </main>
+        <aside class="ark-sidebar-region" aria-label="Sidebar">
+            {ikb_slot name="sidebar.primary" /}
+            {ikb_slot name="sidebar.secondary" /}
+        </aside>
+    </div>
 
     {# ARK is self-contained — always renders its own footer, no customizer override #}
     <footer class="ark-footer" role="contentinfo">
         {ikb_slot name="footer.before" /}
+        {ikb_slot name="footer.main" /}
         <div class="ark-footer__inner">
             <div class="ark-footer__col">
                 <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
