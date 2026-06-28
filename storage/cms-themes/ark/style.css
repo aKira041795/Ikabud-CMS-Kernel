@@ -1,5 +1,6 @@
 :root {
     /* Design tokens from tokens.json — single source of truth */
+    /* Customizer overrides wire through --theme-site-max-width, --color-primary, etc. */
     --ark-primary: var(--color-primary, #6366f1);
     --ark-primary-dark: var(--color-primary-dark, #4f46e5);
     --ark-primary-light: var(--color-primary-light, #eef2ff);
@@ -23,7 +24,9 @@
     --ark-spacing-md: var(--spacing-md, 1.25rem);
     --ark-spacing-lg: var(--spacing-lg, 2rem);
     --ark-spacing-xl: var(--spacing-xl, 3rem);
-    --ark-max-width: var(--layout-max-width, 1280px);
+    /* Layout: customizer sets --theme-site-max-width, --theme-content-max-width,
+       --theme-content-px, --theme-content-pt, --theme-content-pb via theme_layout_style */
+    --ark-max-width: var(--layout-max-width, var(--theme-site-max-width, 1280px));
     --ark-header-height: var(--header-height, 64px);
 }
 
@@ -35,6 +38,8 @@
 
 html {
     scroll-behavior: smooth;
+    /* Allow builder full-width breakouts; hidden hides scrollbar without clipping overflow */
+    overflow-x: hidden;
 }
 
 body {
@@ -61,6 +66,41 @@ body {
 
 .ark-skip:focus {
     top: 0;
+}
+
+/* ── Top bar (above header) ── */
+.ark-topbar {
+    background: var(--color-primary, #6366f1);
+    color: #fff;
+    font-size: 0.8125rem;
+    padding: 0.375rem 0;
+}
+
+.ark-topbar__inner {
+    max-width: var(--ark-max-width, 1280px);
+    margin: 0 auto;
+    padding: 0 var(--ark-spacing-md, 1.25rem);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ark-topbar__left,
+.ark-topbar__right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ark-topbar a {
+    color: inherit;
+    text-decoration: none;
+    opacity: 0.85;
+}
+
+.ark-topbar a:hover {
+    opacity: 1;
+    text-decoration: underline;
 }
 
 /* ── Header ── */
@@ -132,15 +172,30 @@ body {
 }
 
 /* ── Main content ── */
-.ark-main {
+.ark-content-area {
     max-width: var(--ark-max-width);
     margin: 0 auto;
-    padding: var(--ark-spacing-lg) var(--ark-spacing-md);
+    display: flex;
+    gap: var(--ark-spacing-lg);
+    align-items: flex-start;
+}
+
+.ark-main {
+    flex: 1;
+    min-width: 0;
+    padding-top: var(--ark-spacing-lg);
+    padding-bottom: var(--ark-spacing-lg);
     min-height: calc(100vh - var(--ark-header-height) - 200px);
 }
 
 .ark-main:focus {
     outline: none;
+}
+
+/* Inner content gets horizontal padding */
+.ark-main--content {
+    padding-left: var(--ark-spacing-md);
+    padding-right: var(--ark-spacing-md);
 }
 
 /* ── Footer ── */
@@ -264,7 +319,7 @@ body {
 
 /* ── Entity detail ── */
 .ark-detail {
-    max-width: 800px;
+    flex: 1;
 }
 
 .ark-detail__title {
@@ -284,34 +339,68 @@ body {
     line-height: 1.75;
 }
 
+/* Prose readability: constrain text elements, not block containers.
+   Builder sections fill full width; paragraphs/headings stay readable. */
+.ark-content > p,
+.ark-content > h1,
+.ark-content > h2,
+.ark-content > h3,
+.ark-content > h4,
+.ark-content > h5,
+.ark-content > h6,
+.ark-content > ul,
+.ark-content > ol,
+.ark-content > blockquote,
+.ark-content > pre,
+.ark-content > hr {
+    max-width: 75ch;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Standalone pages (non-builder CMS pages via page.disyl) —
+   provides horizontal padding since these lack builder-managed sections */
+.ark-content--standalone {
+    max-width: var(--ark-max-width);
+    margin: 0 auto;
+    padding-left: var(--ark-spacing-md);
+    padding-right: var(--ark-spacing-md);
+}
+
 .ark-detail__body img {
     max-width: 100%;
     border-radius: var(--ark-radius-md);
     margin: var(--ark-spacing-md) 0;
 }
 
-/* ── Sidebar ── */
-.ark-sidebar {
-    float: right;
+/* ── Sidebar region (wraps ikb_slot contributions) ── */
+.ark-sidebar-region {
     width: 300px;
-    margin-left: var(--ark-spacing-md);
+    flex-shrink: 0;
+    padding-top: var(--ark-spacing-lg);
+}
+
+.ark-sidebar-region > * {
     background: var(--ark-surface-muted);
     border-radius: var(--ark-radius-md);
     padding: var(--ark-spacing-md);
     font-size: 0.875rem;
+    margin-bottom: var(--ark-spacing-md);
 }
 
-.ark-sidebar h3 {
+.ark-sidebar-region h3 {
     font-size: 1rem;
     font-weight: 600;
     margin: 0 0 var(--ark-spacing-sm);
 }
 
 @media (max-width: 768px) {
-    .ark-sidebar {
-        float: none;
+    .ark-content-area {
+        flex-direction: column;
+    }
+    .ark-sidebar-region {
         width: 100%;
-        margin-left: 0;
+        padding-top: 0;
     }
 }
 
@@ -558,41 +647,6 @@ body {
     }
 }
 
-/* ── Customizer top bar compatibility ── */
-.ark-topbar {
-    background: var(--color-primary, #6366f1);
-    color: #fff;
-    font-size: 0.8125rem;
-    padding: 0.375rem 0;
-}
-
-.ark-topbar__inner {
-    max-width: var(--ark-max-width, 1280px);
-    margin: 0 auto;
-    padding: 0 var(--ark-spacing-md, 1.25rem);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.ark-topbar__left,
-.ark-topbar__right {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.ark-topbar a {
-    color: inherit;
-    text-decoration: none;
-    opacity: 0.85;
-}
-
-.ark-topbar a:hover {
-    opacity: 1;
-    text-decoration: underline;
-}
-
 /* ── Header cart & user indicators ── */
 .ark-header__cart {
     color: var(--ark-text-secondary);
@@ -677,4 +731,299 @@ body {
     .ark-card-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Customizer-Controlled Components
+   Styles for HTML output by the CMS customizer (header, footer widgets,
+   menus, builder components). These classes are emitted by the customizer
+   and must be styled by the active theme.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Container & shell width utilities ── */
+.container {
+    width: 100%;
+    max-width: var(--ark-max-width, var(--theme-site-max-width, 1280px));
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--ark-spacing-md, 1.25rem);
+    padding-right: var(--ark-spacing-md, 1.25rem);
+    box-sizing: border-box;
+}
+
+.cms-shell-width-full {
+    width: 100%;
+}
+
+.cms-shell-width-contained {
+    width: 100%;
+    max-width: var(--ark-max-width, var(--theme-site-max-width, 1280px));
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.cms-shell-width-full .container,
+.cms-shell-width-contained .container {
+    max-width: none;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* ── Customizer Header ── */
+.header-wrapper {
+    width: 100%;
+    background: var(--header-bg, var(--ark-surface, #fff));
+    border-bottom: 1px solid var(--header-border, var(--ark-border, #e2e8f0));
+}
+
+.header-wrapper--sticky {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.site-header {
+    width: 100%;
+    min-height: var(--header-height, 64px);
+    display: flex;
+    align-items: center;
+    background: var(--header-bg, var(--ark-surface, #fff));
+    color: var(--header-text, var(--ark-text, #0f172a));
+    font-family: var(--ark-font-family);
+}
+
+.site-header--sticky {
+    position: sticky;
+    top: 0;
+}
+
+.site-header .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+/* ── Header Top Bar ── */
+.header-topbar {
+    width: 100%;
+    background: var(--color-primary, #6366f1);
+    color: #fff;
+    font-size: 0.8125rem;
+    padding: 0.375rem 0;
+}
+
+.header-topbar-inner {
+    max-width: var(--ark-max-width, 1280px);
+    margin: 0 auto;
+    padding: 0 var(--ark-spacing-md, 1.25rem);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.header-topbar a {
+    color: inherit;
+    text-decoration: none;
+    opacity: 0.85;
+}
+
+.header-topbar a:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
+/* ── Navigation Menu ── */
+.nav-menu {
+    list-style: none;
+    display: flex;
+    gap: 0.25rem;
+    padding: 0;
+    margin: 0;
+    align-items: center;
+}
+
+.nav-menu li {
+    position: relative;
+    display: flex;
+}
+
+.nav-menu a {
+    color: var(--header-link, var(--ark-text-secondary, #475569));
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--ark-radius-sm, 0.375rem);
+    transition: all 0.12s;
+    white-space: nowrap;
+}
+
+.nav-menu a:hover {
+    color: var(--header-link-hover, var(--ark-primary, #6366f1));
+    background: var(--ark-primary-light, #eef2ff);
+}
+
+.nav-menu a[aria-current="page"] {
+    color: var(--ark-primary, #6366f1);
+    font-weight: 600;
+}
+
+/* ── Dropdown / Sub-menu ── */
+.nav-menu-sub {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: var(--nav-dropdown-min-width, 220px);
+    background: var(--nav-dropdown-bg, #fff);
+    border: 1px solid var(--nav-dropdown-border, #e2e8f0);
+    border-radius: var(--nav-dropdown-radius, 8px);
+    box-shadow: var(--ark-shadow-lg, 0 10px 25px rgba(0,0,0,0.08));
+    list-style: none;
+    padding: 0.35rem 0;
+    margin: 0;
+    z-index: 200;
+}
+
+.nav-menu li:hover > .nav-menu-sub,
+.nav-menu li:focus-within > .nav-menu-sub {
+    display: block;
+}
+
+.nav-menu-sub a {
+    display: block;
+    padding: var(--nav-dropdown-item-padding, 10px 1rem);
+    color: var(--nav-dropdown-link-color, var(--ark-text, #0f172a));
+    font-size: 0.85rem;
+    border-radius: 0;
+}
+
+.nav-menu-sub a:hover {
+    background: var(--nav-dropdown-link-hover-bg, #f8fafc);
+    color: var(--nav-dropdown-link-hover, var(--ark-primary, #6366f1));
+}
+
+/* ── Footer Widgets ── */
+.footer-widgets {
+    width: 100%;
+    background: var(--ark-surface-muted, #f8fafc);
+    padding: var(--ark-spacing-lg, 2rem) 0;
+    font-family: var(--ark-font-family);
+}
+
+.footer-widgets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: var(--ark-spacing-lg, 2rem);
+    max-width: var(--ark-max-width, 1280px);
+    margin: 0 auto;
+    padding: 0 var(--ark-spacing-md, 1.25rem);
+}
+
+.footer-widget-col {
+    min-width: 0;
+}
+
+.footer-widget-col .widget-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ark-text, #0f172a);
+    margin: 0 0 var(--ark-spacing-sm, 0.75rem);
+}
+
+.footer-widget-col .widget-content,
+.footer-widget-col .widget-content p {
+    font-size: 0.875rem;
+    color: var(--ark-text-secondary, #475569);
+    line-height: 1.6;
+    margin: 0 0 0.5rem;
+}
+
+.footer-widget-col .widget-content a {
+    color: var(--ark-primary, #6366f1);
+    text-decoration: none;
+}
+
+.footer-widget-col .widget-content a:hover {
+    text-decoration: underline;
+}
+
+.footer-widget-col .footer-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.footer-widget-col .footer-menu li {
+    margin-bottom: 0.35rem;
+}
+
+.footer-widget-col .footer-menu a {
+    color: var(--ark-text-secondary, #475569);
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.footer-widget-col .footer-menu a:hover {
+    color: var(--ark-primary, #6366f1);
+}
+
+/* ── Footer Bottom Bar ── */
+.footer-bottom {
+    width: 100%;
+    border-top: 1px solid var(--ark-border, #e2e8f0);
+    padding: var(--ark-spacing-md, 1.25rem) 0;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--ark-text-muted, #94a3b8);
+    font-family: var(--ark-font-family);
+}
+
+.footer-bottom a {
+    color: var(--ark-text-secondary, #475569);
+    text-decoration: none;
+}
+
+.footer-bottom a:hover {
+    color: var(--ark-primary, #6366f1);
+}
+
+/* ── Mobile Navigation Canvas ── */
+.canvas-navigation {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .nav-menu {
+        display: none;
+    }
+
+    .canvas-navigation.mobile-canvas-target {
+        display: block;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 280px;
+        height: 100vh;
+        background: var(--header-mobile-bg, #fff);
+        color: var(--header-mobile-text, var(--ark-text, #0f172a));
+        z-index: 1000;
+        overflow-y: auto;
+        padding: 1.5rem;
+        box-shadow: var(--ark-shadow-lg, 0 10px 25px rgba(0,0,0,0.08));
+    }
+
+    .canvas-navigation .nav-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .canvas-navigation .nav-menu a {
+        font-size: 1rem;
+        padding: 0.5rem 0;
+    }
+}
 }
