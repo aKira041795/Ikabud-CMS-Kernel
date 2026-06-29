@@ -59,6 +59,7 @@
     {set customized_footer = customized_footer|default:''}
     {set has_customized_sidebar = has_customized_sidebar|default:false}
     {set customized_sidebar = customized_sidebar|default:''}
+    {set sidebar_diag = 'HCS='~has_customized_sidebar~'|SCS='~(has_customized_sidebar or false)}
     {set force_customized_sidebar = force_customized_sidebar|default:false}
     {set cms_global_sidebar_force = cms_global_sidebar_force|default:false}
     {set sidebar_position = sidebar_position|default:'right'}

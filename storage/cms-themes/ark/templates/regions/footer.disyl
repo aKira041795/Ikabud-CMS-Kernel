@@ -1,68 +1,49 @@
 {# ARK Region Template: Footer #}
-{# Receives from ThemeRenderContext: settings.footer.*, tokens, site #}
-{% set columns = section_settings.columns|default:3 %}
-{% set col_class = 'ark-footer-cols-' ~ columns %}
+{# Receives from ThemeRenderContext: settings.footer.*, tokens, site, navigation #}
+{# NOTE: DiSyL does NOT parse expressions inside <style> tags. Use inline styles. #}
+{set footer_link = section_settings.footer_link_color|default:'#94a3b8'}
+{set footer_link_hover = section_settings.footer_link_hover_color|default:'#ffffff'}
+{set footer_text = section_settings.footer_text_color|default:'#cbd5e1'}
 <div class="ark-customized-region ark-region-footer"
      data-region="footer"
-     data-theme="{{ theme }}">
-<style>
-.ark-region-footer {
-    background: {{ section_settings.footer_bg_color|default:'#1e293b' }};
-    color: {{ section_settings.footer_text_color|default:'#cbd5e1' }};
-    padding: 3rem 0;
-    margin-top: 3rem;
-}
-.ark-region-footer a {
-    color: {{ section_settings.footer_link_color|default:'#94a3b8' }};
-}
-.ark-region-footer a:hover {
-    color: {{ section_settings.footer_link_hover_color|default:'#ffffff' }};
-}
-.ark-footer-grid {
-    display: grid;
-    grid-template-columns: repeat({{ columns }}, 1fr);
-    gap: 2rem;
-    max-width: {{ tokens['--layout-max-width'].default|default:'1280px' }};
-    margin: 0 auto;
-    padding: 0 1rem;
-}
-.ark-footer-col h4 {
-    color: {{ section_settings.footer_title_color|default:'#f1f5f9' }};
-    margin-bottom: 1rem;
-    font-weight: 600;
-}
-.ark-footer-bottom {
-    text-align: center;
-    padding-top: 2rem;
-    margin-top: 2rem;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    max-width: {{ tokens['--layout-max-width'].default|default:'1280px' }};
-    margin-left: auto;
-    margin-right: auto;
-    padding-left: 1rem;
-    padding-right: 1rem;
-}
-</style>
-<div class="ark-footer-inner">
-    <div class="ark-footer-grid {{ col_class }}">
-        {# ARK footer columns — content populated by CMS widgets #}
-        {% for i in 1..columns %}
-        <div class="ark-footer-col">
-            {# Slot for footer widget area #}
-            {% if slot_contributions['footer.column_' ~ i] %}
-                {{ slot_contributions['footer.column_' ~ i].html|raw }}
-            {% endif %}
+     data-theme="{theme}"
+     style="background:{section_settings.footer_bg_color|default:'#1e293b'};color:{footer_text};
+            padding:{section_settings.padding_top|default:'40'}px 0 {section_settings.padding_bottom|default:'40'}px;
+            margin-top:3rem;
+            --footer-link-hover:{footer_link_hover};--footer-link:{footer_link};">
+    <style>
+        .ark-region-footer a { color: var(--footer-link); }
+        .ark-region-footer a:hover { color: var(--footer-link-hover); }
+    </style>
+    <div style="max-width:1280px;margin:0 auto;padding-left:1rem;padding-right:1rem;">
+        {if navigation.footer}
+        <nav style="margin-bottom:1.5rem;text-align:center;">{navigation.footer|raw}</nav>
+        {/if}
+        <div style="text-align:center;color:{footer_text};font-size:0.875rem;">
+            &copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.
         </div>
-        {% endfor %}
-    </div>
-    <div class="ark-footer-bottom">
-        &copy; {{ 'now'|date('Y') }} {{ site.title }}. All rights reserved.
-        {% if navigation.footer %}
-        <nav class="ark-footer-nav" style="margin-top:0.75rem;">
-            {% for item in navigation.footer %}
-            <a href="{{ item.href }}" style="margin:0 0.5rem;font-size:0.875rem;">{{ item.label }}</a>
-            {% endfor %}
-        </nav>
-        {% endif %}
+        {if section_settings.show_admin_link|default:'1'}
+        <div style="text-align:center;margin-top:0.75rem;font-size:0.75rem;"><a href="/cms/admin">Admin</a></div>
+        {/if}
     </div>
 </div>
+{if section_settings.show_footer_bar|default:'1'}
+{set bar_bg = section_settings.bar_bg_color|default:'#0f172a'}
+{set bar_text = section_settings.bar_text_color|default:'#64748b'}
+{set bar_link = section_settings.bar_link_color|default:'#94a3b8'}
+{set bar_link_hover = section_settings.bar_link_hover_color|default:'#ffffff'}
+<div class="ark-customized-region ark-region-footer-bar"
+     data-region="footer-bar"
+     data-theme="{theme}"
+     style="background:{bar_bg};color:{bar_text};padding:1rem 0;font-size:0.875rem;
+            --footer-bar-link:{bar_link};--footer-bar-link-hover:{bar_link_hover};">
+    <style>
+        .ark-region-footer-bar a { color: var(--footer-bar-link); }
+        .ark-region-footer-bar a:hover { color: var(--footer-bar-link-hover); }
+    </style>
+    <div style="max-width:1280px;margin:0 auto;padding-left:1rem;padding-right:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+        <span>&copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.</span>
+        {if section_settings.show_admin_link|default:'1'}<a href="/cms/admin">Admin</a>{/if}
+    </div>
+</div>
+{/if}

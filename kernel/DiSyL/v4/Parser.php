@@ -962,13 +962,9 @@ final class Parser
         // ── ternary? ──
         $qPos = $this->findUnquotedChar($content, '?');
         if ($qPos !== false) {
-            $colonPos = $this->findUnquotedChar($content, ':', $qPos + 1);
+            $colonPos = $this->findTernaryColon($content, $qPos + 1);
             if ($colonPos !== false) {
-                // Only treat as ternary if ? comes before any |
-                $pipePos = $this->findUnquotedChar($content, '|');
-                if ($pipePos === false || $qPos < $pipePos) {
-                    return $this->buildTernary($content, $qPos, $colonPos);
-                }
+                return $this->buildTernary($content, $qPos, $colonPos);
             }
         }
 
@@ -1722,6 +1718,49 @@ final class Parser
             }
         }
 
+        return false;
+    }
+
+    /**
+     * Find the unquoted colon that separates true/false branches of a ternary.
+     * Skips colons that are filter argument separators (preceded by a word char)
+     * to avoid matching filter specs like |default:'val' instead of the ternary :.
+     */
+    private function findTernaryColon(string $str, int $start = 0): int|false
+    {
+        $inSingle = false;
+        $inDouble = false;
+        $parenDepth = 0;
+
+        for ($i = $start, $len = strlen($str); $i < $len; $i++) {
+            $ch = $str[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble)) {
+                $i++;
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) {
+                $inSingle = !$inSingle;
+                continue;
+            }
+            if ($ch === '"' && !$inSingle) {
+                $inDouble = !$inDouble;
+                continue;
+            }
+            if (!$inSingle && !$inDouble) {
+                if ($ch === '(') {
+                    $parenDepth++;
+                } elseif ($ch === ')') {
+                    $parenDepth--;
+                }
+                if ($ch === ':' && $parenDepth === 0) {
+                    // Skip : that is a filter arg separator (preceded by word char)
+                    if ($i > 0 && preg_match('/[a-zA-Z0-9_]/', $str[$i - 1])) {
+                        continue;
+                    }
+                    return $i;
+                }
+            }
+        }
         return false;
     }
 

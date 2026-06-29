@@ -398,6 +398,29 @@ body {
     margin-bottom: 0.35rem;
 }
 
+/* Sidebar layout: CSS grid for desktop — sidebar on right (default) or left */
+.cms-content-with-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, var(--sidebar-width, 300px));
+    gap: 2rem;
+    align-items: start;
+    max-width: var(--ark-max-width, 1280px);
+    margin: 1.5rem auto 0;
+    padding: 0 var(--ark-spacing-md, 1.25rem);
+}
+
+.cms-content-with-sidebar.sidebar-left {
+    grid-template-columns: minmax(220px, var(--sidebar-width, 300px)) minmax(0, 1fr);
+}
+
+.cms-content-with-sidebar .cms-main-slot {
+    min-width: 0;
+}
+
+.cms-content-with-sidebar .cms-sidebar-slot {
+    min-width: 0;
+}
+
 /* Mobile: stack sidebar below content */
 @media (max-width: 1024px) {
 

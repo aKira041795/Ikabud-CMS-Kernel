@@ -1265,6 +1265,14 @@ class TemplateEngine
             return $this->coerceType($value, $varType, '');
         }
 
+        // Try logical expression (or, and) which evaluateCondition handles
+        // but evaluateComparison does not (it only handles ==, !=, <, > etc.).
+        // Must check before quoted string since 'a or b' is not a valid string.
+        if (preg_match('/\s+(or|\|\||and|&&)\s+/i', $expr) && !preg_match('/^["\']/', $expr)) {
+            $result = $this->evaluateCondition($expr, $context);
+            return $this->coerceType($result, $varType, '');
+        }
+
         // Try quoted string literal
         if (preg_match('/^["\'](.*)["\']\s*$/', $expr, $qm)) {
             return $this->coerceType($qm[1], $varType, '');
@@ -4413,13 +4421,8 @@ class TemplateEngine
                 }
 
                 // 1. Ternary: {condition ? trueVal : falseVal}
-                //    Only if ? appears before any | (avoid matching filter args containing ?)
                 if (str_contains($expr, '?') && str_contains($expr, ':')) {
-                    $pipePos = strpos($expr, '|');
-                    $qPos = strpos($expr, '?');
-                    if ($pipePos === false || $qPos < $pipePos) {
-                        return $this->evaluateTernary($expr, $context);
-                    }
+                    return $this->evaluateTernary($expr, $context);
                 }
 
                 // 1.5. String concatenation with ~ operator: {a ~ b}, {'INV#'~s.id}

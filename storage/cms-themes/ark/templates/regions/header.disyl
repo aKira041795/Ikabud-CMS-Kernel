@@ -1,81 +1,60 @@
 {# ARK Region Template: Header #}
 {# Receives from ThemeRenderContext: settings.header.*, tokens, site, navigation #}
+{# NOTE: DiSyL does NOT parse expressions inside <style> tags. Use inline styles. #}
+{set header_layout = section_settings.layout|default:'logo-left-menu-right'}
+{set header_sticky = section_settings.sticky|default:'1'}
+{set header_bg = section_settings.bg_color|default:'#ffffff'}
+{set header_text = section_settings.text_color|default:'#1f2937'}
+{set header_link = section_settings.link_color|default:'#1f2937'}
+{set header_link_hover = section_settings.link_hover_color|default:'#2563eb'}
+{set header_border = section_settings.border_color|default:'#e5e7eb'}
+{set header_height = section_settings.height|default:'auto'}
+{set header_pt = section_settings.padding_top|default:'12'}
+{set header_pb = section_settings.padding_bottom|default:'12'}
 <div class="ark-customized-region ark-region-header"
      data-region="header"
-     data-theme="{{ theme }}">
-<style>
-.ark-header-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: {{ section_settings.padding_top|default:12 }}px 0 {{ section_settings.padding_bottom|default:12 }}px;
-    background: {{ section_settings.bg_color|default:'#ffffff' }};
-    color: {{ section_settings.text_color|default:'#1f2937' }};
-}
-.ark-header-inner a {
-    color: {{ section_settings.link_color|default:'#1f2937' }};
-}
-.ark-header-inner a:hover {
-    color: {{ section_settings.link_hover_color|default:'#2563eb' }};
-}
-.ark-header-nav .nav-menu {
-    display: flex;
-    list-style: none;
-    gap: 1.5rem;
-    margin: 0;
-    padding: 0;
-}
-.ark-header-nav .nav-menu li {
-    position: relative;
-}
-.ark-header-nav .nav-menu a {
-    text-decoration: none;
-    font-weight: 500;
-    padding: 0.5rem 0;
-}
-{% if section_settings.sticky|default:1 %}
-.ark-region-header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-{% endif %}
-</style>
-<div class="ark-header-inner">
-    <div class="ark-header-brand">
-        {% if section_settings.logo_image_url %}
-        <a href="{{ site.url }}" class="ark-header-logo">
-            <img src="{{ section_settings.logo_image_url }}" alt="{{ site.title }}"
-                 style="max-height:{{ section_settings.logo_max_height|default:40 }}px;width:auto;">
-        </a>
-        {% else %}
-        <a href="{{ site.url }}" class="ark-header-logo" style="font-weight:700;font-size:1.25rem;">
-            {{ site.title }}
-        </a>
-        {% endif %}
-        {% if section_settings.show_tagline|default:0 and site.tagline %}
-        <span class="ark-header-tagline" style="font-size:0.875rem;color:{{ tokens['--color-text-muted'].default|default:'#94a3b8' }};">
-            {{ site.tagline }}
-        </span>
-        {% endif %}
+     data-theme="{theme}"
+     style="background:{header_bg};border-bottom:1px solid {header_border};
+            min-height:{header_height};
+            {if header_sticky == '1'}position:sticky;top:0;z-index:100;{/if}
+            --header-link-hover:{header_link_hover};--header-link:{header_link};">
+    <style>
+        .ark-region-header a { color: var(--header-link); }
+        .ark-region-header a:hover { color: var(--header-link-hover); }
+    </style>
+    <div style="display:flex;align-items:center;{if header_layout == 'logo-center'}justify-content:center;{else}justify-content:space-between;{/if}
+                flex-wrap:wrap;padding:{header_pt}px 0 {header_pb}px;color:{header_text};
+                max-width:1280px;margin:0 auto;padding-left:1rem;padding-right:1rem;
+                {if header_layout == 'stacked'}flex-direction:column;text-align:center;{/if}">
+        <div style="display:flex;align-items:center;gap:1rem;">
+            {if section_settings.logo_image_url}
+            <a href="{site.url}" style="font-weight:700;font-size:1.25rem;color:{header_link};">
+                <img src="{section_settings.logo_image_url}" alt="{site.title}" style="max-height:{section_settings.logo_max_height|default:'40'}px;width:auto;">
+            </a>
+            {else}
+            <a href="{site.url}" style="font-weight:700;font-size:1.25rem;color:{header_link};">{site.title}</a>
+            {/if}
+            {if section_settings.show_tagline|default:'0' and site.tagline}
+            <span style="font-size:0.875rem;color:{header_text};opacity:0.7;">{site.tagline}</span>
+            {/if}
+        </div>
+        <nav style="display:flex;align-items:center;gap:1.5rem;">
+            {if navigation.primary}
+            <div style="display:flex;align-items:center;gap:1.5rem;">{navigation.primary|raw}</div>
+            {/if}
+            {if section_settings.show_search|default:'0'}
+            <button aria-label="Search" style="background:none;border:none;cursor:pointer;color:{header_link};">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            </button>
+            {/if}
+            {if section_settings.show_cta_button|default:'0'}
+            <a href="{section_settings.cta_url|default:'#'}"
+               style="display:inline-block;padding:0.5rem 1.25rem;
+                      background:{section_settings.cta_style|default:'primary' == 'primary' ? settings.colors.primary|default:'#6366f1' : 'transparent'};
+                      color:#fff;border-radius:0.5rem;text-decoration:none;font-weight:600;">
+                {section_settings.cta_text|default:'Get Started'}
+            </a>
+            {/if}
+        </nav>
     </div>
-
-    <nav class="ark-header-nav">
-        {% if navigation.primary %}
-        <ul class="nav-menu">
-            {% for item in navigation.primary %}
-            <li><a href="{{ item.href }}">{{ item.label }}</a></li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-    </nav>
-
-    {% if section_settings.show_search|default:0 %}
-    <button class="ark-header-search-toggle" aria-label="Search">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
-        </svg>
-    </button>
-    {% endif %}
-</div>
 </div>

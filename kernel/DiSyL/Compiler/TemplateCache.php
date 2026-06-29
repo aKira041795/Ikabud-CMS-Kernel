@@ -152,7 +152,67 @@ class TemplateCache
         }
         
         // Recompile if template is newer than cache
-        return filemtime($templatePath) > filemtime($cachePath);
+        if (filemtime($templatePath) > filemtime($cachePath)) {
+            return true;
+        }
+
+        // Check {extends} parent templates: if any ancestor layout is newer
+        // than the cache, recompile. This ensures layout changes propagate
+        // to child templates without manual cache clearing.
+        $source = @file_get_contents($templatePath);
+        if ($source !== false && preg_match('/\{extends\s+"([^"]+)"\s*\}/', $source, $m)) {
+            $parentPath = $this->resolveExtendsPath($templatePath, $m[1]);
+            if ($parentPath !== null && file_exists($parentPath)) {
+                if (filemtime($parentPath) > filemtime($cachePath)) {
+                    return true;
+                }
+                // Also check if the parent itself extends further (recursive scan).
+                // Limit depth to avoid infinite loops on circular extends.
+                $depth = 0;
+                $currentPath = $parentPath;
+                while ($depth < 10) {
+                    $depth++;
+                    $parentSource = @file_get_contents($currentPath);
+                    if ($parentSource === false || !preg_match('/\{extends\s+"([^"]+)"\s*\}/', $parentSource, $pm)) {
+                        break;
+                    }
+                    $grandparentPath = $this->resolveExtendsPath($currentPath, $pm[1]);
+                    if ($grandparentPath === null || !file_exists($grandparentPath)) {
+                        break;
+                    }
+                    if (filemtime($grandparentPath) > filemtime($cachePath)) {
+                        return true;
+                    }
+                    $currentPath = $grandparentPath;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Resolve an {extends} path relative to the child template's directory.
+     * Handles _cms_active_theme/ prefix and module: aliases.
+     */
+    private function resolveExtendsPath(string $childPath, string $extendsTarget): ?string
+    {
+        if (str_starts_with($extendsTarget, '/')) {
+            return $extendsTarget;
+        }
+        if (str_starts_with($extendsTarget, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
+            $resolved = cmsResolveThemeTemplateAliasPath($extendsTarget);
+            if ($resolved !== '') {
+                return $resolved;
+            }
+        }
+        // Resolve relative to the child template's directory
+        $dir = dirname($childPath);
+        $candidate = $dir . '/' . $extendsTarget;
+        if (file_exists($candidate)) {
+            return realpath($candidate) ?: $candidate;
+        }
+        return null;
     }
     
     /**
