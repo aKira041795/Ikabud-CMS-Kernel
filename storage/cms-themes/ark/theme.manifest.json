@@ -8,6 +8,16 @@
     "kernel_os_compat": "6.1.0",
     "disyl_compat": "4.7.0",
     "customizer_scope": "native",
+    "customizer": {
+        "owns": true,
+        "sections": ["header", "footer", "sidebar", "colors", "theme", "custom_code"],
+        "render_callbacks": {
+            "header": "ark_render_customized_header",
+            "footer": "ark_render_customized_footer",
+            "sidebar": "ark_render_customized_sidebar"
+        },
+        "settings_defaults_callback": "ark_customizer_section_defaults"
+    },
     "capabilities": {
         "requires": [],
         "supports": [

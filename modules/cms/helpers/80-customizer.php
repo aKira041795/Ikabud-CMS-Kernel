@@ -4249,3 +4249,117 @@ app()->hooks()->on('kernel.auth_cookie_names', function (array $cookies) {
 app()->hooks()->on('cms.settings', function (array $defaults): array {
     return array_merge($defaults, readCmsSettings());
 }, 10);
+
+/**
+ * ── Theme Customizer Orchestration ─────────────────────────────────────
+ *
+ * The CMS module orchestrates customizer rendering by dispatching to the
+ * active theme's customizer implementation when the theme declares
+ * customizer ownership in its manifest.
+ *
+ * A theme claims ownership via:
+ *   theme.manifest.json → "customizer": { "owns": true, "render_callbacks": {...} }
+ *
+ * When owns=true, the CMS calls the theme's render callbacks instead of
+ * using the CMS built-in rendering. The CMS still manages:
+ *   - Database persistence (cms_theme_customizer table)
+ *   - Admin customizer UI
+ *   - Section seeding
+ *   - Scope isolation
+ *   - Validation framework
+ *
+ * The theme provides:
+ *   - Render callbacks for header, footer, sidebar
+ *   - Default settings for each section
+ *   - Validation functions
+ *
+ * This follows ARK doctrine: "Theme presents. Modules provide."
+ * The CMS provides the infrastructure — the theme provides the presentation.
+ */
+
+/**
+ * Resolve the theme-declared render callback for a customizer section.
+ * Returns the callback function name or empty string if the theme does not
+ * own the customizer for that section.
+ */
+function cmsThemeCustomizerCallback(string $section): string
+{
+    static $manifest = null;
+    if ($manifest === null) {
+        $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
+    }
+
+    $owns = $manifest['customizer']['owns'] ?? false;
+    if (!$owns) {
+        return '';
+    }
+
+    $callbacks = $manifest['customizer']['render_callbacks'] ?? [];
+    $fn = (string)($callbacks[$section] ?? '');
+
+    if ($fn !== '' && function_exists($fn)) {
+        return $fn;
+    }
+
+    return '';
+}
+
+/**
+ * Dispatch customizer rendering to the active theme for a section.
+ * Returns the theme's rendered output if the theme owns the customizer,
+ * or null to signal the caller should fall back to the CMS default.
+ */
+function cmsDispatchThemeCustomizer(string $section, object $db, array $publicCtx = []): mixed
+{
+    $fn = cmsThemeCustomizerCallback($section);
+    if ($fn === '') {
+        return null;
+    }
+
+    try {
+        return $fn($db, $publicCtx);
+    } catch (Throwable $e) {
+        write_log('Theme customizer callback failed for ' . $section . ': ' . $e->getMessage(), 'error');
+        return null;
+    }
+}
+
+/**
+ * Get theme-declared customizer section defaults.
+ * Falls back to CMS built-in defaults when the theme doesn't own the customizer.
+ */
+function cmsThemeCustomizerSectionDefaults(string $section, ?string $scope = null): array
+{
+    $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
+    $owns = $manifest['customizer']['owns'] ?? false;
+    if (!$owns) {
+        return function_exists('cmsCustomizerSectionDefaults') ? cmsCustomizerSectionDefaults($section, $scope) : [];
+    }
+
+    $fn = (string)($manifest['customizer']['settings_defaults_callback'] ?? '');
+    if ($fn !== '' && function_exists($fn)) {
+        return $fn($section, $scope);
+    }
+
+    return function_exists('cmsCustomizerSectionDefaults') ? cmsCustomizerSectionDefaults($section, $scope) : [];
+}
+
+/**
+ * Validate customizer settings using the theme's validation when the theme
+ * owns the customizer. Falls back to CMS validation.
+ */
+function cmsThemeCustomizerValidateSettings(string $section, array $settings, ?string $scope = null): array
+{
+    $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
+    $owns = $manifest['customizer']['owns'] ?? false;
+    if (!$owns) {
+        return cmsValidateCustomizerSectionSettings($section, $settings, $scope);
+    }
+
+    $fn = (string)($manifest['customizer']['validate_callback'] ?? '');
+    if ($fn !== '' && function_exists($fn)) {
+        return $fn($section, $settings, $scope);
+    }
+
+    return cmsValidateCustomizerSectionSettings($section, $settings, $scope);
+}

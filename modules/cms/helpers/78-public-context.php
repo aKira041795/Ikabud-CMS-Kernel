@@ -231,7 +231,10 @@ function cmsPublicContext(array $extra = []): array
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         if (cmsPublicContextHasSection($sectionAvailability, 'footer')) {
-            $customizedFooter = cmsRenderCustomizedFooter($db, $ctx);
+            $customizedFooter = cmsDispatchThemeCustomizer('footer', $db, $ctx);
+            if ($customizedFooter === null) {
+                $customizedFooter = cmsRenderCustomizedFooter($db, $ctx);
+            }
             $ctx['customized_footer'] = $customizedFooter;
             $ctx['has_customized_footer'] = ($customizedFooter !== '');
         } else {
@@ -250,7 +253,10 @@ function cmsPublicContext(array $extra = []): array
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         if (cmsPublicContextHasSection($sectionAvailability, 'header')) {
-            $customizedHeader = cmsRenderCustomizedHeader($db, $ctx);
+            $customizedHeader = cmsDispatchThemeCustomizer('header', $db, $ctx);
+            if ($customizedHeader === null) {
+                $customizedHeader = cmsRenderCustomizedHeader($db, $ctx);
+            }
             $ctx['customized_header'] = $customizedHeader;
             $ctx['has_customized_header'] = ($customizedHeader !== '');
         } else {
@@ -276,7 +282,10 @@ function cmsPublicContext(array $extra = []): array
             $ctx['sidebar_width'] = '300';
         } else {
             $sidebarCtx = array_merge($ctx, $extra);
-            $sidebar = cmsRenderCustomizedSidebar($db, $sidebarCtx);
+            $sidebar = cmsDispatchThemeCustomizer('sidebar', $db, $sidebarCtx);
+            if ($sidebar === null) {
+                $sidebar = cmsRenderCustomizedSidebar($db, $sidebarCtx);
+            }
             $ctx['customized_sidebar'] = (string)($sidebar['html'] ?? '');
             $ctx['has_customized_sidebar'] = (bool)($sidebar['enabled'] ?? false);
             $ctx['sidebar_position'] = (string)($sidebar['position'] ?? 'right');
