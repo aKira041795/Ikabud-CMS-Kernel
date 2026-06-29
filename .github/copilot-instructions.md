@@ -91,6 +91,18 @@ Capabilities must be designed before routes. Declare `capabilities.exposes`/`cap
 - If behavior changes affect persistence schema/format, update docs in [docs/page-builder/page-builder-technical-spec.md](../docs/page-builder/page-builder-technical-spec.md) or related builder docs.
 
 ## Security hardening — CSP rules (must check during every hardening review)
+
+## Debugging compiled mode — template changes not reflecting
+When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the compiled template cache may not detect layout changes:
+- **`TemplateCache::needsRecompile()`** only checks the source template's mtime, NOT ancestor `{extends}` layouts. If you edit a layout file, child templates are NOT automatically recompiled.
+- **Fix for developers**: Add `?disyl_nocache=1` to the URL to force recompilation of that specific template.
+- **Fix for production**: `TemplateCache::needsRecompile()` now (2026-06-29) scans for `{extends}` and recursively checks all ancestor mtimes. If you encounter stale caches after a layout edit, restart PHP-FPM to clear APCu.
+- **APCu** persists across FPM graceful restarts. Use `apcu_clear_cache()` via a web endpoint or `sudo systemctl restart phpX.X-fpm` (force stop, not graceful) to clear it.
+
+## Known DiSyL limitations (2026-06-29)
+1. **`{set}` does not support `or`/`and` operators**: `{set x = a or b}` evaluates to `null`. Use separate `{set}` + `{if}` blocks instead. This is fixed in the interpreted path (2026-06-29) — `resolveSetValue()` now falls through to `evaluateCondition()` for logical expressions.
+2. **Ternary with filters in condition**: `{a|default:'x' == 'x' ? b : c}` was silently broken — the `|` before `?` caused the parser to skip ternary detection. Fixed by removing the `$pipePos < $qPos` guard and adding `findTernaryColon()`.
+3. **`:in filter arguments vs ternary `:`**: `a|default:'val' : 'other'` — the `:` after `default` was mistaken for the ternary separator. Fixed by `findTernaryColon()` which skips `:` preceded by word characters.
 - The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://maps.googleapis.com`
 - **`'unsafe-eval'` is mandatory.** Alpine.js v3 (CDN) uses `new Function()` for directive evaluation; Tailwind CSS CDN (JIT mode) uses eval-based class scanning. Dropping `'unsafe-eval'` silently breaks all Tailwind utility classes and every Alpine-driven component, including login forms.
 - **Never add a `nonce-XXXX` to `script-src` while `'unsafe-inline'` is still present.** Per CSP Level 2/3, a nonce in `script-src` causes browsers to ignore `'unsafe-inline'` entirely — any inline `<script>` without the matching `nonce="..."` attribute is blocked. No templates in this repo apply nonce attributes, so adding a nonce immediately breaks all inline scripts.

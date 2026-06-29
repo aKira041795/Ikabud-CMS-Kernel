@@ -40,6 +40,13 @@ applyTo: "**/*.php **/*.disyl"
 | `~` string concatenation operator | **FIXED** | Added to Parser `parseAddExpr()`, TemplateEngine `evaluateConcat()`/`splitByTilde()`, `isProcessableTemplateExpression()`, and TemplateCompiler `compileBinaryOp()`. Templates using `{a~b}` or `{var\|default:'pref'~suffix}` now work in both interpreted and compiled modes. |
 | `===`/`!==` missing from `evaluateComparison()` | **FIXED** | Added strict comparison operators to the legacy comparison path (`evaluateComparison()`). Now `{if x === y}` and `{if x !== y}` work in all condition evaluation paths. |
 
+### Fixed 2026-06-29 — Ternary with filters in condition + `{set}` logical operators
+
+| Gap | Status | Fix |
+|---|---|---|
+| Ternary `{a ? b : c}` with `\|` (filter) in condition part | **FIXED** | `buildExpressionNode()` in Parser had a `$pipePos < $qPos` guard that rejected ternary when `\|` appeared before `?` in the expression. Removed the guard. Also added `findTernaryColon()` to both Parser and ExpressionEvaluator — skips `:` preceded by word characters (filter argument separators like `default:`) when searching for the ternary `:` separator. |
+| `{set var = a or b}` evaluates to null | **FIXED** | `resolveSetValue()` in TemplateEngine fell through to `resolveValueWithFilters()` for logical expressions, which treated them as variable paths. Added `evaluateCondition()` fallback for `or`/`and`/`\|\|`/`&&` patterns before the quoted-string check. `{set x = a or b or c}` now correctly evaluates to boolean `true`/`false`. |
+
 ### Remaining gaps — actively used in templates but need external handlers
 
 | Gap | Usage found in | DiSyL limitation |
@@ -89,25 +96,27 @@ applyTo: "**/*.php **/*.disyl"
 
 1. **Tight operator binding for `|`**: `{a + b \| filter}` parses `b \| filter` first instead of `a + b` as arithmetic. Fixed only if parenthesized: `{(a + b) \| filter}`.
 
-2. **No comparison with `===` in legacy `evaluateComparison()`**: The legacy interpreted path (`evaluateComparison()`) doesn't match `===`/`!==`. Only `evaluateCondition()` (the newer path) supports them. Some condition paths may silently use `==` instead of `===`.
+2. **`isset()`/`empty()` only work in interpreted mode**: These PHP functions are not in `FunctionRegistry`. In compiled mode they return `null` silently. If compiled mode is enabled, templates using `isset()`/`empty()` will silently break.
 
-3. **`isset()`/`empty()` only work in interpreted mode**: These PHP functions are not in `FunctionRegistry`. In compiled mode they return `null` silently. If compiled mode is enabled, templates using `isset()`/`empty()` will silently break.
+3. **Chained ternary without parentheses**: `{a ? b : c ? d : e}` is parsed left-to-right. PHP parses it as `{a ? b : (c ? d : e)}`. Use explicit parentheses: `{a ? b : (c ? d : e)}`.
 
-4. **Chained ternary without parentheses**: `{a ? b : c ? d : e}` is parsed left-to-right. PHP parses it as `{a ? b : (c ? d : e)}`. Use explicit parentheses: `{a ? b : (c ? d : e)}`.
+4. **`{for}` with C-style syntax is documented but unimplemented**: The grammar doc mentions `{for i = 0; i < 10; i++}` but the parser only supports `{for x in list}` iteration. Any template using C-style `{for}` will silently output raw text.
 
-5. **No `~` operator but templates use it**: The `project-audit-ledger` module uses `{some_str~some_var}` for concatenation. This is silently broken — the parser treats `~` as unknown and falls back to raw text output.
+5. **Compiled mode does not track `{extends}` ancestors**: `TemplateCache::needsRecompile()` only checks the requested template's mtime. When a layout file is edited, child templates are not recompiled because their cache key only depends on the child's mtime. **FIXED 2026-06-29**: `needsRecompile()` now scans for `{extends}` directives and recursively checks all ancestor template mtimes.
 
-6. **`{for}` with C-style syntax is documented but unimplemented**: The grammar doc mentions `{for i = 0; i < 10; i++}` but the parser only supports `{for x in list}` iteration. Any template using C-style `{for}` will silently output raw text.
+6. **`{set}` does not support logical operators in compiled mode**: The compiled `TemplateCompiler` may not handle `or`/`and` in `{set}` expressions. The interpreted path is fixed (2026-06-29) — if you encounter this in compiled mode, the template falls back to interpreted.
 
 ## Remediation priority
 
 1. ~~**URGENT**: Add `isset`, `empty`, `is_array` to `FunctionRegistry` — these are used in active templates and silently broken in compiled mode.~~ ✅ **DONE** (2026-06-26)
 2. ~~**URGENT**: Implement `~` (string concatenation) operator in Parser, TemplateEngine arithmetic evaluator, and TemplateCompiler — actively used by project-audit-ledger.~~ ✅ **DONE** (2026-06-26)
 3. ~~**HIGH**: Fix `evaluateComparison()` to handle `===`/`!==` (currently only `evaluateCondition()` does).~~ ✅ **DONE** (2026-06-26)
-4. **HIGH**: Fix pipe/filter binding precedence so `{a + b \| filter}` works without parentheses.
-5. **MEDIUM**: Implement C-style `{for}` loop syntax matching the documented grammar.
-6. **LOW**: Add increment/decrement (`++`/`--`) support.
-7. **LOW**: Implement `{while}` loop control structure.
+4. ~~**HIGH**: Fix ternary `{a ? b : c}` when filter `|` appears in condition — guard in `buildExpressionNode()` blocked detection. Added `findTernaryColon()` to handle filter-arg `:` vs ternary `:`.~~ ✅ **DONE** (2026-06-29)
+5. ~~**HIGH**: Fix `{set var = a or b}` evaluating to null — `resolveSetValue()` lacked logical operator support.~~ ✅ **DONE** (2026-06-29)
+6. **MEDIUM**: Fix pipe/filter binding precedence so `{a + b \| filter}` works without parentheses.
+7. **MEDIUM**: Implement C-style `{for}` loop syntax matching the documented grammar.
+8. **LOW**: Add increment/decrement (`++`/`--`) support.
+9. **LOW**: Implement `{while}` loop control structure.
 
 ## When to improve DiSyL vs. when to fix a template
 
