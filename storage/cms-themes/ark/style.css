@@ -357,6 +357,59 @@ body {
     position: relative;
 }
 
+/* ── Customizer Sidebar ── */
+.ark-sidebar-customizer {
+    min-width: 0;
+}
+
+.ark-sidebar-customizer .widget {
+    margin-bottom: var(--ark-spacing-md);
+}
+
+.ark-sidebar-customizer .widget-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ark-text);
+    margin: 0 0 var(--ark-spacing-sm);
+}
+
+.ark-sidebar-customizer .widget-content {
+    font-size: 0.875rem;
+    color: var(--ark-text-secondary);
+    line-height: 1.6;
+}
+
+.ark-sidebar-customizer .widget-content a {
+    color: var(--ark-primary);
+    text-decoration: none;
+}
+
+.ark-sidebar-customizer .widget-content a:hover {
+    text-decoration: underline;
+}
+
+.ark-sidebar-customizer ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.ark-sidebar-customizer li {
+    margin-bottom: 0.35rem;
+}
+
+/* Mobile: stack sidebar below content */
+@media (max-width: 1024px) {
+    .cms-content-with-sidebar,
+    .cms-content-with-sidebar.sidebar-left {
+        display: block;
+    }
+
+    .cms-content-with-sidebar .cms-sidebar-slot {
+        margin-top: var(--ark-spacing-lg);
+    }
+}
+
 .ark-detail__title {
     font-size: 2rem;
     font-weight: 700;

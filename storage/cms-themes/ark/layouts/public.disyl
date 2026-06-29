@@ -105,8 +105,20 @@
     {ikb_slot name="hero" /}
     {ikb_slot name="breadcrumbs" /}
 
-    <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}">
-        <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}" tabindex="-1">
+    {# Customizer-aware sidebar: uses cms-content-with-sidebar grid when
+       customizer sidebar is enabled. Falls back to ARK's flex layout when
+       no customizer sidebar data exists (slot-only sidebars). #}
+    {set show_customizer_sidebar = has_customized_sidebar or force_customized_sidebar or cms_global_sidebar_force}
+
+    <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar} cms-content-with-sidebar{if sidebar_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
+        {# Sidebar on left when position is 'left' #}
+        {if show_customizer_sidebar and sidebar_position == 'left'}
+        <aside class="cms-sidebar-slot ark-sidebar-customizer" aria-label="Sidebar">
+            {customized_sidebar|raw}
+        </aside>
+        {/if}
+
+        <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar} cms-main-slot{/if}" tabindex="-1">
             {ikb_slot name="content.before" /}
             {block content}
                 {ikb_slot name="content"}
@@ -115,10 +127,18 @@
             {/block}
             {ikb_slot name="content.after" /}
         </main>
+
+        {# Sidebar on right (default) or slot-only sidebars when no customizer sidebar #}
+        {if show_customizer_sidebar and sidebar_position != 'left'}
+        <aside class="cms-sidebar-slot ark-sidebar-customizer" aria-label="Sidebar">
+            {customized_sidebar|raw}
+        </aside>
+        {elseif not show_customizer_sidebar}
         <aside class="ark-sidebar-region" aria-label="Sidebar">
             {ikb_slot name="sidebar.primary" /}
             {ikb_slot name="sidebar.secondary" /}
         </aside>
+        {/if}
     </div>
 
     {# Customizer-aware footer: use customizer output when available,
