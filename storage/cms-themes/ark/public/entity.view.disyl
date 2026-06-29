@@ -5,6 +5,12 @@
 
 {extends "_cms_active_theme/layouts/public.disyl"}
 
+{set builder_enabled = builder_enabled|default:false}
+{set is_ecommerce_public = is_ecommerce_public|default:false}
+{set is_ecommerce_entity_route = is_ecommerce_entity_route|default:false}
+{set entity_view_context = entity_view_context|default:[]}
+{set entity_presentation = entity_presentation|default:[]}
+
 {block head}
 {include "partials/canonical-entity-styles.disyl"}
 {if is_ecommerce_public or is_ecommerce_entity_route}

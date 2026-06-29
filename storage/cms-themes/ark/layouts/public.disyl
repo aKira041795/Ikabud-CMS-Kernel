@@ -49,6 +49,25 @@
 </head>
 <body>
 
+    {# ── Declare customizer variables with safe defaults ──
+       These are injected by cmsPublicContext() at runtime, but declaring
+       defaults here ensures the template is self-documenting and never
+       silently fails when a handler path doesn't set them. #}
+    {set has_customized_header = has_customized_header|default:false}
+    {set customized_header = customized_header|default:''}
+    {set has_customized_footer = has_customized_footer|default:false}
+    {set customized_footer = customized_footer|default:''}
+    {set has_customized_sidebar = has_customized_sidebar|default:false}
+    {set customized_sidebar = customized_sidebar|default:''}
+    {set force_customized_sidebar = force_customized_sidebar|default:false}
+    {set cms_global_sidebar_force = cms_global_sidebar_force|default:false}
+    {set sidebar_position = sidebar_position|default:'right'}
+    {set sidebar_width = sidebar_width|default:'300'}
+    {set show_header = show_header|default:true}
+    {set show_footer = show_footer|default:true}
+    {set builder_enabled = builder_enabled|default:false}
+    {set builder_page_settings = builder_page_settings|default:[]}
+
     {# Skip-to-content link for accessibility #}
     <a href="#main-content" class="ark-skip">Skip to content</a>
 
