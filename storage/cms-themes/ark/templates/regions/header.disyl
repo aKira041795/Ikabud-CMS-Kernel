@@ -1,0 +1,81 @@
+{# ARK Region Template: Header #}
+{# Receives from ThemeRenderContext: settings.header.*, tokens, site, navigation #}
+<div class="ark-customized-region ark-region-header"
+     data-region="header"
+     data-theme="{{ theme }}">
+<style>
+.ark-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: {{ section_settings.padding_top|default:12 }}px 0 {{ section_settings.padding_bottom|default:12 }}px;
+    background: {{ section_settings.bg_color|default:'#ffffff' }};
+    color: {{ section_settings.text_color|default:'#1f2937' }};
+}
+.ark-header-inner a {
+    color: {{ section_settings.link_color|default:'#1f2937' }};
+}
+.ark-header-inner a:hover {
+    color: {{ section_settings.link_hover_color|default:'#2563eb' }};
+}
+.ark-header-nav .nav-menu {
+    display: flex;
+    list-style: none;
+    gap: 1.5rem;
+    margin: 0;
+    padding: 0;
+}
+.ark-header-nav .nav-menu li {
+    position: relative;
+}
+.ark-header-nav .nav-menu a {
+    text-decoration: none;
+    font-weight: 500;
+    padding: 0.5rem 0;
+}
+{% if section_settings.sticky|default:1 %}
+.ark-region-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+{% endif %}
+</style>
+<div class="ark-header-inner">
+    <div class="ark-header-brand">
+        {% if section_settings.logo_image_url %}
+        <a href="{{ site.url }}" class="ark-header-logo">
+            <img src="{{ section_settings.logo_image_url }}" alt="{{ site.title }}"
+                 style="max-height:{{ section_settings.logo_max_height|default:40 }}px;width:auto;">
+        </a>
+        {% else %}
+        <a href="{{ site.url }}" class="ark-header-logo" style="font-weight:700;font-size:1.25rem;">
+            {{ site.title }}
+        </a>
+        {% endif %}
+        {% if section_settings.show_tagline|default:0 and site.tagline %}
+        <span class="ark-header-tagline" style="font-size:0.875rem;color:{{ tokens['--color-text-muted'].default|default:'#94a3b8' }};">
+            {{ site.tagline }}
+        </span>
+        {% endif %}
+    </div>
+
+    <nav class="ark-header-nav">
+        {% if navigation.primary %}
+        <ul class="nav-menu">
+            {% for item in navigation.primary %}
+            <li><a href="{{ item.href }}">{{ item.label }}</a></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </nav>
+
+    {% if section_settings.show_search|default:0 %}
+    <button class="ark-header-search-toggle" aria-label="Search">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+    </button>
+    {% endif %}
+</div>
+</div>

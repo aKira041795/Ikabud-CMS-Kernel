@@ -4278,88 +4278,99 @@ app()->hooks()->on('cms.settings', function (array $defaults): array {
  */
 
 /**
- * Resolve the theme-declared render callback for a customizer section.
- * Returns the callback function name or empty string if the theme does not
- * own the customizer for that section.
+ * @deprecated Replaced by ThemeCustomizerOrchestrator::renderRegion().
+ * Kept for backward compatibility during migration.
+ * Use orchestrator dispatch instead of callback-based rendering.
  */
 function cmsThemeCustomizerCallback(string $section): string
 {
-    static $manifest = null;
-    if ($manifest === null) {
-        $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
-    }
-
-    $owns = $manifest['customizer']['owns'] ?? false;
-    if (!$owns) {
+    $orchestrator = null;
+    try {
+        $orchestrator = Ikabud\Kernel\Services\ThemeCustomizerOrchestrator::resolve();
+    } catch (Throwable $e) {
         return '';
     }
-
-    $callbacks = $manifest['customizer']['render_callbacks'] ?? [];
-    $fn = (string)($callbacks[$section] ?? '');
-
-    if ($fn !== '' && function_exists($fn)) {
-        return $fn;
+    if ($orchestrator === null) {
+        return '';
     }
-
+    // Not a callback-based system anymore — return empty to trigger fallback
     return '';
 }
 
 /**
- * Dispatch customizer rendering to the active theme for a section.
- * Returns the theme's rendered output if the theme owns the customizer,
- * or null to signal the caller should fall back to the CMS default.
+ * Dispatch customizer rendering to the active theme's provider.
+ * Uses ThemeCustomizerOrchestrator to resolve the provider and render
+ * via DiSyL region templates (owned by the theme).
+ *
+ * Returns the rendered HTML string for header/footer, or an array
+ * with {enabled,position,width,html} for sidebar.
+ * Returns null for legacy fallback to CMS generic customizer.
  */
 function cmsDispatchThemeCustomizer(string $section, object $db, array $publicCtx = []): mixed
 {
-    $fn = cmsThemeCustomizerCallback($section);
-    if ($fn === '') {
-        return null;
-    }
-
     try {
-        return $fn($db, $publicCtx);
+        $result = Ikabud\Kernel\Services\ThemeCustomizerOrchestrator::renderRegion(
+            $section,
+            $db,
+            $publicCtx,
+        );
+        $html = (string)($result['html'] ?? '');
+
+        if ($html === '') {
+            return null;
+        }
+
+        if ($section === 'sidebar') {
+            // Sidebar callers expect {enabled,position,width,html}
+            return [
+                'enabled' => true,
+                'position' => $publicCtx['sidebar_position'] ?? 'right',
+                'width' => $publicCtx['sidebar_width'] ?? '300',
+                'html' => $html,
+            ];
+        }
+
+        return $html;
     } catch (Throwable $e) {
-        write_log('Theme customizer callback failed for ' . $section . ': ' . $e->getMessage(), 'error');
-        return null;
+        write_log('Theme customizer orchestrator dispatch failed for ' . $section . ': ' . $e->getMessage(), 'error');
     }
+    return null;
 }
 
 /**
- * Get theme-declared customizer section defaults.
+ * Get theme-declared customizer section defaults via orchestrator.
  * Falls back to CMS built-in defaults when the theme doesn't own the customizer.
  */
 function cmsThemeCustomizerSectionDefaults(string $section, ?string $scope = null): array
 {
-    $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
-    $owns = $manifest['customizer']['owns'] ?? false;
-    if (!$owns) {
-        return function_exists('cmsCustomizerSectionDefaults') ? cmsCustomizerSectionDefaults($section, $scope) : [];
+    try {
+        $defaults = Ikabud\Kernel\Services\ThemeCustomizerOrchestrator::sectionDefaults($section);
+        if (!empty($defaults)) {
+            return $defaults;
+        }
+    } catch (Throwable $e) {
+        // Fall through to CMS defaults
     }
-
-    $fn = (string)($manifest['customizer']['settings_defaults_callback'] ?? '');
-    if ($fn !== '' && function_exists($fn)) {
-        return $fn($section, $scope);
-    }
-
     return function_exists('cmsCustomizerSectionDefaults') ? cmsCustomizerSectionDefaults($section, $scope) : [];
 }
 
 /**
- * Validate customizer settings using the theme's validation when the theme
- * owns the customizer. Falls back to CMS validation.
+ * Validate customizer settings using the theme's provider validation.
+ * Falls back to CMS validation.
  */
 function cmsThemeCustomizerValidateSettings(string $section, array $settings, ?string $scope = null): array
 {
-    $manifest = function_exists('cmsActiveThemeManifest') ? cmsActiveThemeManifest() : [];
-    $owns = $manifest['customizer']['owns'] ?? false;
-    if (!$owns) {
-        return cmsValidateCustomizerSectionSettings($section, $settings, $scope);
+    try {
+        $validated = Ikabud\Kernel\Services\ThemeCustomizerOrchestrator::validateSettings(
+            $section,
+            $settings,
+            $scope,
+        );
+        return $validated;
+    } catch (Throwable $e) {
+        // Fall through to CMS validation
     }
-
-    $fn = (string)($manifest['customizer']['validate_callback'] ?? '');
-    if ($fn !== '' && function_exists($fn)) {
-        return $fn($section, $settings, $scope);
-    }
-
-    return cmsValidateCustomizerSectionSettings($section, $settings, $scope);
+    return function_exists('cmsValidateCustomizerSectionSettings')
+        ? cmsValidateCustomizerSectionSettings($section, $settings, $scope)
+        : $settings;
 }

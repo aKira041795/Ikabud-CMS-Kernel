@@ -1,0 +1,57 @@
+{# ARK Region Template: Sidebar #}
+{# Receives from ThemeRenderContext: settings.sidebar.*, tokens #}
+{% if section_settings.enabled|default:0 %}
+{% set position = section_settings.placement|default:'right' %}
+{% set width = section_settings.width|default:300 %}
+<div class="ark-customized-region ark-region-sidebar"
+     data-region="sidebar"
+     data-theme="{{ theme }}"
+     style="width:{{ width }}px;{% if position == 'left' %}float:left;{% else %}float:right;{% endif %}">
+<style>
+.ark-region-sidebar {
+    {% if section_settings.sticky|default:0 %}
+    position: sticky;
+    top: 1rem;
+    {% endif %}
+}
+.ark-sidebar-widget {
+    background: {{ section_settings.widget_bg_color|default:'#ffffff' }};
+    border: 1px solid {{ section_settings.widget_border_color|default:'#e2e8f0' }};
+    border-radius: {{ section_settings.widget_radius|default:10 }}px;
+    padding: {{ section_settings.widget_padding|default:16 }}px;
+    margin-bottom: 1.5rem;
+    color: {{ section_settings.widget_text_color|default:'#334155' }};
+}
+.ark-sidebar-widget h4 {
+    color: {{ section_settings.widget_title_color|default:'#0f172a' }};
+    margin-bottom: 0.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+.ark-sidebar-widget a {
+    color: {{ section_settings.widget_link_color|default:'#2563eb' }};
+}
+.ark-sidebar-widget a:hover {
+    color: {{ section_settings.widget_link_hover_color|default:'#1d4ed8' }};
+}
+</style>
+<div class="ark-sidebar-inner">
+    {# Slot contributions from CMS widgets are rendered here #}
+    {% if slot_contributions['sidebar.primary'] %}
+        {% for contribution in slot_contributions['sidebar.primary'] %}
+        <div class="ark-sidebar-widget">
+            <h4>{{ contribution.label }}</h4>
+            <div class="ark-sidebar-widget-content">
+                {{ contribution.html|raw }}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        {# Empty state — hint that widgets should be added #}
+        <div class="ark-sidebar-widget" style="opacity:0.5;text-align:center;">
+            <p style="font-size:0.875rem;">Add widgets to sidebar in Customizer</p>
+        </div>
+    {% endif %}
+</div>
+</div>
+{% endif %}

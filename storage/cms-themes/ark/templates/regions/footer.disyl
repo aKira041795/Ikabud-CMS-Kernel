@@ -1,0 +1,68 @@
+{# ARK Region Template: Footer #}
+{# Receives from ThemeRenderContext: settings.footer.*, tokens, site #}
+{% set columns = section_settings.columns|default:3 %}
+{% set col_class = 'ark-footer-cols-' ~ columns %}
+<div class="ark-customized-region ark-region-footer"
+     data-region="footer"
+     data-theme="{{ theme }}">
+<style>
+.ark-region-footer {
+    background: {{ section_settings.footer_bg_color|default:'#1e293b' }};
+    color: {{ section_settings.footer_text_color|default:'#cbd5e1' }};
+    padding: 3rem 0;
+    margin-top: 3rem;
+}
+.ark-region-footer a {
+    color: {{ section_settings.footer_link_color|default:'#94a3b8' }};
+}
+.ark-region-footer a:hover {
+    color: {{ section_settings.footer_link_hover_color|default:'#ffffff' }};
+}
+.ark-footer-grid {
+    display: grid;
+    grid-template-columns: repeat({{ columns }}, 1fr);
+    gap: 2rem;
+    max-width: {{ tokens['--layout-max-width'].default|default:'1280px' }};
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+.ark-footer-col h4 {
+    color: {{ section_settings.footer_title_color|default:'#f1f5f9' }};
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+.ark-footer-bottom {
+    text-align: center;
+    padding-top: 2rem;
+    margin-top: 2rem;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    max-width: {{ tokens['--layout-max-width'].default|default:'1280px' }};
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+</style>
+<div class="ark-footer-inner">
+    <div class="ark-footer-grid {{ col_class }}">
+        {# ARK footer columns — content populated by CMS widgets #}
+        {% for i in 1..columns %}
+        <div class="ark-footer-col">
+            {# Slot for footer widget area #}
+            {% if slot_contributions['footer.column_' ~ i] %}
+                {{ slot_contributions['footer.column_' ~ i].html|raw }}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    <div class="ark-footer-bottom">
+        &copy; {{ 'now'|date('Y') }} {{ site.title }}. All rights reserved.
+        {% if navigation.footer %}
+        <nav class="ark-footer-nav" style="margin-top:0.75rem;">
+            {% for item in navigation.footer %}
+            <a href="{{ item.href }}" style="margin:0 0.5rem;font-size:0.875rem;">{{ item.label }}</a>
+            {% endfor %}
+        </nav>
+        {% endif %}
+    </div>
+</div>

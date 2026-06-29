@@ -31,4 +31,7 @@ require_once __DIR__ . '/helpers/77-import-export.php';
 require_once __DIR__ . '/helpers/78-public-context.php';
 require_once __DIR__ . '/helpers/80-customizer.php';
 require_once __DIR__ . '/helpers/81-ark-components.php';
-require_once __DIR__ . '/helpers/82-ark-customizer.php';
+// 82-ark-customizer.php removed — ARK customizer code now lives in:
+// storage/cms-themes/ark/src/ArkCustomizerProvider.php
+// storage/cms-themes/ark/customizer.schema.json
+// storage/cms-themes/ark/templates/regions/
