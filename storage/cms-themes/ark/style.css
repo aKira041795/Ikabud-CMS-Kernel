@@ -400,6 +400,7 @@ body {
 
 /* Mobile: stack sidebar below content */
 @media (max-width: 1024px) {
+
     .cms-content-with-sidebar,
     .cms-content-with-sidebar.sidebar-left {
         display: block;
@@ -429,18 +430,18 @@ body {
 
 /* Prose readability: constrain text elements, not block containers.
    Builder sections fill full width; paragraphs/headings stay readable. */
-.ark-content > p,
-.ark-content > h1,
-.ark-content > h2,
-.ark-content > h3,
-.ark-content > h4,
-.ark-content > h5,
-.ark-content > h6,
-.ark-content > ul,
-.ark-content > ol,
-.ark-content > blockquote,
-.ark-content > pre,
-.ark-content > hr {
+.ark-content>p,
+.ark-content>h1,
+.ark-content>h2,
+.ark-content>h3,
+.ark-content>h4,
+.ark-content>h5,
+.ark-content>h6,
+.ark-content>ul,
+.ark-content>ol,
+.ark-content>blockquote,
+.ark-content>pre,
+.ark-content>hr {
     max-width: 75ch;
     margin-left: auto;
     margin-right: auto;
@@ -468,7 +469,7 @@ body {
     padding-top: var(--ark-spacing-lg);
 }
 
-.ark-sidebar-region > * {
+.ark-sidebar-region>* {
     background: var(--ark-surface-muted);
     border-radius: var(--ark-radius-md);
     padding: var(--ark-spacing-md);
@@ -486,6 +487,7 @@ body {
     .ark-content-area {
         flex-direction: column;
     }
+
     .ark-sidebar-region {
         width: 100%;
         padding-top: 0;
@@ -1062,15 +1064,15 @@ body {
     background: var(--nav-dropdown-bg, #fff);
     border: 1px solid var(--nav-dropdown-border, #e2e8f0);
     border-radius: var(--nav-dropdown-radius, 8px);
-    box-shadow: var(--ark-shadow-lg, 0 10px 25px rgba(0,0,0,0.08));
+    box-shadow: var(--ark-shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.08));
     list-style: none;
     padding: 0.35rem 0;
     margin: 0;
     z-index: 200;
 }
 
-.nav-menu li:hover > .nav-menu-sub,
-.nav-menu li:focus-within > .nav-menu-sub {
+.nav-menu li:hover>.nav-menu-sub,
+.nav-menu li:focus-within>.nav-menu-sub {
     display: block;
 }
 
@@ -1194,7 +1196,7 @@ body {
         z-index: 1000;
         overflow-y: auto;
         padding: 1.5rem;
-        box-shadow: var(--ark-shadow-lg, 0 10px 25px rgba(0,0,0,0.08));
+        box-shadow: var(--ark-shadow-lg, 0 10px 25px rgba(0, 0, 0, 0.08));
     }
 
     .canvas-navigation .nav-menu {
