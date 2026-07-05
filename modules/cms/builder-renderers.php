@@ -96,6 +96,115 @@ function cmsBuilderWidgetRenderers(): array
     return $map;
 }
 
+// ─── ARK CSS Class Integration ───────────────────────────────────────────
+
+/**
+ * Map builder component types to ARK CSS classes.
+ * Builder renderers call cmsBuilderArkClass($type) to include ARK styling
+ * alongside existing cms-builder-* classes.
+ *
+ * This makes builder output ARK-aware without breaking existing rendering.
+ */
+function cmsBuilderArkClassMap(): array
+{
+    static $map = null;
+    if ($map !== null) {
+        return $map;
+    }
+
+    $map = [
+        'document'        => '',
+        'section'         => 'ark-section',
+        'container'       => 'ark-container',
+        'layout_container'=> 'ark-layout-container',
+        'row'             => 'ark-row',
+        'column'          => 'ark-column',
+        'grid'            => 'ark-grid',
+        'heading'         => 'ark-heading',
+        'text'            => 'ark-content ark-content--text-block',
+        'image'           => 'ark-image',
+        'button'          => 'ark-btn',
+        'badge'           => 'ark-badge',
+        'spacer'          => 'ark-spacer',
+        'divider'         => 'ark-divider',
+        'video'           => 'ark-video',
+        'gallery'         => 'ark-gallery',
+        'stat_card'       => 'ark-card ark-card--stat',
+        'table'           => 'ark-table',
+        'icon'            => 'ark-icon',
+        'icon_box'        => 'ark-icon-box',
+        'blockquote'      => 'ark-blockquote',
+        'list'            => 'ark-list',
+        'form'            => 'ark-form',
+        'textarea'        => 'ark-input',
+        'entity_list'     => 'ark-entity-list',
+        'entity_view'     => 'ark-entity-detail',
+        'accordion'       => 'ark-accordion',
+        'tabs'            => 'ark-tabs',
+        'call_to_action'  => 'ark-cta',
+        'hero'            => 'ark-hero-block',
+        'testimonial'     => 'ark-testimonial',
+        'pricing_table'   => 'ark-pricing-table',
+        'progress'        => 'ark-progress',
+        'alert'           => 'ark-alert',
+        'card'            => 'ark-card',
+        'slideshow'       => 'ark-slideshow',
+        'toggle'          => 'ark-toggle',
+        'breadcrumbs'     => 'ark-breadcrumb',
+        'map'             => 'ark-map',
+        'code_block'      => 'ark-code-block',
+        'countdown'       => 'ark-countdown',
+        'counter'         => 'ark-counter',
+        'flip_box'        => 'ark-flip-box',
+        'image_box'       => 'ark-image-box',
+        'star_rating'     => 'ark-star-rating',
+        'team_grid'       => 'ark-team-grid',
+        'logo_grid'       => 'ark-logo-grid',
+        'social_icons'    => 'ark-social-icons',
+        'social_links'    => 'ark-social-links',
+        'opening_hours'   => 'ark-opening-hours',
+        'contact_card'    => 'ark-contact-card',
+        'contact_info'    => 'ark-contact-info',
+        'html_embed'      => 'ark-html-embed',
+        'audio'           => 'ark-audio',
+        'email'           => 'ark-email',
+        'posts_grid'      => 'ark-posts-grid',
+        'products_grid'   => 'ark-products-grid',
+        'recent_posts'    => 'ark-recent-posts',
+        'categories'      => 'ark-categories',
+        'tag_cloud'       => 'ark-tag-cloud',
+        'archives'        => 'ark-archives',
+        'search_box'      => 'ark-search-box',
+        'nav_menu'        => 'ark-nav-menu',
+        'ai_block'        => 'ark-ai-block',
+    ];
+
+    return $map;
+}
+
+/**
+ * Get the ARK CSS class for a builder component type.
+ */
+function cmsBuilderArkClass(string $type): string
+{
+    $map = cmsBuilderArkClassMap();
+    return $map[$type] ?? '';
+}
+
+/**
+ * Merge ARK CSS class into an attributes array.
+ * Appends the ARK class after existing classes so ARK styles layer on top.
+ */
+function cmsBuilderMergeArkClass(string $type, array &$attrs): void
+{
+    $arkClass = cmsBuilderArkClass($type);
+    if ($arkClass === '') {
+        return;
+    }
+    $existing = trim((string)($attrs['class'] ?? ''));
+    $attrs['class'] = trim(($existing ? $existing . ' ' : '') . $arkClass);
+}
+
 // ─── Widget Render Functions ─────────────────────────────────────────────
 
 /**
@@ -119,6 +228,7 @@ function cmsRenderWidget_document(array $props, array $style, array $attrs, stri
 function cmsRenderWidget_layout(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $type = (string)($node['type'] ?? 'div');
+    cmsBuilderMergeArkClass($type, $attrs);
     $tag = $type === 'section' ? 'section' : 'div';
     $rawStyle = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
 
@@ -188,17 +298,20 @@ function cmsRenderWidget_layout(array $props, array $style, array $attrs, string
 
 function cmsRenderWidget_heading(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('heading', $attrs);
     $tag = cmsBuilderNormalizeHeadingTag($props['level'] ?? 'h2');
     return '<' . $tag . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderNodeContent($props) . '</' . $tag . '>';
 }
 
 function cmsRenderWidget_text(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('text', $attrs);
     return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderNodeContent($props) . '</div>';
 }
 
 function cmsRenderWidget_image(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('image', $attrs);
     $src = (string)($props['src'] ?? $props['url'] ?? '');
     if ($src === '') {
         return '';
@@ -273,6 +386,7 @@ function cmsRenderWidget_button(array $props, array $style, array $attrs, string
     $target = (string)($props['target'] ?? '');
     $variant = (string)($props['variant'] ?? 'primary');
     $size = (string)($props['size'] ?? 'medium');
+    cmsBuilderMergeArkClass('button', $attrs);
     $classes = trim(($attrs['class'] ?? '') . ' cms-builder-button cms-builder-button--' . $variant . ' cms-builder-button--' . $size);
     return '<a' . cmsBuilderAttrString(array_merge($attrs, [
         'href' => $href,
@@ -284,6 +398,7 @@ function cmsRenderWidget_button(array $props, array $style, array $attrs, string
 
 function cmsRenderWidget_spacer(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('spacer', $attrs);
     if (!isset($style['height']) && !empty($props['height'])) {
         $style['height'] = (string)$props['height'];
     }
@@ -292,6 +407,7 @@ function cmsRenderWidget_spacer(array $props, array $style, array $attrs, string
 
 function cmsRenderWidget_divider(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('divider', $attrs);
     $dividerStyle = (string)($props['dividerStyle'] ?? 'solid');
     $thickness = (string)($props['thickness'] ?? '');
     $color = (string)($props['color'] ?? '');
@@ -336,6 +452,7 @@ function cmsRenderWidget_divider(array $props, array $style, array $attrs, strin
 
 function cmsRenderWidget_video(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('video', $attrs);
     $src = (string)($props['src'] ?? $props['url'] ?? '');
     if ($src === '') {
         return '';
@@ -431,6 +548,7 @@ function cmsRenderWidget_icon_box(array $props, array $style, array $attrs, stri
 
 function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('tabs', $attrs);
     $tabs = cmsBuilderNormalizeItems($props['tabs'] ?? [], 'tabs');
     $activeTab = (string)($props['activeTab'] ?? ($tabs[0]['id'] ?? ''));
     $tabStyle = (string)($props['tabStyle'] ?? 'underline');
@@ -473,6 +591,7 @@ function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $
 
 function cmsRenderWidget_accordion(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('accordion', $attrs);
     $items = cmsBuilderNormalizeItems($props['items'] ?? [], 'accordion');
     $allowMultiple = ($props['allowMultiple'] ?? false) !== false;
     // When allowMultiple is false, use a shared name attribute on <details> (HTML native exclusive accordion)
@@ -547,6 +666,7 @@ function cmsRenderWidget_counter(array $props, array $style, array $attrs, strin
 
 function cmsRenderWidget_progress(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('progress', $attrs);
     $val = max(0, min(100, (int)($props['value'] ?? 75)));
     $max = max(1, (int)($props['max'] ?? 100));
     $pct = round($val / $max * 100);
@@ -561,6 +681,7 @@ function cmsRenderWidget_progress(array $props, array $style, array $attrs, stri
 
 function cmsRenderWidget_testimonial(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('testimonial', $attrs);
     $quote = cmsBuilderEsc((string)($props['quote'] ?? ''));
     $author = cmsBuilderEsc((string)($props['author'] ?? ''));
     $role = cmsBuilderEsc((string)($props['role'] ?? ''));
@@ -580,6 +701,7 @@ function cmsRenderWidget_testimonial(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('slideshow', $attrs);
     $slides        = cmsBuilderNormalizeItems($props['slides'] ?? [], 'slides');
     $height        = cmsBuilderEsc((string)($props['height'] ?? '500px'));
     $interval      = (int)($props['interval'] ?? 5000);
@@ -825,6 +947,7 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
 
 function cmsRenderWidget_form(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('form', $attrs);
     $fields = isset($props['fields']) && is_array($props['fields']) ? $props['fields'] : [];
     $submitText = cmsBuilderEsc((string)($props['submitText'] ?? 'Submit'));
     $html = '<form' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['width' => '100%', 'maxWidth' => '500px'], $style)) . ' method="post" onsubmit="return false">';
@@ -854,6 +977,7 @@ function cmsRenderWidget_form(array $props, array $style, array $attrs, string $
 
 function cmsRenderWidget_gallery(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('gallery', $attrs);
     $images = cmsBuilderNormalizeItems($props['images'] ?? [], 'images');
     $cols = max(1, (int)($props['columns'] ?? 3));
     $gapPx = (int)($props['gap'] ?? 16);
@@ -933,6 +1057,7 @@ function cmsRenderWidget_map(array $props, array $style, array $attrs, string $c
 
 function cmsRenderWidget_table(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('table', $attrs);
     $headers = isset($props['headers']) && is_array($props['headers']) ? $props['headers'] : [];
     $rows = isset($props['rows']) && is_array($props['rows']) ? $props['rows'] : [];
     $striped = ($props['striped'] ?? false) !== false;
@@ -964,6 +1089,7 @@ function cmsRenderWidget_table(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_alert(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('alert', $attrs);
     $alertTitle = trim((string)($props['title'] ?? ''));
     $alertContent = cmsBuilderEsc((string)($props['content'] ?? 'This is an alert message.'));
     $alertType = (string)($props['alertType'] ?? 'info');
@@ -1579,6 +1705,7 @@ function cmsBuilderEntityViewContext(array $context): array
 
 function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('entity_view', $attrs);
     $rootContext = $context;
     $entity = cmsBuilderEntityViewContext($context);
     $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
@@ -1740,6 +1867,7 @@ function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('entity_list', $attrs);
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
     $entityType = str_replace(' ', '_', $entityType);
     $entityType = preg_replace('/[^a-z0-9._-]/i', '', $entityType) ?: 'post';
@@ -2111,6 +2239,7 @@ function cmsRenderWidget_logo_grid(array $props, array $style, array $attrs, str
 
 function cmsRenderWidget_blockquote(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('blockquote', $attrs);
     $bqContent = cmsBuilderEsc((string)($props['content'] ?? ''));
     $bqAuthor = cmsBuilderEsc((string)($props['author'] ?? ''));
     $bqAuthorTitle = cmsBuilderEsc((string)($props['authorTitle'] ?? ''));
@@ -2553,6 +2682,7 @@ function cmsRenderWidget_search_box(array $props, array $style, array $attrs, st
 
 function cmsRenderWidget_badge(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('badge', $attrs);
     $text = cmsBuilderEsc((string)($props['text'] ?? 'Featured'));
     $variant = (string)($props['variant'] ?? 'primary');
     $size = (string)($props['size'] ?? 'md');
@@ -2585,6 +2715,7 @@ function cmsRenderWidget_badge(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_stat_card(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
+    cmsBuilderMergeArkClass('stat_card', $attrs);
     $value = cmsBuilderEsc((string)($props['value'] ?? '128'));
     $label = cmsBuilderEsc((string)($props['label'] ?? 'Happy Customers'));
     $description = cmsBuilderEsc((string)($props['description'] ?? 'A quick metric you want visitors to notice immediately.'));

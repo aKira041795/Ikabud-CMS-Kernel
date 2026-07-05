@@ -366,6 +366,7 @@ export interface ComponentDefinition {
   defaultChildren?: DiSyLNode[];
   allowedChildren?: ComponentType[] | null; // null = any, [] = none (leaf)
   allowedParents?: ComponentType[] | null; // null = any
+  maxChildren?: number | null; // max children allowed (ARK governance)
   isLeaf: boolean;
   // Governed DiSyL component metadata (from API)
   _governed?: boolean;

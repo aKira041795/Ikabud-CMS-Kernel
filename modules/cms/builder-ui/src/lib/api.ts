@@ -13,6 +13,24 @@ export interface BuilderNestingRule {
   allowed_parents?: string[];
 }
 
+export interface ArkBlockDefinition {
+  type: string;
+  label: string;
+  category: string;
+  icon: string;
+  allowedParents: string[] | null;
+  allowedChildren: string[] | null;
+  maxChildren: number | null;
+  controls: Record<string, unknown>;
+  rendersWith: string;
+}
+
+export interface ArkBlockPayload {
+  version: string;
+  categories: Record<string, string[]>;
+  blocks: Record<string, ArkBlockDefinition>;
+}
+
 export interface BuilderBootData {
   contentId: number | null;
   baseUrl: string;
@@ -24,6 +42,7 @@ export interface BuilderBootData {
   } | null;
   builderConstraints?: {
     nesting?: Record<string, BuilderNestingRule> | null;
+    arkBlocks?: ArkBlockPayload | null;
   } | null;
   user: {
     id: number;

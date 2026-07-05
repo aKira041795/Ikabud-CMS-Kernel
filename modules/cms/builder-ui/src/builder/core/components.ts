@@ -4,7 +4,7 @@
  */
 
 import { ComponentDefinition, ComponentType } from './types';
-import { getBootData, type BuilderNestingRule } from '@/lib/api';
+import { getBootData, type BuilderNestingRule, type ArkBlockDefinition, type ArkBlockPayload } from '@/lib/api';
 
 // Re-export ComponentDefinition for use in other modules
 export type { ComponentDefinition } from './types';
@@ -1473,6 +1473,68 @@ export const COMPONENT_REGISTRY: Record<ComponentType, ComponentDefinition> =
     acc[comp.type] = comp;
     return acc;
   }, {} as Record<ComponentType, ComponentDefinition>);
+
+// =============================================================================
+// ARK Block Definition Merge
+// =============================================================================
+
+let cachedArkBlocks: ArkBlockPayload | null | undefined;
+
+function getArkBlocks(): ArkBlockPayload | null {
+  if (cachedArkBlocks !== undefined) {
+    return cachedArkBlocks;
+  }
+  const boot = getBootData();
+  cachedArkBlocks = boot.builderConstraints?.arkBlocks ?? null;
+  return cachedArkBlocks;
+}
+
+/**
+ * Get ARK block definition for a builder component type.
+ * Returns null if the type has no ARK definition.
+ */
+export function getArkBlockDefinition(type: ComponentType): ArkBlockDefinition | null {
+  const arkBlocks = getArkBlocks();
+  if (!arkBlocks?.blocks) return null;
+  return arkBlocks.blocks[type] ?? null;
+}
+
+/**
+ * Merge ARK nesting constraints into a component definition's
+ * allowedChildren / allowedParents at runtime.
+ */
+function mergeArkConstraints(def: ComponentDefinition): ComponentDefinition {
+  const arkDef = getArkBlockDefinition(def.type);
+  if (!arkDef) return def;
+
+  const merged = { ...def };
+
+  // ARK allowed_children takes precedence if defined
+  if (arkDef.allowedChildren !== null && arkDef.allowedChildren !== undefined) {
+    merged.allowedChildren = arkDef.allowedChildren as ComponentType[];
+  }
+  // ARK allowed_parents takes precedence if defined
+  if (arkDef.allowedParents !== null && arkDef.allowedParents !== undefined) {
+    merged.allowedParents = arkDef.allowedParents as ComponentType[];
+  }
+  // ARK max_children
+  if (arkDef.maxChildren !== null && arkDef.maxChildren !== undefined) {
+    merged.maxChildren = arkDef.maxChildren;
+  }
+
+  return merged;
+}
+
+/**
+ * Get component definition with ARK constraints merged in.
+ * Use this instead of getComponentDefinition() when ARK governance
+ * should override hardcoded component rules.
+ */
+export function getArkGovernedComponentDefinition(type: ComponentType): ComponentDefinition | undefined {
+  const def = getComponentDefinition(type);
+  if (!def) return undefined;
+  return mergeArkConstraints(def);
+}
 
 // =============================================================================
 // Component Categories

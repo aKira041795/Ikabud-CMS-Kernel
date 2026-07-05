@@ -372,31 +372,38 @@ function cmsBuilderLoadNestingConstraints(): array
         }
     }
 
-    $blockDefinitionsDir = $themeDir . '/block-definitions/layout';
-    foreach (['section', 'container', 'layout_container', 'row', 'column'] as $blockType) {
-        $path = $blockDefinitionsDir . '/' . $blockType . '.json';
-        if (!is_file($path)) {
-            continue;
-        }
+    // Read ALL block definition categories (not just layout)
+    $blockDefinitionsDir = $themeDir . '/block-definitions';
+    if (is_dir($blockDefinitionsDir)) {
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($blockDefinitionsDir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($it as $file) {
+            if ($file->getExtension() !== 'json' || $file->getFilename() === 'block-definition.schema.json') {
+                continue;
+            }
+            $definition = json_decode((string)@file_get_contents($file->getPathname()), true);
+            if (!is_array($definition) || empty($definition['type'])) {
+                continue;
+            }
 
-        $definition = json_decode((string)@file_get_contents($path), true);
-        if (!is_array($definition)) {
-            continue;
-        }
+            $blockType = (string)$definition['type'];
+            $allowedChildren = is_array($definition['allowed_children'] ?? null)
+                ? array_values(array_filter(array_map('strval', $definition['allowed_children'])))
+                : null;
+            $allowedParents = is_array($definition['allowed_parents'] ?? null)
+                ? array_values(array_filter(array_map('strval', $definition['allowed_parents'])))
+                : null;
 
-        $allowedChildren = is_array($definition['allowed_children'] ?? null)
-            ? array_values(array_filter(array_map('strval', $definition['allowed_children'])))
-            : null;
-        $allowedParents = is_array($definition['allowed_parents'] ?? null)
-            ? array_values(array_filter(array_map('strval', $definition['allowed_parents'])))
-            : null;
-
-        $constraints[$blockType] = [];
-        if ($allowedChildren !== null) {
-            $constraints[$blockType]['allowed_children'] = $allowedChildren;
-        }
-        if (in_array($blockType, ['row', 'column'], true) && $allowedParents !== null) {
-            $constraints[$blockType]['allowed_parents'] = $allowedParents;
+            if ($allowedChildren !== null || $allowedParents !== null) {
+                $constraints[$blockType] = [];
+                if ($allowedChildren !== null) {
+                    $constraints[$blockType]['allowed_children'] = $allowedChildren;
+                }
+                if ($allowedParents !== null) {
+                    $constraints[$blockType]['allowed_parents'] = $allowedParents;
+                }
+            }
         }
     }
 
@@ -441,6 +448,78 @@ function cmsBuilderClientConstraints(): array
 {
     return [
         'nesting' => cmsBuilderLoadNestingConstraints(),
+        'arkBlocks' => cmsBuilderArkBlockDefinitions(),
+    ];
+}
+
+/**
+ * Load ARK block definitions for the builder client.
+ * Reads block-registry.json + all block-definitions/*.json files
+ * and returns them as a structured payload the React builder can consume.
+ *
+ * This is the bridge that makes the builder ARK-aware at runtime:
+ * the builder's component palette should derive from this data,
+ * not from hardcoded TypeScript definitions.
+ */
+function cmsBuilderArkBlockDefinitions(): array
+{
+    $themeDir = cmsBuilderConstraintThemeDir();
+    if ($themeDir === null) {
+        return [];
+    }
+
+    $registryPath = $themeDir . '/block-registry.json';
+    if (!is_file($registryPath)) {
+        return [];
+    }
+
+    $registry = json_decode((string)@file_get_contents($registryPath), true);
+    if (!is_array($registry)) {
+        return [];
+    }
+
+    $categories = $registry['categories'] ?? [];
+    $definitionsByType = [];
+
+    $blockDefDir = $themeDir . '/block-definitions';
+    if (is_dir($blockDefDir)) {
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($blockDefDir, \RecursiveDirectoryIterator::SKIP_DOTS)
+        );
+        foreach ($it as $file) {
+            if ($file->getExtension() !== 'json' || $file->getFilename() === 'block-definition.schema.json') {
+                continue;
+            }
+            $def = json_decode((string)@file_get_contents($file->getPathname()), true);
+            if (is_array($def) && !empty($def['type'])) {
+                $type = (string)$def['type'];
+                $definitionsByType[$type] = [
+                    'type' => $type,
+                    'label' => (string)($def['label'] ?? $type),
+                    'category' => (string)($def['category'] ?? ''),
+                    'icon' => (string)($def['icon'] ?? ''),
+                    'allowedParents' => is_array($def['allowed_parents'] ?? null) ? $def['allowed_parents'] : null,
+                    'allowedChildren' => is_array($def['allowed_children'] ?? null) ? $def['allowed_children'] : null,
+                    'maxChildren' => isset($def['max_children']) ? (int)$def['max_children'] : null,
+                    'controls' => is_array($def['controls'] ?? null) ? $def['controls'] : [],
+                    'rendersWith' => (string)($def['renders_with'] ?? ''),
+                ];
+            }
+        }
+    }
+
+    // Also include block-registry type lists per category for palette organization
+    $categoryTypes = [];
+    foreach ($categories as $category => $types) {
+        if (is_array($types)) {
+            $categoryTypes[$category] = $types;
+        }
+    }
+
+    return [
+        'version' => (string)($registry['version'] ?? '1.0.0'),
+        'categories' => $categoryTypes,
+        'blocks' => $definitionsByType,
     ];
 }
 
