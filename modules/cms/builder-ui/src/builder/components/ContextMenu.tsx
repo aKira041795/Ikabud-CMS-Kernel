@@ -30,6 +30,7 @@ interface ContextMenuProps {
   onSaveAsBlock?: () => void;
   onWrapInContainer?: () => void;
   canPaste: boolean;
+  canPasteReason?: string | null;
   canMoveUp: boolean;
   canMoveDown: boolean;
 }
@@ -37,28 +38,37 @@ interface ContextMenuProps {
 interface MenuItemProps {
   icon: React.ReactNode;
   label: string;
+  detail?: string;
   shortcut?: string;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
 }
 
-const MenuItem: React.FC<MenuItemProps> = ({ icon, label, shortcut, onClick, disabled, danger }) => (
+const MenuItem: React.FC<MenuItemProps> = ({ icon, label, detail, shortcut, onClick, disabled, danger }) => (
   <button
     onClick={onClick}
     disabled={disabled}
+    title={disabled && detail ? detail : undefined}
     className={`
       w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors
-      ${disabled 
-        ? 'text-white/20 cursor-not-allowed' 
-        : danger 
+      ${disabled
+        ? 'text-white/20 cursor-not-allowed'
+        : danger
           ? 'text-white/80 hover:bg-red-500/20 hover:text-red-400'
           : 'text-white/80 hover:bg-white/10'
       }
     `}
   >
     <span className="w-4 h-4 flex items-center justify-center">{icon}</span>
-    <span className="flex-1">{label}</span>
+    <span className="flex-1 min-w-0">
+      <span className="block truncate">{label}</span>
+      {detail && (
+        <span className={`block text-[10px] truncate ${disabled ? 'text-white/20' : 'text-white/35'}`}>
+          {detail}
+        </span>
+      )}
+    </span>
     {shortcut && <span className="text-white/30 text-[10px]">{shortcut}</span>}
   </button>
 );
@@ -81,11 +91,12 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
   onSaveAsBlock,
   onWrapInContainer,
   canPaste,
+  canPasteReason,
   canMoveUp,
   canMoveDown,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
-  
+
   // Close on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -93,29 +104,29 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
         onClose();
       }
     };
-    
+
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscape);
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscape);
     };
   }, [onClose]);
-  
+
   // Adjust position to stay within viewport
   useEffect(() => {
     if (menuRef.current) {
       const rect = menuRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      
+
       if (rect.right > viewportWidth) {
         menuRef.current.style.left = `${x - rect.width}px`;
       }
@@ -124,7 +135,7 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
       }
     }
   }, [x, y]);
-  
+
   return (
     <div
       ref={menuRef}
@@ -135,7 +146,7 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
       <div className="px-3 py-1.5 text-[10px] text-white/40 uppercase tracking-wide border-b border-white/10 mb-1">
         {nodeType}
       </div>
-      
+
       {/* Edit Actions */}
       <MenuItem
         icon={<Copy className="w-3.5 h-3.5" />}
@@ -146,6 +157,7 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
       <MenuItem
         icon={<Clipboard className="w-3.5 h-3.5" />}
         label="Paste"
+        detail={!canPaste ? (canPasteReason || 'Clipboard unavailable') : undefined}
         shortcut="Ctrl+V"
         onClick={() => { onPaste(); onClose(); }}
         disabled={!canPaste}
@@ -156,9 +168,9 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
         shortcut="Ctrl+D"
         onClick={() => { onDuplicate(); onClose(); }}
       />
-      
+
       <MenuDivider />
-      
+
       {/* Arrange Actions */}
       <MenuItem
         icon={<ArrowUp className="w-3.5 h-3.5" />}
@@ -172,9 +184,9 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
         onClick={() => { onMoveDown(); onClose(); }}
         disabled={!canMoveDown}
       />
-      
+
       <MenuDivider />
-      
+
       {/* Advanced Actions */}
       {onSaveAsBlock && (
         <MenuItem
@@ -190,9 +202,9 @@ const ContextMenu: React.FC<ContextMenuProps> = memo(({
           onClick={() => { onWrapInContainer(); onClose(); }}
         />
       )}
-      
+
       {(onSaveAsBlock || onWrapInContainer) && <MenuDivider />}
-      
+
       {/* Delete */}
       <MenuItem
         icon={<Trash2 className="w-3.5 h-3.5" />}

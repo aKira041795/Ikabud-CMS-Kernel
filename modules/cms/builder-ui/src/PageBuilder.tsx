@@ -824,6 +824,11 @@ export default function PageBuilder() {
   // Component Handlers
   // =============================================================================
 
+  const showPlacementError = useCallback((text: string) => {
+    setSaveMessage({ type: 'error', text });
+    setTimeout(() => setSaveMessage(null), 3500);
+  }, []);
+
   const resolvePreferredInsertParent = useCallback((requestedParentId: string, childType: DiSyLNode['type']) => {
     const requestedParent = builder.findNode(requestedParentId);
     if (!requestedParent) {
@@ -832,17 +837,42 @@ export default function PageBuilder() {
     return drillToInsertParent(requestedParent, childType, builder.findNode);
   }, [builder]);
 
+  const resolveGovernedParent = useCallback((requestedParentId: string, childType: DiSyLNode['type']) => {
+    const preferredParentId = resolvePreferredInsertParent(requestedParentId, childType);
+    return builder.resolveInsertionParent(preferredParentId, childType);
+  }, [builder, resolvePreferredInsertParent]);
+
+  const insertNodeWithGovernedFeedback = useCallback((node: DiSyLNode, requestedParentId: string, requestedIndex: number, failurePrefix = 'Cannot place') => {
+    const resolvedParentId = resolveGovernedParent(requestedParentId, node.type);
+    if (resolvedParentId === null) {
+      showPlacementError(`${failurePrefix} ${node.type.replace(/_/g, ' ')} in that governed location.`);
+      return false;
+    }
+
+    const resolvedParent = builder.findNode(resolvedParentId);
+    const insertIndex = resolvedParentId === requestedParentId
+      ? requestedIndex
+      : (resolvedParent?.children.length ?? 0);
+
+    builder.insertNode(node, resolvedParentId, insertIndex);
+    return true;
+  }, [builder, resolveGovernedParent, showPlacementError]);
+
   const handleAddComponent = useCallback((node: DiSyLNode) => {
     // Add to selected node or root
     const requestedParentId = builder.selectedNode?.id || builder.document.id;
-    const parentId = resolvePreferredInsertParent(requestedParentId, node.type);
+    const parentId = resolveGovernedParent(requestedParentId, node.type);
+    if (parentId === null) {
+      showPlacementError(`No governed placement is available for ${node.type.replace(/_/g, ' ')} in the current selection.`);
+      return;
+    }
     const parent = builder.findNode(parentId);
     const index = parent?.children.length || 0;
     const nodeToInsert = parent?.type === 'section' && node.type === 'layout_container'
       ? createNode('container', {}, {}, [node])
       : node;
-    builder.insertNode(nodeToInsert, parentId, index);
-  }, [builder, resolvePreferredInsertParent]);
+    insertNodeWithGovernedFeedback(nodeToInsert, parentId, index);
+  }, [builder, insertNodeWithGovernedFeedback, resolveGovernedParent, showPlacementError]);
 
   // Smart canvas move: applies parent resolution when dropping "inside" a container,
   // so content widgets always land in the deepest valid target (e.g. column, not section root).
@@ -852,14 +882,45 @@ export default function PageBuilder() {
       builder.moveNode(nodeId, targetParentId, targetIndex);
       return;
     }
-    const resolvedParentId = resolvePreferredInsertParent(targetParentId, draggedNode.type);
+    const resolvedParentId = resolveGovernedParent(targetParentId, draggedNode.type);
+    if (resolvedParentId === null) {
+      showPlacementError(`Cannot move ${draggedNode.type.replace(/_/g, ' ')} into that governed location.`);
+      return;
+    }
     if (resolvedParentId !== targetParentId) {
       const resolvedParent = builder.findNode(resolvedParentId);
       builder.moveNode(nodeId, resolvedParentId, resolvedParent?.children.length ?? 0);
     } else {
       builder.moveNode(nodeId, targetParentId, targetIndex);
     }
-  }, [builder, resolvePreferredInsertParent]);
+  }, [builder, resolveGovernedParent, showPlacementError]);
+
+  const handlePasteNodes = useCallback((requestedParentId: string, index: number) => {
+    if (!builder.clipboard || builder.clipboard.length === 0) {
+      return;
+    }
+
+    const blockedNode = builder.clipboard.find((node) => resolveGovernedParent(requestedParentId, node.type) === null);
+    if (blockedNode) {
+      showPlacementError(`Cannot paste ${blockedNode.type.replace(/_/g, ' ')} into that governed location.`);
+      return;
+    }
+
+    builder.pasteNodes(requestedParentId, index);
+  }, [builder, resolveGovernedParent, showPlacementError]);
+
+  const governedPasteBlockReason = useCallback((requestedParentId: string): string | null => {
+    if (!builder.clipboard || builder.clipboard.length === 0) {
+      return 'Clipboard is empty';
+    }
+
+    const blockedNode = builder.clipboard.find((node) => resolveGovernedParent(requestedParentId, node.type) === null);
+    if (!blockedNode) {
+      return null;
+    }
+
+    return `${blockedNode.type.replace(/_/g, ' ')} has no governed placement here`;
+  }, [builder.clipboard, resolveGovernedParent]);
 
   // Add a new equal-width column to an existing row node.
   const handleAddColumnToRow = useCallback((rowId: string) => {
@@ -1015,7 +1076,7 @@ export default function PageBuilder() {
         const parentId = builder.selectedNode?.id || builder.document.id;
         const parent = builder.findNode(parentId);
         const index = parent?.children.length || 0;
-        builder.pasteNodes(parentId, index);
+        handlePasteNodes(parentId, index);
       }
 
       // Finder: Ctrl/Cmd + E or Ctrl/Cmd + K
@@ -1050,7 +1111,7 @@ export default function PageBuilder() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [builder, handleSave, handleMoveNode]);
+  }, [builder, handlePasteNodes, handleSave, handleMoveNode]);
 
   // =============================================================================
   // Render
@@ -1562,7 +1623,7 @@ export default function PageBuilder() {
                                   minHeight: '300px',
                                   backgroundColor: '#ffffff',
                                 });
-                                builder.insertNode(newSection, builder.document.id, builder.document.children.length);
+                                insertNodeWithGovernedFeedback(newSection, builder.document.id, builder.document.children.length, 'Cannot add');
                               }}
                               className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-200 shadow-sm"
                             >
@@ -1588,44 +1649,50 @@ export default function PageBuilder() {
 
             {/* Context Menu */}
             {contextMenu && (
-              <ContextMenu
-                x={contextMenu.x}
-                y={contextMenu.y}
-                nodeId={contextMenu.nodeId}
-                nodeType={contextMenu.nodeType}
-                onClose={handleContextMenuClose}
-                onCopy={() => builder.copyNodes([contextMenu.nodeId])}
-                onPaste={() => {
-                  const parent = builder.findNode(contextMenu.nodeId);
-                  if (parent) {
-                    builder.pasteNodes(contextMenu.nodeId, parent.children.length);
-                  }
-                }}
-                onDuplicate={() => builder.duplicateNode(contextMenu.nodeId)}
-                onDelete={() => builder.deleteNode(contextMenu.nodeId)}
-                onMoveUp={() => handleMoveNode('up')}
-                onMoveDown={() => handleMoveNode('down')}
-                onSaveAsBlock={() => {
-                  const node = builder.findNode(contextMenu.nodeId);
-                  if (node && ['section', 'container', 'layout_container'].includes(node.type)) {
-                    setBlockToSave(node);
-                    setSaveBlockModalOpen(true);
-                  }
-                }}
-                canPaste={!!builder.clipboard && builder.clipboard.length > 0}
-                canMoveUp={(() => {
-                  const parent = builder.findParent(contextMenu.nodeId);
-                  if (!parent) return false;
-                  const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
-                  return idx > 0;
-                })()}
-                canMoveDown={(() => {
-                  const parent = builder.findParent(contextMenu.nodeId);
-                  if (!parent) return false;
-                  const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
-                  return idx < parent.children.length - 1;
-                })()}
-              />
+              (() => {
+                const pasteReason = governedPasteBlockReason(contextMenu.nodeId);
+                return (
+                  <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    nodeId={contextMenu.nodeId}
+                    nodeType={contextMenu.nodeType}
+                    onClose={handleContextMenuClose}
+                    onCopy={() => builder.copyNodes([contextMenu.nodeId])}
+                    onPaste={() => {
+                      const parent = builder.findNode(contextMenu.nodeId);
+                      if (parent) {
+                        handlePasteNodes(contextMenu.nodeId, parent.children.length);
+                      }
+                    }}
+                    onDuplicate={() => builder.duplicateNode(contextMenu.nodeId)}
+                    onDelete={() => builder.deleteNode(contextMenu.nodeId)}
+                    onMoveUp={() => handleMoveNode('up')}
+                    onMoveDown={() => handleMoveNode('down')}
+                    onSaveAsBlock={() => {
+                      const node = builder.findNode(contextMenu.nodeId);
+                      if (node && ['section', 'container', 'layout_container'].includes(node.type)) {
+                        setBlockToSave(node);
+                        setSaveBlockModalOpen(true);
+                      }
+                    }}
+                    canPaste={pasteReason === null}
+                    canPasteReason={pasteReason}
+                    canMoveUp={(() => {
+                      const parent = builder.findParent(contextMenu.nodeId);
+                      if (!parent) return false;
+                      const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
+                      return idx > 0;
+                    })()}
+                    canMoveDown={(() => {
+                      const parent = builder.findParent(contextMenu.nodeId);
+                      if (!parent) return false;
+                      const idx = parent.children.findIndex(c => c.id === contextMenu.nodeId);
+                      return idx < parent.children.length - 1;
+                    })()}
+                  />
+                );
+              })()
             )}
           </main>
 
@@ -1735,7 +1802,7 @@ export default function PageBuilder() {
                     onInsertTemplate={(node) => {
                       const nodesToInsert = node.type === 'document' ? (Array.isArray(node.children) ? node.children : []) : [node];
                       nodesToInsert.forEach((child, index) => {
-                        builder.insertNode(child, builder.document.id, builder.document.children.length + index);
+                        insertNodeWithGovernedFeedback(child, builder.document.id, builder.document.children.length + index, 'Cannot insert template element');
                       });
                     }}
                   />
@@ -1749,7 +1816,7 @@ export default function PageBuilder() {
                         : createNode('section', {}, { padding: '48px 24px' }, [
                           node.type === 'layout_container' ? createNode('container', {}, {}, [node]) : node,
                         ]);
-                      builder.insertNode(blockNode, builder.document.id, builder.document.children.length);
+                      insertNodeWithGovernedFeedback(blockNode, builder.document.id, builder.document.children.length, 'Cannot insert block');
                     }}
                   />
                 )}

@@ -373,7 +373,7 @@ function cmsBuilderLoadNestingConstraints(): array
     }
 
     $blockDefinitionsDir = $themeDir . '/block-definitions/layout';
-    foreach (['row', 'column'] as $blockType) {
+    foreach (['section', 'container', 'layout_container', 'row', 'column'] as $blockType) {
         $path = $blockDefinitionsDir . '/' . $blockType . '.json';
         if (!is_file($path)) {
             continue;
@@ -395,7 +395,7 @@ function cmsBuilderLoadNestingConstraints(): array
         if ($allowedChildren !== null) {
             $constraints[$blockType]['allowed_children'] = $allowedChildren;
         }
-        if ($allowedParents !== null) {
+        if (in_array($blockType, ['row', 'column'], true) && $allowedParents !== null) {
             $constraints[$blockType]['allowed_parents'] = $allowedParents;
         }
     }

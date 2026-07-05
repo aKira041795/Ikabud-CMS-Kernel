@@ -119,6 +119,28 @@ $validStructuredLayoutDoc['document']['children'] = [
 $validStructuredLayoutResult = cmsBuilderValidateDocument($validStructuredLayoutDoc);
 t('Row with column child passes validation', $validStructuredLayoutResult['ok'] === true);
 
+$validContainerWidgetDoc = $doc;
+$validContainerWidgetDoc['document']['children'] = [
+    ['id' => 'sec1', 'type' => 'section', 'props' => [], 'style' => [], 'children' => [
+        ['id' => 'container1', 'type' => 'container', 'props' => [], 'style' => [], 'children' => [
+            ['id' => 'cta1', 'type' => 'call_to_action', 'props' => ['title' => 'Governed CTA'], 'style' => [], 'children' => [], 'meta' => []],
+        ], 'meta' => []],
+    ], 'meta' => []],
+];
+$validContainerWidgetResult = cmsBuilderValidateDocument($validContainerWidgetDoc);
+t('Container with widget child passes governed validation', $validContainerWidgetResult['ok'] === true);
+
+$validLayoutContainerWidgetDoc = $doc;
+$validLayoutContainerWidgetDoc['document']['children'] = [
+    ['id' => 'sec1', 'type' => 'section', 'props' => [], 'style' => [], 'children' => [
+        ['id' => 'layout1', 'type' => 'layout_container', 'props' => [], 'style' => [], 'children' => [
+            ['id' => 'badge1', 'type' => 'badge', 'props' => ['text' => 'Governed'], 'style' => [], 'children' => [], 'meta' => []],
+        ], 'meta' => []],
+    ], 'meta' => []],
+];
+$validLayoutContainerWidgetResult = cmsBuilderValidateDocument($validLayoutContainerWidgetDoc);
+t('Layout container with widget child passes governed validation', $validLayoutContainerWidgetResult['ok'] === true);
+
 $invalidStructuredLayoutDoc = $doc;
 $invalidStructuredLayoutDoc['document']['children'] = [
     ['id' => 'row1', 'type' => 'row', 'props' => [], 'style' => [], 'children' => [

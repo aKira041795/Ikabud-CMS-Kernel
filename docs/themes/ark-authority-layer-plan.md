@@ -1,8 +1,8 @@
 # ARK — Theming Authority Layer Plan
-> **Version:** 1.0 — 2026-07-05  
+> **Version:** 1.1 — 2026-07-05  
 > **Author:** Systems Architect / GUI Designer  
-> **Status:** Active Planning  
-> **Scope:** Kernel OS 6.1+ · DiSyL 4.7+ · ARK v2.0
+> **Status:** Active Implementation, Synced To Codebase  
+> **Scope:** Kernel OS 6.1.0+ · DiSyL 4.7.0+ · ARK v2.0
 
 ---
 
@@ -20,56 +20,45 @@ Modules declare intent. Themes decide presentation. Builders edit valid schema. 
 
 ---
 
-## Current State — Honest Assessment (2026-07-05)
+## Current State — Synced Snapshot (2026-07-05)
 
-Based on a comprehensive code audit of `storage/cms-themes/ark/`.
+Based on the current codebase state, including the ARK theme contracts, kernel validator, Theme Studio, CMS builder, and targeted regression tests.
 
-### What is already solid ✅
+### What is already implemented and validated ✅
 
 | Area | Evidence |
 |---|---|
-| 70-file structure | Layouts, pages, blocks, entity-views, docs, admin |
-| Theme manifest | Full manifest with kernel compat, slots, fallback views, customizer schema |
-| Token foundation | 46 CSS custom properties, fully token-driven CSS |
-| Shell architecture | 16 `{ikb_slot}` markers, semantic landmarks, Alpine.js, Tailwind CDN |
-| Block library | 18 blocks, 6 list-card variants, capability-gated patterns |
-| Entity-view fallbacks | 4 fallback templates (card/table/detail/compact) |
-| Multi-surface support | Print + email layouts exist |
-| Customizer schema | 6 sections, ~70 controls, proper JSON schema |
-| Kernel integration | `ikb_slot` registered, `theme:validate`, `theme:inspect` CLI, Theme Studio module |
-| 12 docs | Developer documentation complete |
-| 104 test assertions | `tests/ark_theme_test.php` |
+| Theme contract files | `renderer-registry.json`, `block-registry.json`, `entity-view-map.json`, `safety-policy.json`, `page-composition.schema.json` all exist under `storage/cms-themes/ark/` |
+| Block definition language | 36 JSON files exist under `storage/cms-themes/ark/block-definitions/`, including `block-definition.schema.json`, layout/content/data definitions, and module-domain definitions |
+| Kernel semantic validation | `kernel/Services/ThemeManifestValidator.php` validates renderer coverage, block definitions, page schema, render targets, safety policy, and block relationship semantics |
+| Theme Studio contract editing | `modules/theme-studio/helpers.php` and handlers provide structured editors and save flows for renderer registry, block registry, entity-view map, safety policy, and page-composition schema |
+| Builder governance | `modules/cms/helpers/50-builder.php` loads ARK nesting constraints and exposes them to the client; the React builder consumes them for insert, move, paste, and drag/drop rules |
+| Client-side UX enforcement | `PageBuilder.tsx`, `useBuilderState.ts`, and `ContextMenu.tsx` now surface governed-placement failures instead of silently allowing invalid operations |
+| Regression coverage | `tests/theme_manifest_validation_test.php`, `tests/builder_lifecycle_test.php`, `tests/cms_builder_non_entity_widgets_test.php`, and `tests/ark_theme_test.php` cover the current ARK contract and builder seams |
+| Validation baseline | `php ikabud theme:validate ark` is currently expected to pass cleanly against the implemented ARK authority layer |
 
-### What is broken or incomplete ⚠️
+### What is implemented but still incomplete ⚠️
 
-| Gap | Severity | Details |
+| Area | Severity | Current state |
 |---|---|---|
-| Mobile header CSS | **CRITICAL** | `.ark-header__hamburger` has no CSS — hamburger is visually invisible |
-| `aria-expanded` is hardcoded | **HIGH** | Should be `:aria-expanded="mobileMenuOpen"` Alpine binding |
-| Zero form element styles | **HIGH** | No `.ark-input`, `.ark-select`, `.ark-label`, `.ark-form-group` |
-| 3 orphaned customizer controls | **HIGH** | `footer.columns`, `show_search`, `show_cta_button` write values that templates ignore |
-| Lightbox incomplete | **MEDIUM** | `galleryOpen` state exists, no overlay/modal renders |
-| `--color-secondary` / `--color-accent` orphaned | **MEDIUM** | In customizer schema but absent from tokens.json and CSS |
-| `.ark-card__badge` class undefined | **MEDIUM** | Used in templates, not in style.css |
-| Footer columns hardcoded | **MEDIUM** | Customizer offers 1–5, template renders 3 always |
-| Hardcoded Ikabud attribution in footer | **LOW** | Not toggleable; wrong for production |
-| `logo_max_height` setting ignored | **LOW** | Schema has it, header ignores it |
-| Inline status badge colors | **LOW** | Not using `--color-success`/`--color-danger` tokens |
+| Extended design tokens | **HIGH** | Token foundation exists, but the full semantic scale, animation tokens, z-index scale, and dark-mode layer from the original v2.0 target are not yet fully codified |
+| Reference-theme foundation polish | **HIGH** | The codebase now has the ARK contract layers, but the earlier visual audit items for the ARK reference theme still need a fresh pass before they can be treated as closed |
+| Renderer contract documentation | **MEDIUM** | `renderer-registry.json` and validator support exist, but `docs/themes/ark-renderer-contract.md` has not been added yet |
+| Safety policy documentation | **MEDIUM** | `safety-policy.json` exists and is validated, but `docs/themes/ark-safety-policy.md` is still missing |
+| Capability bridge documentation | **MEDIUM** | `entity-view-map.json` exists, but the bridge pattern doc planned as `docs/themes/04b-capability-bridge.md` is not present |
+| Dedicated renderer/safety tests | **MEDIUM** | The current regression suite covers theme validation and builder seams, but the dedicated `ark_renderer_contract_test.php` and `ark_safety_test.php` files from the plan do not exist yet |
+| Theme Studio coverage depth | **MEDIUM** | Theme Studio can edit the major ARK contract JSON files, but it does not yet expose full block-definition authoring, renderer previews, or entity-view-map-driven presets as a finished workflow |
 
-### What is missing from ARK-as-design-authority 🔴
+### What remains genuinely pending for ARK v2.0 🔴
 
-| Missing | Impact |
+| Pending | Why it still matters |
 |---|---|
-| No ARK component schema (block definition JSON) | Builders can't read/write ARK-compatible structure |
-| No full color scale (50–900) | Token system too coarse for production theming |
-| No animation/transition tokens | Global motion control impossible |
-| No dark mode token layer | Theme can't adapt to system dark preference |
-| No `@media print` rules | Manifest claims print surface, no print CSS |
-| No semantic component-level tokens | Button, input shape/color can't be globally tuned |
-| No capability bridge schema | EHR/bakeshop/ecommerce entity view contracts not codified |
-| No page builder schema definition | Future builders have no ARK contract to follow |
-| No renderer contract spec | ARK schema → DiSyL translation rules undocumented |
-| No safety/policy layer | No declared allowed/blocked patterns for theme authors |
+| Full extended token system | Required for production-grade theming consistency across modules and surfaces |
+| Formal renderer contract document | Needed so future builder and module authors can implement ARK without reverse-engineering JSON and validator behavior |
+| Safety-policy reference document | Needed to make theme author restrictions explicit and reviewable |
+| Dedicated renderer and safety test suites | Needed to keep future ARK expansion from regressing through indirect coverage only |
+| Full Theme Studio authoring loop | Needed before Theme Studio can be considered the complete ARK editor rather than the contract editor baseline |
+| Final reference-theme audit closure | Needed before the original UI-polish findings can be considered fully resolved |
 
 ---
 
@@ -461,163 +450,89 @@ Extend `php ikabud theme:validate` to check against `safety-policy.json`:
 
 ---
 
-## Phased Implementation Plan
+## Phase Status
 
-### Phase 1 — Foundation Fixes (Sprint 1, ~2 days)
-**Target:** Current ARK actually works at production quality.
+### Phase 1 — Foundation Fixes
+**Status:** Partial.
 
-| Task | Priority | Owner |
-|---|---|---|
-| Fix mobile header CSS (hamburger + drawer) | P1 | Frontend dev |
-| Fix `:aria-expanded` Alpine binding | P1 | Frontend dev |
-| Add form element styles (input/select/label/group) | P1 | Frontend dev |
-| Wire `footer.columns` to template | P1 | Template dev |
-| Wire `header.show_search` / `show_cta_button` to template | P1 | Template dev |
-| Complete lightbox modal overlay in media-gallery | P1 | Frontend dev |
-| Add `--color-secondary`, `--color-accent` to tokens.json + CSS | P2 | Frontend dev |
-| Add `.ark-card__badge` CSS definition | P2 | Frontend dev |
-| Add `.ark-btn`, `.ark-badge` CSS components | P2 | Frontend dev |
-| Fix `logo_max_height` binding | P2 | Template dev |
-| Remove hardcoded footer attribution | P2 | Template dev |
-| Add `@media print` rules | P3 | Frontend dev |
-| Add `:focus-visible` ring system | P3 | Frontend dev |
+The codebase now has the core ARK authority and governance layers in place, but the original ARK reference-theme visual audit items should be revalidated as a separate closeout pass. Current success for this phase should be measured as: ARK contracts are live, theme validation passes, and theme-surface polish items are tracked explicitly rather than assumed complete.
 
-Validation: `php ikabud theme:validate ark` must pass all checks. `php tests/ark_theme_test.php` must pass 104/104.
+### Phase 2 — Extended Token System
+**Status:** Pending.
 
----
+The current token layer is a valid base, but the expanded semantic color scales, motion tokens, z-index scale, component tokens, and full dark-mode layer remain open work.
 
-### Phase 2 — Extended Token System (Sprint 2, ~1 day)
-**Target:** ARK tokens support the full design authority role.
+### Phase 3 — Renderer Contract
+**Status:** Partial.
 
-| Task | Details |
-|---|---|
-| Full color scale (50–900) | Add to tokens.json for primary, secondary, accent |
-| Animation tokens | `--duration-*`, `--easing-*` |
-| Component-level tokens | `--button-height-*`, `--input-height`, `--input-focus-ring` |
-| Z-index token scale | `--z-sticky`, `--z-overlay`, `--z-modal`, `--z-toast` |
-| Dark mode token layer | `@media (prefers-color-scheme: dark)` overrides |
-| Font weight scale | `--font-weight-normal`, `--font-weight-medium`, `--font-weight-semibold`, `--font-weight-bold` |
+`renderer-registry.json` exists and kernel validation covers renderer semantics, so the runtime half of this phase is implemented. The missing pieces are the formal renderer contract document, block template context declarations, and the dedicated renderer contract test file.
 
----
+### Phase 4 — Block Definition Language
+**Status:** Implemented baseline.
 
-### Phase 3 — Renderer Contract (Sprint 2–3, ~2 days)
-**Target:** ARK defines the formal schema → DiSyL render mapping.
+`block-registry.json`, `block-definition.schema.json`, and the current block-definition catalog are in place. Kernel validation now checks block-definition semantics, and the builder consumes ARK nesting constraints instead of relying on ad hoc client-only rules.
 
-| Task | Output |
-|---|---|
-| Write `renderer-registry.json` | 20+ block type → template mappings |
-| Write `docs/themes/ark-renderer-contract.md` | Formal contract spec document |
-| Add render context declaration to all block templates | `{* Context: ... *}` headers |
-| Extend `theme:validate` to check renderer registry coverage | CLI validation |
-| Write integration test: schema → render output assertion | `tests/ark_renderer_contract_test.php` |
+### Phase 5 — Capability Bridge
+**Status:** Partial.
+
+`entity-view-map.json` and module-domain block definitions exist, which establishes the baseline capability bridge in code. Documentation, deeper template coverage, and dedicated entity-view integration tests are still open.
+
+### Phase 6 — Safety & Policy Layer
+**Status:** Partial.
+
+`safety-policy.json` exists and is part of theme validation, so the policy baseline is live. The remaining work is explicit documentation, dedicated safety-focused tests, and any stricter future policy scans that should move from convention into enforced checks.
+
+### Phase 7 — Theme Studio Wiring
+**Status:** Partial.
+
+Theme Studio now edits the major ARK contract JSON files through structured forms and save handlers. It still needs full block-definition authoring, richer renderer preview loops, and entity-view-map-driven preset workflows before this phase can be considered complete.
 
 ---
 
-### Phase 4 — Block Definition Language (Sprint 3–4, ~3 days)
-**Target:** ARK defines the builder schema contract.
-
-| Task | Output |
-|---|---|
-| Create `block-registry.json` master list | 40+ block types categorized |
-| Create `block-definitions/` directory | JSON definition per block type |
-| Core layout blocks (8) | page, section, container, grid, hero, split, tabs, accordion |
-| Core content blocks (8) | text, image, video, gallery, button, badge, divider, spacer |
-| Core data blocks (5) | entity_list, entity_detail, stat_card, stat_row, table |
-| Module blocks (20) | ecommerce, healthcare, bakeshop, lms, wms (4 each) |
-| Write ARK Block Definition JSON Schema | `block-definition.schema.json` for validation |
-| Extend `theme:validate` to validate block definitions | CLI check |
-
----
-
-### Phase 5 — Capability Bridge (Sprint 4–5, ~2 days)
-**Target:** ARK owns the cross-module entity presentation contract.
-
-| Task | Output |
-|---|---|
-| Write `entity-view-map.json` | View contracts per entity type per module |
-| Module-domain block definitions | `/block-definitions/{module}/` directories |
-| Add EHR block templates to ARK | `blocks/ehr/patient-summary.block.disyl`, etc. |
-| Add bakeshop block templates | `blocks/bakeshop/ledger-row.block.disyl` |
-| Add LMS block templates | `blocks/lms/course-card.block.disyl`, etc. |
-| Add WMS block templates | `blocks/wms/inventory-badge.block.disyl`, etc. |
-| Integration tests: entity view map vs capability bus | New test file |
-| Document entity view bridge pattern | `docs/themes/04b-capability-bridge.md` |
-
----
-
-### Phase 6 — Safety & Policy Layer (Sprint 5, ~1 day)
-**Target:** ARK enforces theme safety governance.
-
-| Task | Output |
-|---|---|
-| Write `safety-policy.json` | Policy definition file |
-| Extend `theme:validate` with policy checks | Pattern scan for blocked patterns |
-| Extend `theme:validate` with raw output audit | Flag all `\|raw` usage with capability check |
-| Add allowed-component check | Flag all `{ikb_*}` vs ComponentRegistry |
-| Write security-focused theme doc | `docs/themes/ark-safety-policy.md` |
-| Test: certified theme passes all safety checks | `tests/ark_safety_test.php` |
-
----
-
-### Phase 7 — Theme Studio Wiring (Sprint 6, ~3 days)
-**Target:** Theme Studio reads and writes ARK schema.
-
-| Task | Output |
-|---|---|
-| Theme Studio reads `block-registry.json` | Block picker in editor |
-| Theme Studio reads `block-definitions/` | Control panel per block |
-| Theme Studio writes ARK-compatible JSON | Persistent storage format |
-| Theme Studio previews via renderer-registry.json | Live preview mapped to template |
-| Token editor uses extended token schema | Full color scale visible |
-| Preset system uses `entity-view-map.json` | Module presets in theme studio |
-
----
-
-## Key Files to Create
+## Key Files In Repo And Still Missing
 
 ```
-storage/cms-themes/ark/
-├── renderer-registry.json          [Phase 3]
-├── block-registry.json             [Phase 4]
-├── entity-view-map.json            [Phase 5]
-├── safety-policy.json              [Phase 6]
-│
-├── block-definitions/
-│   ├── block-definition.schema.json
-│   ├── layout/hero.json
-│   ├── layout/section.json
-│   ├── layout/grid.json
-│   ├── content/text.json
-│   ├── content/image.json
-│   ├── content/button.json
-│   ├── data/entity_list.json
-│   ├── data/stat_card.json
-│   ├── ecommerce/product-card.json
-│   ├── healthcare/patient-summary.json
-│   ├── bakeshop/ledger-row.json
-│   ├── lms/course-card.json
-│   └── wms/inventory-badge.json
-│
-└── blocks/                         [Phase 5 — module-domain templates]
-    ├── ehr/
-    │   ├── patient-summary.block.disyl
-    │   ├── appointment-list.block.disyl
-    │   └── vital-chart.block.disyl
-    ├── bakeshop/
-    │   ├── ledger-row.block.disyl
-    │   └── production-summary.block.disyl
-    ├── lms/
-    │   ├── course-card.block.disyl
-    │   ├── lesson-index.block.disyl
-    │   └── progress-bar.block.disyl
-    └── wms/
-        ├── inventory-badge.block.disyl
-        └── stock-level.block.disyl
+Already present in the repo:
 
-docs/themes/
-├── ark-authority-layer-plan.md     [this document]
-├── ark-renderer-contract.md        [Phase 3]
-└── ark-safety-policy.md           [Phase 6]
+```text
+storage/cms-themes/ark/
+├── renderer-registry.json
+├── block-registry.json
+├── entity-view-map.json
+├── safety-policy.json
+├── page-composition.schema.json
+├── tokens.json
+└── block-definitions/
+  ├── block-definition.schema.json
+  ├── layout/
+  ├── content/
+  ├── data/
+  ├── ecommerce/
+  ├── healthcare/
+  ├── bakeshop/
+  ├── lms/
+  ├── wms/
+  └── module/
+
+modules/theme-studio/
+├── helpers.php
+├── handlers.php
+└── templates/contract-edit.disyl
+
+modules/cms/
+├── helpers/50-builder.php
+└── builder-ui/src/
+```
+
+Still missing from the original plan:
+
+```text
+docs/themes/ark-renderer-contract.md
+docs/themes/ark-safety-policy.md
+docs/themes/04b-capability-bridge.md
+tests/ark_renderer_contract_test.php
+tests/ark_safety_test.php
+```
 ```
 
 ---
@@ -653,30 +568,30 @@ Other future ARK clients use the same pattern:
 
 | Dimension | Current | v2.0 Target |
 |---|---|---|
-| Token system | 46 tokens, 3 coarse color shades | 100+ tokens, full 50–900 scales, dark mode |
-| CSS completeness | ~70% (no forms, no mobile CSS) | 100% (all components, responsive, print, dark) |
-| Customizer wiring | ~60% (orphaned controls) | 100% (all controls mapped) |
-| Block definitions | 0 (informal via templates only) | 40+ JSON block definitions |
-| Renderer contract | Implicit | Explicit registry with 20+ mappings |
-| Capability bridge | 0 (entity views per module, not ARK-codified) | Full map for 5 modules |
-| Safety policy | None | `safety-policy.json` + `theme:validate` enforcement |
-| Builder readiness | 0% | ARK JSON schema published, builder can read/write it |
-| Dark mode | None | Full dark mode token layer |
-| a11y | Partial (skip link, semantic HTML) | Full (focus ring, ARIA, print) |
+| Token system | Base token layer exists, but still below the full semantic/dark-mode target | 100+ tokens, full 50–900 scales, motion tokens, dark mode |
+| CSS completeness | ARK authority contracts are ahead of the reference-theme polish layer | 100% (all components, responsive, print, dark) |
+| Customizer wiring | Contract editing is structured in Theme Studio; reference-theme control coverage still needs re-audit | 100% (all controls mapped) |
+| Block definitions | 36 JSON files under `block-definitions/` including schema | 40+ JSON block definitions with broader domain coverage |
+| Renderer contract | Explicit `renderer-registry.json` plus validator support; formal doc/test still missing | Explicit registry with 20+ mappings plus published contract doc/tests |
+| Capability bridge | `entity-view-map.json` and domain block definitions exist | Full map for 5 modules with docs and integration tests |
+| Safety policy | `safety-policy.json` plus validator enforcement baseline exists | Policy file, validation enforcement, docs, and dedicated tests |
+| Builder readiness | Page schema, governed nesting, Theme Studio contract editors, and builder boot constraints are live | ARK JSON schema published, builder can read/write it end-to-end |
+| Dark mode | Not yet a complete token/CSS layer | Full dark mode token layer |
+| a11y | Builder governance feedback is improved; reference-theme a11y closure still needs a dedicated pass | Full (focus ring, ARIA, print) |
 
 ---
 
 ## Success Criterion
 
-ARK v2.0 is complete when:
+ARK v2.0 is complete when the following are all true at the same time:
 
-1. `php ikabud theme:validate ark` passes all checks including policy scan
-2. `php ikabud theme:inspect ark` shows: 40+ blocks, renderer registry, capability bridge, safety policy
-3. Any developer can build a complete new module page by picking block definitions from ARK — zero custom template code needed
-4. Any future page builder can read `block-registry.json` and implement editing UI with zero new block schema invention
-5. Theme Studio uses `entity-view-map.json` to offer module-aware layout presets
-6. The ARK theme works on mobile with a functional hamburger menu, lightbox, and form styles
-7. Customizer controls have 100% template wiring coverage
+1. `php ikabud theme:validate ark` passes the full contract and policy checks without warnings.
+2. `php ikabud theme:inspect ark` reports the published registry, page schema, capability bridge, and safety policy as first-class ARK surfaces.
+3. The current builder can consume ARK block definitions and constraints without relying on parallel ad hoc rules.
+4. Theme Studio can edit the full ARK authoring surface, not only the top-level contract JSON files.
+5. Renderer and safety behavior are each protected by dedicated tests and first-class documentation.
+6. The ARK reference theme has cleared a fresh mobile, form, dark-mode, print, and accessibility audit.
+7. Customizer controls and rendered templates are demonstrably in sync across the shipped ARK surfaces.
 
 ---
 

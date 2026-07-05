@@ -442,6 +442,7 @@ class ThemeManifestValidator
                     $warnings[] = "block-registry.json exists but block-definitions/ directory is missing";
                 } else {
                     $schemaPath = $blockDefinitionsDir . '/block-definition.schema.json';
+                    $registeredBlocks = self::registeredBlockTypes($themeDir);
                     if (!is_file($schemaPath)) {
                         $warnings[] = "block-definitions/block-definition.schema.json is missing";
                     }
@@ -480,6 +481,9 @@ class ThemeManifestValidator
                                 $renderTargetResult = self::validateBlockDefinitionRenderTarget($themeDir, $categoryName, $blockType, $renderTarget);
                                 $warnings = array_merge($warnings, $renderTargetResult['warnings']);
                             }
+
+                            $relationshipResult = self::validateBlockDefinitionRelationships($categoryName, $blockType, $definition, $registeredBlocks);
+                            $warnings = array_merge($warnings, $relationshipResult['warnings']);
                         }
                     }
                 }
@@ -840,6 +844,60 @@ class ThemeManifestValidator
 
         $warnings[] = "Block definition '{$categoryName}.{$blockType}' uses unknown renders_with target '{$renderTarget}'";
         return ['warnings' => $warnings];
+    }
+
+    /**
+     * @param list<string> $registeredBlocks
+     * @return array{warnings:list<string>}
+     */
+    private static function validateBlockDefinitionRelationships(string $categoryName, string $blockType, array $definition, array $registeredBlocks): array
+    {
+        $warnings = [];
+        $knownRelationshipTargets = array_values(array_unique(array_merge($registeredBlocks, self::knownBuilderNodeTypes())));
+
+        foreach (['allowed_children', 'allowed_parents'] as $relationshipKey) {
+            if (!array_key_exists($relationshipKey, $definition)) {
+                continue;
+            }
+
+            $relationshipValue = $definition[$relationshipKey] ?? null;
+            if (!is_array($relationshipValue)) {
+                $warnings[] = "Block definition '{$categoryName}.{$blockType}' {$relationshipKey} must be an array when declared";
+                continue;
+            }
+
+            foreach ($relationshipValue as $index => $relatedBlockType) {
+                $relatedBlockType = trim((string)$relatedBlockType);
+                if ($relatedBlockType === '') {
+                    $warnings[] = "Block definition '{$categoryName}.{$blockType}' {$relationshipKey}[{$index}] must be a non-empty string";
+                    continue;
+                }
+                if ($knownRelationshipTargets !== [] && !in_array($relatedBlockType, $knownRelationshipTargets, true)) {
+                    $warnings[] = "Block definition '{$categoryName}.{$blockType}' {$relationshipKey} references unknown block type '{$relatedBlockType}'";
+                }
+            }
+        }
+
+        return ['warnings' => array_values(array_unique($warnings))];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function knownBuilderNodeTypes(): array
+    {
+        return [
+            'document', 'section', 'columns', 'container', 'layout_container', 'row', 'column',
+            'heading', 'text', 'button', 'image', 'video', 'icon', 'icon_box',
+            'social_icons', 'list', 'testimonial', 'blockquote', 'image_box',
+            'logo_grid', 'star_rating', 'call_to_action', 'pricing_table',
+            'code_block', 'table', 'slideshow', 'gallery', 'map', 'tabs',
+            'accordion', 'counter', 'progress', 'countdown', 'flip_box',
+            'toggle', 'search_box', 'nav_menu', 'recent_posts', 'social_links', 'contact_info', 'categories', 'tag_cloud', 'archives', 'opening_hours',
+            'form', 'spacer', 'divider', 'alert',
+            'anchor', 'breadcrumbs', 'badge', 'stat_card', 'contact_card', 'posts_grid', 'products_grid', 'team_grid',
+            'entity_view', 'entity_list', 'html_embed', 'audio', 'ai_block',
+        ];
     }
 
     /**

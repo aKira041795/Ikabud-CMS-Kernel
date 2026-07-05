@@ -240,10 +240,10 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
         console.warn(`MOVE_NODE blocked: ${node.type} cannot be child of target parent`);
         return state;
       }
-      
+
       let newDoc = removeNodeFromTree(state.document, action.nodeId);
       newDoc = insertNodeInTree(newDoc, action.newParentId, node, action.newIndex);
-      
+
       return {
         ...state,
         document: newDoc,
@@ -309,10 +309,10 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
       const node = findNode(state.document, action.nodeId);
       const parent = findParent(state.document, action.nodeId);
       if (!node || !parent) return state;
-      
+
       const cloned = cloneNode(node);
       const index = parent.children.findIndex(c => c.id === action.nodeId);
-      
+
       return {
         ...state,
         document: insertNodeInTree(state.document, parent.id, cloned, index + 1),
@@ -326,7 +326,7 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
         .map(id => findNode(state.document, id))
         .filter((n): n is DiSyLNode => n !== null)
         .map(cloneNode);
-      
+
       return {
         ...state,
         clipboard: nodes,
@@ -335,11 +335,11 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
 
     case 'PASTE_NODES': {
       if (!state.clipboard || state.clipboard.length === 0) return state;
-      
+
       let newDoc = state.document;
       const newIds: string[] = [];
       let insertedCount = 0;
-      
+
       state.clipboard.forEach((node, i) => {
         const cloned = cloneNode(node);
         const validParentId = findValidParent(newDoc, action.parentId, cloned.type);
@@ -356,7 +356,7 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
         insertedCount++;
       });
       if (newIds.length === 0) return state;
-      
+
       return {
         ...state,
         document: newDoc,
@@ -415,13 +415,13 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
       ? { ...initialState, document: initialDocument }
       : initialState
   );
-  
+
   // Undo/Redo history
   const historyRef = useRef<{
     past: DiSyLNode[];
     future: DiSyLNode[];
   }>({ past: [], future: [] });
-  
+
   const lastDocumentRef = useRef<string>(JSON.stringify(state.document));
 
   // Selection actions
@@ -449,6 +449,10 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
   const moveNode = useCallback((nodeId: string, newParentId: string, newIndex: number) => {
     dispatch({ type: 'MOVE_NODE', nodeId, newParentId, newIndex });
   }, []);
+
+  const resolveInsertionParent = useCallback((parentId: string, childType: string) => {
+    return findValidParent(state.document, parentId, childType);
+  }, [state.document]);
 
   const moveNodeInDirection = useCallback((nodeId: string, direction: 'up' | 'down') => {
     dispatch({ type: 'MOVE_NODE_DIRECTION', nodeId, direction });
@@ -536,29 +540,29 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
     }
     lastDocumentRef.current = currentDocStr;
   }
-  
+
   // Undo action
   const undo = useCallback(() => {
     const { past, future } = historyRef.current;
     if (past.length === 0) return;
-    
+
     const previous = past.pop()!;
     future.push(state.document);
     lastDocumentRef.current = JSON.stringify(previous);
     dispatch({ type: 'SET_DOCUMENT', document: previous });
   }, [state.document]);
-  
+
   // Redo action
   const redo = useCallback(() => {
     const { past, future } = historyRef.current;
     if (future.length === 0) return;
-    
+
     const next = future.pop()!;
     past.push(state.document);
     lastDocumentRef.current = JSON.stringify(next);
     dispatch({ type: 'SET_DOCUMENT', document: next });
   }, [state.document]);
-  
+
   // Check if can undo/redo
   const canUndo = historyRef.current.past.length > 0;
   const canRedo = historyRef.current.future.length > 0;
@@ -577,7 +581,7 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
     zoom: state.zoom,
     sidebarTab: state.sidebarTab,
     clipboard: state.clipboard,
-    
+
     // Undo/Redo
     canUndo,
     canRedo,
@@ -591,6 +595,7 @@ export function useBuilderState(initialDocument?: DiSyLNode) {
     insertNode,
     deleteNode,
     moveNode,
+    resolveInsertionParent,
     moveNodeInDirection,
     updateProps,
     updateStyle,

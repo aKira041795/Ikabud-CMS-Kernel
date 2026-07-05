@@ -449,6 +449,53 @@ foreach ($result['warnings'] as $warning) {
 assert_true($unknownTopLevelWarning, 'page-composition schema warns when top-level child is not published in block-registry');
 $cleanup($unknownTopLevelTmpDir);
 
+// ── Test 20: Block definition nesting references must point to published block types ──
+echo "\nTest 20: Invalid block definition nesting references\n";
+$invalidBlockRelationshipTmpDir = sys_get_temp_dir() . '/theme-block-relationship-invalid-' . uniqid();
+@mkdir($invalidBlockRelationshipTmpDir . '/layouts', 0777, true);
+@mkdir($invalidBlockRelationshipTmpDir . '/public', 0777, true);
+@mkdir($invalidBlockRelationshipTmpDir . '/block-definitions/layout', 0777, true);
+@mkdir($invalidBlockRelationshipTmpDir . '/block-definitions/content', 0777, true);
+@file_put_contents($invalidBlockRelationshipTmpDir . '/tokens.json', json_encode(['colors' => ['primary' => '#000000', 'surface' => '#ffffff', 'text' => '#111111', 'border' => '#dddddd'], 'typography' => [], 'spacing' => [], 'radius' => []], JSON_PRETTY_PRINT));
+@file_put_contents($invalidBlockRelationshipTmpDir . '/shell.disyl', "{block content}{/block}\n");
+@file_put_contents($invalidBlockRelationshipTmpDir . '/block-registry.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Relationship validation test',
+    'categories' => [
+        'layout' => ['section'],
+        'content' => ['text'],
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($invalidBlockRelationshipTmpDir . '/block-definitions/block-definition.schema.json', json_encode(['type' => 'object'], JSON_PRETTY_PRINT));
+@file_put_contents($invalidBlockRelationshipTmpDir . '/block-definitions/layout/section.json', json_encode([
+    'type' => 'section',
+    'label' => 'Section',
+    'controls' => [],
+    'allowed_children' => ['text', 'missing_block'],
+    'renders_with' => 'ikb_section',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($invalidBlockRelationshipTmpDir . '/block-definitions/content/text.json', json_encode([
+    'type' => 'text',
+    'label' => 'Text',
+    'controls' => [],
+    'allowed_parents' => ['section', 'ghost_parent'],
+    'renders_with' => 'ikb_text',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$result = ThemeManifestValidator::validate('test-theme', $validManifest, $invalidBlockRelationshipTmpDir);
+$unknownAllowedChildWarning = false;
+$unknownAllowedParentWarning = false;
+foreach ($result['warnings'] as $warning) {
+    if (str_contains($warning, "Block definition 'layout.section' allowed_children references unknown block type 'missing_block'")) {
+        $unknownAllowedChildWarning = true;
+    }
+    if (str_contains($warning, "Block definition 'content.text' allowed_parents references unknown block type 'ghost_parent'")) {
+        $unknownAllowedParentWarning = true;
+    }
+}
+assert_true($unknownAllowedChildWarning, 'block definition warns on unknown allowed_children reference');
+assert_true($unknownAllowedParentWarning, 'block definition warns on unknown allowed_parents reference');
+$cleanup($invalidBlockRelationshipTmpDir);
+
 echo "\n==============================\n";
 echo "Results: {$passed} passed, {$failed} failed\n";
 echo "==============================\n";
