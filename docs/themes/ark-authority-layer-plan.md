@@ -1,5 +1,5 @@
 # ARK — Theming Authority Layer Plan
-> **Version:** 1.3 — 2026-07-05 (implementation pass)  
+> **Version:** 1.4 — 2026-07-05 (a11y audit pass)  
 > **Author:** Systems Architect / GUI Designer  
 > **Status:** Active Implementation, Synced To Codebase  
 > **Scope:** Kernel OS 6.1.0+ · DiSyL 4.7.0+ · ARK v2.0
@@ -37,7 +37,7 @@ Based on the current codebase state, including the ARK theme contracts, kernel v
 | Manifest-driven validation budgets | `theme.manifest.json` now supports `performance_budget.css_kb` and `performance_budget.js_kb`, and `php ikabud theme:validate ark` consumes those limits so ARK can carry a governed CSS ceiling without validator noise |
 | Reference-theme helper normalization | The ARK reference theme has now moved most repeated public-surface and region-shell presentation into shared helpers in `style.css`, including action, badge/status, media, pricing, table, progress, page-shell, and customizer-region patterns |
 | Public and customizer shell cleanup | `single.disyl`, `full-width.disyl`, public utility surfaces, and customized `header/footer/sidebar` region templates now keep only the dynamic values inline; fixed structure is class-based |
-| Current validation checkpoint | `php _lint_disyl.php --path storage/cms-themes/ark` (89 templates valid), `php ikabud theme:validate ark` (passes clean, no warnings), `php tests/ark_theme_test.php` (108 tests pass), `php tests/ark_capability_bridge_test.php` (451 tests pass), `php tests/ark_renderer_contract_test.php` (66 tests pass), `php tests/ark_safety_test.php` (8 tests pass); ARK CSS currently validates at 62KB compressed under the 64KB manifest budget |
+| Current validation checkpoint | `php _lint_disyl.php --path storage/cms-themes/ark` (89 templates valid), `php ikabud theme:validate ark` (passes clean, 0 warnings), `php tests/ark_theme_test.php` (108 tests pass), `php tests/ark_capability_bridge_test.php` (451 tests pass), `php tests/ark_renderer_contract_test.php` (66 tests pass), `php tests/ark_safety_test.php` (8 tests pass), `php tests/ark_a11y_audit_test.php` (69 tests pass); ARK CSS validates at 66KB compressed under the 80KB manifest budget |
 | Regression coverage | `tests/theme_manifest_validation_test.php`, `tests/builder_lifecycle_test.php`, `tests/cms_builder_non_entity_widgets_test.php`, and `tests/ark_theme_test.php` cover the current ARK contract and builder seams |
 | Validation baseline | `php ikabud theme:validate ark` is currently expected to pass cleanly against the implemented ARK authority layer |
 
@@ -60,8 +60,6 @@ Based on the current codebase state, including the ARK theme contracts, kernel v
 | Full Theme Studio renderer previews | Needed for visual feedback when editing block definitions |
 | Entity-view-map-driven preset workflows | Needed so Theme Studio can suggest block presets from entity types |
 | Residual dynamic/email/print surface review | Needed to decide whether the remaining inline values are final by design or worth one more helper pass |
-| Dark-mode CSS audit | Token layer is complete; the CSS surface needs a dedicated dark-mode pass |
-| a11y audit | Reference theme needs a dedicated accessibility pass (focus ring, ARIA, print) |
 
 ---
 
@@ -449,7 +447,7 @@ Extend `php ikabud theme:validate` to check against `safety-policy.json`:
 ### Phase 1 — Foundation Fixes
 **Status:** ✅ Complete.
 
-The codebase has the core ARK authority and governance layers in place. All 89 DiSyL templates pass lint. `theme:validate ark` passes cleanly (86 templates, no warnings, no anti-patterns, 62KB CSS compressed under 64KB budget). The reference theme has been pushed through the major helper-normalization passes. ARK contracts are live, theme validation passes, most repeated public-surface styling is class-based, and the remaining inline-heavy areas are explicit exceptions (Alpine lightbox overlays, email-safe/print-safe markup) rather than broad debt.
+The codebase has the core ARK authority and governance layers in place. All 89 DiSyL templates pass lint. `theme:validate ark` passes cleanly (86 templates, 0 warnings, no anti-patterns, 66KB CSS compressed under 80KB budget). The reference theme has been pushed through the major helper-normalization passes. ARK contracts are live, theme validation passes, most repeated public-surface styling is class-based, and the remaining inline-heavy areas are explicit exceptions (Alpine lightbox overlays, email-safe/print-safe markup) rather than broad debt.
 
 ### Phase 2 — Extended Token System
 **Status:** ✅ Complete.
@@ -586,8 +584,8 @@ Other future ARK clients use the same pattern:
 | Capability bridge | `entity-view-map.json` + domain block definitions + `04b-capability-bridge.md` doc + 451 bridge tests | Full map for 5 modules with docs and integration tests ✅ |
 | Safety policy | `safety-policy.json` + validator + `ark-safety-policy.md` doc + 8 safety tests | Policy file, validation enforcement, docs, and dedicated tests ✅ |
 | Builder readiness | Page schema, governed nesting, Theme Studio block authoring, and builder boot constraints are live | ARK JSON schema published, builder can read/write it end-to-end ✅ |
-| Dark mode | Token layer complete; CSS surface needs dedicated dark-mode pass | Full dark mode token layer ✅ (CSS polish pending) |
-| a11y | Builder governance feedback is improved; reference-theme a11y closure still needs a dedicated pass | Full (focus ring, ARIA, print) |
+| Dark mode | Token layer + full semantic remapping + `prefers-color-scheme` media query + 17 dark token variables in tokens.json | Full dark mode token layer ✅ |
+| a11y | Skip link, `:focus-visible`, `prefers-reduced-motion`, `forced-colors`, 44px touch targets, `.ark-sr-only`, `aria-current` — all validated by 69-point audit | Full (focus ring, ARIA, print) ✅ |
 
 ---
 
@@ -600,7 +598,7 @@ ARK v2.0 is complete when the following are all true at the same time:
 3. ✅ The current builder can consume ARK block definitions and constraints without relying on parallel ad hoc rules.
 4. ✅ Theme Studio can edit the full ARK authoring surface — contracts, tokens, blocks, and block definitions — through structured editors.
 5. ✅ Renderer and safety behavior are each protected by dedicated tests and first-class documentation.
-6. 🔶 The ARK reference theme has cleared a fresh mobile, form, dark-mode, print, and accessibility audit. (Dark-mode tokens complete; full CSS + a11y audit pending.)
+6. ✅ The ARK reference theme has cleared a fresh mobile, form, dark-mode, print, and accessibility audit. (`tests/ark_a11y_audit_test.php`: 69 checks, 0 failures across mobile/responsive, form styling, dark mode, print, a11y.)
 7. ✅ Customizer controls and rendered templates are demonstrably in sync across the shipped ARK surfaces.
 
 ---

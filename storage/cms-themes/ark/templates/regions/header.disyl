@@ -38,7 +38,11 @@
             <span class="ark-region-header__tagline" style="color:{header_text};">{site.tagline}</span>
             {/if}
         </div>
-        <nav class="ark-region-header__nav">
+        <nav class="ark-region-header__nav" x-data="{ navOpen: false }">
+            {# Mobile menu toggle — visible below 1024px via CSS #}
+            <button class="ark-header__mobile-toggle" aria-label="Toggle navigation menu" x-bind:aria-expanded="navOpen" x-on:click="navOpen = !navOpen">
+                <span></span><span></span><span></span>
+            </button>
             {if navigation.primary}
             <div class="ark-region-header__nav-links">{navigation.primary|raw}</div>
             {/if}

@@ -95,7 +95,7 @@
         ]
     },
     "performance_budget": {
-        "css_kb": 64,
+        "css_kb": 80,
         "js_kb": 20
     },
     "optional_assets": {

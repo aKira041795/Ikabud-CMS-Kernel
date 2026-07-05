@@ -1688,6 +1688,35 @@ a:hover {
     border-radius: 3px;
 }
 
+/* ── Touch target minimums (WCAG 2.5.5) ── */
+.ark-btn,
+.ark-pagination__item,
+.ark-badge,
+.nav-menu a,
+.ark-header__nav a,
+.ark-form-checkbox,
+.ark-form-radio {
+    min-height: 44px;
+}
+
+.ark-btn--sm {
+    min-height: 32px;
+}
+
+.ark-input,
+.ark-select {
+    min-height: var(--ark-input-height, 40px);
+}
+
+@media (max-width: 768px) {
+    .nav-menu a,
+    .ark-header__nav a {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+    }
+}
+
 .ark-header__mobile-toggle {
     display: none;
     align-items: center;
@@ -2817,6 +2846,91 @@ a:hover {
     font-weight: 500;
 }
 
+/* ── Checkbox & Radio ── */
+.ark-form-group--checkbox,
+.ark-form-group--radio {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ark-form-checkbox,
+.ark-form-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9375rem;
+    color: var(--ark-text, #0f172a);
+    min-height: 44px;
+}
+
+.ark-checkbox,
+.ark-radio {
+    width: 1.125rem;
+    height: 1.125rem;
+    accent-color: var(--ark-primary, #6366f1);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.ark-form-checkbox__label,
+.ark-form-radio__label {
+    user-select: none;
+}
+
+/* ── Disabled states ── */
+.ark-input:disabled,
+.ark-select:disabled,
+.ark-textarea:disabled,
+.ark-checkbox:disabled,
+.ark-radio:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--ark-surface-muted, #f8fafc);
+}
+
+.ark-btn:disabled,
+.ark-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ── Form layout variants ── */
+.ark-form--inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ark-spacing-md, 1.25rem);
+}
+
+.ark-form--inline .ark-form-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.ark-form--two_column {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ark-spacing-md, 1.25rem);
+}
+
+@media (max-width: 768px) {
+    .ark-form--two_column {
+        grid-template-columns: 1fr;
+    }
+
+    .ark-form--inline {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ark-form--inline .ark-form-group {
+        min-width: 0;
+    }
+}
+
 .ark-pagination {
     display: flex;
     align-items: center;
@@ -2935,6 +3049,32 @@ a:hover {
         --ark-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
         --ark-shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
         --ark-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+        --ark-primary: var(--dark-primary, #818cf8);
+        --ark-primary-dark: var(--dark-primary, #818cf8);
+        --ark-primary-light: var(--dark-primary-muted, #312e81);
+        --ark-secondary: var(--dark-secondary, #94a3b8);
+        --ark-secondary-light: var(--dark-surface-muted, #1e293b);
+        --ark-secondary-dark: var(--dark-text, #f1f5f9);
+        --ark-accent: var(--dark-accent, #fbbf24);
+        --ark-accent-light: var(--dark-accent-muted, #78350f);
+        --ark-accent-dark: var(--dark-accent, #fbbf24);
+        --ark-success: var(--dark-success, #4ade80);
+        --ark-warning: var(--dark-warning, #fbbf24);
+        --ark-danger: var(--dark-danger, #f87171);
+        --ark-info: var(--dark-info, #60a5fa);
+        --ark-link: var(--ark-primary, #818cf8);
+        --ark-link-hover: var(--ark-primary, #818cf8);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }
 
@@ -3008,5 +3148,42 @@ a:hover {
     blockquote {
         orphans: 3;
         widows: 3;
+    }
+
+    .ark-card,
+    .ark-table tr,
+    .ark-stat-row > * {
+        page-break-inside: avoid;
+    }
+
+    .ark-table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    .ark-table th,
+    .ark-table td {
+        border: 1px solid #ccc;
+        padding: 6pt;
+    }
+}
+
+@media (forced-colors: active) {
+    .ark-btn {
+        border: 2px solid ButtonText;
+    }
+
+    .ark-input,
+    .ark-select,
+    .ark-textarea {
+        border: 2px solid ButtonText;
+    }
+
+    .ark-card {
+        border: 1px solid ButtonText;
+    }
+
+    .ark-skip:focus {
+        outline: 3px solid Highlight;
     }
 }
