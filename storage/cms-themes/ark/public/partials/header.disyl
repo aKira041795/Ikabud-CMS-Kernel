@@ -1,16 +1,15 @@
 {# ARK: Site Header Partial (Phase 2)
-   Extracted inline header from layouts/public.disyl.
-   Referenced via {include "partials/header.disyl"} from the shell layout. #}
+   Used by the public shell fallback when no customized header HTML exists. #}
 
-{ikb_slot name="header.before" /}
-{ikb_slot name="header.main" /}
+{set header_logo_url = header_logo_image_url|default:site_logo_url|default:''}
+{set header_search_url = base_url~'/search'}
 
 {# Top bar — site tagline + social links #}
-{if social_links}
+{if header_show_topbar and (social_links or (header_show_tagline and site_tagline))}
 <div class="ark-topbar" aria-label="Site highlights">
     <div class="ark-topbar__inner">
         <div class="ark-topbar__left">
-            {if site_tagline}<span>{site_tagline}</span>{/if}
+            {if header_show_tagline and site_tagline}<span>{site_tagline}</span>{/if}
         </div>
         <div class="ark-topbar__right">
             {if social_links}
@@ -24,12 +23,12 @@
 {/if}
 
 {# Main header bar #}
-<header class="ark-header" role="banner" x-data="{ mobileMenuOpen: false }">
+<header class="ark-header ark-header--{header_layout|default:'default'}" role="banner" x-data="{ mobileMenuOpen: false }">
     <div class="ark-header__inner">
         {# Branding #}
         <a href="{base_url}/" class="ark-header__brand">
-            {if site_logo_url}
-            <img src="{site_logo_url}" alt="{site_title|default:'ARK Theme'}" class="ark-header__logo" style="height:32px;width:auto;" />
+            {if header_logo_url}
+            <img src="{header_logo_url}" alt="{site_title|default:'ARK Theme'}" class="ark-header__logo" style="max-height:{header_logo_max_height|default:'40'}px;width:auto;" />
             {else}
             {site_title|default:'ARK Theme'}
             {/if}
@@ -38,8 +37,17 @@
         {# Desktop navigation #}
         <nav class="ark-header__nav" aria-label="Main navigation">
             {if primary_menu}{primary_menu|raw}{/if}
+            {if header_show_search}
+            <a href="{header_search_url}" class="ark-header__action" aria-label="Search site">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <span class="ark-sr-only">Search</span>
+            </a>
+            {/if}
+            {if header_show_cta_button}
+            <a href="{header_cta_url|default:'#'}" class="ark-btn ark-btn--primary ark-btn--sm ark-header__cta">{header_cta_text|default:'Get Started'}</a>
+            {/if}
             {if cart_enabled}
-            <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
+            <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart ark-header__action" aria-label="Shopping cart">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                 {if cart_count > 0}<span class="ark-header__cart-count">({cart_count})</span>{/if}
             </a>
@@ -56,6 +64,12 @@
     <div id="ark-mobile-panel" class="ark-header__mobile-panel" x-show="mobileMenuOpen" x-transition:enter="ark-slide-down-enter" x-transition:enter-start="ark-slide-down-enter-start" x-transition:leave="ark-slide-down-leave" @click.away="mobileMenuOpen = false" style="display:none;">
         <nav aria-label="Mobile navigation">
             {if primary_menu}{primary_menu|raw}{/if}
+            {if header_show_search}
+            <a href="{header_search_url}" class="ark-header__mobile-link">Search</a>
+            {/if}
+            {if header_show_cta_button}
+            <a href="{header_cta_url|default:'#'}" class="ark-btn ark-btn--primary ark-btn--sm ark-header__mobile-cta">{header_cta_text|default:'Get Started'}</a>
+            {/if}
         </nav>
     </div>
 </header>

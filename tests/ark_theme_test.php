@@ -155,7 +155,7 @@ assert_file_exists($themeDir . '/admin/customizer-preview.disyl', 'customizer pr
 assert_file_exists($themeDir . '/admin/theme-info.disyl', 'theme info');
 
 // ══════════════════════════════════════════════════════════════════════════
-// Test 10: All 12 documentation files exist
+// Test 10: Documentation exists
 // ══════════════════════════════════════════════════════════════════════════
 echo "\nTest 10: Documentation exists\n";
 assert_file_exists($themeDir . '/docs/README.md', 'README');
@@ -171,6 +171,9 @@ assert_file_exists($themeDir . '/docs/09-layouts.md', '09-layouts');
 assert_file_exists($themeDir . '/docs/10-multi-surface.md', '10-multi-surface');
 assert_file_exists($themeDir . '/docs/11-macros.md', '11-macros');
 assert_file_exists($themeDir . '/docs/12-deployment.md', '12-deployment');
+assert_file_exists(dirname(__DIR__) . '/docs/themes/ark-renderer-contract.md', 'ark-renderer-contract');
+assert_file_exists(dirname(__DIR__) . '/docs/themes/ark-safety-policy.md', 'ark-safety-policy');
+assert_file_exists(dirname(__DIR__) . '/docs/themes/04b-capability-bridge.md', '04b-capability-bridge');
 
 // ══════════════════════════════════════════════════════════════════════════
 // Test 11: Slot coverage — all 16 declared slots in layout

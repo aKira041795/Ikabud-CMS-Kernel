@@ -203,6 +203,30 @@ function cmsPublicContext(array $extra = []): array
     // Social links from settings
     $socialLinks = cmsPublicSocialLinks($settings);
 
+    $headerSection = ['settings' => function_exists('cmsHeaderSettingsDefaults') ? cmsHeaderSettingsDefaults() : []];
+    $footerSection = ['settings' => function_exists('cmsFooterSettingsDefaults') ? cmsFooterSettingsDefaults() : []];
+    try {
+        $headerSection = function_exists('cmsCustomizerGet')
+            ? cmsCustomizerGet($db, 'header', $activeCustomizerScope)
+            : $headerSection;
+    } catch (Throwable $e) {
+        $headerSection = ['settings' => function_exists('cmsHeaderSettingsDefaults') ? cmsHeaderSettingsDefaults() : []];
+    }
+    try {
+        $footerSection = function_exists('cmsCustomizerGet')
+            ? cmsCustomizerGet($db, 'footer', $activeCustomizerScope)
+            : $footerSection;
+    } catch (Throwable $e) {
+        $footerSection = ['settings' => function_exists('cmsFooterSettingsDefaults') ? cmsFooterSettingsDefaults() : []];
+    }
+
+    $headerSettings = function_exists('cmsValidateHeaderSettings')
+        ? cmsValidateHeaderSettings(is_array($headerSection['settings'] ?? null) ? $headerSection['settings'] : [])
+        : [];
+    $footerSettings = function_exists('cmsValidateFooterSettings')
+        ? cmsValidateFooterSettings(is_array($footerSection['settings'] ?? null) ? $footerSection['settings'] : [])
+        : [];
+
     $ctx = [
         'site_title'    => (string)($settings['site_title'] ?? ''),
         'site_tagline'  => (string)($settings['site_tagline'] ?? ''),
@@ -225,6 +249,21 @@ function cmsPublicContext(array $extra = []): array
         'public_presentation_mode' => $publicPresentationMode !== '' ? $publicPresentationMode : 'traditional',
         'is_ecommerce_public' => $publicRenderOrigin === 'ecommerce',
         'is_ecommerce_entity_route' => !empty($themePolicy['is_ecommerce_entity_route']),
+        'header_layout' => (string)($headerSettings['layout'] ?? 'default'),
+        'header_sticky' => !empty($headerSettings['sticky']),
+        'header_show_topbar' => !empty($headerSettings['show_topbar']),
+        'header_show_tagline' => !empty($headerSettings['show_tagline']),
+        'header_show_search' => !empty($headerSettings['show_search']),
+        'header_show_cta_button' => !empty($headerSettings['show_cta_button']),
+        'header_cta_text' => (string)($headerSettings['cta_text'] ?? 'Get Started'),
+        'header_cta_url' => (string)($headerSettings['cta_url'] ?? ''),
+        'header_logo_image_url' => (string)($headerSettings['logo_image_url'] ?? ''),
+        'header_logo_max_height' => (string)($headerSettings['logo_max_height'] ?? '40'),
+        'header_mobile_menu_style' => (string)($headerSettings['mobile_menu_style'] ?? 'dropdown'),
+        'header_mobile_breakpoint' => (string)($headerSettings['mobile_breakpoint'] ?? '768'),
+        'footer_columns' => (int)($footerSettings['columns'] ?? 3),
+        'footer_admin_link' => !empty($footerSettings['show_admin_link']),
+        'footer_copyright_text' => trim((string)($footerSettings['copyright_text'] ?? '')),
     ];
 
     // Render customized footer if customizer data exists

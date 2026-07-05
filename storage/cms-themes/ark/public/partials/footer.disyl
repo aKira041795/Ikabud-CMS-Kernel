@@ -1,12 +1,8 @@
 {# ARK: Site Footer Partial (Phase 2)
-   Extracted from layouts/public.disyl.
-   Referenced via {include "partials/footer.disyl"}. #}
+   Used by the public shell fallback when no customized footer HTML exists. #}
 
 <footer class="ark-footer" role="contentinfo">
-    {ikb_slot name="footer.before" /}
-    {ikb_slot name="footer.main" /}
-
-    <div class="ark-footer__inner">
+    <div class="ark-footer__inner" style="grid-template-columns: repeat({footer_columns|default:3}, minmax(0, 1fr));">
         {# Column 1: Branding #}
         <div class="ark-footer__col">
             <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
@@ -43,9 +39,12 @@
 
     {# Bottom bar #}
     <div class="ark-footer__bottom">
-        &copy; {current_year} {site_title|default:'ARK Theme'}
+        {if footer_copyright_text}
+            {footer_copyright_text}
+        {else}
+            &copy; {current_year} {site_title|default:'ARK Theme'}
+        {/if}
         {if footer_admin_link|default:false} &middot; <a href="{base_url}/cms/admin">Admin</a>{/if}
     </div>
 
-    {ikb_slot name="footer.after" /}
 </footer>

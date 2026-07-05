@@ -3,19 +3,24 @@
     Featured image + gallery thumbnails with lightbox support. #}
 
 {if entity.featured_image_url or entity.images}
-<div x-data="{ activeImage: '{entity.featured_image_url|default:''}', galleryOpen: false }">
+<div class="ark-media-gallery" x-data="{ activeImage: '{entity.featured_image_url|default:''}', galleryOpen: false }">
     {# Main image #}
     {if entity.featured_image_url}
-    <img src="{entity.featured_image_url}" alt="{entity.title|default:''}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-sm);cursor:pointer;" @click="galleryOpen = true" />
+    <img src="{entity.featured_image_url}" alt="{entity.title|default:''}" class="ark-media-gallery__featured" @click="galleryOpen = true" />
     {/if}
 
     {# Gallery thumbnails #}
     {if entity.images and entity.images|length > 0}
-    <div style="display:flex;gap:0.5rem;overflow-x:auto;padding-bottom:0.5rem;">
+    <div class="ark-media-gallery__thumbs">
         {for img in entity.images}
-        <img src="{img.url|default:img}" alt="" style="width:80px;height:60px;object-fit:cover;border-radius:var(--radius-sm);cursor:pointer;border:2px solid transparent;{if img.url == activeImage or img == activeImage}border-color:var(--color-primary);{/if}" @click="activeImage = '{img.url|default:img}'; galleryOpen = true" />
+        <img src="{img.url|default:img}" alt="" class="ark-media-gallery__thumb" :class="{ 'ark-media-gallery__thumb--active': activeImage === '{img.url|default:img}' }" @click="activeImage = '{img.url|default:img}'; galleryOpen = true" />
         {/for}
     </div>
     {/if}
+
+    <div class="ark-lightbox" x-show="galleryOpen" x-cloak @keydown.escape.window="galleryOpen = false" @click.self="galleryOpen = false" style="display:none;">
+        <button type="button" class="ark-lightbox__close" @click="galleryOpen = false" aria-label="Close image preview">&times;</button>
+        <img :src="activeImage" alt="{entity.title|default:''}" class="ark-lightbox__image" />
+    </div>
 </div>
 {/if}

@@ -223,6 +223,27 @@ a:hover {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: var(--ark-spacing-md);
+}
+
+.ark-header--logo-center .ark-header__inner {
+    justify-content: center;
+}
+
+.ark-header--logo-center .ark-header__nav {
+    margin-left: auto;
+}
+
+.ark-header--stacked {
+    height: auto;
+    padding-top: var(--ark-spacing-sm);
+    padding-bottom: var(--ark-spacing-sm);
+}
+
+.ark-header--stacked .ark-header__inner {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
 }
 
 .ark-header__brand {
@@ -233,10 +254,34 @@ a:hover {
     letter-spacing: -0.02em;
 }
 
+.ark-header__logo {
+    display: block;
+}
+
 .ark-header__nav {
     display: flex;
     gap: 0.25rem;
     align-items: center;
+    flex-wrap: wrap;
+}
+
+.ark-header__action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ark-text-secondary);
+    text-decoration: none;
+    padding: 0.35rem 0.75rem;
+    border-radius: var(--ark-radius-sm);
+}
+
+.ark-header__action:hover {
+    color: var(--ark-primary);
+    background: var(--ark-primary-light);
+}
+
+.ark-header__cta {
+    margin-left: var(--ark-spacing-xs);
 }
 
 .ark-header__nav a {
@@ -269,6 +314,23 @@ a:hover {
 
 .ark-header__nav li {
     display: flex;
+}
+
+.ark-header__mobile-link {
+    display: block;
+    padding: 0.6rem 0.75rem;
+    border-radius: var(--ark-radius-sm, 0.375rem);
+    color: var(--ark-text, #0f172a);
+    text-decoration: none;
+}
+
+.ark-header__mobile-link:hover {
+    background: var(--ark-surface-muted, #f8fafc);
+    color: var(--ark-primary, #6366f1);
+}
+
+.ark-header__mobile-cta {
+    margin-top: var(--ark-spacing-sm);
 }
 
 /* ── Main content ── */
@@ -378,6 +440,79 @@ a:hover {
     height: 180px;
     object-fit: cover;
     background: var(--ark-surface-muted);
+}
+
+/* ── Media gallery / lightbox ── */
+.ark-media-gallery {
+    display: grid;
+    gap: var(--ark-spacing-sm);
+}
+
+.ark-media-gallery__featured {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: var(--ark-radius-md);
+    cursor: zoom-in;
+}
+
+.ark-media-gallery__thumbs {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+}
+
+.ark-media-gallery__thumb {
+    width: 80px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: var(--ark-radius-sm);
+    cursor: pointer;
+    border: 2px solid transparent;
+    flex: 0 0 auto;
+}
+
+.ark-media-gallery__thumb--active {
+    border-color: var(--ark-primary);
+}
+
+.ark-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: var(--ark-z-modal);
+    background: rgba(15, 23, 42, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--ark-spacing-lg);
+    cursor: zoom-out;
+}
+
+.ark-lightbox__image {
+    max-width: min(96vw, 1280px);
+    max-height: 88vh;
+    width: auto;
+    height: auto;
+    border-radius: var(--ark-radius-lg);
+    box-shadow: var(--ark-shadow-xl);
+    cursor: auto;
+}
+
+.ark-lightbox__close {
+    position: absolute;
+    top: var(--ark-spacing-md);
+    right: var(--ark-spacing-md);
+    border: 0;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.84);
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.ark-lightbox__close:hover {
+    color: #fff;
 }
 
 .ark-card__body {

@@ -85,38 +85,7 @@
         {if has_customized_header}
             {customized_header|raw}
         {else}
-            {# ARK default top bar — tagline + social links #}
-            {if social_links}
-            <div class="ark-topbar" aria-label="Site highlights">
-                <div class="ark-topbar__inner">
-                    <div class="ark-topbar__left">
-                        {if site_tagline}<span>{site_tagline}</span>{/if}
-                    </div>
-                    <div class="ark-topbar__right">
-                        {if social_links}
-                            {for link in social_links}
-                            <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
-                            {/for}
-                        {/if}
-                    </div>
-                </div>
-            </div>
-            {/if}
-
-            {# ARK default header bar #}
-            <header class="ark-header" role="banner">
-                <div class="ark-header__inner">
-                    <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
-                    <nav class="ark-header__nav" aria-label="Main navigation">
-                        {if primary_menu}{primary_menu|raw}{/if}
-                        {if cart_enabled}
-                        <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
-                            Cart{if cart_count > 0} ({cart_count}){/if}
-                        </a>
-                        {/if}
-                    </nav>
-                </div>
-            </header>
+            {include "../public/partials/header.disyl"}
         {/if}
     {/if}
     {/block}
@@ -166,35 +135,10 @@
     {if has_customized_footer}
         {customized_footer|raw}
     {else}
-    <footer class="ark-footer" role="contentinfo">
         {ikb_slot name="footer.before" /}
         {ikb_slot name="footer.main" /}
-        <div class="ark-footer__inner">
-            <div class="ark-footer__col">
-                <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
-                <p class="ark-footer__text">{site_tagline|default:'A governed application platform.'}</p>
-                {if social_links}
-                <div class="ark-footer__social">
-                    {for link in social_links}
-                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
-                    {/for}
-                </div>
-                {/if}
-            </div>
-            <div class="ark-footer__col">
-                <h4 class="ark-footer__heading">Navigate</h4>
-                {if footer_menu}{footer_menu|raw}{/if}
-            </div>
-            <div class="ark-footer__col">
-                <h4 class="ark-footer__heading">Info</h4>
-                <p class="ark-footer__text">&copy; {current_year|default:'2026'} {site_title|default:'ARK Theme'}</p>
-            </div>
-        </div>
-        <div class="ark-footer__bottom">
-            Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
-        </div>
+        {include "../public/partials/footer.disyl"}
         {ikb_slot name="footer.after" /}
-    </footer>
     {/if}
 
     {ikb_slot name="site.after" /}
