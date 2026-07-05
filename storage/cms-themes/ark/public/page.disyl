@@ -6,7 +6,7 @@
 {ikb_section padding="large"}
     {ikb_container size="medium"}
         {if page_title}
-        <h1 style="font-size:2rem;font-weight:700;margin:0 0 var(--spacing-md);">{page_title}</h1>
+        <h1 class="ark-page-title ark-page-title--standalone">{page_title}</h1>
         {/if}
         {if body}{body|raw}{/if}
     {/ikb_container}

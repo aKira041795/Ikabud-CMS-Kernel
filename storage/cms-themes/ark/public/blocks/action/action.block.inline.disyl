@@ -2,9 +2,9 @@
     Context: entity, capability_data, entity_presentation
     Compact inline action buttons, no panel wrapper. #}
 
-<div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
+<div class="ark-action-group ark-action-group--compact">
     {for action in capability_data.actions}
-    <a href="{action.url|default:'#'}" style="display:inline-block;padding:0.35rem 0.75rem;font-size:0.8rem;border:1px solid var(--color-border);border-radius:var(--radius-sm);color:var(--color-text);text-decoration:none;">
+    <a href="{action.url|default:'#'}" class="ark-btn ark-btn--outline ark-btn--sm">
         {action.label|default:'Action'}
     </a>
     {/for}

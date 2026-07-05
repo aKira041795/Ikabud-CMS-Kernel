@@ -14,8 +14,8 @@
         />
         {# Progress overlay on image #}
         {if capability_data and capability_data.progress_tracking and capability_data.progress_tracking.percentage}
-        <div style="position:absolute;bottom:0;left:0;right:0;height:4px;background:rgba(0,0,0,0.2);">
-            <div style="height:100%;width:{capability_data.progress_tracking.percentage}%;background:var(--color-primary);transition:width 0.3s;"></div>
+        <div class="ark-progress-overlay">
+            <div class="ark-progress-fill ark-progress-fill--overlay" style="width:{capability_data.progress_tracking.percentage}%;"></div>
         </div>
         {/if}
     </a>
@@ -34,23 +34,23 @@
 
         {# Progress bar #}
         {if capability_data and capability_data.progress_tracking}
-        <div style="margin-top:var(--spacing-sm);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
-                <span style="font-size:0.75rem;font-weight:500;color:var(--color-text);">
+        <div class="ark-progress-card">
+            <div class="ark-progress-row ark-progress-row--compact">
+                <span class="ark-progress-label ark-progress-label--card">
                     {capability_data.progress_tracking.label|default:'Progress'}
                 </span>
-                <span style="font-size:0.72rem;color:var(--color-text-secondary);">
+                <span class="ark-progress-value ark-progress-value--card">
                     {capability_data.progress_tracking.percentage|default:0}%
                 </span>
             </div>
-            <div style="background:var(--color-surface-muted);border-radius:999px;height:6px;overflow:hidden;">
-                <div style="width:{capability_data.progress_tracking.percentage|default:0}%;height:100%;background:var(--color-primary);border-radius:999px;transition:width 0.3s;"></div>
+            <div class="ark-progress-track ark-progress-track--card">
+                <div class="ark-progress-fill" style="width:{capability_data.progress_tracking.percentage|default:0}%;"></div>
             </div>
         </div>
         {/if}
 
         {if row.status}
-        <span class="ark-card__badge" style="margin-top:0.5rem;">{row.status}</span>
+        <span class="ark-card__badge ark-card__badge--stacked">{row.status}</span>
         {/if}
     </div>
 </article>

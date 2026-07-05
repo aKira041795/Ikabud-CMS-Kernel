@@ -94,6 +94,10 @@
             "style.css"
         ]
     },
+    "performance_budget": {
+        "css_kb": 64,
+        "js_kb": 20
+    },
     "optional_assets": {
         "js": [
             "script.js"

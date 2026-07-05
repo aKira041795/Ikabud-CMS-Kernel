@@ -23,7 +23,7 @@
         <span>&middot; {entity.published_at}</span>
         {/if}
         {if entity.category_name}
-        <a href="{entity.category_url|default:'#'}" class="ark-card__badge" style="text-decoration:none;">{entity.category_name}</a>
+        <a href="{entity.category_url|default:'#'}" class="ark-card__badge ark-card__badge--link">{entity.category_name}</a>
         {/if}
         {if entity.reading_time}
         <span>&middot; {entity.reading_time} min read</span>
@@ -35,7 +35,7 @@
     <img
         src="{entity.featured_image_url|default:entity.image}"
         alt="{entity.title|default:''}"
-        style="width:100%;max-height:480px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-lg);"
+        class="ark-detail__image ark-detail__image--featured"
         loading="eager"
     />
     {/if}
@@ -49,14 +49,14 @@
     </div>
 
     {# Post navigation #}
-    <nav style="display:flex;justify-content:space-between;gap:1rem;margin-top:var(--spacing-xl);padding-top:var(--spacing-md);border-top:1px solid var(--color-border);" aria-label="Post navigation">
+    <nav class="ark-post-nav" aria-label="Post navigation">
         {if prev_post}
-        <a href="{prev_post.url}" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">&larr; {prev_post.title}</a>
+        <a href="{prev_post.url}" class="ark-post-nav__link">&larr; {prev_post.title}</a>
         {else}
         <span></span>
         {/if}
         {if next_post}
-        <a href="{next_post.url}" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;text-align:right;">{next_post.title} &rarr;</a>
+        <a href="{next_post.url}" class="ark-post-nav__link ark-post-nav__link--next">{next_post.title} &rarr;</a>
         {else}
         <span></span>
         {/if}

@@ -370,6 +370,18 @@ function validateSingleTheme(string $slug, string $themesPath): array
     // ── 5. Performance budget (CSS/JS file sizes) ─────────────────
     out('  ' . bold('Performance budget'));
 
+    $performanceBudget = is_array($manifest['performance_budget'] ?? null) ? $manifest['performance_budget'] : [];
+    $cssBudgetKb = (int)($performanceBudget['css_kb'] ?? 50);
+    $jsBudgetKb = (int)($performanceBudget['js_kb'] ?? 20);
+    if ($cssBudgetKb <= 0) {
+        $cssBudgetKb = 50;
+    }
+    if ($jsBudgetKb <= 0) {
+        $jsBudgetKb = 20;
+    }
+    $cssBudgetBytes = $cssBudgetKb * 1024;
+    $jsBudgetBytes = $jsBudgetKb * 1024;
+
     // Check required CSS files
     $requiredAssets = $manifest['required_assets'] ?? [];
     $cssFiles = is_array($requiredAssets['css'] ?? null) ? $requiredAssets['css'] : [];
@@ -379,8 +391,8 @@ function validateSingleTheme(string $slug, string $themesPath): array
         if (is_file($cssPath)) {
             $size = filesize($cssPath);
             $allCssSize += $size;
-            if ($size > 51200) { // 50KB
-                out('    ' . yellow('⚠') . " '{$css}' is " . round($size / 1024) . 'KB (budget: 50KB)');
+            if ($size > $cssBudgetBytes) {
+                out('    ' . yellow('⚠') . " '{$css}' is " . round($size / 1024) . 'KB (budget: ' . $cssBudgetKb . 'KB)');
                 $warningCount++;
             }
         }
@@ -399,8 +411,8 @@ function validateSingleTheme(string $slug, string $themesPath): array
         if (is_file($jsPath)) {
             $size = filesize($jsPath);
             $allJsSize += $size;
-            if ($size > 20480) { // 20KB
-                out('    ' . yellow('⚠') . " '{$js}' is " . round($size / 1024) . 'KB (budget: 20KB)');
+            if ($size > $jsBudgetBytes) {
+                out('    ' . yellow('⚠') . " '{$js}' is " . round($size / 1024) . 'KB (budget: ' . $jsBudgetKb . 'KB)');
                 $warningCount++;
             }
         }

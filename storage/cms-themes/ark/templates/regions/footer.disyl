@@ -15,15 +15,15 @@
         .ark-region-footer a { color: var(--footer-link); }
         .ark-region-footer a:hover { color: var(--footer-link-hover); }
     </style>
-    <div style="max-width:1280px;margin:0 auto;padding-left:1rem;padding-right:1rem;">
+    <div class="ark-region-footer__inner">
         {if navigation.footer}
-        <nav style="margin-bottom:1.5rem;text-align:center;">{navigation.footer|raw}</nav>
+        <nav class="ark-region-footer__nav">{navigation.footer|raw}</nav>
         {/if}
-        <div style="text-align:center;color:{footer_text};font-size:0.875rem;">
+        <div class="ark-region-footer__copy" style="color:{footer_text};">
             &copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.
         </div>
         {if section_settings.show_admin_link|default:'1'}
-        <div style="text-align:center;margin-top:0.75rem;font-size:0.75rem;"><a href="/cms/admin">Admin</a></div>
+        <div class="ark-region-footer__admin"><a href="/cms/admin">Admin</a></div>
         {/if}
     </div>
 </div>
@@ -41,7 +41,7 @@
         .ark-region-footer-bar a { color: var(--footer-bar-link); }
         .ark-region-footer-bar a:hover { color: var(--footer-bar-link-hover); }
     </style>
-    <div style="max-width:1280px;margin:0 auto;padding-left:1rem;padding-right:1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+    <div class="ark-region-footer-bar__inner">
         <span>&copy; {current_year|default:'2026'} {site.title|default:''}. All rights reserved.</span>
         {if section_settings.show_admin_link|default:'1'}<a href="/cms/admin">Admin</a>{/if}
     </div>

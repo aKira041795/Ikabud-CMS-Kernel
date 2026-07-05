@@ -12,45 +12,37 @@
 {block head}
 {include "partials/canonical-entity-styles.disyl"}
 {if structured_data}{structured_data|raw}{/if}
-<style>
-    .ark-landing {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }
-</style>
 {/block}
 
 {block content}
 <article class="ark-entity-view ark-landing" data-ark-template="landing">
     {# Hero section — full viewport #}
-    <div style="text-align:center;max-width:720px;margin:0 auto;padding:var(--spacing-xl) var(--spacing-md);">
+    <div class="ark-landing__hero">
         {# Optional logo #}
         {if site_logo_url}
-        <img src="{site_logo_url}" alt="{site_title|default:'ARK'}" style="height:48px;width:auto;margin-bottom:var(--spacing-lg);" />
+        <img src="{site_logo_url}" alt="{site_title|default:'ARK'}" class="ark-landing__logo" />
         {/if}
 
         {# Headline #}
-        <h1 style="font-size:clamp(2rem,6vw,3.5rem);font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin:0 0 var(--spacing-md);color:var(--color-text);">
+        <h1 class="ark-landing__title">
             {entity_view_context.header_title|default:entity.title|default:page_title|default:'Welcome'}
         </h1>
 
         {# Subheadline #}
         {if entity.excerpt or entity.description}
-        <p style="font-size:1.15rem;color:var(--color-text-secondary);max-width:560px;margin:0 auto var(--spacing-lg);line-height:1.6;">
+        <p class="ark-landing__subtitle">
             {entity.excerpt|default:entity.description}
         </p>
         {/if}
 
         {# CTA buttons #}
         {if cta_primary_url}
-        <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
-            <a href="{cta_primary_url}" class="ark-btn" style="display:inline-block;padding:0.75rem 2rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-md);text-decoration:none;font-weight:600;font-size:1rem;">
+        <div class="ark-action-group ark-action-group--centered ark-action-group--landing">
+            <a href="{cta_primary_url}" class="ark-btn ark-btn--primary ark-btn--lg">
                 {cta_primary_label|default:'Get Started'}
             </a>
             {if cta_secondary_url}
-            <a href="{cta_secondary_url}" class="ark-btn" style="display:inline-block;padding:0.75rem 2rem;border:2px solid var(--color-primary);color:var(--color-primary);border-radius:var(--radius-md);text-decoration:none;font-weight:600;font-size:1rem;">
+            <a href="{cta_secondary_url}" class="ark-btn ark-btn--outline ark-btn--lg">
                 {cta_secondary_label|default:'Learn More'}
             </a>
             {/if}
@@ -60,7 +52,7 @@
 
     {# Body content (builder sections below the fold) #}
     {if post_html or entity.body or body}
-    <div class="ark-detail__body ark-content" style="max-width:100%;">
+    <div class="ark-detail__body ark-content ark-landing__body">
         {if builder_enabled}{post_html|raw}
         {else if post_html}{post_html|raw}
         {else if entity.body}{entity.body|raw}

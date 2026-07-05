@@ -2,7 +2,7 @@
    Context: entity, capability_data, entity_presentation
    Builder-facing inventory badge alias for ark.blocks.inventory_badge. #}
 
-<span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.75rem;border-radius:999px;background:var(--color-surface-muted);color:var(--color-text);font-size:0.8rem;font-weight:600;">
-    <span style="width:8px;height:8px;border-radius:50%;background:{if capability_data.inventory.in_stock|default:entity.in_stock|default:0}var(--color-success){else}var(--color-danger){/if};display:inline-block;"></span>
+<span class="ark-badge ark-badge--gray ark-stock-badge">
+    <span class="ark-stock-dot {if capability_data.inventory.in_stock|default:entity.in_stock|default:0}ark-stock-dot--success{else}ark-stock-dot--danger{/if}"></span>
     {if capability_data.inventory.in_stock|default:entity.in_stock|default:0}In Stock{else}Out of Stock{/if}
 </span>

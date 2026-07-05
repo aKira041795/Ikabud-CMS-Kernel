@@ -2,7 +2,7 @@
     Context: entity, content, capability_data
     Author, date, type badge, and reading time. #}
 
-<div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--color-text-secondary);">
+<div class="ark-meta">
     {if entity.author_name}
     <span>By {entity.author_name}</span>
     {/if}
@@ -10,7 +10,7 @@
     <span>&middot; {entity.published_at}</span>
     {/if}
     {if entity.type}
-    <span class="ikb-badge ikb-badge--primary" style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;background:var(--color-primary-light);color:var(--color-primary);">{entity.type}</span>
+    <span class="ark-badge ark-badge--primary">{entity.type}</span>
     {/if}
     {if entity.reading_time}
     <span>&middot; {entity.reading_time} min read</span>

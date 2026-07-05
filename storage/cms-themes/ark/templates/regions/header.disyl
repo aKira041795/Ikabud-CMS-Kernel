@@ -22,36 +22,35 @@
         .ark-region-header a { color: var(--header-link); }
         .ark-region-header a:hover { color: var(--header-link-hover); }
     </style>
-    <div style="display:flex;align-items:center;{if header_layout == 'logo-center'}justify-content:center;{else}justify-content:space-between;{/if}
+    <div class="ark-region-header__inner" style="{if header_layout == 'logo-center'}justify-content:center;{else}justify-content:space-between;{/if}
                 flex-wrap:wrap;padding:{header_pt}px 0 {header_pb}px;color:{header_text};
                 max-width:1280px;margin:0 auto;padding-left:1rem;padding-right:1rem;
                 {if header_layout == 'stacked'}flex-direction:column;text-align:center;{/if}">
-        <div style="display:flex;align-items:center;gap:1rem;">
+        <div class="ark-region-header__brand">
             {if section_settings.logo_image_url}
-            <a href="{site.url}" style="font-weight:700;font-size:1.25rem;color:{header_link};">
-                <img src="{section_settings.logo_image_url}" alt="{site.title}" style="max-height:{section_settings.logo_max_height|default:'40'}px;width:auto;">
+            <a href="{site.url}" class="ark-region-header__site-link">
+                <img src="{section_settings.logo_image_url}" alt="{site.title}" class="ark-region-header__logo" style="max-height:{section_settings.logo_max_height|default:'40'}px;">
             </a>
             {else}
-            <a href="{site.url}" style="font-weight:700;font-size:1.25rem;color:{header_link};">{site.title}</a>
+            <a href="{site.url}" class="ark-region-header__site-link">{site.title}</a>
             {/if}
             {if section_settings.show_tagline|default:'0' and site.tagline}
-            <span style="font-size:0.875rem;color:{header_text};opacity:0.7;">{site.tagline}</span>
+            <span class="ark-region-header__tagline" style="color:{header_text};">{site.tagline}</span>
             {/if}
         </div>
-        <nav style="display:flex;align-items:center;gap:1.5rem;">
+        <nav class="ark-region-header__nav">
             {if navigation.primary}
-            <div style="display:flex;align-items:center;gap:1.5rem;">{navigation.primary|raw}</div>
+            <div class="ark-region-header__nav-links">{navigation.primary|raw}</div>
             {/if}
             {if section_settings.show_search|default:'0'}
-            <button aria-label="Search" style="background:none;border:none;cursor:pointer;color:{header_link};">
+            <button aria-label="Search" class="ark-region-header__search" style="color:{header_link};">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
             </button>
             {/if}
             {if section_settings.show_cta_button|default:'0'}
             <a href="{section_settings.cta_url|default:'#'}"
-               style="display:inline-block;padding:0.5rem 1.25rem;
-                      background:{section_settings.cta_style|default:'primary' == 'primary' ? settings.colors.primary|default:'#6366f1' : 'transparent'};
-                      color:#fff;border-radius:0.5rem;text-decoration:none;font-weight:600;">
+               class="ark-region-header__cta"
+               style="background:{section_settings.cta_style|default:'primary' == 'primary' ? settings.colors.primary|default:'#6366f1' : 'transparent'};">
                 {section_settings.cta_text|default:'Get Started'}
             </a>
             {/if}

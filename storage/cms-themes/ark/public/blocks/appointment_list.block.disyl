@@ -2,11 +2,11 @@
    Context: entity, capability_data, entity_presentation
    Builder-facing appointment list alias for ark.blocks.appointment_list. #}
 
-<ul style="list-style:none;padding:0;margin:0;display:grid;gap:var(--spacing-sm);">
+<ul class="ark-simple-list ark-simple-list--spaced">
     {for appointment in capability_data.appointments|default:[]}
-    <li class="ark-card">
-        <div style="font-weight:600;color:var(--color-text);">{appointment.title|default:appointment.patient_name|default:'Appointment'}</div>
-        <div style="font-size:0.85rem;color:var(--color-text-secondary);">{appointment.date|default:appointment.starts_at|default:'-'}</div>
+    <li class="ark-simple-list__item ark-simple-list__item--card">
+        <div class="ark-simple-list__title ark-simple-list__title--strong">{appointment.title|default:appointment.patient_name|default:'Appointment'}</div>
+        <div class="ark-simple-list__meta ark-simple-list__meta--secondary">{appointment.date|default:appointment.starts_at|default:'-'}</div>
     </li>
     {/for}
 </ul>

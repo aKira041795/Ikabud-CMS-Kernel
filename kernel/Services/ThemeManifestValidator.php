@@ -41,6 +41,10 @@ class ThemeManifestValidator
         'design_language' => ['type' => 'object', 'required' => false, 'description' => 'Design system metadata (type scale, color system, grid, icon set)'],
         'accessibility' => ['type' => 'object', 'required' => false, 'description' => 'Accessibility guarantees and supported features'],
         'browser_support' => ['type' => 'array', 'required' => false, 'description' => 'Targeted browsers'],
+        'performance_budget' => ['type' => 'object', 'required' => false, 'properties' => [
+            'css_kb' => ['type' => 'number', 'required' => false, 'description' => 'Per-file required CSS budget in kilobytes'],
+            'js_kb' => ['type' => 'number', 'required' => false, 'description' => 'Per-file required JS budget in kilobytes'],
+        ], 'description' => 'Optional theme-specific asset budget overrides for validation CLI'],
         'required_assets' => ['type' => 'object', 'required' => false, 'properties' => [
             'css' => ['type' => 'array', 'required' => false],
             'js' => ['type' => 'array', 'required' => false],

@@ -61,6 +61,7 @@ $validManifest = [
     ],
     'accessibility' => ['semantic_landmarks' => true],
     'browser_support' => ['chrome >= 90'],
+    'performance_budget' => ['css_kb' => 64, 'js_kb' => 20],
     'required_assets' => ['css' => ['style.css']],
 ];
 $result = ThemeManifestValidator::validate('test-theme', $validManifest);

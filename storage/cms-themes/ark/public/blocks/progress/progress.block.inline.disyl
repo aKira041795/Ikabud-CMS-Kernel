@@ -2,10 +2,10 @@
     Context: entity, capability_data, entity_presentation
     Compact progress indicator — dot + percentage text. #}
 
-<div style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.8rem;">
-    <span style="width:8px;height:8px;border-radius:50%;background:var(--color-primary);display:inline-block;"></span>
+<div class="ark-progress-inline">
+    <span class="ark-progress-dot"></span>
     <span>{capability_data.progress_tracking.percentage|default:0}%</span>
     {if capability_data.progress_tracking.label}
-    <span style="color:var(--color-text-muted);">{capability_data.progress_tracking.label}</span>
+    <span class="ark-progress-inline__label">{capability_data.progress_tracking.label}</span>
     {/if}
 </div>

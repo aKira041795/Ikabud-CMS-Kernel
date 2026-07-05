@@ -3,18 +3,18 @@
     Full progress bar with percentage and label. #}
 
 {ikb_panel tone="surface" spacing="md" radius="md"}
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-        <span style="font-size:0.875rem;font-weight:500;color:var(--color-text);">
+    <div class="ark-progress-row">
+        <span class="ark-progress-label">
             {capability_data.progress_tracking.label|default:'Progress'}
         </span>
-        <span style="font-size:0.8rem;color:var(--color-text-secondary);">
+        <span class="ark-progress-value">
             {capability_data.progress_tracking.percentage|default:0}%
         </span>
     </div>
-    <div style="background:var(--color-surface-muted);border-radius:999px;height:8px;overflow:hidden;">
-        <div style="width:{capability_data.progress_tracking.percentage|default:0}%;height:100%;background:var(--color-primary);border-radius:999px;transition:width 0.3s;"></div>
+    <div class="ark-progress-track">
+        <div class="ark-progress-fill" style="width:{capability_data.progress_tracking.percentage|default:0}%;"></div>
     </div>
     {if capability_data.progress_tracking.detail}
-    <p style="margin:0.5rem 0 0;font-size:0.8rem;color:var(--color-text-muted);">{capability_data.progress_tracking.detail}</p>
+    <p class="ark-progress-detail">{capability_data.progress_tracking.detail}</p>
     {/if}
 {/ikb_panel}

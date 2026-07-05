@@ -49,6 +49,7 @@ The `theme.manifest.json` file is the canonical identity document for an Ikabud 
 
 | Field | Type | Description |
 |---|---|---|
+| `performance_budget` | object | Optional CLI validation budget overrides such as `css_kb` and `js_kb` for required assets. |
 | `required_assets` | object | CSS/JS/fonts always loaded. |
 | `optional_assets` | object | CSS/JS loaded on demand (bridges). |
 

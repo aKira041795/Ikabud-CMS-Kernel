@@ -10,13 +10,13 @@
      style="width:{sidebar_width}px;
             {if position == 'left'}float:left;margin-right:{section_settings.gap|default:'32'}px;{else}float:right;margin-left:{section_settings.gap|default:'32'}px;{/if}
             {if section_settings.sticky|default:'0'}position:sticky;top:1rem;{/if}">
-    <div style="background:{section_settings.widget_bg_color|default:'#ffffff'};
-                border:1px solid {section_settings.widget_border_color|default:'#e2e8f0'};
-                border-radius:{section_settings.widget_radius|default:'10'}px;
-                padding:{section_settings.widget_padding|default:'16'}px;
-                color:{section_settings.widget_text_color|default:'#334155'};
-                text-align:center;opacity:0.7;">
-        <p style="margin:0;font-size:0.875rem;">Sidebar - Add widgets in Customizer</p>
+    <div class="ark-region-sidebar__widget"
+     style="background:{section_settings.widget_bg_color|default:'#ffffff'};
+        border:1px solid {section_settings.widget_border_color|default:'#e2e8f0'};
+        border-radius:{section_settings.widget_radius|default:'10'}px;
+        padding:{section_settings.widget_padding|default:'16'}px;
+        color:{section_settings.widget_text_color|default:'#334155'};">
+    <p class="ark-region-sidebar__placeholder">Sidebar - Add widgets in Customizer</p>
     </div>
 </div>
 {/if}

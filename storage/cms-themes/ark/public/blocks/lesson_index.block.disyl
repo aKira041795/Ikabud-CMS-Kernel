@@ -2,8 +2,8 @@
    Context: entity, capability_data, entity_presentation
    Builder-facing lesson index alias for ark.blocks.lesson_index. #}
 
-<ol style="list-style:none;padding:0;margin:0;display:grid;gap:var(--spacing-xs);">
+<ol class="ark-simple-list ark-simple-list--compact">
     {for lesson in capability_data.lessons.items|default:capability_data.lessons|default:[]}
-    <li style="padding:var(--spacing-sm);border:1px solid var(--color-border-subtle);border-radius:var(--radius-md);">{lesson.title|default:'Lesson'}</li>
+    <li class="ark-simple-list__item">{lesson.title|default:'Lesson'}</li>
     {/for}
 </ol>

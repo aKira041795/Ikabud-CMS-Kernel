@@ -2,12 +2,12 @@
    Context: entity, capability_data, entity_presentation
    Builder-facing hero alias for ark.blocks.hero. #}
 
-<section class="ark-hero-block" style="padding:var(--spacing-xl) var(--spacing-md);border-radius:var(--radius-lg);background:var(--color-surface-muted);text-align:center;">
-    <h2 style="margin:0 0 var(--spacing-sm);font-size:clamp(2rem,4vw,3rem);font-weight:800;color:var(--color-text);">
+<section class="ark-hero-block">
+    <h2 class="ark-hero-block__title">
         {capability_data.hero.title|default:entity.title|default:page_title|default:'Hero Title'}
     </h2>
     {if capability_data.hero.subtitle|default:entity.excerpt|default:''}
-    <p style="margin:0 auto var(--spacing-md);max-width:720px;color:var(--color-text-secondary);font-size:1rem;line-height:1.6;">
+    <p class="ark-hero-block__subtitle">
         {capability_data.hero.subtitle|default:entity.excerpt}
     </p>
     {/if}

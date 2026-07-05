@@ -3,21 +3,21 @@
     Ordered lesson/course index with completion badges. #}
 
 {ikb_panel tone="surface" spacing="md" radius="md"}
-    <h3 style="font-weight:600;margin:0 0 var(--spacing-sm);font-size:1rem;">
+    <h3 class="ark-lesson-list__heading">
         {capability_data.lessons.label|default:'Course Content'}
     </h3>
-    <ol style="list-style:none;padding:0;margin:0;">
+    <ol class="ark-simple-list">
         {for lesson in capability_data.lessons.items}
-        <li style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0;border-bottom:1px solid var(--color-border-subtle);">
+        <li class="ark-lesson-list__item">
             {if lesson.completed}
-            <span style="width:20px;height:20px;border-radius:50%;background:#22c55e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;">&#x2713;</span>
+            <span class="ark-lesson-list__marker ark-lesson-list__marker--complete">&#x2713;</span>
             {else}
-            <span style="width:20px;height:20px;border-radius:50%;border:2px solid var(--color-border);display:flex;align-items:center;justify-content:center;font-size:0.7rem;flex-shrink:0;">{loop.index}</span>
+            <span class="ark-lesson-list__marker ark-lesson-list__marker--pending">{loop.index}</span>
             {/if}
             <div>
-                <div style="font-weight:500;font-size:0.9rem;">{lesson.title}</div>
+                <div class="ark-lesson-list__title">{lesson.title}</div>
                 {if lesson.duration}
-                <div style="font-size:0.75rem;color:var(--color-text-muted);">{lesson.duration}</div>
+                <div class="ark-lesson-list__meta">{lesson.duration}</div>
                 {/if}
             </div>
         </li>

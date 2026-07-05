@@ -47,7 +47,7 @@
             {# Featured image — builder pages use their own media blocks #}
             {if entity_view_context.show_media|default:1}
                 {if entity.featured_image_url or entity.image}
-                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
+                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" class="ark-detail__image" />
                 {/if}
             {/if}
             {/if}
@@ -113,8 +113,8 @@
             {/if}
 
             {# Navigation — back link #}
-            <div style="margin-top:var(--spacing-lg);">
-                <a href="javascript:history.back()" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">&larr; Back</a>
+            <div class="ark-detail__back">
+                <a href="javascript:history.back()" class="ark-detail__back-link">&larr; Back</a>
             </div>
         </article>
 

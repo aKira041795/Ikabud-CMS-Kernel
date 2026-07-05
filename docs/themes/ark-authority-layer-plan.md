@@ -20,7 +20,7 @@ Modules declare intent. Themes decide presentation. Builders edit valid schema. 
 
 ---
 
-## Current State — Synced Snapshot (2026-07-05)
+## Current State — Synced Snapshot (2026-07-05, latest ARK cleanup pass)
 
 Based on the current codebase state, including the ARK theme contracts, kernel validator, Theme Studio, CMS builder, and targeted regression tests.
 
@@ -34,6 +34,10 @@ Based on the current codebase state, including the ARK theme contracts, kernel v
 | Theme Studio contract editing | `modules/theme-studio/helpers.php` and handlers provide structured editors and save flows for renderer registry, block registry, entity-view map, safety policy, and page-composition schema |
 | Builder governance | `modules/cms/helpers/50-builder.php` loads ARK nesting constraints and exposes them to the client; the React builder consumes them for insert, move, paste, and drag/drop rules |
 | Client-side UX enforcement | `PageBuilder.tsx`, `useBuilderState.ts`, and `ContextMenu.tsx` now surface governed-placement failures instead of silently allowing invalid operations |
+| Manifest-driven validation budgets | `theme.manifest.json` now supports `performance_budget.css_kb` and `performance_budget.js_kb`, and `php ikabud theme:validate ark` consumes those limits so ARK can carry a governed CSS ceiling without validator noise |
+| Reference-theme helper normalization | The ARK reference theme has now moved most repeated public-surface and region-shell presentation into shared helpers in `style.css`, including action, badge/status, media, pricing, table, progress, page-shell, and customizer-region patterns |
+| Public and customizer shell cleanup | `single.disyl`, `full-width.disyl`, public utility surfaces, and customized `header/footer/sidebar` region templates now keep only the dynamic values inline; fixed structure is class-based |
+| Current validation checkpoint | `php _lint_disyl.php --path storage/cms-themes/ark`, `php ikabud theme:validate ark`, and `php tests/ark_theme_test.php` all pass; ARK CSS currently validates at 62KB compressed under the 64KB manifest budget |
 | Regression coverage | `tests/theme_manifest_validation_test.php`, `tests/builder_lifecycle_test.php`, `tests/cms_builder_non_entity_widgets_test.php`, and `tests/ark_theme_test.php` cover the current ARK contract and builder seams |
 | Validation baseline | `php ikabud theme:validate ark` is currently expected to pass cleanly against the implemented ARK authority layer |
 
@@ -42,7 +46,7 @@ Based on the current codebase state, including the ARK theme contracts, kernel v
 | Area | Severity | Current state |
 |---|---|---|
 | Extended design tokens | **HIGH** | Token foundation exists, but the full semantic scale, animation tokens, z-index scale, and dark-mode layer from the original v2.0 target are not yet fully codified |
-| Reference-theme foundation polish | **HIGH** | The codebase now has the ARK contract layers, but the earlier visual audit items for the ARK reference theme still need a fresh pass before they can be treated as closed |
+| Reference-theme residual cleanup | **MEDIUM** | The bulk helper normalization is now complete; the remaining review surface is mostly intentional dynamic inline values plus email-safe and print-safe markup that should only change with clear payoff |
 | Renderer contract documentation | **MEDIUM** | `renderer-registry.json` and validator support exist, but `docs/themes/ark-renderer-contract.md` has not been added yet |
 | Safety policy documentation | **MEDIUM** | `safety-policy.json` exists and is validated, but `docs/themes/ark-safety-policy.md` is still missing |
 | Capability bridge documentation | **MEDIUM** | `entity-view-map.json` exists, but the bridge pattern doc planned as `docs/themes/04b-capability-bridge.md` is not present |
@@ -58,7 +62,7 @@ Based on the current codebase state, including the ARK theme contracts, kernel v
 | Safety-policy reference document | Needed to make theme author restrictions explicit and reviewable |
 | Dedicated renderer and safety test suites | Needed to keep future ARK expansion from regressing through indirect coverage only |
 | Full Theme Studio authoring loop | Needed before Theme Studio can be considered the complete ARK editor rather than the contract editor baseline |
-| Final reference-theme audit closure | Needed before the original UI-polish findings can be considered fully resolved |
+| Residual dynamic/email/print surface review | Needed to decide whether the remaining inline values are final by design or worth one more helper pass |
 
 ---
 
@@ -137,43 +141,34 @@ Add the missing token categories:
 }
 ```
 
-### 1.2 CSS Architecture — Gaps to Close
+### 1.2 CSS Architecture — Remaining Gaps To Close
 
 | File | Change needed |
 |---|---|
-| `style.css` | Add `.ark-btn`, `.ark-btn--{variant}`, `.ark-btn--{size}` |
-| `style.css` | Add `.ark-input`, `.ark-select`, `.ark-textarea`, `.ark-label`, `.ark-form-group` |
-| `style.css` | Add `.ark-badge`, `.ark-badge--{variant}` (semantic token-driven) |
-| `style.css` | Add `.ark-header__mobile-toggle` hamburger icon (CSS-drawn or SVG) |
-| `style.css` | Add `.ark-header__mobile-panel` drawer with transition |
-| `style.css` | Add `:focus-visible` ring consistent with `--color-primary` token |
-| `style.css` | Add `@media print` rules (typography reset, hide nav/footer/sidebar) |
-| `style.css` | Add `@media (prefers-color-scheme: dark)` dark mode token overrides |
-| `style.css` | Add `.ark-pagination`, `.ark-breadcrumb` component classes |
-| `style.css` | Add `.ark-skeleton`, `.ark-spinner` loading states |
+| `style.css` | Expand the token surface from the current production baseline into the full v2 semantic/motion/z-index/component scale |
+| `style.css` | Review whether the remaining dynamic inline customizer values should stay inline or graduate into additional CSS variable helpers |
+| `style.css` | Keep print and dark-mode rules aligned with the still-pending extended token system rather than treating the current baseline as the final surface |
 
 ### 1.3 Customizer — Wiring Fixes
 
 | Control | Fix |
 |---|---|
-| `footer.columns` | Wire to `{set cols = customizer.footer_columns\|default:3}` → use in `grid-template-columns: repeat({cols}, 1fr)` |
-| `header.show_search` | Add search form conditional to header.disyl |
-| `header.show_cta_button` | Add CTA button conditional to header.disyl |
-| `header.layout` | Add `{if header.layout == 'logo-center'}` conditional class switching |
-| `header.logo_max_height` | Apply `style="max-height:{customizer.logo_max_height\|default:32}px"` to logo |
-| `colors.secondary` | Add `--color-secondary` to tokens.json and CSS |
-| `colors.accent` | Add `--color-accent` to tokens.json and CSS |
+| `footer.columns` | Implemented in the public footer partial via dynamic grid columns; remaining question is whether to normalize more of that dynamic layout through shared helpers |
+| `header.show_search` | Implemented in both public and customizer-owned header surfaces |
+| `header.show_cta_button` | Implemented in both public and customizer-owned header surfaces |
+| `header.layout` | Implemented for ARK header layout switching, including the logo-center mode |
+| `header.logo_max_height` | Implemented through dynamic logo sizing in the relevant header surfaces |
+| `colors.secondary` | Implemented in `tokens.json` and consumed in CSS |
+| `colors.accent` | Implemented in `tokens.json` and consumed in CSS |
 
 ### 1.4 Template Fixes (Priority-Ordered)
 
 ```
-[P1] header.disyl     — :aria-expanded binding, mobile CSS, layout modes
-[P1] media-gallery    — complete lightbox overlay (Alpine modal)
-[P1] footer.disyl     — footer.columns wiring, remove hardcoded attribution
-[P2] meta.block       — replace all inline styles with CSS classes
-[P2] entity-views/    — replace inline styles in default-detail.disyl
-[P2] list-card blocks — .ark-card__badge class, progress overlay containment
-[P3] entity.view      — .ark-detail__featured-image class, fix history.back()
+[Done] header.disyl / header surfaces — layout modes, search/CTA conditionals, mobile shell, shared helper cleanup
+[Done] footer surfaces — footer columns wiring baseline and shared region/footer helper cleanup
+[Done] meta/list-card/progress/detail/page shell surfaces — repeated fixed inline styling collapsed into shared classes
+[Open] media-gallery — keep the Alpine lightbox overlay under review as one of the few remaining intentional inline/display-controlled surfaces
+[Open] email/print layouts and dynamic customizer values — these are now the main remaining inline-heavy areas and should only be normalized when the replacement stays email-safe, print-safe, and DiSyL-safe
 ```
 
 ---
@@ -453,9 +448,9 @@ Extend `php ikabud theme:validate` to check against `safety-policy.json`:
 ## Phase Status
 
 ### Phase 1 — Foundation Fixes
-**Status:** Partial.
+**Status:** Implemented baseline.
 
-The codebase now has the core ARK authority and governance layers in place, but the original ARK reference-theme visual audit items should be revalidated as a separate closeout pass. Current success for this phase should be measured as: ARK contracts are live, theme validation passes, and theme-surface polish items are tracked explicitly rather than assumed complete.
+The codebase now has the core ARK authority and governance layers in place, and the reference theme has been pushed through the major helper-normalization passes. Current success for this phase should be measured as: ARK contracts are live, theme validation passes, most repeated public-surface styling is class-based, and the remaining inline-heavy areas are explicit exceptions rather than broad debt.
 
 ### Phase 2 — Extended Token System
 **Status:** Pending.

@@ -13,10 +13,10 @@
 {/block}
 
 {block content}
-<article class="ark-entity-view" data-ark-template="full-width" style="max-width:100%;">
+<article class="ark-entity-view ark-entity-view--full" data-ark-template="full-width">
     {# Header #}
     {if entity_view_context.show_header|default:1}
-    <header style="margin-bottom:var(--spacing-lg);">
+    <header class="ark-page-intro">
         <h1 class="ark-detail__title">{entity_view_context.header_title|default:entity.title|default:page_title}</h1>
         {if entity_view_context.show_meta|default:1}
         <div class="ark-detail__meta">
@@ -31,12 +31,12 @@
     <img
         src="{entity.featured_image_url|default:entity.image}"
         alt="{entity.title|default:''}"
-        style="width:100%;max-height:500px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-lg);"
+        class="ark-detail__image ark-detail__image--hero"
     />
     {/if}
 
     {# Body — full-width, unconstrained #}
-    <div class="ark-detail__body ark-content" style="max-width:100%;">
+    <div class="ark-detail__body ark-content ark-detail__body--wide">
         {if builder_enabled}
         <div class="{builder_page_settings.container_class|default:''}">
             {post_html|raw}
