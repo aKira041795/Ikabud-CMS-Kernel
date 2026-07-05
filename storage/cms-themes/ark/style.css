@@ -1664,7 +1664,6 @@ a:hover {
     .ark-header__mobile-toggle { display: flex; }
 }
 
-/* ── Buttons ────────────────────────────────────────────────────── */
 .ark-btn {
     display: inline-flex;
     align-items: center;
@@ -1702,7 +1701,6 @@ a:hover {
 
 .ark-btn:disabled, .ark-btn[disabled] { opacity: 0.48; cursor: not-allowed; pointer-events: none; }
 
-/* ── Badges ─────────────────────────────────────────────────────── */
 .ark-badge {
     display: inline-flex;
     align-items: center;
@@ -1724,7 +1722,6 @@ a:hover {
 .ark-badge--info     { background: #dbeafe; color: #1e40af; }
 .ark-badge--gray     { background: #f1f5f9; color: #475569; }
 
-/* Card status badge (semantic, not hardcoded) */
 .ark-card__badge {
     display: inline-block;
     padding: 0.15rem 0.5rem;
@@ -1738,12 +1735,89 @@ a:hover {
     margin-bottom: 0.5rem;
 }
 
-/* Card inventory status — semantic token-driven */
 .ark-card__status--in-stock  { color: var(--color-success, #22c55e); }
 .ark-card__status--low       { color: var(--color-warning, #f59e0b); }
 .ark-card__status--out       { color: var(--color-danger, #ef4444); }
 
-/* ── Form Elements ───────────────────────────────────────────────── */
+.ark-stock-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.ark-stock-badge {
+    gap: 0.35rem;
+}
+
+.ark-stock-badge--card {
+    margin-bottom: 0.35rem;
+}
+
+.ark-stock-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ark-stock-dot--sm {
+    width: 6px;
+    height: 6px;
+}
+
+.ark-stock-dot--success {
+    background: var(--color-success, #22c55e);
+}
+
+.ark-stock-dot--danger {
+    background: var(--color-danger, #ef4444);
+}
+
+.ark-stock-meta {
+    font-size: 0.85rem;
+    color: var(--ark-text-secondary);
+}
+
+.ark-stock-meta--card {
+    margin-top: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.ark-stock-warning {
+    margin: var(--ark-spacing-sm) 0 0;
+    font-size: 0.8rem;
+    color: var(--color-warning, #f59e0b);
+}
+
+.ark-stock-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.ark-stock-inline--status {
+    gap: 0.2rem;
+    flex-shrink: 0;
+}
+
+.ark-stock-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.ark-card__title--compact {
+    margin: 0;
+}
+
+.ark-card__price--tight {
+    margin-top: 0.25rem;
+}
+
 .ark-form-group {
     display: flex;
     flex-direction: column;
@@ -1810,7 +1884,6 @@ a:hover {
 .ark-field-hint  { font-size: 0.8125rem; color: var(--ark-text-muted, #94a3b8); }
 .ark-field-error { font-size: 0.8125rem; color: var(--color-danger, #ef4444); font-weight: 500; }
 
-/* ── Pagination ──────────────────────────────────────────────────── */
 .ark-pagination {
     display: flex;
     align-items: center;
@@ -1840,7 +1913,6 @@ a:hover {
 .ark-pagination__item--current          { background: var(--ark-primary, #6366f1); color: #fff; border-color: var(--ark-primary, #6366f1); }
 .ark-pagination__item--disabled         { opacity: 0.4; pointer-events: none; }
 
-/* ── Breadcrumbs ─────────────────────────────────────────────────── */
 .ark-breadcrumb {
     display: flex;
     align-items: center;

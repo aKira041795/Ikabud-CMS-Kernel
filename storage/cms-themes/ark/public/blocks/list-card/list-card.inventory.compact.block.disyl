@@ -15,8 +15,8 @@
     </a>
     {/if}
     <div class="ark-card__body">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;">
-            <h3 class="ark-card__title" style="margin:0;">
+        <div class="ark-stock-card-row">
+            <h3 class="ark-card__title ark-card__title--compact">
                 {if row.url}<a href="{row.url}">{/if}
                 {row.title|default:row.name|default:row.label|default:'Untitled'}
                 {if row.url}</a>{/if}
@@ -25,12 +25,12 @@
             {# Compact stock dot — just the indicator #}
             {if capability_data and capability_data.inventory}
                 {if capability_data.inventory.in_stock}
-                <span style="display:inline-flex;align-items:center;gap:0.2rem;font-size:0.7rem;font-weight:500;color:#166534;flex-shrink:0;" title="In Stock">
-                    <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+                <span class="ark-stock-inline ark-stock-inline--status" title="In Stock">
+                    <span class="ark-stock-dot ark-stock-dot--success ark-stock-dot--sm"></span>
                 </span>
                 {else}
-                <span style="display:inline-flex;align-items:center;gap:0.2rem;font-size:0.7rem;font-weight:500;color:#991b1b;flex-shrink:0;" title="Out of Stock">
-                    <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+                <span class="ark-stock-inline ark-stock-inline--status" title="Out of Stock">
+                    <span class="ark-stock-dot ark-stock-dot--danger ark-stock-dot--sm"></span>
                 </span>
                 {/if}
             {/if}

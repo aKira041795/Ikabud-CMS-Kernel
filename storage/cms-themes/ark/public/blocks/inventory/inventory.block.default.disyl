@@ -3,26 +3,26 @@
     Full stock status with badge, quantity, and low-stock warning. #}
 
 {ikb_panel tone="surface" spacing="md" radius="md"}
-    <div style="display:flex;align-items:center;gap:0.75rem;">
+    <div class="ark-stock-row">
         {if capability_data.inventory.in_stock}
-        <span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.25rem 0.75rem;border-radius:999px;font-size:0.8rem;font-weight:600;background:#dcfce7;color:#166534;">
-            <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+        <span class="ark-badge ark-badge--success ark-stock-badge">
+            <span class="ark-stock-dot ark-stock-dot--success"></span>
             In Stock
         </span>
         {else}
-        <span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.25rem 0.75rem;border-radius:999px;font-size:0.8rem;font-weight:600;background:#fee2e2;color:#991b1b;">
-            <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+        <span class="ark-badge ark-badge--danger ark-stock-badge">
+            <span class="ark-stock-dot ark-stock-dot--danger"></span>
             Out of Stock
         </span>
         {/if}
         {if capability_data.inventory.quantity is not null}
-        <span style="font-size:0.85rem;color:var(--color-text-secondary);">
+        <span class="ark-stock-meta">
             {capability_data.inventory.quantity} available
         </span>
         {/if}
     </div>
     {if capability_data.inventory.low_stock_threshold is not null and capability_data.inventory.quantity <= capability_data.inventory.low_stock_threshold}
-    <p style="margin:var(--spacing-sm) 0 0;font-size:0.8rem;color:var(--color-warning);">
+    <p class="ark-stock-warning">
         Low stock &mdash; order soon
     </p>
     {/if}

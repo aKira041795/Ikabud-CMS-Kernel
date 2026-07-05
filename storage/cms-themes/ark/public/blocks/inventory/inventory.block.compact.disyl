@@ -2,12 +2,12 @@
     Context: entity, capability_data, entity_presentation
     Minimal stock indicator — dot + label. #}
 
-<span style="display:inline-flex;align-items:center;gap:0.25rem;font-size:0.8rem;font-weight:500;">
+<span class="ark-stock-inline">
     {if capability_data.inventory.in_stock}
-    <span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+    <span class="ark-stock-dot ark-stock-dot--success ark-stock-dot--sm"></span>
     In Stock
     {else}
-    <span style="width:6px;height:6px;border-radius:50%;background:#ef4444;display:inline-block;"></span>
+    <span class="ark-stock-dot ark-stock-dot--danger ark-stock-dot--sm"></span>
     Out of Stock
     {/if}
 </span>
