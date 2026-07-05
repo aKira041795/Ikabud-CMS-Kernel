@@ -4,30 +4,117 @@
     --ark-primary: var(--color-primary, #6366f1);
     --ark-primary-dark: var(--color-primary-dark, #4f46e5);
     --ark-primary-light: var(--color-primary-light, #eef2ff);
+    --ark-secondary: var(--color-secondary, #64748b);
+    --ark-secondary-light: var(--color-secondary-light, #f1f5f9);
+    --ark-secondary-dark: var(--color-secondary-dark, #334155);
+    --ark-accent: var(--color-accent, #f59e0b);
+    --ark-accent-light: var(--color-accent-light, #fef3c7);
+    --ark-accent-dark: var(--color-accent-dark, #d97706);
     --ark-surface: var(--color-surface, #ffffff);
     --ark-surface-muted: var(--color-surface-muted, #f8fafc);
+    --ark-surface-elevated: var(--color-surface-elevated, #ffffff);
+    --ark-surface-inverse: var(--color-surface-inverse, #0f172a);
     --ark-text: var(--color-text, #0f172a);
     --ark-text-secondary: var(--color-text-secondary, #475569);
     --ark-text-muted: var(--color-text-muted, #94a3b8);
+    --ark-text-inverse: var(--color-text-inverse, #f8fafc);
+    --ark-link: var(--color-link, var(--color-primary, #6366f1));
+    --ark-link-hover: var(--color-link-hover, var(--color-primary-dark, #4f46e5));
     --ark-border: var(--color-border, #e2e8f0);
+    --ark-border-subtle: var(--color-border-subtle, #f1f5f9);
+    --ark-border-strong: var(--color-border-strong, #cbd5e1);
     --ark-success: var(--color-success, #22c55e);
     --ark-warning: var(--color-warning, #f59e0b);
     --ark-danger: var(--color-danger, #ef4444);
     --ark-info: var(--color-info, #3b82f6);
     --ark-font-family: var(--font-family, Inter, system-ui, sans-serif);
+    --ark-font-family-heading: var(--font-family-heading, var(--font-family, Inter, system-ui, sans-serif));
+    --ark-font-size-xs: var(--font-size-xs, 0.75rem);
+    --ark-font-size-sm: var(--font-size-sm, 0.875rem);
     --ark-font-size: var(--font-size-base, 16px);
-    --ark-line-height: 1.6;
+    --ark-font-size-lg: var(--font-size-lg, 1.125rem);
+    --ark-font-size-xl: var(--font-size-xl, 1.25rem);
+    --ark-font-size-2xl: var(--font-size-2xl, 1.5rem);
+    --ark-font-size-3xl: var(--font-size-3xl, 1.875rem);
+    --ark-font-size-4xl: var(--font-size-4xl, 2.25rem);
+    --ark-font-size-5xl: var(--font-size-5xl, 3rem);
+    --ark-font-size-6xl: var(--font-size-6xl, 3.75rem);
+    --ark-line-height: var(--line-height, var(--line-height-base, 1.6));
+    --ark-line-height-tight: var(--line-height-tight, 1.25);
+    --ark-line-height-relaxed: var(--line-height-relaxed, 1.75);
+    --ark-font-weight-normal: var(--font-weight-normal, 400);
+    --ark-font-weight-medium: var(--font-weight-medium, 500);
+    --ark-font-weight-semibold: var(--font-weight-semibold, 600);
+    --ark-font-weight-bold: var(--font-weight-bold, var(--heading-weight, 700));
+    --ark-font-weight-extrabold: var(--font-weight-extrabold, 800);
+    --ark-radius-none: var(--radius-none, 0);
     --ark-radius-sm: var(--radius-sm, 0.375rem);
     --ark-radius-md: var(--radius-md, 0.75rem);
     --ark-radius-lg: var(--radius-lg, 1rem);
+    --ark-radius-xl: var(--radius-xl, 1.5rem);
+    --ark-radius-2xl: var(--radius-2xl, 2rem);
+    --ark-radius-full: var(--radius-full, 9999px);
+    --ark-spacing-2xs: var(--spacing-2xs, 0.25rem);
+    --ark-spacing-xs: var(--spacing-xs, 0.5rem);
     --ark-spacing-sm: var(--spacing-sm, 0.75rem);
     --ark-spacing-md: var(--spacing-md, 1.25rem);
     --ark-spacing-lg: var(--spacing-lg, 2rem);
     --ark-spacing-xl: var(--spacing-xl, 3rem);
+    --ark-spacing-2xl: var(--spacing-2xl, 5rem);
+    --ark-spacing-3xl: var(--spacing-3xl, 6rem);
+    --ark-spacing-4xl: var(--spacing-4xl, 8rem);
+    --ark-spacing-5xl: var(--spacing-5xl, 10rem);
+    --ark-shadow-sm: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05));
+    --ark-shadow-md: var(--shadow-md, 0 4px 6px rgba(0,0,0,0.07));
+    --ark-shadow-lg: var(--shadow-lg, 0 10px 25px rgba(0,0,0,0.08));
+    --ark-shadow-xl: var(--shadow-xl, 0 20px 40px rgba(15,23,42,0.12));
+    --ark-shadow-inner: var(--shadow-inner, inset 0 1px 2px rgba(15,23,42,0.08));
+    --ark-duration-fast: var(--duration-fast, 80ms);
+    --ark-duration-base: var(--duration-base, 150ms);
+    --ark-duration-slow: var(--duration-slow, 300ms);
+    --ark-duration-slower: var(--duration-slower, 500ms);
+    --ark-easing-standard: var(--easing-standard, cubic-bezier(0.4, 0, 0.2, 1));
+    --ark-easing-decelerate: var(--easing-decelerate, cubic-bezier(0, 0, 0.2, 1));
+    --ark-easing-accelerate: var(--easing-accelerate, cubic-bezier(0.4, 0, 1, 1));
+    --ark-easing-spring: var(--easing-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+    --ark-z-base: var(--z-base, 0);
+    --ark-z-raised: var(--z-raised, 10);
+    --ark-z-sticky: var(--z-sticky, 100);
+    --ark-z-dropdown: var(--z-dropdown, 150);
+    --ark-z-overlay: var(--z-overlay, 200);
+    --ark-z-modal: var(--z-modal, 300);
+    --ark-z-toast: var(--z-toast, 400);
+    --ark-z-skip-link: var(--z-skip-link, 9999);
     /* Layout: customizer sets --theme-site-max-width, --theme-content-max-width,
        --theme-content-px, --theme-content-pt, --theme-content-pb via theme_layout_style */
-    --ark-max-width: var(--layout-max-width, var(--theme-site-max-width, 1280px));
+    --ark-max-width: var(--layout-max-width, var(--container-max, var(--theme-site-max-width, 1280px)));
+    --ark-content-max-width: var(--layout-content-max-width, var(--ark-max-width));
+    --ark-reading-max-width: var(--layout-reading-max-width, 72ch);
+    --ark-gutter: var(--layout-gutter, 1rem);
     --ark-header-height: var(--header-height, 64px);
+    --ark-sidebar-width: var(--sidebar-width, 300px);
+    --ark-button-height-sm: var(--button-height-sm, 32px);
+    --ark-button-height-md: var(--button-height-md, 40px);
+    --ark-button-height-lg: var(--button-height-lg, 48px);
+    --ark-button-padding-x-sm: var(--button-padding-x-sm, 0.75rem);
+    --ark-button-padding-x-md: var(--button-padding-x-md, 1rem);
+    --ark-button-padding-x-lg: var(--button-padding-x-lg, 1.25rem);
+    --ark-button-padding-y-sm: var(--button-padding-y-sm, 0.35rem);
+    --ark-button-padding-y-md: var(--button-padding-y-md, 0.55rem);
+    --ark-button-padding-y-lg: var(--button-padding-y-lg, 0.75rem);
+    --ark-button-radius: var(--button-radius, var(--ark-radius-md));
+    --ark-button-font-weight: var(--button-font-weight, var(--ark-font-weight-semibold));
+    --ark-input-height: var(--input-height, 40px);
+    --ark-input-padding-x: var(--input-padding-x, 0.875rem);
+    --ark-input-padding-y: var(--input-padding-y, 0.55rem);
+    --ark-input-radius: var(--input-radius, var(--ark-radius-md));
+    --ark-input-border-width: var(--input-border-width, 1.5px);
+    --ark-input-focus-ring-width: var(--input-focus-ring-width, 3px);
+    --ark-badge-height: var(--badge-height, 20px);
+    --ark-badge-padding-x: var(--badge-padding-x, 0.55rem);
+    --ark-badge-padding-y: var(--badge-padding-y, 0.15rem);
+    --ark-badge-radius: var(--badge-radius, var(--ark-radius-full));
+    --ark-badge-font-size: var(--badge-font-size, 0.75rem);
 }
 
 *,
@@ -57,6 +144,14 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+a {
+    color: var(--ark-link);
+}
+
+a:hover {
+    color: var(--ark-link-hover);
+}
+
 /* ── Skip-to-content ── */
 .ark-skip {
     position: absolute;
@@ -65,7 +160,7 @@ body {
     background: var(--ark-primary);
     color: #fff;
     padding: 0.5rem 1rem;
-    z-index: 10000;
+    z-index: var(--ark-z-skip-link);
     text-decoration: none;
 }
 
@@ -117,7 +212,7 @@ body {
     align-items: center;
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: var(--ark-z-sticky);
     padding: 0 var(--ark-spacing-md);
 }
 
@@ -1241,7 +1336,7 @@ body {
 
 /* ── Focus-Visible Ring (a11y) ─────────────────────────────────── */
 *:focus-visible {
-    outline: 2px solid var(--ark-primary, #6366f1);
+    outline: var(--ark-input-focus-ring-width, 3px) solid var(--ark-primary, #6366f1);
     outline-offset: 3px;
     border-radius: 3px;
 }
@@ -1338,12 +1433,13 @@ body {
     align-items: center;
     justify-content: center;
     gap: 0.4em;
-    padding: 0.55rem var(--ark-spacing-md, 1.25rem);
+    min-height: var(--ark-button-height-md, 40px);
+    padding: var(--ark-button-padding-y-md, 0.55rem) var(--ark-button-padding-x-md, 1rem);
     font-size: 0.9375rem;
-    font-weight: 600;
+    font-weight: var(--ark-button-font-weight, 600);
     font-family: var(--ark-font-family, 'Inter', system-ui, sans-serif);
     line-height: 1.4;
-    border-radius: var(--ark-radius-md, 0.75rem);
+    border-radius: var(--ark-button-radius, var(--ark-radius-md, 0.75rem));
     border: 1.5px solid transparent;
     cursor: pointer;
     text-decoration: none;
@@ -1364,8 +1460,8 @@ body {
 .ark-btn--danger    { background: var(--color-danger, #ef4444); color: #fff; border-color: var(--color-danger, #ef4444); }
 .ark-btn--danger:hover { opacity: 0.9; }
 
-.ark-btn--sm { padding: 0.35rem 0.75rem; font-size: 0.8125rem; border-radius: var(--ark-radius-sm, 0.375rem); }
-.ark-btn--lg { padding: 0.75rem 1.75rem; font-size: 1.0625rem; }
+.ark-btn--sm { min-height: var(--ark-button-height-sm, 32px); padding: var(--ark-button-padding-y-sm, 0.35rem) var(--ark-button-padding-x-sm, 0.75rem); font-size: 0.8125rem; border-radius: var(--ark-radius-sm, 0.375rem); }
+.ark-btn--lg { min-height: var(--ark-button-height-lg, 48px); padding: var(--ark-button-padding-y-lg, 0.75rem) var(--ark-button-padding-x-lg, 1.25rem); font-size: 1.0625rem; }
 
 .ark-btn:disabled, .ark-btn[disabled] { opacity: 0.48; cursor: not-allowed; pointer-events: none; }
 
@@ -1374,11 +1470,12 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 0.25em;
-    padding: 0.15rem 0.55rem;
-    font-size: 0.75rem;
+    min-height: var(--ark-badge-height, 20px);
+    padding: var(--ark-badge-padding-y, 0.15rem) var(--ark-badge-padding-x, 0.55rem);
+    font-size: var(--ark-badge-font-size, 0.75rem);
     font-weight: 600;
     line-height: 1.4;
-    border-radius: var(--ark-radius-full, 9999px);
+    border-radius: var(--ark-badge-radius, var(--ark-radius-full, 9999px));
     white-space: nowrap;
 }
 
@@ -1433,13 +1530,14 @@ body {
 .ark-textarea {
     display: block;
     width: 100%;
-    padding: 0.55rem 0.875rem;
+    min-height: var(--ark-input-height, 40px);
+    padding: var(--ark-input-padding-y, 0.55rem) var(--ark-input-padding-x, 0.875rem);
     font-size: 0.9375rem;
     font-family: var(--ark-font-family, 'Inter', system-ui, sans-serif);
     color: var(--ark-text, #0f172a);
     background: var(--ark-surface, #ffffff);
-    border: 1.5px solid var(--ark-border, #e2e8f0);
-    border-radius: var(--ark-radius-md, 0.75rem);
+    border: var(--ark-input-border-width, 1.5px) solid var(--ark-border, #e2e8f0);
+    border-radius: var(--ark-input-radius, var(--ark-radius-md, 0.75rem));
     transition: border-color var(--ark-duration-fast, 80ms), box-shadow var(--ark-duration-fast, 80ms);
     appearance: none;
     line-height: 1.5;
@@ -1450,7 +1548,7 @@ body {
 .ark-textarea:focus {
     outline: none;
     border-color: var(--ark-primary, #6366f1);
-    box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    box-shadow: 0 0 0 var(--ark-input-focus-ring-width, 3px) rgba(99,102,241,0.15);
 }
 
 .ark-input::placeholder,
@@ -1465,7 +1563,7 @@ body {
 .ark-input--error:focus,
 .ark-select--error:focus,
 .ark-textarea--error:focus {
-    box-shadow: 0 0 0 3px rgba(239,68,68,0.15);
+    box-shadow: 0 0 0 var(--ark-input-focus-ring-width, 3px) rgba(239,68,68,0.15);
 }
 
 .ark-textarea { min-height: 100px; resize: vertical; }
@@ -1550,13 +1648,14 @@ body {
 /* ── Dark Mode ───────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
     :root {
-        --ark-surface: #0f172a;
-        --ark-surface-muted: #1e293b;
-        --ark-text: #f1f5f9;
-        --ark-text-secondary: #94a3b8;
-        --ark-text-muted: #64748b;
-        --ark-border: #334155;
-        --ark-border-subtle: #1e293b;
+        --ark-surface: var(--dark-surface, #0f172a);
+        --ark-surface-muted: var(--dark-surface-muted, #1e293b);
+        --ark-surface-elevated: var(--dark-surface-elevated, #111827);
+        --ark-text: var(--dark-text, #f1f5f9);
+        --ark-text-secondary: var(--dark-text-secondary, #94a3b8);
+        --ark-text-muted: var(--dark-text-muted, #64748b);
+        --ark-border: var(--dark-border, #334155);
+        --ark-border-subtle: var(--dark-border-subtle, #1e293b);
         --ark-shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
         --ark-shadow-md: 0 4px 6px rgba(0,0,0,0.4);
         --ark-shadow-lg: 0 10px 25px rgba(0,0,0,0.5);
