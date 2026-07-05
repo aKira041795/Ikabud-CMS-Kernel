@@ -1,22 +1,55 @@
-# ARK — Theming Authority Layer Plan
-> **Version:** 1.4 — 2026-07-05 (a11y audit pass)  
+# ARK — Architectural Rendering Kit · The Visual Operating Specification of Ikabud
+> **Version:** 2.0 — 2026-07-05 (ARK v2.0 complete)  
 > **Author:** Systems Architect / GUI Designer  
-> **Status:** Active Implementation, Synced To Codebase  
-> **Scope:** Kernel OS 6.1.0+ · DiSyL 4.7.0+ · ARK v2.0
+> **Status:** v2.0 Complete — All 7 Success Criteria Met  
+> **Scope:** Kernel OS 6.1.0+ · DiSyL 4.7.0+ · ARK v2.0  
+> **Next:** Render Intent Layer, Render Profiles (ARK v3 candidates)
 
 ---
 
 ## Principle Statement
 
-> **ARK is the kernel-owned theming and visual contract layer of Ikabud. It defines how pages, layouts, components, entity views, design tokens, and builder-compatible blocks are declared, validated, rendered, and customized across modules. Page builders do not replace ARK — they implement ARK.**
+> **ARK is the visual constitution of Kernel OS. It is not a theme engine, not a page builder, not a CSS framework. It is the specification that governs how every visual artifact inside Ikabud is declared, validated, edited, rendered, and secured.**
 
-ARK is not a theme engine. It is not a page builder. It is not CSS presets.
+ARK has outgrown the phrase "Theming Authority Layer." It now governs:
+
+- **themes** — visual presentation and customization
+- **renderers** — how schema becomes output (DiSyL, React, PDF, email, print, native)
+- **builders** — what blocks exist, how they nest, what controls they expose
+- **entity views** — how business entities present across modules
+- **design tokens** — the semantic visual language
+- **validation** — what "valid" means at every layer
+- **accessibility** — mobile, form, dark-mode, print, reduced-motion, forced-colors
+- **capability bridges** — cross-module entity presentation contracts
+- **safety policy** — what templates may and may not do
 
 ARK answers exactly one question:
 
 > "How does anything visual become valid, renderable, customizable, portable, and safe inside Ikabud?"
 
 Modules declare intent. Themes decide presentation. Builders edit valid schema. DiSyL renders safely. Kernel enforces boundaries. **ARK defines what "valid" means for each layer.**
+
+---
+
+## ARK's Role in the Ikabud Ecosystem
+
+ARK is one of four pillars in the Kernel OS architecture, each with clear boundaries:
+
+| Pillar | Governs |
+|---|---|
+| **Kernel** | Execution, policy, routing, auth, multi-tenancy |
+| **DiSyL** | Declarative syntax, rendering language, template safety |
+| **ARK** | Visual semantics, presentation contracts, builder protocol |
+| **Modules** | Business capabilities, domain logic, data ownership |
+
+```
+Modules don't negotiate with themes.
+Themes don't negotiate with builders.
+Builders don't negotiate with renderers.
+Everyone speaks ARK.
+```
+
+Kernel governs execution. DiSyL governs syntax. ARK governs visual contracts. Modules provide capability. **Theme Studio** authors ARK-compatible assets. **Page Builders** edit ARK-compatible layouts. This is a coherent architecture with clear boundaries — it has matured well beyond a conventional theming engine.
 
 ---
 
@@ -603,6 +636,62 @@ ARK v2.0 is complete when the following are all true at the same time:
 
 ---
 
+## Future Directions — ARK v3 Candidates
+
+These are not required for v2.0 but represent the natural evolution of ARK's architecture.
+
+### Render Intent Layer
+
+Today ARK maps entities to blocks to renderers. A future Render Intent Layer would allow AI and high-level tools to express *purpose* without knowing block names:
+
+```
+Intent (Dashboard)
+    ↓
+ARK translates
+    ↓
+Blocks (Stat Cards, Charts, Activity Feed, Actions)
+    ↓
+Renderers
+```
+
+```
+Intent (Landing Page)
+    ↓
+Hero → CTA → Testimonials → Pricing
+```
+
+AI doesn't need to know block names — it only needs to know **intent**. ARK resolves intent into blocks into renderers.
+
+### Render Profiles
+
+Each renderer could declare supported output profiles:
+
+```
+profile: desktop | tablet | mobile | print | email | pdf | terminal | presentation
+```
+
+```
+Product Card
+    ↓
+Desktop Renderer
+Mobile Renderer
+Print Renderer
+PDF Renderer
+Email Renderer
+```
+
+Without duplicating block definitions. The renderer registry already supports multiple render targets — profiles would make this explicit and governable.
+
+### Theme Studio → Full ARK IDE
+
+Theme Studio currently edits contracts, tokens, and block definitions. A full ARK IDE would add:
+- **Live renderer preview** — see block output in real-time across profiles
+- **Entity-view-map-driven presets** — auto-suggest blocks from entity types
+- **Intent-to-blocks wizard** — describe purpose, get ARK-compliant block composition
+- **Profile simulator** — preview blocks in desktop/tablet/mobile/print/email simultaneously
+
+---
+
 ## Guiding Principle Reminder
 
 > **ARK is not Elementor. ARK is the design system + schema + renderer contract + builder protocol.**
@@ -610,3 +699,5 @@ ARK v2.0 is complete when the following are all true at the same time:
 > Without ARK, every module eventually invents its own UI system — inconsistent admin pages, incompatible themes, hardcoded templates, broken page builders, duplicated components, no portability.
 >
 > With ARK: modules declare intent → themes decide presentation → builders edit valid schema → DiSyL renders safely → kernel enforces boundaries.
+
+> **ARK is the visual constitution of Kernel OS.** Modules don't negotiate with themes. Themes don't negotiate with builders. Builders don't negotiate with renderers. Everyone speaks ARK.

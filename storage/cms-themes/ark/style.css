@@ -1709,6 +1709,7 @@ a:hover {
 }
 
 @media (max-width: 768px) {
+
     .nav-menu a,
     .ark-header__nav a {
         min-height: 48px;
@@ -3068,6 +3069,7 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -3152,7 +3154,7 @@ a:hover {
 
     .ark-card,
     .ark-table tr,
-    .ark-stat-row > * {
+    .ark-stat-row>* {
         page-break-inside: avoid;
     }
 
