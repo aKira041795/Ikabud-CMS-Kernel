@@ -9,35 +9,35 @@
 {ikb_section padding_y="lg"}
     {ikb_container max_width="1200px" padding="md"}
         {if entity_list_title}
-        <h2 style="font-size:1.5rem;font-weight:700;margin:0 0 var(--spacing-md);color:var(--color-text);">{entity_list_title}</h2>
+        <h2 class="en-view-title">{entity_list_title}</h2>
         {/if}
 
         {if rows}
-        <div class="en-card-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--spacing-md);">
+        <div class="ark-card-grid">
             {for row in rows}
-            <article class="en-card" style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);overflow:hidden;transition:box-shadow 0.15s,transform 0.15s;">
+            <article class="ark-card">
                 {if row.image or row.featured_image_url or row.thumbnail_url}
-                <img src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}" alt="{row.title|default:row.name|default:''}" class="en-card__image" style="width:100%;height:180px;object-fit:cover;background:var(--color-surface-muted);" loading="lazy" />
+                <img src="{row.image|default:row.featured_image_url|default:row.thumbnail_url}" alt="{row.title|default:row.name|default:''}" class="ark-card__image" loading="lazy" />
                 {/if}
-                <div class="en-card__body" style="padding:var(--spacing-md);">
-                    <h3 class="en-card__title" style="font-size:1.05rem;font-weight:600;margin:0 0 0.35rem;color:var(--color-text);">
-                        {if row.url}<a href="{row.url}" style="color:inherit;text-decoration:none;">{/if}
+                <div class="ark-card__body">
+                    <h3 class="ark-card__title">
+                        {if row.url}<a href="{row.url}" class="ark-card__link">{/if}
                         {row.title|default:row.name|default:row.label|default:'Untitled'}
                         {if row.url}</a>{/if}
                     </h3>
                     {if row.excerpt or row.description}
-                    <p class="en-card__excerpt" style="font-size:0.875rem;color:var(--color-text-secondary);margin:0 0 0.5rem;line-height:1.5;">
+                    <p class="ark-card__excerpt">
                         {row.excerpt|default:row.description}
                     </p>
                     {/if}
                     {if row.price}
-                    <div class="en-card__price" style="font-weight:700;color:var(--color-primary);font-size:1.1rem;">{row.price}</div>
+                    <div class="ark-card__price">{row.price}</div>
                     {/if}
                     {if row.status}
-                    <span class="en-card__status en-card__status--{row.status}" style="display:inline-block;padding:0.15rem 0.5rem;border-radius:999px;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;background:var(--color-surface-muted);color:var(--color-text-secondary);">{row.status}</span>
+                    <span class="ark-card__status ark-card__status--{row.status}">{row.status}</span>
                     {/if}
                     {if row.published_at or row.created_at or row.date}
-                    <div class="en-card__meta" style="font-size:0.8rem;color:var(--color-text-secondary);margin-top:0.5rem;">
+                    <div class="ark-card__meta">
                         {row.published_at|default:row.created_at|default:row.date|default:''}
                     </div>
                     {/if}
@@ -46,8 +46,8 @@
             {/for}
         </div>
         {else}
-        <div class="en-empty" style="text-align:center;padding:var(--spacing-xl);color:var(--color-text-secondary);">
-            <div class="en-empty__text">{empty_state|default:'No records found.'}</div>
+        <div class="ark-empty">
+            <div class="ark-empty__text">{empty_state|default:'No records found.'}</div>
         </div>
         {/if}
     {/ikb_container}
