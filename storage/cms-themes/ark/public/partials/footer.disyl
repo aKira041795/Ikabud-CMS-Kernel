@@ -43,7 +43,8 @@
 
     {# Bottom bar #}
     <div class="ark-footer__bottom">
-        Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
+        &copy; {current_year} {site_title|default:'ARK Theme'}
+        {if footer_admin_link|default:false} &middot; <a href="{base_url}/cms/admin">Admin</a>{/if}
     </div>
 
     {ikb_slot name="footer.after" /}
