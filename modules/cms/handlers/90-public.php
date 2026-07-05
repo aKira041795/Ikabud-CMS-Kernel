@@ -2034,12 +2034,14 @@ function cmsPublicResolvedTemplateCacheKey(
 ): string {
     $templatePath = cmsResolveContentTemplate($defaultSubPath, $meta, $contentType, $context);
     $templateAbsolutePath = BASE_PATH . '/templates/' . ltrim($templatePath, '/');
+    $activeTheme = function_exists('cmsActiveTheme') ? (cmsActiveTheme() ?? 'native') : 'native';
     $fingerprint = md5((string)json_encode([
         'default_sub_path' => $defaultSubPath,
         'content_type' => $contentType,
         'template_slug' => trim((string)($meta['_template'] ?? '')),
         'resolved_template' => $templatePath,
         'template_mtime' => is_file($templateAbsolutePath) ? (int)@filemtime($templateAbsolutePath) : 0,
+        'active_theme' => $activeTheme,
         'public_render_origin' => (string)($context['public_render_origin'] ?? ''),
         'public_route_kind' => (string)($context['public_route_kind'] ?? ''),
         'public_presentation_mode' => (string)($context['public_presentation_mode'] ?? ''),

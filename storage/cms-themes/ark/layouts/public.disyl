@@ -79,14 +79,11 @@
     {block header}
     {ikb_slot name="header.main" /}
 
-    {# Customizer-aware header: use customizer output when available,
-       fall back to ARK's own header when no customizer data exists. #}
+    {# ARK header: always use ARK's own header partial.
+       The CMS customizer header is available via {ikb_slot name="header.main"}
+       for slot-based overrides, but ARK's design language is the default. #}
     {if show_header|default:true}
-        {if has_customized_header}
-            {customized_header|raw}
-        {else}
-            {include "../public/partials/header.disyl"}
-        {/if}
+        {include "../public/partials/header.disyl"}
     {/if}
     {/block}
     {ikb_slot name="header.after" /}
@@ -130,16 +127,11 @@
         {/if}
     </div>
 
-    {# Customizer-aware footer: use customizer output when available,
-       fall back to ARK's own footer when no customizer data exists. #}
-    {if has_customized_footer}
-        {customized_footer|raw}
-    {else}
-        {ikb_slot name="footer.before" /}
-        {ikb_slot name="footer.main" /}
-        {include "../public/partials/footer.disyl"}
-        {ikb_slot name="footer.after" /}
-    {/if}
+    {# ARK footer: always use ARK's own footer partial with slot support. #}
+    {ikb_slot name="footer.before" /}
+    {ikb_slot name="footer.main" /}
+    {include "../public/partials/footer.disyl"}
+    {ikb_slot name="footer.after" /}
 
     {ikb_slot name="site.after" /}
     {ikb_slot name="notifications" /}
