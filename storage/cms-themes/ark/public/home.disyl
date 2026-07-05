@@ -3,7 +3,7 @@
    Every section uses governed ikb_* components.
    No module-specific handler calls. #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {block content}
 {# Hero section — using governed components #}

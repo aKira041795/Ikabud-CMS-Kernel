@@ -85,6 +85,10 @@ function cmsApiSettingsSave(array $params = []): void
     saveModuleSettings('cms', $new);
     cmsResetSettingsCache();
     cmsResetCacheRuntimeState();
+    cmsCacheFlushAll();
+    if (function_exists('pageCacheInvalidateModule')) {
+        pageCacheInvalidateModule('cms');
+    }
 
     $ctx = module('cms');
 
@@ -158,6 +162,10 @@ function cmsApiSettingsReset(array $params = []): void
     saveModuleSettings('cms', $defaults);
     cmsResetSettingsCache();
     cmsResetCacheRuntimeState();
+    cmsCacheFlushAll();
+    if (function_exists('pageCacheInvalidateModule')) {
+        pageCacheInvalidateModule('cms');
+    }
 
     $ctx = module('cms');
 

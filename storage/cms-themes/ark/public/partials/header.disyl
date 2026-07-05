@@ -4,7 +4,7 @@
 {set header_logo_url = header_logo_image_url|default:site_logo_url|default:''}
 {set header_search_url = base_url~'/search'}
 
-{# Top bar — site tagline + social links #}
+{# Top bar driven by customizer header settings + site settings. #}
 {if header_show_topbar and (social_links or (header_show_tagline and site_tagline))}
 <div class="ark-topbar" aria-label="Site highlights">
     <div class="ark-topbar__inner">

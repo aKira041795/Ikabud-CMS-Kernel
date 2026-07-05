@@ -2,7 +2,7 @@
    Full-width layout — no sidebar, content spans the entire container.
    Use for landing-style pages, wide tables, or media-rich content. #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {set has_customized_sidebar = false}
 {set show_sidebar = false}

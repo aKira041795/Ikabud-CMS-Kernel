@@ -795,8 +795,13 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     if ($fullWidth) {
         unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
         $wrapStyle['width']      = '100vw';
-        $wrapStyle['marginLeft'] = 'calc(-50vw + 50%)';
-        $wrapStyle['alignSelf']  = 'flex-start';
+        $wrapStyle['maxWidth']   = '100vw';
+        $wrapStyle['position']   = 'relative';
+        $wrapStyle['left']       = '50%';
+        $wrapStyle['right']      = '50%';
+        $wrapStyle['marginLeft'] = '-50vw';
+        $wrapStyle['marginRight']= '-50vw';
+        $wrapStyle['alignSelf']  = 'stretch';
     }
 
     // Data attributes

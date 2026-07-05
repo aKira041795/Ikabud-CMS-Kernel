@@ -3,7 +3,7 @@
    Uses governed {ikb_entity_list} for data resolution.
    Module-agnostic — renders any entity type through fallback views (Phase 4). #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {set is_ecommerce_public = is_ecommerce_public|default:false}
 {set is_ecommerce_entity_route = is_ecommerce_entity_route|default:false}

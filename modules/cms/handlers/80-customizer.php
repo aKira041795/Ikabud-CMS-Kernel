@@ -258,6 +258,9 @@ function cmsApiCustomizerSave(array $params = []): void
     // Customizer saves change runtime data, not compiled templates. Avoid
     // synchronous template cache wipes on every save.
     cmsCacheFlushAll();
+    if (function_exists('pageCacheInvalidateModule')) {
+        pageCacheInvalidateModule('cms');
+    }
     adminViewCacheInvalidate(['cms:admin']);
 
     // Audit

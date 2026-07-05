@@ -1,6 +1,14 @@
 {# ARK: 404 Not Found #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{set site_title = site_title|default:'ARK Theme'}
+{set site_tagline = site_tagline|default:'A governed application platform.'}
+{set current_year = current_year|default:'2026'}
+{set footer_columns = footer_columns|default:3}
+{set page_title = page_title|default:'Page Not Found'}
+{set page_description = page_description|default:''}
+{set cms_public_css_url = cms_public_css_url|default:'/assets/cms/cms-public.css'}
+
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {block content}
 {ikb_section padding="xlarge"}

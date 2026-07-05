@@ -2,7 +2,7 @@
    Extends entity view patterns for individual blog posts.
    Includes meta, featured image, body content, and navigation. #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {block head}
 {include "partials/canonical-entity-styles.disyl"}

@@ -3,7 +3,7 @@
    Demonstrates: pricing, inventory, action, progress, lessons blocks.
    Module-agnostic — renders any entity type through fallbacks. #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {set builder_enabled = builder_enabled|default:false}
 {set is_ecommerce_public = is_ecommerce_public|default:false}

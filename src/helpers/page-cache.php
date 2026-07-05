@@ -140,6 +140,11 @@ function pageCacheTtlForModule(string $moduleId): int
  */
 function pageCacheShouldCache(string $uri, string $moduleId = ''): bool
 {
+    // Developer/debug bypass: force dynamic render when explicit nocache flag is present.
+    if (!empty($_GET['disyl_nocache']) || !empty($_GET['nocache'])) {
+        return false;
+    }
+
     // 1. GET only
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
         return false;
@@ -193,7 +198,7 @@ function pageCacheKey(string $uri): string
 
     // Include BASE_URL origin so multi-domain tenants get separate entries
     $origin = defined('BASE_URL') ? md5(rtrim((string)BASE_URL, '/')) : '0';
-    return 'page:' . $origin . ':' . md5($raw);
+    return 'page:v2:' . $origin . ':' . md5($raw);
 }
 
 // ── Tags ─────────────────────────────────────────────────────────────

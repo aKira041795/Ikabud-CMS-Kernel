@@ -2,7 +2,7 @@
    Minimal shell — no header, no footer, full-viewport hero focus.
    Use for marketing landing pages, coming-soon, or standalone campaigns. #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {set show_header = false}
 {set show_footer = false}

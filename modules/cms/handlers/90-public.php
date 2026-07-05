@@ -20,6 +20,27 @@ function cmsPublicRenderLogTiming(string $message, float $startTime, array $cont
 
 function cmsPublicRespond(string $body): void
 {
+    if (substr_count($body, 'class="ark-topbar"') > 1) {
+        // Legacy compiled ARK layouts can emit one topbar before the current
+        // header partial topbar. Drop the first duplicate right after skip link.
+        $body = preg_replace(
+            '/(<a[^>]*class="ark-skip"[^>]*>.*?<\/a>\s*)<div class="ark-topbar"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*(?=<div class="ark-topbar")/i',
+            '$1',
+            $body,
+            1
+        ) ?? $body;
+
+        $topbarSeen = 0;
+        $body = preg_replace_callback(
+            '/<div class="ark-topbar"[^>]*>.*?<\/div>\s*<\/div>\s*<\/div>/is',
+            static function (array $match) use (&$topbarSeen): string {
+                $topbarSeen++;
+                return $topbarSeen === 1 ? (string)$match[0] : '';
+            },
+            $body
+        ) ?? $body;
+    }
+
     echo $body;
     if (function_exists('releaseSessionAfterRender')) {
         releaseSessionAfterRender();
@@ -296,7 +317,7 @@ function cmsPublicHome(array $params = []): void
                 // breaks CSP 'self' because the embedded URLs reference the wrong origin.
                 $staticCacheOrigin = md5(rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/'));
                 $staticCacheKey = cmsPublicResolvedTemplateCacheKey(
-                    'cms:home:static_page:v1:' . $pageId . ':origin:' . $staticCacheOrigin,
+                    'cms:home:static_page:v6:' . $pageId . ':origin:' . $staticCacheOrigin,
                     'public/entity.view.disyl',
                     [],
                     'page',
@@ -306,26 +327,30 @@ function cmsPublicHome(array $params = []): void
                         'public_presentation_mode' => 'canonical',
                     ]
                 );
-                $cacheStageStart = $timingEnabled ? microtime(true) : 0.0;
-                $cachedStatic = cmsCacheGet($staticCacheKey);
-                if ($timingEnabled) {
-                    cmsPublicRenderLogTiming('cms.public.home.static_page.cache_lookup', $cacheStageStart, [
-                        'page_id' => $pageId,
-                        'cache_hit' => $cachedStatic !== null && isset($cachedStatic['html']),
-                    ]);
-                }
-                if ($cachedStatic !== null && isset($cachedStatic['html'])) {
-                    if (!empty($cachedStatic['etag']) && !empty($cachedStatic['updated_at'])) {
-                        cmsSendCacheHeaders($cachedStatic['etag'], $cachedStatic['updated_at']);
-                    }
+                $debugNoCache = isset($_GET['disyl_nocache']) && $_GET['disyl_nocache'] !== '' && $_GET['disyl_nocache'] !== '0';
+                $cachedStatic = null;
+                if (!$debugNoCache) {
+                    $cacheStageStart = $timingEnabled ? microtime(true) : 0.0;
+                    $cachedStatic = cmsCacheGet($staticCacheKey);
                     if ($timingEnabled) {
-                        cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
+                        cmsPublicRenderLogTiming('cms.public.home.static_page.cache_lookup', $cacheStageStart, [
                             'page_id' => $pageId,
-                            'cache_status' => 'hit',
+                            'cache_hit' => $cachedStatic !== null && isset($cachedStatic['html']),
                         ]);
                     }
-                    cmsPublicRespond((string)$cachedStatic['html']);
-                    return;
+                    if ($cachedStatic !== null && isset($cachedStatic['html'])) {
+                        if (!empty($cachedStatic['etag']) && !empty($cachedStatic['updated_at'])) {
+                            cmsSendCacheHeaders($cachedStatic['etag'], $cachedStatic['updated_at']);
+                        }
+                        if ($timingEnabled) {
+                            cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
+                                'page_id' => $pageId,
+                                'cache_status' => 'hit',
+                            ]);
+                        }
+                        cmsPublicRespond((string)$cachedStatic['html']);
+                        return;
+                    }
                 }
 
                 $meta = cmsLoadContentMeta($db, (int)$staticPage['id']);
@@ -358,27 +383,50 @@ function cmsPublicHome(array $params = []): void
                     ],
                 ]);
 
-                $etag = md5($html);
-                $updatedAt = (string)($staticPage['published_at'] ?? date('Y-m-d H:i:s'));
-                $staticCacheTags = ['cms:home', 'cms:content:' . $pageId, 'cms:type:page'];
-                $cacheWriteStageStart = $timingEnabled ? microtime(true) : 0.0;
-                cmsCacheSet($staticCacheKey, [
-                    'html'       => $html,
-                    'etag'       => $etag,
-                    'updated_at' => $updatedAt,
-                ], $staticCacheTags);
-                if ($timingEnabled) {
-                    cmsPublicRenderLogTiming('cms.public.home.static_page.cache_store', $cacheWriteStageStart, [
-                        'page_id' => $pageId,
-                        'tag_count' => count($staticCacheTags),
-                    ]);
+                if (strpos($html, 'cms-builder-node--') !== false && strpos($html, '/assets/cms/builder-public.js') === false) {
+                    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+                    $runtimeScript = '<script defer src="' . $baseUrl . '/assets/cms/builder-public.js"></script>';
+                    if (strpos($html, '</body>') !== false) {
+                        $html = str_replace('</body>', $runtimeScript . '</body>', $html);
+                    } else {
+                        $html .= $runtimeScript;
+                    }
                 }
 
-                cmsSendCacheHeaders($etag, $updatedAt);
+                // Cache-healing guard: stale compiled includes can emit the ARK topbar
+                // twice during mixed-cache transitions; keep a single instance.
+                $html = preg_replace(
+                    '/(<div class="ark-topbar"[^>]*>.*?<\/div>\s*<\/div>\s*<\/div>\s*)(<div class="ark-topbar"[^>]*>.*?<\/div>\s*<\/div>\s*<\/div>)/is',
+                    '$2',
+                    $html,
+                    1
+                ) ?? $html;
+
+                $etag = md5($html);
+                $updatedAt = (string)($staticPage['published_at'] ?? date('Y-m-d H:i:s'));
+                if (!$debugNoCache) {
+                    $staticCacheTags = ['cms:home', 'cms:content:' . $pageId, 'cms:type:page'];
+                    $cacheWriteStageStart = $timingEnabled ? microtime(true) : 0.0;
+                    cmsCacheSet($staticCacheKey, [
+                        'html'       => $html,
+                        'etag'       => $etag,
+                        'updated_at' => $updatedAt,
+                    ], $staticCacheTags);
+                    if ($timingEnabled) {
+                        cmsPublicRenderLogTiming('cms.public.home.static_page.cache_store', $cacheWriteStageStart, [
+                            'page_id' => $pageId,
+                            'tag_count' => count($staticCacheTags),
+                        ]);
+                    }
+                }
+
+                if (!$debugNoCache) {
+                    cmsSendCacheHeaders($etag, $updatedAt);
+                }
                 if ($timingEnabled) {
                     cmsPublicRenderLogTiming('cms.public.home.static_page.total', $requestStart, [
                         'page_id' => $pageId,
-                        'cache_status' => 'miss',
+                        'cache_status' => $debugNoCache ? 'bypass' : 'miss',
                     ]);
                 }
                 cmsPublicRespond($html);
@@ -2481,6 +2529,13 @@ function cmsPublicCanonicalRenderEntityView(array $entity, array $options = []):
     $builderSettings = is_array($options['builder_page_settings'] ?? null)
         ? $options['builder_page_settings']
         : cmsPageBuilderSettings($meta);
+
+    // Some legacy/public paths can produce builder-rendered HTML while the
+    // builder flag is false (stale meta or cached route context). Detect
+    // builder nodes in rendered output so shell/runtime behavior stays aligned.
+    if (!$builderEnabled && is_string($renderedHtml) && strpos($renderedHtml, 'cms-builder-node--') !== false) {
+        $builderEnabled = true;
+    }
 
     $viewSettings = [
         'show_header' => empty($builderSettings['page']['hidePageTitle']),

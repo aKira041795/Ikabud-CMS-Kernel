@@ -2,7 +2,7 @@
    Extends entity list patterns for date-based archives.
    Includes filter chips, result count, and pagination. #}
 
-{extends "_cms_active_theme/layouts/public.disyl"}
+{extends "_cms_active_theme/layouts/public.v3.disyl"}
 
 {block head}
 {include "partials/canonical-entity-styles.disyl"}
