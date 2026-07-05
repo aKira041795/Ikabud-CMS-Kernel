@@ -12,22 +12,22 @@
 {block content}
 <article class="ark-entity-list" data-ark-template="archive">
     {# Page header #}
-    <header style="margin-bottom:var(--spacing-lg);">
+    <header class="ark-page-header">
         <h1 class="ark-page-title">{archive_title|default:page_title|default:'Archive'}</h1>
         {if archive_description}
-        <p style="color:var(--color-text-secondary);margin:0;max-width:600px;">{archive_description}</p>
+        <p class="ark-result-summary">{archive_description}</p>
         {/if}
     </header>
 
     {# Toolbar: search + category #}
-    <div class="ark-list-toolbar" style="display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-end;margin-bottom:var(--spacing-lg);">
-        <div style="flex:1;min-width:200px;">
+    <div class="ark-list-toolbar">
+        <div class="ark-list-toolbar__grow">
             {include "partials/search-form.disyl"}
         </div>
         {if categories}
-        <div style="min-width:160px;">
-            <label for="ark-category-select" style="display:block;font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-text-muted);margin-bottom:0.35rem;">Category</label>
-            <select id="ark-category-select" onchange="window.location.href=this.value" style="width:100%;min-height:42px;border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:0.5rem 0.75rem;font:inherit;background:var(--color-surface);">
+        <div class="ark-form-group">
+            <label for="ark-category-select" class="ark-label">Category</label>
+            <select id="ark-category-select" class="ark-select" onchange="window.location.href=this.value">
                 <option value="{all_items_url|default:'?'}">All</option>
                 {for cat in categories}
                 <option value="{cat.url}"{if cat.active} selected{/if}>{cat.label} ({cat.count})</option>
@@ -39,11 +39,11 @@
 
     {# Active filter pills #}
     {if active_filters}
-    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:var(--spacing-md);font-size:0.85rem;">
+    <div class="ark-filter-list">
         {for filter in active_filters}
-        <span style="display:inline-flex;align-items:center;gap:0.25rem;background:var(--color-primary-light);color:var(--color-primary);padding:0.2rem 0.6rem;border-radius:999px;font-weight:500;">
+        <span class="ark-badge ark-badge--primary">
             {filter.label}
-            <a href="{filter.remove_url}" style="color:inherit;text-decoration:none;margin-left:0.25rem;" title="Remove filter">&times;</a>
+            <a href="{filter.remove_url}" title="Remove filter">&times;</a>
         </span>
         {/for}
     </div>
@@ -51,7 +51,7 @@
 
     {# Result count #}
     {if result_count}
-    <p style="color:var(--color-text-secondary);font-size:0.85rem;margin-bottom:var(--spacing-md);">{result_count} {result_label|default:'results'}</p>
+    <p class="ark-result-summary">{result_count} {result_label|default:'results'}</p>
     {/if}
 
     {# Entity list — governed component resolves data #}

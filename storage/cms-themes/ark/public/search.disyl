@@ -11,7 +11,7 @@
 {block content}
 <article class="ark-entity-list" data-ark-template="search">
     {# Search header #}
-    <header style="margin-bottom:var(--spacing-lg);">
+    <header class="ark-page-header">
         <h1 class="ark-page-title">
             {if search_query}
             Search results for &ldquo;{search_query}&rdquo;
@@ -29,7 +29,7 @@
 
     {# Result summary #}
     {if search_query}
-    <p style="color:var(--color-text-secondary);font-size:0.85rem;margin:var(--spacing-md) 0;">
+    <p class="ark-result-summary">
         {if result_count > 0}
         Found {result_count} {result_label|default:'result(s)'} for &ldquo;{search_query}&rdquo;
         {else}
@@ -49,8 +49,8 @@
     <div class="ark-empty">
         <div class="ark-empty__icon">&#x1F50D;</div>
         <div class="ark-empty__text">No results found. Try a different search term.</div>
-        <div style="margin-top:var(--spacing-md);">
-            <a href="{base_url}/blog" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;">Browse all articles &rarr;</a>
+        <div>
+            <a href="{base_url}/blog" class="ark-btn ark-btn--ghost ark-btn--sm">Browse all articles &rarr;</a>
         </div>
     </div>
     {/if}

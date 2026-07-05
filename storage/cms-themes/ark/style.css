@@ -342,8 +342,6 @@ a:hover {
     align-items: flex-start;
 }
 
-/* Builder pages: remove max-width so full-bleed sections
-   (slideshows, hero banners) span the full viewport width. */
 .ark-content-area--builder {
     max-width: 100%;
     display: block;
@@ -366,7 +364,6 @@ a:hover {
     outline: none;
 }
 
-/* Inner content gets horizontal padding */
 .ark-main--content {
     padding-left: var(--ark-spacing-md);
     padding-right: var(--ark-spacing-md);
@@ -592,9 +589,6 @@ a:hover {
     flex: 1;
 }
 
-/* Builder-enabled pages: remove detail width constraint so
-   full-bleed sections (slideshows, hero banners) can stretch
-   edge-to-edge. The builder owns layout when active. */
 .ark-detail--builder {
     max-width: 100%;
     flex: 1;
@@ -604,8 +598,6 @@ a:hover {
     max-width: 100%;
 }
 
-/* Builder full-bleed breakout: slideshows use width:100vw +
-   negative margin to break out of constrained containers. */
 .cms-builder-node--slideshow[style*="margin-left:calc"] {
     position: relative;
 }
@@ -727,8 +719,6 @@ a:hover {
     text-decoration: underline;
 }
 
-/* Prose readability: constrain text elements, not block containers.
-   Builder sections fill full width; paragraphs/headings stay readable. */
 .ark-content>p,
 .ark-content>h1,
 .ark-content>h2,
@@ -746,8 +736,6 @@ a:hover {
     margin-right: auto;
 }
 
-/* Standalone pages (non-builder CMS pages via page.disyl) —
-   provides horizontal padding since these lack builder-managed sections */
 .ark-content--standalone {
     max-width: var(--ark-max-width);
     margin: 0 auto;
@@ -970,6 +958,77 @@ a:hover {
     letter-spacing: -0.02em;
 }
 
+.ark-page-header {
+    margin-bottom: var(--ark-spacing-lg);
+}
+
+.ark-hero-block--centered {
+    text-align: center;
+}
+
+.ark-page-title--hero {
+    font-size: clamp(1.8rem, 5vw, 3rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+
+.ark-result-summary--hero {
+    max-width: 600px;
+    margin: 0 auto var(--ark-spacing-lg);
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.ark-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.75rem;
+    margin-bottom: var(--ark-spacing-lg);
+}
+
+.ark-list-toolbar--centered {
+    justify-content: center;
+}
+
+.ark-list-toolbar__grow {
+    flex: 1;
+    min-width: 200px;
+}
+
+.ark-filter-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: var(--ark-spacing-md);
+}
+
+.ark-filter-list .ark-badge {
+    gap: 0.35rem;
+}
+
+.ark-filter-list a {
+    color: inherit;
+    text-decoration: none;
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.ark-result-summary {
+    margin: 0 0 var(--ark-spacing-md);
+    font-size: 0.85rem;
+    color: var(--ark-text-secondary);
+}
+
+.ark-search-form + .ark-result-summary {
+    margin-top: var(--ark-spacing-md);
+}
+
+.ark-empty > div:last-child:not(.ark-empty__text):not(.ark-empty__icon) {
+    margin-top: var(--ark-spacing-md);
+}
+
 /* ── Generic headings outside .ark-content (fallback) ── */
 .ark-detail__body h1,
 .ark-detail__body h2,
@@ -1031,6 +1090,11 @@ a:hover {
 }
 
 @media (max-width: 768px) {
+    .ark-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
     .ark-footer .footer-widgets-grid {
         grid-template-columns: 1fr;
     }
@@ -1122,14 +1186,6 @@ a:hover {
     }
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   Customizer-Controlled Components
-   Styles for HTML output by the CMS customizer (header, footer widgets,
-   menus, builder components). These classes are emitted by the customizer
-   and must be styled by the active theme.
-   ═══════════════════════════════════════════════════════════════════════ */
-
-/* ── Container & shell width utilities ── */
 .container {
     width: 100%;
     max-width: var(--ark-max-width, var(--theme-site-max-width, 1280px));
@@ -1800,10 +1856,8 @@ a:hover {
 .ark-breadcrumb__separator       { color: var(--ark-border, #e2e8f0); user-select: none; }
 .ark-breadcrumb__current         { color: var(--ark-text, #0f172a); font-weight: 500; }
 
-/* ── Progress overlay containment (list-card fix) ────────────────── */
 .ark-card__image-link { position: relative; }
 
-/* ── Skeleton / Loading states ───────────────────────────────────── */
 .ark-skeleton {
     background: linear-gradient(90deg, var(--ark-border, #e2e8f0) 25%, var(--ark-surface-muted, #f8fafc) 50%, var(--ark-border, #e2e8f0) 75%);
     background-size: 200% 100%;
@@ -1826,7 +1880,6 @@ a:hover {
 
 @keyframes ark-spin { to { transform: rotate(360deg); } }
 
-/* ── Dark Mode ───────────────────────────────────────────────────── */
 @media (prefers-color-scheme: dark) {
     :root {
         --ark-surface: var(--dark-surface, #0f172a);

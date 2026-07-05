@@ -9,16 +9,16 @@
 {# Hero section — using governed components #}
 {ikb_section padding="xlarge" background="white"}
     {ikb_container size="small" center=true}
-        <div style="text-align:center;">
-            <h1 style="font-size:clamp(1.8rem,5vw,3rem);font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin:0 0 var(--spacing-md);">
+        <div class="ark-hero-block--centered">
+            <h1 class="ark-page-title ark-page-title--hero">
                 {site_title|default:'Welcome to ARK'}
             </h1>
-            <p style="font-size:1.1rem;color:var(--color-text-secondary);max-width:600px;margin:0 auto var(--spacing-lg);line-height:1.6;">
+            <p class="ark-result-summary ark-result-summary--hero">
                 {site_tagline|default:'The reference theme demonstrating Kernel OS 6.1 + DiSyL 4.7.'}
             </p>
-            <div style="display:flex;gap:0.75rem;justify-content:center;">
-                <a href="{base_url}/blog" class="ark-btn ark-btn--primary ark-btn--md" style="display:inline-block;padding:0.5rem 1.5rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-md);text-decoration:none;font-weight:500;">Read Articles</a>
-                <a href="{base_url}/ecommerce/shop" class="ark-btn ark-btn--outline ark-btn--md" style="display:inline-block;padding:0.5rem 1.5rem;border:2px solid var(--color-primary);color:var(--color-primary);border-radius:var(--radius-md);text-decoration:none;font-weight:500;">Browse Products</a>
+            <div class="ark-list-toolbar ark-list-toolbar--centered">
+                <a href="{base_url}/blog" class="ark-btn ark-btn--primary">Read Articles</a>
+                <a href="{base_url}/ecommerce/shop" class="ark-btn ark-btn--secondary">Browse Products</a>
             </div>
         </div>
     {/ikb_container}
@@ -27,9 +27,9 @@
 {# Recent Articles — module-agnostic, renders empty if CMS not installed #}
 {ikb_section padding="large" background="surface"}
     {ikb_container size="xlarge"}
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--spacing-md);">
-            <h2 style="font-size:1.5rem;font-weight:700;margin:0;">Latest Articles</h2>
-            <a href="{base_url}/blog" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;">View all &rarr;</a>
+        <div class="ark-list-toolbar">
+            <h2 class="en-view-title">Latest Articles</h2>
+            <a href="{base_url}/blog" class="ark-btn ark-btn--ghost ark-btn--sm">View all &rarr;</a>
         </div>
         {ikb_entity_list source="cms_post.recent" view="card_grid" limit="6" /}
     {/ikb_container}
@@ -38,9 +38,9 @@
 {# Featured Products — renders empty if ecommerce not installed #}
 {ikb_section padding="large" background="muted"}
     {ikb_container size="xlarge"}
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:var(--spacing-md);">
-            <h2 style="font-size:1.5rem;font-weight:700;margin:0;">Featured Products</h2>
-            <a href="{base_url}/ecommerce/shop" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;">Shop all &rarr;</a>
+        <div class="ark-list-toolbar">
+            <h2 class="en-view-title">Featured Products</h2>
+            <a href="{base_url}/ecommerce/shop" class="ark-btn ark-btn--ghost ark-btn--sm">Shop all &rarr;</a>
         </div>
         {ikb_entity_list source="ecommerce_product.featured" view="card_grid" limit="4" /}
     {/ikb_container}
