@@ -6,6 +6,24 @@
 
 {block head}
 <style>
+    .ark-info-shell {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: var(--spacing-lg) var(--spacing-md);
+    }
+
+    .ark-info-title {
+        margin: 0 0 0.5rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+
+    .ark-info-intro {
+        max-width: 600px;
+        margin: 0 0 var(--spacing-lg);
+        color: var(--color-text-secondary);
+    }
+
     .ark-info-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -48,13 +66,58 @@
         flex-wrap: wrap;
         gap: 0.35rem;
     }
+
+    .ark-info-meta {
+        margin: 0;
+        font-size: 0.875rem;
+    }
+
+    .ark-info-meta dt {
+        font-weight: 600;
+        color: var(--color-text);
+    }
+
+    .ark-info-meta dd {
+        margin: 0 0 0.5rem;
+        color: var(--color-text-secondary);
+    }
+
+    .ark-info-meta dd:last-child {
+        margin-bottom: 0;
+    }
+
+    .ark-info-note {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--color-text-muted);
+    }
+
+    .ark-info-accessibility {
+        margin: 0;
+        padding: 0 0 0 1rem;
+        font-size: 0.85rem;
+        line-height: 1.7;
+        color: var(--color-text-secondary);
+    }
+
+    .ark-info-doctrine {
+        margin-bottom: var(--spacing-lg);
+    }
+
+    .ark-info-doctrine pre {
+        margin: 0;
+        font-size: 0.85rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        color: var(--color-text-secondary);
+    }
 </style>
 {/block}
 
 {block content}
-<div style="max-width:960px;margin:0 auto;padding:var(--spacing-lg) var(--spacing-md);">
-    <h1 style="font-size:1.75rem;font-weight:700;margin:0 0 0.5rem;">{theme_label|default:'ARK Reference Theme'}</h1>
-    <p style="color:var(--color-text-secondary);margin:0 0 var(--spacing-lg);max-width:600px;">
+<div class="ark-info-shell">
+    <h1 class="ark-info-title">{theme_label|default:'ARK Reference Theme'}</h1>
+    <p class="ark-info-intro">
         {theme_description|default:'Production reference theme and executable theme specification for Kernel OS 6.1+.'}
     </p>
 
@@ -62,17 +125,17 @@
         {# Overview #}
         <div class="ark-info-card">
             <h2 class="ark-info-card__heading">Overview</h2>
-            <dl style="margin:0;font-size:0.875rem;">
-                <dt style="font-weight:600;color:var(--color-text);">Version</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">{theme_version|default:'1.0.0'}</dd>
-                <dt style="font-weight:600;color:var(--color-text);">Author</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">{theme_author|default:'Ikabud Kernel Team'}</dd>
-                <dt style="font-weight:600;color:var(--color-text);">License</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">MIT</dd>
-                <dt style="font-weight:600;color:var(--color-text);">Kernel OS</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">6.1.0+</dd>
-                <dt style="font-weight:600;color:var(--color-text);">DiSyL</dt>
-                <dd style="margin:0;color:var(--color-text-secondary);">4.7.0+</dd>
+            <dl class="ark-info-meta">
+                <dt>Version</dt>
+                <dd>{theme_version|default:'1.0.0'}</dd>
+                <dt>Author</dt>
+                <dd>{theme_author|default:'Ikabud Kernel Team'}</dd>
+                <dt>License</dt>
+                <dd>MIT</dd>
+                <dt>Kernel OS</dt>
+                <dd>6.1.0+</dd>
+                <dt>DiSyL</dt>
+                <dd>4.7.0+</dd>
             </dl>
         </div>
 
@@ -107,7 +170,7 @@
                 <li class="ark-info-chip">site.after</li>
                 <li class="ark-info-chip">notifications</li>
             </ul>
-            <p style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.5rem;">16 slots — stable public API</p>
+            <p class="ark-info-note">16 slots — stable public API</p>
         </div>
 
         {# Entity Fallbacks #}
@@ -119,28 +182,28 @@
                 <li class="ark-info-chip">Detail</li>
                 <li class="ark-info-chip">Compact</li>
             </ul>
-            <p style="font-size:0.75rem;color:var(--color-text-muted);margin-top:0.5rem;">Generic fallbacks for unknown entity types</p>
+            <p class="ark-info-note">Generic fallbacks for unknown entity types</p>
         </div>
 
         {# Design Language #}
         <div class="ark-info-card">
             <h2 class="ark-info-card__heading">Design Language</h2>
-            <dl style="margin:0;font-size:0.875rem;">
-                <dt style="font-weight:600;color:var(--color-text);">Type Scale</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">Inter</dd>
-                <dt style="font-weight:600;color:var(--color-text);">Color System</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">OKLCH</dd>
-                <dt style="font-weight:600;color:var(--color-text);">Grid</dt>
-                <dd style="margin:0 0 0.5rem;color:var(--color-text-secondary);">Tailwind v3</dd>
-                <dt style="font-weight:600;color:var(--color-text);">Icon Set</dt>
-                <dd style="margin:0;color:var(--color-text-secondary);">Font Awesome 6</dd>
+            <dl class="ark-info-meta">
+                <dt>Type Scale</dt>
+                <dd>Inter</dd>
+                <dt>Color System</dt>
+                <dd>OKLCH</dd>
+                <dt>Grid</dt>
+                <dd>Tailwind v3</dd>
+                <dt>Icon Set</dt>
+                <dd>Font Awesome 6</dd>
             </dl>
         </div>
 
         {# Accessibility #}
         <div class="ark-info-card">
             <h2 class="ark-info-card__heading">Accessibility</h2>
-            <ul style="margin:0;padding:0 0 0 1rem;font-size:0.85rem;color:var(--color-text-secondary);line-height:1.7;">
+            <ul class="ark-info-accessibility">
                 <li>Semantic landmarks</li>
                 <li>Skip-to-content link</li>
                 <li>Keyboard navigation</li>
@@ -153,9 +216,9 @@
     </div>
 
     {# Theme Doctrine #}
-    <div class="ark-info-card" style="margin-bottom:var(--spacing-lg);">
+    <div class="ark-info-card ark-info-doctrine">
         <h2 class="ark-info-card__heading">Theme Doctrine</h2>
-        <pre style="margin:0;font-size:0.85rem;color:var(--color-text-secondary);line-height:1.6;white-space:pre-wrap;">
+        <pre>
 Theme presents.
 Modules provide.
 DiSyL declares.
