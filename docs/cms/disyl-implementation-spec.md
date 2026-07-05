@@ -1,7 +1,9 @@
-# DiSyL v4.0.0 — Implementation Specification
+# DiSyL v4.7 — Implementation Specification
+
+> **Current baseline:** DiSyL 4.7 (Kernel OS 6.1). This spec was originally authored for the 4.0 surface; the runtime has since advanced through 4.1–4.7. See [docs/disyl/disyl-grammar-v4.7.md](../disyl/disyl-grammar-v4.7.md) for the canonical grammar reference and [docs/kernel/disyl-language-reference.md](../kernel/disyl-language-reference.md) for the current runtime behavior guide.
 
 **Engine:** `kernel/DiSyL/TemplateEngine.php`  
-**Version:** 4.0.0  
+**Version:** 4.7.0 (spec originally 4.0.0)  
 **Test suite:** `tests/disyl_engine_test.php` (257 tests, 42 sections)  
 **Linter:** `php ikabud disyl:lint [path] [--verbose]`
 
