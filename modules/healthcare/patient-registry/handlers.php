@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
+\Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+
 function prPageState(array $user, array $input = [], ?string $formError = null): array
 {
     $query = trim((string)($input['q'] ?? ''));

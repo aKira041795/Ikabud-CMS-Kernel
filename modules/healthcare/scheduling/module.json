@@ -48,6 +48,20 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.list.ehr_appointment@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.get.ehr_appointment@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -87,6 +101,20 @@
                 "ehr.appointment.transition@1": {
                     "allow_callers": [
                         "scheduling"
+                    ]
+                },
+                "entity.list.ehr_appointment@1": {
+                    "allow_callers": [
+                        "scheduling",
+                        "ehr",
+                        "patient-portal"
+                    ]
+                },
+                "entity.get.ehr_appointment@1": {
+                    "allow_callers": [
+                        "scheduling",
+                        "ehr",
+                        "patient-portal"
                     ]
                 }
             }

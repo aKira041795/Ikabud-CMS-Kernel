@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
+\Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+
 function schedDateTimeLocalValue(?string $value): string
 {
     if (!is_string($value) || trim($value) === '') {

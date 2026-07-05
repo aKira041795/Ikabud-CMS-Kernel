@@ -1,7 +1,7 @@
 {* CMS Weather — Polyglot Entity-View Demo *}
 {* Proves: CMS → EntityViewResolver → CapabilityBus → ServiceProxy → HTTP → Python *}
 
-{set page_title}Weather — {$city}{/set}
+{set page_title = "Weather — " ~ city}
 
 <div class="weather-dashboard" style="max-width:960px;margin:0 auto;padding:24px 16px;">
 
@@ -9,15 +9,15 @@
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
         <div>
             <h1 style="font-size:24px;font-weight:700;margin:0;color:var(--text);">
-                🌍 Weather for {$city}
+                🌍 Weather for {city}
             </h1>
             <p style="margin:4px 0 0;color:var(--text-muted);font-size:13px;">
                 Polyglot pipeline: CMS → CapabilityBus → ServiceProxy → Python → wttr.in
-                {if isset($source_label)} · Source: {$source_label}{/if}
+                {if isset(source_label)} · Source: {source_label}{/if}
             </p>
         </div>
         <form method="GET" action="/cms/admin/weather" style="display:flex;gap:8px;">
-            <input type="text" name="city" value="{$city}" placeholder="Enter city..."
+            <input type="text" name="city" value="{city}" placeholder="Enter city..."
                    style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;width:180px;"
                    list="city-suggestions" />
             <datalist id="city-suggestions">
@@ -37,51 +37,51 @@
     </div>
 
     {* ── Error state ── *}
-    {if isset($error) && $error !== null}
+    {if isset(error) && error !== null}
     <div class="ikb-alert ikb-alert--warning" style="padding:12px 16px;background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius);margin-bottom:20px;color:var(--warning);font-weight:500;">
-        ⚠️ Weather service error: {$error}
+        ⚠️ Weather service error: {error}
         <br><small>Is the Python service running? <code>python3 modules/weather-service/service.py</code></small>
     </div>
     {/if}
 
     {* ── Current Weather Card ── *}
-    {if isset($current) && is_array($current)}
+    {if isset(current) && is_array(current)}
     <div style="background:linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);border-radius:12px;padding:28px 24px;color:#fff;margin-bottom:24px;box-shadow:0 8px 32px rgba(37,99,235,.25);">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
             <div>
                 <div style="font-size:14px;opacity:.8;text-transform:uppercase;letter-spacing:.5px;">Current Weather</div>
                 <div style="font-size:48px;font-weight:800;line-height:1.1;margin:4px 0;">
-                    {math equation="round(x)" x=$current.temperature_c}°C
+                    {(current.temperature_c)|round}°C
                 </div>
-                <div style="font-size:16px;font-weight:500;">{$current.condition}</div>
-                <div style="font-size:13px;opacity:.7;margin-top:4px;">Feels like {math equation="round(x)" x=$current.feels_like_c}°C</div>
+                <div style="font-size:16px;font-weight:500;">{current.condition}</div>
+                <div style="font-size:13px;opacity:.7;margin-top:4px;">Feels like {(current.feels_like_c)|round}°C</div>
             </div>
             <div style="text-align:right;font-size:14px;line-height:1.8;">
-                <div>💧 Humidity: <strong>{$current.humidity}%</strong></div>
-                <div>💨 Wind: <strong>{$current.wind_kph} km/h</strong></div>
-                <div style="margin-top:8px;font-size:11px;opacity:.6;">via {$current.source}</div>
+                <div>💧 Humidity: <strong>{current.humidity}%</strong></div>
+                <div>💨 Wind: <strong>{current.wind_kph} km/h</strong></div>
+                <div style="margin-top:8px;font-size:11px;opacity:.6;">via {current.source}</div>
             </div>
         </div>
     </div>
     {/if}
 
     {* ── Forecast List ── *}
-    {if count($forecast) > 0}
+    {if count(forecast) > 0}
     <h2 style="font-size:18px;font-weight:600;margin:20px 0 12px;color:var(--text);">5-Day Forecast</h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">
-        {foreach $forecast as $day}
+        {foreach forecast as day}
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;box-shadow:var(--shadow);">
             <div style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;">
-                {$day.date}
+                {day.date}
             </div>
             <div style="font-size:22px;font-weight:700;color:var(--text);">
-                {math equation="round(x)" x=$day.high_c}°
+                {(day.high_c)|round}°
             </div>
             <div style="font-size:14px;color:var(--text-muted);margin-bottom:6px;">
-                {math equation="round(x)" x=$day.low_c}°
+                {(day.low_c)|round}°
             </div>
             <div style="font-size:12px;color:var(--text-light);">
-                {$day.condition}
+                {day.condition}
             </div>
         </div>
         {/foreach}
@@ -103,7 +103,7 @@
             ServiceProxy::__invoke() →
             POST http://127.0.0.1:9002/capability/call →
             Python service.py →
-            GET https://wttr.in/{$city}?format=j1
+            GET https://wttr.in/{city}?format=j1
         </div>
     </div>
 

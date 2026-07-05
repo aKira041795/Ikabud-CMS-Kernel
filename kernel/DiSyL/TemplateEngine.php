@@ -39,6 +39,9 @@ use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
 class TemplateEngine
 {
+    private const LOOP_BREAK_MARKER = "\x1E__DISYL_BREAK__\x1E";
+    private const LOOP_CONTINUE_MARKER = "\x1E__DISYL_CONTINUE__\x1E";
+
     private string $templateDir;
     private string $cacheDir;
     private bool $cacheEnabled;
@@ -987,6 +990,10 @@ class TemplateEngine
             log_timing('disyl.compile.phases', $compileStartedAt, $phases);
         }
 
+        if ($isTopLevel) {
+            $content = str_replace([self::LOOP_BREAK_MARKER, self::LOOP_CONTINUE_MARKER], '', $content);
+        }
+
         $this->compileDepth--;
         return $content;
     }
@@ -1857,6 +1864,9 @@ class TemplateEngine
             && !str_contains($content, '{for')
             && !str_contains($content, '{foreach')
             && !str_contains($content, '{each')
+            && !str_contains($content, '{while')
+            && !str_contains($content, '{break}')
+            && !str_contains($content, '{continue}')
             && !str_contains($content, '{match')
             && !str_contains($content, '{trans')
             && !str_contains($content, '{cache')
@@ -1899,7 +1909,7 @@ class TemplateEngine
         $result = '';
         $offset = 0;
         $len = strlen($content);
-        $allTypes = ['for', 'foreach', 'each', 'if', 'while', 'match', 'trans', 'cache', 'experiment', 'sandbox', 'trusted', 'untrusted', 'parallel', 'await', 'suspense', 'federated_query', 'ai_generate', 'ai_query', 'ai_complete'];
+        $allTypes = ['for', 'foreach', 'each', 'if', 'while', 'break', 'continue', 'match', 'trans', 'cache', 'experiment', 'sandbox', 'trusted', 'untrusted', 'parallel', 'await', 'suspense', 'federated_query', 'ai_generate', 'ai_query', 'ai_complete'];
 
         while ($offset < $len) {
             $tag = $this->findNextOpeningControlTag($content, $offset, $allTypes);
@@ -1915,6 +1925,11 @@ class TemplateEngine
             }
 
             $afterOpen = $tag['pos'] + $tag['len'];
+            if ($tag['type'] === 'break' || $tag['type'] === 'continue') {
+                $result .= $this->evaluateStructureBody($tag, '', $context);
+                $offset = $afterOpen;
+                continue;
+            }
             $closePos = $this->findMatchingClose($content, $afterOpen, $tag['type']);
 
             if ($closePos === false) {
@@ -1945,6 +1960,8 @@ class TemplateEngine
             'foreach' => $this->evaluateForeachBody($tag['expr'], $innerContent, $context),
             'each'    => $this->evaluateEachBody($tag['expr'], $innerContent, $context),
             'while'   => $this->evaluateWhileBody($tag['expr'], $innerContent, $context),
+            'break'   => self::LOOP_BREAK_MARKER,
+            'continue'=> self::LOOP_CONTINUE_MARKER,
             'match'      => $this->evaluateMatchBody($tag['expr'], $innerContent, $context),
             'trans'      => $this->evaluateTransBody($tag['expr'], $innerContent, $context),
             'cache'      => $this->evaluateCacheBody($tag['expr'], $innerContent, $context),
@@ -1980,17 +1997,9 @@ class TemplateEngine
         if ($chosenContent === '') {
             return '';
         }
-        // Recursively process any nested control structures in the chosen branch
-        if (
-            str_contains($chosenContent, '{if')
-            || str_contains($chosenContent, '{for')
-            || str_contains($chosenContent, '{foreach')
-            || str_contains($chosenContent, '{each')
-            || str_contains($chosenContent, '{match')
-        ) {
-            return $this->processControlStructuresSinglePass($chosenContent, $context);
-        }
-        return $chosenContent;
+        // Always recurse selected branch so loop-control tags ({break}/{continue})
+        // and any nested structures are resolved before returning to parent scope.
+        return $this->processControlStructuresSinglePass($chosenContent, $context);
     }
 
     /**
@@ -3386,10 +3395,21 @@ class TemplateEngine
             $count = 0;
             $result = '';
             while ($this->evaluateCondition($condExpr, $ctx)) {
-                $result .= $this->compile($innerContent, $ctx);
+                $chunk = $this->compile($innerContent, $ctx);
+                [$chunk, $signal] = $this->consumeLoopSignal($chunk);
+                $result .= $chunk;
                 // Evaluate increment — set $var = $var + 1 style
                 $incResult = $this->processSetStatements('{' . $incExpr . '}', $ctx);
                 $count++;
+                if ($signal === 'break') {
+                    break;
+                }
+                if ($signal === 'continue') {
+                    if ($count >= $maxIterations) {
+                        break;
+                    }
+                    continue;
+                }
                 if ($count >= $maxIterations) {
                     break;
                 }
@@ -3406,9 +3426,12 @@ class TemplateEngine
 
         $body = $innerContent;
         $emptyContent = '';
-        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
-            $emptyContent = substr($body, $emptyTagPos + 7);
-            $body = substr($body, 0, $emptyTagPos);
+        foreach (['{forelse}', '{empty}'] as $emptyTag) {
+            if (($emptyTagPos = strpos($body, $emptyTag)) !== false) {
+                $emptyContent = substr($body, $emptyTagPos + strlen($emptyTag));
+                $body = substr($body, 0, $emptyTagPos);
+                break;
+            }
         }
 
         $list = $this->resolveValue($listExpr, $context);
@@ -3436,8 +3459,16 @@ class TemplateEngine
                     'length' => $count,
                 ],
             ]);
-            $result .= $this->compile($body, $loopContext);
+            $chunk = $this->compile($body, $loopContext);
+            [$chunk, $signal] = $this->consumeLoopSignal($chunk);
+            $result .= $chunk;
+            if ($signal === 'break') {
+                break;
+            }
             $index++;
+            if ($signal === 'continue') {
+                continue;
+            }
         }
         return $result;
     }
@@ -3464,9 +3495,12 @@ class TemplateEngine
 
         $body = $innerContent;
         $emptyContent = '';
-        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
-            $emptyContent = substr($body, $emptyTagPos + 7);
-            $body = substr($body, 0, $emptyTagPos);
+        foreach (['{forelse}', '{empty}'] as $emptyTag) {
+            if (($emptyTagPos = strpos($body, $emptyTag)) !== false) {
+                $emptyContent = substr($body, $emptyTagPos + strlen($emptyTag));
+                $body = substr($body, 0, $emptyTagPos);
+                break;
+            }
         }
 
         $list = $this->resolveValue($listExpr, $context);
@@ -3497,8 +3531,16 @@ class TemplateEngine
             if ($keyName) {
                 $loopContext[$keyName] = $key;
             }
-            $result .= $this->compile($body, $loopContext);
+            $chunk = $this->compile($body, $loopContext);
+            [$chunk, $signal] = $this->consumeLoopSignal($chunk);
+            $result .= $chunk;
+            if ($signal === 'break') {
+                break;
+            }
             $index++;
+            if ($signal === 'continue') {
+                continue;
+            }
         }
         return $result;
     }
@@ -3513,8 +3555,22 @@ class TemplateEngine
         $count = 0;
         $result = '';
         while ($this->evaluateCondition($expr, $context)) {
-            $result .= $this->compile($innerContent, $context);
+            $chunk = $this->compile($innerContent, $context);
+            [$chunk, $signal] = $this->consumeLoopSignal($chunk);
+            $result .= $chunk;
             $count++;
+            if ($signal === 'break') {
+                break;
+            }
+            if ($signal === 'continue') {
+                if ($count >= $maxIterations) {
+                    if (function_exists('write_log')) {
+                        write_log('DiSyL {while} loop exceeded max iterations (' . $maxIterations . ')', 'warning');
+                    }
+                    break;
+                }
+                continue;
+            }
             if ($count >= $maxIterations) {
                 if (function_exists('write_log')) {
                     write_log('DiSyL {while} loop exceeded max iterations (' . $maxIterations . ')', 'warning');
@@ -3547,9 +3603,12 @@ class TemplateEngine
 
         $body = $innerContent;
         $emptyContent = '';
-        if (($emptyTagPos = strpos($body, '{empty}')) !== false) {
-            $emptyContent = substr($body, $emptyTagPos + 7);
-            $body = substr($body, 0, $emptyTagPos);
+        foreach (['{forelse}', '{empty}'] as $emptyTag) {
+            if (($emptyTagPos = strpos($body, $emptyTag)) !== false) {
+                $emptyContent = substr($body, $emptyTagPos + strlen($emptyTag));
+                $body = substr($body, 0, $emptyTagPos);
+                break;
+            }
         }
 
         $list = $this->resolveValue($listExpr, $context);
@@ -3580,10 +3639,39 @@ class TemplateEngine
             if ($keyName !== null) {
                 $loopContext[$keyName] = $key;
             }
-            $result .= $this->compile($body, $loopContext);
+            $chunk = $this->compile($body, $loopContext);
+            [$chunk, $signal] = $this->consumeLoopSignal($chunk);
+            $result .= $chunk;
+            if ($signal === 'break') {
+                break;
+            }
             $index++;
+            if ($signal === 'continue') {
+                continue;
+            }
         }
         return $result;
+    }
+
+    /**
+     * Consume one loop-control signal marker from rendered loop content.
+     *
+     * @return array{0:string,1:?string} [sanitizedContent, signal]
+     */
+    private function consumeLoopSignal(string $content): array
+    {
+        $breakPos = strpos($content, self::LOOP_BREAK_MARKER);
+        $continuePos = strpos($content, self::LOOP_CONTINUE_MARKER);
+
+        if ($breakPos === false && $continuePos === false) {
+            return [$content, null];
+        }
+
+        if ($breakPos !== false && ($continuePos === false || $breakPos <= $continuePos)) {
+            return [substr($content, 0, $breakPos), 'break'];
+        }
+
+        return [substr($content, 0, (int)$continuePos), 'continue'];
     }
 
     /**
@@ -3630,8 +3718,8 @@ class TemplateEngine
 
             $whitespacePos = $pos + $keywordLen;
             $nextChar = $content[$whitespacePos] ?? '';
-            // Allow argless form {trusted}/{untrusted}/{parallel} (immediate '}')
-            if ($nextChar === '}' && ($type === 'trusted' || $type === 'untrusted' || $type === 'parallel')) {
+            // Allow argless control tags with immediate '}'.
+            if ($nextChar === '}' && ($type === 'trusted' || $type === 'untrusted' || $type === 'parallel' || $type === 'break' || $type === 'continue')) {
                 $full = substr($content, $pos, $whitespacePos - $pos + 1);
                 return [
                     'type' => $type,
@@ -3653,7 +3741,7 @@ class TemplateEngine
             $full = substr($content, $pos, $tagEnd - $pos + 1);
             $expr = trim(substr($content, $whitespacePos + 1, $tagEnd - $whitespacePos - 1));
 
-            if ($expr === '' && $type !== 'trusted' && $type !== 'untrusted' && $type !== 'parallel') {
+            if ($expr === '' && $type !== 'trusted' && $type !== 'untrusted' && $type !== 'parallel' && $type !== 'break' && $type !== 'continue') {
                 continue;
             }
 

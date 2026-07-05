@@ -1,0 +1,31 @@
+{ikb_entity_view name="ehr_encounter" view="table"}
+    {field name="encounter_uuid" type="string" renderer="text"}
+    {field name="patient_name" type="string" renderer="text"}
+    {field name="encounter_type" type="string" renderer="text"}
+    {field name="service_line" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{open|Open|blue;in-progress|In Progress|indigo;completed|Completed|green;cancelled|Cancelled|gray}"}
+    {field name="encounter_started_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/encounters?encounter_id={id}" method="GET" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ehr_encounter" view="compact"}
+    {field name="patient_name" type="string" renderer="text"}
+    {field name="encounter_type" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{open|Open|blue;in-progress|In Progress|indigo;completed|Completed|green;cancelled|Cancelled|gray}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/encounters?encounter_id={id}" method="GET" label="Open"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ehr_encounter" view="detailed"}
+    {field name="encounter_uuid" type="string" renderer="text"}
+    {field name="patient_name" type="string" renderer="text"}
+    {field name="encounter_type" type="string" renderer="text"}
+    {field name="service_line" type="string" renderer="text"}
+    {field name="reason_for_visit" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{open|Open|blue;in-progress|In Progress|indigo;completed|Completed|green;cancelled|Cancelled|gray}"}
+    {field name="encounter_started_at" type="string" renderer="date"}
+    {field name="encounter_ended_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/encounters?encounter_id={id}" method="GET" label="Open"}
+{/ikb_entity_view}

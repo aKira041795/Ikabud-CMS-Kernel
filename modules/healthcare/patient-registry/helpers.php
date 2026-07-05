@@ -341,3 +341,33 @@ function patient_registry_cap_ehr_patient_search_1(mixed $payload, string $resol
 
     return ['ok' => true, 'results' => is_array($rows) ? $rows : []];
 }
+
+function patient_registry_cap_entity_list_ehr_patient_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $search = patient_registry_cap_ehr_patient_search_1([
+        'q' => trim((string)($data['q'] ?? '')),
+        'limit' => max(1, min(100, (int)($data['limit'] ?? 25))),
+    ], $resolvedCapabilityId, $providerId);
+
+    $rows = is_array($search['results'] ?? null) ? array_values($search['results']) : [];
+    $status = strtolower(trim((string)($data['status'] ?? '')));
+    if ($status !== '') {
+        $rows = array_values(array_filter($rows, static function (mixed $row) use ($status): bool {
+            return is_array($row) && strtolower((string)($row['status'] ?? '')) === $status;
+        }));
+    }
+
+    return ['rows' => $rows, 'total' => count($rows)];
+}
+
+function patient_registry_cap_entity_get_ehr_patient_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $patient = prFetchPatientByIdOrUuid(
+        (int)($data['id'] ?? $data['entity_id'] ?? 0),
+        trim((string)($data['patient_uuid'] ?? ''))
+    );
+
+    return is_array($patient) ? $patient : [];
+}

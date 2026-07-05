@@ -588,6 +588,9 @@ switch ($command) {
         out('    ' . green('disyl:lint') . ' --verbose        Show passing files too');
         out('    ' . green('disyl:list-sources') . '         List registered entity sources for entity views');
         out('    ' . green('disyl:inspect') . ' <file>       Inspect template variables, components, sources');
+        out('    ' . green('cache:clear') . '                 Clear all runtime caches (DiSyL compiled, file cache, APCu)');
+        out('    ' . green('cache:clear') . ' --disyl-only    Clear only DiSyL compiled template cache');
+        out('    ' . green('cache:clear') . ' --apcu-only     Clear only APCu in-memory cache');
         out('    ' . green('theme:validate') . ' <slug>     Validate theme manifest, tokens, templates, anti-patterns');
         out('    ' . green('theme:validate') . ' --all       Validate all installed themes');
         out('    ' . green('theme:inspect') . ' <slug>      Show theme summary (layouts, slots, components, assets)');
@@ -3515,6 +3518,75 @@ MD;
             out(yellow("  ✓ Module '{$moduleId}' disabled."));
         }
         break;
+
+    // ── cache:clear ───────────────────────────────────────────────
+    case 'cache:clear':
+        banner();
+        $disylOnly = hasFlag('--disyl-only');
+        $apcuOnly  = hasFlag('--apcu-only');
+
+        out('  ' . bold('Cache Clear'));
+        out('');
+
+        $totalCleared = 0;
+        $errors = [];
+
+        // ── DiSyL compiled template cache ────────────────────────
+        if (!$apcuOnly) {
+            $disylCacheDir = STORAGE_PATH . '/cache/disyl';
+            $disylCleared = 0;
+            if (is_dir($disylCacheDir)) {
+                $files = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($disylCacheDir, \FilesystemIterator::SKIP_DOTS)
+                );
+                foreach ($files as $file) {
+                    if ($file->isFile() && @unlink($file->getPathname())) {
+                        $disylCleared++;
+                    }
+                }
+            }
+            $totalCleared += $disylCleared;
+            out('  ' . green('✓') . " DiSyL compiled template cache: {$disylCleared} file(s) removed");
+        }
+
+        // ── General file cache ────────────────────────────────────
+        if (!$disylOnly && !$apcuOnly) {
+            try {
+                $cache = new \Ikabud\Kernel\Cache(STORAGE_PATH . '/cache');
+                $result = $cache->clearAll();
+                $fileCleared = $result['cleared'] ?? 0;
+                $totalCleared += $fileCleared;
+                out('  ' . green('✓') . " File cache: {$fileCleared} file(s) removed");
+            } catch (\Throwable $e) {
+                $errors[] = 'File cache: ' . $e->getMessage();
+                out('  ' . yellow('△') . ' File cache: ' . $e->getMessage());
+            }
+        }
+
+        // ── APCu in-memory cache ──────────────────────────────────
+        if (!$disylOnly) {
+            if (function_exists('apcu_clear_cache')) {
+                $apcuOk = apcu_clear_cache();
+                if ($apcuOk) {
+                    out('  ' . green('✓') . ' APCu in-memory cache cleared');
+                } else {
+                    $errors[] = 'APCu clear returned false';
+                    out('  ' . yellow('△') . ' APCu clear returned false (may already be empty)');
+                }
+            } else {
+                out('  ' . dim('  △') . ' APCu not available — skipped');
+            }
+        }
+
+        // ── Summary ───────────────────────────────────────────────
+        out('');
+        if (empty($errors)) {
+            out('  ' . green('✓ Done.') . " {$totalCleared} cached file(s) removed.");
+        } else {
+            out('  ' . yellow('⚠ Done with warnings.') . " {$totalCleared} file(s) removed, " . count($errors) . ' warning(s).');
+        }
+        out('');
+        exit(empty($errors) ? 0 : 1);
 
     // ── architecture:check ──────────────────────────────────────────
     case 'architecture:check':

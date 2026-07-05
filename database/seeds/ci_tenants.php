@@ -20,12 +20,15 @@ $crypto = new \Ikabud\Kernel\Crypto();
 $pdo->exec(
     "INSERT IGNORE INTO kernel_tenants (id, tenant_key, status, entry_module_id) VALUES
         (1, 'baronbakeshop', 'active', 'daily-ledger'),
-        (2, 'clientsite',    'active', 'cms')"
+    (2, 'clientsite',    'active', 'cms'),
+    (3, 'healthcare',    'active', 'ehr')"
 );
 
 // ── Domain mapping ────────────────────────────────────────────────────────────
 $pdo->exec(
-    "INSERT IGNORE INTO kernel_tenant_domains (tenant_id, domain) VALUES (2, 'clientsite.test')"
+    "INSERT IGNORE INTO kernel_tenant_domains (tenant_id, domain) VALUES
+        (2, 'clientsite.test'),
+        (3, 'healthcare.test')"
 );
 
 // ── DB connections (encrypted passwords) ─────────────────────────────────────
@@ -35,9 +38,11 @@ $dbUser = $_ENV['DB_USERNAME'] ?? 'root';
 $dbPass = $_ENV['DB_PASSWORD'] ?? 'ci_root_pass';
 $baronDb = $_ENV['DB_DATABASE'] ?? 'baronbakeshop_ci';
 $clientDb = 'clientsite_ci';
+$healthcareDb = 'healthcare_ci';
 
 $enc1 = $crypto->encryptString($dbPass);
 $enc2 = $crypto->encryptString($dbPass);
+$enc3 = $crypto->encryptString($dbPass);
 
 $stmt = $pdo->prepare(
     'INSERT IGNORE INTO kernel_tenant_db_connections
@@ -68,6 +73,18 @@ $stmt->execute([
     ':tag'  => $enc2['tag'],
 ]);
 
+$stmt->execute([
+    ':tid'  => 3,
+    ':host' => $dbHost,
+    ':port' => $dbPort,
+    ':name' => $healthcareDb,
+    ':user' => $dbUser,
+    ':ct'   => $enc3['ciphertext'],
+    ':iv'   => $enc3['iv'],
+    ':tag'  => $enc3['tag'],
+]);
+
 echo "CI tenant seed complete.\n";
 echo "  baronbakeshop  (id=1, entry=daily-ledger) → {$baronDb}\n";
 echo "  clientsite     (id=2, entry=cms)          → {$clientDb}\n";
+echo "  healthcare     (id=3, entry=ehr)          → {$healthcareDb}\n";

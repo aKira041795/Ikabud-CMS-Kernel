@@ -243,9 +243,9 @@ See: [Polyglot Service Developer Guide](polyglot-service-guide.md)
 | Developer SDK: Polyglot Service Guide, Module Development Guide, Quickstart | ✅ |
 | Compatibility matrix via certification checks | ✅ |
 | Marketplace backend + certification | ✅ |
-| Public marketplace UI (catalog/browse/install UX) | 🔴 Deferred |
+| Public marketplace UI (catalog/browse/install UX) | 🔴 Deferred to 7.x |
 
-> **Note:** The ecosystem backend is complete — module certification, catalog API, compatibility matrix, and developer SDK all ship. The public marketplace storefront experience remains deferred.
+> **Note:** The ecosystem backend is complete — module certification, catalog API, compatibility matrix, and developer SDK all ship. Product decision: the public marketplace storefront experience is deferred to 7.x.
 
 ---
 

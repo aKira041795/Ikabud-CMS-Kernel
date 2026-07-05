@@ -20,6 +20,15 @@ applyTo: "**/*.disyl"
 
 ## Control Structures
 - Use standard DiSyL control structures (`{if}`, `{for}`, `{foreach}`, `{each}`, `{include}`)
+- `{forelse}` is supported (alias for `{empty}`) inside `{for}`, `{foreach}`, and `{each}` loops for empty-state rendering:
+  ```disyl
+  {for item in items}
+    {item.name}
+  {forelse}
+    <p>No items found.</p>
+  {/for}
+  ```
+- `{empty}` inside loops also works identically — `{forelse}` is the preferred readable form
 - Use `{ikb_render}` for inline rendering of components
 - Avoid HTML-as-source edits — builder source of truth is structured JSON
 
@@ -28,6 +37,7 @@ applyTo: "**/*.disyl"
 - Use `{var ?? fallback}` for null-coalescing (desugars to `|default:`)
 - Parenthesize arithmetic before pipes: `{(a + b) | number_format:2}` — otherwise `b | filter` binds tighter
 - String concatenation uses `~` operator: `{a ~ b}`, `{'INV#'~s.id}` (Twig-style, supported in both interpreted and compiled modes)
+- **Array literals** are supported in both modes (fixed 2026-07-05): `{for item in ['a','b','c']}`, `{set items = ['x','y']}`, `{['a','b'] | join:', '}` all work
 - Only whitelisted functions work in compiled mode: `range`, `count`, `abs`, `round`, `floor`, `ceil`, `min`, `max`, `length`, `str_*`, `trim`, `substr`, `strlen`, `number_format`, `isset`, `empty`, `is_array`
 - `isset()`/`empty()`/`is_array()` are now in the whitelist — `{if isset(source_label)}` works in compiled mode. Both `isset(var)` and `isset($var)` syntaxes are supported (the `$` prefix is stripped automatically).
 
@@ -35,7 +45,7 @@ applyTo: "**/*.disyl"
 - DiSyL curly braces inside Alpine.js `x-data`, `@click`, `x-init` attributes can conflict — use `{verbatim}`/`{literal}` blocks, or escape with `{` → `{` patterns
 - For Alpine.js + DiSyL: the engine extracts `<script>` blocks before processing, but inline attribute handlers (`@click="..."`) are NOT extracted — DiSyL sees bare `{}` there
 - Compiled template cache may need clearing after template changes: delete `storage/cache/disyl/`
-- **If compiled mode is enabled and a template uses `isset()`/`empty()`/`is_array()`, those will silently return null** — compiled code goes through `FunctionRegistry::call()` which has no such entries
+- `isset()`, `empty()`, and `is_array()` work in compiled mode as of 2026-06-26 — they are registered in `FunctionRegistry::init()`. Both `isset(var)` and `isset($var)` syntaxes are supported.
 
 ## Rendering Context
 - `{cmsRender}`, `{cmsAdminContext}` — CMS rendering context providers

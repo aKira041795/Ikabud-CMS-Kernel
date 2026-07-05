@@ -6,7 +6,7 @@
         <h3 class="cms-lessons-title text-base font-semibold text-gray-800">Contents</h3>
     </div>
     <ol class="cms-lessons-list divide-y divide-gray-100">
-        {foreach capability_data.lessons_index.items as lesson loop}
+        {foreach capability_data.lessons_index.items as lesson}
         <li class="cms-lessons-item flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
             <span class="cms-lessons-index text-sm font-mono text-gray-400 w-6 shrink-0">{loop.index1}.</span>
             <a href="{base_url}/cms/{capability_data.lessons_index.child_type}/{lesson.slug}"

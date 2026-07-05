@@ -24,6 +24,8 @@ applyTo: "**/*Test.php"
 1. Manifest-settings default contract tests across all settings-bearing modules
 2. Ecommerce storefront media tests (featured image, gallery fallback, placeholder)
 3. CMS entity-list product-card image tests for `/ecommerce/shop` rendering path
+4. EHR entity-view integration tests for patient-registry, encounters, and scheduling (`entity.list/*` + `entity.get/*`)
+5. Ticketing entity-view integration tests for `entity.list.ticket@1` and `entity.get.ticket@1`, including CMS list/detail rendering paths
 
 ## Test Runner
 - PHP deps: `composer install` (repo root)

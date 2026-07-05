@@ -1,0 +1,33 @@
+{ikb_entity_view name="ehr_appointment" view="table"}
+    {field name="appointment_uuid" type="string" renderer="text"}
+    {field name="patient_name" type="string" renderer="text"}
+    {field name="appointment_type" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{scheduled|Scheduled|blue;checked-in|Checked In|teal;waiting|Waiting|amber;roomed|Roomed|indigo;completed|Completed|green;canceled|Canceled|gray;no-show|No Show|rose}"}
+    {field name="scheduled_at" type="string" renderer="date"}
+    {field name="queue_destination_label" type="string" renderer="text"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/appointments?appointment_id={id}" method="GET" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ehr_appointment" view="compact"}
+    {field name="patient_name" type="string" renderer="text"}
+    {field name="appointment_type" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{scheduled|Scheduled|blue;checked-in|Checked In|teal;waiting|Waiting|amber;roomed|Roomed|indigo;completed|Completed|green;canceled|Canceled|gray;no-show|No Show|rose}"}
+    {field name="scheduled_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/appointments?appointment_id={id}" method="GET" label="Open"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ehr_appointment" view="detailed"}
+    {field name="appointment_uuid" type="string" renderer="text"}
+    {field name="patient_name" type="string" renderer="text"}
+    {field name="appointment_type" type="string" renderer="text"}
+    {field name="reason_for_visit" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{scheduled|Scheduled|blue;checked-in|Checked In|teal;waiting|Waiting|amber;roomed|Roomed|indigo;completed|Completed|green;canceled|Canceled|gray;no-show|No Show|rose}"}
+    {field name="scheduled_start" type="string" renderer="date"}
+    {field name="scheduled_end" type="string" renderer="date"}
+    {field name="queue_destination_label" type="string" renderer="text"}
+    {field name="queue_ticket_label" type="string" renderer="text"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/appointments?appointment_id={id}" method="GET" label="Open"}
+{/ikb_entity_view}

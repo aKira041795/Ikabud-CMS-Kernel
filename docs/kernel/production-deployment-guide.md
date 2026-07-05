@@ -217,16 +217,16 @@ git pull origin main
 composer install --no-dev --optimize-autoloader
 
 # 3. Run migrations
-php scripts/migrate.php
+php ikabud migrate
 
 # 4. Rebuild builder UI (if changed)
 cd modules/cms/builder-ui && npm ci && npm run build && cd ../../..
 
-# 5. Clear file cache
-php -r "require 'bootstrap.php'; app()->cache()->clear();"
+# 5. Clear all runtime caches (DiSyL compiled templates, file cache, APCu)
+php ikabud cache:clear
 
 # 6. Reset OPcache (if validate_timestamps=0)
-# Option A: Restart PHP-FPM
+# Option A: Restart PHP-FPM (also evicts any APCu that survived cache:clear)
 sudo systemctl restart php8.3-fpm
 
 # Option B: Via PHP script (hit from web)
@@ -235,6 +235,16 @@ sudo systemctl restart php8.3-fpm
 # 7. Verify
 curl -sI http://localhost/login
 ```
+
+### Cache management reference
+
+| Command | Effect |
+|---|---|
+| `php ikabud cache:clear` | Clears DiSyL compiled templates, file cache, and APCu |
+| `php ikabud cache:clear --disyl-only` | Clears only `storage/cache/disyl/` (compiled templates) |
+| `php ikabud cache:clear --apcu-only` | Clears only the APCu in-memory cache |
+
+> **When to run `cache:clear`:** Always run after deploying code changes. DiSyL compiled templates are cached on disk and in APCu; stale compiled output can survive a graceful FPM restart without a full `apcu_clear_cache()`. The CLI command handles both layers in one step.
 
 ## Monitoring
 

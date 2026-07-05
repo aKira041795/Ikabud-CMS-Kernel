@@ -41,6 +41,20 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.list.ehr_patient@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.get.ehr_patient@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -90,6 +104,24 @@
                         "results",
                         "documents",
                         "privacy-consent",
+                        "patient-portal"
+                    ]
+                },
+                "entity.list.ehr_patient@1": {
+                    "allow_callers": [
+                        "patient-registry",
+                        "ehr",
+                        "encounters",
+                        "scheduling",
+                        "patient-portal"
+                    ]
+                },
+                "entity.get.ehr_patient@1": {
+                    "allow_callers": [
+                        "patient-registry",
+                        "ehr",
+                        "encounters",
+                        "scheduling",
                         "patient-portal"
                     ]
                 }

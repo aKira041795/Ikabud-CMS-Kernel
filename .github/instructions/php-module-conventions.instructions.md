@@ -41,6 +41,8 @@ applyTo: "**/*.php"
 ## Entity Views (Kernel OS 6.0+)
 - Use `{ikb_entity_list}`/`{ikb_entity_detail}` for all list/detail views
 - Register view contracts via `{ikb_entity_view}` DiSyL config files in `helpers/views/`
+- Use `filter` on `{ikb_entity_list}` for runtime narrowing; keep filter expressions simple and module-owned
+- Use `keyof` in DiSyL templates when iterating unknown object shapes to avoid hard-coded field assumptions
 - Entity views handle single-source data display only
 - Computed cross-entity metrics, tabs, charts, multi-field filters → handler/composite template layer
 

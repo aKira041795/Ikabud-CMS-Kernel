@@ -309,10 +309,8 @@
 <script>
     var BASE = '{base_url}';
 
-    // Color presets data — driven by handler context via DiSyL v4 {foreach} in <script>
-    var colorPresets = [
-        {foreach color_presets as cp}{ label: '{cp.label}', colors: {cp.colors | json} },{/foreach}
-    ];
+    // Color presets data from server context
+    var colorPresets = {color_presets | json};
 
     // Collect all setting field IDs — driven from handler context
     var settingKeys = {setting_keys | json};

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
 
+\Ikabud\Kernel\DiSyL\TemplateEngine::loadViewConfigs(__DIR__ . '/helpers/views');
+
 function encPageState(array $user, array $input = [], ?string $formError = null): array
 {
     $statusFilter = strtolower(trim((string)($input['status'] ?? '')));

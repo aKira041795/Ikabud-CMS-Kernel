@@ -9,13 +9,27 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        db:
+          - name: mysql-8
+            image: mysql:8.0
+            root_password: ci_root_pass
+            database: baronbakeshop_ci
+          - name: mariadb-10.6
+            image: mariadb:10.6
+            root_password: ci_root_pass
+            database: baronbakeshop_ci
 
     services:
       mysql:
-        image: mysql:8.0
+        image: ${{ matrix.db.image }}
         env:
-          MYSQL_ROOT_PASSWORD: ci_root_pass
-          MYSQL_DATABASE: baronbakeshop_ci
+          MYSQL_ROOT_PASSWORD: ${{ matrix.db.root_password }}
+          MARIADB_ROOT_PASSWORD: ${{ matrix.db.root_password }}
+          MYSQL_DATABASE: ${{ matrix.db.database }}
+          MARIADB_DATABASE: ${{ matrix.db.database }}
         ports:
           - 3306:3306
         options: >-
@@ -27,6 +41,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: CI target database
+        run: echo "Running matrix for ${{ matrix.db.name }}"
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -59,9 +76,17 @@ jobs:
       - name: Create clientsite CI database
         run: mysql -h 127.0.0.1 -u root -pci_root_pass -e "CREATE DATABASE IF NOT EXISTS clientsite_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
+      - name: Create healthcare CI database
+        run: mysql -h 127.0.0.1 -u root -pci_root_pass -e "CREATE DATABASE IF NOT EXISTS healthcare_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
       - name: Run clientsite migrations
         env:
           APP_TENANT_DEFAULT: "2"
+        run: php -d variables_order=EGPCS ikabud migrate
+
+      - name: Run healthcare tenant migrations
+        env:
+          APP_TENANT_DEFAULT: "3"
         run: php -d variables_order=EGPCS ikabud migrate
 
       - name: Seed clientsite database
@@ -78,6 +103,23 @@ jobs:
         run: |
           sudo -E php -S 127.0.0.1:80 -t public/ > /tmp/php-server.log 2>&1 &
           sleep 3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: modules/cms/builder-ui/package-lock.json
+
+      - name: Builder UI type-check
+        working-directory: modules/cms/builder-ui
+        run: npm ci && npm run type-check
+
+      - name: DiSyL template lint
+        run: php _lint_disyl.php --ci
+
+      - name: Architecture boundary check
+        run: php ikabud architecture:check
 
       - name: Run test suite
         run: composer test

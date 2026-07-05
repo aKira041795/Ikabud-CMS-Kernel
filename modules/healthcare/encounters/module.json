@@ -55,6 +55,20 @@
                 "modes": [
                     "first"
                 ]
+            },
+            {
+                "id": "entity.list.ehr_encounter@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "entity.get.ehr_encounter@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ]
             }
         ],
         "depends": [
@@ -115,6 +129,26 @@
                         "orders",
                         "results",
                         "prescriptions",
+                        "documents"
+                    ]
+                },
+                "entity.list.ehr_encounter@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "ehr",
+                        "scheduling",
+                        "clinical-notes",
+                        "orders"
+                    ]
+                },
+                "entity.get.ehr_encounter@1": {
+                    "allow_callers": [
+                        "encounters",
+                        "ehr",
+                        "scheduling",
+                        "clinical-notes",
+                        "orders",
+                        "results",
                         "documents"
                     ]
                 }

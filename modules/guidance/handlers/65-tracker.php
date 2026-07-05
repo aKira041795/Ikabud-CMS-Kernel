@@ -621,6 +621,9 @@ function apiTrackerImportPreview(string $trackerId): void
 {
     $app = app();
     $app->requireAnyRole('admin', 'supervisor');
+    if (function_exists('release_session_lock_if_active')) {
+        release_session_lock_if_active();
+    }
     $db = $app->db();
     
     if (empty($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
@@ -736,6 +739,9 @@ function apiTrackerImportExecute(string $trackerId): void
 {
     $app = app();
     $app->requireAnyRole('admin', 'supervisor');
+    if (function_exists('release_session_lock_if_active')) {
+        release_session_lock_if_active();
+    }
     $db = $app->db();
     
     $tempFile = $app->input('temp_file', '');

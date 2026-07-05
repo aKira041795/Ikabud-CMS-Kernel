@@ -81,6 +81,16 @@ Important behavior:
 
 This reduces state leakage, but it does not remove the need to keep each test self-contained.
 
+## CI Tenant Coverage
+
+CI runs against three seeded tenants so module surfaces are exercised across entry contexts:
+
+- tenant `1` — `baronbakeshop` (`daily-ledger` entry)
+- tenant `2` — `clientsite` (`cms` entry)
+- tenant `3` — `healthcare` (`ehr` entry)
+
+Tenant-local migrations are executed for tenant `2` and tenant `3` using `APP_TENANT_DEFAULT` in CI.
+
 ## Logs To Check
 
 Always inspect both logs after reproducing a bug or after a failing test run:

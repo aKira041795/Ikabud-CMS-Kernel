@@ -1,8 +1,9 @@
 # DiSyL Grammar Reference v4.7
 
-> **Status**: Extracted from the parser implementation (`kernel/DiSyL/TemplateEngine.php` v4.7.0, `kernel/DiSyL/v4/Parser.php`).
+> **Status**: Extracted from runtime implementation (`kernel/DiSyL/TemplateEngine.php`, `kernel/DiSyL/v4/Parser.php`, `kernel/DiSyL/Compiler/TemplateCompiler.php`).
 > This document is a **human-readable reference** with examples and explanations.
 > For the **formal machine-readable grammar**, see [disyl-grammar-v4.7.ebnf](./disyl-grammar-v4.7.ebnf) — a complete 56-rule EBNF specification suitable for parser generators, linters, and syntax highlighting grammars.
+> **Canonical split (D7 sync):** `docs/disyl/` is grammar/spec-focused; [docs/kernel/disyl-language-reference.md](../kernel/disyl-language-reference.md) is implementation/runtime behavior guidance.
 
 ---
 
@@ -44,6 +45,23 @@
 {price * qty}
 {x / y}
 {x % y}
+{prefix ~ suffix}
+```
+
+### Null-coalescing
+```
+{title ?? "Untitled"}
+```
+
+### Array literals
+```
+{['a', 'b', 'c']}
+{for item in ['draft', 'published']}{item}{/for}
+```
+
+### Entity-view reflection
+```
+{keyof guidance_case.table | join:", "}
 ```
 
 ### Ternary
@@ -88,15 +106,37 @@
 
 ### `{for}` / `{/for}`
 ```
-{for i = 0; i < 10; i++}
+{for item in items}
+    <span>{item}</span>
+{/for}
+```
+
+### C-style `{for}` / `{/for}`
+```
+{for set i = 0; i < 10; set i = i + 1}
     <span>{i}</span>
 {/for}
+```
+
+### `{while}` / `{/while}`
+```
+{while keep_running}
+    {if should_stop}{break}{/if}
+    {if skip_row}{continue}{/if}
+    <p>Row</p>
+{/while}
 ```
 
 ### `{set}`
 ```
 {set name = expression}
 {set total = price * qty}
+```
+
+### Loop control tags
+```
+{break}
+{continue}
 ```
 
 ### `{verbatim}` / `{/verbatim}`
@@ -171,6 +211,17 @@
 
 ### Compiled Mode (default v4.7+)
 Templates are compiled to PHP cache files. On cache miss or parse failure, falls back to interpreted mode. The compiled cache lives in `storage/cache/disyl/`.
+
+### Async tags
+```
+{await key="user.profile" from="https://api.example.com/profile" method="GET" timeout_ms="3000" as="profile"}
+    <p>{profile.name}</p>
+{/await}
+
+{suspense for="user.profile" fallback="Loading profile..."}
+    <p>Done</p>
+{/suspense}
+```
 
 ### Strict Mode (default v4.8+)
 When enabled, logs undefined variables, type mismatches, and `|raw` usage as warnings. Does not break rendering — logs are written to `storage/logs/app.log`.

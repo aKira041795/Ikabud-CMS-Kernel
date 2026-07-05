@@ -209,6 +209,12 @@ final class Parser
         if (preg_match('/^while[\s}]/', $peek)) {
             return $this->recoverableParse($this->parseWhile(...), 'while', $savedPos);
         }
+        if (preg_match('/^break\s*}/', $peek)) {
+            return $this->recoverableParse($this->parseBreak(...), 'break', $savedPos);
+        }
+        if (preg_match('/^continue\s*}/', $peek)) {
+            return $this->recoverableParse($this->parseContinue(...), 'continue', $savedPos);
+        }
         if (preg_match('/^match[\s}]/', $peek)) {
             return $this->recoverableParse($this->parseMatch(...), 'match', $savedPos);
         }
@@ -280,6 +286,11 @@ final class Parser
 
         $parts = $this->splitByPipe($expr);
         $baseExpr = trim($parts[0] ?? '');
+
+        // Array literal expression: {['a','b']} or {['a','b'] | filter}
+        if ($baseExpr !== '' && $baseExpr[0] === '[') {
+            return true;
+        }
 
         return preg_match('/^[a-zA-Z_][\w.]*$/', $baseExpr) === 1;
     }
@@ -454,6 +465,20 @@ final class Parser
             new DocumentNode([], $body),
             null
         );
+    }
+
+    /** {break} */
+    private function parseBreak(): ControlNode
+    {
+        $this->readTagContent();
+        return new ControlNode([], 'break', []);
+    }
+
+    /** {continue} */
+    private function parseContinue(): ControlNode
+    {
+        $this->readTagContent();
+        return new ControlNode([], 'continue', []);
     }
 
     /** {if condition}...{elseif condition}...{else if condition}...{else}...{/if} */
@@ -702,11 +727,11 @@ final class Parser
         $itemName = $m[1];
         $iterable = trim($m[2]);
 
-        $body = $this->parseChildren(['{/for}', '{empty}']);
+        $body = $this->parseChildren(['{/for}', '{empty}', '{forelse}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{empty}')) {
-            $this->consumeExact('{empty}');
+        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}')) {
+            $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
             $elseDoc = new DocumentNode([], $this->parseChildren(['{/for}']));
         }
 
@@ -742,11 +767,11 @@ final class Parser
             throw new \RuntimeException("Invalid {foreach} syntax: expected 'list as value' or 'list as key => value', got '{$expr}'");
         }
 
-        $body = $this->parseChildren(['{/foreach}', '{empty}']);
+        $body = $this->parseChildren(['{/foreach}', '{empty}', '{forelse}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{empty}')) {
-            $this->consumeExact('{empty}');
+        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}')) {
+            $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
             $elseDoc = new DocumentNode([], $this->parseChildren(['{/foreach}']));
         }
 
@@ -781,11 +806,11 @@ final class Parser
             throw new \RuntimeException("Invalid {each} syntax: expected 'list as value' or 'list as key => value', got '{$expr}'");
         }
 
-        $body = $this->parseChildren(['{/each}', '{empty}']);
+        $body = $this->parseChildren(['{/each}', '{empty}', '{forelse}']);
         $elseDoc = null;
 
-        if ($this->lookingAt('{empty}')) {
-            $this->consumeExact('{empty}');
+        if ($this->lookingAt('{empty}') || $this->lookingAt('{forelse}')) {
+            $this->consumeExact($this->lookingAt('{forelse}') ? '{forelse}' : '{empty}');
             $elseDoc = new DocumentNode([], $this->parseChildren(['{/each}']));
         }
 

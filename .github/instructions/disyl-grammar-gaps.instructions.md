@@ -73,8 +73,9 @@ applyTo: "**/*.php **/*.disyl"
 | Construct | Details |
 |---|---|
 | C-style `{for}` | `{for i = 0; i < 10; i++}` mentioned in grammar doc but **no parser code exists** — only `{for x in list}` iteration works |
-| `{while}` | No parser or evaluator code |
-| Array literals | No `{['a', 'b']}` syntax — only `range()` produces arrays |
+| `{while}` | ~~No parser or evaluator code~~ — **FIXED**: parser + interpreted evaluator + compiled codegen are implemented |
+| `{break}` / `{continue}` | ~~Not supported~~ — **FIXED (2026-07-05)** in both interpreted and compiled loops (`for`/`foreach`/`each`/`while`) |
+| Array literals | ~~No `{['a', 'b']}` syntax~~ — **FIXED (2026-07-05)**: `{['a','b']}`, `{set items = ['a','b']}`, `{for item in ['a','b']}`, and `{['a','b'] \| filter}` all work in both interpreted and compiled modes |
 | Array bracket access | No `{arr[0]}` — must use `{arr.0}` dot notation (which only works if the key is numeric-compatible) |
 | String interpolation | No `"Hello {name}"` — DiSyL doesn't parse inside string literals |
 | Heredoc/Nowdoc | Not applicable in template context |
@@ -96,7 +97,7 @@ applyTo: "**/*.php **/*.disyl"
 
 1. **Tight operator binding for `|`**: `{a + b \| filter}` parses `b \| filter` first instead of `a + b` as arithmetic. Fixed only if parenthesized: `{(a + b) \| filter}`.
 
-2. **`isset()`/`empty()` only work in interpreted mode**: These PHP functions are not in `FunctionRegistry`. In compiled mode they return `null` silently. If compiled mode is enabled, templates using `isset()`/`empty()` will silently break.
+2. ~~**`isset()`/`empty()` only work in interpreted mode**~~ **FIXED (2026-06-26)**: `isset()`, `empty()`, and `is_array()` are now registered in `FunctionRegistry::init()`. Both `isset(var)` and `isset($var)` syntaxes work in compiled mode — the `$` prefix is stripped automatically. This caveat is no longer valid.
 
 3. **Chained ternary without parentheses**: `{a ? b : c ? d : e}` is parsed left-to-right. PHP parses it as `{a ? b : (c ? d : e)}`. Use explicit parentheses: `{a ? b : (c ? d : e)}`.
 

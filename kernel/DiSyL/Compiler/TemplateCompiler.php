@@ -295,6 +295,8 @@ PHP;
             'for' => $this->compileFor($node),
             'cfor' => $this->compileCFor($node),
             'while' => $this->compileWhile($node),
+            'break' => $this->line('break;'),
+            'continue' => $this->line('continue;'),
             'set' => $this->compileSet($node),
             'with' => $this->compileWith($node),
             'apply' => $this->compileApply($node),

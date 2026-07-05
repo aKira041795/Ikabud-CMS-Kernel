@@ -1,0 +1,33 @@
+{ikb_entity_view name="ticket" view="table"}
+    {field name="ticket_no" type="string" renderer="text"}
+    {field name="subject" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{open|Open|blue;in_progress|In Progress|indigo;resolved|Resolved|green;closed|Closed|gray}"}
+    {field name="priority" type="enum" renderer="badge:{low|Low|gray;medium|Medium|blue;high|High|orange;urgent|Urgent|red}"}
+    {field name="category" type="string" renderer="text"}
+    {field name="created_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/tickets/{id}" method="GET" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ticket" view="compact"}
+    {field name="ticket_no" type="string" renderer="text"}
+    {field name="subject" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{open|Open|blue;in_progress|In Progress|indigo;resolved|Resolved|green;closed|Closed|gray}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/tickets/{id}" method="GET" label="Open"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ticket" view="detailed"}
+    {field name="ticket_no" type="string" renderer="text"}
+    {field name="subject" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{open|Open|blue;in_progress|In Progress|indigo;resolved|Resolved|green;closed|Closed|gray}"}
+    {field name="priority" type="enum" renderer="badge:{low|Low|gray;medium|Medium|blue;high|High|orange;urgent|Urgent|red}"}
+    {field name="category" type="string" renderer="text"}
+    {field name="source" type="string" renderer="text"}
+    {field name="creator_name" type="string" renderer="text"}
+    {field name="assignee_name" type="string" renderer="text"}
+    {field name="created_at" type="string" renderer="date"}
+    {field name="updated_at" type="string" renderer="date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/tickets/{id}" method="GET" label="Open"}
+{/ikb_entity_view}

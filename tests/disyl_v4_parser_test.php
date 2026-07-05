@@ -117,6 +117,33 @@ $doc = $parser->parse('{for item in items}{item}{empty}No items{/for}');
 check('for/empty parses', $doc->getChildren()[0] instanceof ControlNode
     && $doc->getChildren()[0]->hasElse());
 
+$doc = $parser->parse('{while count < 3}{set count = count + 1}{/while}');
+check('while loop parses', $doc->getChildren()[0] instanceof ControlNode
+    && $doc->getChildren()[0]->getTag() === 'while');
+
+$doc = $parser->parse('{for item in items}{if item == "b"}{continue}{/if}{if item == "c"}{break}{/if}{item}{/for}');
+$forNode = $doc->getChildren()[0] ?? null;
+$forBodyChildren = $forNode instanceof ControlNode && $forNode->getBody() instanceof DocumentNode
+    ? $forNode->getBody()->getChildren()
+    : [];
+$hasBreak = false;
+$hasContinue = false;
+foreach ($forBodyChildren as $child) {
+    if (!$child instanceof ControlNode || $child->getTag() !== 'if' || !$child->getBody() instanceof DocumentNode) {
+        continue;
+    }
+    foreach ($child->getBody()->getChildren() as $ifChild) {
+        if ($ifChild instanceof ControlNode && $ifChild->getTag() === 'break') {
+            $hasBreak = true;
+        }
+        if ($ifChild instanceof ControlNode && $ifChild->getTag() === 'continue') {
+            $hasContinue = true;
+        }
+    }
+}
+check('break parses inside loop body', $hasBreak);
+check('continue parses inside loop body', $hasContinue);
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo "── 5. {match} control structure ──────────────────────\n";
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

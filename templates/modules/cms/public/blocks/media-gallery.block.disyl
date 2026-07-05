@@ -6,7 +6,7 @@
     {if capability_data.media_gallery.items}
     <div class="cms-gallery-grid grid gap-2"
          style="grid-template-columns: repeat({capability_data.media_gallery.columns}, minmax(0, 1fr));">
-        {foreach capability_data.media_gallery.items as img loop}
+     {foreach capability_data.media_gallery.items as img}
         <a href="{if img.url}{img.url}{else}{img.src}{/if}"
            class="cms-gallery-item-link block aspect-square overflow-hidden rounded-lg bg-gray-100 group"
            {if capability_data.media_gallery.lightbox}data-lightbox="gallery" data-title="{img.caption}"{/if}>

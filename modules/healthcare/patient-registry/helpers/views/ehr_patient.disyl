@@ -1,0 +1,33 @@
+{ikb_entity_view name="ehr_patient" view="table"}
+    {field name="patient_uuid" type="string" renderer="text"}
+    {field name="last_name" type="string" renderer="text"}
+    {field name="first_name" type="string" renderer="text"}
+    {field name="birth_date" type="string" renderer="date"}
+    {field name="sex" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{active|Active|green;inactive|Inactive|gray;archived|Archived|slate}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/patients?patient_id={id}" method="GET" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ehr_patient" view="compact"}
+    {field name="last_name" type="string" renderer="text"}
+    {field name="first_name" type="string" renderer="text"}
+    {field name="patient_uuid" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{active|Active|green;inactive|Inactive|gray;archived|Archived|slate}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/patients?patient_id={id}" method="GET" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="ehr_patient" view="detailed"}
+    {field name="patient_uuid" type="string" renderer="text"}
+    {field name="first_name" type="string" renderer="text"}
+    {field name="last_name" type="string" renderer="text"}
+    {field name="middle_name" type="string" renderer="text"}
+    {field name="birth_date" type="string" renderer="date"}
+    {field name="sex" type="string" renderer="text"}
+    {field name="primary_phone" type="string" renderer="text"}
+    {field name="email" type="string" renderer="text"}
+    {field name="status" type="enum" renderer="badge:{active|Active|green;inactive|Inactive|gray;archived|Archived|slate}"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/ehr/patients?patient_id={id}" method="GET" label="Open"}
+{/ikb_entity_view}

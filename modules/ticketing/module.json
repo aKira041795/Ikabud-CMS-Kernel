@@ -99,10 +99,47 @@
           "first"
         ],
         "description": "Create a support ticket"
+      },
+      {
+        "id": "entity.list.ticket@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "List ticket entities for entity-view consumers"
+      },
+      {
+        "id": "entity.get.ticket@1",
+        "priority": 100,
+        "modes": [
+          "first"
+        ],
+        "description": "Fetch a single ticket entity for entity-view consumers"
       }
     ],
     "depends": [
       "sms.send@1"
+    ],
+    "policy": {
+      "capabilities": {
+        "ticketing.create@1": {
+          "allow_callers": [
+            "ticketing"
+          ]
+        },
+        "entity.list.ticket@1": {
+          "allow_callers": [
+            "ticketing",
+            "cms"
+          ]
+        },
+        "entity.get.ticket@1": {
+          "allow_callers": [
+            "ticketing",
+            "cms"
+          ]
+        }
+      }
     ]
   }
 }

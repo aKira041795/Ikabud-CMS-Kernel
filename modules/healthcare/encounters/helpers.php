@@ -99,6 +99,22 @@ function encHydrateEncounterPatients(array $encounters): array
     return $encounters;
 }
 
+function encEntityRow(array $encounter): array
+{
+    $patientSummary = is_array($encounter['patient_summary'] ?? null) ? $encounter['patient_summary'] : [];
+    $patientName = trim((string)($patientSummary['last_name'] ?? ''));
+    if ($patientName !== '') {
+        $patientName .= ', ';
+    }
+    $patientName .= trim((string)($patientSummary['first_name'] ?? ''));
+
+    $encounter['patient_name'] = trim($patientName, ', ');
+    $encounter['encounter_started_at'] = (string)($encounter['start_at'] ?? '');
+    $encounter['encounter_ended_at'] = (string)($encounter['end_at'] ?? '');
+
+    return $encounter;
+}
+
 function encounters_cap_ehr_encounter_create_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
 {
     $data = is_array($payload) ? $payload : [];
@@ -338,4 +354,33 @@ function encounters_cap_ehr_encounter_progress_1(mixed $payload, string $resolve
             'duration_minutes' => $durationMinutes,
         ],
     ];
+}
+
+function encounters_cap_entity_list_ehr_encounter_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $status = strtolower(trim((string)($data['status'] ?? '')));
+    $limit = max(1, min(100, (int)($data['limit'] ?? 25)));
+
+    $rows = encHydrateEncounterPatients(encListRecentEncounters($status, $limit));
+    $rows = array_values(array_map(static function (mixed $row): array {
+        return encEntityRow(is_array($row) ? $row : []);
+    }, $rows));
+
+    return ['rows' => $rows, 'total' => count($rows)];
+}
+
+function encounters_cap_entity_get_ehr_encounter_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $encounter = encFetchEncounterByIdOrUuid(
+        (int)($data['id'] ?? $data['entity_id'] ?? 0),
+        trim((string)($data['encounter_uuid'] ?? ''))
+    );
+    if (!is_array($encounter)) {
+        return [];
+    }
+
+    $hydrated = encHydrateEncounterPatients([$encounter]);
+    return encEntityRow(is_array($hydrated[0] ?? null) ? $hydrated[0] : $encounter);
 }

@@ -479,6 +479,9 @@ function bakeshopApiProductsImport(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
+        if (function_exists('release_session_lock_if_active')) {
+            release_session_lock_if_active();
+        }
         $rawCsv = bakeshopImportResolveRawCsv();
         bakeshopJsonOk(bakeshopImportProductsFromCsv($rawCsv));
     });
@@ -489,6 +492,9 @@ function bakeshopApiRecipesImport(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
+        if (function_exists('release_session_lock_if_active')) {
+            release_session_lock_if_active();
+        }
         $rawCsv = bakeshopImportResolveRawCsv();
         bakeshopJsonOk(bakeshopImportRecipesFromCsv($rawCsv));
     });
@@ -499,6 +505,9 @@ function bakeshopApiProductionImport(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
         bakeshopCurrentUser('bakeshop.manage');
+        if (function_exists('release_session_lock_if_active')) {
+            release_session_lock_if_active();
+        }
         $rawCsv = bakeshopImportResolveRawCsv();
         bakeshopJsonOk(bakeshopImportProductionFromCsv($rawCsv));
     });

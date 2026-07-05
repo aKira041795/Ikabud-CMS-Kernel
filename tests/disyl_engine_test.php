@@ -20,7 +20,12 @@
  *  15. Edge cases — deeply nested structures, empty context, special chars
  */
 
-require_once __DIR__ . '/../kernel/DiSyL/TemplateEngine.php';
+foreach (glob(__DIR__ . '/../kernel/DiSyL/Exceptions/*.php') as $file) {
+    require_once $file;
+}
+foreach (glob(__DIR__ . '/../kernel/DiSyL/Security/*.php') as $file) {
+    require_once $file;
+}
 foreach (glob(__DIR__ . '/../kernel/DiSyL/v4/AST/*.php') as $file) {
     require_once $file;
 }
@@ -33,6 +38,10 @@ foreach (glob(__DIR__ . '/../kernel/DiSyL/CMS/*.php') as $file) {
 foreach (glob(__DIR__ . '/../kernel/DiSyL/Compiler/*.php') as $file) {
     require_once $file;
 }
+require_once __DIR__ . '/../kernel/DiSyL/Grammar.php';
+require_once __DIR__ . '/../kernel/DiSyL/ExpressionEvaluator.php';
+require_once __DIR__ . '/../kernel/DiSyL/ComponentRegistry.php';
+require_once __DIR__ . '/../kernel/DiSyL/TemplateEngine.php';
 
 use Ikabud\Kernel\DiSyL\TemplateEngine;
 
@@ -2152,6 +2161,85 @@ check(
 );
 
 
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+section('45. Array Literal Syntax — TD-D3');
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$e45 = new TemplateEngine($tmpDir, '/tmp/disyl_arr_test_' . getmypid(), false);
+$e45->enableCompiledMode(false); // interpreted path
+
+// 45.1 — Iterate a direct array literal in {for}
+check(
+    'interpreted: for item in string array literal',
+    'a,b,c,',
+    $e45->renderString("{for item in ['a','b','c']}{item},{/for}", [])
+);
+
+// 45.2 — {set} an array literal then iterate
+check(
+    'interpreted: set array literal then iterate',
+    'x,y,z,',
+    $e45->renderString("{set items = ['x','y','z']}{for item in items}{item},{/for}", [])
+);
+
+// 45.3 — Numeric elements
+check(
+    'interpreted: for item in numeric array literal',
+    '1,2,3,',
+    $e45->renderString("{for item in [1,2,3]}{item},{/for}", [])
+);
+
+// 45.4 — Array literal with join filter
+check(
+    'interpreted: array literal with join filter',
+    'hello, world',
+    $e45->renderString("{['hello','world'] | join:', '}", [])
+);
+
+// 45.5 — Empty array literal yields no iterations
+check(
+    'interpreted: empty array literal yields no output',
+    '',
+    $e45->renderString("{for item in []}{item},{/for}", [])
+);
+
+// 45.6 — {set} array then use count
+check(
+    'interpreted: set array then count',
+    '3',
+    $e45->renderString("{set arr = ['a','b','c']}{arr | count}", [])
+);
+
+// 45.7 — Compiled mode: for item in string array literal
+$cc45 = new \Ikabud\Kernel\DiSyL\Compiler\TemplateCache('/tmp/disyl_arr_test_' . getmypid(), true);
+
+check(
+    'compiled: for item in string array literal',
+    'a,b,c,',
+    $cc45->compileSource("{for item in ['a','b','c']}{item},{/for}", 'arr_for_str')->execute([])
+);
+
+// 45.8 — Compiled mode: {set} + iterate
+check(
+    'compiled: set array literal then iterate',
+    'x,y,z,',
+    $cc45->compileSource("{set items = ['x','y','z']}{for item in items}{item},{/for}", 'arr_set_iter')->execute([])
+);
+
+// 45.9 — Compiled mode: array literal with filter
+check(
+    'compiled: array literal with join filter',
+    'hello, world',
+    $cc45->compileSource("{['hello','world'] | join:', '}", 'arr_join')->execute([])
+);
+
+// 45.10 — Mixed: context array vs literal array
+check(
+    'interpreted: for iterates context array (baseline)',
+    'd,e,f,',
+    $e45->renderString("{for item in items}{item},{/for}", ['items' => ['d','e','f']])
+);
 
 // Print final section stats
 if ($current_section && ($section_pass + $section_fail > 0)) {

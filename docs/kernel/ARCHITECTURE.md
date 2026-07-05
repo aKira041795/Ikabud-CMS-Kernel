@@ -4,9 +4,9 @@
 
 Ikabud is an **application-kernel modular infrastructure framework** — a PHP runtime that owns the full request lifecycle, extension contracts, policy enforcement, and database isolation. Modules (CMS, daily ledger, workflow, etc.) are first-class citizens that register capabilities, listen for events, and declare their own tables — but the kernel owns the rules.
 
-**Version:** v6.0.0 (ecosystem)  
+**Version:** v6.1.0 (intercoherence)  
 **Runtime:** PHP 8.2+ / MySQL 8+ / Apache with mod_rewrite  
-**Rendering Runtime:** DiSyL v4.0 (Declarative Ikabud Syntax Language)
+**Rendering Runtime:** DiSyL v4.7 (Declarative Ikabud Syntax Language)
 
 Contributor workflow and refactor guardrails are documented in:
 
@@ -23,7 +23,7 @@ Contributor workflow and refactor guardrails are documented in:
 |-------|-----------|
 | Runtime | PHP 8.2+ |
 | Database | MySQL 8+ (per-tenant isolation) |
-| Rendering Runtime | DiSyL v4.0 — layouts, blocks, components, hydration, 40+ filters, reactive client blocks, sandbox + capability scoping, async runtime, federation + AI primitives |
+| Rendering Runtime | DiSyL v4.7 — layouts, blocks, components, hydration, 40+ filters, reactive client blocks, sandbox + capability scoping, async Fibers runtime, entity-view system, AI primitives, polyglot service modules |
 | Frontend | HTMX 1.9 + Alpine.js (server-first), React/Vite (page builder UI) |
 | Auth | JWT HS256 (cookie-based, httpOnly, secure) |
 | CSS | Tailwind CSS |
@@ -499,7 +499,7 @@ Cache tags used:
 | [disyl-overview.md](disyl-overview.md) | High-level DiSyL overview and positioning |
 | [cms-architecture.md](cms-architecture.md) | CMS module architecture |
 | [page-builder-technical-spec.md](page-builder-technical-spec.md) | Page builder specification |
-| [disyl-implementation-spec.md](disyl-implementation-spec.md) | DiSyL v4.0 rendering/runtime spec |
+| [disyl-implementation-spec.md](disyl-implementation-spec.md) | DiSyL rendering/runtime implementation spec (4.7 baseline) |
 | [tenancy-roadmap.md](tenancy-roadmap.md) | Multi-tenancy design and roadmap |
 | [ikabud-roadmap.md](ikabud-roadmap.md) | Overall project roadmap |
 | [kernel-auto-wiring.md](kernel-auto-wiring.md) | Auto-wiring flow and patterns |

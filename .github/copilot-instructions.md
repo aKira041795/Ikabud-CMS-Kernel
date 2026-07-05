@@ -11,7 +11,7 @@
 - DiSyL async Fibers scheduler: [docs/kernel/disyl-async-fibers-scheduler.md](../docs/kernel/disyl-async-fibers-scheduler.md)
 - DiSyL VS Code Extension: [extensions/disyl-lsp/README.md](../extensions/disyl-lsp/README.md)
 - Script block interpolation safety: [docs/kernel/script-block-interpolation.md](../docs/kernel/script-block-interpolation.md)
-- Latest release notes: [docs/releases/release-notes-2026-06-26-kernel-6.1-intercoherence.md](../docs/releases/release-notes-2026-06-26-kernel-6.1-intercoherence.md)
+- Release notes directory (read the most recent file by date): [docs/releases/](../docs/releases/)
 - CMS is the main feature module under [modules/cms](../modules/cms):
   - route map in [modules/cms/routes.php](../modules/cms/routes.php)
   - handlers in [modules/cms/handlers.php](../modules/cms/handlers.php)
@@ -99,10 +99,12 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 - **Fix for production**: `TemplateCache::needsRecompile()` now (2026-06-29) scans for `{extends}` and recursively checks all ancestor mtimes. If you encounter stale caches after a layout edit, restart PHP-FPM to clear APCu.
 - **APCu** persists across FPM graceful restarts. Use `apcu_clear_cache()` via a web endpoint or `sudo systemctl restart phpX.X-fpm` (force stop, not graceful) to clear it.
 
-## Known DiSyL limitations (2026-06-29)
-1. **`{set}` does not support `or`/`and` operators**: `{set x = a or b}` evaluates to `null`. Use separate `{set}` + `{if}` blocks instead. This is fixed in the interpreted path (2026-06-29) — `resolveSetValue()` now falls through to `evaluateCondition()` for logical expressions.
-2. **Ternary with filters in condition**: `{a|default:'x' == 'x' ? b : c}` was silently broken — the `|` before `?` caused the parser to skip ternary detection. Fixed by removing the `$pipePos < $qPos` guard and adding `findTernaryColon()`.
-3. **`:in filter arguments vs ternary `:`**: `a|default:'val' : 'other'` — the `:` after `default` was mistaken for the ternary separator. Fixed by `findTernaryColon()` which skips `:` preceded by word characters.
+## Known DiSyL limitations (current as of 2026-07-05)
+1. **`{math equation="..."}` tag does not exist** — it is referenced in a template but was never implemented. Use DiSyL arithmetic directly: `{(value)|round}` or `{a * b}`. See TD-D1 in `docs/reviews/system-review-2026-07-05.md`.
+2. **Tight pipe/filter binding**: `{a + b | filter}` applies the filter to `b` only, not `a + b`. Always parenthesize: `{(a + b) | filter}`.
+3. **Typed `{set}` syntax (`{set name: string = ...}`) is planned for DiSyL 4.8** and is NOT active in the current 4.7 runtime. Do not use typed assignment syntax in production templates.
+
+> All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
 - The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://maps.googleapis.com`
 - **`'unsafe-eval'` is mandatory.** Alpine.js v3 (CDN) uses `new Function()` for directive evaluation; Tailwind CSS CDN (JIT mode) uses eval-based class scanning. Dropping `'unsafe-eval'` silently breaks all Tailwind utility classes and every Alpine-driven component, including login forms.
 - **Never add a `nonce-XXXX` to `script-src` while `'unsafe-inline'` is still present.** Per CSP Level 2/3, a nonce in `script-src` causes browsers to ignore `'unsafe-inline'` entirely — any inline `<script>` without the matching `nonce="..."` attribute is blocked. No templates in this repo apply nonce attributes, so adding a nonce immediately breaks all inline scripts.

@@ -1,7 +1,8 @@
-# DiSyL 4.8 — Language Reference
+# DiSyL 4.7 — Language Reference
 
-> **Version:** 4.8.0 | **Engine:** TemplateEngine 4.8 | **Parser:** v4 | **Compiler:** v8  
-> **Last updated:** 2026-06-19
+> **Version:** 4.7.0 | **Engine:** TemplateEngine 6.1 | **Parser:** v4 | **Compiler:** v8  
+> **Last updated:** 2026-07-05  
+> **Note:** Typed `{set}` assignment syntax (`{set name: string = ...}`) documented in the Quick Start is planned for DiSyL 4.8 and is **not yet active** in the 4.7 runtime. Use standard `{set var = expr}` syntax in production templates.
 
 ---
 
@@ -11,7 +12,7 @@
 {extends "layouts/main.disyl"}
 
 {block body}
-    {set title: string = "Welcome"}
+    {set title = "Welcome"}
     <h1>{title|upper}</h1>
     <p>Hello, {user.name|default:"Guest"}!</p>
 

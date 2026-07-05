@@ -208,6 +208,21 @@ function schedAugmentAppointmentRow(array $appointment): array
     return $appointment;
 }
 
+function schedEntityRow(array $appointment): array
+{
+    $patientSummary = is_array($appointment['patient_summary'] ?? null) ? $appointment['patient_summary'] : [];
+    $patientName = trim((string)($patientSummary['last_name'] ?? ''));
+    if ($patientName !== '') {
+        $patientName .= ', ';
+    }
+    $patientName .= trim((string)($patientSummary['first_name'] ?? ''));
+
+    $appointment['patient_name'] = trim($patientName, ', ');
+    $appointment['scheduled_at'] = (string)($appointment['scheduled_start'] ?? '');
+
+    return $appointment;
+}
+
 function schedNextQueueTicketNumber(): int
 {
     $row = schedDb()->query(
@@ -697,4 +712,36 @@ function scheduling_cap_ehr_appointment_transition_1(mixed $payload, string $res
     }
 
     return ['ok' => true, 'appointment' => $updated];
+}
+
+function scheduling_cap_entity_list_ehr_appointment_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $result = scheduling_cap_ehr_appointment_list_1([
+        'limit' => max(1, min(100, (int)($data['limit'] ?? 25))),
+        'status' => trim((string)($data['status'] ?? '')),
+        'scheduled_date' => trim((string)($data['scheduled_date'] ?? '')),
+        'queue_destination' => trim((string)($data['queue_destination'] ?? '')),
+    ], $resolvedCapabilityId, $providerId);
+
+    $rows = is_array($result['appointments'] ?? null) ? array_values($result['appointments']) : [];
+    $rows = array_values(array_map(static function (mixed $row): array {
+        return schedEntityRow(is_array($row) ? $row : []);
+    }, $rows));
+
+    return ['rows' => $rows, 'total' => count($rows)];
+}
+
+function scheduling_cap_entity_get_ehr_appointment_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $data = is_array($payload) ? $payload : [];
+    $appointment = schedFetchAppointmentByIdOrUuid(
+        (int)($data['id'] ?? $data['entity_id'] ?? 0),
+        trim((string)($data['appointment_uuid'] ?? ''))
+    );
+    if (!is_array($appointment)) {
+        return [];
+    }
+
+    return schedEntityRow($appointment);
 }
