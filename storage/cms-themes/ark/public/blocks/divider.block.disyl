@@ -1,0 +1,5 @@
+{# ARK: Divider Block
+   Context: entity, capability_data
+   Horizontal divider with configurable style and thickness. #}
+
+<hr class="ark-divider ark-divider--{capability_data.divider.style|default:'solid'} ark-divider--{capability_data.divider.thickness|default:'thin'}" />

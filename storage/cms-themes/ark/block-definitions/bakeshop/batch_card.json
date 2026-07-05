@@ -1,0 +1,42 @@
+{
+    "type": "batch_card",
+    "label": "Batch Card",
+    "category": "bakeshop",
+    "icon": "batch-card",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [
+        "badge",
+        "text"
+    ],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Batch Source",
+            "default": "bakeshop_batch.active"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "compact",
+                "production"
+            ],
+            "default": "default"
+        },
+        "show_yield": {
+            "type": "checkbox",
+            "label": "Show Yield",
+            "default": true
+        },
+        "show_status": {
+            "type": "checkbox",
+            "label": "Show Status",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.batch_card"
+}

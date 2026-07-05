@@ -1,0 +1,15 @@
+{# ARK: Select Block
+   Context: entity, capability_data
+   Form select dropdown with configurable options. #}
+
+<div class="ark-form-group">
+    {if capability_data.select.label|default:''}
+    <label class="ark-form-label" for="field_{capability_data.select.name|default:''}">{capability_data.select.label}</label>
+    {/if}
+    <select name="{capability_data.select.name|default:''}"
+            id="field_{capability_data.select.name|default:''}"
+            class="ark-select"
+            {if capability_data.select.required|default:false}required{/if}>
+        {* Options injected by builder from capability_data.select.options *}
+    </select>
+</div>

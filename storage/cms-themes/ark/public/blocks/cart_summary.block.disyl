@@ -1,0 +1,19 @@
+{# ARK: Cart Summary Block
+   Context: entity, capability_data, ecommerce_cart
+   Ecommerce cart summary with subtotal, item count, and checkout CTA. #}
+
+<div class="ark-cart-summary">
+    {if capability_data.cart_summary.show_item_count|default:true}
+    <div class="ark-cart-summary__count">
+        {ecommerce_cart.item_count|default:0} {ecommerce_cart.item_count|default:0 == 1 ? 'item' : 'items'}
+    </div>
+    {/if}
+    {if capability_data.cart_summary.show_subtotal|default:true}
+    <div class="ark-cart-summary__subtotal">
+        {ecommerce_cart.subtotal|default:'$0.00'}
+    </div>
+    {/if}
+    <a href="/checkout" class="ark-btn ark-btn--primary ark-btn--md">
+        {capability_data.cart_summary.checkout_label|default:'Checkout'}
+    </a>
+</div>

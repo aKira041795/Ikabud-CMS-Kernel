@@ -1,0 +1,13 @@
+{# ARK: Tabs Block
+   Context: entity, capability_data
+   Tabbed container with configurable variant.
+   Child blocks are composed by the builder. #}
+
+<div class="ark-tabs ark-tabs--{capability_data.tabs.variant|default:'underline'}" x-data="{ activeTab: {capability_data.tabs.active_index|default:'0'} }">
+    <nav class="ark-tabs__nav" role="tablist">
+        {* Tab labels injected by builder *}
+    </nav>
+    <div class="ark-tabs__panels">
+        {* Builder-composed child content *}
+    </div>
+</div>

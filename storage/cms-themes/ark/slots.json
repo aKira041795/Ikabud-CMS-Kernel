@@ -1,82 +1,136 @@
 {
     "site.before": {
         "label": "Before Site",
-        "accepts": ["component", "badge", "notification"],
+        "accepts": [
+            "component",
+            "badge",
+            "notification"
+        ],
         "multiple": true
     },
     "header.before": {
         "label": "Above Header",
-        "accepts": ["component", "badge", "notification"],
+        "accepts": [
+            "component",
+            "badge",
+            "notification"
+        ],
         "multiple": true
     },
     "header.main": {
         "label": "Header Main",
-        "accepts": ["component"],
+        "accepts": [
+            "component"
+        ],
         "multiple": false
     },
     "header.after": {
         "label": "After Header",
-        "accepts": ["component", "badge", "notification"],
+        "accepts": [
+            "component",
+            "badge",
+            "notification"
+        ],
         "multiple": true
     },
     "hero": {
         "label": "Hero Section",
-        "accepts": ["component", "banner", "slideshow"],
+        "accepts": [
+            "component",
+            "banner",
+            "slideshow"
+        ],
         "multiple": false
     },
     "breadcrumbs": {
         "label": "Breadcrumbs",
-        "accepts": ["component"],
+        "accepts": [
+            "component"
+        ],
         "multiple": false
     },
     "content.before": {
         "label": "Before Content",
-        "accepts": ["component", "badge", "notification"],
+        "accepts": [
+            "component",
+            "badge",
+            "notification"
+        ],
         "multiple": true
     },
     "content": {
         "label": "Main Content",
-        "accepts": ["component", "entity_list", "entity_detail"],
+        "accepts": [
+            "component",
+            "entity_list",
+            "entity_detail"
+        ],
         "multiple": false
     },
     "content.after": {
         "label": "After Content",
-        "accepts": ["component", "badge", "notification"],
+        "accepts": [
+            "component",
+            "badge",
+            "notification"
+        ],
         "multiple": true
     },
     "sidebar.primary": {
         "label": "Primary Sidebar",
-        "accepts": ["widget", "component"],
+        "accepts": [
+            "widget",
+            "component"
+        ],
         "multiple": true
     },
     "sidebar.secondary": {
         "label": "Secondary Sidebar",
-        "accepts": ["widget", "component"],
+        "accepts": [
+            "widget",
+            "component"
+        ],
         "multiple": true
     },
     "footer.before": {
         "label": "Above Footer",
-        "accepts": ["component", "badge"],
+        "accepts": [
+            "component",
+            "badge"
+        ],
         "multiple": true
     },
     "footer.main": {
         "label": "Footer Main",
-        "accepts": ["widget", "component"],
+        "accepts": [
+            "widget",
+            "component"
+        ],
         "multiple": false
     },
     "footer.after": {
         "label": "After Footer",
-        "accepts": ["component", "badge"],
+        "accepts": [
+            "component",
+            "badge"
+        ],
         "multiple": true
     },
     "site.after": {
         "label": "After Site",
-        "accepts": ["component", "badge", "notification"],
+        "accepts": [
+            "component",
+            "badge",
+            "notification"
+        ],
         "multiple": true
     },
     "notifications": {
         "label": "Notifications",
-        "accepts": ["notification", "toast"],
+        "accepts": [
+            "notification",
+            "toast"
+        ],
         "multiple": true
     }
 }

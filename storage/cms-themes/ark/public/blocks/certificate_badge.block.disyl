@@ -1,0 +1,11 @@
+{# ARK: Certificate Badge Block
+   Context: entity, capability_data, lms_certificate
+   LMS certificate badge with earned date. #}
+
+<div class="ark-badge ark-badge--certificate ark-badge--{capability_data.certificate_badge.variant|default:'default'}">
+    <span class="ark-certificate__icon">🎓</span>
+    <span class="ark-certificate__title">{entity.certificate_title|default:capability_data.certificate_badge.title|default:'Certificate'}</span>
+    {if capability_data.certificate_badge.show_date|default:true && entity.earned_at|default:''}
+    <span class="ark-certificate__date">{entity.earned_at}</span>
+    {/if}
+</div>

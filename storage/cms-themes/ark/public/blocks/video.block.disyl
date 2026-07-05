@@ -1,0 +1,9 @@
+{# ARK: Video Block
+   Context: entity, capability_data
+   Embedded video with configurable aspect ratio and controls. #}
+
+<div class="ark-video ark-video--ratio-{capability_data.video.aspect_ratio|default:'16:9'}">
+    {if capability_data.video.url|default:url|default:''}
+    <iframe src="{capability_data.video.url|default:url}" class="ark-video__embed" allowfullscreen></iframe>
+    {/if}
+</div>

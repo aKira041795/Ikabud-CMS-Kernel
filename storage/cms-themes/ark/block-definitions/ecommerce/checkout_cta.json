@@ -1,0 +1,41 @@
+{
+    "type": "checkout_cta",
+    "label": "Checkout CTA",
+    "category": "ecommerce",
+    "icon": "checkout-cta",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [
+        "button",
+        "text"
+    ],
+    "controls": {
+        "label": {
+            "type": "text",
+            "label": "CTA Label",
+            "default": "Proceed to Checkout"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "primary",
+                "secondary",
+                "outline"
+            ],
+            "default": "primary"
+        },
+        "size": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ark.blocks.checkout_cta"
+}

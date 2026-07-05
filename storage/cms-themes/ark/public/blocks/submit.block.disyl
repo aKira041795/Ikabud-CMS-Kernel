@@ -1,0 +1,7 @@
+{# ARK: Submit Button Block
+   Context: entity, capability_data
+   Form submit button with configurable label, variant, and size. #}
+
+<button type="submit" class="ark-btn ark-btn--{capability_data.submit.variant|default:'primary'} ark-btn--{capability_data.submit.size|default:'md'}">
+    {capability_data.submit.label|default:'Submit'}
+</button>

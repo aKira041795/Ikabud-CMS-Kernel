@@ -1,0 +1,40 @@
+{
+    "type": "tabs",
+    "label": "Tabs",
+    "category": "layout",
+    "icon": "layout-tabs",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [
+        "text",
+        "image",
+        "entity_list",
+        "table",
+        "chart"
+    ],
+    "controls": {
+        "tabs": {
+            "type": "text",
+            "label": "Tab Labels (comma-separated)",
+            "required": true
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "underline",
+                "pills",
+                "boxed"
+            ],
+            "default": "underline"
+        },
+        "active_index": {
+            "type": "text",
+            "label": "Default Active Tab Index",
+            "default": "0"
+        }
+    },
+    "renders_with": "ark.blocks.tabs"
+}

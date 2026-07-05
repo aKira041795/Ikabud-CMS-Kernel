@@ -1,0 +1,36 @@
+{
+    "type": "stat_row",
+    "label": "Stat Row",
+    "category": "data",
+    "icon": "stat-row",
+    "allowed_parents": [
+        "section",
+        "container"
+    ],
+    "allowed_children": [
+        "stat_card"
+    ],
+    "max_children": 6,
+    "controls": {
+        "columns": {
+            "type": "select",
+            "options": [
+                "2",
+                "3",
+                "4",
+                "6"
+            ],
+            "default": "4"
+        },
+        "gap": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ark.blocks.stat_row"
+}

@@ -1,0 +1,34 @@
+{
+    "type": "certificate_badge",
+    "label": "Certificate Badge",
+    "category": "lms",
+    "icon": "certificate-badge",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "course_card"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Certificate Source",
+            "default": "lms_certificate.earned"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "compact",
+                "detailed"
+            ],
+            "default": "default"
+        },
+        "show_date": {
+            "type": "checkbox",
+            "label": "Show Earned Date",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.certificate_badge"
+}

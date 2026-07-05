@@ -1,0 +1,8 @@
+{# ARK: Stat Row Block
+   Context: entity, capability_data
+   Horizontal row of stat cards with configurable columns.
+   Child stat_card blocks are composed by the builder. #}
+
+<div class="ark-stat-row ark-stat-row--cols-{capability_data.stat_row.columns|default:'4'}">
+    {* Builder-composed child stat cards *}
+</div>

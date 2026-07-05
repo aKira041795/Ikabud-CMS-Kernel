@@ -1,0 +1,40 @@
+{
+    "type": "video",
+    "label": "Video",
+    "category": "content",
+    "icon": "video",
+    "allowed_parents": [
+        "section",
+        "container",
+        "hero"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "url": {
+            "type": "text",
+            "label": "Video URL",
+            "required": true
+        },
+        "aspect_ratio": {
+            "type": "select",
+            "options": [
+                "16:9",
+                "4:3",
+                "1:1",
+                "9:16"
+            ],
+            "default": "16:9"
+        },
+        "autoplay": {
+            "type": "checkbox",
+            "label": "Autoplay",
+            "default": false
+        },
+        "show_controls": {
+            "type": "checkbox",
+            "label": "Show Controls",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.video"
+}

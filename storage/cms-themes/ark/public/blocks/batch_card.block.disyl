@@ -1,0 +1,20 @@
+{# ARK: Batch Card Block
+   Context: entity, capability_data, bakeshop_batch
+   Bakeshop production batch card with yield and status. #}
+
+<div class="ark-card ark-card--batch">
+    <div class="ark-card__header">
+        <h4 class="ark-card__title">{entity.batch_name|default:capability_data.batch_card.name|default:'Batch'}</h4>
+        {if entity.status|default:''}
+        <span class="ark-badge ark-badge--{entity.status|default:'default'}">{entity.status}</span>
+        {/if}
+    </div>
+    <div class="ark-card__body">
+        {if capability_data.batch_card.show_yield|default:true && entity.yield|default:''}
+        <p class="ark-batch__yield">Yield: {entity.yield} {entity.yield_unit|default:'units'}</p>
+        {/if}
+        {if capability_data.batch_card.show_status|default:true}
+        <p class="ark-batch__date">Produced: {entity.produced_at|default:'—'}</p>
+        {/if}
+    </div>
+</div>

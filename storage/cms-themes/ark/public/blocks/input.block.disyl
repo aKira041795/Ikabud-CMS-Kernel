@@ -1,0 +1,15 @@
+{# ARK: Input Block
+   Context: entity, capability_data
+   Form text input with configurable type, label, and placeholder. #}
+
+<div class="ark-form-group">
+    {if capability_data.input.label|default:''}
+    <label class="ark-form-label" for="field_{capability_data.input.name|default:''}">{capability_data.input.label}</label>
+    {/if}
+    <input type="{capability_data.input.type|default:'text'}"
+           name="{capability_data.input.name|default:''}"
+           id="field_{capability_data.input.name|default:''}"
+           placeholder="{capability_data.input.placeholder|default:''}"
+           class="ark-input"
+           {if capability_data.input.required|default:false}required{/if} />
+</div>

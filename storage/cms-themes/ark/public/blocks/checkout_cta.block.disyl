@@ -1,0 +1,7 @@
+{# ARK: Checkout CTA Block
+   Context: entity, capability_data
+   Checkout call-to-action button with configurable label, variant, and size. #}
+
+<a href="/checkout" class="ark-btn ark-btn--{capability_data.checkout_cta.variant|default:'primary'} ark-btn--{capability_data.checkout_cta.size|default:'md'}">
+    {capability_data.checkout_cta.label|default:'Proceed to Checkout'}
+</a>

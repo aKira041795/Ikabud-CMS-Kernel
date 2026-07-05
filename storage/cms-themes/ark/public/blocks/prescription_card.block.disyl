@@ -1,0 +1,20 @@
+{# ARK: Prescription Card Block
+   Context: entity, capability_data, ehr_prescription
+   EHR prescription display card with dosage and refill info. #}
+
+<div class="ark-card ark-card--prescription">
+    <div class="ark-card__header">
+        <h4 class="ark-card__title">{entity.medication_name|default:capability_data.prescription_card.medication|default:'Prescription'}</h4>
+        {if entity.status|default:''}
+        <span class="ark-badge ark-badge--{entity.status|default:'default'}">{entity.status}</span>
+        {/if}
+    </div>
+    <div class="ark-card__body">
+        {if capability_data.prescription_card.show_dosage|default:true && entity.dosage|default:''}
+        <p class="ark-prescription__dosage">{entity.dosage}</p>
+        {/if}
+        {if capability_data.prescription_card.show_refills|default:true && entity.refills|default:null !== null}
+        <p class="ark-prescription__refills">Refills: {entity.refills|default:0}</p>
+        {/if}
+    </div>
+</div>

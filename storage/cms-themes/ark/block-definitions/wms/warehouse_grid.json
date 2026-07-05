@@ -1,0 +1,37 @@
+{
+    "type": "warehouse_grid",
+    "label": "Warehouse Grid",
+    "category": "wms",
+    "icon": "warehouse-grid",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [
+        "inventory_badge",
+        "stock_level"
+    ],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Warehouse Source",
+            "default": "wms_warehouse.active"
+        },
+        "columns": {
+            "type": "select",
+            "options": [
+                "2",
+                "3",
+                "4"
+            ],
+            "default": "3"
+        },
+        "show_zones": {
+            "type": "checkbox",
+            "label": "Show Zones",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.warehouse_grid"
+}

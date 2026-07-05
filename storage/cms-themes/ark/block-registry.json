@@ -10,43 +10,65 @@
             "row",
             "column",
             "grid",
-            "hero"
+            "hero",
+            "split",
+            "tabs",
+            "accordion"
         ],
         "content": [
             "text",
             "image",
             "button",
             "badge",
-            "gallery"
+            "gallery",
+            "video",
+            "divider",
+            "spacer"
         ],
         "data": [
             "entity_list",
             "entity_detail",
             "stat_card",
-            "table"
+            "stat_row",
+            "table",
+            "chart"
         ],
         "ecommerce": [
             "product_card",
             "product_grid",
             "price_display",
-            "inventory_badge"
+            "inventory_badge",
+            "cart_summary",
+            "checkout_cta"
         ],
         "healthcare": [
             "patient_summary",
-            "appointment_list"
+            "appointment_list",
+            "vital_chart",
+            "prescription_card"
         ],
         "bakeshop": [
             "ledger_row",
-            "production_summary"
+            "production_summary",
+            "batch_card"
         ],
         "lms": [
             "course_card",
             "lesson_index",
-            "progress_bar"
+            "progress_bar",
+            "certificate_badge"
         ],
         "wms": [
             "inventory_badge",
-            "stock_level"
+            "stock_level",
+            "warehouse_grid"
+        ],
+        "forms": [
+            "form",
+            "input",
+            "select",
+            "checkbox",
+            "submit"
         ]
     }
 }

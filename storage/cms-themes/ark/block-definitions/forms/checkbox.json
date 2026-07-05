@@ -1,0 +1,27 @@
+{
+    "type": "checkbox",
+    "label": "Checkbox",
+    "category": "forms",
+    "icon": "checkbox",
+    "allowed_parents": [
+        "form"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "name": {
+            "type": "text",
+            "label": "Field Name",
+            "required": true
+        },
+        "label": {
+            "type": "text",
+            "label": "Label"
+        },
+        "default_checked": {
+            "type": "checkbox",
+            "label": "Checked by Default",
+            "default": false
+        }
+    },
+    "renders_with": "ark.blocks.checkbox"
+}

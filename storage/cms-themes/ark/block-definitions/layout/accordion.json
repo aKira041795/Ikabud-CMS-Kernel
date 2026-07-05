@@ -1,0 +1,38 @@
+{
+    "type": "accordion",
+    "label": "Accordion",
+    "category": "layout",
+    "icon": "layout-accordion",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [
+        "text",
+        "image",
+        "entity_list",
+        "table"
+    ],
+    "controls": {
+        "items": {
+            "type": "text",
+            "label": "Item Labels (comma-separated)",
+            "required": true
+        },
+        "expand_mode": {
+            "type": "select",
+            "options": [
+                "single",
+                "multiple"
+            ],
+            "default": "single"
+        },
+        "default_open_index": {
+            "type": "text",
+            "label": "Default Open Index (-1 for none)",
+            "default": "-1"
+        }
+    },
+    "renders_with": "ark.blocks.accordion"
+}

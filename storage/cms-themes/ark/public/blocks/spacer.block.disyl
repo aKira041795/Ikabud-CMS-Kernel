@@ -1,0 +1,5 @@
+{# ARK: Spacer Block
+   Context: entity, capability_data
+   Vertical spacer with configurable height. #}
+
+<div class="ark-spacer ark-spacer--{capability_data.spacer.height|default:'md'}"></div>

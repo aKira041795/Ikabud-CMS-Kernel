@@ -1,0 +1,44 @@
+{
+    "type": "chart",
+    "label": "Chart",
+    "category": "data",
+    "icon": "chart",
+    "allowed_parents": [
+        "section",
+        "container",
+        "grid"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Data Source",
+            "required": true
+        },
+        "chart_type": {
+            "type": "select",
+            "options": [
+                "line",
+                "bar",
+                "pie",
+                "doughnut",
+                "area"
+            ],
+            "default": "bar"
+        },
+        "title": {
+            "type": "text",
+            "label": "Chart Title"
+        },
+        "height": {
+            "type": "select",
+            "options": [
+                "compact",
+                "standard",
+                "tall"
+            ],
+            "default": "standard"
+        }
+    },
+    "renders_with": "ark.blocks.chart"
+}

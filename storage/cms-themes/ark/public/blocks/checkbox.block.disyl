@@ -1,0 +1,13 @@
+{# ARK: Checkbox Block
+   Context: entity, capability_data
+   Form checkbox with configurable label and default state. #}
+
+<div class="ark-form-group ark-form-group--checkbox">
+    <label class="ark-form-checkbox">
+        <input type="checkbox"
+               name="{capability_data.checkbox.name|default:''}"
+               class="ark-checkbox"
+               {if capability_data.checkbox.default_checked|default:false}checked{/if} />
+        <span class="ark-form-checkbox__label">{capability_data.checkbox.label|default:''}</span>
+    </label>
+</div>

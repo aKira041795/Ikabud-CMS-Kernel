@@ -1,0 +1,15 @@
+{# ARK: Warehouse Grid Block
+   Context: entity, capability_data, wms_warehouse
+   WMS warehouse zone grid layout.
+   Child blocks are composed by the builder. #}
+
+<div class="ark-warehouse-grid ark-warehouse-grid--cols-{capability_data.warehouse_grid.columns|default:'3'}">
+    {if capability_data.warehouse_grid.show_zones|default:true}
+    <div class="ark-warehouse-grid__zones">
+        {* Builder-composed zone content *}
+    </div>
+    {/if}
+    <div class="ark-warehouse-grid__content">
+        {* Builder-composed child content *}
+    </div>
+</div>

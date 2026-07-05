@@ -1,0 +1,8 @@
+{# ARK: Accordion Block
+   Context: entity, capability_data
+   Expandable accordion with single or multiple expand mode.
+   Child blocks are composed by the builder. #}
+
+<div class="ark-accordion ark-accordion--{capability_data.accordion.expand_mode|default:'single'}" x-data="{ openIndex: {capability_data.accordion.default_open_index|default:'-1'} }">
+    {* Builder-composed child content *}
+</div>

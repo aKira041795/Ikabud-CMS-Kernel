@@ -1,0 +1,51 @@
+{
+    "type": "vital_chart",
+    "label": "Vital Signs Chart",
+    "category": "healthcare",
+    "icon": "vital-chart",
+    "allowed_parents": [
+        "section",
+        "container",
+        "grid"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "patient_source": {
+            "type": "text",
+            "label": "Patient Source",
+            "default": "healthcare_patient.current"
+        },
+        "chart_type": {
+            "type": "select",
+            "options": [
+                "line",
+                "bar",
+                "area"
+            ],
+            "default": "line"
+        },
+        "vital_types": {
+            "type": "select",
+            "options": [
+                "bp",
+                "hr",
+                "temp",
+                "spo2",
+                "rr",
+                "all"
+            ],
+            "default": "all"
+        },
+        "timeframe": {
+            "type": "select",
+            "options": [
+                "24h",
+                "7d",
+                "30d",
+                "encounter"
+            ],
+            "default": "24h"
+        }
+    },
+    "renders_with": "ikb_entity_list"
+}

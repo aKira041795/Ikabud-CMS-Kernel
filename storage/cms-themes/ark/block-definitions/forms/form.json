@@ -1,0 +1,48 @@
+{
+    "type": "form",
+    "label": "Form",
+    "category": "forms",
+    "icon": "form",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [
+        "input",
+        "select",
+        "checkbox",
+        "submit",
+        "text",
+        "button"
+    ],
+    "controls": {
+        "action": {
+            "type": "text",
+            "label": "Form Action URL"
+        },
+        "method": {
+            "type": "select",
+            "options": [
+                "POST",
+                "GET"
+            ],
+            "default": "POST"
+        },
+        "layout": {
+            "type": "select",
+            "options": [
+                "stacked",
+                "inline",
+                "two_column"
+            ],
+            "default": "stacked"
+        },
+        "submit_label": {
+            "type": "text",
+            "label": "Submit Button Label",
+            "default": "Submit"
+        }
+    },
+    "renders_with": "ark.blocks.form"
+}

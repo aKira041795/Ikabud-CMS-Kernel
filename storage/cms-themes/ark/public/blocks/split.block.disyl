@@ -1,0 +1,13 @@
+{# ARK: Split Section Block
+   Context: entity, capability_data
+   Two-column split layout with configurable direction and ratio.
+   Child blocks are composed by the builder. #}
+
+<div class="ark-split ark-split--{capability_data.split.direction|default:'row'} ark-split--ratio-{capability_data.split.ratio|default:'1:1'}">
+    <div class="ark-split__panel ark-split__panel--a">
+        {* Builder-composed child content *}
+    </div>
+    <div class="ark-split__panel ark-split__panel--b">
+        {* Builder-composed child content *}
+    </div>
+</div>

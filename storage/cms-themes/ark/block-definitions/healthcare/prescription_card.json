@@ -1,0 +1,42 @@
+{
+    "type": "prescription_card",
+    "label": "Prescription Card",
+    "category": "healthcare",
+    "icon": "prescription-card",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [
+        "badge",
+        "button"
+    ],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Prescription Source",
+            "default": "healthcare_prescription.active"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "compact",
+                "detailed"
+            ],
+            "default": "default"
+        },
+        "show_dosage": {
+            "type": "checkbox",
+            "label": "Show Dosage",
+            "default": true
+        },
+        "show_refills": {
+            "type": "checkbox",
+            "label": "Show Refills",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.prescription_card"
+}

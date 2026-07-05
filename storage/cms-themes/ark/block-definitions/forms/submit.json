@@ -1,0 +1,37 @@
+{
+    "type": "submit",
+    "label": "Submit Button",
+    "category": "forms",
+    "icon": "submit",
+    "allowed_parents": [
+        "form"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "label": {
+            "type": "text",
+            "label": "Button Label",
+            "default": "Submit"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "primary",
+                "secondary",
+                "outline",
+                "danger"
+            ],
+            "default": "primary"
+        },
+        "size": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ark.blocks.submit"
+}

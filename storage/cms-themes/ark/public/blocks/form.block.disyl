@@ -1,0 +1,11 @@
+{# ARK: Form Block
+   Context: entity, capability_data
+   Builder-composed form with configurable action, method, and layout.
+   Child form field blocks are composed by the builder. #}
+
+<form method="{capability_data.form.method|default:'POST'}" action="{capability_data.form.action|default:''}" class="ark-form ark-form--{capability_data.form.layout|default:'stacked'}">
+    {* Builder-composed child form fields *}
+    <button type="submit" class="ark-btn ark-btn--primary ark-btn--md">
+        {capability_data.form.submit_label|default:'Submit'}
+    </button>
+</form>

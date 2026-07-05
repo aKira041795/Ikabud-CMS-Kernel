@@ -1,0 +1,28 @@
+{
+    "type": "spacer",
+    "label": "Spacer",
+    "category": "content",
+    "icon": "spacer",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page",
+        "grid"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "height": {
+            "type": "select",
+            "options": [
+                "xs",
+                "sm",
+                "md",
+                "lg",
+                "xl",
+                "2xl"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ark.blocks.spacer"
+}

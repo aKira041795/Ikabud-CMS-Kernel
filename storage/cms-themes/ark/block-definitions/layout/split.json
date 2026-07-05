@@ -1,0 +1,62 @@
+{
+    "type": "split",
+    "label": "Split Section",
+    "category": "layout",
+    "icon": "layout-split",
+    "allowed_parents": [
+        "section",
+        "page"
+    ],
+    "allowed_children": [
+        "text",
+        "image",
+        "button",
+        "badge",
+        "video"
+    ],
+    "max_children": 2,
+    "controls": {
+        "direction": {
+            "type": "select",
+            "options": [
+                "row",
+                "row-reverse",
+                "column",
+                "column-reverse"
+            ],
+            "default": "row"
+        },
+        "ratio": {
+            "type": "select",
+            "options": [
+                "1:1",
+                "3:2",
+                "2:3",
+                "2:1",
+                "1:2"
+            ],
+            "default": "1:1"
+        },
+        "gap": {
+            "type": "select",
+            "options": [
+                "none",
+                "sm",
+                "md",
+                "lg"
+            ],
+            "default": "md"
+        },
+        "vertical_alignment": {
+            "type": "select",
+            "options": [
+                "top",
+                "center",
+                "bottom",
+                "stretch"
+            ],
+            "default": "center"
+        }
+    },
+    "renders_with": "ark.blocks.split"
+}

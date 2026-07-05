@@ -1,0 +1,44 @@
+{
+    "type": "input",
+    "label": "Text Input",
+    "category": "forms",
+    "icon": "input",
+    "allowed_parents": [
+        "form"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "name": {
+            "type": "text",
+            "label": "Field Name",
+            "required": true
+        },
+        "label": {
+            "type": "text",
+            "label": "Label"
+        },
+        "type": {
+            "type": "select",
+            "options": [
+                "text",
+                "email",
+                "password",
+                "number",
+                "tel",
+                "url",
+                "date"
+            ],
+            "default": "text"
+        },
+        "placeholder": {
+            "type": "text",
+            "label": "Placeholder"
+        },
+        "required": {
+            "type": "checkbox",
+            "label": "Required",
+            "default": false
+        }
+    },
+    "renders_with": "ark.blocks.input"
+}

@@ -1,0 +1,8 @@
+{# ARK: Chart Block
+   Context: entity, capability_data
+   Data chart with configurable type and source. #}
+
+<div class="ark-chart ark-chart--{capability_data.chart.chart_type|default:'bar'} ark-chart--{capability_data.chart.height|default:'standard'}"
+     data-source="{capability_data.chart.source|default:source|default:''}"
+     data-title="{capability_data.chart.title|default:''}">
+</div>

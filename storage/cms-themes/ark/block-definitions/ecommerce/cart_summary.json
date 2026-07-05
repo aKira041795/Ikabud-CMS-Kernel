@@ -1,0 +1,34 @@
+{
+    "type": "cart_summary",
+    "label": "Cart Summary",
+    "category": "ecommerce",
+    "icon": "cart-summary",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [
+        "button",
+        "text",
+        "badge"
+    ],
+    "controls": {
+        "show_subtotal": {
+            "type": "checkbox",
+            "label": "Show Subtotal",
+            "default": true
+        },
+        "show_item_count": {
+            "type": "checkbox",
+            "label": "Show Item Count",
+            "default": true
+        },
+        "checkout_label": {
+            "type": "text",
+            "label": "Checkout Button Label",
+            "default": "Checkout"
+        }
+    },
+    "renders_with": "ark.blocks.cart_summary"
+}

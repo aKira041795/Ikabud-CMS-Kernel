@@ -1,0 +1,44 @@
+{
+    "type": "divider",
+    "label": "Divider",
+    "category": "content",
+    "icon": "divider",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "style": {
+            "type": "select",
+            "options": [
+                "solid",
+                "dashed",
+                "dotted",
+                "gradient"
+            ],
+            "default": "solid"
+        },
+        "thickness": {
+            "type": "select",
+            "options": [
+                "thin",
+                "medium",
+                "thick"
+            ],
+            "default": "thin"
+        },
+        "spacing": {
+            "type": "select",
+            "options": [
+                "none",
+                "sm",
+                "md",
+                "lg"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ark.blocks.divider"
+}

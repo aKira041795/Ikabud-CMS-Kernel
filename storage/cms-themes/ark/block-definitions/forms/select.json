@@ -1,0 +1,31 @@
+{
+    "type": "select",
+    "label": "Select Dropdown",
+    "category": "forms",
+    "icon": "select",
+    "allowed_parents": [
+        "form"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "name": {
+            "type": "text",
+            "label": "Field Name",
+            "required": true
+        },
+        "label": {
+            "type": "text",
+            "label": "Label"
+        },
+        "options": {
+            "type": "textarea",
+            "label": "Options (one per line, value:label format)"
+        },
+        "required": {
+            "type": "checkbox",
+            "label": "Required",
+            "default": false
+        }
+    },
+    "renders_with": "ark.blocks.select"
+}
