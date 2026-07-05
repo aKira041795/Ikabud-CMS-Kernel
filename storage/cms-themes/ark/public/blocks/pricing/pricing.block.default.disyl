@@ -4,30 +4,30 @@
     Variants: default, compact, featured #}
 
 {ikb_panel tone="surface" spacing="lg" radius="md"}
-    <h3 style="font-weight:700;margin:0 0 var(--spacing-sm);font-size:1.1rem;">
+    <h3 class="ark-pricing-title">
         {capability_data.pricing.label|default:'Pricing'}
     </h3>
-    <div style="display:flex;align-items:baseline;gap:0.5rem;">
+    <div class="ark-pricing-row">
         {if capability_data.pricing.compare_at_price and capability_data.pricing.compare_at_price > capability_data.pricing.price}
-        <span style="font-size:1rem;color:var(--color-text-muted);text-decoration:line-through;">
+        <span class="ark-pricing-compare">
             {capability_data.pricing.currency|default:'$'}{capability_data.pricing.compare_at_price|number_format:2}
         </span>
         {/if}
-        <span style="font-size:2rem;font-weight:800;color:var(--color-primary);">
+        <span class="ark-pricing-amount ark-pricing-amount--lg">
             {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
         </span>
         {if capability_data.pricing.unit}
-        <span style="font-size:0.85rem;color:var(--color-text-secondary);">/{capability_data.pricing.unit}</span>
+        <span class="ark-pricing-unit">/{capability_data.pricing.unit}</span>
         {/if}
     </div>
     {if capability_data.pricing.description}
-    <p style="margin:var(--spacing-sm) 0 0;color:var(--color-text-secondary);font-size:0.875rem;">
+    <p class="ark-pricing-description">
         {capability_data.pricing.description}
     </p>
     {/if}
     {if capability_data.actions and capability_data.actions.add_to_cart}
-    <div style="margin-top:var(--spacing-md);">
-        <a href="{capability_data.actions.add_to_cart.url|default:'#'}" class="ark-btn ark-btn--primary ark-btn--md" style="display:inline-block;padding:0.5rem 1.5rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-md);text-decoration:none;font-weight:500;">
+    <div class="ark-pricing-cta">
+        <a href="{capability_data.actions.add_to_cart.url|default:'#'}" class="ark-btn ark-btn--primary">
             {capability_data.actions.add_to_cart.label|default:'Add to Cart'}
         </a>
     </div>

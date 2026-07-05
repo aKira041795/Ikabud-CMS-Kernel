@@ -4,22 +4,22 @@
 
 {ikb_panel tone="elevated" spacing="lg" radius="lg"}
     {if capability_data.pricing.featured_badge}
-    <div style="position:absolute;top:0;right:0;background:var(--color-primary);color:#fff;padding:0.25rem 1rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border-radius:0 var(--radius-lg) 0 var(--radius-md);">
+    <div class="ark-pricing-ribbon ark-pricing-ribbon--panel">
         {capability_data.pricing.featured_badge}
     </div>
     {/if}
-    <h3 style="font-weight:700;margin:0 0 var(--spacing-sm);font-size:1.1rem;">
+    <h3 class="ark-pricing-title">
         {capability_data.pricing.label|default:'Featured Pricing'}
     </h3>
-    <div style="font-size:2.5rem;font-weight:800;color:var(--color-primary);">
+    <div class="ark-pricing-amount ark-pricing-amount--xl">
         {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
     </div>
     {if capability_data.pricing.description}
-    <p style="margin:var(--spacing-sm) 0 0;color:var(--color-text-secondary);font-size:0.875rem;">{capability_data.pricing.description}</p>
+    <p class="ark-pricing-description">{capability_data.pricing.description}</p>
     {/if}
     {if capability_data.actions and capability_data.actions.add_to_cart}
-    <div style="margin-top:var(--spacing-md);">
-        <a href="{capability_data.actions.add_to_cart.url|default:'#'}" class="ark-btn ark-btn--primary" style="display:block;padding:0.75rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-md);text-decoration:none;font-weight:600;text-align:center;">
+    <div class="ark-pricing-cta">
+        <a href="{capability_data.actions.add_to_cart.url|default:'#'}" class="ark-btn ark-btn--primary ark-pricing-cta__button">
             {capability_data.actions.add_to_cart.label|default:'Get Started'}
         </a>
     </div>

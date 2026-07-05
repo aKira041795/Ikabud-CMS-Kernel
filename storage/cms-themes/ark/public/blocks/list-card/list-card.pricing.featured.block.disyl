@@ -3,14 +3,14 @@
     Highlighted card with "Best Value" or "Featured" ribbon badge.
     Prominent pricing display for featured/commercial products. #}
 
-<article class="ark-card" style="position:relative;border-color:var(--color-primary);border-width:2px;">
+<article class="ark-card ark-card--featured-pricing">
     {# Featured ribbon #}
     {if capability_data and capability_data.pricing and capability_data.pricing.featured_badge}
-    <div style="position:absolute;top:0;right:0;background:var(--color-primary);color:#fff;padding:0.25rem 1rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border-radius:0 var(--radius-md) 0 var(--radius-md);z-index:1;">
+    <div class="ark-pricing-ribbon">
         {capability_data.pricing.featured_badge}
     </div>
     {else if row.featured}
-    <div style="position:absolute;top:0;right:0;background:var(--color-primary);color:#fff;padding:0.25rem 1rem;font-size:0.7rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;border-radius:0 var(--radius-md) 0 var(--radius-md);z-index:1;">
+    <div class="ark-pricing-ribbon">
         Featured
     </div>
     {/if}
@@ -39,21 +39,21 @@
 
         {# Featured pricing — larger, highlight color #}
         {if capability_data and capability_data.pricing}
-        <div style="margin-top:var(--spacing-sm);">
-            <div style="font-size:1.5rem;font-weight:800;color:var(--color-primary);">
+        <div class="ark-pricing-featured-copy">
+            <div class="ark-pricing-amount ark-pricing-amount--featured-card">
                 {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
             </div>
             {if capability_data.pricing.description}
-            <p style="margin:0.25rem 0 0;font-size:0.8rem;color:var(--color-text-secondary);">{capability_data.pricing.description}</p>
+            <p class="ark-pricing-description ark-pricing-description--card">{capability_data.pricing.description}</p>
             {/if}
         </div>
         {else if row.price}
-        <div class="ark-card__price" style="font-size:1.25rem;">{row.price}</div>
+        <div class="ark-card__price ark-pricing-amount ark-pricing-amount--featured-fallback">{row.price}</div>
         {/if}
 
         {# CTA #}
         {if row.url}
-        <a href="{row.url}" style="display:block;margin-top:var(--spacing-sm);padding:0.5rem;background:var(--color-primary);color:#fff;border-radius:var(--radius-sm);text-align:center;text-decoration:none;font-weight:600;font-size:0.875rem;">
+        <a href="{row.url}" class="ark-btn ark-btn--primary ark-pricing-cta__button ark-pricing-cta__button--card">
             View Details
         </a>
         {/if}

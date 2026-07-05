@@ -28,13 +28,13 @@
 
         {# Pricing — from capability data or row #}
         {if capability_data and capability_data.pricing}
-        <div class="ark-card__price" style="display:flex;align-items:baseline;gap:0.35rem;">
+        <div class="ark-card__price ark-pricing-row ark-pricing-row--card">
             {if capability_data.pricing.compare_at_price and capability_data.pricing.compare_at_price > capability_data.pricing.price}
-            <span style="font-size:0.8rem;color:var(--color-text-muted);text-decoration:line-through;">
+            <span class="ark-pricing-compare ark-pricing-compare--card">
                 {capability_data.pricing.currency|default:'$'}{capability_data.pricing.compare_at_price|number_format:2}
             </span>
             {/if}
-            <span style="font-size:1.1rem;font-weight:700;color:var(--color-primary);">
+            <span class="ark-pricing-amount ark-pricing-amount--card">
                 {capability_data.pricing.currency|default:'$'}{capability_data.pricing.price|number_format:2}
             </span>
         </div>
