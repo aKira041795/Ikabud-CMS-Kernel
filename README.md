@@ -35,6 +35,7 @@ Many languages. Many outputs.
 - **Module certification** — 10-point checklist for all modules. CLI + API.
 - **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
 - **43 modules** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, and more.
+- **ARK theming authority** — Kernel-owned design system + schema + renderer contract + builder protocol. 35 block definitions across 9 domains, 16 layout slots, 27 component variants, governed nesting, safety policy enforcement.
 - **Shared-hosting friendly** — Runs on a $5/month Bluehost plan. JWT auth, OPcache-aware, DiSyL linter.
 
 ---
@@ -97,6 +98,7 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 | [guidance-module.md](docs/guidance/guidance-module.md) | Guidance module |
 | [page-builder-technical-spec.md](docs/page-builder/page-builder-technical-spec.md) | Visual page builder spec |
 | [cms-performance-and-scalability.md](docs/cms/cms-performance-and-scalability.md) | CMS performance benchmark + scaling analysis |
+| [ark-authority-layer-plan.md](docs/themes/ark-authority-layer-plan.md) | **ARK** — Theming Authority Layer: design system, schema, renderer contract, builder protocol |
 | [roadmap.md](docs/kernel/roadmap.md) | Project roadmap |
 
 ---
