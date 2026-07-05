@@ -1,0 +1,7 @@
+{# ARK: Button Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing button alias for ark.blocks.button. #}
+
+<a href="{capability_data.button.url|default:url|default:'#'}" class="ark-btn ark-btn--primary ark-btn--md">
+    {capability_data.button.label|default:label|default:'Button'}
+</a>

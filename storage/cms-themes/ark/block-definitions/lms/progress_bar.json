@@ -1,0 +1,24 @@
+{
+    "type": "progress_bar",
+    "label": "Progress Bar",
+    "category": "lms",
+    "icon": "progress-bar",
+    "allowed_parents": [
+        "course_card",
+        "section",
+        "container"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "value": {
+            "type": "number",
+            "label": "Progress",
+            "default": 0
+        },
+        "show_percent": {
+            "type": "boolean",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.progress_bar"
+}

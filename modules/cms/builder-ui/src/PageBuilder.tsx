@@ -1727,7 +1727,7 @@ export default function PageBuilder() {
                     onDelete={builder.deleteNode}
                     onDuplicate={builder.duplicateNode}
                     onMoveNode={builder.moveNodeInDirection}
-                    onDragMoveNode={builder.moveNode}
+                    onDragMoveNode={handleSmartMoveNode}
                   />
                 )}
                 {rightPanelTab === 'templates' && (

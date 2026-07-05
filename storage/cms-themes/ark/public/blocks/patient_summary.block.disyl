@@ -1,0 +1,9 @@
+{# ARK: Patient Summary Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing patient summary alias for ark.blocks.patient_summary. #}
+
+<div class="ark-card">
+    <h3 class="ark-card__title">{entity.name|default:capability_data.patient.name|default:'Patient'}</h3>
+    <p class="ark-card__excerpt">DOB: {entity.dob|default:capability_data.patient.dob|default:'-'}</p>
+    <p class="ark-card__excerpt">Status: {entity.status|default:capability_data.patient.status|default:'Active'}</p>
+</div>

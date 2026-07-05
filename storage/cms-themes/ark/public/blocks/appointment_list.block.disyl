@@ -1,0 +1,12 @@
+{# ARK: Appointment List Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing appointment list alias for ark.blocks.appointment_list. #}
+
+<ul style="list-style:none;padding:0;margin:0;display:grid;gap:var(--spacing-sm);">
+    {for appointment in capability_data.appointments|default:[]}
+    <li class="ark-card">
+        <div style="font-weight:600;color:var(--color-text);">{appointment.title|default:appointment.patient_name|default:'Appointment'}</div>
+        <div style="font-size:0.85rem;color:var(--color-text-secondary);">{appointment.date|default:appointment.starts_at|default:'-'}</div>
+    </li>
+    {/for}
+</ul>

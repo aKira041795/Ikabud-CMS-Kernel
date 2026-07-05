@@ -1,0 +1,33 @@
+{
+    "type": "product_grid",
+    "label": "Product Grid",
+    "category": "ecommerce",
+    "icon": "product-grid",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Product Source",
+            "default": "ecommerce_product.featured"
+        },
+        "columns": {
+            "type": "select",
+            "options": [
+                "2",
+                "3",
+                "4"
+            ],
+            "default": "4"
+        },
+        "limit": {
+            "type": "number",
+            "default": 8
+        }
+    },
+    "renders_with": "ark.blocks.product_grid"
+}

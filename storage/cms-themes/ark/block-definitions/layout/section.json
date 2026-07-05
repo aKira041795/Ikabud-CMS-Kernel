@@ -1,0 +1,41 @@
+{
+    "type": "section",
+    "label": "Section",
+    "category": "layout",
+    "icon": "layout-section",
+    "allowed_parents": [
+        "page"
+    ],
+    "allowed_children": [
+        "container",
+        "grid",
+        "hero",
+        "text",
+        "image",
+        "entity_list",
+        "entity_detail"
+    ],
+    "controls": {
+        "padding": {
+            "type": "select",
+            "options": [
+                "none",
+                "sm",
+                "md",
+                "lg",
+                "xl"
+            ],
+            "default": "lg"
+        },
+        "tone": {
+            "type": "select",
+            "options": [
+                "default",
+                "muted",
+                "primary"
+            ],
+            "default": "default"
+        }
+    },
+    "renders_with": "ikb_section"
+}

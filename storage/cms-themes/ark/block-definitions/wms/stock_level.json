@@ -1,0 +1,25 @@
+{
+    "type": "stock_level",
+    "label": "Stock Level",
+    "category": "wms",
+    "icon": "stock-level",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Stock Source",
+            "default": "wms_stock.low"
+        },
+        "threshold": {
+            "type": "number",
+            "label": "Low-stock threshold",
+            "default": 5
+        }
+    },
+    "renders_with": "ark.blocks.stock_level"
+}

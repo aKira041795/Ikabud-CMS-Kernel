@@ -46,6 +46,7 @@ assert_file_exists($themeDir . '/theme.manifest.json', 'theme.manifest.json');
 assert_file_exists($themeDir . '/tokens.json', 'tokens.json');
 assert_file_exists($themeDir . '/style.css', 'style.css');
 assert_file_exists($themeDir . '/docs/README.md', 'docs/README.md');
+assert_file_exists($themeDir . '/page-composition.schema.json', 'page-composition.schema.json');
 
 // ══════════════════════════════════════════════════════════════════════════
 // Test 2: Manifest validation
@@ -260,9 +261,10 @@ $inspectOutput = [];
 $inspectCode = 0;
 exec('php ' . escapeshellarg($ikabud) . ' theme:inspect ark 2>&1', $inspectOutput, $inspectCode);
 $inspectText = implode("\n", $inspectOutput);
+$inspectPlain = (string)preg_replace('/\e\[[\d;]*m/', '', $inspectText);
 assert_true($inspectCode === 0, 'theme:inspect ark exits 0');
-assert_true(str_contains($inspectText, 'Slots: 16'), 'inspect shows 16 slots');
-assert_true(str_contains($inspectText, 'Surfaces:'), 'inspect shows surfaces line');
+assert_true((bool)preg_match('/Slots:\s*16\b/', $inspectPlain), 'inspect shows 16 slots');
+assert_true(str_contains($inspectPlain, 'Surfaces:'), 'inspect shows surfaces line');
 
 // ══════════════════════════════════════════════════════════════════════════
 // Test 16: DiSyL lint passes on all ARK templates

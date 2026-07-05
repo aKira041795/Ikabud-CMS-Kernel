@@ -28,128 +28,49 @@
     </div>
     {/if}
 
-    {# Token sections — each category rendered as a card #}
-    <div class="space-y-6">
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6 text-sm text-indigo-900">
+        <div class="font-medium mb-1">ARK-aware token editing</div>
+        <div>This editor is driven from the active theme's declared token file. Default values come from ARK, preset values come from the active Theme Studio preset, and your tenant overrides are edited here.</div>
+    </div>
 
-        {# ── Colors ── #}
+    <div class="space-y-6">
+        {foreach token_group_rows as group}
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold mb-4">Colors</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {for key, def in token_definitions}
-                {if key matches '/^color[-.].+/' or key matches '/^--color[-.].+/'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
-                    <div class="flex gap-2 items-center">
-                        <input type="color" x-model="tokens['{key}']" class="w-10 h-10 rounded border border-gray-300 cursor-pointer">
-                        <input type="text" x-model="tokens['{key}']" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
-                    </div>
-                </div>
-                {/if}
-                {/for}
-                {if !token_definitions|length or !(token_definitions|keys|join(' ') matches '/color/')}
-                <div class="col-span-full text-sm text-gray-400">
-                    <p>No color tokens defined in the active theme manifest.</p>
-                    <p class="mt-1">Add custom overrides below:</p>
-                    <div class="mt-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Add custom token</label>
-                        <div class="flex gap-2">
-                            <input type="text" x-model="customKey" placeholder="color.primary" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono">
-                            <input type="color" x-model="customVal" class="w-10 h-10 rounded border border-gray-300 cursor-pointer">
-                            <button @click="addCustomToken()" class="px-3 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Add</button>
+            <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+                <h2 class="text-lg font-semibold">{group.label}</h2>
+                <div class="text-xs text-gray-400">{group.items|length} token(s)</div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {foreach group.items as item}
+                <div class="rounded-lg border border-gray-200 p-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">{item.key}</label>
+                    <div class="space-y-2">
+                        {if item.is_color}
+                        <div class="flex gap-2 items-center">
+                            <input type="color" x-model="tokens['{item.key}']" class="w-10 h-10 rounded border border-gray-300 cursor-pointer">
+                            <input type="text" x-model="tokens['{item.key}']" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono">
+                        </div>
+                        {else}
+                        <input type="text" x-model="tokens['{item.key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono">
+                        {/if}
+                        <div class="text-xs text-gray-500 space-y-1">
+                            <div>Default: <span class="font-mono text-gray-700">{item.default_value}</span></div>
+                            {if item.preset_value}<div>Preset: <span class="font-mono text-indigo-700">{item.preset_value}</span></div>{/if}
+                            {if item.override_value}<div>Override: <span class="font-mono text-emerald-700">{item.override_value}</span></div>{/if}
                         </div>
                     </div>
                 </div>
-                {/if}
+                {/foreach}
             </div>
         </div>
-
-        {# ── Typography ── #}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold mb-4">Typography</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {for key, def in token_definitions}
-                {if key matches '/^typography[-.].+/' or key matches '/^font[-.].+/' or key matches '/^--font[-.].+/'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
-                    <input type="text" x-model="tokens['{key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
-                </div>
-                {/if}
-                {/for}
-            </div>
-        </div>
-
-        {# ── Spacing ── #}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold mb-4">Spacing</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {for key, def in token_definitions}
-                {if key matches '/^spacing[-.].+/' or key matches '/^--spacing[-.].+/'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{key} <span class="text-gray-400 text-xs">({def|default:''})</span></label>
-                    <div class="flex gap-2 items-center">
-                        <input type="range" min="0" max="8" step="0.25" x-model="tokens['{key}']" class="flex-1" oninput="this.nextElementSibling.textContent=this.value+'rem'">
-                        <span class="text-sm font-mono text-gray-500 w-16 text-right">{def|default:'0'}</span>
-                    </div>
-                </div>
-                {/if}
-                {/for}
-            </div>
-        </div>
-
-        {# ── Radius ── #}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold mb-4">Border Radius</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {for key, def in token_definitions}
-                {if key matches '/^radius[-.].+/' or key matches '/^--radius[-.].+/'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
-                    <div class="flex gap-2 items-center">
-                        <input type="range" min="0" max="2" step="0.125" x-model="tokens['{key}']" class="flex-1">
-                        <input type="text" x-model="tokens['{key}']" class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono text-right">
-                    </div>
-                </div>
-                {/if}
-                {/for}
-            </div>
-        </div>
-
-        {# ── Shadows ── #}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold mb-4">Shadows</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {for key, def in token_definitions}
-                {if key matches '/^shadow[-.].+/' or key matches '/^--shadow[-.].+/'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
-                    <input type="text" x-model="tokens['{key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
-                </div>
-                {/if}
-                {/for}
-            </div>
-        </div>
-
-        {# ── Layout ── #}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <h2 class="text-lg font-semibold mb-4">Layout</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {for key, def in token_definitions}
-                {if key matches '/^(layout|max_width|header_height|sidebar_width|gutter|container)[-.].+/' or key matches '/^--(layout|max|header|sidebar|container)[-.].+/'}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">{key}</label>
-                    <input type="text" x-model="tokens['{key}']" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono" placeholder="{def|default:''}">
-                </div>
-                {/if}
-                {/for}
-            </div>
-        </div>
+        {/foreach}
     </div>
 
     {# Alpine.js state management #}
     <script>
     function tokenEditor() {
         return {
-            tokens: {json_encode(token_overrides)|default:'{}'|raw},
+            tokens: {token_overrides_json|default:'{}'|raw},
             customKey: '',
             customVal: '#000000',
             addCustomToken() {

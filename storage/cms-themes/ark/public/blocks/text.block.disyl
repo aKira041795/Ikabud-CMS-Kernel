@@ -1,0 +1,7 @@
+{# ARK: Text Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing text alias for ark.blocks.text. #}
+
+<div class="ark-content" style="color:var(--color-text);line-height:1.7;">
+    {capability_data.text.content|default:content|default:text|default:entity.body|default:entity.description|default:''}
+</div>

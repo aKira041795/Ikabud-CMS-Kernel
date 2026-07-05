@@ -1,6 +1,7 @@
 {# ARK: List Card Block — With Pricing (Phase 4)
-   Card container with integrated price display.
-   Uses pricing capability data when available, falls back to row.price. #}
+    Context: entity, row, capability_data, entity_presentation
+    Card container with integrated price display.
+    Uses pricing capability data when available, falls back to row.price. #}
 
 <article class="ark-card">
     {if row.image or row.featured_image_url or row.thumbnail_url}

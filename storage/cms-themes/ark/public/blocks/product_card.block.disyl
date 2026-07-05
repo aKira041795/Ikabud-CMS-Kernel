@@ -1,0 +1,12 @@
+{# ARK: Product Card Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing product card alias for ark.blocks.product_card. #}
+
+<article class="ark-card">
+    {if entity.featured_image_url|default:capability_data.product.image|default:''}
+    <img src="{entity.featured_image_url|default:capability_data.product.image}" alt="{entity.title|default:capability_data.product.name|default:'Product'}" style="display:block;width:100%;height:180px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-sm);" />
+    {/if}
+    <h3 class="ark-card__title">{entity.title|default:capability_data.product.name|default:'Product'}</h3>
+    <p class="ark-card__excerpt">{entity.excerpt|default:capability_data.product.description|default:''}</p>
+    <div style="margin-top:var(--spacing-sm);font-weight:700;color:var(--color-primary);">{capability_data.pricing.currency|default:entity.currency|default:'$'}{capability_data.pricing.price|default:entity.price|default:'0.00'}</div>
+</article>

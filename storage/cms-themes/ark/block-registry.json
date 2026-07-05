@@ -1,0 +1,52 @@
+{
+    "version": "2.0.0",
+    "description": "ARK builder-compatible block registry. Future page builders must read/write ARK-compatible definitions.",
+    "categories": {
+        "layout": [
+            "page",
+            "section",
+            "container",
+            "layout_container",
+            "row",
+            "column",
+            "grid",
+            "hero"
+        ],
+        "content": [
+            "text",
+            "image",
+            "button",
+            "badge",
+            "gallery"
+        ],
+        "data": [
+            "entity_list",
+            "entity_detail",
+            "stat_card",
+            "table"
+        ],
+        "ecommerce": [
+            "product_card",
+            "product_grid",
+            "price_display",
+            "inventory_badge"
+        ],
+        "healthcare": [
+            "patient_summary",
+            "appointment_list"
+        ],
+        "bakeshop": [
+            "ledger_row",
+            "production_summary"
+        ],
+        "lms": [
+            "course_card",
+            "lesson_index",
+            "progress_bar"
+        ],
+        "wms": [
+            "inventory_badge",
+            "stock_level"
+        ]
+    }
+}

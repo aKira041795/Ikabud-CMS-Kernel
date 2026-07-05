@@ -1,0 +1,28 @@
+{
+    "type": "price_display",
+    "label": "Price Display",
+    "category": "ecommerce",
+    "icon": "price-display",
+    "allowed_parents": [
+        "product_card",
+        "section",
+        "container"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "currency": {
+            "type": "text",
+            "default": "₱"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "compact",
+                "featured"
+            ],
+            "default": "default"
+        }
+    },
+    "renders_with": "ark.blocks.price_display"
+}

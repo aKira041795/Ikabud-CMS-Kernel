@@ -1,0 +1,34 @@
+{
+    "type": "badge",
+    "label": "Badge",
+    "category": "content",
+    "icon": "badge",
+    "allowed_parents": [
+        "hero",
+        "section",
+        "container",
+        "grid",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "text": {
+            "type": "text",
+            "label": "Text",
+            "required": true
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "primary",
+                "success",
+                "warning",
+                "danger",
+                "info"
+            ],
+            "default": "default"
+        }
+    },
+    "renders_with": "ark.blocks.badge"
+}

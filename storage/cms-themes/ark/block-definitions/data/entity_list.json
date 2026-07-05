@@ -1,0 +1,34 @@
+{
+    "type": "entity_list",
+    "label": "Entity List",
+    "category": "data",
+    "icon": "table-view",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Entity Source",
+            "required": true
+        },
+        "view": {
+            "type": "select",
+            "options": [
+                "table",
+                "compact",
+                "card_grid"
+            ],
+            "default": "card_grid"
+        },
+        "limit": {
+            "type": "number",
+            "label": "Limit",
+            "default": 12
+        }
+    },
+    "renders_with": "ikb_entity_list"
+}

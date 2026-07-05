@@ -1,5 +1,6 @@
 {# ARK: Media Gallery Block (Phase 4)
-   Featured image + gallery thumbnails with lightbox support. #}
+    Context: entity, capability_data
+    Featured image + gallery thumbnails with lightbox support. #}
 
 {if entity.featured_image_url or entity.images}
 <div x-data="{ activeImage: '{entity.featured_image_url|default:''}', galleryOpen: false }">

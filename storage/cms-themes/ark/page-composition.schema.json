@@ -1,0 +1,50 @@
+{
+    "version": "1.0.0",
+    "description": "ARK canonical page composition contract for future builders. Mirrors the CMS builder document envelope persisted today.",
+    "document_envelope": {
+        "required_keys": [
+            "schema_version",
+            "document"
+        ],
+        "schema_version_default": "1.0"
+    },
+    "root_node": {
+        "type": "document",
+        "required_keys": [
+            "id",
+            "type",
+            "props",
+            "style",
+            "children",
+            "meta"
+        ],
+        "children_key": "children"
+    },
+    "allowed_top_level_children": [
+        "section",
+        "container",
+        "layout_container",
+        "row",
+        "column",
+        "hero"
+    ],
+    "node_contract": {
+        "required_keys": [
+            "id",
+            "type",
+            "props",
+            "style",
+            "children",
+            "meta"
+        ],
+        "props_must_be_object": true,
+        "style_must_be_object": true,
+        "children_must_be_array": true,
+        "meta_must_be_object": true
+    },
+    "compatibility": {
+        "cms_builder_schema_version": "1.0",
+        "normalizer": "cmsBuilderNormalizeDocument",
+        "default_document_factory": "cmsBuilderDefaultDocument"
+    }
+}

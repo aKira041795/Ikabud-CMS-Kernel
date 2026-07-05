@@ -1,0 +1,9 @@
+{# ARK: Production Summary Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing production summary alias for ark.blocks.production_summary. #}
+
+<div class="ark-card">
+    <h3 class="ark-card__title">{capability_data.summary.title|default:'Production Summary'}</h3>
+    <p class="ark-card__excerpt">Produced: {capability_data.summary.produced|default:entity.produced|default:'0'}</p>
+    <p class="ark-card__excerpt">Variance: {capability_data.summary.variance|default:entity.variance|default:'0'}</p>
+</div>

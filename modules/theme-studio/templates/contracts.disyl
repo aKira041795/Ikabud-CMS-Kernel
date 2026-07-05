@@ -1,0 +1,131 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="p-6 space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold mb-2">Theme Contracts</h1>
+        <p class="text-gray-500">Authority-layer view of the active theme: manifest, slots, token groups, customizer schema, and ARK contract files.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Theme</div>
+            <div class="text-lg font-semibold text-gray-900">{theme_manifest.label|default:active_theme|default:'None'}</div>
+            <div class="text-xs text-gray-400 mt-1">Slug: {theme_contracts.theme_slug|default:'—'}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Slots</div>
+            <div class="text-lg font-semibold text-gray-900">{slot_items|length}</div>
+            <div class="text-xs text-gray-400 mt-1">Governed shell injection points</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Token Groups</div>
+            <div class="text-lg font-semibold text-gray-900">{token_group_rows|length}</div>
+            <div class="text-xs text-gray-400 mt-1">Grouped categories exposed to editors</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Customizer Sections</div>
+            <div class="text-lg font-semibold text-gray-900">{customizer_sections|length}</div>
+            <div class="text-xs text-gray-400 mt-1">Theme-owned schema sections</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Supported Surfaces</h2>
+            <div class="flex flex-wrap gap-2">
+                {foreach theme_manifest.supported_surfaces as surface}
+                <span class="px-3 py-1 text-sm rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">{surface}</span>
+                {/foreach}
+                {if !theme_manifest.supported_surfaces|length}
+                <span class="text-sm text-gray-400">No surfaces declared.</span>
+                {/if}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <h2 class="text-lg font-semibold mb-4">Authority Files</h2>
+            <div class="space-y-2 text-sm">
+                {foreach editable_contracts as contractKey => contract}
+                <div class="flex items-center justify-between gap-4">
+                    <div>
+                        <div>{contract.label}</div>
+                        <div class="text-xs text-gray-400 mt-1">{contract.file}</div>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-medium
+                            {if contractKey == 'renderer-registry' && renderer_registry}text-green-700
+                            {else if contractKey == 'block-registry' && block_registry}text-green-700
+                            {else if contractKey == 'entity-view-map' && entity_view_map}text-green-700
+                            {else if contractKey == 'page-composition-schema' && page_composition_schema}text-green-700
+                            {else if contractKey == 'safety-policy' && safety_policy}text-green-700
+                            {:else}text-amber-700{/if}">
+                            {if contractKey == 'renderer-registry' && renderer_registry}Present
+                            {else if contractKey == 'block-registry' && block_registry}Present
+                            {else if contractKey == 'entity-view-map' && entity_view_map}Present
+                            {else if contractKey == 'page-composition-schema' && page_composition_schema}Present
+                            {else if contractKey == 'safety-policy' && safety_policy}Present
+                            {:else}Missing{/if}
+                        </span>
+                        <a href="/admin/theme-studio/contracts/{contractKey}" class="text-xs px-2 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Edit</a>
+                    </div>
+                </div>
+                {/foreach}
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="text-lg font-semibold mb-4">Slot Definitions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {foreach slot_items as slotName => slotDef}
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="font-mono text-sm font-semibold text-gray-900">{slotName}</div>
+                <div class="text-xs text-gray-500 mt-1">{slotDef.description|default:'Governed slot'}</div>
+            </div>
+            {/foreach}
+            {if !slot_items|length}
+            <div class="text-sm text-gray-400">No slots.json definitions found.</div>
+            {/if}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="text-lg font-semibold mb-4">Customizer Sections</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {foreach customizer_sections as sectionKey => sectionDef}
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="font-semibold text-gray-900">{sectionDef.label|default:sectionKey}</div>
+                <div class="text-xs font-mono text-gray-500 mt-1">{sectionKey}</div>
+                <div class="text-sm text-gray-500 mt-2">Controls: {sectionDef.controls|length}</div>
+            </div>
+            {/foreach}
+            {if !customizer_sections|length}
+            <div class="text-sm text-gray-400">No customizer.schema.json sections found.</div>
+            {/if}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="text-lg font-semibold mb-4">Token Group Coverage</h2>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {foreach token_group_rows as group}
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="font-semibold text-gray-900">{group.label}</div>
+                    <div class="text-xs text-gray-500">{group.items|length} tokens</div>
+                </div>
+                <div class="space-y-2">
+                    {foreach group.items as item}
+                    <div class="flex items-center justify-between gap-4 text-sm">
+                        <span class="font-mono text-gray-700 truncate">{item.key}</span>
+                        <span class="text-gray-500 truncate">{item.current_value}</span>
+                    </div>
+                    {/foreach}
+                </div>
+            </div>
+            {/foreach}
+        </div>
+    </div>
+</div>
+{/block}

@@ -1,0 +1,28 @@
+{
+    "type": "course_card",
+    "label": "Course Card",
+    "category": "lms",
+    "icon": "course-card",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Course Source",
+            "default": "course.recent"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "progress"
+            ],
+            "default": "default"
+        }
+    },
+    "renders_with": "ark.blocks.course_card"
+}

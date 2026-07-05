@@ -1,0 +1,33 @@
+{
+    "type": "page",
+    "label": "Page",
+    "category": "layout",
+    "icon": "layout-page",
+    "allowed_parents": [],
+    "allowed_children": [
+        "section",
+        "container",
+        "hero",
+        "entity_list",
+        "entity_detail",
+        "grid",
+        "text",
+        "image"
+    ],
+    "controls": {
+        "layout": {
+            "type": "select",
+            "options": [
+                "default",
+                "full-width",
+                "landing"
+            ],
+            "default": "default"
+        },
+        "title": {
+            "type": "text",
+            "label": "Page Title"
+        }
+    },
+    "renders_with": "ark.layouts.page"
+}

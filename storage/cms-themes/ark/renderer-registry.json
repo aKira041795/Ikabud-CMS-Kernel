@@ -1,0 +1,243 @@
+{
+    "version": "2.0.0",
+    "description": "ARK renderer contract registry. Maps ARK schema-valid blocks to DiSyL templates or governed components.",
+    "renderers": {
+        "entity_list": {
+            "renders_as_component": "ikb_entity_list",
+            "controls": [
+                "source",
+                "view",
+                "filter",
+                "limit"
+            ],
+            "context_keys": [
+                "source",
+                "view",
+                "filter",
+                "limit"
+            ]
+        },
+        "entity_detail": {
+            "renders_as_component": "ikb_entity_detail",
+            "controls": [
+                "source",
+                "id",
+                "view"
+            ],
+            "context_keys": [
+                "source",
+                "id",
+                "view"
+            ]
+        },
+        "meta": {
+            "template": "public/blocks/meta.block.disyl",
+            "controls": [
+                "show_author",
+                "show_date",
+                "show_type_badge",
+                "show_reading_time"
+            ],
+            "context_keys": [
+                "entity",
+                "content",
+                "capability_data"
+            ]
+        },
+        "media_gallery": {
+            "template": "public/blocks/media-gallery.block.disyl",
+            "controls": [
+                "lightbox",
+                "columns"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "pricing_default": {
+            "template": "public/blocks/pricing/pricing.block.default.disyl",
+            "controls": [
+                "currency",
+                "variant"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "pricing_compact": {
+            "template": "public/blocks/pricing/pricing.block.compact.disyl",
+            "controls": [
+                "currency"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "pricing_featured": {
+            "template": "public/blocks/pricing/pricing.block.featured.disyl",
+            "controls": [
+                "currency",
+                "show_sale"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "inventory_default": {
+            "template": "public/blocks/inventory/inventory.block.default.disyl",
+            "controls": [
+                "show_location",
+                "show_status"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "inventory_compact": {
+            "template": "public/blocks/inventory/inventory.block.compact.disyl",
+            "controls": [
+                "show_dot"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "action_default": {
+            "template": "public/blocks/action/action.block.default.disyl",
+            "controls": [
+                "show_primary",
+                "show_secondary"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "action_inline": {
+            "template": "public/blocks/action/action.block.inline.disyl",
+            "controls": [
+                "show_primary",
+                "show_secondary"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "progress_default": {
+            "template": "public/blocks/progress/progress.block.default.disyl",
+            "controls": [
+                "show_percent",
+                "label"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "progress_inline": {
+            "template": "public/blocks/progress/progress.block.inline.disyl",
+            "controls": [
+                "show_percent"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "lessons": {
+            "template": "public/blocks/lessons/lessons.block.disyl",
+            "controls": [
+                "show_completion",
+                "ordered"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "list_card_default": {
+            "template": "public/blocks/list-card/list-card.block.default.disyl",
+            "controls": [
+                "show_excerpt",
+                "show_badge"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "list_card_pricing": {
+            "template": "public/blocks/list-card/list-card.pricing.block.disyl",
+            "controls": [
+                "show_price"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "list_card_pricing_featured": {
+            "template": "public/blocks/list-card/list-card.pricing.featured.block.disyl",
+            "controls": [
+                "show_price",
+                "show_featured_ribbon"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "list_card_inventory": {
+            "template": "public/blocks/list-card/list-card.inventory.block.disyl",
+            "controls": [
+                "show_stock"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "list_card_inventory_compact": {
+            "template": "public/blocks/list-card/list-card.inventory.compact.block.disyl",
+            "controls": [
+                "show_stock"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "list_card_progress": {
+            "template": "public/blocks/list-card/list-card.progress.block.disyl",
+            "controls": [
+                "show_progress"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        }
+    }
+}

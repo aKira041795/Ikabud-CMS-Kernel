@@ -1,0 +1,28 @@
+{
+    "type": "patient_summary",
+    "label": "Patient Summary",
+    "category": "healthcare",
+    "icon": "patient-summary",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Patient Source",
+            "default": "ehr_patient.recent"
+        },
+        "view": {
+            "type": "select",
+            "options": [
+                "compact",
+                "detail"
+            ],
+            "default": "compact"
+        }
+    },
+    "renders_with": "ark.blocks.patient_summary"
+}

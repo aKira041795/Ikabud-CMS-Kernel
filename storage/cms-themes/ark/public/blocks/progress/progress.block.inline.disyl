@@ -1,5 +1,6 @@
 {# ARK: Progress Block — Inline (Phase 4)
-   Compact progress indicator — dot + percentage text. #}
+    Context: entity, capability_data, entity_presentation
+    Compact progress indicator — dot + percentage text. #}
 
 <div style="display:inline-flex;align-items:center;gap:0.35rem;font-size:0.8rem;">
     <span style="width:8px;height:8px;border-radius:50%;background:var(--color-primary);display:inline-block;"></span>

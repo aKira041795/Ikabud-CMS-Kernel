@@ -1,6 +1,7 @@
 {# ARK: List Card Block — Default (Phase 4)
-   Standard card container for entity list items.
-   Renders image + title + excerpt + price + badge + meta. #}
+    Context: entity, row, capability_data, entity_presentation
+    Standard card container for entity list items.
+    Renders image + title + excerpt + price + badge + meta. #}
 
 <article class="ark-card">
     {if row.image or row.featured_image_url or row.thumbnail_url}

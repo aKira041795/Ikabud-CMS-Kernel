@@ -1,0 +1,9 @@
+{# ARK: Stock Level Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing stock level alias for ark.blocks.stock_level. #}
+
+<div class="ark-card">
+    <h3 class="ark-card__title">{entity.sku|default:capability_data.stock.sku|default:'Stock Item'}</h3>
+    <p class="ark-card__excerpt">Quantity: {capability_data.stock.quantity|default:entity.quantity|default:'0'}</p>
+    <p class="ark-card__excerpt">Location: {capability_data.stock.location|default:entity.location|default:'-'}</p>
+</div>

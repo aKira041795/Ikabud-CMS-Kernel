@@ -1,0 +1,151 @@
+{
+    "version": "2.0.0",
+    "description": "ARK cross-module entity presentation contract map.",
+    "entity_views": {
+        "cms_post": {
+            "card_grid": {
+                "fields": [
+                    "title",
+                    "excerpt",
+                    "featured_image_url",
+                    "published_at"
+                ],
+                "actions": [
+                    "view"
+                ]
+            },
+            "detail": {
+                "fields": [
+                    "title",
+                    "body",
+                    "author_name",
+                    "published_at",
+                    "featured_image_url"
+                ],
+                "actions": [
+                    "view"
+                ]
+            }
+        },
+        "ecommerce_product": {
+            "compact": {
+                "fields": [
+                    "name",
+                    "price",
+                    "image",
+                    "stock_status"
+                ],
+                "actions": [
+                    "view",
+                    "add_to_cart"
+                ],
+                "block": "product_card"
+            },
+            "detail": {
+                "fields": [
+                    "name",
+                    "price",
+                    "images",
+                    "description",
+                    "stock_status"
+                ],
+                "actions": [
+                    "add_to_cart",
+                    "wishlist"
+                ]
+            }
+        },
+        "ehr_patient": {
+            "compact": {
+                "fields": [
+                    "first_name",
+                    "last_name",
+                    "patient_uuid",
+                    "status"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "patient_summary"
+            },
+            "detail": {
+                "fields": [
+                    "patient_uuid",
+                    "first_name",
+                    "last_name",
+                    "birth_date",
+                    "sex",
+                    "status"
+                ],
+                "actions": [
+                    "view"
+                ]
+            }
+        },
+        "ehr_appointment": {
+            "compact": {
+                "fields": [
+                    "patient_name",
+                    "appointment_type",
+                    "status",
+                    "scheduled_at"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "appointment_list"
+            },
+            "detail": {
+                "fields": [
+                    "appointment_uuid",
+                    "patient_name",
+                    "appointment_type",
+                    "reason_for_visit",
+                    "status"
+                ],
+                "actions": [
+                    "view"
+                ]
+            }
+        },
+        "bakeshop_product": {
+            "compact": {
+                "fields": [
+                    "name",
+                    "price",
+                    "unit"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "ledger_row"
+            }
+        },
+        "wms_stock": {
+            "compact": {
+                "fields": [
+                    "sku",
+                    "qty",
+                    "location_name"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "inventory_badge"
+            },
+            "table": {
+                "fields": [
+                    "sku",
+                    "name",
+                    "qty",
+                    "location_name",
+                    "updated_at"
+                ],
+                "actions": [
+                    "view",
+                    "move"
+                ]
+            }
+        }
+    }
+}

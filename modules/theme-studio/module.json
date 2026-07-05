@@ -60,6 +60,22 @@
             "roles": [
                 "admin"
             ]
+        },
+        {
+            "label": "Theme Contracts",
+            "url": "/admin/theme-studio/contracts",
+            "icon": "view-columns",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Theme Blocks",
+            "url": "/admin/theme-studio/blocks",
+            "icon": "collection",
+            "roles": [
+                "admin"
+            ]
         }
     ],
     "routes": "routes.php",

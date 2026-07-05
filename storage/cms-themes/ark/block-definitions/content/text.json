@@ -1,0 +1,30 @@
+{
+    "type": "text",
+    "label": "Text",
+    "category": "content",
+    "icon": "text",
+    "allowed_parents": [
+        "section",
+        "container",
+        "grid"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "content": {
+            "type": "richtext",
+            "label": "Content",
+            "required": true
+        },
+        "size": {
+            "type": "select",
+            "options": [
+                "sm",
+                "base",
+                "lg",
+                "xl"
+            ],
+            "default": "base"
+        }
+    },
+    "renders_with": "ark.blocks.text"
+}

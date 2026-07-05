@@ -1,0 +1,36 @@
+{
+    "type": "stat_card",
+    "label": "Stat Card",
+    "category": "data",
+    "icon": "stat-card",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "title": {
+            "type": "text",
+            "label": "Title",
+            "required": true
+        },
+        "value": {
+            "type": "text",
+            "label": "Value",
+            "required": true
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "primary",
+                "success",
+                "warning",
+                "danger"
+            ],
+            "default": "default"
+        }
+    },
+    "renders_with": "ikb_stat_card"
+}

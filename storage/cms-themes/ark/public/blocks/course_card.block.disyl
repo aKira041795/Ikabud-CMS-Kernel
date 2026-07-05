@@ -1,0 +1,9 @@
+{# ARK: Course Card Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing course card alias for ark.blocks.course_card. #}
+
+<article class="ark-card">
+    <h3 class="ark-card__title">{entity.title|default:capability_data.course.title|default:'Course'}</h3>
+    <p class="ark-card__excerpt">{entity.excerpt|default:capability_data.course.instructor|default:''}</p>
+    <p class="ark-card__excerpt">Progress: {capability_data.progress_tracking.percentage|default:entity.progress|default:'0'}%</p>
+</article>

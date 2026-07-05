@@ -6,6 +6,7 @@
 import React, { memo, useCallback, useState, useRef, useEffect, CSSProperties } from 'react';
 import { DiSyLNode, NodeStyle } from '../core/types';
 import { buildFlexWidthStyle, buildRatioFlexValue, deriveLayoutWidth, hasExplicitFlexSizing } from '../core/layoutSizing';
+import { canAcceptChild, canBeChildOf } from '../core/components';
 
 // Inline SVG placeholder — zero-dependency fallback for missing images
 function placeholderSvg(w: number, h: number, bg: string, text: string): string {
@@ -258,6 +259,7 @@ interface NodeRendererProps {
 }
 
 const INTERNAL_NODE_DND_MIME = 'application/x-cms-node-id';
+const INTERNAL_NODE_DND_TYPE_MIME = 'application/x-cms-node-type';
 
 // =============================================================================
 // Element Label Bar Component
@@ -4611,6 +4613,7 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     e.stopPropagation();
     setIsDragging(true);
     e.dataTransfer.setData(INTERNAL_NODE_DND_MIME, node.id);
+    e.dataTransfer.setData(INTERNAL_NODE_DND_TYPE_MIME, node.type);
     e.dataTransfer.setData('text/plain', node.id);
     e.dataTransfer.effectAllowed = 'move';
 
@@ -4639,19 +4642,34 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
     e.preventDefault();
     e.stopPropagation();
 
+    const draggedType = e.dataTransfer.getData(INTERNAL_NODE_DND_TYPE_MIME) as DiSyLNode['type'];
+    if (!draggedType) {
+      setDropPosition(null);
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     const height = rect.height;
 
     // Determine drop position based on mouse position
     const isContainer = ['document', 'section', 'container', 'layout_container', 'row', 'column'].includes(node.type);
+    const canDropInside = canAcceptChild(node.type, draggedType) && canBeChildOf(draggedType, node.type);
+    const canDropAsSibling = typeof parentType === 'string' && parentType !== ''
+      ? canAcceptChild(parentType as DiSyLNode['type'], draggedType) && canBeChildOf(draggedType, parentType as DiSyLNode['type'])
+      : false;
 
-    if (isContainer && y > height * 0.25 && y < height * 0.75) {
+    if (isContainer && canDropInside && y > height * 0.25 && y < height * 0.75) {
       setDropPosition('inside');
-    } else if (y < height * 0.5) {
+    } else if (canDropAsSibling && y < height * 0.5) {
       setDropPosition('before');
-    } else {
+    } else if (canDropAsSibling) {
       setDropPosition('after');
+    } else {
+      setDropPosition(null);
+      e.dataTransfer.dropEffect = 'none';
+      return;
     }
 
     e.dataTransfer.dropEffect = 'move';
@@ -4672,6 +4690,9 @@ const NodeRenderer: React.FC<NodeRendererProps> = memo(({
       e.dataTransfer.getData('text/plain');
     if (!draggedNodeId || draggedNodeId === node.id || !onMoveNode) {
       setDropPosition(null);
+      return;
+    }
+    if (dropPosition === null) {
       return;
     }
 

@@ -1,0 +1,7 @@
+{# ARK: Price Display Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing price display alias for ark.blocks.price_display. #}
+
+<span style="font-size:1.15rem;font-weight:700;color:var(--color-primary);">
+    {capability_data.pricing.currency|default:entity.currency|default:'$'}{capability_data.pricing.price|default:entity.price|default:'0.00'}
+</span>

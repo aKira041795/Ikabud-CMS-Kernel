@@ -1,5 +1,6 @@
 {# ARK: Meta Block (Phase 4)
-   Author, date, type badge, and reading time. #}
+    Context: entity, content, capability_data
+    Author, date, type badge, and reading time. #}
 
 <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;font-size:0.85rem;color:var(--color-text-secondary);">
     {if entity.author_name}

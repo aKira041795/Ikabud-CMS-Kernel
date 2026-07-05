@@ -260,6 +260,7 @@ function cmsBuilderValidateDocument(mixed $document): array
     $normalized = cmsBuilderNormalizeDocument($document);
     $issues = [];
     $root = $normalized['document'] ?? [];
+    $nestingConstraints = cmsBuilderLoadNestingConstraints();
 
     if (($root['type'] ?? '') !== 'document') {
         $issues[] = ['path' => 'document.type', 'message' => 'Root node type must be document'];
@@ -287,7 +288,7 @@ function cmsBuilderValidateDocument(mixed $document): array
         }
     }
 
-    $walk = function (array $node, string $path) use (&$walk, &$issues, $allowedTypes): void {
+    $walk = function (array $node, string $path, ?string $parentType = null) use (&$walk, &$issues, $allowedTypes, $nestingConstraints): void {
         $type = (string)($node['type'] ?? '');
         if ($path !== 'document') {
             if ($type === '') {
@@ -316,12 +317,24 @@ function cmsBuilderValidateDocument(mixed $document): array
             }
         }
 
+        if ($parentType !== null && $parentType !== '') {
+            $parentRule = $nestingConstraints[$parentType]['allowed_children'] ?? null;
+            if (is_array($parentRule) && $type !== '' && !in_array($type, $parentRule, true)) {
+                $issues[] = ['path' => $path . '.type', 'message' => "Node type '{$type}' is not allowed inside '{$parentType}'"];
+            } elseif (!is_array($parentRule)) {
+                $childRule = $nestingConstraints[$type]['allowed_parents'] ?? null;
+                if (is_array($childRule) && $type !== '' && !in_array($parentType, $childRule, true)) {
+                    $issues[] = ['path' => $path . '.type', 'message' => "Node type '{$type}' requires one of these parents: " . implode(', ', $childRule)];
+                }
+            }
+        }
+
         foreach (($node['children'] ?? []) as $index => $child) {
             if (!is_array($child)) {
                 $issues[] = ['path' => $path . '.children[' . $index . ']', 'message' => 'Child node must be an object'];
                 continue;
             }
-            $walk($child, $path . '.children[' . $index . ']');
+            $walk($child, $path . '.children[' . $index . ']', $type);
         }
     };
 
@@ -331,6 +344,103 @@ function cmsBuilderValidateDocument(mixed $document): array
         'ok' => empty($issues),
         'document' => $normalized,
         'issues' => $issues,
+    ];
+}
+
+function cmsBuilderLoadNestingConstraints(): array
+{
+    static $cache = [];
+
+    $themeDir = cmsBuilderConstraintThemeDir();
+    if ($themeDir === null) {
+        return [];
+    }
+
+    if (array_key_exists($themeDir, $cache)) {
+        return $cache[$themeDir];
+    }
+
+    $constraints = [];
+    $pageSchemaPath = $themeDir . '/page-composition.schema.json';
+    if (is_file($pageSchemaPath)) {
+        $schema = json_decode((string)@file_get_contents($pageSchemaPath), true);
+        if (is_array($schema)) {
+            $topLevelChildren = array_values(array_filter(array_map('strval', is_array($schema['allowed_top_level_children'] ?? null) ? $schema['allowed_top_level_children'] : [])));
+            if ($topLevelChildren !== []) {
+                $constraints['document'] = ['allowed_children' => $topLevelChildren];
+            }
+        }
+    }
+
+    $blockDefinitionsDir = $themeDir . '/block-definitions/layout';
+    foreach (['row', 'column'] as $blockType) {
+        $path = $blockDefinitionsDir . '/' . $blockType . '.json';
+        if (!is_file($path)) {
+            continue;
+        }
+
+        $definition = json_decode((string)@file_get_contents($path), true);
+        if (!is_array($definition)) {
+            continue;
+        }
+
+        $allowedChildren = is_array($definition['allowed_children'] ?? null)
+            ? array_values(array_filter(array_map('strval', $definition['allowed_children'])))
+            : null;
+        $allowedParents = is_array($definition['allowed_parents'] ?? null)
+            ? array_values(array_filter(array_map('strval', $definition['allowed_parents'])))
+            : null;
+
+        $constraints[$blockType] = [];
+        if ($allowedChildren !== null) {
+            $constraints[$blockType]['allowed_children'] = $allowedChildren;
+        }
+        if ($allowedParents !== null) {
+            $constraints[$blockType]['allowed_parents'] = $allowedParents;
+        }
+    }
+
+    $cache[$themeDir] = $constraints;
+    return $constraints;
+}
+
+function cmsBuilderConstraintThemeDir(): ?string
+{
+    $candidates = [];
+
+    if (function_exists('cmsActiveTheme')) {
+        $activeTheme = trim((string)cmsActiveTheme());
+        if ($activeTheme !== '') {
+            $themesPath = function_exists('cmsThemesPath')
+                ? cmsThemesPath()
+                : rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : BASE_PATH . '/storage'), '/') . '/cms-themes';
+            $candidates[] = $themesPath . '/' . $activeTheme;
+        }
+    }
+
+    if (defined('CMS_THEME_SYMLINK')) {
+        $symlinkTarget = realpath((string)CMS_THEME_SYMLINK);
+        if (is_string($symlinkTarget) && $symlinkTarget !== '') {
+            $candidates[] = $symlinkTarget;
+        }
+    }
+
+    $fallbackArk = rtrim((string)(defined('STORAGE_PATH') ? STORAGE_PATH : BASE_PATH . '/storage'), '/') . '/cms-themes/ark';
+    $candidates[] = $fallbackArk;
+
+    foreach (array_values(array_unique($candidates)) as $candidate) {
+        if (is_dir($candidate) && (is_file($candidate . '/page-composition.schema.json') || is_dir($candidate . '/block-definitions'))) {
+            return $candidate;
+        }
+    }
+
+    return null;
+}
+
+function cmsBuilderClientConstraints(): array
+{
+    return [
+        'nesting' => cmsBuilderLoadNestingConstraints(),
     ];
 }
 

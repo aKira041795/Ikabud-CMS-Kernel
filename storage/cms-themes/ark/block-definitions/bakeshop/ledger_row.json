@@ -1,0 +1,20 @@
+{
+    "type": "ledger_row",
+    "label": "Ledger Row",
+    "category": "bakeshop",
+    "icon": "ledger-row",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Ledger Source",
+            "default": "bakeshop_product.recent"
+        }
+    },
+    "renders_with": "ark.blocks.ledger_row"
+}

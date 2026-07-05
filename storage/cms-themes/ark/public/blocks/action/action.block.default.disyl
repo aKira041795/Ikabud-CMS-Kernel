@@ -1,5 +1,6 @@
 {# ARK: Action Strip — Default (Phase 4)
-   Full action strip with primary and secondary CTAs. #}
+    Context: entity, capability_data, entity_presentation
+    Full action strip with primary and secondary CTAs. #}
 
 {ikb_panel tone="muted" spacing="md" radius="md"}
     <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">

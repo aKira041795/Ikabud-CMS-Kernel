@@ -1,0 +1,43 @@
+{
+    "type": "hero",
+    "label": "Hero Section",
+    "category": "layout",
+    "icon": "layout-banner",
+    "allowed_parents": [
+        "section",
+        "page"
+    ],
+    "allowed_children": [
+        "button",
+        "image",
+        "text",
+        "badge"
+    ],
+    "controls": {
+        "title": {
+            "type": "text",
+            "label": "Heading",
+            "required": true,
+            "max_length": 120
+        },
+        "subtitle": {
+            "type": "textarea",
+            "label": "Subheading",
+            "max_length": 300
+        },
+        "alignment": {
+            "type": "select",
+            "options": [
+                "left",
+                "center",
+                "right"
+            ],
+            "default": "center"
+        },
+        "background": {
+            "type": "media_or_color",
+            "label": "Background"
+        }
+    },
+    "renders_with": "ark.blocks.hero"
+}

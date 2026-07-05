@@ -1,6 +1,7 @@
 {# ARK: List Card Block — With Inventory (Phase 4)
-   Card container with integrated stock status badge.
-   Shows in-stock/out-of-stock indicator and quantity. #}
+    Context: entity, row, capability_data, entity_presentation
+    Card container with integrated stock status badge.
+    Shows in-stock/out-of-stock indicator and quantity. #}
 
 <article class="ark-card">
     {if row.image or row.featured_image_url or row.thumbnail_url}

@@ -1,0 +1,47 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://ikabud.dev/schemas/ark-block-definition-v1.json",
+    "title": "ARK Block Definition",
+    "type": "object",
+    "required": [
+        "type",
+        "label",
+        "controls",
+        "renders_with"
+    ],
+    "properties": {
+        "type": {
+            "type": "string"
+        },
+        "label": {
+            "type": "string"
+        },
+        "category": {
+            "type": "string"
+        },
+        "icon": {
+            "type": "string"
+        },
+        "allowed_parents": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "allowed_children": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "controls": {
+            "type": "object"
+        },
+        "renders_with": {
+            "type": "string"
+        },
+        "preview_thumbnail": {
+            "type": "string"
+        }
+    }
+}

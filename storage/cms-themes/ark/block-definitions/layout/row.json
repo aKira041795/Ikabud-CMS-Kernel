@@ -1,0 +1,39 @@
+{
+    "type": "row",
+    "label": "Row",
+    "category": "layout",
+    "icon": "layout-row",
+    "allowed_parents": [
+        "page",
+        "section",
+        "container",
+        "layout_container",
+        "column"
+    ],
+    "allowed_children": [
+        "column"
+    ],
+    "controls": {
+        "gap": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg",
+                "xl"
+            ],
+            "default": "md"
+        },
+        "justify": {
+            "type": "select",
+            "options": [
+                "start",
+                "center",
+                "between",
+                "around"
+            ],
+            "default": "center"
+        }
+    },
+    "renders_with": "ikb_container"
+}

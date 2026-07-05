@@ -1,0 +1,25 @@
+{
+    "type": "table",
+    "label": "Table",
+    "category": "data",
+    "icon": "table",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "columns": {
+            "type": "array",
+            "label": "Columns",
+            "required": true
+        },
+        "rows": {
+            "type": "array",
+            "label": "Rows",
+            "required": true
+        }
+    },
+    "renders_with": "ark.blocks.table"
+}

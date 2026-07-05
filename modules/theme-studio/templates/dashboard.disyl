@@ -6,7 +6,7 @@
 {block content}
 <div class="p-6">
     <h1 class="text-2xl font-bold mb-2">Theme Studio</h1>
-    <p class="text-gray-500 mb-6">Advanced theme customization — presets, tokens, elements, and layout controls.</p>
+    <p class="text-gray-500 mb-6">Advanced theme customization — presets, tokens, elements, layout controls, and ARK contract visibility.</p>
 
     {# Status cards #}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -24,6 +24,57 @@
         </div>
     </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Supported Surfaces</div>
+            <div class="text-2xl font-bold text-gray-900">{supported_surfaces|length}</div>
+            <div class="text-xs text-gray-400 mt-1">{supported_surfaces|join:', '|default:'None declared'}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Governed Slots</div>
+            <div class="text-2xl font-bold text-gray-900">{slot_count}</div>
+            <div class="text-xs text-gray-400 mt-1">Shell + extension injection points</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Theme Tokens</div>
+            <div class="text-2xl font-bold text-gray-900">{token_count}</div>
+            <div class="text-xs text-gray-400 mt-1">{token_groups|length} grouped categories</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Customizer Sections</div>
+            <div class="text-2xl font-bold text-gray-900">{customizer_section_count}</div>
+            <div class="text-xs text-gray-400 mt-1">Theme-owned configuration areas</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+                <h2 class="text-lg font-semibold mb-1">ARK Contract Coverage</h2>
+                <p class="text-sm text-gray-500">This shows which authority-layer files exist for the active theme.</p>
+            </div>
+            <a href="/admin/theme-studio/contracts" class="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black">Open Contracts Explorer</a>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="text-sm font-medium text-gray-500 mb-2">Renderer Registry</div>
+                <div class="text-sm font-semibold {if has_renderer_registry}text-green-700{:else}text-amber-700{/if}">{if has_renderer_registry}Present{:else}Not yet defined{/if}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="text-sm font-medium text-gray-500 mb-2">Block Registry</div>
+                <div class="text-sm font-semibold {if has_block_registry}text-green-700{:else}text-amber-700{/if}">{if has_block_registry}Present{:else}Not yet defined{/if}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="text-sm font-medium text-gray-500 mb-2">Entity View Map</div>
+                <div class="text-sm font-semibold {if has_entity_view_map}text-green-700{:else}text-amber-700{/if}">{if has_entity_view_map}Present{:else}Not yet defined{/if}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="text-sm font-medium text-gray-500 mb-2">Safety Policy</div>
+                <div class="text-sm font-semibold {if has_safety_policy}text-green-700{:else}text-amber-700{/if}">{if has_safety_policy}Present{:else}Not yet defined{/if}</div>
+            </div>
+        </div>
+    </div>
+
     {# Quick actions #}
     <h2 class="text-lg font-semibold mb-3">Quick Actions</h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -38,6 +89,10 @@
         <a href="/admin/theme-studio/elements" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
             <div class="font-medium text-indigo-600 mb-1">🧩 Theme Elements</div>
             <p class="text-sm text-gray-500">Inject governed content into theme slots</p>
+        </a>
+        <a href="/admin/theme-studio/contracts" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+            <div class="font-medium text-indigo-600 mb-1">📐 ARK Contracts</div>
+            <p class="text-sm text-gray-500">Inspect slots, schema, token groups, and authority-layer files</p>
         </a>
     </div>
 </div>

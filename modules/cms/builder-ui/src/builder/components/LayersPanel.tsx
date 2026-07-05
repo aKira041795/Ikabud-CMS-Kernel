@@ -14,9 +14,10 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import { DiSyLNode } from '../core/types';
-import { getComponentDefinition } from '../core/components';
+import { canAcceptChild, canBeChildOf, getComponentDefinition } from '../core/components';
 
 const LAYER_DND_MIME = 'application/x-cms-layer-node-id';
+const LAYER_DND_TYPE_MIME = 'application/x-cms-layer-node-type';
 
 // =============================================================================
 // Layer Item
@@ -30,6 +31,7 @@ interface LayerItemProps {
   canMoveUp: boolean;
   canMoveDown: boolean;
   parentId: string | null;
+  parentType: string | null;
   indexInParent: number;
   onSelect: (nodeId: string, addToSelection?: boolean) => void;
   onHover: (nodeId: string | null) => void;
@@ -49,6 +51,7 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
   canMoveUp,
   canMoveDown,
   parentId,
+  parentType,
   indexInParent,
   onSelect,
   onHover,
@@ -111,8 +114,9 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
     e.stopPropagation();
     setIsDragging(true);
     e.dataTransfer.setData(LAYER_DND_MIME, node.id);
+    e.dataTransfer.setData(LAYER_DND_TYPE_MIME, node.type);
     e.dataTransfer.effectAllowed = 'move';
-  }, [node.id]);
+  }, [node.id, node.type]);
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false);
@@ -124,20 +128,33 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
     e.preventDefault();
     e.stopPropagation();
 
+    const draggedType = e.dataTransfer.getData(LAYER_DND_TYPE_MIME) as DiSyLNode['type'];
+    if (!draggedType) {
+      setDropPosition(null);
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const y = e.clientY - rect.top;
     const height = rect.height;
     const isContainer = ['document', 'section', 'container', 'layout_container', 'row', 'column'].includes(node.type);
+    const canDropInside = canAcceptChild(node.type, draggedType) && canBeChildOf(draggedType, node.type);
+    const canDropAsSibling = parentType !== null && canAcceptChild(parentType as DiSyLNode['type'], draggedType) && canBeChildOf(draggedType, parentType as DiSyLNode['type']);
 
-    if (isContainer && y > height * 0.25 && y < height * 0.75) {
+    if (isContainer && canDropInside && y > height * 0.25 && y < height * 0.75) {
       setDropPosition('inside');
-    } else if (y < height * 0.5) {
+    } else if (canDropAsSibling && y < height * 0.5) {
       setDropPosition('before');
-    } else {
+    } else if (canDropAsSibling) {
       setDropPosition('after');
+    } else {
+      setDropPosition(null);
+      e.dataTransfer.dropEffect = 'none';
+      return;
     }
     e.dataTransfer.dropEffect = 'move';
-  }, [node.type]);
+  }, [node.type, parentType]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -289,6 +306,7 @@ const LayerItem: React.FC<LayerItemProps> = memo(({
               canMoveUp={index > 0}
               canMoveDown={index < node.children.length - 1}
               parentId={node.id}
+              parentType={node.type}
               indexInParent={index}
               onSelect={onSelect}
               onHover={onHover}
@@ -343,6 +361,7 @@ const LayersPanel: React.FC<LayersPanelProps> = ({
         canMoveUp={false}
         canMoveDown={false}
         parentId={null}
+        parentType={null}
         indexInParent={0}
         onSelect={onSelect}
         onHover={onHover}

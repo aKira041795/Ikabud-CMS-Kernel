@@ -1,0 +1,34 @@
+{
+    "type": "gallery",
+    "label": "Gallery",
+    "category": "content",
+    "icon": "gallery",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "items": {
+            "type": "media_list",
+            "label": "Gallery Items",
+            "required": true
+        },
+        "columns": {
+            "type": "select",
+            "options": [
+                "2",
+                "3",
+                "4",
+                "5"
+            ],
+            "default": "3"
+        },
+        "lightbox": {
+            "type": "boolean",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.gallery"
+}

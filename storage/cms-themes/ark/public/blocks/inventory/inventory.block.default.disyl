@@ -1,5 +1,6 @@
 {# ARK: Inventory Block — Default (Phase 4)
-   Full stock status with badge, quantity, and low-stock warning. #}
+    Context: entity, capability_data, entity_presentation
+    Full stock status with badge, quantity, and low-stock warning. #}
 
 {ikb_panel tone="surface" spacing="md" radius="md"}
     <div style="display:flex;align-items:center;gap:0.75rem;">

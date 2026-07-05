@@ -1,0 +1,42 @@
+{
+    "type": "grid",
+    "label": "Grid",
+    "category": "layout",
+    "icon": "layout-grid",
+    "allowed_parents": [
+        "container",
+        "section"
+    ],
+    "allowed_children": [
+        "text",
+        "image",
+        "button",
+        "stat_card",
+        "product_card",
+        "patient_summary",
+        "course_card",
+        "inventory_badge"
+    ],
+    "controls": {
+        "columns": {
+            "type": "select",
+            "options": [
+                "1",
+                "2",
+                "3",
+                "4"
+            ],
+            "default": "3"
+        },
+        "gap": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ikb_grid"
+}

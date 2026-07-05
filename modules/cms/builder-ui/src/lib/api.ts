@@ -8,6 +8,11 @@
 /**
  * Boot data injected by the DiSyL shell template
  */
+export interface BuilderNestingRule {
+  allowed_children?: string[];
+  allowed_parents?: string[];
+}
+
 export interface BuilderBootData {
   contentId: number | null;
   baseUrl: string;
@@ -16,6 +21,9 @@ export interface BuilderBootData {
     active_customizer_scope?: string;
     global_styles?: Record<string, unknown> | null;
     shell?: Record<string, unknown> | null;
+  } | null;
+  builderConstraints?: {
+    nesting?: Record<string, BuilderNestingRule> | null;
   } | null;
   user: {
     id: number;

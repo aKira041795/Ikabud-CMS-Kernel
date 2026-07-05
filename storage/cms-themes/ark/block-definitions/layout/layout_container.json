@@ -1,0 +1,59 @@
+{
+    "type": "layout_container",
+    "label": "Layout Container",
+    "category": "layout",
+    "icon": "layout-container",
+    "allowed_parents": [
+        "page",
+        "section",
+        "container",
+        "column"
+    ],
+    "allowed_children": [
+        "layout_container",
+        "row",
+        "column",
+        "grid",
+        "text",
+        "image",
+        "button",
+        "badge",
+        "gallery",
+        "entity_list",
+        "entity_detail",
+        "stat_card",
+        "table",
+        "product_grid",
+        "product_card",
+        "patient_summary"
+    ],
+    "controls": {
+        "display": {
+            "type": "select",
+            "options": [
+                "flex",
+                "grid"
+            ],
+            "default": "flex"
+        },
+        "direction": {
+            "type": "select",
+            "options": [
+                "column",
+                "row"
+            ],
+            "default": "column"
+        },
+        "gap": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg",
+                "xl"
+            ],
+            "default": "md"
+        }
+    },
+    "renders_with": "ikb_container"
+}

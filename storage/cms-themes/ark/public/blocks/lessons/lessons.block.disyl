@@ -1,5 +1,6 @@
 {# ARK: Lessons Block (Phase 4)
-   Ordered lesson/course index with completion badges. #}
+    Context: entity, capability_data
+    Ordered lesson/course index with completion badges. #}
 
 {ikb_panel tone="surface" spacing="md" radius="md"}
     <h3 style="font-weight:600;margin:0 0 var(--spacing-sm);font-size:1rem;">

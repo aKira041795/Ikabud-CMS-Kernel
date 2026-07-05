@@ -1,6 +1,7 @@
 {# ARK: List Card Block — Pricing Featured (Phase 4)
-   Highlighted card with "Best Value" or "Featured" ribbon badge.
-   Prominent pricing display for featured/commercial products. #}
+    Context: entity, row, capability_data, entity_presentation
+    Highlighted card with "Best Value" or "Featured" ribbon badge.
+    Prominent pricing display for featured/commercial products. #}
 
 <article class="ark-card" style="position:relative;border-color:var(--color-primary);border-width:2px;">
     {# Featured ribbon #}

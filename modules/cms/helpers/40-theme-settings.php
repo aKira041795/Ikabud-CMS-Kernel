@@ -994,7 +994,12 @@ function cmsThemeManifestFlattenTokens(array $tokens, string $prefix = ''): arra
 function cmsThemeManifestTokens(?array $manifest = null): array
 {
     $manifest = is_array($manifest) ? $manifest : cmsActiveThemeManifest();
-    $tokens = $manifest['tokens'] ?? [];
+    $tokens = [];
+    if (is_array($manifest['_tokens'] ?? null)) {
+        $tokens = $manifest['_tokens'];
+    } elseif (is_array($manifest['tokens'] ?? null)) {
+        $tokens = $manifest['tokens'];
+    }
     return is_array($tokens) ? cmsThemeManifestFlattenTokens($tokens) : [];
 }
 

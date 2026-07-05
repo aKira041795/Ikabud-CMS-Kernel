@@ -1,5 +1,6 @@
 {# ARK: Action Strip — Inline (Phase 4)
-   Compact inline action buttons, no panel wrapper. #}
+    Context: entity, capability_data, entity_presentation
+    Compact inline action buttons, no panel wrapper. #}
 
 <div style="display:flex;flex-wrap:wrap;gap:0.35rem;">
     {for action in capability_data.actions}

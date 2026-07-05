@@ -108,6 +108,33 @@ $docWithChildren['document']['children'] = [
 $validWithChildren = cmsBuilderValidateDocument($docWithChildren);
 t('Doc with children passes validation', $validWithChildren['ok'] === true);
 
+$validStructuredLayoutDoc = $doc;
+$validStructuredLayoutDoc['document']['children'] = [
+    ['id' => 'row1', 'type' => 'row', 'props' => [], 'style' => [], 'children' => [
+        ['id' => 'col1', 'type' => 'column', 'props' => [], 'style' => [], 'children' => [
+            ['id' => 't1', 'type' => 'text', 'props' => ['content' => 'Nested correctly'], 'style' => [], 'children' => [], 'meta' => []],
+        ], 'meta' => []],
+    ], 'meta' => []],
+];
+$validStructuredLayoutResult = cmsBuilderValidateDocument($validStructuredLayoutDoc);
+t('Row with column child passes validation', $validStructuredLayoutResult['ok'] === true);
+
+$invalidStructuredLayoutDoc = $doc;
+$invalidStructuredLayoutDoc['document']['children'] = [
+    ['id' => 'row1', 'type' => 'row', 'props' => [], 'style' => [], 'children' => [
+        ['id' => 'row2', 'type' => 'row', 'props' => [], 'style' => [], 'children' => [], 'meta' => []],
+    ], 'meta' => []],
+];
+$invalidStructuredLayoutResult = cmsBuilderValidateDocument($invalidStructuredLayoutDoc);
+$rowNestingIssue = false;
+foreach (($invalidStructuredLayoutResult['issues'] ?? []) as $issue) {
+    if (str_contains((string)($issue['message'] ?? ''), "Node type 'row' is not allowed inside 'row'")) {
+        $rowNestingIssue = true;
+        break;
+    }
+}
+t('Row inside row is rejected by nesting validation', $invalidStructuredLayoutResult['ok'] === false && $rowNestingIssue);
+
 // ─── Section 4: Schema Versioning ──────────────────────────────────────
 echo "\n── Section 4: Schema Versioning ──\n";
 

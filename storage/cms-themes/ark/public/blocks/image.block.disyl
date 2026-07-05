@@ -1,0 +1,7 @@
+{# ARK: Image Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing image alias for ark.blocks.image. #}
+
+{if capability_data.image.url|default:image_url|default:entity.featured_image_url|default:''}
+<img src="{capability_data.image.url|default:image_url|default:entity.featured_image_url}" alt="{capability_data.image.alt|default:entity.title|default:'Image'}" style="display:block;width:100%;height:auto;border-radius:var(--radius-md);" />
+{/if}

@@ -1,0 +1,5 @@
+{# ARK: Badge Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing badge alias for ark.blocks.badge. #}
+
+<span class="ark-badge ark-badge--default">{capability_data.badge.text|default:text|default:entity.status|default:'Badge'}</span>

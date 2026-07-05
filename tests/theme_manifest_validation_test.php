@@ -203,6 +203,252 @@ if (function_exists('cmsThemeManifestForSlug')) {
     echo "  SKIP: cmsThemeManifestForSlug not available\n";
 }
 
+// ── Test 15: Valid entity-view-map contract passes semantic validation ──
+echo "\nTest 15: Valid entity-view-map contract\n";
+$entityTmpDir = sys_get_temp_dir() . '/theme-entity-map-valid-' . uniqid();
+@mkdir($entityTmpDir . '/layouts', 0777, true);
+@mkdir($entityTmpDir . '/public', 0777, true);
+@mkdir($entityTmpDir . '/block-definitions/ecommerce', 0777, true);
+@mkdir($entityTmpDir . '/block-definitions/healthcare', 0777, true);
+@file_put_contents($entityTmpDir . '/tokens.json', json_encode(['colors' => ['primary' => '#000000', 'surface' => '#ffffff', 'text' => '#111111', 'border' => '#dddddd'], 'typography' => [], 'spacing' => [], 'radius' => []], JSON_PRETTY_PRINT));
+@file_put_contents($entityTmpDir . '/shell.disyl', "{block content}{/block}\n");
+@file_put_contents($entityTmpDir . '/block-definitions/block-definition.schema.json', json_encode(['type' => 'object'], JSON_PRETTY_PRINT));
+@file_put_contents($entityTmpDir . '/block-registry.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Test registry',
+    'categories' => [
+        'ecommerce' => ['product_card'],
+        'healthcare' => ['patient_summary'],
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($entityTmpDir . '/block-definitions/ecommerce/product_card.json', json_encode([
+    'type' => 'product_card',
+    'label' => 'Product Card',
+    'controls' => ['variant'],
+    'renders_with' => 'ark.blocks.product_card',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($entityTmpDir . '/block-definitions/healthcare/patient_summary.json', json_encode([
+    'type' => 'patient_summary',
+    'label' => 'Patient Summary',
+    'controls' => ['variant'],
+    'renders_with' => 'ark.blocks.patient_summary',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($entityTmpDir . '/entity-view-map.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Valid entity map',
+    'entity_views' => [
+        'ecommerce_product' => [
+            'compact' => [
+                'fields' => ['name', 'price'],
+                'actions' => ['view'],
+                'block' => 'product_card',
+            ],
+        ],
+        'ehr_patient' => [
+            'detail' => [
+                'fields' => ['first_name', 'last_name'],
+                'actions' => ['view'],
+                'block' => 'patient_summary',
+            ],
+        ],
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$result = ThemeManifestValidator::validate('test-theme', $validManifest, $entityTmpDir);
+$entityWarnings = array_values(array_filter($result['warnings'], static fn(string $warning): bool => str_contains($warning, 'entity-view-map')));
+assert_count(0, $entityWarnings, 'valid entity-view-map produces no entity-view warnings');
+$cleanup($entityTmpDir);
+
+// ── Test 16: Invalid entity-view-map contract warns on semantic errors ──
+echo "\nTest 16: Invalid entity-view-map contract\n";
+$invalidEntityTmpDir = sys_get_temp_dir() . '/theme-entity-map-invalid-' . uniqid();
+@mkdir($invalidEntityTmpDir . '/layouts', 0777, true);
+@mkdir($invalidEntityTmpDir . '/public', 0777, true);
+@file_put_contents($invalidEntityTmpDir . '/tokens.json', json_encode(['colors' => ['primary' => '#000000', 'surface' => '#ffffff', 'text' => '#111111', 'border' => '#dddddd'], 'typography' => [], 'spacing' => [], 'radius' => []], JSON_PRETTY_PRINT));
+@file_put_contents($invalidEntityTmpDir . '/shell.disyl', "{block content}{/block}\n");
+@file_put_contents($invalidEntityTmpDir . '/block-registry.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Invalid registry reference test',
+    'categories' => [
+        'ecommerce' => ['product_card'],
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($invalidEntityTmpDir . '/block-definitions/block-definition.schema.json', json_encode(['type' => 'object'], JSON_PRETTY_PRINT));
+@mkdir($invalidEntityTmpDir . '/block-definitions/ecommerce', 0777, true);
+@file_put_contents($invalidEntityTmpDir . '/block-definitions/ecommerce/product_card.json', json_encode([
+    'type' => 'product_card',
+    'label' => 'Product Card',
+    'controls' => ['variant'],
+    'renders_with' => 'ark.blocks.product_card',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($invalidEntityTmpDir . '/entity-view-map.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Invalid entity map',
+    'entity_views' => [
+        'ecommerce_product' => [
+            'compact' => [
+                'fields' => [],
+                'actions' => ['view'],
+                'block' => 'missing_block',
+            ],
+        ],
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$result = ThemeManifestValidator::validate('test-theme', $validManifest, $invalidEntityTmpDir);
+$unknownBlockWarning = false;
+$emptyFieldsWarning = false;
+foreach ($result['warnings'] as $warning) {
+    if (str_contains($warning, "references unknown block 'missing_block'")) {
+        $unknownBlockWarning = true;
+    }
+    if (str_contains($warning, 'must declare a non-empty fields array')) {
+        $emptyFieldsWarning = true;
+    }
+}
+assert_true($unknownBlockWarning, 'invalid entity-view-map warns on unknown block');
+assert_true($emptyFieldsWarning, 'invalid entity-view-map warns on empty fields');
+$cleanup($invalidEntityTmpDir);
+
+// ── Test 17: Valid page-composition schema passes semantic validation ──
+echo "\nTest 17: Valid page-composition schema\n";
+$pageSchemaTmpDir = sys_get_temp_dir() . '/theme-page-schema-valid-' . uniqid();
+@mkdir($pageSchemaTmpDir . '/layouts', 0777, true);
+@mkdir($pageSchemaTmpDir . '/public', 0777, true);
+@file_put_contents($pageSchemaTmpDir . '/tokens.json', json_encode(['colors' => ['primary' => '#000000', 'surface' => '#ffffff', 'text' => '#111111', 'border' => '#dddddd'], 'typography' => [], 'spacing' => [], 'radius' => []], JSON_PRETTY_PRINT));
+@file_put_contents($pageSchemaTmpDir . '/shell.disyl', "{block content}{/block}\n");
+@file_put_contents($pageSchemaTmpDir . '/block-registry.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Registry present to trigger page schema expectation',
+    'categories' => ['layout' => ['section']],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($pageSchemaTmpDir . '/page-composition.schema.json', json_encode([
+    'version' => '1.0.0',
+    'document_envelope' => [
+        'required_keys' => ['schema_version', 'document'],
+        'schema_version_default' => '1.0',
+    ],
+    'root_node' => [
+        'type' => 'document',
+        'required_keys' => ['id', 'type', 'props', 'style', 'children', 'meta'],
+        'children_key' => 'children',
+    ],
+    'allowed_top_level_children' => ['section'],
+    'node_contract' => [
+        'required_keys' => ['id', 'type', 'props', 'style', 'children', 'meta'],
+        'props_must_be_object' => true,
+        'style_must_be_object' => true,
+        'children_must_be_array' => true,
+        'meta_must_be_object' => true,
+    ],
+    'compatibility' => [
+        'cms_builder_schema_version' => '1.0',
+        'normalizer' => 'cmsBuilderNormalizeDocument',
+        'default_document_factory' => 'cmsBuilderDefaultDocument',
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$result = ThemeManifestValidator::validate('test-theme', $validManifest, $pageSchemaTmpDir);
+$pageSchemaWarnings = array_values(array_filter($result['warnings'], static fn(string $warning): bool => str_contains($warning, 'page-composition.schema.json')));
+assert_count(0, $pageSchemaWarnings, 'valid page-composition schema produces no page schema warnings');
+$cleanup($pageSchemaTmpDir);
+
+// ── Test 18: Invalid page-composition schema warns on contract drift ──
+echo "\nTest 18: Invalid page-composition schema\n";
+$invalidPageSchemaTmpDir = sys_get_temp_dir() . '/theme-page-schema-invalid-' . uniqid();
+@mkdir($invalidPageSchemaTmpDir . '/layouts', 0777, true);
+@mkdir($invalidPageSchemaTmpDir . '/public', 0777, true);
+@file_put_contents($invalidPageSchemaTmpDir . '/tokens.json', json_encode(['colors' => ['primary' => '#000000', 'surface' => '#ffffff', 'text' => '#111111', 'border' => '#dddddd'], 'typography' => [], 'spacing' => [], 'radius' => []], JSON_PRETTY_PRINT));
+@file_put_contents($invalidPageSchemaTmpDir . '/shell.disyl', "{block content}{/block}\n");
+@file_put_contents($invalidPageSchemaTmpDir . '/block-registry.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Registry present to trigger page schema expectation',
+    'categories' => ['layout' => ['section']],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($invalidPageSchemaTmpDir . '/page-composition.schema.json', json_encode([
+    'version' => '',
+    'document_envelope' => [
+        'required_keys' => ['document'],
+    ],
+    'root_node' => [
+        'type' => 'page',
+        'required_keys' => ['id', 'type'],
+        'children_key' => 'items',
+    ],
+    'allowed_top_level_children' => [],
+    'node_contract' => [
+        'required_keys' => ['id', 'type'],
+    ],
+    'compatibility' => [
+        'cms_builder_schema_version' => '',
+        'normalizer' => 'customNormalize',
+        'default_document_factory' => 'customDefault',
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$result = ThemeManifestValidator::validate('test-theme', $validManifest, $invalidPageSchemaTmpDir);
+$missingEnvelopeKeyWarning = false;
+$wrongRootTypeWarning = false;
+$wrongNormalizerWarning = false;
+foreach ($result['warnings'] as $warning) {
+    if (str_contains($warning, "document_envelope.required_keys must include 'schema_version'")) {
+        $missingEnvelopeKeyWarning = true;
+    }
+    if (str_contains($warning, "root_node.type should be 'document'")) {
+        $wrongRootTypeWarning = true;
+    }
+    if (str_contains($warning, "compatibility.normalizer should be 'cmsBuilderNormalizeDocument'")) {
+        $wrongNormalizerWarning = true;
+    }
+}
+assert_true($missingEnvelopeKeyWarning, 'invalid page-composition schema warns on missing envelope key');
+assert_true($wrongRootTypeWarning, 'invalid page-composition schema warns on wrong root type');
+assert_true($wrongNormalizerWarning, 'invalid page-composition schema warns on wrong normalizer');
+$cleanup($invalidPageSchemaTmpDir);
+
+// ── Test 19: Page schema warns when top-level children are missing from ARK registry ──
+echo "\nTest 19: Page-composition schema unknown top-level child\n";
+$unknownTopLevelTmpDir = sys_get_temp_dir() . '/theme-page-schema-unknown-top-level-' . uniqid();
+@mkdir($unknownTopLevelTmpDir . '/layouts', 0777, true);
+@mkdir($unknownTopLevelTmpDir . '/public', 0777, true);
+@file_put_contents($unknownTopLevelTmpDir . '/tokens.json', json_encode(['colors' => ['primary' => '#000000', 'surface' => '#ffffff', 'text' => '#111111', 'border' => '#dddddd'], 'typography' => [], 'spacing' => [], 'radius' => []], JSON_PRETTY_PRINT));
+@file_put_contents($unknownTopLevelTmpDir . '/shell.disyl', "{block content}{/block}\n");
+@file_put_contents($unknownTopLevelTmpDir . '/block-registry.json', json_encode([
+    'version' => '2.0.0',
+    'description' => 'Registry missing layout_container on purpose',
+    'categories' => ['layout' => ['section']],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+@file_put_contents($unknownTopLevelTmpDir . '/page-composition.schema.json', json_encode([
+    'version' => '1.0.0',
+    'document_envelope' => [
+        'required_keys' => ['schema_version', 'document'],
+        'schema_version_default' => '1.0',
+    ],
+    'root_node' => [
+        'type' => 'document',
+        'required_keys' => ['id', 'type', 'props', 'style', 'children', 'meta'],
+        'children_key' => 'children',
+    ],
+    'allowed_top_level_children' => ['section', 'layout_container'],
+    'node_contract' => [
+        'required_keys' => ['id', 'type', 'props', 'style', 'children', 'meta'],
+        'props_must_be_object' => true,
+        'style_must_be_object' => true,
+        'children_must_be_array' => true,
+        'meta_must_be_object' => true,
+    ],
+    'compatibility' => [
+        'cms_builder_schema_version' => '1.0',
+        'normalizer' => 'cmsBuilderNormalizeDocument',
+        'default_document_factory' => 'cmsBuilderDefaultDocument',
+    ],
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$result = ThemeManifestValidator::validate('test-theme', $validManifest, $unknownTopLevelTmpDir);
+$unknownTopLevelWarning = false;
+foreach ($result['warnings'] as $warning) {
+    if (str_contains($warning, "allowed_top_level_children references unknown ARK block type 'layout_container'")) {
+        $unknownTopLevelWarning = true;
+    }
+}
+assert_true($unknownTopLevelWarning, 'page-composition schema warns when top-level child is not published in block-registry');
+$cleanup($unknownTopLevelTmpDir);
+
 echo "\n==============================\n";
 echo "Results: {$passed} passed, {$failed} failed\n";
 echo "==============================\n";

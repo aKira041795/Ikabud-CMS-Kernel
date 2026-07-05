@@ -1,0 +1,29 @@
+{
+    "type": "inventory_badge",
+    "label": "Inventory Badge",
+    "category": "ecommerce",
+    "icon": "inventory-badge",
+    "allowed_parents": [
+        "product_card",
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Inventory Source",
+            "default": "ecommerce_product.featured"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "compact"
+            ],
+            "default": "default"
+        }
+    },
+    "renders_with": "ark.blocks.inventory_badge"
+}

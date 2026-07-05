@@ -1,0 +1,36 @@
+{
+    "type": "button",
+    "label": "Button",
+    "category": "content",
+    "icon": "button",
+    "allowed_parents": [
+        "hero",
+        "section",
+        "container",
+        "grid"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "label": {
+            "type": "text",
+            "label": "Label",
+            "required": true
+        },
+        "url": {
+            "type": "text",
+            "label": "URL",
+            "required": true
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "primary",
+                "secondary",
+                "ghost",
+                "danger"
+            ],
+            "default": "primary"
+        }
+    },
+    "renders_with": "ark.blocks.button"
+}

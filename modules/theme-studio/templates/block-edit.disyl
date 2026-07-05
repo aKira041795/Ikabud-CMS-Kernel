@@ -1,0 +1,262 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="p-6 space-y-6" x-data="blockDefinitionEditor()" x-init="init()">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+            <h1 class="text-2xl font-bold mb-2">Block Definition Editor</h1>
+            <p class="text-gray-500">Edit the ARK block contract through structured fields first. Advanced JSON remains available for contracts that need a lower-level escape hatch.</p>
+        </div>
+        <a href="/admin/theme-studio/blocks" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Back To Theme Blocks</a>
+    </div>
+
+    {if error}
+    <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+    {/if}
+    {if notice}
+    <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</div>
+    {/if}
+
+    {if !block_detail.registered}
+    <div class="bg-white rounded-xl shadow-sm border border-red-100 p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Unregistered Block</h2>
+        <p class="text-sm text-gray-600">This category/type pair is not declared in the active ARK block registry, so Theme Studio will not write a file for it.</p>
+    </div>
+    {:else}
+    <script type="application/json" id="block-controls-json">{block_detail.form.controls_rows_json|raw}</script>
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <form method="POST" action="/admin/theme-studio/blocks/{block_detail.category}/{block_detail.type}/save" class="space-y-6">
+                <input type="hidden" name="editor_mode" value="structured">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <div class="text-gray-500 mb-1">Theme</div>
+                        <div class="font-semibold text-gray-900">{theme_manifest.label|default:active_theme|default:'None'}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-500 mb-1">Category</div>
+                        <div class="font-semibold text-gray-900 font-mono">{block_detail.category}</div>
+                    </div>
+                    <div>
+                        <div class="text-gray-500 mb-1">Block Type</div>
+                        <div class="font-semibold text-gray-900 font-mono">{block_detail.type}</div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Label</label>
+                        <input type="text" name="label" value="{block_detail.form.label}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Icon</label>
+                        <input type="text" name="icon" value="{block_detail.form.icon}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="layout-banner">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Render Target</label>
+                        <input type="text" name="renders_with" value="{block_detail.form.renders_with}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Preview Thumbnail</label>
+                        <input type="text" name="preview_thumbnail" value="{block_detail.form.preview_thumbnail}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="docs/screenshots/hero.png">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Max Children</label>
+                        <input type="number" name="max_children" value="{block_detail.form.max_children}" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" min="0">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Allowed Parents</label>
+                        <textarea name="allowed_parents_text" rows="6" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="section&#10;page">{block_detail.form.allowed_parents_text}</textarea>
+                        <p class="text-xs text-gray-400 mt-2">One parent type per line. Comma-separated values are also accepted.</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Allowed Children</label>
+                        <textarea name="allowed_children_text" rows="6" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="button&#10;image&#10;text">{block_detail.form.allowed_children_text}</textarea>
+                        <p class="text-xs text-gray-400 mt-2">Use the registered ARK block type names here, not file paths.</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between gap-4 flex-wrap">
+                        <div>
+                            <h2 class="text-base font-semibold text-gray-900">Control Schema</h2>
+                            <p class="text-sm text-gray-500">Each control row maps to one entry in the ARK block definition `controls` object.</p>
+                        </div>
+                        <button type="button" @click="addControl()" class="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Add Control</button>
+                    </div>
+
+                    <template x-for="(control, index) in controls" :key="index">
+                        <div class="rounded-xl border border-gray-200 p-4 space-y-4 bg-gray-50/40">
+                            <div class="flex items-center justify-between gap-4">
+                                <div class="text-sm font-medium text-gray-700">Control Row <span x-text="index + 1"></span></div>
+                                <button type="button" @click="removeControl(index)" class="text-sm text-red-600 hover:text-red-800">Remove</button>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Name</label>
+                                    <input type="text" name="control_name[]" x-model="control.name" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900" placeholder="title">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Type</label>
+                                    <select name="control_type[]" x-model="control.type" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                        <option value="text">text</option>
+                                        <option value="textarea">textarea</option>
+                                        <option value="richtext">richtext</option>
+                                        <option value="number">number</option>
+                                        <option value="select">select</option>
+                                        <option value="checkbox">checkbox</option>
+                                        <option value="boolean">boolean</option>
+                                        <option value="media_or_color">media_or_color</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Label</label>
+                                    <input type="text" name="control_label[]" x-model="control.label" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Heading">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Required</label>
+                                    <select name="control_required[]" x-model="control.required" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900">
+                                        <option value="0">No</option>
+                                        <option value="1">Yes</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Default</label>
+                                    <input type="text" name="control_default[]" x-model="control.default_value" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="center">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Options</label>
+                                    <input type="text" name="control_options[]" x-model="control.options_text" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="left, center, right">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Placeholder</label>
+                                    <input type="text" name="control_placeholder[]" x-model="control.placeholder" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" placeholder="Welcome to our store">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-600 mb-1">Max Length</label>
+                                    <input type="number" name="control_max_length[]" x-model="control.max_length" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900" min="0">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Extra JSON</label>
+                                <textarea name="control_extra_json[]" x-model="control.extra_json" rows="4" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900" placeholder="{}"></textarea>
+                                <p class="text-xs text-gray-400 mt-1">Use this only for control properties not covered by the structured fields. Unknown keys are preserved here instead of being discarded.</p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div class="flex items-center justify-end gap-3">
+                    <a href="/admin/theme-studio/blocks" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
+                    <button type="submit" class="px-4 py-2 text-sm font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save Structured Definition</button>
+                </div>
+            </form>
+
+            <div class="mt-8 pt-6 border-t border-gray-200">
+                <div class="mb-4">
+                    <h2 class="text-base font-semibold text-gray-900">Advanced JSON</h2>
+                    <p class="text-sm text-gray-500">Use this only when the structured editor does not yet cover a needed ARK property. The primary path should stay on structured schema editing.</p>
+                </div>
+
+                <form method="POST" action="/admin/theme-studio/blocks/{block_detail.category}/{block_detail.type}/save" class="space-y-4">
+                    <input type="hidden" name="editor_mode" value="advanced">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Definition JSON</label>
+                        <textarea name="definition_json" rows="20" class="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm font-mono text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500">{block_detail.definition_json}</textarea>
+                        <p class="text-xs text-gray-400 mt-2">Advanced save normalizes `type`, `category`, and `controls`, but otherwise preserves the JSON contract exactly as submitted.</p>
+                    </div>
+                    <div class="flex items-center justify-end">
+                        <button type="submit" class="px-4 py-2 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50">Save Advanced JSON</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h2 class="text-base font-semibold text-gray-900 mb-3">Definition Status</h2>
+                <div class="space-y-3 text-sm">
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-gray-500">Registry Status</span>
+                        <span class="px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">Registered</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span class="text-gray-500">File Status</span>
+                        <span class="px-2 py-1 rounded-full {if block_detail.exists}bg-green-100 text-green-700{:else}bg-amber-100 text-amber-700{/if} text-xs font-medium">{if block_detail.exists}Existing File{:else}New File{/if}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h2 class="text-base font-semibold text-gray-900 mb-3">Resolved Path</h2>
+                <div class="text-xs font-mono text-gray-600 break-all">{block_detail.path|default:'Unavailable'}</div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h2 class="text-base font-semibold text-gray-900 mb-3">Expected Shape</h2>
+                <div class="text-sm text-gray-600 space-y-2">
+                    <p>Structured fields cover the stable ARK keys: `label`, `icon`, `allowed_parents`, `allowed_children`, `controls`, `renders_with`, `preview_thumbnail`, `max_children`.</p>
+                    <p>Unknown top-level keys are preserved on structured save, and unknown control keys live in each row's Extra JSON field.</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                <h2 class="text-base font-semibold text-gray-900 mb-3">Editor Policy</h2>
+                <div class="text-sm text-gray-600 space-y-2">
+                    <p>Use structured save for routine ARK schema work.</p>
+                    <p>Use advanced JSON only when Theme Studio is missing a legitimate ARK field and that gap still needs explicit coverage later.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function blockDefinitionEditor() {
+        return {
+            controls: [],
+            init() {
+                const source = document.getElementById('block-controls-json');
+                if (!source) {
+                    this.controls = [this.emptyControl()];
+                    return;
+                }
+                try {
+                    const parsed = JSON.parse(source.textContent || '[]');
+                    this.controls = Array.isArray(parsed) && parsed.length ? parsed : [this.emptyControl()];
+                } catch (error) {
+                    this.controls = [this.emptyControl()];
+                }
+            },
+            emptyControl() {
+                return {
+                    name: '',
+                    type: 'text',
+                    label: '',
+                    required: '0',
+                    default_value: '',
+                    options_text: '',
+                    placeholder: '',
+                    max_length: '',
+                    extra_json: '{}'
+                };
+            },
+            addControl() {
+                this.controls.push(this.emptyControl());
+            },
+            removeControl(index) {
+                this.controls.splice(index, 1);
+                if (!this.controls.length) {
+                    this.controls.push(this.emptyControl());
+                }
+            }
+        };
+    }
+    </script>
+    {/if}
+</div>
+{/block}

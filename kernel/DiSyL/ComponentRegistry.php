@@ -255,6 +255,34 @@ class ComponentRegistry
             ],
             'leaf' => false
         ]);
+
+        // Structural: ikb_grid
+        self::register('ikb_grid', [
+            'category' => self::CATEGORY_STRUCTURAL,
+            'description' => 'Responsive grid layout with configurable columns and gap',
+            'attributes' => [
+                'columns' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'default' => 2,
+                    'min' => 1,
+                    'max' => 12,
+                    'description' => 'Number of grid columns'
+                ],
+                'gap' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'default' => 'md',
+                    'enum' => ['none', 'xs', 'sm', 'md', 'lg', 'xl'],
+                    'description' => 'Grid gap token'
+                ],
+                'align' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'enum' => ['start', 'center', 'end', 'stretch'],
+                    'default' => 'stretch',
+                    'description' => 'Cross-axis item alignment'
+                ]
+            ],
+            'leaf' => false
+        ]);
         
         // Structural: ikb_container
         self::register('ikb_container', [

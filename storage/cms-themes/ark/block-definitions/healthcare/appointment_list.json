@@ -1,0 +1,28 @@
+{
+    "type": "appointment_list",
+    "label": "Appointment List",
+    "category": "healthcare",
+    "icon": "appointment-list",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Appointment Source",
+            "default": "ehr_appointment.recent"
+        },
+        "view": {
+            "type": "select",
+            "options": [
+                "compact",
+                "table"
+            ],
+            "default": "compact"
+        }
+    },
+    "renders_with": "ark.blocks.appointment_list"
+}

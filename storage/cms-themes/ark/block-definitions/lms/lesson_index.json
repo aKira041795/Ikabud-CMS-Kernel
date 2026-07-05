@@ -1,0 +1,24 @@
+{
+    "type": "lesson_index",
+    "label": "Lesson Index",
+    "category": "lms",
+    "icon": "lesson-index",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Lesson Source",
+            "default": "course.lessons"
+        },
+        "ordered": {
+            "type": "boolean",
+            "default": true
+        }
+    },
+    "renders_with": "ark.blocks.lesson_index"
+}

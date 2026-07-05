@@ -15,6 +15,10 @@ return [
         '/admin/theme-studio/presets' => 'theme-studio:handlePresetList',
         '/admin/theme-studio/elements' => 'theme-studio:handleElementList',
         '/admin/theme-studio/tokens' => 'theme-studio:handleTokenEditor',
+        '/admin/theme-studio/contracts' => 'theme-studio:handleContractExplorer',
+        '/admin/theme-studio/contracts/{contractKey}' => 'theme-studio:handleContractEditor',
+        '/admin/theme-studio/blocks' => 'theme-studio:handleBlockLibrary',
+        '/admin/theme-studio/blocks/{category}/{type}' => 'theme-studio:handleBlockDefinitionEditor',
     ],
     'POST' => [
         '/api/v1/theme-studio/tokens/save' => 'theme-studio:apiSaveTokens',
@@ -26,5 +30,7 @@ return [
         '/api/v1/theme-studio/presets/import' => 'theme-studio:apiImportPreset',
         '/api/v1/theme-studio/elements/save' => 'theme-studio:apiSaveElement',
         '/api/v1/theme-studio/elements/delete' => 'theme-studio:apiDeleteElement',
+        '/admin/theme-studio/contracts/{contractKey}/save' => 'theme-studio:handleContractSave',
+        '/admin/theme-studio/blocks/{category}/{type}/save' => 'theme-studio:handleBlockDefinitionSave',
     ],
 ];

@@ -1,5 +1,6 @@
 {# ARK: Progress Block — Default (Phase 4)
-   Full progress bar with percentage and label. #}
+    Context: entity, capability_data, entity_presentation
+    Full progress bar with percentage and label. #}
 
 {ikb_panel tone="surface" spacing="md" radius="md"}
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">

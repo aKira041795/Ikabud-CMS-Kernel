@@ -1,0 +1,34 @@
+{
+    "type": "container",
+    "label": "Container",
+    "category": "layout",
+    "icon": "layout-container",
+    "allowed_parents": [
+        "section",
+        "page"
+    ],
+    "allowed_children": [
+        "grid",
+        "text",
+        "image",
+        "button",
+        "entity_list",
+        "entity_detail",
+        "stat_card"
+    ],
+    "controls": {
+        "size": {
+            "type": "select",
+            "options": [
+                "sm",
+                "md",
+                "lg",
+                "xl",
+                "xlarge",
+                "full"
+            ],
+            "default": "xlarge"
+        }
+    },
+    "renders_with": "ikb_container"
+}

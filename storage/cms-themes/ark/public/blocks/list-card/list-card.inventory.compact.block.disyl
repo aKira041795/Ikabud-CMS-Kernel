@@ -1,6 +1,7 @@
 {# ARK: List Card Block — Inventory Compact (Phase 4)
-   Card container with minimal stock indicator — inline dot + label only.
-   No quantity, no panel — just the essential stock signal. #}
+    Context: entity, row, capability_data, entity_presentation
+    Card container with minimal stock indicator — inline dot + label only.
+    No quantity, no panel — just the essential stock signal. #}
 
 <article class="ark-card">
     {if row.image or row.featured_image_url or row.thumbnail_url}

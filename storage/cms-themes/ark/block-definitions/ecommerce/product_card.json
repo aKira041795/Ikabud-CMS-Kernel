@@ -1,0 +1,31 @@
+{
+    "type": "product_card",
+    "label": "Product Card",
+    "category": "ecommerce",
+    "icon": "product-card",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Product Source",
+            "default": "ecommerce_product.featured"
+        },
+        "variant": {
+            "type": "select",
+            "options": [
+                "default",
+                "pricing",
+                "pricing_featured",
+                "inventory",
+                "inventory_compact"
+            ],
+            "default": "pricing"
+        }
+    },
+    "renders_with": "ark.blocks.product_card"
+}

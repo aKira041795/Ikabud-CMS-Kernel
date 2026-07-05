@@ -1,0 +1,28 @@
+{
+    "type": "inventory_badge",
+    "label": "Inventory Badge",
+    "category": "wms",
+    "icon": "inventory-badge",
+    "allowed_parents": [
+        "grid",
+        "container",
+        "section"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Inventory Source",
+            "default": "wms_stock.low"
+        },
+        "view": {
+            "type": "select",
+            "options": [
+                "compact",
+                "table"
+            ],
+            "default": "compact"
+        }
+    },
+    "renders_with": "ark.blocks.inventory_badge"
+}

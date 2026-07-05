@@ -1,0 +1,92 @@
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block content}
+<div class="p-6 space-y-6">
+    <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+            <h1 class="text-2xl font-bold mb-2">Theme Blocks</h1>
+            <p class="text-gray-500">ARK block schema library for the active theme. This is the builder-facing contract layer, not just a visual component list.</p>
+        </div>
+        <a href="/admin/theme-studio/contracts" class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">View Theme Contracts</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Active Theme</div>
+            <div class="text-lg font-semibold text-gray-900">{theme_manifest.label|default:active_theme|default:'None'}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Block Categories</div>
+            <div class="text-2xl font-bold text-gray-900">{block_categories|length}</div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+            <div class="text-sm font-medium text-gray-500 mb-1">Renderer Coverage</div>
+            <div class="text-2xl font-bold text-gray-900">{renderer_count}</div>
+            <div class="text-xs text-gray-400 mt-1">Renderer contract entries</div>
+        </div>
+    </div>
+
+    <div class="space-y-6">
+        {foreach block_categories as category}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+                <div>
+                    <h2 class="text-lg font-semibold">{category.label}</h2>
+                    <p class="text-sm text-gray-500">{category.implemented_count} of {category.count} definitions implemented</p>
+                </div>
+                <div class="text-xs text-gray-500 font-mono">{category.name}</div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {foreach category.items as item}
+                <div class="rounded-lg border {if item.exists}border-gray-200{:else}border-amber-200 bg-amber-50/40{/if} p-4">
+                    <div class="flex items-start justify-between gap-4 mb-3">
+                        <div>
+                            <div class="font-semibold text-gray-900">{item.definition.label|default:item.type}</div>
+                            <div class="text-xs font-mono text-gray-500 mt-1">{item.type}</div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded-full text-xs font-medium {if item.exists}bg-green-100 text-green-700{:else}bg-amber-100 text-amber-700{/if}">{if item.exists}Implemented{:else}Missing{/if}</span>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 text-sm mb-3">
+                        <div>
+                            <div class="text-gray-500 text-xs uppercase tracking-wide mb-1">Controls</div>
+                            <div class="font-semibold text-gray-900">{item.control_count}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-xs uppercase tracking-wide mb-1">Parents</div>
+                            <div class="font-semibold text-gray-900">{item.allowed_parent_count}</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-xs uppercase tracking-wide mb-1">Children</div>
+                            <div class="font-semibold text-gray-900">{item.allowed_child_count}</div>
+                        </div>
+                    </div>
+
+                    {if item.exists}
+                    <div class="text-xs text-gray-500 mb-2">Renderer: <span class="font-mono text-gray-700">{item.definition.renders_with|default:'—'}</span></div>
+                    <div class="text-xs text-gray-500">File: <span class="font-mono text-gray-700">{item.file}</span></div>
+                    <div class="mt-3">
+                        <a href="/admin/theme-studio/blocks/{item.category}/{item.type}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Edit Definition</a>
+                    </div>
+                    {if item.definition.controls}
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        {foreach item.definition.controls as controlName => controlDef}
+                        <span class="px-2 py-1 rounded-md bg-gray-100 text-gray-700 text-xs font-mono">{controlName}</span>
+                        {/foreach}
+                    </div>
+                    {/if}
+                    {else}
+                    <div class="text-sm text-amber-800">No JSON block definition file exists for this registry entry yet.</div>
+                    <div class="mt-3">
+                        <a href="/admin/theme-studio/blocks/{item.category}/{item.type}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100">Create Definition</a>
+                    </div>
+                    {/if}
+                </div>
+                {/foreach}
+            </div>
+        </div>
+        {/foreach}
+    </div>
+</div>
+{/block}

@@ -142,7 +142,7 @@ function isValidInsertion(parentType: string, childType: string): boolean {
  * Walk up the tree from `startId` to find the nearest ancestor that can accept `childType`.
  * Returns the valid parent ID, or the document root ID as last resort.
  */
-function findValidParent(root: DiSyLNode, startId: string, childType: string): string {
+function findValidParent(root: DiSyLNode, startId: string, childType: string): string | null {
   // Build path from root to startId
   const path: DiSyLNode[] = [];
   function buildPath(node: DiSyLNode, target: string): boolean {
@@ -162,7 +162,7 @@ function findValidParent(root: DiSyLNode, startId: string, childType: string): s
       return path[i].id;
     }
   }
-  return root.id;
+  return null;
 }
 
 // =============================================================================
@@ -202,6 +202,10 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
     case 'INSERT_NODE': {
       // Validate insertion: walk up from requested parent to find a valid container
       const validParentId = findValidParent(state.document, action.parentId, action.node.type);
+      if (validParentId === null) {
+        console.warn(`INSERT_NODE blocked: no valid parent found for ${action.node.type}`);
+        return state;
+      }
       const validParent = findNode(state.document, validParentId);
       const insertIndex = validParentId === action.parentId
         ? action.index
@@ -334,12 +338,24 @@ function builderReducer(state: BuilderState, action: BuilderAction): BuilderStat
       
       let newDoc = state.document;
       const newIds: string[] = [];
+      let insertedCount = 0;
       
       state.clipboard.forEach((node, i) => {
         const cloned = cloneNode(node);
+        const validParentId = findValidParent(newDoc, action.parentId, cloned.type);
+        if (validParentId === null) {
+          console.warn(`PASTE_NODES blocked: no valid parent found for ${cloned.type}`);
+          return;
+        }
         newIds.push(cloned.id);
-        newDoc = insertNodeInTree(newDoc, action.parentId, cloned, action.index + i);
+        const validParent = findNode(newDoc, validParentId);
+        const insertIndex = validParentId === action.parentId
+          ? action.index + insertedCount
+          : (validParent?.children.length || 0);
+        newDoc = insertNodeInTree(newDoc, validParentId, cloned, insertIndex);
+        insertedCount++;
       });
+      if (newIds.length === 0) return state;
       
       return {
         ...state,

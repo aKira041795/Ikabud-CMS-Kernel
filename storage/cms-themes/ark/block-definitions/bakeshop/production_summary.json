@@ -1,0 +1,28 @@
+{
+    "type": "production_summary",
+    "label": "Production Summary",
+    "category": "bakeshop",
+    "icon": "production-summary",
+    "allowed_parents": [
+        "section",
+        "container",
+        "page"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "source": {
+            "type": "text",
+            "label": "Production Source",
+            "default": "bakeshop_product.recent"
+        },
+        "view": {
+            "type": "select",
+            "options": [
+                "compact",
+                "table"
+            ],
+            "default": "compact"
+        }
+    },
+    "renders_with": "ark.blocks.production_summary"
+}

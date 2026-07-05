@@ -4,6 +4,7 @@
  */
 
 import { ComponentDefinition, ComponentType } from './types';
+import { getBootData, type BuilderNestingRule } from '@/lib/api';
 
 // Re-export ComponentDefinition for use in other modules
 export type { ComponentDefinition } from './types';
@@ -1533,12 +1534,34 @@ export function getComponentDefinition(type: ComponentType): ComponentDefinition
   return COMPONENT_REGISTRY[type];
 }
 
+let cachedGovernedNesting: Record<string, BuilderNestingRule> | null | undefined;
+
+function governedNestingConstraints(): Record<string, BuilderNestingRule> | null {
+  if (cachedGovernedNesting !== undefined) {
+    return cachedGovernedNesting;
+  }
+  cachedGovernedNesting = getBootData().builderConstraints?.nesting ?? null;
+  return cachedGovernedNesting;
+}
+
+function governedNestingRule(type: ComponentType): BuilderNestingRule | null {
+  const constraints = governedNestingConstraints();
+  if (!constraints) {
+    return null;
+  }
+  return constraints[type] ?? null;
+}
+
 export function canHaveChildren(type: ComponentType): boolean {
   const def = getComponentDefinition(type);
   return def ? !def.isLeaf : false;
 }
 
 export function canAcceptChild(parentType: ComponentType, childType: ComponentType): boolean {
+  const governedParent = governedNestingRule(parentType);
+  if (Array.isArray(governedParent?.allowed_children)) {
+    return governedParent.allowed_children.includes(childType);
+  }
   const parentDef = getComponentDefinition(parentType);
   if (!parentDef) return false;
   if (parentDef.isLeaf) return false;
@@ -1547,6 +1570,10 @@ export function canAcceptChild(parentType: ComponentType, childType: ComponentTy
 }
 
 export function canBeChildOf(childType: ComponentType, parentType: ComponentType): boolean {
+  const governedChild = governedNestingRule(childType);
+  if (Array.isArray(governedChild?.allowed_parents)) {
+    return governedChild.allowed_parents.includes(parentType);
+  }
   const childDef = getComponentDefinition(childType);
   if (!childDef) return false;
   if (childDef.allowedParents === null) return true;

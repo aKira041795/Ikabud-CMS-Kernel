@@ -1,0 +1,58 @@
+{
+    "version": "1.0.0",
+    "policy": {
+        "raw_output": {
+            "allowed_keys": [
+                "post_html",
+                "content_html",
+                "builder_content",
+                "structured_data",
+                "body",
+                "entity.body",
+                "entity.description",
+                "entity.content",
+                "colors_style",
+                "theme_layout_style",
+                "custom_css",
+                "head_code",
+                "body_end_code",
+                "customized_header",
+                "customized_sidebar",
+                "customized_footer",
+                "primary_menu",
+                "footer_menu",
+                "footer_legal_menu",
+                "preview_colors_style",
+                "preview_layout_style",
+                "icon",
+                "link.icon",
+                "navigation.primary",
+                "navigation.footer"
+            ],
+            "requires_capability": [
+                "cms.content.render_raw@1"
+            ],
+            "note": "All raw output must be sourced from kernel-approved render context only."
+        },
+        "allowed_context_sources": [
+            "kernel",
+            "cms",
+            "entity_view",
+            "customizer",
+            "theme"
+        ],
+        "blocked_patterns": [
+            "direct database queries",
+            "php function invocation from templates",
+            "session access",
+            "cookie writes",
+            "filesystem access"
+        ],
+        "allowed_js_bridges": [
+            "alpine",
+            "htmx",
+            "custom"
+        ],
+        "csp_note": "Themes must not rely on inline onclick handlers; use Alpine or approved script blocks."
+    }
+}

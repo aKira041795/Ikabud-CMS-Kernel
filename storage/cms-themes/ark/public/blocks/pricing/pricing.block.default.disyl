@@ -1,6 +1,7 @@
 {# ARK: Pricing Block — Default (Phase 4)
-   Full price display with sale comparison, currency, and CTA.
-   Variants: default, compact, featured #}
+    Context: entity, capability_data, entity_presentation
+    Full price display with sale comparison, currency, and CTA.
+    Variants: default, compact, featured #}
 
 {ikb_panel tone="surface" spacing="lg" radius="md"}
     <h3 style="font-weight:700;margin:0 0 var(--spacing-sm);font-size:1.1rem;">

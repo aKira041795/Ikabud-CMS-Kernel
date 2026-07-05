@@ -1,0 +1,32 @@
+{
+    "type": "image",
+    "label": "Image",
+    "category": "content",
+    "icon": "image",
+    "allowed_parents": [
+        "section",
+        "container",
+        "grid"
+    ],
+    "allowed_children": [],
+    "controls": {
+        "src": {
+            "type": "media",
+            "label": "Image",
+            "required": true
+        },
+        "alt": {
+            "type": "text",
+            "label": "Alt text"
+        },
+        "fit": {
+            "type": "select",
+            "options": [
+                "cover",
+                "contain"
+            ],
+            "default": "cover"
+        }
+    },
+    "renders_with": "ark.blocks.image"
+}

@@ -1,0 +1,12 @@
+{# ARK: Product Grid Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing product grid alias for ark.blocks.product_grid. #}
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--spacing-md);">
+    {for item in capability_data.items|default:[]}
+    <article class="ark-card">
+        <h3 class="ark-card__title">{item.title|default:item.name|default:'Product'}</h3>
+        <div style="margin-top:var(--spacing-xs);font-weight:700;color:var(--color-primary);">{item.currency|default:'$'}{item.price|default:'0.00'}</div>
+    </article>
+    {/for}
+</div>

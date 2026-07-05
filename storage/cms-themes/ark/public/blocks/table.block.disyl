@@ -1,0 +1,24 @@
+{# ARK: Table Block Alias
+   Context: entity, capability_data, entity_presentation
+   Builder-facing table alias for ark.blocks.table. #}
+
+<table style="width:100%;border-collapse:collapse;font-size:0.95rem;">
+    {if capability_data.table.headers|default:[]}
+    <thead>
+        <tr>
+            {for header in capability_data.table.headers}
+            <th style="text-align:left;padding:0.75rem;border-bottom:1px solid var(--color-border);color:var(--color-text-secondary);">{header}</th>
+            {/for}
+        </tr>
+    </thead>
+    {/if}
+    <tbody>
+        {for row in capability_data.table.rows|default:[]}
+        <tr>
+            {for cell in row}
+            <td style="padding:0.75rem;border-bottom:1px solid var(--color-border-subtle);color:var(--color-text);">{cell}</td>
+            {/for}
+        </tr>
+        {/for}
+    </tbody>
+</table>

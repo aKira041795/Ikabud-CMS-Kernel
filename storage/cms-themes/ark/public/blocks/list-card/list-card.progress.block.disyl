@@ -1,6 +1,7 @@
 {# ARK: List Card Block — With Progress (Phase 4)
-   Card container with integrated progress bar.
-   Shows completion percentage for courses, tasks, or tracked entities. #}
+    Context: entity, row, capability_data, entity_presentation
+    Card container with integrated progress bar.
+    Shows completion percentage for courses, tasks, or tracked entities. #}
 
 <article class="ark-card">
     {if row.image or row.featured_image_url or row.thumbnail_url}

@@ -1,5 +1,6 @@
 {# ARK: Pricing Block — Featured (Phase 4)
-   Highlighted pricing card with "Best Value" ribbon. #}
+    Context: entity, capability_data, entity_presentation
+    Highlighted pricing card with "Best Value" ribbon. #}
 
 {ikb_panel tone="elevated" spacing="lg" radius="lg"}
     {if capability_data.pricing.featured_badge}
