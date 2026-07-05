@@ -3,4 +3,4 @@
    {include "_cms_active_theme/public/ecommerce/partials/storefront-styles.disyl"}.
    Delegates to ARK's canonical storefront styles partial. #}
 
-{include "../partials/storefront-styles.disyl"}
+{include "_cms_active_theme/public/partials/storefront-styles.disyl"}

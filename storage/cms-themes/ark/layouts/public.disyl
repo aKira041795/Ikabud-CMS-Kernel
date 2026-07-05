@@ -83,7 +83,7 @@
        The CMS customizer header is available via {ikb_slot name="header.main"}
        for slot-based overrides, but ARK's design language is the default. #}
     {if show_header|default:true}
-        {include "../public/partials/header.disyl"}
+        {include "_cms_active_theme/public/partials/header.disyl"}
     {/if}
     {/block}
     {ikb_slot name="header.after" /}
@@ -130,7 +130,7 @@
     {# ARK footer: always use ARK's own footer partial with slot support. #}
     {ikb_slot name="footer.before" /}
     {ikb_slot name="footer.main" /}
-    {include "../public/partials/footer.disyl"}
+    {include "_cms_active_theme/public/partials/footer.disyl"}
     {ikb_slot name="footer.after" /}
 
     {ikb_slot name="site.after" /}
