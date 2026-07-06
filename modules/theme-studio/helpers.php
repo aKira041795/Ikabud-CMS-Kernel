@@ -17,12 +17,31 @@ use Ikabud\Kernel\DiSyL\ComponentRegistry;
 /**
  * Capability handler map — auto-discovered by the module manager.
  * Maps capability IDs to callables registered with the CapabilityBus.
+ *
+ * Guard capabilities (theme.customize, theme.tokens, theme.presets,
+ * theme.elements) are checked via cmsRequireCap() in admin handlers.
+ * They expose no-op handlers here so the CapabilityBus registers them
+ * without "no handler callable" warnings.
  */
 function theme_studio_capability_handlers(): array
 {
     return [
+        'theme.customize@1' => 'theme_studio_cap_guard_noop',
+        'theme.tokens@1'    => 'theme_studio_cap_guard_noop',
+        'theme.presets@1'   => 'theme_studio_cap_guard_noop',
+        'theme.elements@1'  => 'theme_studio_cap_guard_noop',
         'theme.token.apply@1' => 'theme_studio_cap_apply_tokens_1',
     ];
+}
+
+/**
+ * No-op handler for guard-only capabilities.
+ * These capabilities exist for permission gating (cmsRequireCap) and
+ * are never invoked as action capabilities via the CapabilityBus.
+ */
+function theme_studio_cap_guard_noop(mixed $payload = null, string $capId = '', string $providerId = ''): array
+{
+    return ['ok' => true, 'granted' => true];
 }
 
 /**
@@ -2038,8 +2057,16 @@ function themeStudioTsOnlyTokenPrefixes(): array
  */
 function themeStudioRenderTokenStyle(): string
 {
-    $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
-    $themeSlug = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
+    // Guard: cmsRuntimeTenantId and cmsActiveTheme may not be available
+    // in all contexts (e.g. CLI tests that load 40-theme-settings.php
+    // without 00-bootstrap.php). Wrap the call chain in a try/catch
+    // to handle \Error exceptions from undefined intermediate functions.
+    try {
+        $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
+        $themeSlug = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
+    } catch (\Throwable $e) {
+        return '';
+    }
 
     if ($tenantId <= 0 || !$themeSlug) {
         return '';

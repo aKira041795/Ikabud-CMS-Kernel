@@ -109,11 +109,27 @@ foreach ($presets as $slug => $preset) {
 echo "\nTest 2: Capability handler registration\n";
 assert_true(function_exists('theme_studio_capability_handlers'), 'theme_studio_capability_handlers() exists');
 $handlers = theme_studio_capability_handlers();
+assert_true(isset($handlers['theme.customize@1']), 'theme.customize@1 registered');
+assert_true(is_callable($handlers['theme.customize@1']), 'theme.customize@1 handler is callable');
+assert_true(isset($handlers['theme.tokens@1']), 'theme.tokens@1 registered');
+assert_true(is_callable($handlers['theme.tokens@1']), 'theme.tokens@1 handler is callable');
+assert_true(isset($handlers['theme.presets@1']), 'theme.presets@1 registered');
+assert_true(is_callable($handlers['theme.presets@1']), 'theme.presets@1 handler is callable');
+assert_true(isset($handlers['theme.elements@1']), 'theme.elements@1 registered');
+assert_true(is_callable($handlers['theme.elements@1']), 'theme.elements@1 handler is callable');
 assert_true(isset($handlers['theme.token.apply@1']), 'theme.token.apply@1 registered');
 assert_true(is_callable($handlers['theme.token.apply@1']), 'theme.token.apply@1 handler is callable');
 
-// ── Test 3: Capability handler without DB ──
-echo "\nTest 3: Capability handler input validation\n";
+// ── Test 3: Guard capability no-op handlers ──
+echo "\nTest 3: Guard capability no-op handlers\n";
+assert_true(function_exists('theme_studio_cap_guard_noop'), 'theme_studio_cap_guard_noop() exists');
+$noop = theme_studio_cap_guard_noop();
+assert_true(isset($noop['ok']), 'no-op returns ok');
+assert_true($noop['ok'] === true, 'no-op returns ok=true');
+assert_true(isset($noop['granted']), 'no-op returns granted');
+
+// ── Test 4: Capability handler without DB ──
+echo "\nTest 4: Capability handler input validation\n";
 $result = theme_studio_cap_apply_tokens_1([]);
 assert_true(isset($result['ok']), 'result has ok key');
 assert_true($result['ok'] === false, 'empty payload returns ok=false');
