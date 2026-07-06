@@ -61,7 +61,7 @@
     </div>
 
     {# Mobile menu panel #}
-    <div id="ark-mobile-panel" class="ark-header__mobile-panel" x-show="mobileMenuOpen" x-transition:enter="ark-slide-down-enter" x-transition:enter-start="ark-slide-down-enter-start" x-transition:leave="ark-slide-down-leave" @click.away="mobileMenuOpen = false" style="display:none;">
+    <div id="ark-mobile-panel" class="ark-header__mobile-panel" x-show="mobileMenuOpen" x-trap.noscroll="mobileMenuOpen" x-transition:enter="ark-slide-down-enter" x-transition:enter-start="ark-slide-down-enter-start" x-transition:leave="ark-slide-down-leave" @click.away="mobileMenuOpen = false" @keydown.escape.window="mobileMenuOpen = false" style="display:none;">
         <nav aria-label="Mobile navigation">
             {if primary_menu}{primary_menu|raw}{/if}
             {if header_show_search}

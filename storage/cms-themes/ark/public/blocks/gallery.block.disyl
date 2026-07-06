@@ -5,7 +5,7 @@
 <div class="ark-media-grid">
     {for image in capability_data.gallery.items|default:entity.images|default:[]}
     <figure class="ark-media-grid__figure">
-        <img src="{image.url|default:image}" alt="{image.alt|default:entity.title|default:'Gallery image'}" class="ark-media-grid__image" />
+        <img src="{image.url|default:image}" alt="{image.alt|default:entity.title|default:'Gallery image'}" class="ark-media-grid__image" loading="lazy" />
     </figure>
     {/for}
 </div>

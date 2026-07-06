@@ -15,7 +15,7 @@
             <span class="text-sm text-gray-400">/ {dashboard.total_projects} total</span>
         </div>
         <div class="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div class="bg-blue-600 h-1.5 rounded-full" style="width:{if dashboard.total_projects > 0}{dashboard.active_projects / dashboard.total_projects * 100|number_format:1}{else}0{/if}%"></div>
+            <div class="bg-blue-600 h-1.5 rounded-full" style="width:{if dashboard.total_projects > 0}{(dashboard.active_projects / dashboard.total_projects * 100)|number_format:1}{else}0{/if}%"></div>
         </div>
     </div>
 

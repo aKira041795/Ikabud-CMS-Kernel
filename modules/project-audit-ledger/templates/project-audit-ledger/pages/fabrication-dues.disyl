@@ -2,7 +2,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Project</p><p class="font-semibold text-gray-900">{if project_id}<a href="/admin/project-audit-ledger/projects/{project_id}" class="text-blue-600 hover:text-blue-800">{project.title|default:'Project #'~project_id}</a>{else}{project.title|default:'Project #'~project_id}{/if}</p></div>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Fabrication Budget</p><p class="font-semibold text-gray-900">₱{fab_budget|number_format:2} ({project.fabrication_alloc_pct|default:0}%)</p></div>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Total CA Dispensed</p><p class="font-semibold text-indigo-600">₱{total_dispensed|number_format:2}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Remaining</p><p class="font-semibold {if fab_budget - total_dispensed > 0}text-green-600{else}text-gray-600{/if}">₱{fab_budget - total_dispensed|number_format:2}</p></div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Remaining</p><p class="font-semibold {if fab_budget - total_dispensed > 0}text-green-600{else}text-gray-600{/if}">₱{(fab_budget - total_dispensed)|number_format:2}</p></div>
 </div>
 
 <!-- CA Dispense History -->

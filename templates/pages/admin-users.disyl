@@ -1,14 +1,91 @@
-{extends "layouts/app.disyl"}
+{extends "modules/cms/layouts/admin.disyl"}
 
 {block head}
-<style>
-    .users-table th, .users-table td { padding: 10px 14px; }
-    .users-table .mono { font-size: 12px; }
-    .user-active { display: inline-flex; align-items: center; gap: 5px; }
-    .user-active .dot { width: 7px; height: 7px; border-radius: 2px; }
-    .user-active .dot.on { background: var(--success); }
-    .user-active .dot.off { background: var(--danger); }
-</style>
+<script>
+    var BASE = '{base_url}';
+
+    function openAddUser() {
+        document.getElementById('add-full-name').value = '';
+        document.getElementById('add-username').value = '';
+        document.getElementById('add-password').value = '';
+        document.getElementById('add-role').value = 'manager';
+        openModal('add-modal');
+    }
+
+    function openEditUser(id, name, role, active) {
+        document.getElementById('edit-id').value = id;
+        document.getElementById('edit-full-name').value = name || '';
+        document.getElementById('edit-role').value = role || 'manager';
+        document.getElementById('edit-active').value = String(active || 1);
+        document.getElementById('edit-password').value = '';
+        openModal('edit-modal');
+    }
+
+    function openModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'flex';
+    }
+
+    function closeModal(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    }
+
+    function submitAddUser() {
+        var fullName = document.getElementById('add-full-name').value.trim();
+        var username = document.getElementById('add-username').value.trim();
+        var password = document.getElementById('add-password').value;
+        var role = document.getElementById('add-role').value;
+
+        if (!fullName || !username || !password) {
+            window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'All fields required', type: 'error' } }));
+            return;
+        }
+
+        var btn = document.getElementById('add-submit');
+        btn.disabled = true; btn.textContent = 'Adding...';
+
+        fetch(BASE + '/api/v1/admin/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ full_name: fullName, username: username, password: password, role: role })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'User added', type: 'success' } })); setTimeout(function() { window.location.reload(); }, 600); }
+            else { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: res.error || 'Failed', type: 'error' } })); btn.disabled = false; btn.textContent = 'Add User'; }
+        })
+        .catch(function() { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Network error', type: 'error' } })); btn.disabled = false; btn.textContent = 'Add User'; });
+    }
+
+    function submitEditUser() {
+        var userId = parseInt(document.getElementById('edit-id').value || '0');
+        var fullName = document.getElementById('edit-full-name').value.trim();
+        var role = document.getElementById('edit-role').value;
+        var isActive = parseInt(document.getElementById('edit-active').value || '1');
+        var password = document.getElementById('edit-password').value;
+
+        if (!userId || !fullName) {
+            window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Invalid input', type: 'error' } }));
+            return;
+        }
+
+        var btn = document.getElementById('edit-submit');
+        btn.disabled = true; btn.textContent = 'Saving...';
+
+        fetch(BASE + '/api/v1/admin/users/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, full_name: fullName, role: role, is_active: isActive, password: password })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+            if (res.ok) { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Saved', type: 'success' } })); setTimeout(function() { window.location.reload(); }, 600); }
+            else { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: res.error || 'Failed', type: 'error' } })); btn.disabled = false; btn.textContent = 'Save'; }
+        })
+        .catch(function() { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Network error', type: 'error' } })); btn.disabled = false; btn.textContent = 'Save'; });
+    }
+</script>
 {/block}
 
 {block content}
@@ -26,38 +103,38 @@
     </div>
 </div>
 
-<div class="panel" style="padding:0; overflow:hidden;">
-    <div class="table-wrap">
-        <table class="users-table">
+<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full">
             <thead>
                 <tr>
-                    <th>ID</th>
-                    <th>Full Name</th>
-                    <th>Username</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th class="px-3.5 py-2.5 text-left text-xs font-semibold text-gray-500 border-b border-gray-200">ID</th>
+                    <th class="px-3.5 py-2.5 text-left text-xs font-semibold text-gray-500 border-b border-gray-200">Full Name</th>
+                    <th class="px-3.5 py-2.5 text-left text-xs font-semibold text-gray-500 border-b border-gray-200">Username</th>
+                    <th class="px-3.5 py-2.5 text-left text-xs font-semibold text-gray-500 border-b border-gray-200">Role</th>
+                    <th class="px-3.5 py-2.5 text-left text-xs font-semibold text-gray-500 border-b border-gray-200">Status</th>
+                    <th class="px-3.5 py-2.5 text-left text-xs font-semibold text-gray-500 border-b border-gray-200">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {if users | count == 0}
                 <tr>
-                    <td colspan="6" class="muted" style="padding:20px 14px;">No kernel users found.</td>
+                    <td colspan="6" class="text-gray-400 px-3.5 py-5">No kernel users found.</td>
                 </tr>
                 {else}
                 {foreach users as u}
-                <tr>
-                    <td class="mono muted">{u.id}</td>
-                    <td style="font-weight:600;">{u.full_name}</td>
-                    <td class="mono">{u.username}</td>
-                    <td><span class="role-pill {u.role}">{u.role}</span></td>
-                    <td>
-                        <span class="user-active">
-                            <span class="dot {if u.is_active == 1}on{else}off{/if}"></span>
+                <tr class="border-b border-gray-100 last:border-0">
+                    <td class="px-3.5 py-2.5 font-mono text-xs text-gray-400">{u.id}</td>
+                    <td class="px-3.5 py-2.5 font-semibold">{u.full_name}</td>
+                    <td class="px-3.5 py-2.5 font-mono text-xs">{u.username}</td>
+                    <td class="px-3.5 py-2.5"><span class="role-pill {u.role}">{u.role}</span></td>
+                    <td class="px-3.5 py-2.5">
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="inline-block w-[7px] h-[7px] rounded {if u.is_active == 1}bg-green-500{else}bg-red-500{/if}"></span>
                             {if u.is_active == 1}Active{else}Inactive{/if}
                         </span>
                     </td>
-                    <td>
+                    <td class="px-3.5 py-2.5">
                         <button class="btn btn-outline btn-sm" onclick="openEditUser({u.id}, '{u.full_name | escape}', '{u.role}', {u.is_active})">Edit</button>
                     </td>
                 </tr>
@@ -137,89 +214,4 @@
     </div>
 </div>
 
-<script>
-    var BASE = '{base_url}';
-
-    function openAddUser() {
-        document.getElementById('add-full-name').value = '';
-        document.getElementById('add-username').value = '';
-        document.getElementById('add-password').value = '';
-        document.getElementById('add-role').value = 'manager';
-        openModal('add-modal');
-    }
-
-    function openEditUser(id, name, role, active) {
-        document.getElementById('edit-id').value = id;
-        document.getElementById('edit-full-name').value = name || '';
-        document.getElementById('edit-role').value = role || 'manager';
-        document.getElementById('edit-active').value = String(active || 1);
-        document.getElementById('edit-password').value = '';
-        openModal('edit-modal');
-    }
-
-    function openModal(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = 'flex';
-    }
-
-    function closeModal(id) {
-        var el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-    }
-
-    function submitAddUser() {
-        var fullName = document.getElementById('add-full-name').value.trim();
-        var username = document.getElementById('add-username').value.trim();
-        var password = document.getElementById('add-password').value;
-        var role = document.getElementById('add-role').value;
-
-        if (!fullName || !username || !password) {
-            showToast('All fields required');
-            return;
-        }
-
-        var btn = document.getElementById('add-submit');
-        btn.disabled = true; btn.textContent = 'Adding...';
-
-        fetch(BASE + '/api/v1/admin/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ full_name: fullName, username: username, password: password, role: role })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            if (res.ok) { showToast('User added'); setTimeout(function() { window.location.reload(); }, 600); }
-            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Add User'; }
-        })
-        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Add User'; });
-    }
-
-    function submitEditUser() {
-        var userId = parseInt(document.getElementById('edit-id').value || '0');
-        var fullName = document.getElementById('edit-full-name').value.trim();
-        var role = document.getElementById('edit-role').value;
-        var isActive = parseInt(document.getElementById('edit-active').value || '1');
-        var password = document.getElementById('edit-password').value;
-
-        if (!userId || !fullName) {
-            showToast('Invalid input');
-            return;
-        }
-
-        var btn = document.getElementById('edit-submit');
-        btn.disabled = true; btn.textContent = 'Saving...';
-
-        fetch(BASE + '/api/v1/admin/users/update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: userId, full_name: fullName, role: role, is_active: isActive, password: password })
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(res) {
-            if (res.ok) { showToast('Saved'); setTimeout(function() { window.location.reload(); }, 600); }
-            else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Save'; }
-        })
-        .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Save'; });
-    }
-</script>
 {/block}

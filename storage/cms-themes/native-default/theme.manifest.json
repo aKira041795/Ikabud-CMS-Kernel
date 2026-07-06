@@ -9,9 +9,8 @@
     "disyl_compat": "4.7.0",
     "tokens": "tokens.json",
     "components": "components.json",
-    "shell": "shell.disyl",
+    "shell": "layouts/public.disyl",
     "sections": "sections/",
-    "entity_views": "entity-views/",
     "supported_surfaces": [
         "public",
         "admin",

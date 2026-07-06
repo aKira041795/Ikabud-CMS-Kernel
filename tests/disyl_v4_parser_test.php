@@ -145,6 +145,57 @@ check('break parses inside loop body', $hasBreak);
 check('continue parses inside loop body', $hasContinue);
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 4b. C-style {for (;;)} ────────────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$doc = $parser->parse('{for i = 0; i < 5; i++}{i}{/for}');
+$cforNode = $doc->getChildren()[0] ?? null;
+check('C-style for produces ControlNode with tag cfor', $cforNode instanceof ControlNode
+    && $cforNode->getTag() === 'cfor');
+check('C-style for has init attribute', $cforNode->getAttribute('init') !== null);
+check('C-style for has condition attribute', $cforNode->getAttribute('condition') !== null);
+check('C-style for has increment attribute', $cforNode->getAttribute('increment') !== null);
+
+$doc = $parser->parse('{for i = 10; i > 5; i--}{i}{/for}');
+$cforNode = $doc->getChildren()[0] ?? null;
+check('C-style for descending (i--)', $cforNode instanceof ControlNode
+    && $cforNode->getTag() === 'cfor');
+
+$doc = $parser->parse('{for i = 0; i < 10; i++}{i}{if i > 2}{break}{/if}{/for}');
+$cforNode = $doc->getChildren()[0] ?? null;
+$cforBody = $cforNode instanceof ControlNode && $cforNode->getBody() instanceof DocumentNode
+    ? $cforNode->getBody()->getChildren()
+    : [];
+$hasBreakInCfor = false;
+foreach ($cforBody as $child) {
+    if ($child instanceof ControlNode && $child->getTag() === 'if') {
+        $ifBody = $child->getBody() instanceof DocumentNode ? $child->getBody()->getChildren() : [];
+        foreach ($ifBody as $ifChild) {
+            if ($ifChild instanceof ControlNode && $ifChild->getTag() === 'break') {
+                $hasBreakInCfor = true;
+            }
+        }
+    }
+}
+check('C-style for with break inside body', $cforNode instanceof ControlNode && $hasBreakInCfor);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 4c. {forelse} ─────────────────────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$doc = $parser->parse('{for item in items}{item}{forelse}empty{/for}');
+$forNode = $doc->getChildren()[0] ?? null;
+check('for/forelse parses as ControlNode with else', $forNode instanceof ControlNode
+    && $forNode->getTag() === 'for'
+    && $forNode->hasElse());
+
+$doc = $parser->parse('{foreach items as item}{item}{forelse}empty{/foreach}');
+$foreachNode = $doc->getChildren()[0] ?? null;
+check('foreach/forelse also has else branch', $foreachNode instanceof ControlNode
+    && $foreachNode->getTag() === 'for'
+    && $foreachNode->hasElse());
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo "── 5. {match} control structure ──────────────────────\n";
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -184,6 +235,29 @@ check('typed set float type', $doc->getChildren()[0]->getAttribute('type') === '
 
 $doc = $parser->parse('{set name: ?string = null}');
 check('nullable type annotation', $doc->getChildren()[0]->getAttribute('type') === '?string');
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 6b. Compound assignment ───────────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+$doc = $parser->parse('{set x += 3}');
+$compoundNode = $doc->getChildren()[0] ?? null;
+check('compound += produces ControlNode with tag set', $compoundNode instanceof ControlNode
+    && $compoundNode->getTag() === 'set');
+check('compound += has compound attribute', $compoundNode instanceof ControlNode
+    && $compoundNode->getAttribute('compound') === '+=');
+check('compound += preserves name', $compoundNode instanceof ControlNode
+    && $compoundNode->getAttribute('name') === 'x');
+
+$doc = $parser->parse('{set x -= 4}');
+$compoundNode = $doc->getChildren()[0] ?? null;
+check('compound -= has compound attribute', $compoundNode instanceof ControlNode
+    && $compoundNode->getAttribute('compound') === '-=');
+
+$doc = $parser->parse('{set x *= 4}');
+$compoundNode = $doc->getChildren()[0] ?? null;
+check('compound *= has compound attribute', $compoundNode instanceof ControlNode
+    && $compoundNode->getAttribute('compound') === '*=');
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo "── 7. Raw blocks ─────────────────────────────────────\n";

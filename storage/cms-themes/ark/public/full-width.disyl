@@ -32,6 +32,7 @@
         src="{entity.featured_image_url|default:entity.image}"
         alt="{entity.title|default:''}"
         class="ark-detail__image ark-detail__image--hero"
+        loading="lazy"
     />
     {/if}
 

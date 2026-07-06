@@ -121,6 +121,12 @@ jobs:
       - name: Architecture boundary check
         run: php ikabud architecture:check
 
+      - name: ARK theme static a11y audit
+        run: php tests/ark_a11y_audit_test.php
+
+      - name: Cross-theme regression suite
+        run: php tests/theme_regression_test.php
+
       - name: Run test suite
         run: composer test
 

@@ -1,184 +1,6 @@
-{extends "layouts/app.disyl"}
+{extends "modules/cms/layouts/admin.disyl"}
 
 {block head}
-<style>
-    .ai-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
-    .field { margin-bottom: 12px; }
-    .field label { display:block; font-size: 12px; font-weight: 700; color: var(--text-muted); margin-bottom: 6px; }
-    .help { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
-    .input, .select { width: 100%; font-size: 12px; padding: 8px 10px; border-radius: 2px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
-    .row { display:flex; align-items:center; justify-content:space-between; gap: 12px; flex-wrap: wrap; }
-    .test-result { font-size: 12px; padding: 10px 14px; border-radius: 2px; margin-top: 12px; display: none; }
-    .test-result.ok { display: block; background: var(--success-light); color: var(--success); border: 1px solid var(--success); }
-    .test-result.err { display: block; background: var(--danger-light); color: var(--danger); border: 1px solid var(--danger); }
-    .test-result.loading { display: block; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border); }
-</style>
-{/block}
-
-{block content}
-<div class="page-header">
-    <div>
-        <h2>AI Configuration</h2>
-        <div class="page-desc">Configure the AI provider, model tier, and API keys for AI-powered capabilities like trigger suggestions and explanations.</div>
-    </div>
-    <div class="page-actions">
-        <span class="badge" id="status">Loading…</span>
-        <button class="btn btn-outline btn-sm" onclick="loadSettings()">Reload</button>
-        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save</button>
-    </div>
-</div>
-
-<div class="panel">
-    <div class="row" style="margin-bottom:10px;">
-        <div>
-            <strong style="font-size:13px;">Provider & Model</strong>
-            <div class="help">Select which AI backend to use and the model quality tier.</div>
-        </div>
-    </div>
-
-    <div class="ai-grid">
-        <div>
-            <div class="field">
-                <label>Provider</label>
-                <select class="select" id="provider" onchange="toggleProviderFields()">
-                    <option value="openai">OpenAI</option>
-                    <option value="groq">Groq (OpenAI-compatible)</option>
-                    <option value="ollama">Ollama (local)</option>
-                </select>
-                <div class="help">OpenAI requires an API key. Ollama requires a local Ollama server.</div>
-            </div>
-
-            <div class="field">
-                <label>Tier</label>
-                <select class="select" id="tier" onchange="toggleTierFields()">
-                    <option value="free">Free tier</option>
-                    <option value="paid">Paid tier</option>
-                    <option value="custom">Custom</option>
-                </select>
-                <div class="help">Tier controls which model preset is used by default.</div>
-            </div>
-        </div>
-
-        <div id="openaiFields">
-            <div class="field">
-                <label>OpenAI API Key</label>
-                <input class="input mono" id="openai_api_key" placeholder="sk-... (leave blank to keep existing)">
-                <div class="help">Current: <span class="mono" id="openai_key_masked">(unknown)</span></div>
-            </div>
-
-            <div class="field">
-                <label>OpenAI Free Model (preset)</label>
-                <select class="select" id="openai_model_free">
-                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                </select>
-            </div>
-
-            <div class="field">
-                <label>OpenAI Paid Model (preset)</label>
-                <select class="select" id="openai_model_paid">
-                    <option value="gpt-4o">gpt-4o</option>
-                    <option value="gpt-4.1">gpt-4.1</option>
-                </select>
-            </div>
-
-            <div class="field" id="openaiCustom">
-                <label>OpenAI Custom Model</label>
-                <input class="input mono" id="openai_model" placeholder="e.g. gpt-4o, gpt-4o-mini">
-                <div class="help">Used only when Tier = Custom.</div>
-            </div>
-        </div>
-
-        <div id="groqFields" style="display:none;">
-            <div class="field">
-                <label>Groq API Key</label>
-                <input class="input mono" id="groq_api_key" placeholder="gsk_... (leave blank to keep existing)">
-                <div class="help">Current: <span class="mono" id="groq_key_masked">(unknown)</span></div>
-            </div>
-
-            <div class="field">
-                <label>Groq Free Model (preset)</label>
-                <input class="input mono" id="groq_model_free" placeholder="llama-3.1-8b-instant">
-            </div>
-
-            <div class="field">
-                <label>Groq Paid Model (preset)</label>
-                <input class="input mono" id="groq_model_paid" placeholder="llama-3.3-70b-versatile">
-            </div>
-
-            <div class="field" id="groqCustom">
-                <label>Groq Custom Model</label>
-                <input class="input mono" id="groq_model" placeholder="e.g. llama-3.3-70b-versatile">
-                <div class="help">Used only when Tier = Custom.</div>
-            </div>
-        </div>
-
-        <div id="ollamaFields" style="display:none;">
-            <div class="field">
-                <label>Ollama Base URL</label>
-                <input class="input mono" id="ollama_base_url" placeholder="http://localhost:11434">
-            </div>
-
-            <div class="field">
-                <label>Ollama Free Model (preset)</label>
-                <input class="input mono" id="ollama_model_free" placeholder="llama3.2:3b">
-            </div>
-
-            <div class="field">
-                <label>Ollama Paid Model (preset)</label>
-                <input class="input mono" id="ollama_model_paid" placeholder="llama3.1:8b">
-            </div>
-
-            <div class="field" id="ollamaCustom">
-                <label>Ollama Custom Model</label>
-                <input class="input mono" id="ollama_model" placeholder="e.g. llama3.1:8b">
-                <div class="help">Used only when Tier = Custom.</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="panel">
-    <div class="panel-title">Web Search Grounding</div>
-    <div class="section-desc" style="margin-bottom:14px;font-size:13px;color:var(--text-muted);">
-        When enabled, AI automation fetches live search results before generating content. The model cites real sources as inline links. Requires an API key from one of the supported providers.
-    </div>
-    <div>
-        <div class="field">
-            <label>Search Provider</label>
-            <select class="select" id="search_grounding_provider">
-                <option value="">Disabled</option>
-                <option value="brave">Brave Search</option>
-                <option value="tavily">Tavily (AI-optimized)</option>
-                <option value="serper">Serper.dev (Google)</option>
-            </select>
-            <div class="help">Brave and Serper have free tiers. Tavily is designed specifically for LLM grounding.</div>
-        </div>
-        <div class="field">
-            <label>Search API Key <span style="font-weight:400;color:var(--text-muted);">— current: <span id="search_key_masked">(not set)</span></span></label>
-            <input class="input mono" id="search_grounding_api_key" placeholder="Leave blank to keep existing key">
-        </div>
-        <div class="field">
-            <label>Max Results per Generation</label>
-            <input class="input" id="search_grounding_max_results" type="number" min="1" max="10" placeholder="5">
-            <div class="help">How many search results to fetch and inject as grounding context (1–10).</div>
-        </div>
-    </div>
-</div>
-
-<div class="panel">
-    <div class="row" style="margin-bottom:10px;">
-        <div>
-            <strong style="font-size:13px;">Connection Test</strong>
-            <div class="help">Verify that the AI provider is reachable with current settings.</div>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="testConnection()">Test Connection</button>
-    </div>
-    <div id="test-result" class="test-result"></div>
-</div>
-{/block}
-
-{block scripts}
 <script>
     function setStatus(msg) {
         var s = document.getElementById('status');
@@ -206,7 +28,7 @@
             .then(function(r) { return r.json(); })
             .then(function(res) {
                 if (!res || !res.ok) {
-                    showToast((res && res.error) ? res.error : 'Failed to load');
+                    window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: (res && res.error) ? res.error : 'Failed to load', type: 'error' } }));
                     setStatus('Error');
                     return;
                 }
@@ -245,7 +67,7 @@
                 setStatus('Loaded');
             })
             .catch(function() {
-                showToast('Network error');
+                window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Network error', type: 'error' } }));
                 setStatus('Error');
             });
     }
@@ -295,22 +117,22 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res && res.ok) {
-                showToast('AI settings saved');
+                window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'AI settings saved', type: 'success' } }));
                 loadSettings();
             } else {
-                showToast((res && res.error) ? res.error : 'Save failed');
+                window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: (res && res.error) ? res.error : 'Save failed', type: 'error' } }));
                 setStatus('Error');
             }
         })
         .catch(function() {
-            showToast('Network error');
+            window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Network error', type: 'error' } }));
             setStatus('Error');
         });
     }
 
     function testConnection() {
         var el = document.getElementById('test-result');
-        el.className = 'test-result loading';
+        el.className = 'block text-xs px-3.5 py-2.5 rounded mt-3 bg-gray-50 text-gray-500 border border-gray-200';
         el.textContent = 'Testing connection…';
 
         fetch('/api/v1/admin/kernel/triggers/suggest', {
@@ -321,19 +143,184 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
             if (res && (res.ok || res.suggestions)) {
-                el.className = 'test-result ok';
+                el.className = 'block text-xs px-3.5 py-2.5 rounded mt-3 bg-green-50 text-green-700 border border-green-500';
                 el.textContent = 'Connection successful — AI provider is reachable and responding.';
             } else {
-                el.className = 'test-result err';
+                el.className = 'block text-xs px-3.5 py-2.5 rounded mt-3 bg-red-50 text-red-700 border border-red-500';
                 el.textContent = 'Connection failed: ' + ((res && res.error) ? res.error : 'No response from AI provider.');
             }
         })
         .catch(function() {
-            el.className = 'test-result err';
+            el.className = 'block text-xs px-3.5 py-2.5 rounded mt-3 bg-red-50 text-red-700 border border-red-500';
             el.textContent = 'Network error — could not reach the server.';
         });
     }
 
     loadSettings();
 </script>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>AI Configuration</h2>
+        <div class="page-desc">Configure the AI provider, model tier, and API keys for AI-powered capabilities like trigger suggestions and explanations.</div>
+    </div>
+    <div class="page-actions">
+        <span class="badge" id="status">Loading…</span>
+        <button class="btn btn-outline btn-sm" onclick="loadSettings()">Reload</button>
+        <button class="btn btn-primary btn-sm" onclick="saveSettings()">Save</button>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-2.5">
+        <div>
+            <strong class="text-sm">Provider & Model</strong>
+            <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Select which AI backend to use and the model quality tier.</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+        <div>
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Provider</label>
+                <select class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900" id="provider" onchange="toggleProviderFields()">
+                    <option value="openai">OpenAI</option>
+                    <option value="groq">Groq (OpenAI-compatible)</option>
+                    <option value="ollama">Ollama (local)</option>
+                </select>
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">OpenAI requires an API key. Ollama requires a local Ollama server.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Tier</label>
+                <select class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900" id="tier" onchange="toggleTierFields()">
+                    <option value="free">Free tier</option>
+                    <option value="paid">Paid tier</option>
+                    <option value="custom">Custom</option>
+                </select>
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Tier controls which model preset is used by default.</div>
+            </div>
+        </div>
+
+        <div id="openaiFields">
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">OpenAI API Key</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="openai_api_key" placeholder="sk-... (leave blank to keep existing)">
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Current: <span class="font-mono" id="openai_key_masked">(unknown)</span></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">OpenAI Free Model (preset)</label>
+                <select class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900" id="openai_model_free">
+                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">OpenAI Paid Model (preset)</label>
+                <select class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900" id="openai_model_paid">
+                    <option value="gpt-4o">gpt-4o</option>
+                    <option value="gpt-4.1">gpt-4.1</option>
+                </select>
+            </div>
+
+            <div class="mb-3" id="openaiCustom">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">OpenAI Custom Model</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="openai_model" placeholder="e.g. gpt-4o, gpt-4o-mini">
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Used only when Tier = Custom.</div>
+            </div>
+        </div>
+
+        <div id="groqFields" style="display:none;">
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Groq API Key</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="groq_api_key" placeholder="gsk_... (leave blank to keep existing)">
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Current: <span class="font-mono" id="groq_key_masked">(unknown)</span></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Groq Free Model (preset)</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="groq_model_free" placeholder="llama-3.1-8b-instant">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Groq Paid Model (preset)</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="groq_model_paid" placeholder="llama-3.3-70b-versatile">
+            </div>
+
+            <div class="mb-3" id="groqCustom">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Groq Custom Model</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="groq_model" placeholder="e.g. llama-3.3-70b-versatile">
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Used only when Tier = Custom.</div>
+            </div>
+        </div>
+
+        <div id="ollamaFields" style="display:none;">
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Ollama Base URL</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="ollama_base_url" placeholder="http://localhost:11434">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Ollama Free Model (preset)</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="ollama_model_free" placeholder="llama3.2:3b">
+            </div>
+
+            <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Ollama Paid Model (preset)</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="ollama_model_paid" placeholder="llama3.1:8b">
+            </div>
+
+            <div class="mb-3" id="ollamaCustom">
+                <label class="block text-xs font-bold text-gray-400 mb-1.5">Ollama Custom Model</label>
+                <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="ollama_model" placeholder="e.g. llama3.1:8b">
+                <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Used only when Tier = Custom.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="font-semibold text-sm">Web Search Grounding</div>
+    <div class="text-xs text-gray-400 leading-relaxed mb-3.5">
+        When enabled, AI automation fetches live search results before generating content. The model cites real sources as inline links. Requires an API key from one of the supported providers.
+    </div>
+    <div>
+        <div class="mb-3">
+            <label class="block text-xs font-bold text-gray-400 mb-1.5">Search Provider</label>
+            <select class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900" id="search_grounding_provider">
+                <option value="">Disabled</option>
+                <option value="brave">Brave Search</option>
+                <option value="tavily">Tavily (AI-optimized)</option>
+                <option value="serper">Serper.dev (Google)</option>
+            </select>
+            <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Brave and Serper have free tiers. Tavily is designed specifically for LLM grounding.</div>
+        </div>
+        <div class="mb-3">
+            <label class="block text-xs font-bold text-gray-400 mb-1.5">Search API Key <span class="font-normal text-gray-400">— current: <span id="search_key_masked">(not set)</span></span></label>
+            <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900 font-mono" id="search_grounding_api_key" placeholder="Leave blank to keep existing key">
+        </div>
+        <div class="mb-3">
+            <label class="block text-xs font-bold text-gray-400 mb-1.5">Max Results per Generation</label>
+            <input class="w-full text-xs px-2.5 py-2 rounded border border-gray-200 bg-gray-50 text-gray-900" id="search_grounding_max_results" type="number" min="1" max="10" placeholder="5">
+            <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">How many search results to fetch and inject as grounding context (1–10).</div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="flex items-center justify-between gap-3 flex-wrap mb-2.5">
+        <div>
+            <strong class="text-sm">Connection Test</strong>
+            <div class="text-xs text-gray-400 mt-1.5 leading-relaxed">Verify that the AI provider is reachable with current settings.</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="testConnection()">Test Connection</button>
+    </div>
+    <div id="test-result" class="hidden text-xs px-3.5 py-2.5 rounded mt-3"></div>
+</div>
+{/block}
+
 {/block}

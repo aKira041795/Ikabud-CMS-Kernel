@@ -20,7 +20,7 @@
     <div class="ark-landing__hero">
         {# Optional logo #}
         {if site_logo_url}
-        <img src="{site_logo_url}" alt="{site_title|default:'ARK'}" class="ark-landing__logo" />
+        <img src="{site_logo_url}" alt="{site_title|default:'ARK'}" class="ark-landing__logo" loading="lazy" />
         {/if}
 
         {# Headline #}

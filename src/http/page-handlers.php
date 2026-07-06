@@ -779,6 +779,12 @@ if (!function_exists('kernelHandlePageSuperadminCache')) {
             'size_mb' => number_format((float)($frag['size_mb'] ?? 0), 2),
         ];
 
+        $breadcrumbs = [
+            ['label' => 'Dashboard', 'url' => app()->baseUrl() . '/cms/admin'],
+            ['label' => 'Settings', 'url' => app()->baseUrl() . '/superadmin/settings'],
+            ['label' => 'Cache Observability'],
+        ];
+
         header('Cache-Control: no-store');
         echo app()->render('pages/superadmin-cache.disyl', [
             'page_title' => 'Cache Observability',
@@ -786,6 +792,11 @@ if (!function_exists('kernelHandlePageSuperadminCache')) {
             'tiles' => $tiles,
             'instances' => $instancesFmt,
             'frag' => $fragCtx,
+            'breadcrumbs' => $breadcrumbs,
+            'cms_user_display' => $user['name'] ?? $user['email'] ?? 'Admin',
+            'cms_user_role' => $user['role'] ?? '',
+            'csrf_token' => $_SESSION['csrf_token'] ?? '',
+            'current_page' => 'settings',
         ]);
     }
 }

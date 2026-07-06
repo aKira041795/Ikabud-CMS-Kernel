@@ -11,7 +11,7 @@
 {set entity_presentation = entity_presentation|default:[]}
 
 {block head}
-{include "partials/canonical-entity-styles.disyl"}
+{include "_cms_active_theme/public/partials/canonical-entity-styles.disyl"}
 {include "partials/storefront-styles.disyl"}
 {if structured_data}{structured_data|raw}{/if}
 {/block}
@@ -23,7 +23,7 @@
         {if page_title or store_name}
         <header class="ark-store-hero">
             {if store_logo_url}
-            <img src="{store_logo_url}" alt="" class="ark-store-hero__avatar" />
+            <img src="{store_logo_url}" alt="" class="ark-store-hero__avatar" loading="lazy" />
             {/if}
             <div>
                 <h1 class="ark-store-hero__title">{page_title|default:store_name|default:'Shop'}</h1>
@@ -36,11 +36,11 @@
 
         {# Toolbar: sort + filter #}
         {if categories or sort_options}
-        <div class="ark-list-toolbar">
+        <div class="ark-list-toolbar" x-data x-ref="sortForm">
             {if categories}
             <div class="ark-form-group">
                 <label for="ark-category-select" class="ark-label">Category</label>
-                <select id="ark-category-select" class="ark-select" onchange="window.location.href=this.value">
+                <select id="ark-category-select" class="ark-select" @change="window.location.href=$el.value">
                     <option value="{all_items_url|default:'?'}">All</option>
                     {for cat in categories}
                     <option value="{cat.url}"{if cat.active} selected{/if}>{cat.label} ({cat.count})</option>
@@ -51,7 +51,7 @@
             {if sort_options}
             <div class="ark-form-group">
                 <label for="ark-sort-select" class="ark-label">Sort by</label>
-                <select id="ark-sort-select" class="ark-select" onchange="window.location.href=this.value">
+                <select id="ark-sort-select" class="ark-select" @change="window.location.href=$el.value">
                     {for opt in sort_options}
                     <option value="{opt.url}"{if opt.active} selected{/if}>{opt.label}</option>
                     {/for}

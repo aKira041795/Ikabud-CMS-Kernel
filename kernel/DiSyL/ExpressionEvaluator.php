@@ -173,6 +173,16 @@ class ExpressionEvaluator
             }
         }
 
+        // Arithmetic expressions: a + b, a * b, etc.
+        // Must check before dot-path resolution to prevent "a + b" being treated as a single path
+        if (preg_match('/[+\-*\/%]/', $path) && !preg_match('/^["\'].*["\']$/', $path)) {
+            $arith = $this->evaluateArithmetic($path, $context);
+            if ($arith !== null) {
+                $this->currentExpression = $prevExpr;
+                return $arith;
+            }
+        }
+
         $parts = explode('.', $path);
         $value = $context;
 

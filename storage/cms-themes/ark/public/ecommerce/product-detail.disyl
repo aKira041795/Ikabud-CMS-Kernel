@@ -11,7 +11,7 @@
 {set builder_enabled = builder_enabled|default:false}
 
 {block head}
-{include "partials/canonical-entity-styles.disyl"}
+{include "_cms_active_theme/public/partials/canonical-entity-styles.disyl"}
 {include "partials/storefront-styles.disyl"}
 {if structured_data}{structured_data|raw}{/if}
 {/block}
@@ -53,6 +53,7 @@
                                 alt="{entity.name|default:''}"
                                 class="ark-gallery__main-image"
                                 x-bind:src="entity.images[activeImage]?.url || entity.images[activeImage] || entity.featured_image_url"
+                                loading="lazy"
                             />
                         </div>
                         {if entity.images|length > 1}
@@ -64,7 +65,7 @@
                                 @click="activeImage = {i}"
                                 aria-label="View image {i + 1}"
                             >
-                                <img src="{img.url|default:img}" alt="" />
+                                <img src="{img.url|default:img}" alt="" loading="lazy" />
                             </button>
                             {/for}
                         </div>
@@ -75,6 +76,7 @@
                         src="{entity.featured_image_url|default:entity.image}"
                         alt="{entity.name|default:''}"
                         class="ark-product-detail__featured"
+                        loading="lazy"
                     />
                     {/if}
                 </div>

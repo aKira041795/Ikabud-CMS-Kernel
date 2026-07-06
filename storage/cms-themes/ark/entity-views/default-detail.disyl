@@ -18,7 +18,7 @@
 
             {# Featured image #}
             {if entity.featured_image_url or entity.image or entity.thumbnail_url}
-            <img src="{entity.featured_image_url|default:entity.image|default:entity.thumbnail_url}" alt="{entity.title|default:entity.name|default:''}" class="ark-detail__image" />
+            <img src="{entity.featured_image_url|default:entity.image|default:entity.thumbnail_url}" alt="{entity.title|default:entity.name|default:''}" class="ark-detail__image" loading="lazy" />
             {/if}
 
             {# Meta line #}

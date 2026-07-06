@@ -863,7 +863,7 @@ final class Parser
             $name = trim(substr($namePart, 0, $colonPos));
             $varType = trim(substr($namePart, $colonPos + 1));
         } else {
-            $name = $namePart;
+            $name = trim($namePart);
         }
 
         $attrs = [

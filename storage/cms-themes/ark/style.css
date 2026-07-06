@@ -3315,3 +3315,28 @@ a:hover {
         outline: 3px solid Highlight;
     }
 }
+
+/* ── Mobile menu slide transitions (Issue 4) ── */
+.ark-slide-down-enter {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-height 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 200ms ease;
+}
+
+.ark-slide-down-enter-active {
+    max-height: 80vh;
+    opacity: 1;
+}
+
+.ark-slide-down-leave {
+    max-height: 80vh;
+    opacity: 1;
+    overflow: hidden;
+}
+
+.ark-slide-down-leave-active {
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 200ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms ease;
+}

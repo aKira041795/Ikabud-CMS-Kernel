@@ -18,6 +18,29 @@
   - server rendering + builder helpers in [modules/cms/helpers.php](../modules/cms/helpers.php) and [modules/cms/builder-renderers.php](../modules/cms/builder-renderers.php)
 - Visual page builder frontend is a separate React app in [modules/cms/builder-ui](../modules/cms/builder-ui) (Vite + TS), embedded by CMS admin routes.
 
+## Agent delegation system
+Custom agents with model assignments live in `.github/agents/`. The full registry and delegation protocol is in `.github/AGENTS.md`. Token budget reference and optimization rules are in `.github/token-budget.md`.
+
+**Model-to-role mapping**:
+- **Claude Sonnet 4** (Anthropic) → Code Reviewer, Pattern Explainer, Documentation Writer
+- **GPT-5** (OpenAI) → Test Writer, Refactoring Advisor
+- **Gemini 2.5 Pro** (Google) → Explore (fast read-only research)
+
+Delegate specialized tasks to the appropriate agent. For complex multi-step work, use Explore first for context, then delegate implementation as needed.
+
+## Mandatory skills registry (always active)
+The following skill files in `.github/skills/` define enforced workflows. They are loaded automatically by their `applyTo` patterns — treat them as rules, not suggestions.
+
+| Skill | Applies to | What it enforces |
+|---|---|---|
+| `iterative-task-execution` | `**/*` — all files | Todo-driven loop: break down → implement one item → verify → mark done → repeat. Scope discipline, no feature creep. |
+| `debug-workflow` | `**/*.php`, `**/*.disyl`, `**/*.sql` | Check both `app.log` + `error.log` on every issue. Systematic debugging for module DB errors, DiSyL warnings, request tracing. |
+| `code-review-checklist` | `**/*.php`, `**/*.disyl`, `**/*.sql` | SQL query patterns, migration idempotency, route ordering, entity view registration, form handler completeness, template safety. |
+| `testing-strategy` | `**/tests/**` | Four-tier testing: unit → integration → security → acceptance. Required before marking features done. |
+| `module-boundaries` | `**/*.php` | Kernel boundary discipline, tenant scoping, capability-based access, route ownership. No bypassing kernel contracts. |
+| `service-layer-patterns` | `**/services/**` | Domain service structure (`ServiceResult`), transaction discipline, event emission, audit logging. |
+| `module-creation` | `**/module.json` | Module scaffold checklist, manifest essentials, capability handler naming, migration patterns, auth-owned module conventions. |
+
 ## Service boundaries and data flow
 - Follow module boundaries: kernel provides routing/auth/hooks/capabilities; modules provide business features.
 - Keep route files declarative (`GET`/`POST` maps); place request logic in module handlers/services.

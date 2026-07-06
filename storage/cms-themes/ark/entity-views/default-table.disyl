@@ -34,7 +34,7 @@
                             <a href="{row[header]}" class="ark-table__link">{row.title|default:'View'}</a>
                             {else if header == 'image' or header == 'thumbnail_url' or header == 'featured_image_url'}
                                 {if row[header]}
-                                <img src="{row[header]}" alt="" class="ark-table__thumb" />
+                                <img src="{row[header]}" alt="" class="ark-table__thumb" loading="lazy" width="40" height="40" />
                                 {/if}
                             {else if header == 'status' or header == 'type'}
                             <span class="ark-badge ark-badge--gray">{row[header]}</span>

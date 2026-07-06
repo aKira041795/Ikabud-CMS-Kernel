@@ -47,7 +47,7 @@
             {# Featured image — builder pages use their own media blocks #}
             {if entity_view_context.show_media|default:1}
                 {if entity.featured_image_url or entity.image}
-                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" class="ark-detail__image" />
+                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" class="ark-detail__image" loading="lazy" />
                 {/if}
             {/if}
             {/if}

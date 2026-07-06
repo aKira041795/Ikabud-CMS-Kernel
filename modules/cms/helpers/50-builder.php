@@ -725,6 +725,13 @@ function cmsBuilderPersistDocument(int $contentId, array $document, string $stat
     if (isset($normalized['document']) && is_array($normalized['document'])) {
         $normalized['document'] = cmsBuilderApplyDefaultProps($normalized['document']);
     }
+    // Emit DiSyL contract tree alongside React node tree for governed components
+    if (isset($normalized['document']) && is_array($normalized['document'])) {
+        $disylContract = cmsBuilderEmitDiSyLContract($normalized['document']);
+        if ($disylContract !== null) {
+            $normalized['disyl'] = $disylContract;
+        }
+    }
     $json = json_encode($normalized, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     if ($json === false) {
         throw new RuntimeException('Failed to encode builder document');
@@ -1816,6 +1823,71 @@ function cmsPageBuilderBlocks(array $contentRow): array
 
     $decoded = json_decode($json, true);
     return is_array($decoded) ? $decoded : [];
+}
+
+/**
+ * Emit a DiSyL contract tree from a normalized React builder node tree.
+ * Walks the node tree, extracts governed components (_governed: true),
+ * and produces {component, attrs, children} format for cmsRenderDiSyLDocument.
+ *
+ * Only emits for nodes with _governedName starting with 'ikb_'.
+ * Non-governed nodes (layout containers, sections, etc.) are not emitted.
+ */
+function cmsBuilderEmitDiSyLContract(array $node): ?array
+{
+    $type = $node['type'] ?? '';
+    $props = $node['props'] ?? [];
+
+    // Check if this is a governed DiSyL component
+    if (!empty($props['_governed']) && !empty($props['_governedName'])) {
+        $governedName = (string)$props['_governedName'];
+        if (str_starts_with($governedName, 'ikb_')) {
+            // Extract relevant attrs (exclude internal _governed props)
+            $attrs = [];
+            foreach ($props as $key => $value) {
+                if (!str_starts_with($key, '_')) {
+                    $attrs[$key] = $value;
+                }
+            }
+            // Recursively process children for non-leaf governed components
+            $children = [];
+            if (!empty($node['children']) && is_array($node['children'])) {
+                foreach ($node['children'] as $child) {
+                    $emitted = cmsBuilderEmitDiSyLContract($child);
+                    if ($emitted !== null) {
+                        $children[] = $emitted;
+                    }
+                }
+            }
+            return [
+                'component' => $governedName,
+                'attrs' => $attrs,
+                'children' => $children,
+            ];
+        }
+    }
+
+    // Non-governed: recurse into children to find governed descendants
+    if (!empty($node['children']) && is_array($node['children'])) {
+        $found = null;
+        foreach ($node['children'] as $child) {
+            $emitted = cmsBuilderEmitDiSyLContract($child);
+            if ($emitted !== null) {
+                if ($found === null) {
+                    $found = $emitted;
+                } else {
+                    // Multiple governed siblings — wrap in a section
+                    if (!isset($found[0])) {
+                        $found = [$found];
+                    }
+                    $found[] = $emitted;
+                }
+            }
+        }
+        return $found;
+    }
+
+    return null;
 }
 
 function cmsPageBuilderRenderedHtml(array $contentRow): string

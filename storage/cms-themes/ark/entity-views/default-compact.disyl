@@ -11,7 +11,7 @@
             {for row in rows}
             <div class="ark-compact-list__item">
                 {if row.image or row.thumbnail_url or row.featured_image_url}
-                <img src="{row.image|default:row.thumbnail_url|default:row.featured_image_url}" alt="" class="ark-compact-list__image" />
+                <img src="{row.image|default:row.thumbnail_url|default:row.featured_image_url}" alt="" class="ark-compact-list__image" loading="lazy" width="32" height="32" />
                 {/if}
                 <div class="ark-compact-list__body">
                     <div class="ark-compact-list__title">

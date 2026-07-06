@@ -192,6 +192,106 @@ class ComponentRegistry
     }
     
     /**
+     * Validate all registered component definitions for common issues.
+     *
+     * Checks:
+     *  - Renderer template paths exist (when 'renderer' is a non-null string)
+     *  - Slot names follow dot-notation convention (when 'slots' is non-empty)
+     *
+     * Logs warnings via write_log() — never throws.
+     *
+     * @return list<string> List of warning messages (for testing/inspection)
+     */
+    public static function validateRegisteredComponents(): array
+    {
+        $warnings = [];
+        $projectRoot = \dirname(__DIR__, 2); // kernel/DiSyL/ -> project root
+
+        foreach (self::$components as $name => $def) {
+            // --- Renderer template path check ---
+            $renderer = $def['renderer'] ?? null;
+            if ($renderer !== null && \is_string($renderer) && $renderer !== '') {
+                $pathToCheck = $renderer;
+                if (\str_starts_with($renderer, '/')) {
+                    // Absolute path — check directly
+                    $pathToCheck = $renderer;
+                } elseif (\str_starts_with($renderer, './') || \str_starts_with($renderer, '../')) {
+                    // Relative path — resolve against project root
+                    $pathToCheck = $projectRoot . '/' . \ltrim($renderer, './');
+                } else {
+                    // Plain filename or template reference — resolve against project root
+                    $pathToCheck = $projectRoot . '/' . $renderer;
+                }
+
+                // Normalize to prevent false negatives from double slashes etc.
+                $normalized = self::normalizePath($pathToCheck);
+
+                if (!\file_exists($normalized)) {
+                    $msg = "Component '{$name}': renderer template path not found: {$renderer} (resolved: {$normalized})";
+                    $warnings[] = $msg;
+                    if (\function_exists('write_log')) {
+                        \write_log('disyl.component_registry', 'warning', [
+                            'component' => $name,
+                            'renderer' => $renderer,
+                            'resolved' => $normalized,
+                            'message' => 'Renderer template path not found',
+                        ]);
+                    }
+                }
+            }
+
+            // --- Slot name convention check ---
+            $slots = $def['slots'] ?? [];
+            if (!empty($slots) && \is_array($slots)) {
+                foreach ($slots as $slotKey => $slotDef) {
+                    // Support both indexed arrays and keyed slot definitions
+                    $slotName = \is_string($slotKey) ? $slotKey : (\is_string($slotDef) ? $slotDef : ($slotDef['name'] ?? ''));
+                    if (\is_string($slotName) && $slotName !== '') {
+                        // Validate dot-notation convention: segment.segment[.segment...]
+                        if (!\preg_match('/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/', $slotName)) {
+                            $msg = "Component '{$name}': slot name '{$slotName}' does not follow dot-notation convention (e.g. 'content.after', 'header.main')";
+                            $warnings[] = $msg;
+                            if (\function_exists('write_log')) {
+                                \write_log('disyl.component_registry', 'warning', [
+                                    'component' => $name,
+                                    'slot' => $slotName,
+                                    'message' => 'Slot name does not follow dot-notation convention',
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $warnings;
+    }
+
+    /**
+     * Normalize a file path — collapses '..' and '.' segments.
+     */
+    private static function normalizePath(string $path): string
+    {
+        $parts = \explode('/', \str_replace('\\', '/', $path));
+        $resolved = [];
+        foreach ($parts as $part) {
+            if ($part === '.' || $part === '') {
+                continue;
+            }
+            if ($part === '..') {
+                \array_pop($resolved);
+            } else {
+                $resolved[] = $part;
+            }
+        }
+        $prefix = '';
+        if (\str_starts_with($path, '/')) {
+            $prefix = '/';
+        }
+        return $prefix . \implode('/', $resolved);
+    }
+
+    /**
      * Register core DiSyL components
      */
     public static function registerCoreComponents(): void
@@ -962,6 +1062,9 @@ class ComponentRegistry
             ],
             'leaf' => true
         ]);
+
+        // Validate all registered core components
+        self::validateRegisteredComponents();
     }
 }
 

@@ -4,7 +4,7 @@
 
 <article class="ark-card">
     {if entity.featured_image_url|default:capability_data.product.image|default:''}
-    <img src="{entity.featured_image_url|default:capability_data.product.image}" alt="{entity.title|default:capability_data.product.name|default:'Product'}" class="ark-media-image ark-media-image--card" />
+    <img src="{entity.featured_image_url|default:capability_data.product.image}" alt="{entity.title|default:capability_data.product.name|default:'Product'}" class="ark-media-image ark-media-image--card" loading="lazy" />
     {/if}
     <h3 class="ark-card__title">{entity.title|default:capability_data.product.name|default:'Product'}</h3>
     <p class="ark-card__excerpt">{entity.excerpt|default:capability_data.product.description|default:''}</p>

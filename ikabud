@@ -469,6 +469,234 @@ function validateSingleTheme(string $slug, string $themesPath): array
 }
 
 /**
+ * Build a single theme: validate manifest, tokens, templates, and output a build summary.
+ *
+ * @param string $slug       Theme directory name
+ * @param string $themesPath Path to the cms-themes directory
+ * @return array{success: bool, issues: array}
+ */
+function buildSingleTheme(string $slug, string $themesPath): array
+{
+    $themeDir = $themesPath . '/' . $slug;
+    $issues = [];
+    $success = true;
+
+    if (!is_dir($themeDir)) {
+        out('  ' . red("✗ Theme '{$slug}' not found at {$themeDir}"));
+        return ['success' => false, 'issues' => ["Theme '{$slug}' not found"]];
+    }
+
+    banner();
+    out('  ' . bold('Theme Build: ') . cyan($slug));
+    out('');
+
+    // ── 1. Load manifest ─────────────────────────────────────────
+    out('  ' . bold('1. Manifest'));
+    $manifestFile = $themeDir . '/theme.manifest.json';
+    if (!is_file($manifestFile)) {
+        $manifestFile = $themeDir . '/theme.json';
+    }
+    if (!is_file($manifestFile)) {
+        out('    ' . red('✗') . ' No theme.manifest.json or theme.json found');
+        return ['success' => false, 'issues' => ['No manifest found']];
+    }
+    $decoded = kernelReadJsonFile($manifestFile);
+    if (!is_array($decoded) || empty($decoded)) {
+        out('    ' . red('✗') . ' Failed to parse manifest JSON');
+        return ['success' => false, 'issues' => ['Invalid manifest JSON']];
+    }
+    $manifest = $decoded;
+    $manifest['slug'] = $slug;
+    out('    ' . green('✓') . ' Manifest loaded');
+
+    // ── 2. Validate tokens.json ───────────────────────────────────
+    out('  ' . bold('2. Tokens'));
+    $tokensFile = $manifest['tokens'] ?? 'tokens.json';
+    $tokensPath = $themeDir . '/' . ltrim((string)$tokensFile, '/');
+    $tokensCount = 0;
+    if (is_file($tokensPath)) {
+        $tokensData = kernelReadJsonFile($tokensPath);
+        if (!empty($tokensData)) {
+            $tokensCount = count($tokensData);
+            out('    ' . green('✓') . " tokens.json exists with {$tokensCount} token(s)");
+        } else {
+            out('    ' . yellow('⚠') . ' tokens.json exists but is empty');
+            $issues[] = 'tokens.json is empty';
+        }
+    } else {
+        out('    ' . red('✗') . " tokens file '{$tokensFile}' not found at {$tokensPath}");
+        $issues[] = "Missing tokens file: {$tokensFile}";
+        $success = false;
+    }
+
+    // ── 3. Verify layouts ─────────────────────────────────────────
+    out('  ' . bold('3. Layouts'));
+    $layoutsDir = $themeDir . '/layouts';
+    $layoutsCount = 0;
+    $layoutsFound = [];
+    if (is_dir($layoutsDir)) {
+        $layoutFiles = glob($layoutsDir . '/*.disyl');
+        $layoutsCount = count($layoutFiles);
+        foreach ($layoutFiles as $lf) {
+            $layoutsFound[] = basename($lf);
+        }
+        if ($layoutsCount > 0) {
+            out('    ' . green('✓') . " {$layoutsCount} layout(s) found: " . implode(', ', $layoutsFound));
+        } else {
+            out('    ' . yellow('⚠') . ' layouts/ directory is empty');
+            $issues[] = 'No layout templates found';
+        }
+    } else {
+        out('    ' . red('✗') . ' layouts/ directory not found');
+        $issues[] = 'Missing layouts/ directory';
+        $success = false;
+    }
+
+    // ── 4. Check shell reference ──────────────────────────────────
+    $shellRef = $manifest['shell'] ?? null;
+    if ($shellRef !== null) {
+        $shellPath = $themeDir . '/' . ltrim((string)$shellRef, '/');
+        if (is_file($shellPath)) {
+            out('    ' . green('✓') . " Shell '{$shellRef}' exists");
+        } else {
+            out('    ' . red('✗') . " Shell '{$shellRef}' not found at {$shellPath}");
+            $issues[] = "Shell file missing: {$shellRef}";
+            $success = false;
+        }
+    }
+
+    // ── 5. Entity views ───────────────────────────────────────────
+    out('  ' . bold('5. Entity Views'));
+    $evDir = $manifest['entity_views'] ?? 'entity-views/';
+    $evPath = $themeDir . '/' . ltrim((string)$evDir, '/');
+    $evCount = 0;
+    $evFound = [];
+    if (is_dir($evPath)) {
+        $evFiles = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($evPath, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($evFiles as $finfo) {
+            if ($finfo->isFile() && $finfo->getExtension() === 'disyl') {
+                $relName = str_replace($evPath . '/', '', (string)$finfo->getPathname());
+                $evFound[] = $relName;
+                $evCount++;
+            }
+        }
+        if ($evCount > 0) {
+            out('    ' . green('✓') . " {$evCount} entity view(s) found in {$evDir}");
+        } else {
+            out('    ' . yellow('⚠') . " entity-views directory '{$evDir}' is empty");
+            $issues[] = "Entity views directory '{$evDir}' is empty";
+        }
+    } else {
+        // Check fallback views instead
+        $fallbacks = $manifest['fallback_views'] ?? [];
+        if (!empty($fallbacks)) {
+            $fbErrors = 0;
+            foreach ($fallbacks as $view => $path) {
+                $fbPath = $themeDir . '/' . ltrim((string)$path, '/');
+                if (is_file($fbPath)) {
+                    $evCount++;
+                    $evFound[] = "{$view} → {$path}";
+                } else {
+                    out('    ' . red('✗') . " Fallback view '{$view}' references missing file: {$path}");
+                    $issues[] = "Fallback view '{$view}' missing: {$path}";
+                    $fbErrors++;
+                }
+            }
+            if ($fbErrors === 0) {
+                out('    ' . green('✓') . " Entity views via fallbacks: " . implode(', ', array_keys($fallbacks)));
+            } else {
+                $success = false;
+            }
+        } else {
+            out('    ' . yellow('⚠') . " No entity-views directory and no fallback views declared");
+            $issues[] = 'No entity views or fallbacks';
+        }
+    }
+
+    // ── 6. Templates (public, components, patterns, admin) ────────
+    out('  ' . bold('6. Templates'));
+    $templateDirs = ['public', 'components', 'patterns', 'admin'];
+    $totalTemplates = 0;
+    $templateDetail = [];
+    foreach ($templateDirs as $dir) {
+        $fullDir = $themeDir . '/' . $dir;
+        if (!is_dir($fullDir)) {
+            continue;
+        }
+        $files = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($fullDir, FilesystemIterator::SKIP_DOTS)
+        );
+        $dirCount = 0;
+        $samples = [];
+        foreach ($files as $finfo) {
+            if ($finfo->isFile() && in_array($finfo->getExtension(), ['disyl', 'html', 'css', 'js'], true)) {
+                $dirCount++;
+                if (count($samples) < 3) {
+                    $samples[] = $finfo->getFilename();
+                }
+            }
+        }
+        $totalTemplates += $dirCount;
+        if ($dirCount > 0) {
+            $templateDetail[] = "{$dir}: {$dirCount}";
+        }
+    }
+    out('    ' . green('✓') . " {$totalTemplates} template(s) found (" . implode(', ', $templateDetail) . ')');
+
+    // ── 7. Assets & size ──────────────────────────────────────────
+    out('  ' . bold('7. Assets'));
+    $requiredAssets = $manifest['required_assets'] ?? [];
+    $cssFiles = is_array($requiredAssets['css'] ?? null) ? $requiredAssets['css'] : [];
+    $jsFiles = is_array($requiredAssets['js'] ?? null) ? $requiredAssets['js'] : [];
+    $totalCssSize = 0;
+    $totalJsSize = 0;
+    $assetCount = 0;
+    foreach ($cssFiles as $css) {
+        $cssPath = $themeDir . '/' . ltrim((string)$css, '/');
+        if (is_file($cssPath)) {
+            $size = filesize($cssPath);
+            $totalCssSize += $size;
+            $assetCount++;
+        }
+    }
+    foreach ($jsFiles as $js) {
+        $jsPath = $themeDir . '/' . ltrim((string)$js, '/');
+        if (is_file($jsPath)) {
+            $size = filesize($jsPath);
+            $totalJsSize += $size;
+            $assetCount++;
+        }
+    }
+    out('    CSS: ' . round($totalCssSize / 1024, 1) . 'KB (' . count($cssFiles) . ' file(s))');
+    out('    JS:  ' . round($totalJsSize / 1024, 1) . 'KB (' . count($jsFiles) . ' file(s))');
+
+    // ── Build summary ─────────────────────────────────────────────
+    out('');
+    out('  ' . bold('── Build Summary ──'));
+    out('    ' . bold('Theme:') . '      ' . ($manifest['label'] ?? $manifest['name'] ?? $slug));
+    out('    ' . bold('Version:') . '    ' . ($manifest['version'] ?? '—'));
+    out('    ' . bold('Layouts:') . '    ' . $layoutsCount);
+    out('    ' . bold('Templates:') . '  ' . $totalTemplates);
+    out('    ' . bold('Tokens:') . '     ' . $tokensCount);
+    out('    ' . bold('Entity views:') . ' ' . $evCount);
+    out('    ' . bold('Assets:') . '     ' . $assetCount . ' file(s), ' . round(($totalCssSize + $totalJsSize) / 1024, 1) . 'KB total');
+
+    if ($success && empty($issues)) {
+        out('  ' . green('✓ Build complete — no issues'));
+    } else {
+        out('  ' . yellow('⚠ Build complete — ' . count($issues) . ' issue(s)'));
+        foreach ($issues as $issue) {
+            out('    ' . yellow('→') . ' ' . $issue);
+        }
+    }
+    out('');
+
+    return ['success' => $success, 'issues' => $issues];
+}
+
+/**
  * Scan theme template files for anti-patterns: DB access, module queries,
  * business logic, hardcoded branding, and unsafe raw output.
  */
@@ -610,6 +838,7 @@ switch ($command) {
         out('    ' . green('theme:activate') . ' <slug>     Activate a theme as the CMS public theme');
         out('    ' . green('theme:current') . '             Show the currently active theme');
         out('    ' . green('theme:deactivate') . '           Reset to default theme');
+        out('    ' . green('theme:build') . ' <slug>       Build theme: validate tokens, templates, assets, output summary');
         out('    ' . green('entity:list') . '               List all entity sources with schema');
         out('    ' . green('entity:context') . ' <source>    Show resolved context for a source');
         out('    ' . green('entity:describe') . ' <source>   Full entity description with views, caps, callers');
@@ -5987,6 +6216,27 @@ PHP;
         }
         saveModuleSettings('cms', ['active_theme' => 'native-default']);
         out(yellow('  ✓ Reset to native-default theme.'));
+        break;
+
+    // ── theme:build ──────────────────────────────────────────────
+    case 'theme:build':
+        $clean = paramsWithoutFlags($params);
+        $themeSlug = $clean[0] ?? '';
+
+        $themesPath = (defined('STORAGE_PATH') ? STORAGE_PATH : (defined('BASE_PATH') ? BASE_PATH . '/storage' : __DIR__ . '/storage')) . '/cms-themes';
+
+        if ($themeSlug === '') {
+            out(red('  ✗ Theme slug required.'));
+            out('  Usage: php ikabud theme:build <slug>');
+            exit(1);
+        }
+
+        if (!is_dir("{$themesPath}/{$themeSlug}")) {
+            out(red("  ✗ Theme '{$themeSlug}' not found at {$themesPath}/{$themeSlug}"));
+            exit(1);
+        }
+
+        buildSingleTheme($themeSlug, $themesPath);
         break;
 
     case 'entity:context':

@@ -1,8 +1,8 @@
-{extends "layouts/app.disyl"}
+{extends "modules/cms/layouts/admin.disyl"}
 
 {block title}Platform Dashboard{/block}
 
-{block content}
+{block head}
 <style>
 .platform-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 28px; }
 .platform-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
@@ -96,21 +96,6 @@
 .update-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 .update-empty { color: var(--text-muted); font-size: 12px; margin-top: 8px; }
 </style>
-
-<div class="page-header">
-    <div>
-        <h2>Platform Dashboard</h2>
-        <div class="page-desc">Unified operator view of kernel identity, health, modules, capabilities, and automations — all from kernel-owned truth.</div>
-    </div>
-    <div class="page-actions">
-        <button class="btn btn-outline btn-sm" onclick="window.location.reload()">Refresh</button>
-    </div>
-</div>
-
-<div id="platform-data">
-    <div class="platform-loading">Loading platform state...</div>
-</div>
-
 <script>
 (function() {
     var BASE = '{base_url}';
@@ -586,4 +571,20 @@
     function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
 })();
 </script>
+{/block}
+
+{block content}
+<div class="page-header">
+    <div>
+        <h2>Platform Dashboard</h2>
+        <div class="page-desc">Unified operator view of kernel identity, health, modules, capabilities, and automations — all from kernel-owned truth.</div>
+    </div>
+    <div class="page-actions">
+        <button class="btn btn-outline btn-sm" onclick="window.location.reload()">Refresh</button>
+    </div>
+</div>
+
+<div id="platform-data">
+    <div class="platform-loading">Loading platform state...</div>
+</div>
 {/block}

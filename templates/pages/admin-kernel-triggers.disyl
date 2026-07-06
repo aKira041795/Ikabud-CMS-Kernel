@@ -1,4 +1,4 @@
-{extends "layouts/app.disyl"}
+{extends "modules/cms/layouts/admin.disyl"}
 
 {block head}
 <style>
@@ -384,9 +384,7 @@
     </div>
 
 </div>{# /tab-panel-bridges #}
-{/block}
 
-{block scripts}
 <script>
     var KERNEL_CSRF = '{csrf_token}';
     var KERNEL_EVENTS = [];

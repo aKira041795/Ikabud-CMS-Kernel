@@ -1,6 +1,7 @@
 ---
 name: debug-workflow
 description: Systematic debugging — logs, common errors, DiSyL warnings, module DB issues
+applyTo: "**/*.php,**/*.disyl,**/*.sql"
 ---
 
 # Debug Workflow

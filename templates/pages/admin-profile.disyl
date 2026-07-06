@@ -1,92 +1,8 @@
-{extends "layouts/app.disyl"}
+{extends "modules/cms/layouts/admin.disyl"}
+
+{block title}Profile{/block}
 
 {block head}
-<style>
-    .profile-layout { max-width: 640px; margin: 0 auto; }
-    .profile-card { background: var(--surface); border: 1px solid var(--border); border-radius: 2px; padding: 24px; }
-    .profile-card + .profile-card { margin-top: 16px; }
-    .profile-identity { display: flex; align-items: center; gap: 16px; margin-bottom: 8px; }
-    .profile-avatar { width: 56px; height: 56px; border-radius: 2px; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700; flex-shrink: 0; }
-    .profile-name { font-size: 16px; font-weight: 700; color: var(--text); }
-    .profile-username { font-size: 13px; color: var(--text-muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .profile-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
-    .profile-meta-item { font-size: 12px; }
-    .profile-meta-label { color: var(--text-muted); font-weight: 600; margin-bottom: 2px; }
-    .profile-meta-value { color: var(--text); font-weight: 500; }
-</style>
-{/block}
-
-{block content}
-<div class="profile-layout">
-    <div class="page-header">
-        <div>
-            <h2>Profile</h2>
-            <div class="page-desc">View your account details and update your name, email, or password.</div>
-        </div>
-    </div>
-
-    <div class="profile-card">
-        <div class="profile-identity">
-            <div class="profile-avatar" id="profile-avatar">
-                {if user.full_name}{user.full_name | slice:0:1 | upper}{else}{user.name | slice:0:1 | upper}{/if}
-            </div>
-            <div>
-                <div class="profile-name">{if user.full_name}{user.full_name}{else}{user.name}{/if}</div>
-                <div class="profile-username">@{user.name}</div>
-            </div>
-        </div>
-        <div class="profile-meta">
-            <div class="profile-meta-item">
-                <div class="profile-meta-label">Role</div>
-                <div class="profile-meta-value"><span class="role-pill {user.role}">{user.role}</span></div>
-            </div>
-            <div class="profile-meta-item">
-                <div class="profile-meta-label">Account Status</div>
-                <div class="profile-meta-value"><span class="status-pill active">Active</span></div>
-            </div>
-        </div>
-    </div>
-
-    <div class="profile-card">
-        <strong style="font-size:14px; display:block; margin-bottom:14px;">Update Profile</strong>
-
-        <div id="profile-msg"{if profile_notice} class="alert alert-{if profile_notice.type == 'success'}success{else}danger{/if}" style="display:block;"{else} style="display:none;"{/if}>{if profile_notice}{profile_notice.message}{/if}</div>
-
-        <form id="profile-form" method="post" action="{base_url}/api/v1/admin/profile/update" onsubmit="submitProfile(event); return false;">
-            {csrf_field | raw}
-
-            <div class="form-group">
-                <label class="form-label" for="full_name">Full Name</label>
-                <input class="form-input" type="text" id="full_name" name="full_name" value="{if user.full_name}{user.full_name}{else}{user.name}{/if}" required />
-            </div>
-
-            {if email_supported}
-            <div class="form-group">
-                <label class="form-label" for="email">Email</label>
-                <input class="form-input" type="email" id="email" name="email" value="{user.email}" required />
-                <div class="hint">Used by the kernel forgot-password flow to send reset links.</div>
-            </div>
-            {else}
-            <div class="form-group">
-                <label class="form-label" for="email">Email</label>
-                <input class="form-input" type="email" id="email" value="" placeholder="Kernel email storage not available yet" disabled />
-                <div class="hint">Run the latest kernel migration to enable email-backed forgot-password for kernel admins.</div>
-            </div>
-            {/if}
-
-            <div class="form-group">
-                <label class="form-label" for="password">New Password</label>
-                <input class="form-input" type="password" id="password" name="password" placeholder="Leave blank to keep current password" />
-                <div class="hint">Leave blank if you don't want to change your password.</div>
-            </div>
-
-            <div style="margin-top: 18px; display:flex; gap:10px; align-items:center;">
-                <button class="btn btn-primary" type="submit" id="profile-save-btn">Save Changes</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 <script>
 async function submitProfile(e) {
     e.preventDefault();
@@ -129,8 +45,8 @@ async function submitProfile(e) {
 
         msg.style.display = 'block';
         msg.className = 'alert alert-success';
-    msg.textContent = data.message || 'Profile updated successfully.';
-    showToast(data.message || 'Profile updated');
+        msg.textContent = data.message || 'Profile updated successfully.';
+        window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: data.message || 'Profile updated', type: 'success' } }));
 
         document.getElementById('password').value = '';
         btn.disabled = false;
@@ -147,4 +63,76 @@ async function submitProfile(e) {
     }
 }
 </script>
+{/block}
+
+{block content}
+<div class="max-w-[640px] mx-auto">
+    <div class="page-header">
+        <div>
+            <h2>Profile</h2>
+            <div class="page-desc">View your account details and update your name, email, or password.</div>
+        </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg p-6">
+        <div class="flex items-center gap-4 mb-2">
+            <div class="w-14 h-14 rounded bg-blue-600 text-white flex items-center justify-center text-xl font-bold shrink-0" id="profile-avatar">
+                {if user.full_name}{user.full_name | slice:0:1 | upper}{else}{user.name | slice:0:1 | upper}{/if}
+            </div>
+            <div>
+                <div class="text-base font-bold text-gray-900">{if user.full_name}{user.full_name}{else}{user.name}{/if}</div>
+                <div class="text-sm text-gray-500 font-mono">@{user.name}</div>
+            </div>
+        </div>
+        <div class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 mt-4 pt-4 border-t border-gray-200">
+            <div class="text-xs">
+                <div class="text-gray-500 font-semibold mb-0.5">Role</div>
+                <div class="text-gray-900 font-medium"><span class="role-pill {user.role}">{user.role}</span></div>
+            </div>
+            <div class="text-xs">
+                <div class="text-gray-500 font-semibold mb-0.5">Account Status</div>
+                <div class="text-gray-900 font-medium"><span class="status-pill active">Active</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg p-6 mt-4">
+        <strong class="text-sm block mb-3.5">Update Profile</strong>
+
+        <div id="profile-msg"{if profile_notice} class="alert alert-{if profile_notice.type == 'success'}success{else}danger{/if}" style="display:block;"{else} style="display:none;"{/if}>{if profile_notice}{profile_notice.message}{/if}</div>
+
+        <form id="profile-form" method="post" action="{base_url}/api/v1/admin/profile/update" onsubmit="submitProfile(event); return false;">
+            {csrf_field | raw}
+
+            <div class="form-group">
+                <label class="form-label" for="full_name">Full Name</label>
+                <input class="form-input" type="text" id="full_name" name="full_name" value="{if user.full_name}{user.full_name}{else}{user.name}{/if}" required />
+            </div>
+
+            {if email_supported}
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-input" type="email" id="email" name="email" value="{user.email}" required />
+                <div class="hint">Used by the kernel forgot-password flow to send reset links.</div>
+            </div>
+            {else}
+            <div class="form-group">
+                <label class="form-label" for="email">Email</label>
+                <input class="form-input" type="email" id="email" value="" placeholder="Kernel email storage not available yet" disabled />
+                <div class="hint">Run the latest kernel migration to enable email-backed forgot-password for kernel admins.</div>
+            </div>
+            {/if}
+
+            <div class="form-group">
+                <label class="form-label" for="password">New Password</label>
+                <input class="form-input" type="password" id="password" name="password" placeholder="Leave blank to keep current password" />
+                <div class="hint">Leave blank if you don't want to change your password.</div>
+            </div>
+
+            <div class="mt-[18px] flex gap-2.5 items-center">
+                <button class="btn btn-primary" type="submit" id="profile-save-btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
 {/block}

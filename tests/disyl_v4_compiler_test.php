@@ -11,8 +11,7 @@ declare(strict_types=1);
  * Run from repo root: php tests/disyl_v4_compiler_test.php
  */
 
-require_once __DIR__ . '/../kernel/DiSyL/TemplateEngine.php';
-require_once __DIR__ . '/../kernel/DiSyL/Compiler/TemplateCache.php';
+require_once __DIR__ . '/../bootstrap.php';
 
 use Ikabud\Kernel\DiSyL\TemplateEngine;
 
@@ -176,6 +175,52 @@ foreach ($testCases as $i => [$template, $ctx]) {
 
     check("compiled vs interpreted #{$i}", $interpreted, $compiled);
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 11. C-style {for (;;)} loop ───────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+check('C-style for count up', '01234',
+    $engine->renderString('{for i = 0; i < 5; i++}{i}{/for}', []));
+check('C-style for descending', '109876',
+    $engine->renderString('{for i = 10; i > 5; i--}{i}{/for}', []));
+check('C-style for with break', '0123',
+    $engine->renderString('{for i = 0; i < 10; i++}{i}{if i > 2}{break}{/if}{/for}', []));
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 12. {forelse} ─────────────────────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+check('forelse non-empty list', '12',
+    $engine->renderString('{for item in items}{item}{forelse}empty{/for}', ['items' => [1, 2]]));
+check('forelse empty list', 'empty',
+    $engine->renderString('{for item in items}{item}{forelse}empty{/for}', ['items' => []]));
+check('foreach forelse empty', 'empty',
+    $engine->renderString('{foreach items as item}{item}{forelse}empty{/foreach}', ['items' => []]));
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 13. Compound assignment ───────────────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+check('set +=', '8',
+    $engine->renderString('{set x = 5}{set x += 3}{x}', []));
+check('set -=', '6',
+    $engine->renderString('{set x = 10}{set x -= 4}{x}', []));
+check('set *=', '12',
+    $engine->renderString('{set x = 3}{set x *= 4}{x}', []));
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo "── 14. Pipe binding with arithmetic ──────────────────\n";
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+check('arithmetic before pipe with parens', '8.25',
+    $engine->renderString('{(a + b)|number_format:2}', ['a' => 5, 'b' => 3.25]));
+check('arithmetic before pipe without parens', '8.25',
+    $engine->renderString('{a + b|number_format:2}', ['a' => 5, 'b' => 3.25]));
+check('pipe in if condition true', 'yes',
+    $engine->renderString('{if (a + b)|number_format:2 > 0}yes{/if}', ['a' => 5, 'b' => 3]));
+check('pipe in if condition false', 'no',
+    $engine->renderString('{if (a + b)|number_format:2 > 0}yes{else}no{/if}', ['a' => 0, 'b' => 0]));
 
 echo "\n╔══════════════════════════════════════════════════════╗\n";
 printf("║  RESULTS:  %2d PASSED  |  %2d FAILED                     ║\n", $pass, $fail);

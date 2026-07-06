@@ -569,8 +569,22 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
         ];
     }
 
+    // ── CMS admin shell context ────────────────────────────────
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+    $userName = (string)($user['full_name'] ?? $user['username'] ?? $user['name'] ?? 'Superadmin');
+    $userRole = (($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin')
+        ? 'Kernel Admin'
+        : ucfirst($user['role'] ?? 'Superadmin');
+
     echo app()->render('pages/superadmin-settings.disyl', [
         'page_title' => 'Feature Settings',
+        'cms_user_display' => $userName,
+        'cms_user_role' => $userRole,
+        'current_page' => 'settings',
+        'breadcrumbs' => [
+            ['label' => 'Dashboard', 'url' => $baseUrl . '/cms/admin'],
+            ['label' => 'Feature Settings'],
+        ],
         'modules' => $moduleList,
         'catalog_entries' => $catalogEntries,
         'catalog_pending_count' => count(array_filter($catalogEntries, static fn(array $entry): bool => (string)($entry['approval_status'] ?? '') === 'pending')),

@@ -1,0 +1,92 @@
+# Agent Registry — Ikabud Application
+
+This file defines the available custom agents, their assigned models, and delegation rules. The orchestrator (default agent) delegates tasks to the best-fit agent+model based on task type.
+
+> **Token budget reference**: See `.github/token-budget.md` for model context windows, optimization rules, and the delegation decision tree.
+
+## Agent Roster
+
+| Agent | Model | Context | Tools | Token strategy |
+|---|---|---|---|---|
+| **Code Reviewer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search | Read-only — no edit/execute output to consume budget |
+| **Pattern Explainer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search | Read-only — returns concise explanations with file:line refs |
+| **Documentation Writer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search, edit | Write-only — reads source then produces docs |
+| **Test Writer** | GPT-5 (OpenAI) | ~128K | read, search, edit, execute | Runs tests in subprocess — output captured compressed |
+| **Refactoring Advisor** | GPT-5 (OpenAI) | ~128K | read, search, edit | Edit-only — no shell execution overhead |
+| **Explore** | Gemini 2.5 Pro (Google) | **1M** | read, search | **Context champion** — all multi-file research here |
+
+> All 6 agents are **free with GitHub Copilot** — no additional API costs. Using them saves tokens vs doing everything in the orchestrator session.
+
+## Model Strengths & Delegation Rules
+
+### Claude Sonnet 4 (Anthropic) — Analysis & Communication
+**Strengths**: Nuanced reasoning, security analysis, subtle bug detection, long-form writing, explanatory clarity, pattern recognition across disparate files.
+
+**Delegate when**:
+- Reviewing code for correctness, security, or maintainability → **Code Reviewer**
+- Understanding architecture decisions or design rationale → **Pattern Explainer**
+- Writing documentation, guides, or READMEs → **Documentation Writer**
+
+### GPT-5 (OpenAI) — Generation & Transformation
+**Strengths**: Fast code generation from specs, deterministic pattern-following, test scaffolding, structural refactoring, creative solution generation.
+
+**Delegate when**:
+- Writing tests for new or existing features → **Test Writer**
+- Cleaning up code smells, extracting functions, reducing duplication → **Refactoring Advisor**
+
+### Gemini 2.5 Pro (Google) — Research & Context
+**Strengths**: Million-token context window, fast multi-file scanning, broad codebase surveys.
+
+**Delegate when**:
+- Researching how a feature works across many files → **Explore**
+- Gathering context before making changes → **Explore**
+- Finding all usages of a pattern or API → **Explore**
+
+## Agent Delegation Lessons Learned
+
+### What worked well
+1. **Detailed structured prompts** — Agents with explicit file lists + specific questions returned focused results. Vague prompts produced vague output.
+2. **Tool restrictions prevent context waste** — Read-only agents (`read, search`) cannot generate edit/execute output, keeping their return values lean.
+3. **Parallel delegation for independent tasks** — Firing Explore + Refactoring Advisor simultaneously for unrelated work saved time without cross-contamination.
+4. **Sequential chaining for dependent tasks** — Explore → analyze → implement (each in its own isolated session) kept the orchestrator's context clean.
+5. **Compressed reading** — Agents that used lean-ctx compressed modes (auto, signatures, map) returned denser, more useful results.
+
+### What needed fixing
+1. **Empty agent returns** — Complex prompts with too many sub-requests caused some agents to return empty results. **Fix**: Keep subagent prompts to 1-2 specific tasks. Break larger analyses into multiple smaller delegations.
+2. **File changes without reporting** — Some edit-capable agents modified files but didn't report what they changed. **Fix**: Always instruct agents to "Return a summary of what you changed with file:line refs."
+3. **Overly optimistic assumptions** — Agents sometimes assumed features were missing when they actually existed. **Fix**: Always include "Verify your assumptions by reading the actual code" in prompts.
+4. **Verbose output waste** — Some agents returned full file contents instead of summaries. **Fix**: Explicitly request "Return summaries with file:line refs, not full file dumps."
+
+### Prompt crafting rules for delegating
+When sending a task to any agent, ALWAYS include:
+1. **What files to read first** — "Read these files: [list]. Then..."
+2. **What to produce** — "Return a summary with file:line refs" or "Return the complete code changes"
+3. **What NOT to do** — "Do NOT make edits" / "Do NOT run tests"
+4. **Verify assumptions** — "Read the actual code before reporting"**
+
+## Task Delegation Protocol
+
+When the orchestrator receives a request, it should:
+
+1. **Classify** the task type (review, explain, write, test, refactor, explore, or code)
+2. **Check if research-heavy** (5+ files needed) → delegate to **Explore** first (Gemini's 1M context)
+3. **Delegate** to the appropriate agent — subagents run in isolated sessions with their own token budget
+4. **Await result** — agents return structured output, not files (unless they have edit permissions)
+5. **Act on output** — the orchestrator implements changes based on agent findings if needed
+6. **Verify** — check logs, run `php -l`, validate results
+
+### Delegation priority
+For tasks that span multiple categories, delegate in this order:
+1. **Explore first** — gather context before acting (Gemini's 1M context absorbs the largest reads)
+2. **Code review** — validate existing code before changing
+3. **Pattern explainer** — understand architecture before designing
+4. **Test writer** — write tests alongside or before implementation
+5. **Refactoring advisor** — clean up after implementation
+6. **Documentation writer** — document after implementation
+
+### Token optimization rules
+- **Sequential delegation** for large tasks — each subagent gets its own budget, chaining saves orchestrator context
+- **Keep subagent output ≤ 5K tokens** — return summaries with file:line refs, not full file dumps
+- **Explore absorbs all file reads** — don't read 20+ files in the orchestrator session
+- **Compressed reads** — prefer `ctx_read(mode: auto)` over raw file reads
+- **Parallel subagents**: OK only when each returns small output (< 2K tokens) — otherwise chain sequentially

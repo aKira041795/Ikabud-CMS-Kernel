@@ -8,7 +8,7 @@
     "kernel_os_compat": "6.1.0",
     "disyl_compat": "4.7.0",
     "tokens": "tokens.json",
-    "shell": "shell.disyl",
+    "shell": "layouts/public.disyl",
     "sections": "sections/",
     "entity_views": "entity-views/",
     "supported_surfaces": [
