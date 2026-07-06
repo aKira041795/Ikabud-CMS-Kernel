@@ -459,6 +459,7 @@ function kernelAdminContext(array $user, string $currentPage): array
         'kernel_user_role' => ($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin'
             ? 'Kernel Admin'
             : ucfirst($user['role'] ?? ''),
+        'is_superadmin' => ($user['role'] ?? '') === 'superadmin' && ($user['source'] ?? '') === 'kernel',
         'ext_nav_items' => function_exists('cmsGetExtensionNavItems')
             ? cmsGetExtensionNavItems()
             : [],
