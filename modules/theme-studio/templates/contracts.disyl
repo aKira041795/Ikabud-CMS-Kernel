@@ -53,19 +53,8 @@
                         <div class="text-xs text-gray-400 mt-1">{contract.file}</div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="font-medium
-                            {if contractKey == 'renderer-registry' && renderer_registry}text-green-700
-                            {else if contractKey == 'block-registry' && block_registry}text-green-700
-                            {else if contractKey == 'entity-view-map' && entity_view_map}text-green-700
-                            {else if contractKey == 'page-composition-schema' && page_composition_schema}text-green-700
-                            {else if contractKey == 'safety-policy' && safety_policy}text-green-700
-                            {:else}text-amber-700{/if}">
-                            {if contractKey == 'renderer-registry' && renderer_registry}Present
-                            {else if contractKey == 'block-registry' && block_registry}Present
-                            {else if contractKey == 'entity-view-map' && entity_view_map}Present
-                            {else if contractKey == 'page-composition-schema' && page_composition_schema}Present
-                            {else if contractKey == 'safety-policy' && safety_policy}Present
-                            {:else}Missing{/if}
+                        <span class="font-medium {if contract_presence[contractKey]}text-green-700{:else}text-amber-700{/if}">
+                            {if contract_presence[contractKey]}Present{:else}Missing{/if}
                         </span>
                         <a href="/admin/theme-studio/contracts/{contractKey}" class="text-xs px-2 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Edit</a>
                     </div>

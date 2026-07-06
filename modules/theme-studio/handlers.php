@@ -88,6 +88,10 @@ function handleElementList(array $params = []): void
         [
             'page_title' => 'Theme Elements',
             'elements' => $elements,
+            'elements_json' => json_encode(array_combine(
+                array_map(fn($el) => $el['id'] ?? 0, $elements),
+                $elements
+            ) ?: [], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'slot_items' => $slots,
             'governed_components' => $components,
         ]
@@ -124,7 +128,7 @@ function handleTokenEditor(array $params = []): void
             'active_theme' => $activeTheme,
             'theme_manifest' => $manifest,
             'token_overrides' => $overrides,
-            'token_overrides_json' => json_encode($overrides, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'token_overrides_json' => json_encode($overrides, JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             'token_definitions' => $flattenedTokens,
             'token_groups' => $tokenGroups,
             'token_group_rows' => $tokenGroupRows,
@@ -158,8 +162,10 @@ function handleContractExplorer(array $params = []): void
             'renderer_registry' => is_array($contracts['renderer_registry'] ?? null) ? $contracts['renderer_registry'] : [],
             'block_registry' => is_array($contracts['block_registry'] ?? null) ? $contracts['block_registry'] : [],
             'entity_view_map' => is_array($contracts['entity_view_map'] ?? null) ? $contracts['entity_view_map'] : [],
+            'page_composition_schema' => is_array($contracts['page_composition_schema'] ?? null) ? $contracts['page_composition_schema'] : [],
             'safety_policy' => is_array($contracts['safety_policy'] ?? null) ? $contracts['safety_policy'] : [],
             'editable_contracts' => $editableContracts,
+            'contract_presence' => array_map(fn(string $key): bool => !empty($contracts[$key]), array_keys($editableContracts)),
         ]
     ));
 }
@@ -335,8 +341,9 @@ function apiApplyPreset(array $params = []): void
     $slug = trim((string)($params['slug'] ?? ''));
 
     if ($slug === '') {
-        http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Slug required']);
+        // Empty slug = clear active preset
+        saveModuleSettings('theme-studio', ['active_preset' => '']);
+        echo json_encode(['ok' => true, 'cleared' => true]);
         return;
     }
 

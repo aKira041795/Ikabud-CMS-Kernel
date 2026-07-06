@@ -163,6 +163,7 @@
         return {
             showForm: false,
             editingId: null,
+            elementMap: {elements_json|raw},
             form: {
                 slug: '', label: '', element_type: 'hook', slot_name: '',
                 component: 'ikb_panel', component_attrs: '',
@@ -176,24 +177,21 @@
                 this.showForm = true;
             },
             editElement(id) {
-                // Find element by id and populate form
-                {for el in elements}
-                if ({el.id|default:0} == id) {
-                    this.editingId = id;
-                    this.form = {
-                        slug: '{el.slug}',
-                        label: '{el.label}',
-                        element_type: '{el.element_type}',
-                        slot_name: '{el.slot_name|default:""}',
-                        component: '{el.component|default:"ikb_panel"}',
-                        component_attrs: '{el.component_attrs|default:""}',
-                        display_conditions: '{el.display_conditions|default:""}',
-                        priority: {el.priority|default:10},
-                        is_active: {if el.is_active}true{else}false{/if}
-                    };
-                    this.showForm = true;
-                }
-                {/for}
+                const el = this.elementMap[id];
+                if (!el) return;
+                this.editingId = id;
+                this.form = {
+                    slug: el.slug || '',
+                    label: el.label || '',
+                    element_type: el.element_type || 'hook',
+                    slot_name: el.slot_name || '',
+                    component: el.component || 'ikb_panel',
+                    component_attrs: el.component_attrs || '',
+                    display_conditions: el.display_conditions || '',
+                    priority: el.priority || 10,
+                    is_active: el.is_active || false
+                };
+                this.showForm = true;
             }
         };
     }

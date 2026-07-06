@@ -493,29 +493,6 @@ function themeStudioRegisterElementContributions(): void
 
 // ── Admin Helpers ────────────────────────────────────────────────
 
-/**
- * Render a Theme Studio admin page.
- */
-function themeStudioRender(string $template, array $context = []): string
-{
-    $adminContext = [
-        'page_title' => 'Theme Studio',
-        'studio_enabled' => getModuleSettings('theme-studio')['studio_enabled'] ?? '1',
-        'active_theme' => function_exists('cmsActiveTheme') ? cmsActiveTheme() : null,
-        'available_themes' => function_exists('cmsAvailableThemes') ? cmsAvailableThemes() : [],
-    ];
-
-    if (function_exists('cmsAdminContext')) {
-        $user = function_exists('cmsCtxUser') ? cmsCtxUser() : [];
-        $adminContext = array_merge(
-            cmsAdminContext($user, 'theme-studio', []),
-            $adminContext
-        );
-    }
-
-    return cmsRender($template, array_merge($adminContext, $context));
-}
-
 function themeStudioReadThemeJson(string $themeSlug, string $fileName): array
 {
     $themeSlug = trim($themeSlug);
@@ -1864,3 +1841,24 @@ function themeStudioResolveBlockDefinitionTargetPath(string $themeSlug, string $
         'block-definitions/' . trim($categoryName) . '/' . trim($blockType) . '.json'
     );
 }
+
+
+// ── CMS Admin Sidebar Registration ──
+// Registers Theme Studio nav items in the CMS admin sidebar via hook.
+app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
+    $baseUrl = rtrim((string)(defined('BASE_URL') ? BASE_URL : ''), '/');
+
+    $items[] = [
+        'label'    => 'Theme Studio',
+        'section'  => true,
+        'children' => [
+            ['label' => 'Dashboard',      'url' => $baseUrl . '/admin/theme-studio',              'icon' => 'paint-brush',  'active_key' => 'theme-studio'],
+            ['label' => 'Design Tokens',  'url' => $baseUrl . '/admin/theme-studio/tokens',       'icon' => 'palette',      'active_key' => 'theme-studio-tokens'],
+            ['label' => 'Presets',        'url' => $baseUrl . '/admin/theme-studio/presets',      'icon' => 'clone',        'active_key' => 'theme-studio-presets'],
+            ['label' => 'Elements',       'url' => $baseUrl . '/admin/theme-studio/elements',     'icon' => 'puzzle-piece', 'active_key' => 'theme-studio-elements'],
+            ['label' => 'Contracts',      'url' => $baseUrl . '/admin/theme-studio/contracts',    'icon' => 'view-columns', 'active_key' => 'theme-studio-contracts'],
+            ['label' => 'Blocks',         'url' => $baseUrl . '/admin/theme-studio/blocks',       'icon' => 'collection',   'active_key' => 'theme-studio-blocks'],
+        ],
+    ];
+    return $items;
+}, 25);

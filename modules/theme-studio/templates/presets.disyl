@@ -93,7 +93,7 @@
     <div class="bg-white rounded-xl shadow-xl p-6 max-w-md w-full mx-4" onclick="event.stopPropagation()">
         <h2 class="text-lg font-semibold mb-3">Import Preset</h2>
         <p class="text-sm text-gray-500 mb-4">Paste a preset JSON exported from another Ikabud installation. Theme Studio now accepts pasted payloads directly from this form.</p>
-        <form method="POST" action="/api/v1/theme-studio/presets/import" enctype="text/plain">
+        <form method="POST" action="/api/v1/theme-studio/presets/import">
             <textarea name="payload" rows="8" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono mb-4" placeholder='{"preset":{"slug":"...","label":"...","data":{...}}}'></textarea>
             <div class="flex gap-2 justify-end">
                 <button type="button" onclick="document.getElementById('importModal').classList.add('hidden')" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
