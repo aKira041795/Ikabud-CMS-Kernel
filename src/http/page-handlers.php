@@ -824,8 +824,8 @@ if (!function_exists('kernelHandlePageSuperadminCache')) {
         ];
 
         $breadcrumbs = [
-            ['label' => 'Dashboard', 'url' => app()->baseUrl() . '/cms/admin'],
-            ['label' => 'Settings', 'url' => app()->baseUrl() . '/superadmin/settings'],
+            ['label' => 'Platform', 'url' => '/admin/platform'],
+            ['label' => 'Settings', 'url' => '/superadmin/settings'],
             ['label' => 'Cache Observability'],
         ];
 
