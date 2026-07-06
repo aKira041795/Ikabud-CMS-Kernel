@@ -107,12 +107,12 @@ bt('migration 002 exists', is_file(BASE_PATH . '/modules/project-audit-ledger/da
 $handlerDir = BASE_PATH . '/modules/project-audit-ledger/handlers';
 $handlerFiles = scandir($handlerDir);
 $handlerFiles = array_values(array_filter($handlerFiles, fn($f) => str_ends_with($f, '.php')));
-bt('16 handler files exist', count($handlerFiles) === 16);
+bt('17 handler files exist', count($handlerFiles) === 17);
 
 $serviceDir = BASE_PATH . '/modules/project-audit-ledger/services';
 $serviceFiles = scandir($serviceDir);
 $serviceFiles = array_values(array_filter($serviceFiles, fn($f) => str_ends_with($f, '.php')));
-bt('9 service files exist', count($serviceFiles) === 9);
+bt('10 service files exist', count($serviceFiles) === 10);
 
 echo "\n── PHP Syntax ──\n";
 $allPhpFiles = array_merge(

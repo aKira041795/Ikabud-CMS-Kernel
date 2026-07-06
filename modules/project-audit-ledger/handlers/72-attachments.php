@@ -36,7 +36,8 @@ function palPageAttachmentDownload(array $rp = []): void
     }
 
     header('Content-Type: ' . ($att['mime_type'] ?: 'application/octet-stream'));
-    header('Content-Disposition: attachment; filename="' . basename($att['original_filename']) . '"');
+    $safeFilename = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($att['original_filename']));
+    header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
     header('Content-Length: ' . filesize($absPath));
     readfile($absPath);
     exit;

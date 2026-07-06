@@ -116,7 +116,7 @@ function palAuthLogin(): void
     }
 
     if ((int)$row['is_active'] !== 1) {
-        $msg = 'Account is disabled.';
+        $msg = 'Invalid credentials.';
         if (!empty($input)) {
             header('Content-Type: application/json');
             echo json_encode(['ok' => false, 'error' => $msg]);
@@ -164,6 +164,7 @@ function palAuthLogin(): void
     }
 
     palSetAuthCookie($token);
+    session_regenerate_id(true);
     $_SESSION['pal_user'] = $payload;
 
     // Update last login
@@ -239,7 +240,7 @@ function palAuthForgotPassword(): void
         // Send reset email
         $userEmail = trim((string)($user['email'] ?? ''));
         $resetUrl = palBaseUrl() . '/project-audit-ledger/reset-password?token=' . urlencode($token);
-        write_log('Password reset for ' . $identity . ': ' . $resetUrl, 'info');
+        write_log('Password reset requested for ' . $identity, 'info');
         if ($userEmail !== '' && filter_var($userEmail, FILTER_VALIDATE_EMAIL)) {
             $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
             $resetUrl = palBaseUrl() . '/project-audit-ledger/reset-password?token=' . urlencode($token);

@@ -886,5 +886,5 @@ function palRejectStaleSession(): void
 {
     palClearAuthCookie();
     unset($_SESSION['pal_user']);
-    app()->redirect('http://palsystem.test/project-audit-ledger/login');
+    app()->redirect(palBaseUrl() . '/project-audit-ledger/login');
 }

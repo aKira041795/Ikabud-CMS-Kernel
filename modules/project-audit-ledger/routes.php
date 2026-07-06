@@ -12,6 +12,7 @@ return [
         '/admin/project-audit-ledger/projects/create' => 'project-audit-ledger:palPageProjectForm',
         '/admin/project-audit-ledger/projects/{id}/edit' => 'project-audit-ledger:palPageProjectForm',
         '/admin/project-audit-ledger/projects/{id}' => 'project-audit-ledger:palPageProjectDetail',
+        '/api/v1/project-audit-ledger/projects' => 'project-audit-ledger:palApiProjectList',
         '/admin/project-audit-ledger/clients' => 'project-audit-ledger:palPageClientList',
         '/admin/project-audit-ledger/clients/create' => 'project-audit-ledger:palPageClientForm',
         '/admin/project-audit-ledger/clients/{id}/edit' => 'project-audit-ledger:palPageClientForm',

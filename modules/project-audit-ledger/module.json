@@ -51,8 +51,7 @@
         "pal_settings"
     ],
     "reads_tables": [
-        "audit_logs",
-        "pal_material_issuance_items"
+        "audit_logs"
     ],
     "migrations": [
         "database/migrations/001_pal_core_schema.sql",
