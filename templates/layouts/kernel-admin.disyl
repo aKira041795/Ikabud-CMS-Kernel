@@ -127,6 +127,48 @@
     .kernel-btn-outline:hover { background: rgba(76, 110, 245, 0.08); }
     .kernel-btn-danger { background: #e03131; color: #fff; border: none; }
     .kernel-btn-danger:hover { background: #c92a2a; }
+
+    /* ── Shared component styles (for child templates) ───── */
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 9px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 700; border: none; cursor: pointer; transition: all .15s; gap: 6px; color: var(--text); }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { background: #4263eb; transform: translateY(-1px); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-outline { border: 1px solid rgba(148,163,184,.24); background: rgba(255,255,255,.82); color: var(--text); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); transform: translateY(-1px); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { filter: brightness(.85); }
+    .btn-muted { border: 1px solid rgba(148,163,184,.24); background: transparent; color: var(--text-muted); font-weight: 600; }
+    .btn-muted:hover { border-color: var(--text-muted); color: var(--text); }
+    .btn-save { background: var(--primary); color: #fff; font-weight: 700; }
+    .btn-save:hover { background: #4263eb; }
+
+    /* ── Modals ─────────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); display: none; align-items: center; justify-content: center; z-index: 250; padding: 14px; }
+    .modal { background: rgba(255,255,255,.96); border: 1px solid rgba(148,163,184,.22); border-radius: var(--radius); width: 100%; max-width: 520px; box-shadow: 0 22px 50px rgba(0,0,0,.22); padding: 20px; }
+    .modal h3 { margin: 0 0 16px 0; font-size: 16px; font-weight: 700; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+
+    /* ── Forms ──────────────────────────────────────────── */
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+    .form-input { width: 100%; padding: 10px 12px; border: 1px solid rgba(148,163,184,.24); border-radius: var(--radius); font-size: 13px; font-family: inherit; color: var(--text); transition: border-color .15s; background: rgba(255,255,255,.9); }
+    .form-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(76,110,245,.15); }
+    select.form-input { -webkit-appearance: none; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a6577' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 10px center; padding-right: 28px; }
+
+    /* ── Page structure ─────────────────────────────────── */
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; flex-wrap: wrap; gap: 14px; padding: 18px 22px; background: linear-gradient(180deg, rgba(255,255,255,.84), rgba(255,255,255,.68)); border: 1px solid rgba(148,163,184,.18); border-radius: var(--radius); box-shadow: 0 18px 38px rgba(15,23,42,.06); }
+    .page-header h2 { font-size: 31px; font-weight: 800; letter-spacing: -.03em; margin: 0; }
+    .page-header .page-desc { font-size: 13px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; max-width: 720px; }
+    .page-header .page-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .panel { background: rgba(255,255,255,.88); border: 1px solid var(--kernel-panel-border); border-radius: var(--radius); padding: 18px; }
+    .panel + .panel { margin-top: 14px; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--radius); font-size: 11px; border: 1px solid var(--border); background: var(--bg); color: var(--text-muted); }
+    .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); background: rgba(255,255,255,.74); border: 1px solid rgba(148,163,184,.18); border-radius: var(--radius); }
+    .empty-state h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+    .empty-state p { font-size: 13px; }
   </style>
   {block head}{/block}
 </head>
