@@ -201,6 +201,7 @@
     <!-- Desktop sidebar -->
     <aside class="kernel-sidebar hidden lg:flex lg:flex-col bg-slate-900 text-white shrink-0 transition-all duration-200" x-show="sidebarOpen" x-cloak>
       <nav class="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+        {if !is_superadmin}
         <span class="section-title">System</span>
         <a href="{base_url}/admin/tenants" class="{if current_page == 'tenants'}active{/if}">
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -218,6 +219,7 @@
           <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
           Platform
         </a>
+        {/if}
         {if is_superadmin}
         <span class="section-title">Superadmin</span>
         <a href="{base_url}/superadmin/settings" class="{if current_page == 'settings'}active{/if}">
@@ -247,6 +249,7 @@
           </button>
         </div>
         <nav class="py-3 px-2 space-y-0.5">
+          {if !is_superadmin}
           <span class="section-title">System</span>
           <a href="{base_url}/admin/tenants">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -264,6 +267,7 @@
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             Platform
           </a>
+          {/if}
           {if is_superadmin}
           <span class="section-title">Superadmin</span>
           <a href="{base_url}/superadmin/settings">
@@ -304,6 +308,9 @@
     </template>
   </div>
   <script>
+    function toast(message, type) {
+      window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: message || '', type: type || 'success' } }));
+    }
     function cmsToast() {
       return {
         toasts: [],
