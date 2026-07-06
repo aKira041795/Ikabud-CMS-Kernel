@@ -2,7 +2,7 @@
    Search results page with query display, filter preservation, and pagination.
    Handles empty-state gracefully. #}
 
-{extends "_cms_active_theme/layouts/public.v3.disyl"}
+{extends "_cms_active_theme/layouts/public.disyl"}
 
 {block head}
 {include "partials/canonical-entity-styles.disyl"}

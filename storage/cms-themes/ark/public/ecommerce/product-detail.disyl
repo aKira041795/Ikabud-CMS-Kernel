@@ -1,0 +1,222 @@
+{# ARK V3: Ecommerce Product Detail Template
+   Product detail page with pricing, gallery, inventory, and action blocks.
+   Capability-gated blocks render conditionally based on module presence. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{set is_ecommerce_public = true}
+{set is_ecommerce_entity_route = true}
+{set entity_view_context = entity_view_context|default:[]}
+{set entity_presentation = entity_presentation|default:[]}
+{set builder_enabled = builder_enabled|default:false}
+
+{block head}
+{include "partials/canonical-entity-styles.disyl"}
+{include "partials/storefront-styles.disyl"}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
+
+{block content}
+{ikb_section padding="large"}
+    {ikb_container size="xlarge"}
+
+        {# Breadcrumb #}
+        {if breadcrumbs}
+        <nav class="ark-breadcrumbs" aria-label="Breadcrumb">
+            <ol class="ark-breadcrumbs__list">
+                {for crumb in breadcrumbs}
+                <li class="ark-breadcrumbs__item">
+                    {if crumb.url and not loop.last}
+                    <a href="{crumb.url}" class="ark-breadcrumbs__link">{crumb.label}</a>
+                    {else}
+                    <span class="ark-breadcrumbs__current" aria-current="page">{crumb.label}</span>
+                    {/if}
+                </li>
+                {/for}
+            </ol>
+        </nav>
+        {/if}
+
+        {if entity}
+        <article class="ark-product-detail" itemscope itemtype="http://schema.org/Product">
+
+            {# Product layout: image gallery + details side by side #}
+            <div class="ark-product-detail__grid">
+
+                {# Left: Gallery #}
+                <div class="ark-product-detail__gallery">
+                    {if entity.images}
+                    <div class="ark-gallery" x-data="{ activeImage: 0 }">
+                        <div class="ark-gallery__main">
+                            <img
+                                src="{entity.images[0].url|default:entity.images[0]|default:entity.featured_image_url|default:entity.image}"
+                                alt="{entity.name|default:''}"
+                                class="ark-gallery__main-image"
+                                x-bind:src="entity.images[activeImage]?.url || entity.images[activeImage] || entity.featured_image_url"
+                            />
+                        </div>
+                        {if entity.images|length > 1}
+                        <div class="ark-gallery__thumbs">
+                            {for i, img in entity.images}
+                            <button
+                                class="ark-gallery__thumb"
+                                :class="{ 'ark-gallery__thumb--active': activeImage === {i} }"
+                                @click="activeImage = {i}"
+                                aria-label="View image {i + 1}"
+                            >
+                                <img src="{img.url|default:img}" alt="" />
+                            </button>
+                            {/for}
+                        </div>
+                        {/if}
+                    </div>
+                    {else if entity.featured_image_url or entity.image}
+                    <img
+                        src="{entity.featured_image_url|default:entity.image}"
+                        alt="{entity.name|default:''}"
+                        class="ark-product-detail__featured"
+                    />
+                    {/if}
+                </div>
+
+                {# Right: Product info #}
+                <div class="ark-product-detail__info">
+                    <h1 class="ark-detail__title" itemprop="name">{entity.name|default:page_title}</h1>
+
+                    {# Rating / reviews #}
+                    {if entity.rating or entity.review_count}
+                    <div class="ark-product-detail__rating">
+                        {if entity.rating}
+                        <span class="ark-product-detail__stars" aria-label="{entity.rating} out of 5 stars">
+                            {for s = 1; s <= 5; s++}
+                                {if s <= entity.rating|round}
+                                &#9733;
+                                {else}
+                                &#9734;
+                                {/if}
+                            {/for}
+                        </span>
+                        {/if}
+                        {if entity.review_count}
+                        <span class="ark-product-detail__review-count">({entity.review_count} reviews)</span>
+                        {/if}
+                    </div>
+                    {/if}
+
+                    {# Pricing block #}
+                    {if capability_data.pricing}
+                        {set pricing_variant = entity_presentation.block_variants.pricing|default:'default'}
+                        {if pricing_variant == 'featured'}
+                            {include "_cms_active_theme/public/blocks/pricing/pricing.block.featured.disyl"}
+                        {else}
+                            {include "_cms_active_theme/public/blocks/pricing/pricing.block.default.disyl"}
+                        {/if}
+                    {else if entity.price}
+                    <div class="ark-product-detail__price">
+                        <span class="ark-price__amount">{entity.price_formatted|default:entity.price}</span>
+                        {if entity.compare_at_price}
+                        <span class="ark-price__original">{entity.compare_at_price}</span>
+                        {/if}
+                    </div>
+                    {/if}
+
+                    {# Short description #}
+                    {if entity.excerpt}
+                    <p class="ark-product-detail__excerpt" itemprop="description">{entity.excerpt}</p>
+                    {/if}
+
+                    {# Inventory block #}
+                    {if capability_data.inventory}
+                        {set inventory_variant = entity_presentation.block_variants.inventory|default:'default'}
+                        {if inventory_variant == 'compact'}
+                            {include "_cms_active_theme/public/blocks/inventory/inventory.block.compact.disyl"}
+                        {else}
+                            {include "_cms_active_theme/public/blocks/inventory/inventory.block.default.disyl"}
+                        {/if}
+                    {else if entity.stock_status}
+                    <div class="ark-product-detail__stock">
+                        <span class="ark-badge ark-badge--{entity.stock_status == 'in_stock' ? 'success' : 'danger'}">{entity.stock_status_label|default:entity.stock_status}</span>
+                    </div>
+                    {/if}
+
+                    {# Variants / options #}
+                    {if entity.options}
+                    <div class="ark-product-detail__options">
+                        {for option in entity.options}
+                        <div class="ark-form-group">
+                            <label class="ark-label" for="opt-{option.name}">{option.name}</label>
+                            <select id="opt-{option.name}" class="ark-select">
+                                {for val in option.values}
+                                <option value="{val}">{val}</option>
+                                {/for}
+                            </select>
+                        </div>
+                        {/for}
+                    </div>
+                    {/if}
+
+                    {# Action strip #}
+                    {if capability_data.actions}
+                        {set action_variant = entity_presentation.block_variants.action|default:'default'}
+                        {if action_variant == 'inline'}
+                            {include "_cms_active_theme/public/blocks/action/action.block.inline.disyl"}
+                        {else}
+                            {include "_cms_active_theme/public/blocks/action/action.block.default.disyl"}
+                        {/if}
+                    {else}
+                    <div class="ark-product-detail__actions">
+                        {if add_to_cart_url}
+                        <a href="{add_to_cart_url}" class="ark-btn ark-btn--primary ark-btn--lg ark-product-detail__cta">Add to Cart</a>
+                        {/if}
+                        {if wishlist_url}
+                        <a href="{wishlist_url}" class="ark-btn ark-btn--ghost ark-btn--lg">Add to Wishlist</a>
+                        {/if}
+                    </div>
+                    {/if}
+
+                    {# Meta: SKU, categories, tags #}
+                    <div class="ark-product-detail__meta">
+                        {if entity.sku}
+                        <p class="ark-product-detail__sku">SKU: <span itemprop="sku">{entity.sku}</span></p>
+                        {/if}
+                        {if entity.categories}
+                        <div class="ark-product-detail__categories">
+                            Categories:
+                            {for cat in entity.categories}
+                            <a href="{cat.url}" class="ark-badge ark-badge--gray">{cat.name|default:cat}</a>
+                            {/for}
+                        </div>
+                        {/if}
+                    </div>
+                </div>
+            </div>
+
+            {# Full description (below fold) #}
+            {if entity.description or entity.body}
+            <div class="ark-product-detail__description ark-content">
+                <h2>Description</h2>
+                {entity.description|default:entity.body|raw}
+            </div>
+            {/if}
+
+            {# Related products #}
+            {if related_products}
+            <div class="ark-product-detail__related">
+                <h2>Related Products</h2>
+                <div class="ark-product-grid">
+                    {ikb_entity_list source="ecommerce_product.related" view="card_grid" limit="4" /}
+                </div>
+            </div>
+            {/if}
+        </article>
+
+        {else}
+        <div class="ark-empty">
+            <div class="ark-empty__icon">&#x1F6D2;</div>
+            <div class="ark-empty__text">{error_state|default:'Product not found.'}</div>
+            <a href="{base_url}/ecommerce/shop" class="ark-btn ark-btn--ghost ark-btn--sm">&larr; Back to Shop</a>
+        </div>
+        {/if}
+    {/ikb_container}
+{/ikb_section}
+{/block}

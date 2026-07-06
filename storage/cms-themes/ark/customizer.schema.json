@@ -1,8 +1,8 @@
 {
     "$schema": "https://ikabud.dev/schemas/customizer-schema-v1.json",
     "title": "ARK Theme Customizer",
-    "description": "Customization schema for the ARK Reference Theme",
-    "schema_version": "1.0.0",
+    "description": "Customization schema for the ARK Reference Theme. V3 adds form styling controls, dark mode toggle, and enhanced preview sections.",
+    "schema_version": "3.0.0",
     "sections": {
         "header": {
             "label": "Header Settings",

@@ -1,8 +1,8 @@
 {
     "name": "ark",
-    "version": "1.0.0",
+    "version": "3.0.0",
     "label": "ARK Reference Theme",
-    "description": "ARK — Architectural Reference Kit: production reference theme and executable theme specification for Kernel OS 6.1+. Demonstrates every approved theme convention.",
+    "description": "ARK — Architectural Reference Kit: production reference theme and executable theme specification for Kernel OS 6.1+. Demonstrates every approved theme convention. V3: dark mode, form components, ecommerce storefront templates, enhanced a11y.",
     "author": "Ikabud Kernel Team",
     "license": "MIT",
     "kernel_os_compat": "6.1.0",

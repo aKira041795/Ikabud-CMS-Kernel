@@ -124,6 +124,7 @@
         {/if}
     {/if}
     {/block}
+    {ikb_slot name="header.main" /}
     {ikb_slot name="header.after" /}
 
     {ikb_slot name="hero" /}
@@ -142,6 +143,13 @@
         </aside>
         {/if}
 
+        {# Sidebar slots (fallback when no customizer sidebar) #}
+        {if not show_customizer_sidebar}
+        <aside class="ark-sidebar ark-sidebar--primary" aria-label="Primary sidebar">
+            {ikb_slot name="sidebar.primary" /}
+        </aside>
+        {/if}
+
         <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar} cms-main-slot{/if}" tabindex="-1">
             {ikb_slot name="content.before" /}
             {block content}
@@ -151,6 +159,13 @@
             {/block}
             {ikb_slot name="content.after" /}
         </main>
+
+        {# Sidebar slots (fallback when no customizer sidebar) #}
+        {if not show_customizer_sidebar}
+        <aside class="ark-sidebar ark-sidebar--secondary" aria-label="Secondary sidebar">
+            {ikb_slot name="sidebar.secondary" /}
+        </aside>
+        {/if}
 
         {# Sidebar on right (default) or slot-only sidebars when no customizer sidebar #}
         {if show_customizer_sidebar and sidebar_position != 'left'}
@@ -167,6 +182,7 @@
     {else}
         {include "_cms_active_theme/public/partials/footer.disyl"}
     {/if}
+    {ikb_slot name="footer.main" /}
     {ikb_slot name="footer.after" /}
 
     {ikb_slot name="site.after" /}

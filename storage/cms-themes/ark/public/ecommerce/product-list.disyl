@@ -1,0 +1,101 @@
+{# ARK V3: Ecommerce Product List Template
+   Product grid for storefront category/search pages.
+   Uses governed {ikb_entity_list} for data resolution.
+   Renders through entity-view contracts with pricing/inventory variants. #}
+
+{extends "_cms_active_theme/layouts/public.disyl"}
+
+{set is_ecommerce_public = true}
+{set is_ecommerce_entity_route = true}
+{set entity_view_context = entity_view_context|default:[]}
+{set entity_presentation = entity_presentation|default:[]}
+
+{block head}
+{include "partials/canonical-entity-styles.disyl"}
+{include "partials/storefront-styles.disyl"}
+{if structured_data}{structured_data|raw}{/if}
+{/block}
+
+{block content}
+{ikb_section padding="large"}
+    {ikb_container size="xlarge"}
+        {# Page header with store info #}
+        {if page_title or store_name}
+        <header class="ark-store-hero">
+            {if store_logo_url}
+            <img src="{store_logo_url}" alt="" class="ark-store-hero__avatar" />
+            {/if}
+            <div>
+                <h1 class="ark-store-hero__title">{page_title|default:store_name|default:'Shop'}</h1>
+                {if page_description}
+                <p class="ark-store-hero__meta">{page_description}</p>
+                {/if}
+            </div>
+        </header>
+        {/if}
+
+        {# Toolbar: sort + filter #}
+        {if categories or sort_options}
+        <div class="ark-list-toolbar">
+            {if categories}
+            <div class="ark-form-group">
+                <label for="ark-category-select" class="ark-label">Category</label>
+                <select id="ark-category-select" class="ark-select" onchange="window.location.href=this.value">
+                    <option value="{all_items_url|default:'?'}">All</option>
+                    {for cat in categories}
+                    <option value="{cat.url}"{if cat.active} selected{/if}>{cat.label} ({cat.count})</option>
+                    {/for}
+                </select>
+            </div>
+            {/if}
+            {if sort_options}
+            <div class="ark-form-group">
+                <label for="ark-sort-select" class="ark-label">Sort by</label>
+                <select id="ark-sort-select" class="ark-select" onchange="window.location.href=this.value">
+                    {for opt in sort_options}
+                    <option value="{opt.url}"{if opt.active} selected{/if}>{opt.label}</option>
+                    {/for}
+                </select>
+            </div>
+            {/if}
+            {if result_count}
+            <p class="ark-result-summary">{result_count} products</p>
+            {/if}
+        </div>
+        {/if}
+
+        {# Product grid via entity list — uses product_card variant when available #}
+        {if entity_type}
+            {ikb_entity_list
+                source="{entity_type}.{qualifier|default:'recent'}"
+                view="{entity_view|default:'card_grid'}"
+                limit="{entity_limit|default:12}"
+            /}
+        {else}
+            {ikb_entity_list source="ecommerce_product.recent" view="card_grid" limit="12" /}
+        {/if}
+
+        {# Pagination #}
+        {if pagination and pagination.total > 1}
+        <nav class="ark-pagination" aria-label="Product pagination">
+            {if pagination.prev_url}
+            <a href="{pagination.prev_url}" class="ark-btn ark-btn--outline ark-btn--sm">&larr; Previous</a>
+            {/if}
+            <span class="ark-pagination__status">Page {pagination.current} of {pagination.total}</span>
+            {if pagination.next_url}
+            <a href="{pagination.next_url}" class="ark-btn ark-btn--outline ark-btn--sm">Next &rarr;</a>
+            {/if}
+        </nav>
+        {/if}
+
+        {# Empty state #}
+        {if result_count == 0 and entity_type}
+        <div class="ark-empty">
+            <div class="ark-empty__icon">&#x1F6D2;</div>
+            <div class="ark-empty__text">{empty_state|default:'No products found.'}</div>
+            <a href="{base_url}/ecommerce/shop" class="ark-btn ark-btn--ghost ark-btn--sm">Browse all products &rarr;</a>
+        </div>
+        {/if}
+    {/ikb_container}
+{/ikb_section}
+{/block}

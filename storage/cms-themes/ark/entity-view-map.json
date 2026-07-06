@@ -1,6 +1,6 @@
 {
-    "version": "2.0.0",
-    "description": "ARK cross-module entity presentation contract map.",
+    "version": "3.0.0",
+    "description": "ARK cross-module entity presentation contract map. V3 extends with guidance, attendance-wage, and pal module entity types.",
     "entity_views": {
         "cms_post": {
             "card_grid": {
@@ -144,6 +144,144 @@
                 "actions": [
                     "view",
                     "move"
+                ]
+            }
+        },
+        "guidance_case": {
+            "compact": {
+                "fields": [
+                    "title",
+                    "status",
+                    "assigned_to",
+                    "updated_at"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "patient_summary"
+            },
+            "detail": {
+                "fields": [
+                    "title",
+                    "status",
+                    "assigned_to",
+                    "description",
+                    "created_at",
+                    "updated_at"
+                ],
+                "actions": [
+                    "view",
+                    "edit"
+                ]
+            }
+        },
+        "guidance_appointment": {
+            "compact": {
+                "fields": [
+                    "patient_name",
+                    "appointment_type",
+                    "status",
+                    "scheduled_at"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "appointment_list"
+            },
+            "detail": {
+                "fields": [
+                    "appointment_uuid",
+                    "patient_name",
+                    "appointment_type",
+                    "reason_for_visit",
+                    "status",
+                    "scheduled_at"
+                ],
+                "actions": [
+                    "view"
+                ]
+            }
+        },
+        "attendance_record": {
+            "compact": {
+                "fields": [
+                    "employee_name",
+                    "date",
+                    "clock_in",
+                    "clock_out",
+                    "status"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "ledger_row"
+            },
+            "table": {
+                "fields": [
+                    "employee_name",
+                    "date",
+                    "clock_in",
+                    "clock_out",
+                    "hours_worked",
+                    "status"
+                ],
+                "actions": [
+                    "view",
+                    "edit"
+                ]
+            }
+        },
+        "pal_project": {
+            "compact": {
+                "fields": [
+                    "name",
+                    "status",
+                    "budget",
+                    "deadline"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "course_card"
+            },
+            "detail": {
+                "fields": [
+                    "name",
+                    "status",
+                    "description",
+                    "budget",
+                    "deadline",
+                    "assigned_to"
+                ],
+                "actions": [
+                    "view",
+                    "edit"
+                ]
+            }
+        },
+        "pal_expense": {
+            "compact": {
+                "fields": [
+                    "description",
+                    "amount",
+                    "category",
+                    "date"
+                ],
+                "actions": [
+                    "view"
+                ],
+                "block": "ledger_row"
+            },
+            "table": {
+                "fields": [
+                    "description",
+                    "amount",
+                    "category",
+                    "date",
+                    "approved_by"
+                ],
+                "actions": [
+                    "view"
                 ]
             }
         }

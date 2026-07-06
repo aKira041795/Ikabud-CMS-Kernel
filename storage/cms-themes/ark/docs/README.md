@@ -2,7 +2,7 @@
 
 > **ARK is the production reference theme and executable theme specification for Kernel OS 6.1+.**
 
-**Status**: Production pilot / reference implementation  
+**Status**: Production certified / reference implementation — V3.0  
 **Kernel OS**: `>=6.1.0`  
 **DiSyL**: `>=4.7.0`  
 **License**: MIT  
@@ -155,22 +155,76 @@ php ikabud theme:validate ark      # full certification
 php ikabud theme:inspect ark       # theme summary
 ```
 
+## Changelog
+
+### v3.0.0 (2026-07-06) — Production Certified
+
+- **Dark mode**: Full `@media (prefers-color-scheme: dark)` support with dark palette from `tokens.json`. All surface, text, border, and accent tokens remap automatically.
+- **Form components**: Complete form styling system — `.ark-form-group`, `.ark-input`, `.ark-select`, `.ark-textarea`, `.ark-checkbox`, `.ark-label`, `.ark-label--required`, input error/disabled/focus states, inline and two-column layouts.
+- **Component variants**: `.ark-panel` CSS class with tone (surface/muted/elevated/primary), spacing (none–xl), and radius (none–full) variants matching manifest declarations.
+- **Ecommerce storefront**: `public/ecommerce/product-list.disyl` and `product-detail.disyl` — full product grid with category/sort filters, gallery with Alpine.js thumbnail switching, pricing/inventory/action capability-gated blocks, SKU/category meta, and related products.
+- **script.js**: Optional Alpine.js/HTMX bridge with breadcrumb structured data injection, skip-link focus enhancement, gallery keyboard navigation, and customizer postMessage support. Zero mandatory JS.
+- **Entity view map v3**: Extended with guidance_case, guidance_appointment, attendance_record, pal_project, pal_expense entity types.
+- **Renderer registry v3**: Added accordion, tabs, hero, chart, cart_summary, checkout_cta, product_grid renderers.
+- **a11y audit**: Updated to v3, all 69+ checks passing. Test validates responsive, form, dark-mode, print, accessibility, forced-colors, and reduced-motion patterns.
+- **Performance**: CSS compressed ~10KB, well within 80KB budget.
+
+### v2.0.0 — A11Y / Responsive / Form / Dark-Mode Certification
+
+- Accessibility audit framework established
+- Mobile responsive patterns (768px, 1024px breakpoints)
+- Form component styles (inputs, selects, checkboxes, labels, errors)
+- Dark mode token wiring
+- Print stylesheet with full @page, orphans/widows, page-break-inside
+- Forced-colors (high contrast) support
+- Reduced motion media query
+
+### v1.0.0 — Initial Release
+
+- Production reference theme for Kernel OS 6.1+
+- 16 governed slots, 4 entity fallback views, 40+ blocks
+- Full design token system (tokens.json → CSS vars)
+- Multi-surface support (public, print, email)
+- Customizer integration with schema + PHP provider
+
 ## Files
 
 ```
 storage/cms-themes/ark/
 ├── theme.manifest.json       # Canonical manifest (immutable contract)
 ├── tokens.json               # Design tokens (CSS custom properties)
-├── style.css                 # Theme stylesheet (6KB)
+├── style.css                 # Theme stylesheet (V3: dark mode, form, panel variants)
+├── script.js                 # Optional Alpine/HTMX bridge (V3)
+├── safety-policy.json        # Raw output / blocked patterns policy
+├── slots.json                # 16 governed slot definitions
+├── entity-view-map.json      # Cross-module presentation contracts
+├── renderer-registry.json    # Block renderer contract map
+├── block-registry.json       # Builder block registry
+├── page-composition.schema.json # Document contract schema
+├── customizer.schema.json    # Customizer schema v3
+├── block-definitions/        # JSON block definitions (layout, content, data, forms, etc.)
 ├── layouts/
-│   └── public.disyl          # Shell with 16 governed slots
+│   ├── public.disyl          # Shell with 16 governed slots
+│   ├── public-print.disyl    # Print-optimized shell
+│   ├── public-email.disyl    # Email-safe table-based shell
+│   └── admin-preview.disyl   # Customizer iframe preview shell
 ├── public/
 │   ├── entity.list.disyl     # Generic entity list
 │   ├── entity.view.disyl     # Generic entity detail with capability blocks
 │   ├── home.disyl            # Home page
 │   ├── page.disyl            # Static page
 │   ├── 404.disyl             # 404 page
-│   └── blocks/               # Block library with semantic variants
-├── entity-views/             # Generic fallback templates
-└── docs/README.md
+│   ├── single.disyl          # Blog single post
+│   ├── archive.disyl         # Blog archive
+│   ├── search.disyl          # Search results
+│   ├── full-width.disyl      # Full-width (no sidebar)
+│   ├── landing.disyl         # Landing page (no header/footer)
+│   ├── ecommerce/            # Storefront templates (V3)
+│   ├── blocks/               # 40+ block library with semantic variants
+│   └── partials/             # Header, footer, sidebar, macros, pagination, etc.
+├── entity-views/             # Generic fallback templates (card, table, detail, compact)
+├── admin/                    # Admin panel templates
+├── src/ArkCustomizerProvider.php  # PHP customizer provider
+├── templates/regions/        # Region templates (header, footer, sidebar)
+└── docs/README.md            # This file
 ```

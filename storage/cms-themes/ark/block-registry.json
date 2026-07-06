@@ -1,6 +1,6 @@
 {
-    "version": "2.0.0",
-    "description": "ARK builder-compatible block registry. Future page builders must read/write ARK-compatible definitions.",
+    "version": "3.0.0",
+    "description": "ARK builder-compatible block registry. Future page builders must read/write ARK-compatible definitions. V3 extends with multi-source entity views, advanced layout blocks.",
     "categories": {
         "layout": [
             "page",

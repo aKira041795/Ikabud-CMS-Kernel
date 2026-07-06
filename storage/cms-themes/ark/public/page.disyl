@@ -1,6 +1,6 @@
 {# ARK: Standard Page Template #}
 
-{extends "_cms_active_theme/layouts/public.v3.disyl"}
+{extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
 {ikb_section padding="large"}

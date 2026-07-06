@@ -1,6 +1,6 @@
 {
-    "version": "1.0.0",
-    "description": "ARK canonical page composition contract for future builders. Mirrors the CMS builder document envelope persisted today.",
+    "version": "3.0.0",
+    "description": "ARK canonical page composition contract for future builders. Mirrors the CMS builder document envelope persisted today. V3 adds multi-source entity blocks and advanced layout nodes.",
     "document_envelope": {
         "required_keys": [
             "schema_version",

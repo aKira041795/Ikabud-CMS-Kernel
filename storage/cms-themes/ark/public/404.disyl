@@ -8,7 +8,7 @@
 {set page_description = page_description|default:''}
 {set cms_public_css_url = cms_public_css_url|default:'/assets/cms/cms-public.css'}
 
-{extends "_cms_active_theme/layouts/public.v3.disyl"}
+{extends "_cms_active_theme/layouts/public.disyl"}
 
 {block content}
 {ikb_section padding="xlarge"}

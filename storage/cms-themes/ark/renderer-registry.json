@@ -1,6 +1,6 @@
 {
-    "version": "2.0.0",
-    "description": "ARK renderer contract registry. Maps ARK schema-valid blocks to DiSyL templates or governed components.",
+    "version": "3.0.0",
+    "description": "ARK renderer contract registry. Maps ARK schema-valid blocks to DiSyL templates or governed components. V3 adds accordion, tabs, hero, chart, cart_summary, checkout_cta, product_grid renderers.",
     "renderers": {
         "entity_list": {
             "renders_as_component": "ikb_entity_list",
@@ -232,6 +232,86 @@
             "template": "public/blocks/list-card/list-card.progress.block.disyl",
             "controls": [
                 "show_progress"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "accordion": {
+            "template": "public/blocks/accordion.block.disyl",
+            "controls": [
+                "open_first",
+                "allow_multiple"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "tabs": {
+            "template": "public/blocks/tabs.block.disyl",
+            "controls": [
+                "orientation",
+                "default_tab"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "hero": {
+            "template": "public/blocks/hero.block.disyl",
+            "controls": [
+                "size",
+                "align",
+                "show_cta"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data",
+                "entity_presentation"
+            ]
+        },
+        "chart": {
+            "template": "public/blocks/chart.block.disyl",
+            "controls": [
+                "type",
+                "show_legend"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "cart_summary": {
+            "template": "public/blocks/cart_summary.block.disyl",
+            "controls": [
+                "show_thumbnail",
+                "show_remove"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "checkout_cta": {
+            "template": "public/blocks/checkout_cta.block.disyl",
+            "controls": [
+                "button_label",
+                "button_variant"
+            ],
+            "context_keys": [
+                "entity",
+                "capability_data"
+            ]
+        },
+        "product_grid": {
+            "template": "public/blocks/product_grid.block.disyl",
+            "controls": [
+                "columns",
+                "show_pagination"
             ],
             "context_keys": [
                 "entity",

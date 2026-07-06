@@ -1,22 +1,41 @@
-{# ARK Region Template: Sidebar #}
-{# Receives from ThemeRenderContext: settings.sidebar.*, tokens #}
-{# NOTE: DiSyL does NOT parse expressions inside <style> tags. Use inline styles. #}
+{# ARK Region Template: Sidebar (Orchestrator path)
+   Used as fallback when CMS customizer returns no HTML.
+   NOTE: Widgets are rendered by CMS PHP (cmsRenderSingleSidebarWidget) and passed
+   as {customized_sidebar|raw} in the ARK layout. This template provides structural
+   fallback with ARK-styled sidebar when the orchestrator dispatches directly.
+   Receives settings as section_settings.* (scope prefix stripped by orchestrator). #}
 {set position = section_settings.placement|default:'right'}
 {set sidebar_width = section_settings.width|default:'300'}
+{set visible_gap = section_settings.gap|default:'32'}
+{set sticky_enabled = section_settings.sticky|default:'0'}
+{set widget_bg = section_settings.widget_bg_color|default:'#ffffff'}
+{set widget_text = section_settings.widget_text_color|default:'#334155'}
+{set widget_title_c = section_settings.widget_title_color|default:'#0f172a'}
+{set widget_border = section_settings.widget_border_color|default:'#e2e8f0'}
+{set widget_link = section_settings.widget_link_color|default:'#2563eb'}
+{set widget_radius = section_settings.widget_radius|default:'10'}
+{set widget_padding = section_settings.widget_padding|default:'16'}
 {if section_settings.enabled|default:'0'}
-<div class="ark-customized-region ark-region-sidebar"
+<aside class="ark-region-sidebar"
      data-region="sidebar"
      data-theme="{theme}"
-     style="width:{sidebar_width}px;
-            {if position == 'left'}float:left;margin-right:{section_settings.gap|default:'32'}px;{else}float:right;margin-left:{section_settings.gap|default:'32'}px;{/if}
-            {if section_settings.sticky|default:'0'}position:sticky;top:1rem;{/if}">
+     style="width:{sidebar_width}px;flex-shrink:0;
+            margin-{if position == 'left'}right{else}left{/if}:{visible_gap}px;
+            {if sticky_enabled == '1'}position:sticky;top:1.5rem;{/if}">
+    {# Widgets are rendered by the CMS customizer PHP layer.
+       This template provides the themed fallback container.
+       Actual widgets are injected via the orchestrator's pre-rendered HTML. #}
     <div class="ark-region-sidebar__widget"
-     style="background:{section_settings.widget_bg_color|default:'#ffffff'};
-        border:1px solid {section_settings.widget_border_color|default:'#e2e8f0'};
-        border-radius:{section_settings.widget_radius|default:'10'}px;
-        padding:{section_settings.widget_padding|default:'16'}px;
-        color:{section_settings.widget_text_color|default:'#334155'};">
-    <p class="ark-region-sidebar__placeholder">Sidebar - Add widgets in Customizer</p>
+         style="background:{widget_bg};
+                border:1px solid {widget_border};
+                border-radius:{widget_radius}px;
+                padding:{widget_padding}px;
+                color:{widget_text};
+                --sidebar-link:{widget_link};
+                --sidebar-title:{widget_title_c};">
+        <p style="margin:0;font-size:0.8rem;opacity:0.6;text-align:center;">
+            Configure sidebar widgets in Appearance → Customize
+        </p>
     </div>
-</div>
+</aside>
 {/if}

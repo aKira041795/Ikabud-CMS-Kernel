@@ -1,9 +1,12 @@
 <?php
 /**
- * ARK v2.0 — Mobile / Form / Dark-mode / Print / Accessibility Audit
+ * ARK v3.0 — Mobile / Form / Dark-mode / Print / Accessibility Audit
  *
  * Programmatic audit of the ARK reference theme against WCAG 2.1 AA,
- * responsive best practices, and the v2.0 success criterion checklist.
+ * responsive best practices, and the v3.0 success criterion checklist.
+ *
+ * V3 additions: panel component variants, script.js existence, ecommerce
+ * template presence, enhanced entity-view-map validation.
  *
  * Runs as a standalone PHP integration test. Requires bootstrap.
  */
@@ -254,6 +257,40 @@ $compressedEstimate = (int) (strlen(gzcompress($css, 9)) / 1024);
 audit("CSS compressed size under 80KB budget ({$compressedEstimate}KB)", $compressedEstimate <= 80, "{$compressedEstimate}KB compressed");
 
 // ────────────────────────────────────────────
+// V3 COMPONENT & FILE INTEGRITY
+// ────────────────────────────────────────────
+echo "\n── 7. V3 Component & File Integrity ──\n";
+
+$panelExists = str_contains($css, '.ark-panel');
+$panelToneExists = str_contains($css, '.ark-panel--surface')
+    && str_contains($css, '.ark-panel--muted')
+    && str_contains($css, '.ark-panel--elevated')
+    && str_contains($css, '.ark-panel--primary');
+$panelSpacingExists = (bool) preg_match('/\.ark-panel--spacing-(none|sm|md|lg|xl)/', $css);
+$panelRadiusExists = (bool) preg_match('/\.ark-panel--radius-(none|sm|md|lg|full)/', $css);
+audit('.ark-panel component variant CSS exists', $panelExists);
+audit('.ark-panel tone variants (surface/muted/elevated/primary)', $panelToneExists);
+audit('.ark-panel spacing variants', $panelSpacingExists);
+audit('.ark-panel radius variants', $panelRadiusExists);
+
+$scriptPath = $themeDir . '/script.js';
+$scriptExists = is_file($scriptPath);
+audit('script.js exists (declared in manifest)', $scriptExists, $scriptExists ? (string)filesize($scriptPath) . ' bytes' : 'missing');
+
+$ecommerceList = $themeDir . '/public/ecommerce/product-list.disyl';
+$ecommerceDetail = $themeDir . '/public/ecommerce/product-detail.disyl';
+audit('Ecommerce product-list template exists', is_file($ecommerceList));
+audit('Ecommerce product-detail template exists', is_file($ecommerceDetail));
+
+$evmPath = $themeDir . '/entity-view-map.json';
+$evm = json_decode((string) @file_get_contents($evmPath), true) ?: [];
+$entityTypes = array_keys($evm['entity_views'] ?? []);
+$v3Types = ['guidance_case', 'guidance_appointment', 'attendance_record', 'pal_project', 'pal_expense'];
+foreach ($v3Types as $type) {
+    audit("Entity-view-map includes {$type}", in_array($type, $entityTypes, true));
+}
+
+// ────────────────────────────────────────────
 // LOG CHECK
 // ────────────────────────────────────────────
 echo "\n── 8. Log Sanity ──\n";
@@ -266,8 +303,8 @@ echo "\n════════════════════════
 echo "Results: {$passed} passed, {$failed} failed\n";
 
 if ($passed > 0 && $failed === 0) {
-    echo "\n✅ ARK v2.0 audit: ALL CHECKS PASSED\n";
-    echo "   Mobile, form, dark-mode, print, and a11y are production-ready.\n";
+    echo "\n✅ ARK v3.0 audit: ALL CHECKS PASSED\n";
+    echo "   Mobile, form, dark-mode, print, a11y, panels, ecommerce, and entity-view-map are production-ready.\n";
 }
 
 exit($failed > 0 ? 1 : 0);
