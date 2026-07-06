@@ -124,13 +124,19 @@ Agents should prefer structured output:
 
 ```
 Task arrives
+├── Does task require terminal execution (commands, builds, tests)?
+│   → Use Test Writer (execute tools) or do it directly
+│   → Read-only agents (Code Reviewer, Explore, Pattern Explainer) CANNOT run commands
 ├── Needs research across 5+ files? → Explore (Gemini, 1M budget)
 ├── Needs code review? → Code Reviewer (Claude, 200K budget)
 ├── Needs architecture explanation? → Pattern Explainer (Claude, 200K budget)
 ├── Needs tests written? → Test Writer (GPT, 128K budget)
 ├── Needs refactoring? → Refactoring Advisor (GPT, 128K budget)
 ├── Needs documentation? → Documentation Writer (Claude, 200K budget)
-└── Needs code generation/editing? → Orchestrator (default model)
+├── Needs code generation/editing? → Orchestrator (default model)
+└── Agent returned empty?
+    → Invoke Empty/Stale Agent Return Recovery Protocol
+    → Do NOT assume silence means success
 ```
 
 ## Monitored Metrics

@@ -57,12 +57,32 @@ This file defines the available custom agents, their assigned models, and delega
 3. **Overly optimistic assumptions** — Agents sometimes assumed features were missing when they actually existed. **Fix**: Always include "Verify your assumptions by reading the actual code" in prompts.
 4. **Verbose output waste** — Some agents returned full file contents instead of summaries. **Fix**: Explicitly request "Return summaries with file:line refs, not full file dumps."
 
+### Empty/Stale Agent Return — Recovery Protocol
+If a subagent returns empty (no output, or no meaningful content), DO NOT assume silence means success. Follow this recovery protocol:
+
+1. **Check output immediately** — If the agent returned empty, do NOT proceed as if work was done
+2. **Retry with a simpler prompt** — Split the original task into 1-2 smaller pieces. The most common cause of empty returns is a prompt with 3+ sub-tasks
+3. **Switch agent type if needed** — If Code Reviewer returned empty, try Explore to gather the raw data first, then analyze it yourself
+4. **Last resort: do it yourself** — If retries fail, perform the analysis directly in the orchestrator session
+5. **Log the failure** — Record which agent + prompt combo failed in repo memory so the pattern can be addressed
+
+#### Common empty-return scenarios and their fixes
+| Scenario | Likely cause | Fix |
+|---|---|---|
+| Agent returns nothing at all | Prompt too complex (5+ sub-tasks) | Split into 2-3 smaller delegations |
+| Agent returns "I don't have access to that" | Tool restriction prevents needed action | Switch to an agent with the right tools, or do it directly |
+| Agent returns after reading but no analysis | Read-only agent can't execute commands | Pre-read the data yourself, then ask for analysis only |
+| Agent starts work but returns incomplete | Context window filled by large files | Request compressed reads (`ctx_read mode: auto`) |
+| Agent returns file contents instead of summary | Lacked output format instruction | Explicitly say "Return a summary with file:line refs, not full file dumps" |
+
 ### Prompt crafting rules for delegating
 When sending a task to any agent, ALWAYS include:
 1. **What files to read first** — "Read these files: [list]. Then..."
 2. **What to produce** — "Return a summary with file:line refs" or "Return the complete code changes"
 3. **What NOT to do** — "Do NOT make edits" / "Do NOT run tests"
-4. **Verify assumptions** — "Read the actual code before reporting"**
+4. **Verify assumptions** — "Read the actual code before reporting"
+5. **Return explicitly** — "Return your findings — do NOT return empty. If you can't complete all tasks, return what you have."
+6. **Limit scope** — Maximum 2 sub-tasks per delegation prompt. For larger work, chain multiple sequential delegations.
 
 ## Task Delegation Protocol
 
@@ -70,10 +90,12 @@ When the orchestrator receives a request, it should:
 
 1. **Classify** the task type (review, explain, write, test, refactor, explore, or code)
 2. **Check if research-heavy** (5+ files needed) → delegate to **Explore** first (Gemini's 1M context)
-3. **Delegate** to the appropriate agent — subagents run in isolated sessions with their own token budget
-4. **Await result** — agents return structured output, not files (unless they have edit permissions)
-5. **Act on output** — the orchestrator implements changes based on agent findings if needed
-6. **Verify** — check logs, run `php -l`, validate results
+3. **Check whether tool restrictions block the task** — if the task needs terminal commands (e.g. running `php ikabud`), delegate to an agent with `execute` tools (Test Writer) or do it directly. Read-only agents (Code Reviewer, Explore, Pattern Explainer) cannot run commands.
+4. **Delegate** to the appropriate agent — subagents run in isolated sessions with their own token budget
+5. **Await result** — agents return structured output, not files (unless they have edit permissions)
+6. **Verify agent returned output** — if empty, invoke the Empty/Stale Agent Return Recovery Protocol instead of proceeding blindly
+7. **Act on output** — the orchestrator implements changes based on agent findings if needed
+8. **Verify** — check logs, run `php -l`, validate results
 
 ### Delegation priority
 For tasks that span multiple categories, delegate in this order:
