@@ -2010,6 +2010,406 @@ foreach ($newFunctions as $func) {
     assert_true(function_exists($func), "function {$func}() exists");
 }
 
+// ══════════════════════════════════════════════════════════════════
+// Test 55: themeStudioCustomizerCoveredTokens — returns 15 overlapping token keys
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 55: themeStudioCustomizerCoveredTokens\n";
+
+assert_true(function_exists('themeStudioCustomizerCoveredTokens'), 'themeStudioCustomizerCoveredTokens() exists');
+
+$coveredTokens = themeStudioCustomizerCoveredTokens();
+assert_count(15, $coveredTokens, 'returns exactly 15 token keys');
+
+$expectedCovered = [
+    'color.primary', 'color.secondary', 'color.accent',
+    'color.background', 'color.surface', 'color.text', 'color.text_muted', 'color.border',
+    'color.success', 'color.warning', 'color.danger',
+    'typography.font_family', 'typography.body_size',
+    'radius.md',
+    'layout.max_width',
+];
+
+foreach ($expectedCovered as $key) {
+    assert_true(in_array($key, $coveredTokens, true), "covered token '{$key}' is present");
+}
+
+// Verify no duplicate keys
+assert_count(count(array_unique($coveredTokens)), $coveredTokens, 'no duplicate token keys');
+
+// Verify all color.x keys are present
+$colorKeys = array_filter($coveredTokens, fn($k) => str_starts_with($k, 'color.'));
+assert_count(11, $colorKeys, '11 color.* tokens covered');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 56: themeStudioTokenToCustomizerMap — mapping structure completeness
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 56: themeStudioTokenToCustomizerMap\n";
+
+assert_true(function_exists('themeStudioTokenToCustomizerMap'), 'themeStudioTokenToCustomizerMap() exists');
+
+$map = themeStudioTokenToCustomizerMap();
+
+// All 15 covered token keys must be present as keys in the map
+foreach ($expectedCovered as $key) {
+    assert_true(array_key_exists($key, $map), "token key '{$key}' exists in map");
+}
+
+assert_count(15, $map, 'map has exactly 15 token key entries');
+
+// color.primary maps to 3 customizer setting keys
+assert_count(3, $map['color.primary'], "color.primary maps to 3 setting keys");
+assert_true(in_array('color_primary', $map['color.primary'], true), "color.primary → color_primary");
+assert_true(in_array('body_link_color', $map['color.primary'], true), "color.primary → body_link_color");
+assert_true(in_array('storefront_cta_bg', $map['color.primary'], true), "color.primary → storefront_cta_bg");
+
+// color.secondary maps to 1 setting key
+assert_count(1, $map['color.secondary'], "color.secondary maps to 1 setting key");
+assert_true(in_array('color_secondary', $map['color.secondary'], true), "color.secondary → color_secondary");
+
+// color.accent maps to 1 setting key
+assert_count(1, $map['color.accent'], "color.accent maps to 1 setting key");
+assert_true(in_array('color_accent', $map['color.accent'], true), "color.accent → color_accent");
+
+// color.background maps to 1 setting key
+assert_count(1, $map['color.background'], "color.background maps to 1 setting key");
+assert_true(in_array('body_bg_color', $map['color.background'], true), "color.background → body_bg_color");
+
+// color.surface maps to 3 setting keys
+assert_count(3, $map['color.surface'], "color.surface maps to 3 setting keys");
+assert_true(in_array('light_bg_color', $map['color.surface'], true), "color.surface → light_bg_color");
+assert_true(in_array('storefront_surface_bg', $map['color.surface'], true), "color.surface → storefront_surface_bg");
+assert_true(in_array('storefront_secondary_bg', $map['color.surface'], true), "color.surface → storefront_secondary_bg");
+
+// color.text maps to 3 setting keys
+assert_count(3, $map['color.text'], "color.text maps to 3 setting keys");
+assert_true(in_array('body_text_color', $map['color.text'], true), "color.text → body_text_color");
+assert_true(in_array('storefront_price_color', $map['color.text'], true), "color.text → storefront_price_color");
+assert_true(in_array('storefront_secondary_text', $map['color.text'], true), "color.text → storefront_secondary_text");
+
+// color.text_muted maps to 1 setting key
+assert_count(1, $map['color.text_muted'], "color.text_muted maps to 1 setting key");
+assert_true(in_array('body_text_light', $map['color.text_muted'], true), "color.text_muted → body_text_light");
+
+// color.border maps to 3 setting keys
+assert_count(3, $map['color.border'], "color.border maps to 3 setting keys");
+assert_true(in_array('border_color', $map['color.border'], true), "color.border → border_color");
+assert_true(in_array('storefront_surface_border', $map['color.border'], true), "color.border → storefront_surface_border");
+assert_true(in_array('storefront_secondary_border', $map['color.border'], true), "color.border → storefront_secondary_border");
+
+// color.success maps to 2 setting keys
+assert_count(2, $map['color.success'], "color.success maps to 2 setting keys");
+assert_true(in_array('storefront_success_bg', $map['color.success'], true), "color.success → storefront_success_bg");
+assert_true(in_array('storefront_success_text', $map['color.success'], true), "color.success → storefront_success_text");
+
+// color.warning maps to 2 setting keys
+assert_count(2, $map['color.warning'], "color.warning maps to 2 setting keys");
+assert_true(in_array('storefront_warning_bg', $map['color.warning'], true), "color.warning → storefront_warning_bg");
+assert_true(in_array('storefront_warning_text', $map['color.warning'], true), "color.warning → storefront_warning_text");
+
+// color.danger maps to 2 setting keys
+assert_count(2, $map['color.danger'], "color.danger maps to 2 setting keys");
+assert_true(in_array('storefront_danger_bg', $map['color.danger'], true), "color.danger → storefront_danger_bg");
+assert_true(in_array('storefront_danger_text', $map['color.danger'], true), "color.danger → storefront_danger_text");
+
+// typography.font_family maps to 2 setting keys
+assert_count(2, $map['typography.font_family'], "typography.font_family maps to 2 setting keys");
+assert_true(in_array('font_body', $map['typography.font_family'], true), "typography.font_family → font_body");
+assert_true(in_array('font_heading', $map['typography.font_family'], true), "typography.font_family → font_heading");
+
+// typography.body_size maps to 1 setting key
+assert_count(1, $map['typography.body_size'], "typography.body_size maps to 1 setting key");
+assert_true(in_array('font_size_base', $map['typography.body_size'], true), "typography.body_size → font_size_base");
+
+// radius.md maps to 1 setting key
+assert_count(1, $map['radius.md'], "radius.md maps to 1 setting key");
+assert_true(in_array('border_radius', $map['radius.md'], true), "radius.md → border_radius");
+
+// layout.max_width maps to 2 setting keys
+assert_count(2, $map['layout.max_width'], "layout.max_width maps to 2 setting keys");
+assert_true(in_array('site_max_width', $map['layout.max_width'], true), "layout.max_width → site_max_width");
+assert_true(in_array('content_max_width', $map['layout.max_width'], true), "layout.max_width → content_max_width");
+
+// ══════════════════════════════════════════════════════════════════
+// Test 57: themeStudioTsOnlyTokenPrefixes — TS-only prefix definitions
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 57: themeStudioTsOnlyTokenPrefixes\n";
+
+assert_true(function_exists('themeStudioTsOnlyTokenPrefixes'), 'themeStudioTsOnlyTokenPrefixes() exists');
+
+$prefixes = themeStudioTsOnlyTokenPrefixes();
+assert_true(is_array($prefixes), 'returns an array');
+assert_true(count($prefixes) >= 12, 'at least 12 prefixes defined');
+
+$expectedPrefixes = [
+    'color.', 'spacing.', 'radius.', 'shadow.',
+    'z-index', 'zindex',
+    'animation.', 'motion.', 'transition.', 'easing.',
+    'header-', 'layout.',
+];
+
+foreach ($expectedPrefixes as $prefix) {
+    assert_true(in_array($prefix, $prefixes, true), "prefix '{$prefix}' is present");
+}
+
+// Verify no duplicates
+assert_count(count(array_unique($prefixes)), $prefixes, 'no duplicate prefixes');
+
+// Verify prefix ordering — color. comes first (catches tint/shade scales)
+assert_true($prefixes[0] === 'color.', 'first prefix is color. (catches tint/shade scales)');
+
+// Verify z-index and zindex both present (different naming conventions)
+assert_true(in_array('z-index', $prefixes, true), 'z-index prefix present');
+assert_true(in_array('zindex', $prefixes, true), 'zindex prefix present');
+
+// Verify layout. prefix catches everything except max_width (which goes to customizer)
+assert_true(in_array('layout.', $prefixes, true), 'layout. prefix present (catches layout.* except max_width)');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 58: Token key → CSS var conversion with underscore/tint patterns
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 58: Token key to CSS var conversion — tints, underscores, hyphens\n";
+
+// Edge-case conversions beyond basic test 45
+$conversionCases = [
+    'color.primary_50'       => '--color-primary-50',
+    'color.primary_100'      => '--color-primary-100',
+    'color.primary_200'      => '--color-primary-200',
+    'color.secondary_50'     => '--color-secondary-50',
+    'color.surface_alt'      => '--color-surface-alt',
+    'color.success_light'    => '--color-success-light',
+    'spacing.xs'             => '--spacing-xs',
+    'spacing.sm'             => '--spacing-sm',
+    'spacing.lg'             => '--spacing-lg',
+    'spacing.xl'             => '--spacing-xl',
+    'spacing.2xl'            => '--spacing-2xl',
+    'radius.none'            => '--radius-none',
+    'radius.sm'              => '--radius-sm',
+    'radius.lg'              => '--radius-lg',
+    'radius.xl'              => '--radius-xl',
+    'radius.2xl'             => '--radius-2xl',
+    'radius.full'            => '--radius-full',
+    'shadow.sm'              => '--shadow-sm',
+    'shadow.md'              => '--shadow-md',
+    'shadow.lg'              => '--shadow-lg',
+    'shadow.xl'              => '--shadow-xl',
+    'z-index.dropdown'       => '--z-index-dropdown',
+    'z-index.sticky'         => '--z-index-sticky',
+    'zindex.modal'           => '--zindex-modal',
+    'zindex.tooltip'         => '--zindex-tooltip',
+    'animation.duration'     => '--animation-duration',
+    'animation.duration_fast' => '--animation-duration-fast',
+    'motion.reduce'          => '--motion-reduce',
+    'transition.default'     => '--transition-default',
+    'easing.in_out'          => '--easing-in-out',
+    'header-height'          => '--header-height',
+    'header-bg'              => '--header-bg',
+    'layout.header_height'   => '--layout-header-height',
+    'layout.sidebar_width'   => '--layout-sidebar-width',
+];
+
+foreach ($conversionCases as $input => $expected) {
+    $actual = '--' . str_replace(['.', '_'], '-', $input);
+    assert_true($actual === $expected, "key '{$input}' converts to '{$expected}' (got '{$actual}')");
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Test 59: Covered tokens excluded from CSS output (simulated filter)
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 59: Covered tokens excluded from CSS output\n";
+
+$covered = themeStudioCustomizerCoveredTokens();
+$prefixes = themeStudioTsOnlyTokenPrefixes();
+
+// Sample tokens mixing covered and TS-only
+$sampleTokens = [
+    // Covered by customizer (should be excluded)
+    'color.primary'        => '#2563eb',
+    'color.surface'        => '#ffffff',
+    'color.text'           => '#0f172a',
+    'color.border'         => '#e2e8f0',
+    'typography.font_family' => 'Inter, sans-serif',
+    'typography.body_size' => '16px',
+    'radius.md'            => '0.75rem',
+    'layout.max_width'     => '1200px',
+    // TS-only (should be included)
+    'color.primary_50'     => '#eff6ff',
+    'color.primary_100'    => '#dbeafe',
+    'spacing.md'           => '1.25rem',
+    'spacing.lg'           => '2rem',
+    'radius.sm'            => '0.375rem',
+    'radius.lg'            => '1rem',
+    'shadow.sm'            => '0 1px 2px rgba(0,0,0,0.05)',
+    'shadow.md'            => '0 4px 6px rgba(0,0,0,0.1)',
+    'z-index.dropdown'     => '1000',
+    'zindex.modal'         => '2000',
+    'animation.duration'   => '200ms',
+    'motion.reduce'        => 'no-preference',
+    'transition.default'   => 'all 200ms ease',
+    'header-height'        => '64px',
+    'layout.header_height' => '64px',
+    'layout.sidebar_width' => '300px',
+];
+
+// Apply the exact filter from themeStudioRenderTokenStyle()
+$tsOnlyTokens = [];
+foreach ($sampleTokens as $key => $value) {
+    if (in_array($key, $covered, true)) {
+        continue;
+    }
+    foreach ($prefixes as $prefix) {
+        if (str_starts_with($key, $prefix)) {
+            $tsOnlyTokens[$key] = $value;
+            continue 2;
+        }
+    }
+}
+
+// Verify covered tokens are excluded
+assert_true(!isset($tsOnlyTokens['color.primary']), 'color.primary excluded');
+assert_true(!isset($tsOnlyTokens['color.surface']), 'color.surface excluded');
+assert_true(!isset($tsOnlyTokens['color.text']), 'color.text excluded');
+assert_true(!isset($tsOnlyTokens['color.border']), 'color.border excluded');
+assert_true(!isset($tsOnlyTokens['typography.font_family']), 'typography.font_family excluded');
+assert_true(!isset($tsOnlyTokens['typography.body_size']), 'typography.body_size excluded');
+assert_true(!isset($tsOnlyTokens['radius.md']), 'radius.md excluded');
+assert_true(!isset($tsOnlyTokens['layout.max_width']), 'layout.max_width excluded');
+
+// Verify TS-only tokens are included
+assert_true(isset($tsOnlyTokens['color.primary_50']), 'color.primary_50 included (tint, matches color. prefix)');
+assert_true(isset($tsOnlyTokens['color.primary_100']), 'color.primary_100 included (tint, matches color. prefix)');
+assert_true(isset($tsOnlyTokens['spacing.md']), 'spacing.md included');
+assert_true(isset($tsOnlyTokens['spacing.lg']), 'spacing.lg included');
+assert_true(isset($tsOnlyTokens['radius.sm']), 'radius.sm included');
+assert_true(isset($tsOnlyTokens['radius.lg']), 'radius.lg included');
+assert_true(isset($tsOnlyTokens['shadow.sm']), 'shadow.sm included');
+assert_true(isset($tsOnlyTokens['shadow.md']), 'shadow.md included');
+assert_true(isset($tsOnlyTokens['z-index.dropdown']), 'z-index.dropdown included');
+assert_true(isset($tsOnlyTokens['zindex.modal']), 'zindex.modal included');
+assert_true(isset($tsOnlyTokens['animation.duration']), 'animation.duration included');
+assert_true(isset($tsOnlyTokens['motion.reduce']), 'motion.reduce included');
+assert_true(isset($tsOnlyTokens['transition.default']), 'transition.default included');
+assert_true(isset($tsOnlyTokens['header-height']), 'header-height included');
+assert_true(isset($tsOnlyTokens['layout.header_height']), 'layout.header_height included (not max_width, so passes)');
+assert_true(isset($tsOnlyTokens['layout.sidebar_width']), 'layout.sidebar_width included');
+
+// Verify the right count of TS-only tokens (16 TS-only from our sample)
+assert_count(16, $tsOnlyTokens, '16 TS-only tokens pass the filter');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 60: Full CSS output from TS-only tokens (simulated rendering)
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 60: Full CSS output from TS-only tokens\n";
+
+// Build CSS from tsOnlyTokens using the exact same algorithm
+$cssLines = [];
+foreach ($tsOnlyTokens as $key => $value) {
+    $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+    $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+}
+
+$tsOnlyStyle = '<style id="cz-theme-studio-override">' . "\n"
+    . ':root {' . "\n"
+    . implode("\n", $cssLines) . "\n"
+    . '}' . "\n"
+    . '</style>';
+
+// Verify structural elements
+assert_contains($tsOnlyStyle, '<style id="cz-theme-studio-override">', 'output contains style tag with correct id');
+assert_contains($tsOnlyStyle, ':root {', 'output contains :root selector');
+assert_contains($tsOnlyStyle, '</style>', 'output contains closing style tag');
+
+// Verify covered tokens are NOT in the output
+assert_true(!str_contains($tsOnlyStyle, '--color-primary:'), 'color.primary CSS var excluded');
+assert_true(!str_contains($tsOnlyStyle, '--color-surface:'), 'color.surface CSS var excluded');
+assert_true(!str_contains($tsOnlyStyle, '--color-text:'), 'color.text CSS var excluded');
+assert_true(!str_contains($tsOnlyStyle, '--color-border:'), 'color.border CSS var excluded');
+assert_true(!str_contains($tsOnlyStyle, '--typography-font-family:'), 'typography.font_family CSS var excluded');
+assert_true(!str_contains($tsOnlyStyle, '--radius-md:'), 'radius.md CSS var excluded');
+assert_true(!str_contains($tsOnlyStyle, '--layout-max-width:'), 'layout.max_width CSS var excluded');
+
+// Verify TS-only tokens ARE in the output
+assert_contains($tsOnlyStyle, '--color-primary-50: #eff6ff;', 'color.primary_50 CSS var present');
+assert_contains($tsOnlyStyle, '--color-primary-100: #dbeafe;', 'color.primary_100 CSS var present');
+assert_contains($tsOnlyStyle, '--spacing-md: 1.25rem;', 'spacing.md CSS var present');
+assert_contains($tsOnlyStyle, '--spacing-lg: 2rem;', 'spacing.lg CSS var present');
+assert_contains($tsOnlyStyle, '--radius-sm: 0.375rem;', 'radius.sm CSS var present');
+assert_contains($tsOnlyStyle, '--radius-lg: 1rem;', 'radius.lg CSS var present');
+assert_contains($tsOnlyStyle, '--shadow-sm: 0 1px 2px rgba(0,0,0,0.05);', 'shadow.sm CSS var present');
+assert_contains($tsOnlyStyle, '--shadow-md: 0 4px 6px rgba(0,0,0,0.1);', 'shadow.md CSS var present');
+assert_contains($tsOnlyStyle, '--z-index-dropdown: 1000;', 'z-index.dropdown CSS var present');
+assert_contains($tsOnlyStyle, '--zindex-modal: 2000;', 'zindex.modal CSS var present');
+assert_contains($tsOnlyStyle, '--animation-duration: 200ms;', 'animation.duration CSS var present');
+assert_contains($tsOnlyStyle, '--motion-reduce: no-preference;', 'motion.reduce CSS var present');
+assert_contains($tsOnlyStyle, '--transition-default: all 200ms ease;', 'transition.default CSS var present');
+assert_contains($tsOnlyStyle, '--header-height: 64px;', 'header-height CSS var present');
+assert_contains($tsOnlyStyle, '--layout-header-height: 64px;', 'layout.header_height CSS var present');
+assert_contains($tsOnlyStyle, '--layout-sidebar-width: 300px;', 'layout.sidebar_width CSS var present');
+
+// Verify CSS syntax: each declaration ends with semicolon
+$declarations = explode("\n", trim($tsOnlyStyle));
+foreach ($declarations as $line) {
+    $trimmed = trim($line);
+    if (str_contains($trimmed, ':') && !str_contains($trimmed, '<style') && $trimmed !== ':root {') {
+        assert_true(str_ends_with($trimmed, ';'), "declaration '{$trimmed}' ends with semicolon");
+    }
+}
+
+// Count CSS var declarations in output
+$varCount = preg_match_all('/--[a-z][a-z0-9-]+:/', $tsOnlyStyle);
+assert_true($varCount === 16, "output has exactly 16 CSS var declarations (found {$varCount})");
+
+// ══════════════════════════════════════════════════════════════════
+// Test 61: themeStudioSyncOverridesToCustomizer — function signature
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 61: themeStudioSyncOverridesToCustomizer function signature\n";
+
+assert_true(function_exists('themeStudioSyncOverridesToCustomizer'), 'themeStudioSyncOverridesToCustomizer() exists');
+
+$syncRef = new ReflectionFunction('themeStudioSyncOverridesToCustomizer');
+$syncParams = $syncRef->getParameters();
+$syncParamNames = array_map(fn(ReflectionParameter $p) => $p->getName(), $syncParams);
+assert_count(3, $syncParams, 'themeStudioSyncOverridesToCustomizer has exactly 3 parameters');
+assert_true(in_array('overrides', $syncParamNames, true), 'first parameter is overrides (array)');
+assert_true(in_array('tenantId', $syncParamNames, true), 'second parameter is tenantId (int)');
+assert_true(in_array('themeSlug', $syncParamNames, true), 'third parameter is themeSlug (string)');
+
+// Verify parameter types
+$p0 = $syncParams[0];
+$p0Type = $p0->getType();
+if ($p0Type instanceof ReflectionNamedType) {
+    assert_true($p0Type->getName() === 'array', 'overrides is typed as array');
+}
+
+$p1 = $syncParams[1];
+$p1Type = $p1->getType();
+if ($p1Type instanceof ReflectionNamedType) {
+    assert_true($p1Type->getName() === 'int', 'tenantId is typed as int');
+}
+
+$p2 = $syncParams[2];
+$p2Type = $p2->getType();
+if ($p2Type instanceof ReflectionNamedType) {
+    assert_true($p2Type->getName() === 'string', 'themeSlug is typed as string');
+}
+
+// Verify NO return type declaration (void — no explicit return)
+$syncReturn = $syncRef->getReturnType();
+assert_true($syncReturn === null, 'themeStudioSyncOverridesToCustomizer has no return type (void)');
+
+// Verify the function body calls function_exists() guards for cmsCustomizerSave/cmsDb/cmsActiveCustomizerScope
+$helpersContent = file_get_contents(__DIR__ . '/../helpers.php');
+
+// Extract just the function body for themeStudioSyncOverridesToCustomizer
+$syncFuncStart = strpos($helpersContent, 'function themeStudioSyncOverridesToCustomizer');
+assert_true($syncFuncStart !== false, 'themeStudioSyncOverridesToCustomizer found in helpers.php');
+
+// Verify function_exists guards inside the function
+$syncBody = substr($helpersContent, $syncFuncStart, 2000);
+assert_contains($syncBody, "function_exists('cmsCustomizerSave')", 'guards with cmsCustomizerSave function_exists');
+assert_contains($syncBody, "function_exists('cmsDb')", 'guards with cmsDb function_exists');
+assert_contains($syncBody, "themeStudioTokenToCustomizerMap()", 'uses themeStudioTokenToCustomizerMap() internally');
+assert_contains($syncBody, "themeStudioCustomizerCoveredTokens()", 'uses themeStudioCustomizerCoveredTokens() internally');
+
 echo "\n==============================\n";
 echo "Results: {$passed} passed, {$failed} failed\n";
 echo "==============================\n";

@@ -282,6 +282,17 @@ function themeStudioApplyPreset(string $slug): bool
         return false;
     }
     saveModuleSettings('theme-studio', ['active_preset' => $slug]);
+
+    // Sync preset tokens through to customizer
+    $presetTokens = $presets[$slug]['data']['tokens'] ?? [];
+    if (!empty($presetTokens)) {
+        $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
+        $themeSlug = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
+        if ($tenantId > 0 && $themeSlug !== null) {
+            themeStudioSyncOverridesToCustomizer([], $tenantId, $themeSlug);
+        }
+    }
+
     return true;
 }
 
@@ -314,6 +325,110 @@ function themeStudioTokenOverrides(int $tenantId, string $themeSlug): array
 /**
  * Save token overrides for a tenant + theme combination.
  */
+/**
+ * Token keys that the CMS Theme Customizer covers via its Colors/Theme sections.
+ * These tokens should be written through to the customizer DB instead of
+ * injected as separate CSS — the customizer is the single rendering authority.
+ */
+function themeStudioCustomizerCoveredTokens(): array
+{
+    return [
+        'color.primary', 'color.secondary', 'color.accent',
+        'color.background', 'color.surface', 'color.text', 'color.text_muted', 'color.border',
+        'color.success', 'color.warning', 'color.danger',
+        'typography.font_family', 'typography.body_size',
+        'radius.md',
+        'layout.max_width',
+    ];
+}
+
+/**
+ * Map Theme Studio token keys to CMS Customizer settings keys.
+ * Returns [tokenKey => [customizerSettingKey, ...]]
+ */
+function themeStudioTokenToCustomizerMap(): array
+{
+    return [
+        'color.primary' => ['color_primary', 'body_link_color', 'storefront_cta_bg'],
+        'color.secondary' => ['color_secondary'],
+        'color.accent' => ['color_accent'],
+        'color.background' => ['body_bg_color'],
+        'color.surface' => ['light_bg_color', 'storefront_surface_bg', 'storefront_secondary_bg'],
+        'color.text' => ['body_text_color', 'storefront_price_color', 'storefront_secondary_text'],
+        'color.text_muted' => ['body_text_light'],
+        'color.border' => ['border_color', 'storefront_surface_border', 'storefront_secondary_border'],
+        'color.success' => ['storefront_success_bg', 'storefront_success_text'],
+        'color.warning' => ['storefront_warning_bg', 'storefront_warning_text'],
+        'color.danger' => ['storefront_danger_bg', 'storefront_danger_text'],
+        'typography.font_family' => ['font_body', 'font_heading'],
+        'typography.body_size' => ['font_size_base'],
+        'radius.md' => ['border_radius'],
+        'layout.max_width' => ['site_max_width', 'content_max_width'],
+    ];
+}
+
+/**
+ * Sync Theme Studio token overrides through to the CMS Theme Customizer DB.
+ * Only overlapping tokens (covered by customizer Colors/Theme sections) are synced.
+ * Non-overlapping tokens (spacing, shadows, z-index, tint scales) remain TS-only.
+ */
+function themeStudioSyncOverridesToCustomizer(array $overrides, int $tenantId, string $themeSlug): void
+{
+    if (!function_exists('cmsCustomizerSave') || !function_exists('cmsDb')) {
+        return;
+    }
+
+    // Merge overrides with active preset tokens
+    $settings = getModuleSettings('theme-studio');
+    $activePreset = trim((string)($settings['active_preset'] ?? ''));
+    $mergedTokens = $overrides;
+    if ($activePreset !== '') {
+        $presets = themeStudioPresets();
+        if (isset($presets[$activePreset]['data']['tokens'])) {
+            $mergedTokens = array_merge($presets[$activePreset]['data']['tokens'], $overrides);
+        }
+    }
+
+    $map = themeStudioTokenToCustomizerMap();
+    $coveredTokens = themeStudioCustomizerCoveredTokens();
+    $customizerSettings = [];
+
+    foreach ($coveredTokens as $tokenKey) {
+        if (!isset($mergedTokens[$tokenKey]) || !isset($map[$tokenKey])) {
+            continue;
+        }
+        $value = $mergedTokens[$tokenKey];
+        foreach ($map[$tokenKey] as $settingKey) {
+            $customizerSettings[$settingKey] = $value;
+        }
+    }
+
+    if (empty($customizerSettings)) {
+        return;
+    }
+
+    try {
+        $db = cmsDb();
+        $scope = function_exists('cmsActiveCustomizerScope') ? cmsActiveCustomizerScope() : null;
+
+        // Read existing settings to preserve non-overlapping customizer values
+        $existing = cmsCustomizerGet($db, 'colors', $scope);
+        $merged = array_merge($existing, $customizerSettings);
+
+        cmsCustomizerSave($db, 'colors', $merged, $scope);
+
+        // Also sync layout.max_width to theme section if present
+        if (isset($mergedTokens['layout.max_width'])) {
+            $themeExisting = cmsCustomizerGet($db, 'theme', $scope);
+            $themeExisting['site_max_width'] = $mergedTokens['layout.max_width'];
+            $themeExisting['content_max_width'] = $mergedTokens['layout.max_width'];
+            cmsCustomizerSave($db, 'theme', $themeExisting, $scope);
+        }
+    } catch (Throwable $e) {
+        write_log('themeStudioSyncOverridesToCustomizer: failed: ' . $e->getMessage(), 'warning');
+    }
+}
+
 function themeStudioSaveTokenOverrides(int $tenantId, string $themeSlug, array $tokens): bool
 {
     try {
@@ -341,6 +456,10 @@ function themeStudioSaveTokenOverrides(int $tenantId, string $themeSlug, array $
         }
 
         $db->commit();
+
+        // Write through to CMS Customizer for overlapping tokens
+        themeStudioSyncOverridesToCustomizer($tokens, $tenantId, $themeSlug);
+
         return true;
     } catch (Throwable $e) {
         if ($db->inTransaction()) { $db->rollBack(); }
@@ -360,6 +479,28 @@ function themeStudioResetTokenOverrides(int $tenantId, string $themeSlug): bool
             "DELETE FROM theme_studio_token_overrides WHERE tenant_id = :tid AND theme_slug = :theme"
         );
         $stmt->execute([':tid' => $tenantId, ':theme' => $themeSlug]);
+
+        // Reset customizer to theme manifest defaults (clear user overrides)
+        if (function_exists('cmsCustomizerSave') && function_exists('cmsDb') && function_exists('cmsActiveCustomizerScope')) {
+            try {
+                $cdb = cmsDb();
+                $scope = cmsActiveCustomizerScope();
+                // Re-seed colors section from theme manifest defaults
+                $defaults = function_exists('cmsThemeManifestColorsDefaults')
+                    ? cmsThemeManifestColorsDefaults()
+                    : [];
+                cmsCustomizerSave($cdb, 'colors', $defaults, $scope);
+
+                // Reset theme section layout defaults
+                $themeDefaults = function_exists('cmsThemeManifestThemeLayoutDefaults')
+                    ? cmsThemeManifestThemeLayoutDefaults()
+                    : [];
+                cmsCustomizerSave($cdb, 'theme', $themeDefaults, $scope);
+            } catch (Throwable $e2) {
+                write_log('themeStudioResetTokenOverrides: customizer reset warning: ' . $e2->getMessage(), 'warning');
+            }
+        }
+
         return true;
     } catch (Throwable $e) {
         write_log('themeStudioResetTokenOverrides: failed: ' . $e->getMessage(), 'error');
@@ -1867,6 +2008,34 @@ app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
 // ── Render-Time Token CSS Builder ──
 // Builds a <style> block with token overrides + active preset tokens
 // for injection into the page <head> via kernel.render_context.finalize.
+/**
+ * Token keys that are NOT covered by the CMS Theme Customizer.
+ * These are rendered by Theme Studio directly as CSS custom properties.
+ * All other tokens are written through to the customizer and handled by it.
+ */
+function themeStudioTsOnlyTokenPrefixes(): array
+{
+    return [
+        'color.',     // catches tint/shade scales like color.primary_50, color.primary_100, etc.
+        'spacing.',
+        'radius.',    // radius.none, radius.sm, radius.lg, radius.xl, radius.2xl, radius.full
+        'shadow.',
+        'z-index',
+        'zindex',
+        'animation.',
+        'motion.',
+        'transition.',
+        'easing.',
+        'header-',    // header-height, header-bg, etc.
+        'layout.',    // layout.* except max_width (which goes to customizer theme section)
+    ];
+}
+
+/**
+ * Build a <style> block with ONLY non-overlapping Theme Studio tokens
+ * (those not covered by the CMS Theme Customizer).
+ * Overlapping tokens are handled by themeStudioSyncOverridesToCustomizer().
+ */
 function themeStudioRenderTokenStyle(): string
 {
     $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
@@ -1897,9 +2066,31 @@ function themeStudioRenderTokenStyle(): string
         return '';
     }
 
+    // Filter to only non-overlapping (TS-only) tokens
+    $covered = themeStudioCustomizerCoveredTokens();
+    $prefixes = themeStudioTsOnlyTokenPrefixes();
+    $tsOnlyTokens = [];
+    foreach ($mergedTokens as $key => $value) {
+        // Skip if this exact key is covered by customizer
+        if (in_array($key, $covered, true)) {
+            continue;
+        }
+        // Include if it matches a TS-only prefix
+        foreach ($prefixes as $prefix) {
+            if (str_starts_with($key, $prefix)) {
+                $tsOnlyTokens[$key] = $value;
+                continue 2;
+            }
+        }
+    }
+
+    if (empty($tsOnlyTokens)) {
+        return '';
+    }
+
     // Build CSS custom properties block
     $cssLines = [];
-    foreach ($mergedTokens as $key => $value) {
+    foreach ($tsOnlyTokens as $key => $value) {
         $cssVar = '--' . str_replace(['.', '_'], '-', $key);
         $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
     }
