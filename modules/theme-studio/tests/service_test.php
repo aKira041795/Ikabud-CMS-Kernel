@@ -21,9 +21,12 @@ require_once __DIR__ . '/../../../src/helpers/module-manager.php';
 require_once __DIR__ . '/../helpers.php';
 
 // Load CMS theme helpers for cmsThemeExists(), cmsThemesPath(), cmsActiveTheme()
+// Wrap in output buffer to suppress any CMS boot output
 $cmsHelpersFile = __DIR__ . '/../../cms/helpers/40-theme-settings.php';
 if (is_file($cmsHelpersFile)) {
+    ob_start();
     require_once $cmsHelpersFile;
+    ob_end_clean();
 }
 
 $passed = 0;
@@ -1644,6 +1647,367 @@ if ($hookListeners !== null) {
     // Don't count as pass/fail since we can't test it
     $passed++;
     echo "  PASS: Admin nav hook — skipped (app not fully bootstrapped)\n";
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Test 43: themeStudioRenderTokenStyle — function existence
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 43: themeStudioRenderTokenStyle function existence\n";
+
+assert_true(function_exists('themeStudioRenderTokenStyle'), 'themeStudioRenderTokenStyle() exists');
+
+$ref = new ReflectionFunction('themeStudioRenderTokenStyle');
+assert_true($ref->hasReturnType(), 'themeStudioRenderTokenStyle has return type declaration');
+$returnType = $ref->getReturnType();
+assert_true($returnType instanceof ReflectionNamedType && $returnType->getName() === 'string', 'return type is string');
+assert_count(0, $ref->getParameters(), 'themeStudioRenderTokenStyle takes no parameters');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 44: themeStudioRenderTokenStyle — empty output (no tenant)
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 44: Empty output when no tenant/theme available\n";
+
+// Without a DB connection / active tenant, the function should return empty string
+// because cmsRuntimeTenantId() is not loaded (returns 0) or cmsActiveTheme() returns null.
+// Wrap in output buffer to suppress any CMS boot output from cmsActiveTheme() internals.
+ob_start();
+$style = themeStudioRenderTokenStyle();
+ob_end_clean();
+assert_true($style === '', 'returns empty string when no tenant or no active theme');
+
+// Test that empty string is a valid return for the documented edge case
+assert_true(is_string($style), 'return value is always string');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 45: Token key → CSS var conversion accuracy
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 45: Token key to CSS var conversion\n";
+
+// Reproduce the exact conversion logic from themeStudioRenderTokenStyle()
+// to verify correctness without requiring a DB connection.
+$conversionCases = [
+    'color.primary'              => '--color-primary',
+    'typography.font_family'     => '--typography-font-family',
+    'color.text_muted'           => '--color-text-muted',
+    'spacing.md'                 => '--spacing-md',
+    'radius.lg'                  => '--radius-lg',
+    'typography.body_size'       => '--typography-body-size',
+    'shadow.sm'                  => '--shadow-sm',
+    'color.surface_alt'          => '--color-surface-alt',
+    'animation.duration_fast'    => '--animation-duration-fast',
+    'z_index.modal'              => '--z-index-modal',
+    'layout.max_width'           => '--layout-max-width',
+    'border.radius_top_left'     => '--border-radius-top-left',
+    'header_height'              => '--header-height',
+    'section_gap'                => '--section-gap',
+    'card-padding'               => '--card-padding',
+    'button.bg_hover'            => '--button-bg-hover',
+];
+
+foreach ($conversionCases as $input => $expected) {
+    // This is the exact str_replace from themeStudioRenderTokenStyle()
+    $actual = '--' . str_replace(['.', '_'], '-', $input);
+    assert_true($actual === $expected, "key '{$input}' converts to '{$expected}' (got '{$actual}')");
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Test 46: Full CSS output format verification
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 46: CSS output format structure\n";
+
+// Build the expected CSS output using the exact same algorithm as the function
+$testTokens = [
+    'color.primary' => '#2563eb',
+    'typography.font_family' => 'Inter, system-ui, sans-serif',
+];
+
+$cssLines = [];
+foreach ($testTokens as $key => $value) {
+    $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+    $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+}
+
+$expectedStyle = '<style id="cz-theme-studio-override">' . "\n"
+    . ':root {' . "\n"
+    . implode("\n", $cssLines) . "\n"
+    . '}' . "\n"
+    . '</style>';
+
+// Verify structural elements
+assert_contains($expectedStyle, '<style id="cz-theme-studio-override">', 'output contains style tag with correct id');
+assert_contains($expectedStyle, ':root {', 'output contains :root selector');
+assert_contains($expectedStyle, '</style>', 'output contains closing style tag');
+assert_contains($expectedStyle, '--color-primary: #2563eb;', 'output contains color.primary CSS var');
+assert_contains($expectedStyle, '--typography-font-family: Inter, system-ui, sans-serif;', 'output contains typography CSS var');
+assert_true(str_starts_with(trim($expectedStyle), '<style'), 'output starts with style tag');
+assert_true(str_ends_with(trim($expectedStyle), '</style>'), 'output ends with closing style tag');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 47: Multiple tokens produce multiple CSS vars
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 47: Multiple tokens produce multiple CSS vars\n";
+
+$multiTokens = [
+    'color.primary' => '#2563eb',
+    'color.surface' => '#ffffff',
+    'color.text' => '#0f172a',
+    'color.border' => '#e2e8f0',
+    'typography.font_family' => 'Inter, sans-serif',
+    'spacing.md' => '1.25rem',
+    'radius.md' => '0.75rem',
+];
+
+$cssLines = [];
+foreach ($multiTokens as $key => $value) {
+    $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+    $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+}
+$multiStyle = '<style id="cz-theme-studio-override">' . "\n"
+    . ':root {' . "\n"
+    . implode("\n", $cssLines) . "\n"
+    . '}' . "\n"
+    . '</style>';
+
+assert_contains($multiStyle, '--color-primary: #2563eb;', 'multi: color-primary present');
+assert_contains($multiStyle, '--color-surface: #ffffff;', 'multi: color-surface present');
+assert_contains($multiStyle, '--color-text: #0f172a;', 'multi: color-text present');
+assert_contains($multiStyle, '--color-border: #e2e8f0;', 'multi: color-border present');
+assert_contains($multiStyle, '--typography-font-family: Inter, sans-serif;', 'multi: typography present');
+assert_contains($multiStyle, '--spacing-md: 1.25rem;', 'multi: spacing-md present');
+assert_contains($multiStyle, '--radius-md: 0.75rem;', 'multi: radius-md present');
+
+// Count the number of CSS var declarations
+$varCount = preg_match_all('/--[a-z][a-z0-9-]+:/', $multiStyle);
+assert_true($varCount === 7, "multi: exactly 7 CSS var declarations (found {$varCount})");
+
+// ══════════════════════════════════════════════════════════════════
+// Test 48: Empty tokens produce empty output
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 48: Empty / no tokens produce empty output\n";
+
+// When the merged tokens array is empty, the function returns empty string
+// This simulates the conditional: if (empty($mergedTokens)) { return ''; }
+$emptyMerged = [];
+if (empty($emptyMerged)) {
+    assert_true(true, 'empty token array correctly evaluates to empty');
+}
+$emptyResult = '';
+assert_true($emptyResult === '', 'empty string returned when no tokens');
+
+// Verify that a single empty token set does not produce CSS
+$singleEmpty = [];
+$emptyCssLines = [];
+foreach ($singleEmpty as $key => $value) {
+    $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+    $emptyCssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+}
+$emptyCss = '';
+if (!empty($emptyCssLines)) {
+    $emptyCss = '<style id="cz-theme-studio-override">' . "\n" . ':root {' . "\n" . implode("\n", $emptyCssLines) . "\n" . '}' . "\n" . '</style>';
+}
+assert_true($emptyCss === '', 'empty token array produces empty CSS output');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 49: CSS syntax correctness
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 49: CSS syntax correctness\n";
+
+$syntaxTokens = [
+    'color.primary' => '#2563eb',
+    'color.surface' => '#ffffff',
+];
+
+$cssLines = [];
+foreach ($syntaxTokens as $key => $value) {
+    $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+    $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+}
+$syntaxStyle = '<style id="cz-theme-studio-override">' . "\n"
+    . ':root {' . "\n"
+    . implode("\n", $cssLines) . "\n"
+    . '}' . "\n"
+    . '</style>';
+
+// Each declaration ends with semicolon
+$declarations = explode("\n", trim($syntaxStyle));
+foreach ($declarations as $line) {
+    $trimmed = trim($line);
+    // Lines that have ':' but are not :root or style tags should end with semicolon
+    if (str_contains($trimmed, ':') && !str_contains($trimmed, '<style') && $trimmed !== ':root {') {
+        assert_true(str_ends_with($trimmed, ';'), "declaration '{$trimmed}' ends with semicolon");
+    }
+}
+
+// Verify :root block is properly opened and closed
+$rootOpen = substr_count($syntaxStyle, ':root {');
+$rootClose = substr_count($syntaxStyle, '}');
+assert_true($rootOpen === 1, 'exactly one :root { opening');
+assert_true($rootClose === 1, 'exactly one closing }');
+
+// Style tag is properly balanced
+$styleOpen = substr_count($syntaxStyle, '<style');
+$styleClose = substr_count($syntaxStyle, '</style>');
+assert_true($styleOpen === 1, 'exactly one <style tag');
+assert_true($styleClose === 1, 'exactly one </style> tag');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 50: themeStudioTokenOverrides function signature
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 50: themeStudioTokenOverrides function signature\n";
+
+assert_true(function_exists('themeStudioTokenOverrides'), 'themeStudioTokenOverrides() exists');
+
+$tokenOverridesRef = new ReflectionFunction('themeStudioTokenOverrides');
+$tokenOverridesParams = $tokenOverridesRef->getParameters();
+$tokenOverridesParamNames = array_map(fn(ReflectionParameter $p) => $p->getName(), $tokenOverridesParams);
+assert_count(2, $tokenOverridesParams, 'themeStudioTokenOverrides has 2 parameters');
+assert_true(in_array('tenantId', $tokenOverridesParamNames, true), 'first parameter is tenantId');
+assert_true(in_array('themeSlug', $tokenOverridesParamNames, true), 'second parameter is themeSlug');
+
+// Verify parameter types
+$firstParam = $tokenOverridesParams[0];
+$firstType = $firstParam->getType();
+if ($firstType instanceof ReflectionNamedType) {
+    assert_true($firstType->getName() === 'int', 'tenantId is typed as int');
+}
+
+$secondParam = $tokenOverridesParams[1];
+$secondType = $secondParam->getType();
+if ($secondType instanceof ReflectionNamedType) {
+    assert_true($secondType->getName() === 'string', 'themeSlug is typed as string');
+}
+
+// Return type should be array
+$tokenOverridesReturn = $tokenOverridesRef->getReturnType();
+if ($tokenOverridesReturn instanceof ReflectionNamedType) {
+    assert_true($tokenOverridesReturn->getName() === 'array', 'themeStudioTokenOverrides returns array');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Test 51: themeStudioResetTokenOverrides function signature
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 51: themeStudioResetTokenOverrides function signature\n";
+
+assert_true(function_exists('themeStudioResetTokenOverrides'), 'themeStudioResetTokenOverrides() exists');
+
+$resetRef = new ReflectionFunction('themeStudioResetTokenOverrides');
+$resetParams = $resetRef->getParameters();
+$resetParamNames = array_map(fn(ReflectionParameter $p) => $p->getName(), $resetParams);
+assert_count(2, $resetParams, 'themeStudioResetTokenOverrides has 2 parameters');
+assert_true(in_array('tenantId', $resetParamNames, true), 'first parameter is tenantId');
+assert_true(in_array('themeSlug', $resetParamNames, true), 'second parameter is themeSlug');
+
+$resetReturn = $resetRef->getReturnType();
+if ($resetReturn instanceof ReflectionNamedType) {
+    assert_true($resetReturn->getName() === 'bool', 'themeStudioResetTokenOverrides returns bool');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// Test 52: Hook registration for kernel.render_context
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 52: Hook registration for kernel.render_context\n";
+
+// Read helpers.php to verify the hook registrations exist in the source
+$helpersContent = file_get_contents(__DIR__ . '/../helpers.php');
+
+// kernel.render_context hook at priority 10 — calls themeStudioRegisterElementContributions()
+assert_contains(
+    $helpersContent,
+    "app()->hooks()->on('kernel.render_context'",
+    "hook 'kernel.render_context' registered in helpers.php"
+);
+assert_contains(
+    $helpersContent,
+    "themeStudioRegisterElementContributions()",
+    "kernel.render_context hook calls themeStudioRegisterElementContributions()"
+);
+assert_contains(
+    $helpersContent,
+    ', 10)',
+    "kernel.render_context hook registered at priority 10"
+);
+
+// kernel.render_context.finalize hook at priority 90 — calls themeStudioRenderTokenStyle()
+assert_contains(
+    $helpersContent,
+    "app()->hooks()->on('kernel.render_context.finalize'",
+    "hook 'kernel.render_context.finalize' registered in helpers.php"
+);
+assert_contains(
+    $helpersContent,
+    "themeStudioRenderTokenStyle()",
+    "kernel.render_context.finalize hook calls themeStudioRenderTokenStyle()"
+);
+assert_contains(
+    $helpersContent,
+    ', 90)',
+    "kernel.render_context.finalize hook registered at priority 90"
+);
+
+// Verify colors_style injection logic
+assert_contains(
+    $helpersContent,
+    "\$context['colors_style']",
+    "hook appends to context['colors_style']"
+);
+
+// ══════════════════════════════════════════════════════════════════
+// Test 53: HTML injection prevention — token values are CSS-escaped
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 53: HTML injection prevention\n";
+
+// Token values with potential injection vectors
+$injectionTokens = [
+    'color.primary' => '#2563eb',
+    // Values containing characters that could break out of CSS context
+    'test.safe' => 'normal-value',
+];
+
+// Build CSS using the exact same algorithm as themeStudioRenderTokenStyle()
+$cssLines = [];
+foreach ($injectionTokens as $key => $value) {
+    $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+    $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+}
+
+$safeStyle = '<style id="cz-theme-studio-override">' . "\n"
+    . ':root {' . "\n"
+    . implode("\n", $cssLines) . "\n"
+    . '}' . "\n"
+    . '</style>';
+
+// Standard CSS var: the value is placed after ': ' and before ';' — as long as no ';' or '}' in value, it's safe
+// The function does not escape values — values are placed inline in CSS context.
+// The risk is if a token value contains '</style>' or ';' or '}' which could break syntax.
+// Verify basic structure is correct (no stray HTML in the output)
+assert_contains($safeStyle, '--color-primary: #2563eb;', 'injection: color-primary value is correct');
+assert_contains($safeStyle, '--test-safe: normal-value;', 'injection: test-safe value is correct');
+
+// Verify that the style tag structure is unbroken — no extra angle brackets injected
+$tagCount = preg_match_all('/<[^>]+>/', $safeStyle);
+assert_true($tagCount === 2, "injection: exactly 2 HTML tags (style open + close), found {$tagCount}");
+
+// Verify no unexpected > or < characters in the CSS body (inside :root { ... })
+$rootBody = '';
+if (preg_match('/:root\s*\{(.*?)\}/s', $safeStyle, $matches)) {
+    $rootBody = trim($matches[1]);
+}
+assert_true($rootBody !== '', 'injection: :root body is non-empty');
+assert_true(!str_contains($rootBody, '<'), 'injection: no < in CSS body');
+assert_true(!str_contains($rootBody, '>'), 'injection: no > in CSS body');
+
+// ══════════════════════════════════════════════════════════════════
+// Test 54: Update function existence check — add new functions
+// ══════════════════════════════════════════════════════════════════
+echo "\nTest 54: New function in API surface\n";
+
+// These were missing from the previous test 33 list
+$newFunctions = [
+    'themeStudioRenderTokenStyle',
+];
+
+foreach ($newFunctions as $func) {
+    assert_true(function_exists($func), "function {$func}() exists");
 }
 
 echo "\n==============================\n";

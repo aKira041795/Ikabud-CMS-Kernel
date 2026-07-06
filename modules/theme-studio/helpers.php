@@ -1862,3 +1862,78 @@ app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
     ];
     return $items;
 }, 25);
+
+
+// ── Render-Time Token CSS Builder ──
+// Builds a <style> block with token overrides + active preset tokens
+// for injection into the page <head> via kernel.render_context.finalize.
+function themeStudioRenderTokenStyle(): string
+{
+    $tenantId = function_exists('cmsRuntimeTenantId') ? cmsRuntimeTenantId() : 0;
+    $themeSlug = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
+
+    if ($tenantId <= 0 || !$themeSlug) {
+        return '';
+    }
+
+    // Read tenant token overrides from DB
+    $overrides = themeStudioTokenOverrides($tenantId, $themeSlug);
+
+    // Read active preset tokens
+    $settings = getModuleSettings('theme-studio');
+    $activePreset = trim((string)($settings['active_preset'] ?? ''));
+    $presetTokens = [];
+    if ($activePreset !== '') {
+        $presets = themeStudioPresets();
+        if (isset($presets[$activePreset]['data']['tokens'])) {
+            $presetTokens = $presets[$activePreset]['data']['tokens'];
+        }
+    }
+
+    // Merge: overrides win over preset tokens
+    $mergedTokens = array_merge($presetTokens, $overrides);
+
+    if (empty($mergedTokens)) {
+        return '';
+    }
+
+    // Build CSS custom properties block
+    $cssLines = [];
+    foreach ($mergedTokens as $key => $value) {
+        $cssVar = '--' . str_replace(['.', '_'], '-', $key);
+        $cssLines[] = '    ' . $cssVar . ': ' . $value . ';';
+    }
+
+    return '<style id="cz-theme-studio-override">' . "\n"
+         . ':root {' . "\n"
+         . implode("\n", $cssLines) . "\n"
+         . '}' . "\n"
+         . '</style>';
+}
+
+
+// ── Render-Time Integration Hooks ──
+
+// 1. Register Theme Elements into SlotRegistry on every render request.
+//    Runs early (priority 10) so elements are available before slot resolution.
+app()->hooks()->on('kernel.render_context', function (array $context, string $template): array {
+    if (function_exists('themeStudioRegisterElementContributions')) {
+        themeStudioRegisterElementContributions();
+    }
+    return $context;
+}, 10);
+
+// 2. Inject Theme Studio token CSS (overrides + preset) into the rendering context.
+//    Runs before CMS finalize (priority 100) so CMS normalization preserves the injection.
+app()->hooks()->on('kernel.render_context.finalize', function (array $context, string $template): array {
+    $style = themeStudioRenderTokenStyle();
+    if ($style !== '') {
+        // Append after CMS colors_style so TS tokens win (CSS cascade: last rule wins)
+        if (!empty($context['colors_style'])) {
+            $context['colors_style'] .= "\n" . $style;
+        } else {
+            $context['colors_style'] = $style;
+        }
+    }
+    return $context;
+}, 90);
