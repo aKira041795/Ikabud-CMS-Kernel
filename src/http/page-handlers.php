@@ -181,15 +181,17 @@ if (!function_exists('kernelHandlePageKernelIntegrations')) {
         }
         usort($capabilities, static fn(array $left, array $right): int => strcmp((string)$left['id'], (string)$right['id']));
 
-        echo app()->render('pages/kernel-integrations.disyl', [
-            'title' => 'Kernel Integrations',
-            'user' => $user,
-            'integrations' => $integrations,
-            'logs' => $logs,
-            'bridge_events' => $eventsRows,
-            'bridge_capabilities' => $capabilities,
-            'csrf_token' => app()->csrfToken(),
-        ]);
+        echo app()->render('pages/kernel-integrations.disyl', array_merge(
+            kernelAdminContext($user, 'integrations'),
+            [
+                'page_title' => 'Integrations',
+                'integrations' => $integrations,
+                'logs' => $logs,
+                'bridge_events' => $eventsRows,
+                'bridge_capabilities' => $capabilities,
+                'csrf_token' => app()->csrfToken(),
+            ]
+        ));
     }
 }
 
@@ -433,14 +435,38 @@ function kernelHandlePageAdminProfile(): void
         ]);
     }
 
-    echo app()->render('pages/admin-profile.disyl', [
-        'page_title' => 'Profile',
-        'email_supported' => $emailSupported,
-        'profile_notice' => $profileNotice,
-        'user' => $profileUser,
-    ]);
+    echo app()->render('pages/admin-profile.disyl', array_merge(
+        kernelAdminContext($user, 'profile'),
+        [
+            'page_title' => 'Profile',
+            'email_supported' => $emailSupported,
+            'profile_notice' => $profileNotice,
+            'user' => $profileUser,
+        ]
+    ));
     exit;
 }
+}
+
+/**
+ * Build shared context for kernel admin pages rendered with kernel-admin.disyl layout.
+ */
+function kernelAdminContext(array $user, string $currentPage): array
+{
+    return [
+        'current_page' => $currentPage,
+        'kernel_user_display' => $user['full_name'] ?? $user['username'] ?? 'Admin',
+        'kernel_user_role' => ($user['source'] ?? '') === 'kernel' && ($user['role'] ?? '') === 'admin'
+            ? 'Kernel Admin'
+            : ucfirst($user['role'] ?? ''),
+        'ext_nav_items' => function_exists('cmsGetExtensionNavItems')
+            ? cmsGetExtensionNavItems()
+            : [],
+        'breadcrumbs' => [
+            ['label' => 'Platform', 'url' => '/admin/platform'],
+            ['label' => $currentPage === 'platform' ? 'Platform' : ucfirst($currentPage)],
+        ],
+    ];
 }
 
 if (!function_exists('kernelHandlePageAdminUsers')) {
@@ -469,11 +495,14 @@ function kernelHandlePageAdminUsers(): void
     $stmt->execute($bind);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    echo app()->render('pages/admin-users.disyl', [
-        'page_title' => 'Users',
-        'users' => $users,
-        'search' => $q,
-    ]);
+    echo app()->render('pages/admin-users.disyl', array_merge(
+        kernelAdminContext($user, 'users'),
+        [
+            'page_title' => 'Users',
+            'users' => $users,
+            'search' => $q,
+        ]
+    ));
 }
 }
 
@@ -485,9 +514,10 @@ function kernelHandlePageAdminPlatform(): void
         app()->redirect('/');
         exit;
     }
-    echo app()->render('pages/admin-platform.disyl', [
-        'page_title' => 'Platform Dashboard',
-    ]);
+    echo app()->render('pages/admin-platform.disyl', array_merge(
+        kernelAdminContext($user, 'platform'),
+        ['page_title' => 'Platform Dashboard']
+    ));
     exit;
 }
 }
@@ -586,10 +616,13 @@ function kernelHandlePageAdminModules(): void
             'entities_owned_count' => count($entitiesOwned),
         ];
     }
-    echo app()->render('pages/admin-modules.disyl', [
-        'page_title' => 'Module Manager',
-        'modules' => $moduleList,
-    ]);
+    echo app()->render('pages/admin-modules.disyl', array_merge(
+        kernelAdminContext($user, 'modules'),
+        [
+            'page_title' => 'Module Manager',
+            'modules' => $moduleList,
+        ]
+    ));
     exit;
 }
 }
@@ -605,6 +638,14 @@ function kernelHandlePageAdminTenants(): void
     $entryModuleOptions = listTenantEntryModuleOptions();
     echo app()->render('pages/admin-tenants.disyl', [
         'page_title' => 'Tenants',
+        'current_page' => 'tenants',
+        'kernel_user_display' => $user['full_name'] ?? $user['username'] ?? 'Admin',
+        'kernel_user_role' => 'Kernel Admin',
+        'ext_nav_items' => app()->hooks()->filter('cms.admin.nav_items', []),
+        'breadcrumbs' => [
+            ['label' => 'Platform', 'url' => '/admin/platform'],
+            ['label' => 'Tenants'],
+        ],
         'entry_module_options_json' => json_encode($entryModuleOptions, JSON_UNESCAPED_SLASHES),
     ]);
     exit;
@@ -621,9 +662,10 @@ function kernelHandlePageAdminKernelTriggers(): void
         app()->redirect('/');
         exit;
     }
-    echo app()->render('pages/admin-kernel-triggers.disyl', [
-        'page_title' => 'Kernel Triggers',
-    ]);
+    echo app()->render('pages/admin-kernel-triggers.disyl', array_merge(
+        kernelAdminContext($user, 'kernel_triggers'),
+        ['page_title' => 'Kernel Triggers']
+    ));
     exit;
 }
 }
@@ -636,9 +678,10 @@ function kernelHandlePageAdminAi(): void
         app()->redirect('/');
         exit;
     }
-    echo app()->render('pages/admin-ai.disyl', [
-        'page_title' => 'AI',
-    ]);
+    echo app()->render('pages/admin-ai.disyl', array_merge(
+        kernelAdminContext($user, 'ai'),
+        ['page_title' => 'AI']
+    ));
     exit;
 }
 }
@@ -786,18 +829,21 @@ if (!function_exists('kernelHandlePageSuperadminCache')) {
         ];
 
         header('Cache-Control: no-store');
-        echo app()->render('pages/superadmin-cache.disyl', [
-            'page_title' => 'Cache Observability',
-            'snap' => $snap,
-            'tiles' => $tiles,
-            'instances' => $instancesFmt,
-            'frag' => $fragCtx,
-            'breadcrumbs' => $breadcrumbs,
-            'cms_user_display' => $user['name'] ?? $user['email'] ?? 'Admin',
-            'cms_user_role' => $user['role'] ?? '',
-            'csrf_token' => $_SESSION['csrf_token'] ?? '',
-            'current_page' => 'settings',
-        ]);
+        echo app()->render('pages/superadmin-cache.disyl', array_merge(
+            kernelAdminContext($user, 'settings'),
+            [
+                'page_title' => 'Cache Observability',
+                'snap' => $snap,
+                'tiles' => $tiles,
+                'instances' => $instancesFmt,
+                'frag' => $fragCtx,
+                'breadcrumbs' => [
+                    ['label' => 'Platform', 'url' => '/admin/platform'],
+                    ['label' => 'Cache Observability'],
+                ],
+                'csrf_token' => $_SESSION['csrf_token'] ?? '',
+            ]
+        ));
     }
 }
 

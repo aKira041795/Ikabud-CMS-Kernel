@@ -576,28 +576,28 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
         ? 'Kernel Admin'
         : ucfirst($user['role'] ?? 'Superadmin');
 
-    echo app()->render('pages/superadmin-settings.disyl', [
-        'page_title' => 'Feature Settings',
-        'cms_user_display' => $userName,
-        'cms_user_role' => $userRole,
-        'current_page' => 'settings',
-        'breadcrumbs' => [
-            ['label' => 'Dashboard', 'url' => $baseUrl . '/cms/admin'],
-            ['label' => 'Feature Settings'],
+    echo app()->render('pages/superadmin-settings.disyl', array_merge(
+        kernelAdminContext($user, 'settings'),
+        [
+            'page_title' => 'Feature Settings',
+            'breadcrumbs' => [
+                ['label' => 'Platform', 'url' => '/admin/platform'],
+                ['label' => 'Feature Settings'],
+            ],
+            'modules' => $moduleList,
+            'catalog_entries' => $catalogEntries,
+            'catalog_pending_count' => count(array_filter($catalogEntries, static fn(array $entry): bool => (string)($entry['approval_status'] ?? '') === 'pending')),
+            'access_requests' => $accessRequests,
+            'access_requests_json' => json_encode($accessRequests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'access_request_pending_count' => count(array_filter($accessRequests, static fn(array $request): bool => (string)($request['status'] ?? '') === 'pending')),
+            'multi_tenant' => $multiTenant,
+            'tenants' => $tenantOptions,
+            'selected_tenant_id' => $selectedTenantId ?? 0,
+            'selected_tenant_label' => $selectedTenantLabel,
+            'module_count' => count($moduleList),
+            'tenant_db_ok' => $tenantDbOk ?? true,
         ],
-        'modules' => $moduleList,
-        'catalog_entries' => $catalogEntries,
-        'catalog_pending_count' => count(array_filter($catalogEntries, static fn(array $entry): bool => (string)($entry['approval_status'] ?? '') === 'pending')),
-        'access_requests' => $accessRequests,
-        'access_requests_json' => json_encode($accessRequests, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-        'access_request_pending_count' => count(array_filter($accessRequests, static fn(array $request): bool => (string)($request['status'] ?? '') === 'pending')),
-        'multi_tenant' => $multiTenant,
-        'tenants' => $tenantOptions,
-        'selected_tenant_id' => $selectedTenantId ?? 0,
-        'selected_tenant_label' => $selectedTenantLabel,
-        'module_count' => count($moduleList),
-        'tenant_db_ok' => $tenantDbOk ?? true,
-    ]);
+    ));
     exit;
     }
 }

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{page_title|default:'Administration'} — Kernel OS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/@alpinejs/collapse@3.14.3/dist/cdn.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+  <script defer src="{base_url}/assets/js/ikb-components.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            kernel: {
+              50: '#f0f4ff', 100: '#dbe4ff', 200: '#bac8ff', 300: '#91a7ff',
+              400: '#748ffc', 500: '#5c7cfa', 600: '#4c6ef5', 700: '#4263eb',
+              800: '#3b5bdb', 900: '#364fc7', 950: '#2b3fa0',
+            },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    :root {
+      --kernel-shell-bg: linear-gradient(180deg, #0c1830 0%, #0a1425 52%, #070f1d 100%);
+      --kernel-shell-border: rgba(148, 163, 184, 0.14);
+      --kernel-shell-text: #e5eefc;
+      --kernel-shell-muted: rgba(203, 213, 225, 0.72);
+      --kernel-shell-active: rgba(92, 124, 250, 0.18);
+      --kernel-panel-bg: rgba(255, 255, 255, 0.88);
+      --kernel-panel-border: rgba(148, 163, 184, 0.2);
+      /* Inherited design tokens for child templates */
+      --primary: #4c6ef5;
+      --radius: 10px;
+      --text: #1f2937;
+      --text-muted: #64748b;
+      --text-light: #94a3b8;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --danger: #e03131;
+    }
+    .kernel-admin {
+      color: #1f2937;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      background: linear-gradient(180deg, #f8faff 0%, #eef2f9 44%, #f4f7fc 100%);
+    }
+    .kernel-admin main { color: #1f2937; line-height: 1.58; }
+    .kernel-admin main h1, .kernel-admin main h2,
+    .kernel-admin main h3, .kernel-admin main h4 { line-height: 1.3; }
+    .kernel-admin a { transition: color .12s; }
+    .kernel-admin .panel {
+      background: var(--kernel-panel-bg);
+      border: 1px solid var(--kernel-panel-border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 12px;
+      backdrop-filter: blur(2px);
+    }
+    .kernel-admin table.data {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .kernel-admin table.data th {
+      text-align: left;
+      padding: 8px 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #64748b;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .kernel-admin table.data td {
+      padding: 7px 6px;
+      font-size: 13px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .kernel-admin table.data tr:hover td { background: #f8fafc; }
+    .kernel-sidebar { width: 240px; }
+    .kernel-sidebar nav a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #94a3b8;
+      transition: all .12s;
+    }
+    .kernel-sidebar nav a:hover {
+      background: rgba(92, 124, 250, 0.1);
+      color: #e5eefc;
+    }
+    .kernel-sidebar nav a.active {
+      background: rgba(92, 124, 250, 0.2);
+      color: #fff;
+    }
+    .kernel-sidebar section-title {
+      display: block;
+      padding: 10px 12px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #475569;
+    }
+    .kernel-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all .12s;
+      cursor: pointer;
+    }
+    .kernel-btn-primary { background: #4c6ef5; color: #fff; border: none; }
+    .kernel-btn-primary:hover { background: #4263eb; }
+    .kernel-btn-outline { background: transparent; color: #4c6ef5; border: 1px solid #4c6ef5; }
+    .kernel-btn-outline:hover { background: rgba(76, 110, 245, 0.08); }
+    .kernel-btn-danger { background: #e03131; color: #fff; border: none; }
+    .kernel-btn-danger:hover { background: #c92a2a; }
+  </style>
+  {block head}{/block}
+</head>
+<body class="kernel-admin min-h-screen" x-data="{ sidebarOpen: true, mobileMenu: false }">
+  <a href="#kernel-main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:p-2 focus:bg-white focus:text-slate-900">Skip to main content</a>
+
+  <!-- Top bar -->
+  <header class="flex items-center justify-between h-12 px-4 bg-slate-900 border-b border-slate-700/50 text-white shrink-0">
+    <div class="flex items-center gap-3">
+      <button @click="sidebarOpen = !sidebarOpen" class="p-1 rounded hover:bg-slate-700/50 hidden lg:block" title="Toggle sidebar">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <button @click="mobileMenu = true" class="p-1 rounded hover:bg-slate-700/50 lg:hidden" title="Menu">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <span class="font-bold text-sm tracking-tight">Kernel OS</span>
+    </div>
+    <div class="flex items-center gap-3 text-xs text-slate-300">
+      {if kernel_user_display}
+      <span class="hidden sm:inline">{kernel_user_display}</span>
+      <span class="px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 text-[10px] font-medium">{kernel_user_role|default:''}</span>
+      {/if}
+      <a href="{base_url}/logout" class="text-slate-400 hover:text-white transition-colors" title="Sign out">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="flex min-h-[calc(100vh-48px)]">
+    <!-- Desktop sidebar -->
+    <aside class="kernel-sidebar hidden lg:flex lg:flex-col bg-slate-900 text-white shrink-0 transition-all duration-200" x-show="sidebarOpen" x-cloak>
+      <nav class="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
+        <span class="section-title">System</span>
+        <a href="{base_url}/admin/tenants" class="{if current_page == 'tenants'}active{/if}">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Tenants
+        </a>
+        <a href="{base_url}/admin/modules">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+          Modules
+        </a>
+        <a href="{base_url}/admin/users">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          Users
+        </a>
+        <a href="{base_url}/admin/platform">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          Platform
+        </a>
+        {if ext_nav_items && ext_nav_items | count > 0}
+        {foreach ext_nav_items as item}
+        {if item.section}
+        <span class="section-title">{item.label}</span>
+        {else}
+        <a href="{item.url}" class="{if current_page == item.active_key}active{/if}">
+          {if item.icon}<span class="w-4 h-4 shrink-0 flex items-center justify-center text-xs">{item.icon}</span>{else}
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
+          {item.label}
+        </a>
+        {/if}
+        {/foreach}
+        {/if}
+      </nav>
+    </aside>
+
+    <!-- Mobile sidebar -->
+    <div x-show="mobileMenu" x-cloak class="fixed inset-0 z-40 lg:hidden" @click="mobileMenu=false">
+      <div class="fixed inset-0 bg-black/50"></div>
+      <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 text-white z-50 overflow-y-auto">
+        <div class="flex items-center justify-between h-12 px-4 border-b border-slate-700/50">
+          <span class="font-bold text-sm">Kernel OS</span>
+          <button @click="mobileMenu=false" class="text-slate-400 hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <nav class="py-3 px-2 space-y-0.5">
+          <span class="section-title">System</span>
+          <a href="{base_url}/admin/tenants">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            Tenants
+          </a>
+          <a href="{base_url}/admin/modules">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+            Modules
+          </a>
+          <a href="{base_url}/admin/users">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+            Users
+          </a>
+          <a href="{base_url}/admin/platform">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Platform
+          </a>
+          {if ext_nav_items && ext_nav_items | count > 0}
+          {foreach ext_nav_items as item}
+          {if item.section}
+          <span class="section-title">{item.label}</span>
+          {else}
+          <a href="{item.url}">
+            {if item.icon}<span class="w-4 h-4 shrink-0 flex items-center justify-center text-xs">{item.icon}</span>{else}
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>{/if}
+            {item.label}
+          </a>
+          {/if}
+          {/foreach}
+          {/if}
+        </nav>
+      </aside>
+    </div>
+
+    <!-- Main content -->
+    <main id="kernel-main-content" class="flex-1 p-4 md:p-6 lg:p-8 min-w-0">
+      {if breadcrumbs && breadcrumbs | count > 1}
+      <nav class="flex items-center gap-1.5 text-xs text-slate-400 mb-4" aria-label="Breadcrumb">
+        {foreach breadcrumbs as crumb}
+        {if !crumb.__first}<span class="text-slate-300">/</span>{/if}
+        {if crumb.url}<a href="{crumb.url}" class="hover:text-slate-600 transition-colors">{crumb.label}</a>{else}<span class="text-slate-700 font-medium">{crumb.label}</span>{/if}
+        {/foreach}
+      </nav>
+      {/if}
+      {block content}{/block}
+    </main>
+  </div>
+
+  <!-- Toast container -->
+  <div id="cms-toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
+    <template x-teleport="body">
+      <div x-data="cmsToast()" x-init="init()" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+    </template>
+  </div>
+  <script>
+    function cmsToast() {
+      return {
+        toasts: [],
+        init() {
+          window.addEventListener('cms-toast', (e) => {
+            const { message, type, duration } = (e.detail || {});
+            const id = Date.now() + Math.random();
+            this.toasts.push({ id, message: message || '', type: type || 'success', duration: duration || 4000 });
+            setTimeout(() => { this.toasts = this.toasts.filter(t => t.id !== id); }, (duration || 4000) + 300);
+          });
+        },
+      };
+    }
+    document.addEventListener('alpine:init', () => {
+      Alpine.data('cmsToast', cmsToast);
+    });
+  </script>
+  {block scripts}{/block}
+</body>
+</html>

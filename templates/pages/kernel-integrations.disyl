@@ -1,4 +1,4 @@
-{extends "modules/cms/layouts/admin.disyl"}
+{extends "layouts/kernel-admin.disyl"}
 
 {block head}
 <style>
