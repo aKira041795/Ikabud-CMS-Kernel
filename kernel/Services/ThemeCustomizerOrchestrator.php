@@ -30,14 +30,29 @@ use Ikabud\Kernel\Contracts\ThemeValidationResult;
  */
 class ThemeCustomizerOrchestrator
 {
-    /** @var ThemeCustomizerProvider|null Cached resolved provider */
-    private static ?ThemeCustomizerProvider $resolvedProvider = null;
+    /** @var array<int, ThemeCustomizerProvider|null> Tenant-keyed cached resolved provider */
+    private static array $resolvedProviders = [];
 
-    /** @var array<string, bool> Validation cache */
+    /** @var array<string, bool> Validation cache (slug-keyed, cleared on reset) */
     private static array $validationCache = [];
 
-    /** @var bool Whether the current provider failed validation */
-    private static bool $activationFailed = false;
+    /** @var array<int, bool> Tenant-keyed activation failure flag */
+    private static array $activationFailures = [];
+
+    /**
+     * Get the current tenant ID for cache keying.
+     */
+    private static function currentTenantId(): int
+    {
+        try {
+            if (function_exists('app') && app()->tenant()) {
+                return app()->tenant()->current();
+            }
+        } catch (\Throwable $e) {
+            // Tenant context not available
+        }
+        return 0;
+    }
 
     /**
      * Resolve the active theme's customizer provider.
@@ -51,8 +66,9 @@ class ThemeCustomizerOrchestrator
      */
     public static function resolve(): ?ThemeCustomizerProvider
     {
-        if (self::$resolvedProvider !== null) {
-            return self::$resolvedProvider;
+        $tenantId = self::currentTenantId();
+        if (array_key_exists($tenantId, self::$resolvedProviders)) {
+            return self::$resolvedProviders[$tenantId];
         }
 
         if (!function_exists('cmsActiveThemeManifest') || !function_exists('cmsActiveTheme')) {
@@ -75,22 +91,24 @@ class ThemeCustomizerOrchestrator
             if ($provider !== null) {
                 // Validate at activation time — fail closed
                 if (!self::validateProvider($provider, $slug, $themePath)) {
-                    self::$activationFailed = true;
+                    self::$activationFailures[$tenantId] = true;
                     write_log("[ThemeCustomizer] Activation rejected for '{$slug}' — provider failed validation", 'error');
+                    self::$resolvedProviders[$tenantId] = null;
                     return null;
                 }
-                self::$resolvedProvider = $provider;
+                self::$resolvedProviders[$tenantId] = $provider;
                 return $provider;
             }
             // owns: true but could not resolve — ACTIVATION FAILED
-            self::$activationFailed = true;
+            self::$activationFailures[$tenantId] = true;
             write_log("[ThemeCustomizer] Activation rejected for '{$slug}' — owns:true but no valid provider", 'error');
+            self::$resolvedProviders[$tenantId] = null;
             return null;
         }
 
         // Path 2: Legacy theme — wrap in adapter
         $adapter = new LegacyCmsCustomizerAdapter($slug);
-        self::$resolvedProvider = $adapter;
+        self::$resolvedProviders[$tenantId] = $adapter;
         return $adapter;
     }
 
@@ -195,7 +213,7 @@ class ThemeCustomizerOrchestrator
      */
     public static function activationFailed(): bool
     {
-        return self::$activationFailed;
+        return self::$activationFailures[self::currentTenantId()] ?? false;
     }
 
     /**
@@ -401,9 +419,9 @@ class ThemeCustomizerOrchestrator
      */
     public static function reset(): void
     {
-        self::$resolvedProvider = null;
+        self::$resolvedProviders = [];
         self::$validationCache = [];
-        self::$activationFailed = false;
+        self::$activationFailures = [];
     }
 
     /**

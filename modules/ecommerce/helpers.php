@@ -60,6 +60,10 @@ function ecommerce_capability_handlers(): array
 		'ecommerce.orders.tracking.sync@1' => 'ec_cap_orders_tracking_sync_1',
 		'ecommerce.orders.payment.sync@1' => 'ec_cap_orders_payment_sync_1',
 		'ecommerce.membership.content_gate@1' => 'ecMembershipContentGateCapabilityHandler',
+		'entity.list.ecommerce_product@1' => 'ec_cap_entity_list_product_1',
+		'entity.get.ecommerce_product@1' => 'ec_cap_entity_get_product_1',
+		'entity.list.ecommerce_order@1' => 'ec_cap_entity_list_order_1',
+		'entity.get.ecommerce_order@1' => 'ec_cap_entity_get_order_1',
 	];
 }
 

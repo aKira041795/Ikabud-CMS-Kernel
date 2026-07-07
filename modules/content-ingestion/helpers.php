@@ -338,3 +338,96 @@ app()->hooks()->on('cms.admin.nav_items', static function (array $items): array 
 
     return $items;
 });
+
+// ── Capability Handlers ─────────────────────────────────────────────────
+
+function content_ingestion_capability_handlers(): array
+{
+    return [
+        'content_ingestion.import_content@1' => 'content_ingestion_cap_import_content_1',
+    ];
+}
+
+/**
+ * Capability handler: content_ingestion.import_content@1
+ *
+ * Entry point for the content ingestion pipeline. Accepts a normalized
+ * content payload and dispatches it through the kernel event bus for
+ * idempotent processing. The bridge must be enabled for this tenant.
+ *
+ * Expected payload keys:
+ *   - event: string (e.g. 'cms.migration.content.upserted')
+ *   - source: string (e.g. 'wordpress')
+ *   - external_id: string
+ *   - external_modified: string (ISO 8601 or MySQL datetime)
+ *   - payload: array (normalized content fields)
+ *
+ * @return array{ok: bool, status?: string, cms_content_id?: int, error?: string}
+ */
+function content_ingestion_cap_import_content_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $input = is_array($payload) ? $payload : [];
+
+    // Gate: bridge must be enabled
+    $bridgeSettings = function_exists('getModuleSettings') ? getModuleSettings('content-ingestion') : [];
+    if (empty($bridgeSettings['bridge_enabled'])) {
+        return ['ok' => false, 'error' => 'Content Ingestion is not enabled for this tenant.'];
+    }
+
+    // Validate required fields
+    $event = trim((string)($input['event'] ?? ''));
+    $source = trim((string)($input['source'] ?? ''));
+    $externalId = trim((string)($input['external_id'] ?? ''));
+    $externalModified = trim((string)($input['external_modified'] ?? ''));
+    $contentPayload = is_array($input['payload'] ?? null) ? $input['payload'] : [];
+
+    $errors = [];
+    if ($event === '') $errors[] = 'event is required';
+    if ($source === '') $errors[] = 'source is required';
+    if ($externalId === '') $errors[] = 'external_id is required';
+    if ($externalModified === '') $errors[] = 'external_modified is required';
+    if (empty($contentPayload)) $errors[] = 'payload is required and must be an object';
+    if (!empty($errors)) {
+        return ['ok' => false, 'error' => implode('; ', $errors)];
+    }
+
+    // Only accept known bridge events
+    $allowedEvents = ['cms.migration.content.upserted'];
+    if (!in_array($event, $allowedEvents, true)) {
+        return ['ok' => false, 'error' => "Unknown event: {$event}"];
+    }
+
+    // Idempotency check
+    if (function_exists('wpBridgeIdempotencyCheck')) {
+        $idempotency = wpBridgeIdempotencyCheck($source, $externalId, $externalModified);
+        if ($idempotency === 'skip') {
+            return ['ok' => true, 'status' => 'skipped', 'reason' => 'Already processed with same external_modified'];
+        }
+        if ($idempotency === 'stale') {
+            return ['ok' => true, 'status' => 'skipped', 'reason' => 'Event is older than last successfully processed version'];
+        }
+    }
+
+    // Dispatch the ingestion event through the kernel event bus
+    try {
+        if (function_exists('app') && method_exists(app(), 'events')) {
+            app()->events()->emit($event, array_merge($contentPayload, [
+                'source' => $source,
+                'external_id' => $externalId,
+                'external_modified' => $externalModified,
+            ]));
+        }
+
+        // Log the ingestion attempt
+        if (function_exists('wpBridgeLogIngestion')) {
+            wpBridgeLogIngestion($source, $externalId, $externalModified, 'queued', $contentPayload);
+        }
+
+        return ['ok' => true, 'status' => 'queued'];
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('content-ingestion cap: import failed: ' . $e->getMessage(), 'error');
+        }
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}

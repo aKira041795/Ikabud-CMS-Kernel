@@ -2890,10 +2890,13 @@ function cmsRenderWidget_html_embed(array $props, array $style, array $attrs, st
 
     // F9 Security: Only admin/superadmin users may render raw embedded HTML.
     // Any other caller gets a sanitized version with dangerous tags stripped.
+    // Per project convention: superadmin requires BOTH role === 'superadmin' AND source === 'kernel'.
     $user = function_exists('app') ? app()->user() : null;
     $role = is_array($user) ? (string)($user['role'] ?? '') : '';
-    $trustedRoles = ['admin', 'superadmin'];
-    $isTrusted = in_array($role, $trustedRoles, true);
+    $source = is_array($user) ? (string)($user['source'] ?? '') : '';
+    $isAdmin = ($role === 'admin');
+    $isSuperadmin = ($role === 'superadmin' && $source === 'kernel');
+    $isTrusted = $isAdmin || $isSuperadmin;
 
     if (!$isTrusted) {
         // Strip all script, style, and event-handler attributes; allow only safe structural tags.

@@ -5444,6 +5444,10 @@ class TemplateEngine
         if ($href === '') {
             return '#';
         }
+        // Block protocol-relative URLs (//evil.com) that bypass parse_url scheme detection
+        if (str_starts_with($href, '//')) {
+            return '#';
+        }
         // Check scheme — strip everything before first colon and compare
         $scheme = strtolower((string) parse_url($href, PHP_URL_SCHEME));
         if ($scheme !== '' && !in_array($scheme, ['http', 'https', 'mailto', 'tel', 'ftp'], true)) {
@@ -5663,22 +5667,23 @@ class TemplateEngine
     
     private function renderTextarea(array $attrs, string $children): string
     {
-        $name = $attrs['name'] ?? '';
-        $id = $attrs['id'] ?? $name;
-        $rows = $attrs['rows'] ?? '4';
-        $placeholder = htmlspecialchars($attrs['placeholder'] ?? '', ENT_QUOTES);
+        $name = htmlspecialchars($attrs['name'] ?? '', ENT_QUOTES, 'UTF-8');
+        $id = htmlspecialchars($attrs['id'] ?? $name, ENT_QUOTES, 'UTF-8');
+        $rows = (int)($attrs['rows'] ?? 4);
+        $placeholder = htmlspecialchars($attrs['placeholder'] ?? '', ENT_QUOTES, 'UTF-8');
         $required = isset($attrs['required']) ? ' required' : '';
-        $class = $attrs['class'] ?? '';
+        $class = htmlspecialchars($attrs['class'] ?? '', ENT_QUOTES, 'UTF-8');
+        $escapedChildren = htmlspecialchars($children, ENT_QUOTES, 'UTF-8');
         
-        return "<textarea id=\"{$id}\" name=\"{$name}\" rows=\"{$rows}\" placeholder=\"{$placeholder}\" class=\"w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 {$class}\"{$required}>{$children}</textarea>";
+        return "<textarea id=\"{$id}\" name=\"{$name}\" rows=\"{$rows}\" placeholder=\"{$placeholder}\" class=\"w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 {$class}\"{$required}>{$escapedChildren}</textarea>";
     }
     
     private function renderSelect(array $attrs, string $children): string
     {
-        $name = $attrs['name'] ?? '';
-        $id = $attrs['id'] ?? $name;
+        $name = htmlspecialchars($attrs['name'] ?? '', ENT_QUOTES, 'UTF-8');
+        $id = htmlspecialchars($attrs['id'] ?? $name, ENT_QUOTES, 'UTF-8');
         $required = isset($attrs['required']) ? ' required' : '';
-        $class = $attrs['class'] ?? '';
+        $class = htmlspecialchars($attrs['class'] ?? '', ENT_QUOTES, 'UTF-8');
         $htmx = $this->buildHtmxAttrs($attrs);
         
         return "<select id=\"{$id}\" name=\"{$name}\" class=\"w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 {$class}\"{$required}{$htmx}>{$children}</select>";
@@ -5686,9 +5691,9 @@ class TemplateEngine
     
     private function renderIcon(array $attrs): string
     {
-        $name = $attrs['name'] ?? 'circle';
+        $name = htmlspecialchars($attrs['name'] ?? 'circle', ENT_QUOTES, 'UTF-8');
         $size = $attrs['size'] ?? 'md';
-        $class = $attrs['class'] ?? '';
+        $class = htmlspecialchars($attrs['class'] ?? '', ENT_QUOTES, 'UTF-8');
         
         $sizeClass = match($size) {
             'sm' => 'w-4 h-4', 'md' => 'w-5 h-5', 'lg' => 'w-6 h-6', 'xl' => 'w-8 h-8', default => 'w-5 h-5',
@@ -5723,8 +5728,8 @@ class TemplateEngine
     
     private function renderModal(array $attrs, string $children): string
     {
-        $id = $attrs['id'] ?? 'modal';
-        $title = htmlspecialchars($attrs['title'] ?? '', ENT_QUOTES);
+        $id = htmlspecialchars($attrs['id'] ?? 'modal', ENT_QUOTES, 'UTF-8');
+        $title = htmlspecialchars($attrs['title'] ?? '', ENT_QUOTES, 'UTF-8');
         $size = $attrs['size'] ?? 'medium';
         
         $sizeClass = match($size) {

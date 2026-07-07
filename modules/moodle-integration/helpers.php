@@ -28,6 +28,66 @@ function moodleIntegrationInput(): array
     return is_array($input) ? $input : [];
 }
 
+// ── Capability Handlers ─────────────────────────────────────────────────
+
+function moodle_integration_capability_handlers(): array
+{
+    return [
+        'moodle.sso.validate@1' => 'moodle_integration_cap_sso_validate_1',
+    ];
+}
+
+/**
+ * Capability handler: moodle.sso.validate@1
+ *
+ * Validates an inbound SSO token from the Moodle-side plugin.
+ * Atomically consumes the token (consume-once enforcement) and returns
+ * the authenticated user + learning resource context.
+ *
+ * Expected payload: {token: string}
+ * Returns: {ok: bool, user_id?: int, learning_resource_id?: int, tenant_id?: int, error?: string}
+ *
+ * @param mixed $payload
+ * @return array
+ */
+function moodle_integration_cap_sso_validate_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $input = is_array($payload) ? $payload : [];
+    $token = trim((string)($input['token'] ?? ''));
+    if ($token === '') {
+        return ['ok' => false, 'error' => 'SSO token is required'];
+    }
+
+    $tenantId = function_exists('moodleIntegrationCurrentTenantId')
+        ? moodleIntegrationCurrentTenantId()
+        : 0;
+    if ($tenantId <= 0) {
+        return ['ok' => false, 'error' => 'Tenant context unavailable'];
+    }
+
+    try {
+        // Use the SSOService to validate the token (JWT structure, HMAC signature,
+        // expiry, and atomic consume-once enforcement)
+        if (!class_exists('\\MoodleIntegration\\Services\\SSOService')) {
+            require_once __DIR__ . '/services/SSOService.php';
+        }
+
+        $ssoService = new \MoodleIntegration\Services\SSOService($tenantId);
+        $result = $ssoService->validateInboundToken($token, $tenantId);
+
+        if ($result === null) {
+            return ['ok' => false, 'error' => 'Invalid, expired, or already consumed SSO token'];
+        }
+
+        return array_merge(['ok' => true], $result);
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('moodle-integration cap: SSO validation failed: ' . $e->getMessage(), 'error');
+        }
+        return ['ok' => false, 'error' => 'SSO token validation failed'];
+    }
+}
+
 function moodleIntegrationRender(string $relativePath, array $context = []): string
 {
     $template = moodleIntegrationTemplateKey($relativePath);

@@ -1203,11 +1203,19 @@ function _cmsFindModuleRoot(string $dir): ?string
 function _cmsDeleteDirRecursive(string $dir): void
 {
     if (!is_dir($dir)) return;
+    // Explicitly disable symlink following to prevent traversal outside the theme sandbox
+    $flags = \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS;
+    // But we must NOT follow symlinks — use the default (0) for that flag.
+    // The FOLLOW_SYMLINKS constant is a bitmask. We want SKIP_DOTS only.
     $items = new \RecursiveIteratorIterator(
         new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
         \RecursiveIteratorIterator::CHILD_FIRST
     );
     foreach ($items as $item) {
+        if ($item->isLink()) {
+            // Never follow or delete through symlinks
+            continue;
+        }
         if ($item->isDir()) {
             @rmdir($item->getPathname());
         } else {
@@ -1230,6 +1238,10 @@ function _cmsCopyDirRecursive(string $src, string $dst): void
         \RecursiveIteratorIterator::SELF_FIRST
     );
     foreach ($items as $item) {
+        // Never follow or copy through symlinks
+        if ($item->isLink()) {
+            continue;
+        }
         $target = $dst . '/' . $items->getSubPathname();
         if ($item->isDir()) {
             @mkdir($target, 0775, true);

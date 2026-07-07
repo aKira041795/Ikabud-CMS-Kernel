@@ -28,6 +28,127 @@ function contactFormCtx(): \Ikabud\Kernel\Contracts\ModuleContext
     return $ctx;
 }
 
+// ── Capability Handlers ─────────────────────────────────────────────────
+
+function contact_form_capability_handlers(): array
+{
+    return [
+        'contact_form.submit@1' => 'contact_form_cap_submit_1',
+    ];
+}
+
+/**
+ * Capability handler: contact_form.submit@1
+ *
+ * Processes a contact form submission. Validates input, stores in the
+ * database (when store_submissions is enabled), and returns the result.
+ * Honeypot spam protection is applied when enabled.
+ *
+ * @param mixed $payload Expected keys: form_id, name, email, message, form_data, captcha_token, captcha_answer
+ * @return array{ok: bool, message?: string, field_errors?: array, submission_id?: int}
+ */
+function contact_form_cap_submit_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $input = is_array($payload) ? $payload : [];
+    $settings = function_exists('contactFormGetSettings') ? contactFormGetSettings() : [];
+
+    // Honeypot spam protection
+    $honeypotTriggered = function_exists('antispamHoneypotTriggered')
+        ? antispamHoneypotTriggered($input, '_hp_name')
+        : !empty($input['_hp_name']);
+
+    if (($settings['spam_protection'] ?? 'honeypot') === 'honeypot' && $honeypotTriggered) {
+        return ['ok' => true, 'message' => $settings['success_message'] ?? 'Thank you for your message.'];
+    }
+
+    // Resolve the form definition (optional — supports dynamic saved forms)
+    $savedForm = null;
+    $formId = (int)($input['form_id'] ?? 0);
+    if ($formId > 0 && function_exists('contactFormGetFormById')) {
+        $schema = function_exists('contactFormSchemaStatus') ? contactFormSchemaStatus() : ['ready' => false];
+        if (empty($schema['ready'])) {
+            return ['ok' => false, 'error' => $schema['message'] ?? 'Contact form schema is not ready.'];
+        }
+        $savedForm = contactFormGetFormById($formId, true, true);
+        if (!$savedForm) {
+            return ['ok' => false, 'error' => 'Selected form is unavailable.'];
+        }
+    }
+
+    // Captcha validation for saved forms with captcha enabled
+    if ($savedForm && (int)($savedForm['captcha_enabled'] ?? 0) === 1) {
+        $captchaToken = trim((string)($input['captcha_token'] ?? ''));
+        $captchaAnswer = trim((string)($input['captcha_answer'] ?? ''));
+        if (function_exists('contactFormVerifyCaptcha') && !contactFormVerifyCaptcha($captchaToken, $captchaAnswer)) {
+            return [
+                'ok' => false,
+                'error' => 'Incorrect answer. Please try again.',
+                'field_errors' => ['captcha_answer' => 'Incorrect answer. Please try again.'],
+            ];
+        }
+    }
+
+    // Prepare submission data
+    $fields = ($savedForm && is_array($savedForm['fields'] ?? null)) ? $savedForm['fields'] : [];
+    $prepared = ($savedForm && function_exists('contactFormPrepareDynamicSubmission'))
+        ? contactFormPrepareDynamicSubmission($fields, $input)
+        : (function_exists('contactFormPrepareLegacySubmission') ? contactFormPrepareLegacySubmission($input) : ['error' => 'Submission handler not available']);
+
+    if (!empty($prepared['error'])) {
+        $extra = [];
+        if (!empty($prepared['field_errors']) && is_array($prepared['field_errors'])) {
+            $extra['field_errors'] = $prepared['field_errors'];
+        }
+        return array_merge(['ok' => false, 'error' => $prepared['error']], $extra);
+    }
+
+    $records = is_array($prepared['records'] ?? null) ? $prepared['records'] : [];
+    $summaryName = function_exists('contactFormLimit')
+        ? contactFormLimit(trim((string)($prepared['name'] ?? '')), 255)
+        : trim((string)($prepared['name'] ?? ''));
+    $summaryEmail = function_exists('contactFormLimit')
+        ? contactFormLimit(trim((string)($prepared['email'] ?? '')), 255)
+        : trim((string)($prepared['email'] ?? ''));
+    $summaryMessage = function_exists('contactFormLimit')
+        ? contactFormLimit(trim((string)($prepared['message'] ?? '')), 5000)
+        : trim((string)($prepared['message'] ?? ''));
+
+    $submissionId = null;
+    if (($settings['store_submissions'] ?? '1') !== '0') {
+        try {
+            $db = contactFormDb();
+            $stmt = $db->prepare(
+                'INSERT INTO contact_form_submissions (form_id, name, email, message, form_data, ip_address, created_at)'
+                . ' VALUES (:form_id, :name, :email, :message, :form_data, :ip, NOW())'
+            );
+            $stmt->execute([
+                ':form_id' => $savedForm ? (int)$savedForm['id'] : null,
+                ':name' => $summaryName,
+                ':email' => $summaryEmail,
+                ':message' => $summaryMessage,
+                ':form_data' => json_encode($records, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ':ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            ]);
+            $submissionId = (int)$db->lastInsertId();
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('contact-form cap: DB store failed: ' . $e->getMessage(), 'error');
+            }
+        }
+    }
+
+    $responseMessage = trim((string)($savedForm['success_message'] ?? ''));
+    if ($responseMessage === '') {
+        $responseMessage = trim((string)($settings['success_message'] ?? 'Thank you for your message.'));
+    }
+
+    $result = ['ok' => true, 'message' => $responseMessage];
+    if ($submissionId !== null && $submissionId > 0) {
+        $result['submission_id'] = $submissionId;
+    }
+    return $result;
+}
+
 function contactFormDb(): \Ikabud\Kernel\Contracts\ModuleDB
 {
     return contactFormCtx()->db();
