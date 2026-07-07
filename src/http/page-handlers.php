@@ -463,6 +463,7 @@ function kernelAdminContext(array $user, string $currentPage): array
         'ext_nav_items' => function_exists('cmsGetExtensionNavItems')
             ? cmsGetExtensionNavItems()
             : [],
+        'nav_items' => getModuleNavItems(),
         'breadcrumbs' => [
             ['label' => 'Platform', 'url' => '/admin/platform'],
             ['label' => $currentPage === 'platform' ? 'Platform' : ucfirst($currentPage)],
@@ -637,18 +638,13 @@ function kernelHandlePageAdminTenants(): void
         exit;
     }
     $entryModuleOptions = listTenantEntryModuleOptions();
-    echo app()->render('pages/admin-tenants.disyl', [
-        'page_title' => 'Tenants',
-        'current_page' => 'tenants',
-        'kernel_user_display' => $user['full_name'] ?? $user['username'] ?? 'Admin',
-        'kernel_user_role' => 'Kernel Admin',
-        'ext_nav_items' => app()->hooks()->filter('cms.admin.nav_items', []),
-        'breadcrumbs' => [
-            ['label' => 'Platform', 'url' => '/admin/platform'],
-            ['label' => 'Tenants'],
-        ],
-        'entry_module_options_json' => json_encode($entryModuleOptions, JSON_UNESCAPED_SLASHES),
-    ]);
+    echo app()->render('pages/admin-tenants.disyl', array_merge(
+        kernelAdminContext($user, 'tenants'),
+        [
+            'page_title' => 'Tenants',
+            'entry_module_options_json' => json_encode($entryModuleOptions, JSON_UNESCAPED_SLASHES),
+        ]
+    ));
     exit;
 }
 }

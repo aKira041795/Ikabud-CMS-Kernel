@@ -4904,11 +4904,14 @@ class TemplateEngine
             // Handle nested object recursively
             if (str_starts_with($rawValue, '{') && str_ends_with($rawValue, '}')) {
                 $result[$key] = $this->parseInlineObject($rawValue, $context);
-            } else {
-                // Remove surrounding quotes from scalar values
+            } elseif (preg_match('/^["\']/', $rawValue)) {
+                // Quoted literal: strip quotes and use as-is
                 $cleanValue = trim($rawValue, ' "\'');
                 $resolved = $this->resolveValue($cleanValue, $context);
                 $result[$key] = $resolved ?? $cleanValue;
+            } else {
+                // DiSyL expression: resolve with full filter/operator support
+                $result[$key] = $this->resolveValueWithFilters($rawValue, $context);
             }
         }
         

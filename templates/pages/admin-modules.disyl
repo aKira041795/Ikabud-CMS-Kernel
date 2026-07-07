@@ -36,6 +36,7 @@
 
         var fd = new FormData();
         fd.append('module_id', moduleId);
+        fd.append('_token', CSRF);
 
         fetch(endpoint, {
             method: 'POST',
@@ -61,6 +62,7 @@
         var fd = new FormData();
         fd.append('module_id', moduleId);
         fd.append('settings[allow_kernel_admin]', checked ? '1' : '0');
+        fd.append('_token', CSRF);
 
         fetch('/api/v1/admin/modules/settings', {
             method: 'POST',
@@ -92,6 +94,7 @@
 
         var fd = new FormData();
         fd.append('module_zip', file);
+        fd.append('_token', CSRF);
 
         fetch('/api/v1/admin/modules/install', {
             method: 'POST',
@@ -190,6 +193,7 @@
         var inputs = form.querySelectorAll('input, select');
         var fd = new FormData();
         fd.append('module_id', _configModuleId);
+        fd.append('_token', CSRF);
 
         inputs.forEach(function(input) {
             if (input.type === 'checkbox') {

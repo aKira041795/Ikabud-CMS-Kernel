@@ -208,57 +208,20 @@
     <!-- Desktop sidebar -->
     <aside class="kernel-sidebar hidden lg:flex lg:flex-col bg-slate-900 text-white shrink-0 transition-all duration-200" x-show="sidebarOpen" x-cloak>
       <nav class="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {if !is_superadmin}
-        <span class="section-title">System</span>
-        <a href="{base_url}/admin/tenants" class="{if current_page == 'tenants'}active{/if}">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Tenants
-        </a>
-        <a href="{base_url}/admin/modules">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-          Modules
-        </a>
-        <a href="{base_url}/admin/users">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          Users
-        </a>
-        <a href="{base_url}/admin/platform">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Platform
-        </a>
-        {/if}
-        {if is_superadmin}
-        <span class="section-title">Superadmin</span>
-        <a href="{base_url}/superadmin/settings" class="{if current_page == 'settings'}active{/if}">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Feature Settings
-        </a>
-        <a href="{base_url}/superadmin/perf">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          Performance
-        </a>
-        <a href="{base_url}/superadmin/cache" class="{if current_page == 'cache'}active{/if}">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
-          Cache
-        </a>
-        {/if}
-      </nav>
-    </aside>
-
-    <!-- Mobile sidebar -->
-    <div x-show="mobileMenu" x-cloak class="fixed inset-0 z-40 lg:hidden" @click="mobileMenu=false">
-      <div class="fixed inset-0 bg-black/50"></div>
-      <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 text-white z-50 overflow-y-auto">
-        <div class="flex items-center justify-between h-12 px-4 border-b border-slate-700/50">
-          <span class="font-bold text-sm">Kernel OS</span>
-          <button @click="mobileMenu=false" class="text-slate-400 hover:text-white">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <nav class="py-3 px-2 space-y-0.5">
-          {if !is_superadmin}
+        {if nav_items && nav_items | count > 0}
+          {foreach nav_items as item}
+            {if item.label == '---'}
+              <hr class="border-slate-700/50 my-2 mx-2">
+            {else}
+              <a href="{item.url}" class="{if current_page == item.module}active{/if}" {if item.target && item.target != '' && item.target != '_self'}target="{item.target}"{/if}>
+                {include "layouts/kernel-admin-icon.disyl" with {icon: item.icon|default:'box'}}
+                {item.label}
+              </a>
+            {/if}
+          {/foreach}
+        {else}
           <span class="section-title">System</span>
-          <a href="{base_url}/admin/tenants">
+          <a href="{base_url}/admin/tenants" class="{if current_page == 'tenants'}active{/if}">
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Tenants
           </a>
@@ -274,21 +237,50 @@
             <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             Platform
           </a>
-          {/if}
-          {if is_superadmin}
-          <span class="section-title">Superadmin</span>
-          <a href="{base_url}/superadmin/settings">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            Feature Settings
-          </a>
-          <a href="{base_url}/superadmin/perf">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            Performance
-          </a>
-          <a href="{base_url}/superadmin/cache">
-            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/></svg>
-            Cache
-          </a>
+        {/if}
+      </nav>
+    </aside>
+
+    <!-- Mobile sidebar -->
+    <div x-show="mobileMenu" x-cloak class="fixed inset-0 z-40 lg:hidden" @click="mobileMenu=false">
+      <div class="fixed inset-0 bg-black/50"></div>
+      <aside class="fixed inset-y-0 left-0 w-60 bg-slate-900 text-white z-50 overflow-y-auto">
+        <div class="flex items-center justify-between h-12 px-4 border-b border-slate-700/50">
+          <span class="font-bold text-sm">Kernel OS</span>
+          <button @click="mobileMenu=false" class="text-slate-400 hover:text-white">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <nav class="py-3 px-2 space-y-0.5">
+          {if nav_items && nav_items | count > 0}
+            {foreach nav_items as item}
+              {if item.label == '---'}
+                <hr class="border-slate-700/50 my-2 mx-2">
+              {else}
+                <a href="{item.url}" class="{if current_page == item.module}active{/if}" {if item.target && item.target != '' && item.target != '_self'}target="{item.target}"{/if}>
+                  {include "layouts/kernel-admin-icon.disyl" with {icon: item.icon|default:'box'}}
+                  {item.label}
+                </a>
+              {/if}
+            {/foreach}
+          {else}
+            <span class="section-title">System</span>
+            <a href="{base_url}/admin/tenants">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Tenants
+            </a>
+            <a href="{base_url}/admin/modules">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+              Modules
+            </a>
+            <a href="{base_url}/admin/users">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+              Users
+            </a>
+            <a href="{base_url}/admin/platform">
+              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Platform
+            </a>
           {/if}
         </nav>
       </aside>

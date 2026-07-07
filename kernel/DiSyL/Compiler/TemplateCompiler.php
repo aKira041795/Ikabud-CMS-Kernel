@@ -743,9 +743,21 @@ PHP;
     private function compileInclude(IncludeNode $node): string
     {
         $template = var_export($node->getTemplate(), true);
-        $vars = var_export($node->getVariables(), true);
+        $variables = $node->getVariables();
         
-        return $this->line("\$output .= \$this->include({$template}, {$vars}, \$ctx);");
+        // Compile each variable value as a DiSyL expression
+        $varsCode = '[';
+        foreach ($variables as $name => $expr) {
+            $nameStr = var_export($name, true);
+            $valueStr = $this->compileExpressionValue($expr);
+            $varsCode .= "\n" . str_repeat($this->indent, $this->indentLevel + 3) . "{$nameStr} => {$valueStr},";
+        }
+        if (!empty($variables)) {
+            $varsCode .= "\n" . str_repeat($this->indent, $this->indentLevel + 2);
+        }
+        $varsCode .= ']';
+        
+        return $this->line("\$output .= \$this->include({$template}, {$varsCode}, \$ctx);");
     }
     
     private function compileSlot(SlotNode $node): string

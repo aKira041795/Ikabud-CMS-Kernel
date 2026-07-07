@@ -1471,11 +1471,8 @@ final class Parser
             if ($colonPos !== false) {
                 $key = trim(substr($pair, 0, $colonPos));
                 $val = trim(substr($pair, $colonPos + 1));
-                // Strip quotes from value
-                if (preg_match('/^["\'](.*)["\']\s*$/', $val, $m)) {
-                    $val = $m[1];
-                }
-                $result[$key] = $val;
+                // Parse value as DiSyL expression (supports literals, variables, filters, etc.)
+                $result[$key] = $this->parseExprValue($val);
             }
         }
         return $result;
