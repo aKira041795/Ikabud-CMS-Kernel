@@ -12,7 +12,7 @@
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <div class="text-sm font-medium text-gray-500 mb-1">Active Theme</div>
-            <div class="text-lg font-semibold">{theme_label|default:'None'}</div>
+            <div class="text-lg font-semibold">{theme_label|default:'None'}{if is_ark} <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 ml-2">ARK</span>{/if}</div>
         </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <div class="text-sm font-medium text-gray-500 mb-1">Active Preset</div>
@@ -20,7 +20,7 @@
         </div>
         <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <div class="text-sm font-medium text-gray-500 mb-1">Studio Status</div>
-            <div class="text-lg font-semibold">{if studio_enabled == '1'}Enabled{:else}Disabled{/if}</div>
+            <div class="text-lg font-semibold">{if studio_enabled == '1'}Enabled{else}Disabled{/if}</div>
         </div>
     </div>
 
@@ -53,24 +53,24 @@
                 <h2 class="text-lg font-semibold mb-1">ARK Contract Coverage</h2>
                 <p class="text-sm text-gray-500">This shows which authority-layer files exist for the active theme.</p>
             </div>
-            <a href="/admin/theme-studio/contracts" class="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black">Open Contracts Explorer</a>
+            <a href="/cms/admin/theme-studio/contracts" class="px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-black">Open Contracts Explorer</a>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-5">
             <div class="rounded-lg border border-gray-200 p-4">
                 <div class="text-sm font-medium text-gray-500 mb-2">Renderer Registry</div>
-                <div class="text-sm font-semibold {if has_renderer_registry}text-green-700{:else}text-amber-700{/if}">{if has_renderer_registry}Present{:else}Not yet defined{/if}</div>
+                <div class="text-sm font-semibold {if has_renderer_registry}text-green-700{else}text-amber-700{/if}">{if has_renderer_registry}Present{else}Not yet defined{/if}</div>
             </div>
             <div class="rounded-lg border border-gray-200 p-4">
                 <div class="text-sm font-medium text-gray-500 mb-2">Block Registry</div>
-                <div class="text-sm font-semibold {if has_block_registry}text-green-700{:else}text-amber-700{/if}">{if has_block_registry}Present{:else}Not yet defined{/if}</div>
+                <div class="text-sm font-semibold {if has_block_registry}text-green-700{else}text-amber-700{/if}">{if has_block_registry}Present{else}Not yet defined{/if}</div>
             </div>
             <div class="rounded-lg border border-gray-200 p-4">
                 <div class="text-sm font-medium text-gray-500 mb-2">Entity View Map</div>
-                <div class="text-sm font-semibold {if has_entity_view_map}text-green-700{:else}text-amber-700{/if}">{if has_entity_view_map}Present{:else}Not yet defined{/if}</div>
+                <div class="text-sm font-semibold {if has_entity_view_map}text-green-700{else}text-amber-700{/if}">{if has_entity_view_map}Present{else}Not yet defined{/if}</div>
             </div>
             <div class="rounded-lg border border-gray-200 p-4">
                 <div class="text-sm font-medium text-gray-500 mb-2">Safety Policy</div>
-                <div class="text-sm font-semibold {if has_safety_policy}text-green-700{:else}text-amber-700{/if}">{if has_safety_policy}Present{:else}Not yet defined{/if}</div>
+                <div class="text-sm font-semibold {if has_safety_policy}text-green-700{else}text-amber-700{/if}">{if has_safety_policy}Present{else}Not yet defined{/if}</div>
             </div>
         </div>
     </div>
@@ -78,19 +78,19 @@
     {# Quick actions #}
     <h2 class="text-lg font-semibold mb-3">Quick Actions</h2>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <a href="/admin/theme-studio/tokens" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <a href="/cms/admin/theme-studio/tokens" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
             <div class="font-medium text-indigo-600 mb-1">✎ Edit Tokens</div>
             <p class="text-sm text-gray-500">Colors, typography, spacing, radius</p>
         </a>
-        <a href="/admin/theme-studio/presets" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <a href="/cms/admin/theme-studio/presets" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
             <div class="font-medium text-indigo-600 mb-1">✦ Manage Presets</div>
             <p class="text-sm text-gray-500">Save, apply, import, export theme presets</p>
         </a>
-        <a href="/admin/theme-studio/elements" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <a href="/cms/admin/theme-studio/elements" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
             <div class="font-medium text-indigo-600 mb-1">🧩 Theme Elements</div>
             <p class="text-sm text-gray-500">Inject governed content into theme slots</p>
         </a>
-        <a href="/admin/theme-studio/contracts" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <a href="/cms/admin/theme-studio/contracts" class="block bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
             <div class="font-medium text-indigo-600 mb-1">📐 ARK Contracts</div>
             <p class="text-sm text-gray-500">Inspect slots, schema, token groups, and authority-layer files</p>
         </a>

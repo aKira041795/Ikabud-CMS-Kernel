@@ -350,6 +350,12 @@ PHP;
         $code .= $this->line("\$ctx->pushScope([");
         $this->indentLevel++;
         $code .= $this->line("{$itemName} => \$__item,");
+        // Push key variable if the foreach has a key alias (e.g. "as k => v")
+        $keyName = $node->getAttribute('key');
+        if ($keyName !== null) {
+            $keyExpr = var_export($keyName, true);
+            $code .= $this->line("{$keyExpr} => \$__key,");
+        }
         $code .= $this->line("'loop' => [");
         $this->indentLevel++;
         $code .= $this->line("'index' => \$__index,");

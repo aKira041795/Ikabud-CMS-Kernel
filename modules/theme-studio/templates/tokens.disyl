@@ -11,7 +11,7 @@
             <p class="text-gray-500">
                 {if active_theme}
                 Editing tokens for <strong>{theme_manifest.label|default:active_theme}</strong>
-                {:else}
+                {else}
                 No active theme selected
                 {/if}
             </p>

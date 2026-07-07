@@ -2,6 +2,12 @@
 
 declare(strict_types=1);
 
+/**
+ * CMS admin URL prefix — single source of truth for admin route paths.
+ * Use this instead of hardcoding '/cms/admin/' in breadcrumbs, redirects, and links.
+ */
+define('CMS_ADMIN_PATH', '/cms/admin');
+
 function cmsNormalizeRole(string $role): string
 {
     return \Ikabud\Cms\Cms::normalizeRole($role);

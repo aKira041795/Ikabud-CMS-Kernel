@@ -42,6 +42,13 @@
       --border: #e2e8f0;
       --bg: #f8fafc;
       --danger: #e03131;
+      --surface: rgba(255, 255, 255, 0.96);
+      --success: #059669;
+      --success-light: #d4f5e0;
+      --warning: #d97706;
+      --warning-light: #fef3c7;
+      --danger-light: #fee2e2;
+      --primary-light: #dbeafe;
     }
     .kernel-admin {
       color: #1f2937;

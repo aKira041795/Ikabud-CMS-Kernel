@@ -146,9 +146,9 @@
 </div>
 
 <!-- Add User Modal -->
-<div class="modal-overlay" id="add-modal" onclick="if(event.target===this)closeModal('add-modal')">
+<div class="modal-overlay" id="add-modal" role="dialog" aria-modal="true" aria-labelledby="add-modal-title" onclick="if(event.target===this)closeModal('add-modal')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Add User</h3>
+        <h3 id="add-modal-title">Add User</h3>
         <div class="form-group">
             <label class="form-label">Full Name</label>
             <input class="form-input" type="text" id="add-full-name" autocomplete="off">
@@ -178,9 +178,9 @@
 </div>
 
 <!-- Edit User Modal -->
-<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal('edit-modal')">
+<div class="modal-overlay" id="edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" onclick="if(event.target===this)closeModal('edit-modal')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Edit User</h3>
+        <h3 id="edit-modal-title">Edit User</h3>
         <input type="hidden" id="edit-id">
         <div class="form-group">
             <label class="form-label">Full Name</label>

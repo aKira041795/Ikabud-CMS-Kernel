@@ -292,6 +292,11 @@ final class Parser
             return true;
         }
 
+        // Bracket notation: {array[key]} or {array[key] | filter}
+        if ($baseExpr !== '' && str_contains($baseExpr, '[') && str_ends_with($baseExpr, ']')) {
+            return true;
+        }
+
         return preg_match('/^[a-zA-Z_][\w.]*$/', $baseExpr) === 1;
     }
 
@@ -1285,6 +1290,20 @@ final class Parser
                 }
                 return new ArrayNode([], $elements);
             }
+        }
+
+        // Bracket notation for computed property access: expr[key]
+        // Must come before bare identifier check so "items[key]" is not treated as literal.
+        if (preg_match('/^(.+)\[([^\]]+)\]$/', $expr, $bm)) {
+            $baseNode = $this->parsePrimaryExpr($bm[1]);
+            $keyNode = $this->parseExprValue(trim($bm[2]));
+            return new PropertyAccessNode([], $baseNode, $keyNode, true);
+        }
+
+        // Bracket notation for numeric-index access: expr[0]
+        if (preg_match('/^(.+)\[(\d+)\]$/', $expr, $bnm)) {
+            $baseNode = $this->parsePrimaryExpr($bnm[1]);
+            return new PropertyAccessNode([], $baseNode, (int)$bnm[2], true);
         }
 
         // Fallback: bare identifier

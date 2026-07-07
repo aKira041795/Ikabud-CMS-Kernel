@@ -22,7 +22,7 @@
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Unregistered Block</h2>
         <p class="text-sm text-gray-600">This category/type pair is not declared in the active ARK block registry, so Theme Studio will not write a file for it.</p>
     </div>
-    {:else}
+    {else}
     <script type="application/json" id="block-controls-json">{block_detail.form.controls_rows_json|raw}</script>
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div class="xl:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -187,7 +187,7 @@
                     </div>
                     <div class="flex items-center justify-between gap-4">
                         <span class="text-gray-500">File Status</span>
-                        <span class="px-2 py-1 rounded-full {if block_detail.exists}bg-green-100 text-green-700{:else}bg-amber-100 text-amber-700{/if} text-xs font-medium">{if block_detail.exists}Existing File{:else}New File{/if}</span>
+                        <span class="px-2 py-1 rounded-full {if block_detail.exists}bg-green-100 text-green-700{else}bg-amber-100 text-amber-700{/if} text-xs font-medium">{if block_detail.exists}Existing File{else}New File{/if}</span>
                     </div>
                 </div>
             </div>

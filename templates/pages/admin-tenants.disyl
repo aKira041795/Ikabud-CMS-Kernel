@@ -108,9 +108,9 @@
 </div>
 
 <!-- Create tenant modal -->
-<div class="modal-overlay" id="modal-create" onclick="onBackdrop(event, 'modal-create')">
+<div class="modal-overlay" id="modal-create" role="dialog" aria-modal="true" aria-labelledby="modal-create-title" onclick="onBackdrop(event, 'modal-create')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Create Tenant</h3>
+        <h3 id="modal-create-title">Create Tenant</h3>
         <div class="form-group">
             <label class="form-label">Tenant Key</label>
             <input class="form-input" id="ct-key" placeholder="client-001" autocomplete="off">
@@ -139,9 +139,9 @@
 </div>
 
 <!-- Entry module modal -->
-<div class="modal-overlay" id="modal-entry-module" onclick="onBackdrop(event, 'modal-entry-module')">
+<div class="modal-overlay" id="modal-entry-module" role="dialog" aria-modal="true" aria-labelledby="modal-entry-title" onclick="onBackdrop(event, 'modal-entry-module')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Edit Entry Module</h3>
+        <h3 id="modal-entry-title">Edit Entry Module</h3>
         <input type="hidden" id="entry-tenant-id">
         <div class="form-group">
             <label class="form-label">Entry Module</label>
@@ -156,9 +156,9 @@
 </div>
 
 <!-- Add domain modal -->
-<div class="modal-overlay" id="modal-domain" onclick="onBackdrop(event, 'modal-domain')">
+<div class="modal-overlay" id="modal-domain" role="dialog" aria-modal="true" aria-labelledby="modal-domain-title" onclick="onBackdrop(event, 'modal-domain')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Add Domain</h3>
+        <h3 id="modal-domain-title">Add Domain</h3>
         <input type="hidden" id="dom-tenant-id">
         <div class="form-group">
             <label class="form-label">Domain</label>
@@ -172,9 +172,9 @@
 </div>
 
 <!-- DB connection modal -->
-<div class="modal-overlay" id="modal-db" onclick="onBackdrop(event, 'modal-db')">
+<div class="modal-overlay" id="modal-db" role="dialog" aria-modal="true" aria-labelledby="modal-db-title" onclick="onBackdrop(event, 'modal-db')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Tenant Database Connection</h3>
+        <h3 id="modal-db-title">Tenant Database Connection</h3>
         <input type="hidden" id="db-tenant-id">
         <div class="grid-2">
             <div class="form-group">
@@ -209,9 +209,9 @@
 </div>
 
 <!-- Admin email modal -->
-<div class="modal-overlay" id="modal-admin-email" onclick="onBackdrop(event, 'modal-admin-email')">
+<div class="modal-overlay" id="modal-admin-email" role="dialog" aria-modal="true" aria-labelledby="modal-ae-title" onclick="onBackdrop(event, 'modal-admin-email')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Set Admin Email</h3>
+        <h3 id="modal-ae-title">Set Admin Email</h3>
         <input type="hidden" id="ae-tenant-id">
         <div class="form-group">
             <label class="form-label">Admin Email</label>
@@ -226,9 +226,9 @@
 </div>
 
 <!-- Admin password modal -->
-<div class="modal-overlay" id="modal-admin-password" onclick="onBackdrop(event, 'modal-admin-password')">
+<div class="modal-overlay" id="modal-admin-password" role="dialog" aria-modal="true" aria-labelledby="modal-ap-title" onclick="onBackdrop(event, 'modal-admin-password')">
     <div class="modal" onclick="event.stopPropagation()">
-        <h3>Set Admin Password</h3>
+        <h3 id="modal-ap-title">Set Admin Password</h3>
         <input type="hidden" id="ap-tenant-id">
         <div class="form-group">
             <label class="form-label">New Password</label>

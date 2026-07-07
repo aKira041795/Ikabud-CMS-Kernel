@@ -42,7 +42,7 @@
                             {else if el.element_type == 'header'}bg-green-100 text-green-700
                             {else if el.element_type == 'block'}bg-yellow-100 text-yellow-700
                             {else if el.element_type == 'token_override'}bg-gray-100 text-gray-700
-                            {:else}bg-gray-100 text-gray-600{/if}">
+                            {else}bg-gray-100 text-gray-600{/if}">
                             {el.element_type}
                         </span>
                     </td>
@@ -52,7 +52,7 @@
                     <td class="px-4 py-3 text-center">
                         {if el.is_active}
                         <span class="text-green-600 text-lg">✓</span>
-                        {:else}
+                        {else}
                         <span class="text-gray-300 text-lg">—</span>
                         {/if}
                     </td>
@@ -68,7 +68,7 @@
             </tbody>
         </table>
     </div>
-    {:else}
+    {else}
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
         <div class="text-3xl mb-3">🧩</div>
         <p class="text-gray-500 mb-1">No Theme Elements yet.</p>

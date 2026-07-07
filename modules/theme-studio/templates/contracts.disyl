@@ -53,8 +53,8 @@
                         <div class="text-xs text-gray-400 mt-1">{contract.file}</div>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="font-medium {if contract_presence[contractKey]}text-green-700{:else}text-amber-700{/if}">
-                            {if contract_presence[contractKey]}Present{:else}Missing{/if}
+                        <span class="font-medium {if contract._present}text-green-700{else}text-amber-700{/if}">
+                            {if contract._present}Present{else}Missing{/if}
                         </span>
                         <a href="/admin/theme-studio/contracts/{contractKey}" class="text-xs px-2 py-1 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">Edit</a>
                     </div>

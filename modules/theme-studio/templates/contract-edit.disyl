@@ -22,7 +22,7 @@
         <h2 class="text-lg font-semibold text-gray-900 mb-2">Unknown Contract</h2>
         <p class="text-sm text-gray-600">This contract key is not on the Theme Studio allowlist, so it cannot be edited here.</p>
     </div>
-    {:else}
+    {else}
     {if contract_detail.key == 'renderer-registry'}
     <script type="application/json" id="renderer-rows-json">{contract_detail.form.renderer_rows_json|raw}</script>
     {else if contract_detail.key == 'block-registry'}
@@ -515,7 +515,7 @@
                     </div>
                     <div class="flex items-center justify-between gap-4">
                         <span class="text-gray-500">File Status</span>
-                        <span class="px-2 py-1 rounded-full {if contract_detail.exists}bg-green-100 text-green-700{:else}bg-amber-100 text-amber-700{/if} text-xs font-medium">{if contract_detail.exists}Existing File{:else}New File{/if}</span>
+                        <span class="px-2 py-1 rounded-full {if contract_detail.exists}bg-green-100 text-green-700{else}bg-amber-100 text-amber-700{/if} text-xs font-medium">{if contract_detail.exists}Existing File{else}New File{/if}</span>
                     </div>
                 </div>
             </div>

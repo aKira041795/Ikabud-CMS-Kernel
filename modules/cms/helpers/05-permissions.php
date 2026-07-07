@@ -299,9 +299,10 @@ function cmsUserCan(array $user, string $cap): bool
     $map     = cmsCapabilityMap();
     $minRole = $map[$cap] ?? null;
 
-    // Unknown capability → deny
+    // Unknown capability → allow administrators (modules can declare
+    // capabilities dynamically without needing to register in CMS_DEFAULT_CAPABILITIES)
     if ($minRole === null) {
-        return false;
+        return $role === 'administrator';
     }
 
     return cmsRoleAtLeast($role, $minRole);

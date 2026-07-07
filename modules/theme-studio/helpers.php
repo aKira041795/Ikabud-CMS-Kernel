@@ -2012,12 +2012,12 @@ app()->hooks()->on('cms.admin.nav_items', function (array $items): array {
         'label'    => 'Theme Studio',
         'section'  => true,
         'children' => [
-            ['label' => 'Dashboard',      'url' => $baseUrl . '/admin/theme-studio',              'icon' => 'paint-brush',  'active_key' => 'theme-studio'],
-            ['label' => 'Design Tokens',  'url' => $baseUrl . '/admin/theme-studio/tokens',       'icon' => 'palette',      'active_key' => 'theme-studio-tokens'],
-            ['label' => 'Presets',        'url' => $baseUrl . '/admin/theme-studio/presets',      'icon' => 'clone',        'active_key' => 'theme-studio-presets'],
-            ['label' => 'Elements',       'url' => $baseUrl . '/admin/theme-studio/elements',     'icon' => 'puzzle-piece', 'active_key' => 'theme-studio-elements'],
-            ['label' => 'Contracts',      'url' => $baseUrl . '/admin/theme-studio/contracts',    'icon' => 'view-columns', 'active_key' => 'theme-studio-contracts'],
-            ['label' => 'Blocks',         'url' => $baseUrl . '/admin/theme-studio/blocks',       'icon' => 'collection',   'active_key' => 'theme-studio-blocks'],
+            ['label' => 'Dashboard',     'url' => $baseUrl . '/cms/admin/theme-studio',           'icon' => '🎨', 'active_key' => 'theme-studio'],
+            ['label' => 'Design Tokens', 'url' => $baseUrl . '/cms/admin/theme-studio/tokens',    'icon' => '🎨', 'active_key' => 'theme-studio-tokens'],
+            ['label' => 'Presets',       'url' => $baseUrl . '/cms/admin/theme-studio/presets',   'icon' => '💾', 'active_key' => 'theme-studio-presets'],
+            ['label' => 'Elements',      'url' => $baseUrl . '/cms/admin/theme-studio/elements',  'icon' => '🧩', 'active_key' => 'theme-studio-elements'],
+            ['label' => 'Contracts',     'url' => $baseUrl . '/cms/admin/theme-studio/contracts', 'icon' => '📄', 'active_key' => 'theme-studio-contracts'],
+            ['label' => 'Blocks',        'url' => $baseUrl . '/cms/admin/theme-studio/blocks',    'icon' => '📦', 'active_key' => 'theme-studio-blocks'],
         ],
     ];
     return $items;

@@ -19,6 +19,13 @@ return [
         '/admin/theme-studio/contracts/{contractKey}' => 'theme-studio:handleContractEditor',
         '/admin/theme-studio/blocks' => 'theme-studio:handleBlockLibrary',
         '/admin/theme-studio/blocks/{category}/{type}' => 'theme-studio:handleBlockDefinitionEditor',
+        // CMS-admin-prefixed routes (for CMS sidebar navigation)
+        '/cms/admin/theme-studio' => 'theme-studio:handleStudioDashboard',
+        '/cms/admin/theme-studio/tokens' => 'theme-studio:handleTokenEditor',
+        '/cms/admin/theme-studio/presets' => 'theme-studio:handlePresetList',
+        '/cms/admin/theme-studio/elements' => 'theme-studio:handleElementList',
+        '/cms/admin/theme-studio/contracts' => 'theme-studio:handleContractExplorer',
+        '/cms/admin/theme-studio/blocks' => 'theme-studio:handleBlockLibrary',
     ],
     'POST' => [
         '/api/v1/theme-studio/tokens/save' => 'theme-studio:apiSaveTokens',

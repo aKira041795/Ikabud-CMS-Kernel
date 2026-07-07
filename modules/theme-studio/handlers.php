@@ -23,17 +23,20 @@ function handleStudioDashboard(array $params = []): void
     $slots = is_array($contracts['slots'] ?? null) ? $contracts['slots'] : [];
     $customizerSections = is_array($contracts['customizer_schema']['sections'] ?? null) ? $contracts['customizer_schema']['sections'] : [];
     $tokenGroups = is_array($contracts['token_groups'] ?? null) ? $contracts['token_groups'] : [];
+    $themeLabel = $manifest['label'] ?? $activeTheme ?? 'None';
+    $isArk = $activeTheme === 'ark' || stripos((string)$themeLabel, 'ark') !== false || !empty($manifest['supported_surfaces']);
 
     echo cmsRender('modules/theme-studio/dashboard.disyl', array_merge(
         cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
         ]),
         [
             'page_title' => 'Theme Studio',
             'active_preset' => $activePreset,
             'presets' => $presets,
             'active_theme' => $activeTheme,
-            'theme_label' => $manifest['label'] ?? $activeTheme ?? 'None',
+            'theme_label' => $themeLabel,
+            'is_ark' => $isArk,
             'studio_enabled' => $settings['studio_enabled'] ?? '1',
             'theme_manifest' => $manifest,
             'theme_contracts' => $contracts,
@@ -59,9 +62,9 @@ function handlePresetList(array $params = []): void
     $activePreset = trim((string)(getModuleSettings('theme-studio')['active_preset'] ?? ''));
 
     echo cmsRender('modules/theme-studio/presets.disyl', array_merge(
-        cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Presets', 'url' => '/admin/theme-studio/presets'],
+        cmsAdminContext($user, 'theme-studio-presets', [
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Presets', 'url' => CMS_ADMIN_PATH . '/theme-studio/presets'],
         ]),
         [
             'page_title' => 'Theme Presets',
@@ -81,9 +84,9 @@ function handleElementList(array $params = []): void
     $components = themeStudioGovernedComponentOptions();
 
     echo cmsRender('modules/theme-studio/elements.disyl', array_merge(
-        cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Elements', 'url' => '/admin/theme-studio/elements'],
+        cmsAdminContext($user, 'theme-studio-elements', [
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Elements', 'url' => CMS_ADMIN_PATH . '/theme-studio/elements'],
         ]),
         [
             'page_title' => 'Theme Elements',
@@ -119,9 +122,9 @@ function handleTokenEditor(array $params = []): void
     $tokenGroupRows = themeStudioTokenGroupRows($flattenedTokens, $presetTokens, $overrides);
 
     echo cmsRender('modules/theme-studio/tokens.disyl', array_merge(
-        cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Tokens', 'url' => '/admin/theme-studio/tokens'],
+        cmsAdminContext($user, 'theme-studio-tokens', [
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Tokens', 'url' => CMS_ADMIN_PATH . '/theme-studio/tokens'],
         ]),
         [
             'page_title' => 'Design Tokens',
@@ -147,8 +150,8 @@ function handleContractExplorer(array $params = []): void
 
     echo cmsRender('modules/theme-studio/contracts.disyl', array_merge(
         cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Contracts', 'url' => '/admin/theme-studio/contracts'],
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Contracts', 'url' => CMS_ADMIN_PATH . '/theme-studio/contracts'],
         ]),
         [
             'page_title' => 'Theme Contracts',
@@ -164,8 +167,10 @@ function handleContractExplorer(array $params = []): void
             'entity_view_map' => is_array($contracts['entity_view_map'] ?? null) ? $contracts['entity_view_map'] : [],
             'page_composition_schema' => is_array($contracts['page_composition_schema'] ?? null) ? $contracts['page_composition_schema'] : [],
             'safety_policy' => is_array($contracts['safety_policy'] ?? null) ? $contracts['safety_policy'] : [],
-            'editable_contracts' => $editableContracts,
-            'contract_presence' => array_map(fn(string $key): bool => !empty($contracts[$key]), array_keys($editableContracts)),
+            'editable_contracts' => array_map(function(array $contract, string $key) use ($contracts): array {
+                $contract['_present'] = !empty($contracts[str_replace('-', '_', $key)]);
+                return $contract;
+            }, $editableContracts, array_keys($editableContracts)),
         ]
     ));
 }
@@ -183,9 +188,9 @@ function handleContractEditor(array $params = []): void
 
     echo cmsRender('modules/theme-studio/contract-edit.disyl', array_merge(
         cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Contracts', 'url' => '/admin/theme-studio/contracts'],
-            ['label' => !empty($detail['label']) ? (string)$detail['label'] : 'Contract Editor', 'url' => '/admin/theme-studio/contracts/' . rawurlencode($contractKey)],
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Contracts', 'url' => CMS_ADMIN_PATH . '/theme-studio/contracts'],
+            ['label' => !empty($detail['label']) ? (string)$detail['label'] : 'Contract Editor', 'url' => CMS_ADMIN_PATH . '/theme-studio/contracts/' . rawurlencode($contractKey)],
         ]),
         [
             'page_title' => 'Edit Theme Contract',
@@ -208,8 +213,8 @@ function handleBlockLibrary(array $params = []): void
 
     echo cmsRender('modules/theme-studio/blocks.disyl', array_merge(
         cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Theme Blocks', 'url' => '/admin/theme-studio/blocks'],
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Theme Blocks', 'url' => CMS_ADMIN_PATH . '/theme-studio/blocks'],
         ]),
         [
             'page_title' => 'Theme Blocks',
@@ -236,9 +241,9 @@ function handleBlockDefinitionEditor(array $params = []): void
 
     echo cmsRender('modules/theme-studio/block-edit.disyl', array_merge(
         cmsAdminContext($user, 'theme-studio', [
-            ['label' => 'Theme Studio', 'url' => '/admin/theme-studio'],
-            ['label' => 'Theme Blocks', 'url' => '/admin/theme-studio/blocks'],
-            ['label' => $blockType !== '' ? $blockType : 'Block Editor', 'url' => '/admin/theme-studio/blocks/' . rawurlencode($category) . '/' . rawurlencode($blockType)],
+            ['label' => 'Theme Studio', 'url' => CMS_ADMIN_PATH . '/theme-studio'],
+            ['label' => 'Theme Blocks', 'url' => CMS_ADMIN_PATH . '/theme-studio/blocks'],
+            ['label' => $blockType !== '' ? $blockType : 'Block Editor', 'url' => CMS_ADMIN_PATH . '/theme-studio/blocks/' . rawurlencode($category) . '/' . rawurlencode($blockType)],
         ]),
         [
             'page_title' => 'Edit Theme Block Definition',
@@ -475,7 +480,7 @@ function handleBlockDefinitionSave(array $params = []): void
     $activeTheme = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
     $category = trim((string)($params['category'] ?? ''));
     $blockType = trim((string)($params['type'] ?? ''));
-    $redirect = '/admin/theme-studio/blocks/' . rawurlencode($category) . '/' . rawurlencode($blockType);
+    $redirect = CMS_ADMIN_PATH . '/theme-studio/blocks/' . rawurlencode($category) . '/' . rawurlencode($blockType);
     $editorMode = trim((string)cmsInput('editor_mode', 'structured'));
 
     $error = null;
@@ -502,7 +507,7 @@ function handleContractSave(array $params = []): void
     $user = cmsRequireCap('theme.customize@1');
     $activeTheme = function_exists('cmsActiveTheme') ? cmsActiveTheme() : null;
     $contractKey = trim((string)($params['contractKey'] ?? ''));
-    $redirect = '/admin/theme-studio/contracts/' . rawurlencode($contractKey);
+    $redirect = CMS_ADMIN_PATH . '/theme-studio/contracts/' . rawurlencode($contractKey);
     $editorMode = trim((string)cmsInput('editor_mode', 'advanced'));
 
     $error = null;
