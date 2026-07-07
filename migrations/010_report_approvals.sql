@@ -1,3 +1,7 @@
+-- report_approvals depends on workflow_runs created by 009_kernel_workflow_runs.
+-- In case 009 was skipped/missing, disable FK checks during CREATE.
+SET FOREIGN_KEY_CHECKS = 0;
+
 CREATE TABLE IF NOT EXISTS report_approvals (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     export_source VARCHAR(200) NOT NULL,
@@ -21,3 +25,5 @@ CREATE TABLE IF NOT EXISTS report_approvals (
     KEY idx_report_workflow (workflow_run_id),
     CONSTRAINT fk_report_workflow_run FOREIGN KEY (workflow_run_id) REFERENCES workflow_runs(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

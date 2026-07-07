@@ -65,7 +65,7 @@ class LegacyCmsCustomizerAdapter implements ThemeCustomizerProvider
                 $type = match (true) {
                     is_bool($defaultValue) || in_array($ctrlId, ['enabled', 'sticky', 'show_*'], true) => 'boolean',
                     is_int($defaultValue) => 'number',
-                    str_starts_with((string)$defaultValue, '#') => 'color',
+                    is_string($defaultValue) && str_starts_with($defaultValue, '#') => 'color',
                     default => 'text',
                 };
                 $controls[$ctrlId] = new ControlDefinition(

@@ -1,10 +1,15 @@
+-- workflow_runs depends on workflow_definitions which lives in the workflow
+-- module.  The module migration runs after kernel migrations, so we
+-- temporarily disable FK checks during CREATE.
+SET FOREIGN_KEY_CHECKS = 0;
+
 CREATE TABLE IF NOT EXISTS workflow_runs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     workflow_key VARCHAR(100) NOT NULL,
     module VARCHAR(100) NOT NULL,
     entity_type VARCHAR(100) NOT NULL,
     entity_id VARCHAR(191) DEFAULT NULL,
-    definition_id BIGINT UNSIGNED DEFAULT NULL,
+    definition_id INT UNSIGNED DEFAULT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
     payload_json JSON DEFAULT NULL,
     context_json JSON DEFAULT NULL,
@@ -50,7 +55,7 @@ CREATE TABLE IF NOT EXISTS workflow_subscriptions (
     event_id VARCHAR(200) NOT NULL,
     workflow_key VARCHAR(100) NOT NULL,
     entity_type VARCHAR(100) DEFAULT NULL,
-    definition_id BIGINT UNSIGNED DEFAULT NULL,
+    definition_id INT UNSIGNED DEFAULT NULL,
     filter_json JSON DEFAULT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -60,3 +65,5 @@ CREATE TABLE IF NOT EXISTS workflow_subscriptions (
     KEY idx_workflow_sub_active (is_active),
     CONSTRAINT fk_workflow_sub_definition FOREIGN KEY (definition_id) REFERENCES workflow_definitions(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;
