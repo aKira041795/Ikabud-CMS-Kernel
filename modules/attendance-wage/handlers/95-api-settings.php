@@ -24,6 +24,11 @@ function wagePageSettings(array $params = []): void
     $moduleSettings = getModuleSettings('attendance-wage');
     $payrollSettings = aw_payrollSettings();
 
+    // ── Fetch all users for the user management table ──
+    $db = aw_db();
+    $allUsers = $db->query('SELECT id, username, email, full_name, role, is_active FROM attendance_wage_users ORDER BY full_name ASC')
+        ->fetchAll(PDO::FETCH_ASSOC);
+
     $vars = [
         'app_name'             => $moduleSettings['app_name'] ?? 'ZAP',
         'logo_url'             => $moduleSettings['logo_url'] ?? '',
@@ -47,6 +52,8 @@ function wagePageSettings(array $params = []): void
         'current_user_name' => $user['name'] ?? $user['username'] ?? '',
         'current_user_role' => $user['role'] ?? '',
         'csrf_token' => app()->csrfToken(),
+        'users'           => $allUsers,
+        'current_user_id' => aw_currentUserId(),
     ];
 
     echo app()->render('modules/attendance-wage/wage/settings', $vars);
