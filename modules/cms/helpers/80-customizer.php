@@ -3178,7 +3178,7 @@ function cmsRenderCustomizedSidebar(object $db, array $publicCtx = []): array
     $styleHtml .= '.cms-sidebar-wrap .sidebar-tag{display:inline-flex;align-items:center;padding:0.25rem 0.625rem;border:1px solid ' . $widgetBorder . ';border-radius:999px;font-size:0.75rem;line-height:1.2;color:' . $widgetText . ';background:' . $widgetBg . ';}';
     $styleHtml .= '.cms-sidebar-wrap .sidebar-tag:hover{color:' . $widgetLinkHover . ';border-color:' . $widgetLinkHover . ';text-decoration:none;}';
     if ($sticky) {
-        $styleHtml .= '@media(min-width:1024px){.cms-sidebar-wrap{position:sticky;top:1.5rem;}}';
+        $styleHtml .= '@media(min-width:1024px){.cms-sidebar-slot{position:sticky;top:1.5rem;}}';
     }
     $styleHtml .= '</style>';
 
