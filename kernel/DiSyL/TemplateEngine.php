@@ -838,16 +838,22 @@ class TemplateEngine
             $phases['scripts_ms'] = round((microtime(true) - $t) * 1000, 2);
         }
         
-        // 4c. Extract <style> blocks as raw passthrough — no DiSyL evaluation.
-        //     Variables in tag attributes still resolve (e.g. media="{breakpoint}").
+        // 4c. Extract <style> blocks — process DiSyL tags inside style bodies
+        //     (same approach as <script> blocks at 4b).
         $styles = [];
         if (stripos($content, '<style') !== false) {
             $t = microtime(true);
             $content = preg_replace_callback('/<style\b([^>]*)>(.*?)<\/style>/si', function($match) use (&$styles, $context) {
                 $attrs = $this->processVariables($match[1], $context);
+                $body = $match[2];
+                
+                // Process DiSyL tags inside style body — protects CSS curly braces
+                // from being mistaken for DiSyL tags, then resolves {variable} references,
+                // {if} conditionals, {set} assignments, and {include} directives.
+                $body = $this->compileStyleBody($body, $context);
                 
                 $key = '___STYLE_' . count($styles) . '___';
-                $styles[$key] = '<style' . $attrs . '>' . $match[2] . '</style>';
+                $styles[$key] = '<style' . $attrs . '>' . $body . '</style>';
                 return $key;
             }, $content);
             $phases['styles_ms'] = round((microtime(true) - $t) * 1000, 2);
@@ -1103,6 +1109,109 @@ class TemplateEngine
         // Step 3: Restore JS curly braces
         if (!empty($jsMarkers)) {
             $body = str_replace(array_keys($jsMarkers), array_values($jsMarkers), $body);
+        }
+        
+        return $body;
+    }
+    
+    /**
+     * Compile DiSyL tags inside a <style> block body while protecting CSS curly braces.
+     *
+     * Follows the same approach as compileScriptBody(): CSS rule blocks { ... }
+     * are protected with markers, DiSyL tags ({variable}, {if}, {foreach}, {set},
+     * {include}) are fully processed, and CSS braces are restored afterward.
+     *
+     * @param string $body  Raw CSS content inside <style>...</style>
+     * @param array  $context  Current render context
+     * @return string  CSS with DiSyL tags resolved
+     */
+    private function compileStyleBody(string $body, array $context): string
+    {
+        // Pattern matching DiSyL tags — same as script body
+        $disylPattern = '/\{(?:'
+            . '\/(?:if|for|foreach|each|literal|verbatim)\}'
+            . '|(?:if|elseif|for|foreach|each|set|include|literal|verbatim|else)\s'
+            . '|else\}'
+            . '|[a-zA-Z_][\w.]*'
+            . ')/s';
+        
+        // Step 1: Protect CSS curly braces that aren't DiSyL tags
+        $cssMarkers = [];
+        $markerCount = 0;
+        $chunks = [];
+        $insideDisylTag = false;
+        
+        $len = strlen($body);
+        $i = 0;
+        while ($i < $len) {
+            $char = $body[$i];
+
+            if ($char === '{') {
+                if (preg_match($disylPattern, $body, $m, PREG_OFFSET_CAPTURE, $i) === 1 && ($m[0][1] ?? -1) === $i) {
+                    $insideDisylTag = true;
+                    $chunks[] = $char;
+                    $i++;
+                    continue;
+                }
+
+                $marker = "___CSSCURLY_OPEN_{$markerCount}___";
+                $cssMarkers[$marker] = '{';
+                $chunks[] = $marker;
+                $markerCount++;
+            } elseif ($char === '}') {
+                if ($insideDisylTag) {
+                    $insideDisylTag = false;
+                    $chunks[] = $char;
+                } else {
+                    $marker = "___CSSCURLY_CLOSE_{$markerCount}___";
+                    $cssMarkers[$marker] = '}';
+                    $chunks[] = $marker;
+                    $markerCount++;
+                }
+            } else {
+                $chunks[] = $char;
+            }
+
+            $i++;
+        }
+
+        $body = implode('', $chunks);
+        
+        // Step 2: Run full DiSyL compilation (same pipeline as script bodies)
+        $this->scriptContext = true; // raw output, no HTML escaping
+        
+        // Process {literal} blocks within the style
+        $styleLiterals = [];
+        $body = preg_replace_callback('/\{literal\}(.*?)\{\/literal\}/s', function($match) use (&$styleLiterals) {
+            $key = '___STYLELIT_' . count($styleLiterals) . '___';
+            $styleLiterals[$key] = $match[1];
+            return $key;
+        }, $body);
+        
+        // Process set statements
+        $body = $this->processSetStatements($body, $context);
+        
+        // Process control structures
+        $body = $this->processControlStructures($body, $context);
+        
+        // Process includes
+        if (str_contains($body, '{include ')) {
+            $body = $this->processIncludes($body, $context);
+        }
+        
+        // Process variables (raw output — no HTML escaping in CSS context)
+        $body = $this->processScriptVariables($body, $context);
+        
+        // Restore style literals
+        if (!empty($styleLiterals)) {
+            $body = str_replace(array_keys($styleLiterals), array_values($styleLiterals), $body);
+        }
+        
+        $this->scriptContext = false;
+        
+        // Step 3: Restore CSS curly braces
+        if (!empty($cssMarkers)) {
+            $body = str_replace(array_keys($cssMarkers), array_values($cssMarkers), $body);
         }
         
         return $body;

@@ -26,7 +26,7 @@
             --shell-border: rgba(148,163,184,.14);
             --header-h: 70px; --nav-h: 46px;
             --radius: 2px; --shadow: 0 10px 30px rgba(15,23,42,.08); --max-width: 1320px;
-            --font-family: {if gui.font_family}{gui.font_family}{else}Inter, system-ui, sans-serif{/if};
+            --font-family: {gui.font_family|default:'Inter, system-ui, sans-serif'};
             --font-size-base: 14px; --font-size-small: 12px; --font-size-nav: 13px;
             --font-size-h1: 24px; --font-size-h2: 18px;
         }
