@@ -173,14 +173,21 @@ Settings are read via `getModuleSettings('bakeshop')` and written via `saveModul
 | File | Responsibility |
 |---|---|
 | `00-bootstrap.php` | Response/CSRF guards, permission catalog, default role permissions, `bakeshopCurrentUser()`, table whitelist for read helpers. |
-| `05-auth.php` | Login rate limit, login page, login/logout endpoints, JWT issuance. |
-| `10-pages.php` | Disyl page renderers for the supervisor workspace, branches, catalog, ingredients, deliveries, production, usage, history, users, account, settings, print summary. |
+| `05-auth.php` | Login rate limit, login page, login/logout endpoints, JWT issuance, password reset. |
+| `10-pages.php` | DiSyL page renderers for the supervisor workspace, branches, catalog, ingredients, deliveries, production, usage, history, users, account, settings, print summary. |
 | `15-api-settings.php` | Permissions + display settings save endpoints. |
 | `20-api-products-recipe.php` | Products and recipes CRUD. |
+| `25-api-product-targets.php` | Branch product delivery targets CRUD. |
 | `30-api-deliveries.php` | Deliveries + delivery items CRUD. |
+| `35-api-imports.php` | Bulk product/delivery imports. |
 | `40-api-production.php` | Production runs + items CRUD. |
+| `45-api-inventory-adjustments.php` | Inventory adjustment records. |
 | `50-api-usage-report.php` | Per-branch ingredient usage report read API. |
+| `55-api-dr-projection.php` | Delivery receipt projection/coverage calculation. |
+| `56-api-suggested-reorder.php` | Suggested reorder quantities. |
+| `57-api-product-coverage.php` | Product-level coverage reporting. |
 | `60-users.php` | User management (list/create/update/delete) and account password update. |
+| `entity-views.php` | Entity view capability providers for `entity.list.bakeshop_product@1` and `entity.get.bakeshop_product@1`. |
 
 ---
 

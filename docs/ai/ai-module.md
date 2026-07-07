@@ -1,5 +1,12 @@
 # AI Module — Design Document
 
+⚠️ **NOTE (2026-07-07):** This document describes a target architecture for AI-driven trigger suggestion. Current implementation status:
+- `modules/ai/` — LLM provider helpers (OpenAI, Gemini, Groq, Mistral, Ollama, OpenRouter, Cerebras) ✅
+- `modules/ai-orchestrator/` — External service module exposing `ai.summarize@1`, `ai.draft@1`, `ai.complete@1`, `ai.analyze@1` ✅
+- `ai.capability.suggest@1` — **NOT YET IMPLEMENTED** (not declared in either module's manifest)
+- Kernel event trigger infrastructure (`kernel_event_triggers` table, `kernelEmitEvent()`) — ✅ EXISTS
+- AI suggestion loop (AI suggests triggers → admin confirms → kernel enforces) — **PARTIALLY IMPLEMENTED**
+
 **Status**: Shipped — Phase 6 AI-Safe DiSyL Blocks complete (see [kernel-os-disyl-roadmap-status.md](../kernel/kernel-os-disyl-roadmap-status.md#phase-6--ai-safe-disyl-blocks-)). AI Policy engine, `ikb_ai_summary`, `ikb_ai_assist`, CMS AI content automation all delivered.  
 **Author**: Cascade (AI pair programmer)  
 **Created**: 2026-03-05  

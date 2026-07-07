@@ -1,5 +1,7 @@
 # P6 — Inline Entity Editing RFC
 
+📋 **STATUS: POC (Proof of Concept)** — Kernel OS 6.1.0. The `editable` attribute on `{field}` and `ikbInlineEdit` Alpine component exist as a proof of concept. Full production rollout is deferred. This RFC describes the target architecture. **Last updated: 2026-07-07.**
+
 **Status**: Draft for review  
 **Last Updated**: 2026-06-22  
 **Author**: Extracted from system architect review — entity-rendering-trait-improvements.md  

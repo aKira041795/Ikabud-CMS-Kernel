@@ -1,6 +1,6 @@
 # CMS Roadmap — From Working Module to Stable Platform
 
-**Updated:** June 2026
+**Updated:** 2026-07-07
 
 This roadmap starts from the CMS as it exists today. It is no longer an MVP roadmap.
 
@@ -54,12 +54,14 @@ The next phase is about **hardening, contract clarity, and theme/platform ergono
 - expose stable interfaces for other modules
 - reduce reliance on internal HTTP coupling for module-to-module integrations
 
+**✅ Done (shipped in CMS 3.0 / Kernel OS 6.1)**
+
 ### Candidate additions
 
 - `cms.media.list@1`
 - `cms.media.upload@1`
-- `cms.builder.document.get@1`
-- `cms.builder.document.render@1`
+- `cms.builder.get@1`
+- `cms.builder.render@1`
 - `cms.settings.get@1`
 - `cms.themes.list@1`
 

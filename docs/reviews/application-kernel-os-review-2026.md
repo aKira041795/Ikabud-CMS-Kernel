@@ -1,5 +1,7 @@
 # Application Kernel OS Review 2026
 
+> ⚠️ **HISTORICAL** — This review was conducted before Kernel OS 6.0 (entity view adoption, EntityRenderingTrait deletion, ARK V3 theme infrastructure). Many architectural references (EntityRenderingTrait, pre-entity-view rendering) no longer apply. See `docs/reviews/system-review-2026-07-05.md` for the current state.
+
 Updated: March 18, 2026
 Scope: kernel runtime, module system, capability bus, tenancy routing, developer operational workflows
 

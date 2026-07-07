@@ -57,9 +57,9 @@ ikabud/
 │   ├── Database/              # QueryBuilder, KernelPDO, ConnectionPool, MigrationRunner
 │   ├── DiSyL/                 # TemplateEngine, Compiler, Component, Hydration, Reactive, AI, Async, Federation, Security, Types, i18n
 │   ├── EntityAuthority/       # EntityAuthorityRegistry, SyncContractRegistry
-│   ├── EntityContext/         # ContextRegistry, EntityViewResolver, ContextProfile
+│   ├── EntityContext/         # ContextRegistry, EntityViewResolver, ContextProfile, DefaultEntityRenderer, CellRendererRegistry, EntitySourceRegistry
 │   ├── Http/                  # TenantEntryRouter, SecurityHeaders
-│   └── Services/              # KernelExport, ReportManager, DatabaseManager, TenantProvisioner, OpenApiGenerator, LocaleResolver, ApiKeyAuth
+│   └── Services/              # KernelExport, ReportManager, DatabaseManager, TenantProvisioner, OpenApiGenerator, LocaleResolver, ApiKeyAuth, SlotRegistry, ThemeCustomizerOrchestrator
 ├── modules/                   # Feature modules (manifest-driven)
 │   ├── ai/                    # AI model integrations
 │   ├── ai-orchestrator/       # Polyglot AI orchestration (service-module)
@@ -109,13 +109,14 @@ The `App` class is the kernel's central service container — a lazy-loading sin
 | Category | Key Methods |
 |----------|-------------|
 | **Lifecycle** | `boot(array $config)`, `getInstance()`, `primeRenderBaseCaches()` |
-| **Extension** | `hooks()`, `events()`, `workflow()`, `triggers()`, `integrationBridge()`, `capabilities()`, `cap()` |
+| **Extension** | `hooks()`, `events()`, `workflow()` (WorkflowRuntime), `workflowEngine()` (WorkflowEngine), `triggers()`, `integrationBridge()`, `capabilities()`, `cap()` |
 | **Database** | `db()` (tenant PDO), `controlDb()` (control plane PDO), `dbForTenant(int $id)`, `databaseManager()`, `dbRuntimeSnapshot()`, `tenantDbPoolStats()`, `reconnectDb()`, `reconnectDbForTenant()` |
 | **Auth** | `user()`, `setUser()`, `isAuthenticated()`, `hasRole()`, `requireAuth()`, `requireRole()`, `requireAnyRole()`, `registerAuthTable()` |
 | **Request** | `input(?string $key)`, `sanitizeInput()`, `isHtmx()`, `isHtmxBoosted()`, `htmx()` |
 | **Response** | `json()`, `html()`, `redirect()`, `htmxResponse()`, `csrfToken()`, `csrfField()`, `csrfEnforce()`, `csrfRotate()` |
 | **Rendering** | `render(string $template, array $context)`, `templates()`, `buildRenderBaseContext()`, `finalizeRenderContext()` |
-| **Entity** | `entityContexts()` (ContextRegistry), `entityAuthority()` (EntityAuthority), `entityViews()` (EntityViewResolver), `syncContracts()` |
+| **Entity** | `entityContexts()` (ContextRegistry), `entityAuthority()` (EntityAuthority), `entityViews()` (EntityViewResolver), `syncContracts()`, `entitySources()` (EntitySourceRegistry), `entityRenderers()` (EntityRendererInterface), `entityCellRenderers()` (CellRendererRegistryInterface) |
+| **Slots** | `slotRegistry()` (SlotRegistry) |
 | **Config** | `config(string $key, $default)`, `platformIdentity()`, `glossary()`, `tenant()`, `jwt()`, `cache()` |
 | **Logging** | `log(string $message, string $level, array $context)` |
 
@@ -185,8 +186,8 @@ Modules are **manifest-driven**. Each module lives under `modules/{id}/` or a co
   "routes": "routes.php",
   "owns_tables": ["cms_content", "cms_settings", "cms_builder_documents"],
   "capabilities": {
-    "provides": ["cms.content.get@1", "cms.builder.render@1"],
-    "requires": []
+    "exposes": ["cms.content.get@1", "cms.builder.render@1"],
+    "depends": []
   },
   "auth_cookie": null
 }

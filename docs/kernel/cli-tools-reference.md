@@ -129,6 +129,30 @@ php ikabud trigger:trace order.placed
 
 ## Scaffolding Generators
 
+### `make:migration <module> <name>`
+
+Scaffold a new migration file for a module.
+
+```
+php ikabud make:migration cms add_featured_image
+```
+
+Creates the next numbered SQL migration file under `modules/<module>/migrations/`.
+
+---
+
+### `make:handler <module> <function> [METHOD]`
+
+Add a handler function + route entry to a module.
+
+```
+php ikabud make:handler cms exportCsv GET
+```
+
+Adds the handler stub to the module's `handlers.php` and a route entry to `routes.php`.
+
+---
+
 ### `make:entity <name>`
 
 Scaffolds a full entity: migration SQL, capability handlers, view contracts, routes, and handlers.
@@ -181,6 +205,231 @@ Creates an example module for reference.
 
 ```
 php ikabud make:example hello-world
+```
+
+---
+
+## Migration Management
+
+### `migrate`
+
+Run all pending migrations (base DB + separate tenant DBs).
+
+```
+php ikabud migrate
+php ikabud migrate cms           # One module only
+```
+
+---
+
+### `migrate:control`
+
+Run control-plane migrations against the control database.
+
+```
+php ikabud migrate:control
+```
+
+---
+
+### `migrate:status`
+
+Show migration status across all modules.
+
+```
+php ikabud migrate:status
+```
+
+---
+
+### `migrate:rollback <module>`
+
+Rollback the last migration batch for a module.
+
+```
+php ikabud migrate:rollback cms
+```
+
+---
+
+## Tenant Management
+
+### `tenant:list`
+
+List all tenants from the control plane.
+
+```
+php ikabud tenant:list
+```
+
+---
+
+### `tenant:migrate <tenant_id|tenant_key|domain> [module]`
+
+Run migrations against a specific tenant database.
+
+```
+php ikabud tenant:migrate acme-corp
+php ikabud tenant:migrate 5 cms
+```
+
+---
+
+### `tenant:create <key> <domain> [--entry=<module_id>]`
+
+Create a new tenant in the control plane.
+
+```
+php ikabud tenant:create demo demo.example.com --entry=cms
+```
+
+---
+
+### `tenant:domain:add <tenant_id> <domain>`
+
+Add a domain alias to an existing tenant.
+
+```
+php ikabud tenant:domain:add 5 shop.example.com
+```
+
+---
+
+### `tenant:canonical-domain:set <tenant_id> <domain>`
+
+Set (or clear with `--clear`) the canonical domain for a tenant.
+
+```
+php ikabud tenant:canonical-domain:set 5 www.example.com
+php ikabud tenant:canonical-domain:set 5 --clear
+```
+
+---
+
+## Capability & Event Inspection
+
+### `capability:validate`
+
+Validate capability versions and schemas across all modules.
+
+```
+php ikabud capability:validate
+```
+
+---
+
+### `event:list`
+
+List all registered event listeners.
+
+```
+php ikabud event:list
+```
+
+---
+
+## Route & Template Diagnostics
+
+### `routes`
+
+List all registered routes (core + module).
+
+```
+php ikabud routes
+```
+
+---
+
+### `disyl:lint [path]`
+
+Lint DiSyL templates for syntax errors.
+
+```
+php ikabud disyl:lint
+php ikabud disyl:lint --verbose
+php ikabud disyl:lint templates/modules/cms/
+```
+
+---
+
+## Entity Inspection
+
+### `entity:list`
+
+List all entity sources with their schemas from EntitySourceRegistry.
+
+```
+php ikabud entity:list
+```
+
+---
+
+### `entity:context <source>`
+
+Show the resolved context profile for an entity source.
+
+```
+php ikabud entity:context products
+```
+
+---
+
+## Job Queue
+
+### `work:queue [name]`
+
+Run a queue worker (supports `--sleep=N`, `--once`).
+
+```
+php ikabud work:queue
+php ikabud work:queue --once
+php ikabud work:queue --sleep=5
+```
+
+---
+
+### `queue:stats [name]`
+
+Show queue statistics (pending, running, failed counts).
+
+```
+php ikabud queue:stats
+```
+
+---
+
+## Scheduled Tasks
+
+### `schedule:run`
+
+Run due scheduled tasks (`--dry-run` to preview without executing).
+
+```
+php ikabud schedule:run
+php ikabud schedule:run --dry-run
+```
+
+---
+
+## Theme Tooling
+
+### `theme:validate <slug>`
+
+Validate a theme: manifest, tokens, templates, anti-patterns, performance budget.
+
+```
+php ikabud theme:validate ark
+php ikabud theme:validate --all
+```
+
+---
+
+### `theme:inspect <slug>`
+
+Show theme summary: layouts, slots, components, assets.
+
+```
+php ikabud theme:inspect ark
 ```
 
 ---
@@ -238,11 +487,13 @@ php ikabud module:certify --all
 | `module:list` | List all modules, their status, version, and type |
 | `module:enable <id>` | Enable a module |
 | `module:disable <id>` | Disable a module |
-| `module:validate <id>` | Validate module manifest and capabilities |
-| `module:pack <id>` | Package a module for distribution |
-| `module:install <path>` | Install a module from package |
-| `module:remove <id>` | Remove a module |
-| `module:publish <id>` | Publish module to marketplace |
+| `module:validate <id>` | Full compliance check (manifest, capabilities, routes, tables, migrations) |
+| `module:pack <id> [zip]` | Create an installable module zip |
+| `module:uninstall <id>` | Remove module files and disable it |
+| `module:check-boundaries` | Validate module boundary rules |
+| `module:graph [id]` | Dependency graph + impact analysis |
+| `module:certify [module]` | Validate module against certification checklist (`--all` for all modules) |
+| `architecture:check` | Cross-module table/capability/template audit |
 
 ---
 

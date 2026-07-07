@@ -1,7 +1,7 @@
 # WMS Module — Warehouse Management System
 
 **Module ID:** `wms`  
-**Version:** 1.4.0 (Phase 7 with scan-confirmed task execution, operator exception dispositions, CSV onboarding flows, and staged receiving-to-putaway closure)
+**Version:** 2.0.0 (Phase 7 with scan-confirmed task execution, operator exception dispositions, CSV onboarding flows, and staged receiving-to-putaway closure)
 **Author:** Ikabud Kernel Team  
 **Depends:** _(none — standalone)_
 

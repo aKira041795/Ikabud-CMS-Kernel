@@ -50,7 +50,7 @@ All April 2026 audit items resolved. Compiled mode is now the **default** (v4.7+
 - TemplateEngine split: `DefaultEntityRenderer` extracted (composable services replacing the trait)
 - `EntityRenderingTrait` fully removed in 6.1.0 — rendering via `DefaultEntityRenderer` + `CellRendererRegistry`
 - Grammar v11 ([archived plan](disyl-grammar-v11-planned-types.md)) — dead code removed, not an active roadmap target
-- Grammar.php: 199 → 135 lines (-64)
+- Grammar.php: 199 → 288 lines (+89; tightened keyword registries, added type validation, platform identifiers, and `keyof` support)
 
 See: [April 2026 technical audit](docs/evaluations/kernel-disyl-architecture-evaluation-2026-04-15.md)
 

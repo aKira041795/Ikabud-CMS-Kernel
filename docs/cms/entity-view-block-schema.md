@@ -1,7 +1,7 @@
 # Entity.View Block Schema — Concrete DiSyL Template Specification
 
 > Canonical reference for the universal entity rendering path.  
-> Source of truth: `templates/modules/cms/public/entity.view.disyl`
+> Source of truth: `storage/cms-themes/ark/public/entity.view.disyl`
 
 For a higher-level explanation of how this schema relates to CMS theme design and the kernel modular system, see `docs/cms/theme-entity-view-primer.md`.
 
@@ -376,7 +376,7 @@ HTTP request → route match → handler
             → provider function returns typed array → {capability_data.{capId}}
   ├─ cmsPublicContext(extra)                → theme_settings, menus, site meta
   └─ DiSyL::render("entity.view.disyl", mergedContext)
-       └─ block includes resolve from templates/modules/cms/public/blocks/
+       └─ block includes resolve from storage/cms-themes/ark/public/blocks/
 ```
 
 Provider function naming convention:

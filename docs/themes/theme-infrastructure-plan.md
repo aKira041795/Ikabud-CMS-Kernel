@@ -1,8 +1,10 @@
 # Theme Infrastructure Plan — Kernel OS Governance Layer
 
 > **Date**: 2026-06-28  
-> **Status**: Draft  
+> **Status**: ✅ Implemented (Kernel OS 6.1 / ARK V3)  
 > **Purpose**: Add Kernel OS-governed theme infrastructure (slots, manifests, validation, Theme Studio) to support the Ikabud Foundation theme vision.
+>
+> **Updated 2026-07-07**: All 5 phases are now implemented in Kernel OS 6.1.0 with ARK V3. Theme Studio module (`modules/theme-studio/`) was also completed as an additional deliverable.
 
 ---
 
@@ -71,7 +73,7 @@ self::register('ikb_slot', [
 
 ### 1b. Create SlotRegistry in Kernel
 
-New class at `kernel/DiSyL/SlotRegistry.php`:
+New class at `kernel/Services/SlotRegistry.php`:
 
 - `registerContribution(string $slot, array $config)` — called by modules at bootstrap
 - Contribution config: `{slot, component, conditions, priority}`
@@ -91,6 +93,8 @@ When `{ikb_slot name="content.after"}` is encountered in a DiSyL template:
 
 - entity-native shell to add `{ikb_slot}` calls alongside existing `{block}` calls
 - `{block content}` still works; `{ikb_slot name="content.before"}` / `{ikb_slot name="content.after"}` augment it
+
+> **Status**: ✅ Implemented — ARK has `slots.json` and `supported_slots` in manifest.
 
 ---
 

@@ -33,6 +33,40 @@ The kernel owns routing, auth infrastructure, hooks, event delivery, caching, re
 
 This is a sound layering model and should be preserved.
 
+### Handler files
+
+[modules/cms/handlers/](../modules/cms/handlers) is split by concern (26 files):
+
+| File | Responsibility |
+|---|---|
+| `00-bootstrap.php` | Module bootstrap, helper loading, early constants |
+| `10-auth.php` | Login, logout, rate limiting |
+| `11-auth-reset.php` | Password reset flow |
+| `12-auth-register.php` | User registration |
+| `15-admin.php` | Admin dashboard, shell, navigation |
+| `20-admin-builder.php` | Admin builder initialization |
+| `20-api-builder.php` | Builder API endpoints |
+| `30-api-content-types.php` | Content type CRUD API |
+| `35-api-content.php` | Content CRUD API |
+| `36-api-content-actions.php` | Content bulk/action API |
+| `40-api-media.php` | Media CRUD API |
+| `45-api-users.php` | User management API |
+| `50-api-settings.php` | Settings read/write API |
+| `60-taxonomy.php` | Categories, tags management |
+| `70-menu.php` | Menu management |
+| `72-saved-blocks.php` | Saved/reusable blocks |
+| `74-revisions.php` | Content revision history |
+| `76-redirects.php` | Slug redirect management |
+| `78-import-export.php` | Content import/export |
+| `79-weather.php` | Admin weather data |
+| `79-weather-public.php` | Public weather API |
+| `80-customizer.php` | Theme customizer admin |
+| `82-permissions.php` | Role/permission management |
+| `84-extensions.php` | Extension/hook management |
+| `86-ai-automation.php` | AI content automation admin |
+| `88-entity-capabilities.php` | Entity capability CRUD API |
+| `90-public.php` | Public-facing content rendering |
+
 ---
 
 ## 3. Public rendering architecture
@@ -108,14 +142,58 @@ This model is intentionally lighter than WordPress and fits the module architect
 
 ### Declared capabilities
 
-The CMS currently exposes only a narrow set of kernel-callable capabilities:
+The CMS exposes 32 kernel-callable capabilities through `module.json`:
 
-- `cms.content.get@1`
-- `cms.content.list@1`
-- `cms.content.create@1`
-- `kernel.auth.authenticate@1`
+**Content CRUD:**
+- `cms.content.get@1` — retrieve single content item
+- `cms.content.list@1` — list/query content items
+- `cms.content.create@1` — create content
+- `cms.content.update@1` — update content
 
-That is smaller than the runtime feature set.
+**Auth:**
+- `kernel.auth.authenticate@1` — pipeline provider (priority 500) for CMS user authentication
+
+**Media:**
+- `cms.media.list@1` — list media items
+- `cms.media.upload@1` — upload media
+
+**Builder:**
+- `cms.builder.get@1` — retrieve builder document
+- `cms.builder.render@1` — render builder document to HTML
+
+**Settings & Themes:**
+- `cms.settings.get@1` — retrieve CMS settings
+- `cms.themes.list@1` — list available themes
+
+**Entity capability data providers (7):**
+- `entity.capability.pricing.data@1`
+- `entity.capability.inventory.data@1`
+- `entity.capability.booking.data@1` (priority 10)
+- `entity.capability.inquiry.data@1`
+- `entity.capability.progress_tracking.data@1`
+- `entity.capability.lessons_index.data@1`
+- `entity.capability.media_gallery.data@1`
+
+**Weather entity providers (5):**
+- `entity.list.weather_current@1`
+- `entity.list.weather_forecast@1`
+- `entity.list.weather@1`
+- `entity.get.weather@1`
+- `entity.get.weather_current@1`
+
+**Entity list/get providers (4):**
+- `entity.list.cms_post@1`
+- `entity.list.cms_page@1`
+- `entity.get.cms_post@1`
+- `entity.get.cms_page@1`
+
+**Report export capabilities (4):**
+- `report.export.request_approval@1`
+- `report.export.approve@1`
+- `report.export.reject@1`
+- `report.export.list_pending@1`
+
+All capability handlers are registered in `helpers/55-capabilities.php` (`cms_capability_handlers()`). The 7 entity capability data providers are backed by `helpers/56-entity-capabilities.php` (`cmsBuiltinEntityCapabilities()`).
 
 ### Hooks
 

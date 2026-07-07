@@ -80,14 +80,14 @@
 {user.role == "admin" ? "Administrator" : user.role}
 ```
 
-### Debug (v4.8)
+### Debug (✅ v4.7)
 
 ```
 {debug myVar}     — pretty-prints any value with type info
 {debug user}      — arrays as formatted JSON
 ```
 
-### Entity View Field Reflection — `keyof` (v4.10+)
+### Entity View Field Reflection — `keyof` (✅ v4.7)
 
 Resolves to the field name list of a registered entity view contract at runtime.
 Works wherever an expression is expected — direct output, filters, `{for}` loops.
@@ -123,7 +123,7 @@ Wildcard field contracts (`fields: '*'`) return `[]` — field list is unknown.
 {var|filter}                  — no arguments
 {var|filter:arg}              — positional argument
 {var|filter:arg1:arg2}        — multiple positional
-{var|filter:key="value"}      — named argument (v4.8)
+{var|filter:key="value"}      — named argument (✅ v4.7 — partial)
 {var|upper|truncate:10}       — chained
 ```
 
@@ -155,7 +155,7 @@ Wildcard field contracts (`fields: '*'`) return `[]` — field list is unknown.
 | `keys` | — | Array keys |
 | `values` | — | Array values |
 
-### Named Arguments (v4.8)
+### Named Arguments (✅ v4.7 — partial; named arg parsing exists, full test coverage pending)
 
 ```
 {created_at|date:format="M d, Y"}
@@ -200,7 +200,7 @@ Wildcard field contracts (`fields: '*'`) return `[]` — field list is unknown.
 {/foreach}
 ```
 
-### `{match}` / `{when}` / `{else}` (v4.8)
+### `{match}` / `{when}` / `{else}` (✅ v4.7)
 
 ```disyl
 {match order.status}
@@ -213,7 +213,7 @@ Wildcard field contracts (`fields: '*'`) return `[]` — field list is unknown.
 {/match}
 ```
 
-### `{await}` / `{then}` / `{loading}` / `{catch}` (v4.8)
+### `{await}` / `{then}` / `{loading}` / `{catch}` (✅ v4.7)
 
 ```disyl
 {await userData}
@@ -352,7 +352,7 @@ Loaded via:
 
 **Config loading errors** (parse failures, missing `name` attributes, invalid renderers) now throw `RuntimeException` with per-file details. Retrieve per-file results via `TemplateEngine::getLastLoadErrors()`. Previously silent parse failures are surfaced as errors in the log.
 
-### Semantic Roles (v4.8)
+### Semantic Roles (✅ v4.7)
 
 Fields can declare semantic roles for card_grid layout positioning:
 
@@ -367,14 +367,14 @@ Fields can declare semantic roles for card_grid layout positioning:
 
 Supported roles: `title`, `subtitle`, `image`, `body`, `description`.
 
-### View Contract Validation (v4.8)
+### View Contract Validation (✅ v4.7)
 
 At registration time, every `{ikb_entity_view}` is validated for:
 - **Duplicate field names** — two `{field name="same"}` declarations
 - **Duplicate role values** — two fields with `role="title"`
 - **Action URL placeholder mismatches** — `{id}` or `{slug}` in action URLs not matching any declared field
 
-### Unknown Component Suggestion (v4.8)
+### Unknown Component Suggestion (✅ v4.7)
 
 When a misspelled governed component is used (e.g., `{ikb_botton}` instead of `{ikb_button}`), the engine now suggests the closest match via Levenshtein distance:
 
@@ -413,14 +413,14 @@ Unknown component 'ikb_botton' — not registered. Did you mean 'ikb_button'?
 | `empty` | string | Empty state message |
 | `actions` | string | Comma-separated: `view,edit,delete,approve` |
 | `header` | string | HTML or `#blockName` above list |
-| `search` | bool | Enable client-side filter (v4.8) |
-| `search-placeholder` | string | Search input placeholder (v4.8) |
-| `row-click` | string | URL pattern `{id}` substitution (v4.8) |
-| `row-click-target` | string | `_blank` etc. (v4.8) |
-| `bulk-actions` | string | Comma-separated bulk ops (v4.8) |
-| `bulk-action-url` | string | POST endpoint (v4.8) |
-| `auth-role` | string | Override role for visibility (v4.8) |
-| `action-roles` | JSON | Action → role map (v4.8) |
+| `search` | bool | Enable client-side filter (✅ v4.7) |
+| `search-placeholder` | string | Search input placeholder (✅ v4.7) |
+| `row-click` | string | URL pattern `{id}` substitution (✅ v4.7) |
+| `row-click-target` | string | `_blank` etc. (✅ v4.7) |
+| `bulk-actions` | string | Comma-separated bulk ops (✅ v4.7) |
+| `bulk-action-url` | string | POST endpoint (✅ v4.7) |
+| `auth-role` | string | Override role for visibility (✅ v4.7) |
+| `action-roles` | JSON | Action → role map (✅ v4.7) |
 | `class` | string | Additional CSS classes |
 | `filter` | string | Comma-separated `key=value` pairs, `{var.path}` resolved from context |
 
@@ -460,7 +460,7 @@ renderers: {
 
 ---
 
-## 7. User-Defined Macros (v4.8)
+## 7. User-Defined Macros (✅ v4.7)
 
 ### Definition
 
@@ -538,7 +538,7 @@ POST forms in entity actions auto-inject `_token` via `csrf_token()`.
 {/sandbox}
 ```
 
-### Strict Mode (v4.8: ON by default)
+### Strict Mode (✅ ON by default — v4.7+)
 
 - Logs undefined variables
 - Logs type mismatches in `{set}`
@@ -563,7 +563,7 @@ Section B — still renders
 
 | Env Var | Default | Description |
 |---------|---------|-------------|
-| `DISYL_STRICT_MODE` | `true` (v4.8) | Enable strict warnings |
+| `DISYL_STRICT_MODE` | `true` (✅ v4.7+) | Enable strict warnings |
 | `?disyl_nocache=1` | — | Force recompile (dev only) |
 
 ---
