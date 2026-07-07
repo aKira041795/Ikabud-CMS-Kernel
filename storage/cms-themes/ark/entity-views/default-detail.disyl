@@ -44,10 +44,6 @@
                Only explicitly safe known fields (title, image, meta, body)
                are rendered in the generic fallback. #}
 
-            {# Back link #}
-            <div class="ark-detail__back">
-                <a href="javascript:history.back()" class="ark-detail__back-link">← Back</a>
-            </div>
         </article>
         {else}
         <div class="ark-empty">

@@ -112,10 +112,6 @@
                 {/if}
             {/if}
 
-            {# Navigation — back link #}
-            <div class="ark-detail__back">
-                <a href="javascript:history.back()" class="ark-detail__back-link">&larr; Back</a>
-            </div>
         </article>
 
         {else}
