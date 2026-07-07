@@ -124,9 +124,31 @@ function readGuiSettings(): array
 
 /**
  * Save GUI settings.
+ *
+ * Writes to both the legacy JSON file (always works) and the module-settings
+ * registry (may be blocked in tenant mode when no tenant is resolved). The
+ * legacy file is the durable store; the registry is a best-effort overlay.
  */
 function saveGuiSettings(array $settings): void
 {
+    // Always persist to legacy JSON file — survives tenant-mode blocks
+    $path = guiSettingsPath();
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    // Merge with existing so partial saves work
+    $existing = [];
+    if (is_file($path)) {
+        $decoded = kernelReadJsonFile($path);
+        if (is_array($decoded)) {
+            $existing = $decoded;
+        }
+    }
+    $merged = array_merge($existing, $settings);
+    file_put_contents($path, json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), LOCK_EX);
+
+    // Best-effort: also write to module registry
     saveModuleSettings('gui-settings', $settings);
 }
 
