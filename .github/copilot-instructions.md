@@ -28,18 +28,37 @@ Custom agents with model assignments live in `.github/agents/`. The full registr
 
 Delegate specialized tasks to the appropriate agent. For complex multi-step work, use Explore first for context, then delegate implementation as needed.
 
-## Mandatory skills registry (always active)
-The following skill files in `.github/skills/` define enforced workflows. They are loaded automatically by their `applyTo` patterns — treat them as rules, not suggestions.
+## Skills registry (18 files in `.github/skills/`)
+All skills are loaded automatically by their `applyTo` patterns or `description` trigger phrases — treat them as rules, not suggestions.
+
+### Mandatory (always active — apply to all or broad file patterns)
 
 | Skill | Applies to | What it enforces |
 |---|---|---|
-| `iterative-task-execution` | `**/*` — all files | Todo-driven loop: break down → implement one item → verify → mark done → repeat. Scope discipline, no feature creep. |
+| `iterative-task-execution` | `**/*` | Todo-driven loop: break down → implement one item → verify → mark done → repeat. Scope discipline, no feature creep. |
 | `debug-workflow` | `**/*.php`, `**/*.disyl`, `**/*.sql` | Check both `app.log` + `error.log` on every issue. Systematic debugging for module DB errors, DiSyL warnings, request tracing. |
 | `code-review-checklist` | `**/*.php`, `**/*.disyl`, `**/*.sql` | SQL query patterns, migration idempotency, route ordering, entity view registration, form handler completeness, template safety. |
 | `testing-strategy` | `**/tests/**` | Four-tier testing: unit → integration → security → acceptance. Required before marking features done. |
 | `module-boundaries` | `**/*.php` | Kernel boundary discipline, tenant scoping, capability-based access, route ownership. No bypassing kernel contracts. |
 | `service-layer-patterns` | `**/services/**` | Domain service structure (`ServiceResult`), transaction discipline, event emission, audit logging. |
 | `module-creation` | `**/module.json` | Module scaffold checklist, manifest essentials, capability handler naming, migration patterns, auth-owned module conventions. |
+
+### Domain-specific (loaded when file pattern or topic matches)
+
+| Skill | Applies to | What it enforces |
+|---|---|---|
+| `approval-workflow` | `**/*.php` | Multi-state approval state machine: submit, review, reject, return, escalate. |
+| `attendance-wage-payroll` | `**/attendance-wage/**` | Payroll computation, benefits deductions, tax, 13th month, module DB query rules. |
+| `auth-module-setup` | `**/handlers/05-auth.php` | Auth-owned modules: API routes, JSON input/output, CSRF avoidance for shared login templates. |
+| `disyl-engine-first-fix` | `**/*.disyl` | Fix DiSyL at the engine level (`kernel/DiSyL/`) rather than template bandaids. |
+| `docs-update-triggers` | *(description-triggered)* | When and what documentation to update after code changes. |
+| `domain-events` | `**/services/**` | Emitting and handling domain events through the kernel event bus. |
+| `entity-view-system` | `**/entity-views.php` | Entity view pipeline: resolver, renderers, cell types, action wiring, inline editing. |
+| `financial-immutability` | `**/services/**` | Reversal, void, adjustment patterns — never overwrite approved financial records. |
+| `inventory-costing` | `**/services/**` | Movement-first inventory with weighted average costing, cost snapshots. |
+| `migration-workflow` | *(description-triggered)* | Schema changes: file naming, `module.json` registration, CLI apply, safe ALTER TABLE. |
+| `report-generation` | `**/reports/**` | PDF and Excel report patterns: A4 format, headers, filters, streaming, audit. |
+| `ark-architecture-audit` | *(description-triggered)* | System codebase audit: Kernel OS, DiSyL, ARK theme architecture, convention compliance. |
 
 ## Service boundaries and data flow
 - Follow module boundaries: kernel provides routing/auth/hooks/capabilities; modules provide business features.
@@ -114,6 +133,11 @@ Capabilities must be designed before routes. Declare `capabilities.exposes`/`cap
 - If behavior changes affect persistence schema/format, update docs in [docs/page-builder/page-builder-technical-spec.md](../docs/page-builder/page-builder-technical-spec.md) or related builder docs.
 
 ## Security hardening — CSP rules (must check during every hardening review)
+- The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://maps.googleapis.com`
+- **`'unsafe-eval'` is mandatory.** Alpine.js v3 (CDN) uses `new Function()` for directive evaluation; Tailwind CSS CDN (JIT mode) uses eval-based class scanning. Dropping `'unsafe-eval'` silently breaks all Tailwind utility classes and every Alpine-driven component, including login forms.
+- **Never add a `nonce-XXXX` to `script-src` while `'unsafe-inline'` is still present.** Per CSP Level 2/3, a nonce in `script-src` causes browsers to ignore `'unsafe-inline'` entirely — any inline `<script>` without the matching `nonce="..."` attribute is blocked. No templates in this repo apply nonce attributes, so adding a nonce immediately breaks all inline scripts.
+- When transitioning to nonce-only CSP (future): (1) add `nonce="{csp_nonce}"` to every inline `<script>` in all Disyl/PHP templates, (2) remove `'unsafe-inline'` from `script-src`, (3) then add the nonce. These steps must not be reordered.
+- After any change to `SecurityHeaders::buildCspHeaderValue()`, reload both `/login` and `/cms/login` in a real browser with DevTools open to verify Alpine/Tailwind still function before committing.
 
 ## Debugging compiled mode — template changes not reflecting
 When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the compiled template cache may not detect layout changes:
@@ -128,11 +152,6 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 3. **Typed `{set}` syntax (`{set name: string = ...}`) is planned for DiSyL 4.8** and is NOT active in the current 4.7 runtime. Do not use typed assignment syntax in production templates.
 
 > All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
-- The canonical `script-src` for this app is: `'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://maps.googleapis.com`
-- **`'unsafe-eval'` is mandatory.** Alpine.js v3 (CDN) uses `new Function()` for directive evaluation; Tailwind CSS CDN (JIT mode) uses eval-based class scanning. Dropping `'unsafe-eval'` silently breaks all Tailwind utility classes and every Alpine-driven component, including login forms.
-- **Never add a `nonce-XXXX` to `script-src` while `'unsafe-inline'` is still present.** Per CSP Level 2/3, a nonce in `script-src` causes browsers to ignore `'unsafe-inline'` entirely — any inline `<script>` without the matching `nonce="..."` attribute is blocked. No templates in this repo apply nonce attributes, so adding a nonce immediately breaks all inline scripts.
-- When transitioning to nonce-only CSP (future): (1) add `nonce="{csp_nonce}"` to every inline `<script>` in all Disyl/PHP templates, (2) remove `'unsafe-inline'` from `script-src`, (3) then add the nonce. These steps must not be reordered.
-- After any change to `SecurityHeaders::buildCspHeaderValue()`, reload both `/login` and `/cms/login` in a real browser with DevTools open to verify Alpine/Tailwind still function before committing.
 
 ## Current Stabilization Test Priorities
 - Prefer plain PHP integration-style tests under [tests](../tests) that bootstrap the app directly, clear [storage/logs/app.log](../storage/logs/app.log) and [storage/logs/error.log](../storage/logs/error.log), and assert on concrete behavior rather than mocks.

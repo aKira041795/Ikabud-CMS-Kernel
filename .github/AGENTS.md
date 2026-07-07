@@ -8,14 +8,16 @@ This file defines the available custom agents, their assigned models, and delega
 
 | Agent | Model | Context | Tools | Token strategy |
 |---|---|---|---|---|
-| **Code Reviewer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search | Read-only — no edit/execute output to consume budget |
-| **Pattern Explainer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search | Read-only — returns concise explanations with file:line refs |
-| **Documentation Writer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search, edit | Write-only — reads source then produces docs |
-| **Test Writer** | GPT-5 (OpenAI) | ~128K | read, search, edit, execute | Runs tests in subprocess — output captured compressed |
-| **Refactoring Advisor** | GPT-5 (OpenAI) | ~128K | read, search, edit | Edit-only — no shell execution overhead |
-| **Explore** | Gemini 2.5 Pro (Google) | **1M** | read, search | **Context champion** — all multi-file research here |
+| **Code Reviewer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search, lean-ctx (read/search/tree) | Read-only — no edit/execute output to consume budget |
+| **Pattern Explainer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search, lean-ctx (read/search/tree) | Read-only — returns concise explanations with file:line refs |
+| **Documentation Writer** | Claude Sonnet 4 (Anthropic) | ~200K | read, search, edit, lean-ctx (read/search/tree/edit) | Write-only — reads source then produces docs |
+| **Test Writer** | GPT-5 (OpenAI) | ~128K | read, search, edit, execute, lean-ctx (*) | Runs tests in subprocess — output captured compressed |
+| **Refactoring Advisor** | GPT-5 (OpenAI) | ~128K | read, search, edit, lean-ctx (read/search/tree/edit) | Edit-only — no shell execution overhead |
+| **Explore** | Gemini 2.5 Pro (Google) | **1M** | read, search, lean-ctx (read/search/tree) | **Context champion** — all multi-file research here |
 
 > All 6 agents are **free with GitHub Copilot** — no additional API costs. Using them saves tokens vs doing everything in the orchestrator session.
+
+> **MCP tools**: All agents have access to lean-ctx MCP tools scoped to their role. Read-only agents get `ctx_read`, `ctx_search`, `ctx_tree`. Edit-capable agents also get `ctx_edit`. Test Writer gets all lean-ctx tools (`lean-ctx/*`) including `ctx_shell` for compressed command output. Agents should **prefer lean-ctx tools over native tools** for token efficiency — see `.github/token-budget.md`.
 
 ## Model Strengths & Delegation Rules
 

@@ -99,9 +99,11 @@ Subagents should return structured summaries (file:line references), not full fi
 ### Rule 5: Tool restriction per agent
 | Tools | Context saved | Agents |
 |---|---|---|
-| `read, search` only | No edit/execute tool outputs | Code Reviewer, Pattern Explainer, Explore |
-| `read, search, edit` | No execute/shell outputs | Documentation Writer, Refactoring Advisor |
-| `read, search, edit, execute` | Full toolset (runs tests) | Test Writer |
+| `read, search, lean-ctx` (read/search/tree) | No edit/execute tool outputs | Code Reviewer, Pattern Explainer, Explore |
+| `read, search, edit, lean-ctx` (read/search/tree/edit) | No execute/shell outputs | Documentation Writer, Refactoring Advisor |
+| `read, search, edit, execute, lean-ctx/*` | Full toolset (runs tests, compressed shell) | Test Writer |
+
+> **lean-ctx MCP tools are now available to all agents.** Agents should prefer `ctx_read`/`ctx_search`/`ctx_tree` over native `read_file`/`grep_search`/`list_dir` — this saves 50-99% context tokens per operation. See [lean-ctx docs](https://leanctx.com/docs) for mode reference.
 
 ### Rule 6: Sequential delegation for large tasks
 When a task spans multiple categories, delegate **sequentially**, not in parallel:
