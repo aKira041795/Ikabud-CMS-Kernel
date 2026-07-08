@@ -366,35 +366,20 @@
     }
 }
 
-/* Responsive: stack builder rows/columns on mobile */
-@media (max-width: 1024px) {
-    /* At tablet, columns stack when they don't fit side by side */
-    .cms-builder-node--row {
-        --b-flex-wrap: wrap !important;
-        flex-wrap: var(--b-flex-wrap) !important;
-    }
-
-    .cms-builder-node--row > .cms-builder-node--column {
-        --b-min-width: 0 !important;
-    }
-}
-
+/* ── Builder structural responsive behavior ──
+ *
+ * Row/column stacking, tablet wrapping, and full-width columns are generated
+ * PER-NODE by cmsBuilderRenderResponsiveCss() in an inline <style> tag, keyed
+ * by [data-node-id] with matching specificity. That is the source of truth —
+ * it mirrors the React builder's nodeStyleToCSS() exactly and wins cleanly
+ * over theme CSS via source order. Do NOT add generic .cms-builder-node--row
+ * / --column flex rules here; they cause specificity wars with theme CSS.
+ *
+ * Only cross-cutting rules that the per-node generator does not compute live
+ * here (grid collapse, visibility toggles, min-height/padding polish).
+ */
 @media (max-width: 640px) {
-    /* At mobile, all columns stack vertically and go full-width */
-    .cms-builder-node--row:not([data-mobile-layout="0"]) {
-        --b-flex-direction: column !important;
-        --b-flex-wrap: nowrap !important;
-        flex-direction: var(--b-flex-direction) !important;
-        flex-wrap: var(--b-flex-wrap) !important;
-    }
-
-    .cms-builder-node--row:not([data-mobile-layout="0"]) > .cms-builder-node--column {
-        --b-width: 100% !important;
-        --b-flex: 0 0 100% !important;
-        width: var(--b-width) !important;
-        flex: var(--b-flex) !important;
-    }
-
+    /* Grid layouts collapse to single column (not computed per-node) */
     .cms-builder-node--container[style*="grid-template-columns"] {
         grid-template-columns: 1fr !important;
     }

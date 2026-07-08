@@ -1457,19 +1457,93 @@ function cmsBuilderRenderNode(array $node, array $context = []): string
 }
 
 /**
- * Recursively collect responsive style overrides (tablet/mobile) from all nodes.
- * Returns array of ['nodeId' => string, 'tablet' => array, 'mobile' => array].
+ * Recursively collect responsive style data (auto-behaviors + explicit tablet/mobile
+ * overrides) from all nodes. This is a 1:1 PHP port of the React builder's
+ * nodeStyleToCSS() automatic responsive rules, so the server-rendered public page
+ * matches the builder preview exactly.
+ *
+ * Returns array of ['nodeId', 'type', 'tablet' => [prop=>val], 'mobile' => [prop=>val]]
+ * where tablet/mobile are the FINAL computed CSS property maps (auto rules first,
+ * explicit user overrides win).
  */
 
 function cmsBuilderCollectResponsiveStyles(array $node, array &$collected): void
 {
     $id = (string)($node['id'] ?? '');
+    $type = (string)($node['type'] ?? '');
     $style = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
     $tablet = isset($style['tablet']) && is_array($style['tablet']) ? $style['tablet'] : [];
     $mobile = isset($style['mobile']) && is_array($style['mobile']) ? $style['mobile'] : [];
 
-    if ($id !== '' && (!empty($tablet) || !empty($mobile))) {
-        $collected[] = ['nodeId' => $id, 'tablet' => $tablet, 'mobile' => $mobile];
+    // Effective base style (component defaults + node overrides) — used to read
+    // display / flexDirection / flex / flexBasis for auto-behavior decisions.
+    $baseStyle = array_filter($style, static fn($v) => !is_array($v) && $v !== null && $v !== '');
+    $effective = array_merge(cmsBuilderDefaultStyle($type), $baseStyle);
+
+    $tabletProps = [];
+    $mobileProps = [];
+
+    // ─── Automatic responsive behaviors (mirror React nodeStyleToCSS) ───
+    if ($type !== '') {
+        $effectiveDirection = $effective['flexDirection'] ?? ($type === 'row' ? 'row' : null);
+        $isHorizontalFlex = (($effective['display'] ?? null) === 'flex') || $type === 'row' || $type === 'column';
+        $isContainerLike = $type === 'container' || $type === 'layout_container';
+        $hasExplicitMobileDir = isset($mobile['flexDirection']);
+        $hasExplicitTabletDir = isset($tablet['flexDirection']);
+
+        // Tablet auto-behaviors
+        if ($type === 'row' && !$hasExplicitTabletDir && !isset($tablet['flexWrap'])) {
+            $tabletProps['flexWrap'] = 'wrap';
+        }
+        if ($type === 'column' && !isset($tablet['minWidth'])) {
+            $tabletProps['minWidth'] = '0';
+        }
+
+        // Mobile auto-behaviors
+        if ($type === 'row' && !$hasExplicitMobileDir) {
+            $mobileProps['flexDirection'] = 'column';
+        }
+        if ($isContainerLike && $isHorizontalFlex && $effectiveDirection === 'row' && !$hasExplicitMobileDir) {
+            $mobileProps['flexDirection'] = 'column';
+        }
+        if ($type === 'column' && !isset($mobile['width'])) {
+            $mobileProps['width'] = '100%';
+            $mobileProps['flex'] = 'none';
+        }
+        if ($isContainerLike && (!empty($effective['flex']) || !empty($effective['flexBasis']))) {
+            if (!isset($mobile['width']) && !isset($mobile['flex'])) {
+                $mobileProps['width'] = '100%';
+                $mobileProps['flex'] = 'none';
+            }
+        }
+    }
+
+    // ─── Explicit user overrides win over auto-behaviors ───
+    // Mobile inherits tablet first (React parity), then applies mobile.
+    foreach ($tablet as $prop => $value) {
+        if ($value === null || $value === '' || is_array($value)) {
+            continue;
+        }
+        $tabletProps[$prop] = $value;
+        // Mobile inherits tablet as its base
+        if (!isset($mobile[$prop])) {
+            $mobileProps[$prop] = $value;
+        }
+    }
+    foreach ($mobile as $prop => $value) {
+        if ($value === null || $value === '' || is_array($value)) {
+            continue;
+        }
+        $mobileProps[$prop] = $value;
+    }
+
+    if ($id !== '' && (!empty($tabletProps) || !empty($mobileProps))) {
+        $collected[] = [
+            'nodeId' => $id,
+            'type'   => $type,
+            'tablet' => $tabletProps,
+            'mobile' => $mobileProps,
+        ];
     }
 
     $children = isset($node['children']) && is_array($node['children']) ? $node['children'] : [];
@@ -1481,8 +1555,14 @@ function cmsBuilderCollectResponsiveStyles(array $node, array &$collected): void
 }
 
 /**
- * Generate a <style> tag with media queries for tablet/mobile responsive overrides.
+ * Generate a <style> tag with media queries for tablet/mobile responsive behavior.
  * Breakpoints match the theme: tablet ≤1024px, mobile ≤640px.
+ *
+ * Each rule is keyed by a per-node selector that includes the node's type class
+ * AND its data-node-id, giving specificity (0,0,3,0) — matching the theme's own
+ * builder responsive rules. Since this <style> is injected inline with the document
+ * (after external theme stylesheets), it wins specificity ties via source order.
+ * This eliminates class-selector cascade wars entirely.
  */
 
 function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass): string
@@ -1497,7 +1577,10 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
     $mobileRules = [];
 
     foreach ($collected as $entry) {
-        $selector = '.' . $scopeClass . ' [data-node-id="' . htmlspecialchars($entry['nodeId'], ENT_QUOTES, 'UTF-8') . '"]';
+        $nodeId = htmlspecialchars($entry['nodeId'], ENT_QUOTES, 'UTF-8');
+        $typeClass = 'cms-builder-node--' . preg_replace('/[^a-z0-9_-]/i', '-', (string)$entry['type']);
+        // Specificity (0,0,3,0): scope class + type class + data-node-id attribute.
+        $selector = '.' . $scopeClass . ' .' . $typeClass . '[data-node-id="' . $nodeId . '"]';
 
         if (!empty($entry['tablet'])) {
             $props = [];
@@ -1505,11 +1588,7 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
                 if ($value === null || $value === '' || is_array($value)) {
                     continue;
                 }
-                // Emit --b-{prop} override so it cascades through the CSS custom
-                // property system set up by cmsBuilderStyleAttr(). This overrides
-                // the inline --b-{prop} value without !important on the final property.
-                $cssProp = cmsBuilderCssProp((string)$prop);
-                $props[] = '--b-' . $cssProp . ':' . (string)$value . ' !important';
+                $props[] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value . ' !important';
             }
             if (!empty($props)) {
                 $tabletRules[] = $selector . '{' . implode(';', $props) . '}';
@@ -1522,8 +1601,7 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
                 if ($value === null || $value === '' || is_array($value)) {
                     continue;
                 }
-                $cssProp = cmsBuilderCssProp((string)$prop);
-                $props[] = '--b-' . $cssProp . ':' . (string)$value . ' !important';
+                $props[] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value . ' !important';
             }
             if (!empty($props)) {
                 $mobileRules[] = $selector . '{' . implode(';', $props) . '}';
