@@ -3785,7 +3785,7 @@ function cmsRenderCustomizedHeader(object $db, array $publicCtx = []): string
 
         $html .= '<div class="header-topbar cms-shell-width-' . $topbarContainerMode . '" style="' . $tbStyle . $topbarOuterWidthStyle . '">';
         $html .= '<div class="' . $topbarInnerWidthClass . '" style="' . $topbarInnerWidthStyle . '">';
-        $html .= '<div class="header-topbar-inner" style="justify-content:' . $tbJustify . ';">';
+        $html .= '<div class="header-topbar-inner" style="--b-justify-content:' . $tbJustify . ';justify-content:var(--b-justify-content)">';
         foreach ($widgets as $widget) {
             $html .= cmsRenderSingleHeaderWidget($widget, $db, $cmsSettings, $baseUrl);
         }
@@ -4143,7 +4143,7 @@ function cmsRenderSingleHeaderWidget(array $widget, object $db, array $cmsSettin
             $rawWeight  = trim((string)($props['font_weight'] ?? 'normal'));
             $fontWeight = in_array($rawWeight, ['normal','500','600','bold'], true) ? $rawWeight : 'normal';
             if ($content !== '') {
-                $style = 'font-size:' . $fontSize . 'px;font-weight:' . $fontWeight;
+                $style = '--b-font-size:' . $fontSize . 'px;--b-font-weight:' . $fontWeight . ';font-size:var(--b-font-size);font-weight:var(--b-font-weight)';
                 $html .= '<span class="header-widget-text" style="' . $style . '">' . htmlspecialchars($content) . '</span>';
             }
             break;

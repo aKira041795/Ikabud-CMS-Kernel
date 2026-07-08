@@ -815,7 +815,13 @@ function cmsBuilderStyleAttr(array $style): string
         if ($value === null || $value === '' || is_array($value)) {
             continue;
         }
-        $parts[] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value;
+        $cssProp = cmsBuilderCssProp((string)$prop);
+        $val = (string)$value;
+        // Emit CSS custom property + referenced property for responsive cascade.
+        // E.g., "height:500px" becomes "--b-height:500px;height:var(--b-height)"
+        // Responsive CSS can then override --b-height without !important.
+        $parts[] = '--b-' . $cssProp . ':' . $val;
+        $parts[] = $cssProp . ':var(--b-' . $cssProp . ')';
     }
 
     if (empty($parts)) {

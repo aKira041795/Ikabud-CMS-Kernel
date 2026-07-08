@@ -768,7 +768,7 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     }
 
     // Caption position CSS
-    $posStyle = 'position:absolute;left:0;right:0;padding:24px;z-index:2;--caption-padding:24px';
+    $posStyle = 'position:absolute;left:0;right:0;--b-padding:24px;padding:var(--b-padding);z-index:2;';
     if ($captionPosition === 'top') {
         $posStyle .= 'top:0;';
     } elseif ($captionPosition === 'center') {
@@ -817,7 +817,7 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     $html = '<div' . cmsBuilderAttrString($attrs) . $dataAttrs . cmsBuilderStyleAttr(array_merge($style, $wrapStyle)) . '>';
 
     if ($useSlideTrack) {
-        $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:' . $trackTransition . ';min-height:' . $height . '">';
+        $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:' . $trackTransition . ';--b-height:' . $height . ';height:var(--b-height)">';
     }
 
     foreach ($slides as $idx => $slide) {
