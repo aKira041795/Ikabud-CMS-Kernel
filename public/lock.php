@@ -13,9 +13,41 @@ declare(strict_types=1);
 
 // ── Guard: already installed ────────────────────────────────────────────
 $installLock = __DIR__ . '/../storage/.installed';
-if (is_file($installLock)) {
-    http_response_code(403);
-    die('System already installed. Remove storage/.installed during an intentional maintenance reinstall.');
+if (is_file($installLock) && !is_link($installLock)) {
+    http_response_code(200);
+    header('Content-Type: text/html; charset=utf-8');
+    ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ikabud — Already Installed</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{font-family:'Inter',sans-serif;background:#f0f2f5;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+        .card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:32px;max-width:420px;width:100%;text-align:center}
+        h1{font-size:20px;font-weight:700;color:#1a202c;margin-bottom:8px}
+        h1 span{color:#2563eb}
+        p{color:#718096;font-size:14px;margin-bottom:20px}
+        .btn{display:inline-block;padding:10px 24px;background:#2563eb;color:#fff;border-radius:8px;font-weight:600;font-size:14px;text-decoration:none;margin:4px}
+        .btn-ghost{background:#f1f5f9;color:#374151}
+        .small{font-size:11px;color:#a0aec0;margin-top:16px}
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1><span>Ikabud</span> Kernel APP OS</h1>
+    <p>The application is already installed and running.</p>
+    <a class="btn" href="/">Open App &rarr;</a>
+    <a class="btn btn-ghost" href="/login">Login</a>
+    <p class="small">To reinstall, remove <code>storage/.installed</code> first.</p>
+</div>
+</body>
+</html>
+<?php
+    exit;
 }
 
 $errors  = [];
@@ -193,10 +225,8 @@ function installerTableExists(PDO $db, string $tableName): bool
     return (bool)$stmt->fetchColumn();
 }
 
-function installerSeedModuleAdmins(PDO $db, string $adminUsername, string $adminEmail, string $adminName, string $adminPass): void
+function installerSeedModuleAdmins(PDO $db, string $adminUsername, string $adminEmail, string $adminName, string $passwordHash): void
 {
-    $passwordHash = password_hash($adminPass, PASSWORD_DEFAULT, ['cost' => 12]);
-
     if (installerTableExists($db, 'dl_admins')) {
         $stmt = $db->prepare(
             'INSERT INTO dl_admins (username, password_hash, full_name, is_active) '
@@ -292,6 +322,41 @@ function installerRunCurrentMigrationsAndSeeds(PDO $db, PDO $controlDb): array
     return $results;
 }
 
+// ── AJAX: Test database connection ─────────────────────────────────────────
+// Responds to step=test_db POST with JSON {ok, db_exists, message|error}.
+// No migrations are run. Blocked automatically when already installed (guard above).
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'test_db') {
+    header('Content-Type: application/json; charset=utf-8');
+    $tHost = installerSanitizeHost((string)($_POST['db_host'] ?? 'localhost'));
+    $tPort = max(1, min(65535, (int)($_POST['db_port'] ?? 3306)));
+    $tName = trim((string)($_POST['db_name'] ?? ''));
+    $tUser = trim((string)($_POST['db_user'] ?? ''));
+    $tPass = (string)($_POST['db_pass'] ?? '');
+    if ($tUser === '' || $tName === '') {
+        echo json_encode(['ok' => false, 'error' => 'Database username and name are required.']);
+        exit;
+    }
+    try {
+        $dsnTest = sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $tHost, $tPort);
+        $testPdo = new PDO($dsnTest, $tUser, $tPass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $chkStmt = $testPdo->prepare(
+            'SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ? LIMIT 1'
+        );
+        $chkStmt->execute([$tName]);
+        $dbExists = (bool)$chkStmt->fetchColumn();
+        echo json_encode([
+            'ok'       => true,
+            'db_exists' => $dbExists,
+            'message'  => $dbExists
+                ? 'Connected successfully. Database exists.'
+                : 'Connected successfully. Database will be created automatically.',
+        ]);
+    } catch (Throwable $e) {
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install') {
 
     // ── Collect & validate input ────────────────────────────────────────
@@ -301,10 +366,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
     $dbUser = trim((string) ($_POST['db_user'] ?? ''));
     $dbPass = (string) ($_POST['db_pass'] ?? '');
 
-    $adminUsername = trim((string) ($_POST['admin_username'] ?? 'admin'));
-    $adminEmail    = trim((string) ($_POST['admin_email'] ?? ''));
-    $adminName     = trim((string) ($_POST['admin_name'] ?? 'Administrator'));
-    $adminPass     = (string) ($_POST['admin_pass'] ?? '');
+    $adminUsername    = trim((string) ($_POST['admin_username'] ?? ''));
+    $adminEmail       = trim((string) ($_POST['admin_email'] ?? ''));
+    $adminName        = trim((string) ($_POST['admin_name'] ?? ''));
+    $adminPass        = (string) ($_POST['admin_pass'] ?? '');
+    $adminPassConfirm = (string) ($_POST['admin_pass_confirm'] ?? '');
     $multiTenantEnabled = !empty($_POST['app_multi_tenant_enabled']);
     $controlDbHost = trim((string) ($_POST['control_db_host'] ?? ($existingEnv['CONTROL_DB_HOST'] ?? $dbHost)));
     $controlDbPort = trim((string) ($_POST['control_db_port'] ?? ($existingEnv['CONTROL_DB_PORT'] ?? $dbPort)));
@@ -331,9 +397,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
     if ($dbName === '')                $errors[] = 'Database name is required.';
     if ($dbUser === '')                $errors[] = 'Database username is required.';
     if ($adminUsername === '')          $errors[] = 'Admin username is required.';
+    if (strlen($adminUsername) < 3)    $errors[] = 'Admin username must be at least 3 characters.';
     if ($adminEmail === '')            $errors[] = 'Admin email is required.';
     if ($adminName === '')             $errors[] = 'Admin full name is required.';
     if (strlen($adminPass) < 8)        $errors[] = 'Admin password must be at least 8 characters.';
+    if ($adminPass !== $adminPassConfirm)
+                                       $errors[] = 'Passwords do not match.';
     if (!preg_match('/^[a-zA-Z0-9_]+$/', $adminUsername))
                                        $errors[] = 'Admin username may only contain letters, numbers, underscore.';
     if ($adminEmail !== '' && filter_var($adminEmail, FILTER_VALIDATE_EMAIL) === false)
@@ -347,18 +416,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
 
     if ($errors === []) {
         try {
-            // ── Connect directly to the target database (Bluehost: DB is pre-created) ──
-            $dsnDb = sprintf(
-                'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-                $dbHost,
-                $dbPort,
-                $dbName
-            );
-            $pdo = new PDO($dsnDb, $dbUser, $dbPass, [
+            // ── Connect to MySQL, create DB if needed, then select it ────────────────
+            // Connect without dbname first so a missing DB gives a clear error and can
+            // be created automatically — no manual cPanel step required.
+            $dsnRoot = sprintf('mysql:host=%s;port=%s;charset=utf8mb4', $dbHost, $dbPort);
+            $pdo = new PDO($dsnRoot, $dbUser, $dbPass, [
                 PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]);
+            $pdo->exec(sprintf(
+                'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci',
+                str_replace('`', '', $dbName)
+            ));
+            $pdo->exec(sprintf('USE `%s`', str_replace('`', '', $dbName)));
 
             // ── Run schema migration (statement-by-statement for shared hosts) ──
             $schemaFile = __DIR__ . '/../database/migrations/001_full_schema.sql';
@@ -372,7 +443,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             $statements = array_filter(array_map('trim', explode(';', $schemaSql)));
             foreach ($statements as $stmt) {
                 if ($stmt !== '') {
-                    $pdo->exec($stmt);
+                    try {
+                        $pdo->exec($stmt);
+                    } catch (Throwable $stmtErr) {
+                        // Skip "table already exists" (SQLSTATE 42S01) so re-runs are idempotent.
+                        // Any other error is a genuine failure — re-throw with context.
+                        if (!str_contains($stmtErr->getMessage(), 'already exists')) {
+                            throw new RuntimeException(
+                                'Schema migration failed: ' . $stmtErr->getMessage(), 0, $stmtErr
+                            );
+                        }
+                    }
                 }
             }
 
@@ -442,16 +523,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
                     ':role'          => 'admin',
                 ]);
 
-                $userIdStmt = $pdo->prepare('SELECT id FROM users WHERE username = :u LIMIT 1');
-                $userIdStmt->execute([':u' => $adminUsername]);
-
                 $pdo->commit();
             } catch (Throwable $e) {
                 $pdo->rollBack();
                 throw $e;
             }
 
-            installerSeedModuleAdmins($pdo, $adminUsername, $adminEmail, $adminName, $adminPass);
+            installerSeedModuleAdmins($pdo, $adminUsername, $adminEmail, $adminName, $passwordHash);
 
             // ── Generate .env with current safe defaults + fresh secrets ─────────────
             $envLines = installerBuildEnvLines($existingEnv, $templateEnv, $managedEnv);
@@ -462,6 +540,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
                 $backupDir = __DIR__ . '/../storage/backups';
                 if (!is_dir($backupDir)) {
                     @mkdir($backupDir, 0755, true);
+                }
+                // Protect backup dir from HTTP access on any server configuration
+                $htaccessPath = $backupDir . '/.htaccess';
+                if (!is_file($htaccessPath)) {
+                    @file_put_contents($htaccessPath, "Require all denied\nDeny from all\n");
+                    @chmod($htaccessPath, 0644);
                 }
                 $backupPath = $backupDir . '/env-' . date('Ymd-His') . '.bak';
                 @copy($envPath, $backupPath);
@@ -478,7 +562,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
                 @unlink($tmpPath);
                 throw new RuntimeException('Failed replacing .env file');
             }
-            @chmod($envPath, 0644);
+            // Pre-rename @chmod($tmpPath, 0640) is preserved through rename() on POSIX.
+            // Do NOT re-chmod to 0644 — that widens permissions and exposes secrets on shared hosting.
 
             // ── Create storage dirs ─────────────────────────────────────
             installerStorageBootstrapDirs();
@@ -486,11 +571,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             // ── Write install lock ──────────────────────────────────────
             file_put_contents($installLock, date('Y-m-d H:i:s') . "\n");
 
-            // Flush code caches so the fresh install is picked up immediately
+            // Flush stat cache so the fresh install is picked up immediately.
+            // opcache_reset() is intentionally omitted: on shared hosting it resets
+            // the opcode cache for ALL other sites under the same user account.
             clearstatcache(true);
-            if (function_exists('opcache_reset')) {
-                opcache_reset();
-            }
 
             $success = true;
 
@@ -543,7 +627,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             <strong>Security:</strong> Delete <code>public/lock.php</code> immediately after verifying the app works.
         </div>
         <br>
-        <a class="open" href="/">Open App &rarr;</a>
+        <a class="open" href="/login">Go to Login &rarr;</a>
+        <br><br>
+        <small style="color:#718096;font-size:12px">
+            <a href="/" style="color:#2563eb">Open App</a>
+            &middot;
+            <a href="/superadmin/settings" style="color:#2563eb">Superadmin Settings</a>
+        </small>
     <?php else: ?>
         <?php if ($errors): ?>
             <div class="alert alert-error">
@@ -575,8 +665,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             </div>
             <div class="form-group">
                 <label class="form-label">Database Password</label>
-                <input type="password" name="db_pass" class="form-input">
+                <input type="password" name="db_pass" class="form-input" id="db_pass">
             </div>
+            <div id="db-test-result" style="display:none;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px"></div>
+            <button type="button" class="btn" id="btn-test-db" style="background:#0891b2;margin-bottom:10px" onclick="installerTestDb()">Test Connection</button>
 
             <hr>
 
@@ -623,20 +715,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
             <hr>
 
             <div class="form-group">
-                <label class="form-label">Admin Username</label>
-                <input name="admin_username" class="form-input" value="<?= htmlspecialchars($_POST['admin_username'] ?? 'admin', ENT_QUOTES, 'UTF-8') ?>">
+                <label class="form-label">Admin Username <span style="color:#9ca3af;font-weight:400">(min 3 chars, letters/numbers/_)</span></label>
+                <input name="admin_username" class="form-input" placeholder="e.g. admin" autocomplete="username" value="<?= htmlspecialchars($_POST['admin_username'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
             </div>
             <div class="form-group">
                 <label class="form-label">Admin Email</label>
-                <input type="email" name="admin_email" class="form-input" value="<?= htmlspecialchars($_POST['admin_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                <input type="email" name="admin_email" class="form-input" autocomplete="email" value="<?= htmlspecialchars($_POST['admin_email'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
             </div>
             <div class="form-group">
                 <label class="form-label">Admin Full Name</label>
-                <input name="admin_name" class="form-input" value="<?= htmlspecialchars($_POST['admin_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+                <input name="admin_name" class="form-input" placeholder="e.g. Jane Smith" autocomplete="name" value="<?= htmlspecialchars($_POST['admin_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
             </div>
             <div class="form-group">
-                <label class="form-label">Admin Password (min 8 chars)</label>
-                <input type="password" name="admin_pass" class="form-input">
+                <label class="form-label">Admin Password <span style="color:#9ca3af;font-weight:400">(min 8 chars)</span></label>
+                <div style="position:relative">
+                    <input type="password" name="admin_pass" id="admin_pass" class="form-input" autocomplete="new-password" style="padding-right:40px">
+                    <button type="button" onclick="ikTogglePw('admin_pass','eye1')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px" title="Show/hide password" id="eye1">👁️</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Confirm Password</label>
+                <div style="position:relative">
+                    <input type="password" name="admin_pass_confirm" id="admin_pass_confirm" class="form-input" autocomplete="new-password" style="padding-right:40px">
+                    <button type="button" onclick="ikTogglePw('admin_pass_confirm','eye2')" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:16px" title="Show/hide password" id="eye2">👁️</button>
+                </div>
+                <div id="pw-match-hint" style="font-size:11px;margin-top:4px"></div>
             </div>
 
             <button type="submit" class="btn">Install</button>
@@ -646,5 +749,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['step'] ?? '') === 'install
         </form>
     <?php endif; ?>
 </div>
+<script>
+function ikTogglePw(inputId, btnId) {
+    var el = document.getElementById(inputId);
+    var btn = document.getElementById(btnId);
+    if (!el) return;
+    if (el.type === 'password') {
+        el.type = 'text';
+        if (btn) btn.style.opacity = '1';
+    } else {
+        el.type = 'password';
+        if (btn) btn.style.opacity = '0.5';
+    }
+}
+(function () {
+    var p = document.getElementById('admin_pass');
+    var c = document.getElementById('admin_pass_confirm');
+    var hint = document.getElementById('pw-match-hint');
+    if (!p || !c || !hint) return;
+    function check() {
+        if (c.value === '') { hint.textContent = ''; return; }
+        if (p.value === c.value) {
+            hint.style.color = '#16a34a';
+            hint.textContent = '\u2713 Passwords match';
+        } else {
+            hint.style.color = '#dc2626';
+            hint.textContent = '\u2717 Passwords do not match';
+        }
+    }
+    p.addEventListener('input', check);
+    c.addEventListener('input', check);
+})();
+function installerTestDb() {
+    var btn = document.getElementById('btn-test-db');
+    var res = document.getElementById('db-test-result');
+    if (!btn || !res) return;
+    btn.disabled = true;
+    btn.textContent = 'Testing\u2026';
+    res.style.display = 'none';
+    var form = btn.closest('form');
+    var data = new FormData();
+    data.append('step', 'test_db');
+    data.append('db_host', (form.querySelector('[name=db_host]') || {value:''}).value);
+    data.append('db_port', (form.querySelector('[name=db_port]') || {value:'3306'}).value);
+    data.append('db_name', (form.querySelector('[name=db_name]') || {value:''}).value);
+    data.append('db_user', (form.querySelector('[name=db_user]') || {value:''}).value);
+    data.append('db_pass', (document.getElementById('db_pass') || {value:''}).value);
+    fetch(location.pathname, {method: 'POST', body: data})
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+            res.style.display = 'block';
+            if (j.ok) {
+                res.style.cssText = 'display:block;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px;background:#dcfce7;color:#16a34a;border:1px solid #bbf7d0';
+                res.textContent = '\u2713 ' + (j.message || 'Connection successful');
+            } else {
+                res.style.cssText = 'display:block;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca';
+                res.textContent = '\u2717 ' + (j.error || 'Connection failed');
+            }
+        })
+        .catch(function(err) {
+            res.style.cssText = 'display:block;font-size:12px;padding:7px 10px;border-radius:6px;margin-bottom:8px;background:#fee2e2;color:#dc2626;border:1px solid #fecaca';
+            res.textContent = '\u2717 Request failed: ' + err.message;
+        })
+        .finally(function() {
+            btn.disabled = false;
+            btn.textContent = 'Test Connection';
+        });
+}
+</script>
 </body>
 </html>

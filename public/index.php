@@ -120,6 +120,22 @@ require_once __DIR__ . '/../src/helpers/fast-path-health.php';
     exit;
 })();
 
+// ── Not-installed guard: redirect to installer before booting the kernel ──
+// Only triggers when BOTH storage/.installed and .env are absent — the clearest
+// "completely fresh server" signal. Health check is exempt so /api/v1/health
+// keeps working even on an unconfigured server.
+(static function (): void {
+    if (is_file(__DIR__ . '/../storage/.installed') || is_file(__DIR__ . '/../.env')) {
+        return;
+    }
+    $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    if ($uri === '/api/v1/health') {
+        return;
+    }
+    header('Location: /lock.php', true, 302);
+    exit;
+})();
+
 require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/security.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
