@@ -1312,7 +1312,7 @@ function cmsBuilderRenderGlobalStyleTag(array $globalStyles, string $scopeClass)
     if (!empty($typography['h3Size'])) $rules[] = '.' . $scopeClass . ' h3{font-size:' . $typography['h3Size'] . '}';
     if (!empty($typography['h4Size'])) $rules[] = '.' . $scopeClass . ' h4{font-size:' . $typography['h4Size'] . '}';
     if (!empty($spacing['sectionPadding'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--section{padding:' . $spacing['sectionPadding'] . '}';
-    if (!empty($spacing['containerMaxWidth'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--container{max-width:' . $spacing['containerMaxWidth'] . ';margin-left:auto;margin-right:auto;width:100%}';
+    if (!empty($spacing['containerMaxWidth'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--section > .cms-builder-node--container{max-width:' . $spacing['containerMaxWidth'] . ';margin-left:auto;margin-right:auto;width:100%}';
     if (!empty($spacing['elementGap'])) $rules[] = '.' . $scopeClass . ' .cms-builder-node--row,.' . $scopeClass . ' .cms-builder-node--column,.' . $scopeClass . ' .cms-builder-node--layout_container{gap:' . $spacing['elementGap'] . '}';
     if (!empty($buttons['borderRadius']) || !empty($buttons['paddingY']) || !empty($buttons['paddingX']) || !empty($buttons['fontSize'])) {
         $buttonRules = [];

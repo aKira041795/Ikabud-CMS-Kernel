@@ -69,8 +69,8 @@ video {
     width: 100%;
 }
 
-/* Container */
-.cms-builder-node--container {
+/* Section wrapper container */
+.cms-builder-node--section > .cms-builder-node--container {
     width: 100%;
 }
 
