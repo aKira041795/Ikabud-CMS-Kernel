@@ -443,6 +443,34 @@
     }
 }
 
+/* Containers: reduce side padding on mobile */
+@media (max-width: 640px) {
+    .cms-builder-node--container {
+        --b-padding: 0 16px !important;
+    }
+}
+
+/* Sections: ensure full-width at mobile with adequate padding */
+@media (max-width: 640px) {
+    .cms-builder-node--section {
+        --b-padding: 15px 16px !important;
+        --b-min-height: 60px !important;
+    }
+}
+
+/* Layout containers: reduce minHeight on mobile */
+@media (max-width: 640px) {
+    .cms-builder-node--container,
+    .cms-builder-node--layout_container {
+        --b-min-height: 40px !important;
+    }
+
+    .cms-builder-node--row,
+    .cms-builder-node--column {
+        --b-min-height: 30px !important;
+    }
+}
+
 /* Topbar: wrap widgets on mobile */
 @media (max-width: 640px) {
     .header-topbar-inner {

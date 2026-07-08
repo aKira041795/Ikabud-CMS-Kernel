@@ -840,14 +840,14 @@ function cmsBuilderStyleAttr(array $style): string
 function cmsBuilderDefaultStyle(string $type): array
 {
     static $defaults = [
-        'section'    => ['width' => '100%', 'display' => 'flex', 'flexDirection' => 'column', 'alignItems' => 'center', 'justifyContent' => 'center', 'padding' => '48px 24px', 'boxSizing' => 'border-box'],
+        'section'    => ['width' => '100%', 'display' => 'flex', 'flexDirection' => 'column', 'alignItems' => 'center', 'justifyContent' => 'center', 'padding' => '48px 24px', 'boxSizing' => 'border-box', 'minHeight' => '80px'],
         // Container defaults are contextual in the renderer. Keep the static baseline
         // minimal so preset child containers do not accidentally inherit constrained-width
         // wrapper behavior on the public frontend.
-        'container'  => ['boxSizing' => 'border-box'],
-        'layout_container' => ['boxSizing' => 'border-box', 'minWidth' => '0'],
-        'row'        => ['display' => 'flex', 'flexDirection' => 'row', 'flexWrap' => 'nowrap', 'gap' => '24px', 'justifyContent' => 'center', 'alignItems' => 'stretch'],
-        'column'     => ['display' => 'flex', 'flexDirection' => 'column', 'gap' => '16px', 'alignItems' => 'stretch', 'boxSizing' => 'border-box', 'minWidth' => '0'],
+        'container'  => ['boxSizing' => 'border-box', 'minHeight' => '60px'],
+        'layout_container' => ['boxSizing' => 'border-box', 'minWidth' => '0', 'minHeight' => '60px'],
+        'row'        => ['display' => 'flex', 'flexDirection' => 'row', 'flexWrap' => 'nowrap', 'gap' => '24px', 'justifyContent' => 'center', 'alignItems' => 'stretch', 'minHeight' => '50px'],
+        'column'     => ['display' => 'flex', 'flexDirection' => 'column', 'gap' => '16px', 'alignItems' => 'stretch', 'boxSizing' => 'border-box', 'minWidth' => '0', 'minHeight' => '50px'],
         'heading'    => ['fontSize' => '32px', 'fontWeight' => '700', 'lineHeight' => '1.2', 'color' => '#111827', 'textAlign' => 'center', 'width' => '100%'],
         'text'       => ['fontSize' => '16px', 'textAlign' => 'left', 'lineHeight' => '1.6', 'color' => '#4B5563'],
         // Button: backgroundColor and color omitted from defaults — theme CSS classes
@@ -1505,7 +1505,11 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
                 if ($value === null || $value === '' || is_array($value)) {
                     continue;
                 }
-                $props[] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value . ' !important';
+                // Emit --b-{prop} override so it cascades through the CSS custom
+                // property system set up by cmsBuilderStyleAttr(). This overrides
+                // the inline --b-{prop} value without !important on the final property.
+                $cssProp = cmsBuilderCssProp((string)$prop);
+                $props[] = '--b-' . $cssProp . ':' . (string)$value . ' !important';
             }
             if (!empty($props)) {
                 $tabletRules[] = $selector . '{' . implode(';', $props) . '}';
@@ -1518,7 +1522,8 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
                 if ($value === null || $value === '' || is_array($value)) {
                     continue;
                 }
-                $props[] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value . ' !important';
+                $cssProp = cmsBuilderCssProp((string)$prop);
+                $props[] = '--b-' . $cssProp . ':' . (string)$value . ' !important';
             }
             if (!empty($props)) {
                 $mobileRules[] = $selector . '{' . implode(';', $props) . '}';
