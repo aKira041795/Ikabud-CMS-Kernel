@@ -4316,8 +4316,13 @@ function cmsDispatchThemeCustomizer(string $section, object $db, array $publicCt
         );
         $html = (string)($result['html'] ?? '');
 
+        // If orchestrator returned empty (e.g., no active theme resolved),
+        // fall back to the legacy CMS customizer renderer for standard sections.
         if ($html === '') {
-            return null;
+            $html = cmsDispatchLegacyCustomizer($section, $db, $publicCtx);
+            if ($html === '') {
+                return null;
+            }
         }
 
         if ($section === 'sidebar') {
@@ -4334,7 +4339,29 @@ function cmsDispatchThemeCustomizer(string $section, object $db, array $publicCt
     } catch (Throwable $e) {
         write_log('Theme customizer orchestrator dispatch failed for ' . $section . ': ' . $e->getMessage(), 'error');
     }
-    return null;
+    return cmsDispatchLegacyCustomizer($section, $db, $publicCtx);
+}
+
+/**
+ * Fallback to legacy CMS customizer renderer when the orchestrator is unavailable.
+ * Matches the pre-7bb9ef0 behavior where CMS renderers were called directly.
+ */
+function cmsDispatchLegacyCustomizer(string $section, object $db, array $publicCtx = []): string
+{
+    try {
+        return match ($section) {
+            'header' => function_exists('cmsRenderCustomizedHeader')
+                ? cmsRenderCustomizedHeader($db, $publicCtx) : '',
+            'footer' => function_exists('cmsRenderCustomizedFooter')
+                ? cmsRenderCustomizedFooter($db, $publicCtx) : '',
+            'sidebar' => function_exists('cmsRenderCustomizedSidebar')
+                ? (string)(cmsRenderCustomizedSidebar($db, $publicCtx)['html'] ?? '') : '',
+            default => '',
+        };
+    } catch (Throwable $e) {
+        write_log('Legacy customizer render failed for ' . $section . ': ' . $e->getMessage(), 'error');
+    }
+    return '';
 }
 
 /**

@@ -80,7 +80,12 @@ class ThemeCustomizerOrchestrator
         $themePath = self::activeThemePath();
 
         if (!$slug || empty($manifest)) {
-            return null;
+            // No active theme configured — still provide a legacy adapter
+            // so the CMS fallback renderer can serve header/footer/sidebar.
+            // The adapter slug is not used for rendering, only for metadata.
+            $adapter = new LegacyCmsCustomizerAdapter($slug ?? 'default');
+            self::$resolvedProviders[$tenantId] = $adapter;
+            return $adapter;
         }
 
         $owns = $manifest['customizer']['owns'] ?? false;
