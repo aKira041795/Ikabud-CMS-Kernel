@@ -367,15 +367,32 @@
 }
 
 /* Responsive: stack builder rows/columns on mobile */
-@media (max-width: 640px) {
+@media (max-width: 1024px) {
+    /* At tablet, columns stack when they don't fit side by side */
     .cms-builder-node--row {
-        --b-flex-direction: column !important;
         --b-flex-wrap: wrap !important;
+        flex-wrap: var(--b-flex-wrap) !important;
     }
 
-    .cms-builder-node--column {
+    .cms-builder-node--row > .cms-builder-node--column {
+        --b-min-width: 0 !important;
+    }
+}
+
+@media (max-width: 640px) {
+    /* At mobile, all columns stack vertically and go full-width */
+    .cms-builder-node--row:not([data-mobile-layout="0"]) {
+        --b-flex-direction: column !important;
+        --b-flex-wrap: nowrap !important;
+        flex-direction: var(--b-flex-direction) !important;
+        flex-wrap: var(--b-flex-wrap) !important;
+    }
+
+    .cms-builder-node--row > .cms-builder-node--column {
         --b-width: 100% !important;
-        --b-flex: none !important;
+        --b-flex: 0 0 100% !important;
+        width: var(--b-width) !important;
+        flex: var(--b-flex) !important;
     }
 
     .cms-builder-node--container[style*="grid-template-columns"] {
