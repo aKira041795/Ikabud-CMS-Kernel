@@ -369,15 +369,13 @@
 /* Responsive: stack builder rows/columns on mobile */
 @media (max-width: 640px) {
     .cms-builder-node--row {
-        --b-flex-direction: column;
-        flex-direction: var(--b-flex-direction);
+        --b-flex-direction: column !important;
+        --b-flex-wrap: wrap !important;
     }
 
     .cms-builder-node--column {
-        --b-width: 100%;
-        --b-flex: none;
-        width: var(--b-width);
-        flex: var(--b-flex);
+        --b-width: 100% !important;
+        --b-flex: none !important;
     }
 
     .cms-builder-node--container[style*="grid-template-columns"] {
@@ -407,30 +405,33 @@
 
 /* ── Builder widget responsive overrides ──
  *
- * These use CSS custom properties (--b-*) set by the PHP renderer's
- * cmsBuilderStyleAttr() and specific widget templates. The inline style
- * outputs both --b-{prop}:{value} and {prop}:var(--b-{prop}), so
- * overriding --b-{prop} here cascades naturally — no !important needed.
+ * These use CSS custom properties (--b-*) set by the PHP renderer.
+ * Inline style: --b-{prop}:{value}; {prop}: var(--b-{prop})
+ * Override:     --b-{prop}: new-value !important;
+ *
+ * The !important on the custom property override is the CORRECT CSS convention:
+ * it overrides the variable value, not the property itself. The property
+ * declaration (height: var(--b-height)) does not need !important — it just
+ * resolves the variable. This is how CSS custom properties are designed to
+ * be used for theming overrides.
  */
 
 /* Slideshow: reduce height and caption sizes on mobile */
 @media (max-width: 640px) {
     .cms-builder-node--slideshow .cms-builder-slide-track {
-        --b-height: 280px;
+        --b-height: 280px !important;
     }
 
     .cms-builder-node--slideshow h3 {
-        --b-font-size: 20px;
-        font-size: var(--b-font-size);
+        --b-font-size: 20px !important;
     }
 
     .cms-builder-node--slideshow p {
-        --b-font-size: 14px;
-        font-size: var(--b-font-size);
+        --b-font-size: 14px !important;
     }
 
     .cms-builder-node--slideshow [style*="--b-padding"] {
-        --b-padding: 12px 16px;
+        --b-padding: 12px 16px !important;
     }
 }
 
@@ -445,18 +446,18 @@
 /* Topbar: wrap widgets on mobile */
 @media (max-width: 640px) {
     .header-topbar-inner {
-        --b-justify-content: center;
+        --b-justify-content: center !important;
         flex-wrap: wrap;
         gap: 4px 12px;
     }
 
     .header-widget-text {
-        --b-font-size: 12px;
-        --b-font-weight: 400;
+        --b-font-size: 12px !important;
+        --b-font-weight: 400 !important;
     }
 
     .header-widget-contact {
-        --b-font-size: 12px;
+        --b-font-size: 12px !important;
         overflow-wrap: break-word;
         word-break: break-all;
         max-width: 90vw;
