@@ -6,16 +6,17 @@
     <title>{page_title}</title>
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
     {# ── Default variable guards (matching ARK theme pattern) ── #}
-    {set has_customized_header = has_customized_header|default:false}
-    {set customized_header = customized_header|default:''}
-    {set has_customized_footer = has_customized_footer|default:false}
-    {set customized_footer = customized_footer|default:''}
-    {set has_customized_sidebar = has_customized_sidebar|default:false}
-    {set customized_sidebar = customized_sidebar|default:''}
+    {set header_region_present = header_region.present|default:false}
+    {set header_region_html = header_region.html|default:''}
+    {set footer_region_present = footer_region.present|default:false}
+    {set footer_region_html = footer_region.html|default:''}
+    {set sidebar_region_present = sidebar_region_present_override|default:(sidebar_region.present|default:false)}
+    {set sidebar_region_html = sidebar_region.html|default:''}
+    {set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
+    {set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
     {set force_customized_sidebar = force_customized_sidebar|default:false}
     {set cms_global_sidebar_force = cms_global_sidebar_force|default:false}
-    {set sidebar_position = sidebar_position|default:'right'}
-    {set sidebar_width = sidebar_width|default:'300'}
+    {set force_hide_customized_sidebar = force_hide_customized_sidebar|default:false}
     {set builder_enabled = builder_enabled|default:false}
     {set show_header = show_header|default:true}
     {set show_footer = show_footer|default:true}
@@ -107,8 +108,8 @@
 <body class="native-theme {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
 
     {if show_header|default:true}
-    {if has_customized_header}
-    {customized_header|raw}
+    {if header_region_present}
+    {header_region_html|raw}
     {else}
     <div class="header-wrapper header-wrapper--sticky">
         <header class="site-header site-header--sticky">
@@ -149,7 +150,7 @@
     {/if}
 
     <div class="site-content">
-        <div class="{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}cms-builder-fullwidth{else}container{/if}">
+        <div class="{if builder_enabled && !(sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}cms-builder-fullwidth{else}container{/if}">
             {if public_render_origin == 'ecommerce' && public_customer_is_logged_in}
             <div class="ec-customer-banner">
                 <div class="ec-customer-banner__row">
@@ -169,22 +170,22 @@
                 </div>
             </div>
             {/if}
-            <div class="{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}cms-content-with-sidebar {if sidebar_position == 'left'}sidebar-left{/if}{/if}"{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
-                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
-                {if sidebar_position == 'left'}
+            <div class="{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}cms-content-with-sidebar {if sidebar_region_position == 'left'}sidebar-left{/if}{/if}"{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
+                {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}
+                {if sidebar_region_position == 'left'}
                 <aside class="cms-sidebar-slot">
-                    {customized_sidebar|raw}
+                    {sidebar_region_html|raw}
                 </aside>
                 {/if}
                 {/if}
-                <main id="main-content" class="cms-public-main site-main{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} cms-main-slot{/if}" role="main">
+                <main id="main-content" class="cms-public-main site-main{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} cms-main-slot{/if}" role="main">
                     {block content}{/block}
                 </main>
-                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
-                {if sidebar_position == 'left'}
+                {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}
+                {if sidebar_region_position == 'left'}
                 {else}
                 <aside class="cms-sidebar-slot">
-                    {customized_sidebar|raw}
+                    {sidebar_region_html|raw}
                 </aside>
                 {/if}
                 {/if}
@@ -194,8 +195,8 @@
 
     {if show_footer|default:true}
     <footer class="site-footer">
-        {if has_customized_footer}
-        {customized_footer|raw}
+        {if footer_region_present}
+        {footer_region_html|raw}
         {else}
         <div class="container">
             {if social_links}

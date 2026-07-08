@@ -37,9 +37,9 @@ Examples of currently allowlisted raw seams include:
 - `structured_data`
 - `colors_style`
 - `theme_layout_style`
-- `customized_header`
-- `customized_sidebar`
-- `customized_footer`
+- `header_region.html`
+- `sidebar_region.html`
+- `footer_region.html`
 - `primary_menu`
 - `footer_menu`
 - `link.icon`

@@ -651,7 +651,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                 }
 
                 $hiddenInputs = '<input type="hidden" name="id" value="' . $safeId . '">';
-                foreach ($row as $key => $value) {
+                foreach ($ctx->row as $key => $value) {
                     if ($key === 'id' || !is_scalar($value)) continue;
                     $safeKey = htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8');
                     $safeVal = htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
@@ -663,8 +663,8 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                     . '<button type="submit" class="' . $actionClass . '">' . $safeLabel . '</button></form>';
             } else {
                 $onClick = '';
-                if (isset($actionConfirm[$action]) && $actionConfirm[$action] !== '') {
-                    $onClick = ' onclick="return confirm(' . htmlspecialchars(json_encode($actionConfirm[$action]), ENT_QUOTES, 'UTF-8') . ')"';
+                if (isset($ctx->actionConfirm[$action]) && $ctx->actionConfirm[$action] !== '') {
+                    $onClick = ' onclick="return confirm(' . htmlspecialchars(json_encode($ctx->actionConfirm[$action]), ENT_QUOTES, 'UTF-8') . ')"';
                 }
                 $html .= '<a href="' . $href . '" class="' . $actionClass . '"' . $onClick . '>' . $safeLabel . '</a>';
             }

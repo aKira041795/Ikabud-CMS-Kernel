@@ -130,10 +130,7 @@
             }
         ],
         "depends": [
-            {
-                "id": "cms.content.get@1",
-                "optional": true
-            }
+            "cms.content.get@1"
         ]
     }
 }

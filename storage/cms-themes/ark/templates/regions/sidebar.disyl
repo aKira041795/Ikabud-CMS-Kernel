@@ -1,9 +1,7 @@
-{# ARK Region Template: Sidebar (Orchestrator path)
-   Used as fallback when CMS customizer returns no HTML.
-   NOTE: Widgets are rendered by CMS PHP (cmsRenderSingleSidebarWidget) and passed
-   as {customized_sidebar|raw} in the ARK layout. This template provides structural
-   fallback with ARK-styled sidebar when the orchestrator dispatches directly.
-   Receives settings as section_settings.* (scope prefix stripped by orchestrator). #}
+{# ARK Region Template: Sidebar (canonical orchestrator path)
+    ThemeCustomizerOrchestrator resolves this region from persisted CMS settings
+    and renders it through ThemeRenderContext.
+    Receives settings as section_settings.* (scope prefix stripped by orchestrator). #}
 {set position = section_settings.placement|default:'right'}
 {set sidebar_width = section_settings.width|default:'300'}
 {set visible_gap = section_settings.gap|default:'32'}
@@ -22,9 +20,8 @@
      style="width:{sidebar_width}px;flex-shrink:0;
             margin-{if position == 'left'}right{else}left{/if}:{visible_gap}px;
             {if sticky_enabled == '1'}position:sticky;top:1.5rem;{/if}">
-    {# Widgets are rendered by the CMS customizer PHP layer.
-       This template provides the themed fallback container.
-       Actual widgets are injected via the orchestrator's pre-rendered HTML. #}
+     {# This template is the canonical ARK fallback surface when no richer
+         widget composition is available for the current sidebar scope. #}
     <div class="ark-region-sidebar__widget"
          style="background:{widget_bg};
                 border:1px solid {widget_border};

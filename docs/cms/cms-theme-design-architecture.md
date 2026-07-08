@@ -314,9 +314,9 @@ Target direction for entity presentation controls:
 
 
 ## 11. Theme authoring recommendations
-### Required CSS for customised header components
+### Required CSS for region-rendered header components
 
-When the customizer has a saved header configuration the layout renders `{customized_header|raw}`, which emits HTML elements that every theme **must** provide CSS for — otherwise they appear as stray unstyled markup on the page.
+When the orchestrator-owned header region is present the layout renders `{header_region.html|raw}`, which emits HTML elements that every theme **must** provide CSS for — otherwise they appear as stray unstyled markup on the page.
 
 | Element / class | Purpose | Minimum required CSS |
 |---|---|---|
@@ -326,7 +326,7 @@ When the customizer has a saved header configuration the layout renders `{custom
 | `.mobile-menu-toggle` | Hamburger button | `display:none` on desktop |
 | `.header-cta` / `.header-cta--primary` | CTA button | `display:inline-flex; background; color` |
 
-The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are injected by the customized header automatically (canvas-nav hide/show, dropdown positioning). Themes do not need to duplicate them.
+The `cz-mobile-header` and `cz-header-dropdown` inline `<style>` blocks are injected by the rendered header region automatically (canvas-nav hide/show, dropdown positioning). Themes do not need to duplicate them.
 
 **Starting point:** copy the _"Customized Header Components"_ section from `storage/cms-themes/minimalist/style.css`.
 

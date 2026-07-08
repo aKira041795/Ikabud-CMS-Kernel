@@ -2,7 +2,7 @@
 
 {set show_header = false}
 {set show_footer = false}
-{set has_customized_sidebar = false}
+{set sidebar_region_present_override = false}
 
 {block head}
 {if cms_head}{cms_head | raw}{/if}

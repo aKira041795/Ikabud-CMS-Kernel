@@ -18,8 +18,8 @@
     </article>
 
     <aside class="sidebar sidebar-right">
-        {if customized_sidebar}
-        {customized_sidebar|raw}
+        {if sidebar_region_present and sidebar_region_html}
+        {sidebar_region_html|raw}
         {else}
         <p>No sidebar content.</p>
         {/if}

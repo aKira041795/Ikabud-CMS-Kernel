@@ -27,6 +27,17 @@
     {block head}{/block}
 </head>
 <body class="bg-white text-gray-900 min-h-screen">
+    {set header_region_present = header_region.present|default:has_customized_header|default:false}
+    {set header_region_html = header_region.html|default:customized_header|default:''}
+    {set footer_region_present = footer_region.present|default:has_customized_footer|default:false}
+    {set footer_region_html = footer_region.html|default:customized_footer|default:''}
+    {set sidebar_region_present = sidebar_region.present|default:has_customized_sidebar|default:false}
+    {set sidebar_region_html = sidebar_region.html|default:customized_sidebar|default:''}
+    {set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
+    {set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
+    {if header_region_present}
+    {header_region_html|raw}
+    {else}
     <header class="border-b border-gray-100">
         <div class="max-w-2xl mx-auto px-6 py-6 flex items-center justify-between">
             <a href="{base_url}/cms" class="text-xl font-bold tracking-tight hover:opacity-70 no-underline" style="font-family: system-ui, sans-serif;">Blog</a>
@@ -36,25 +47,30 @@
             </nav>
         </div>
     </header>
+    {/if}
 
     <main class="max-w-4xl mx-auto px-6 py-12">
-        <div class="flex flex-col lg:flex-row gap-10 lg:items-start{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}{if sidebar_position == 'left'} lg:flex-row-reverse{/if}{/if}">
+        <div class="flex flex-col lg:flex-row gap-10 lg:items-start{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}{if sidebar_region_position == 'left'} lg:flex-row-reverse{/if}{/if}">
             <section class="min-w-0 flex-1">
                 {block content}{/block}
             </section>
-            {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
-            <aside class="w-full lg:flex-none" style="max-width:{sidebar_width|default:'300'}px;">
-                {customized_sidebar|raw}
+            {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}
+            <aside class="w-full lg:flex-none" style="max-width:{sidebar_region_width|default:'300'}px;">
+                {sidebar_region_html|raw}
             </aside>
             {/if}
         </div>
     </main>
 
+    {if footer_region_present}
+    {footer_region_html|raw}
+    {else}
     <footer class="border-t border-gray-100 mt-16">
         <div class="max-w-2xl mx-auto px-6 py-8 text-center text-xs text-gray-300" style="font-family: system-ui, sans-serif;">
             Powered by CMS Module &middot; Minimal Theme
         </div>
     </footer>
+    {/if}
         <div x-data="{
         lightboxModalSrc: null,
         init() {

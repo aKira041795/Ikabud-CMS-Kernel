@@ -1,6 +1,6 @@
 {extends "_cms_active_theme/layouts/public.disyl"}
 
-{set has_customized_sidebar = false}
+{set sidebar_region_present_override = false}
 
 {block head}
 {if cms_head}{cms_head | raw}{/if}

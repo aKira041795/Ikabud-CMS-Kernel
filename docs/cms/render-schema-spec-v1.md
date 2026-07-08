@@ -264,18 +264,15 @@ Required roots:
 - `head_code`
 - `body_end_code`
 - `active_theme_slug`
-- `has_customized_header`
-- `customized_header`
-- `has_customized_footer`
-- `customized_footer`
+- `header_region`
+- `footer_region`
 - `public_render_origin`
 - `public_route_kind`
 - `public_presentation_mode`
 
 Common optional roots:
 
-- `has_customized_sidebar`
-- `customized_sidebar`
+- `sidebar_region`
 - `sidebar_position`
 - `sidebar_width`
 - `theme_script_url`
@@ -286,6 +283,8 @@ Notes:
 
 - this is the broad public shell layer shared by CMS and ecommerce renders
 - it should be included in logs even when the route-specific schema is different
+- themes should consume `header_region`, `footer_region`, and `sidebar_region` as the canonical orchestrator-owned region contract
+- legacy `has_customized_*` and `customized_*` values are compatibility shims only and should not be used by theme layouts
 
 #### `cms.public.entity.view@1`
 
@@ -374,10 +373,9 @@ Common optional roots:
 - `custom_css`
 - `head_code`
 - `active_theme_slug`
-- `has_customized_header`
-- `customized_header`
-- `has_customized_footer`
-- `customized_footer`
+- `header_region`
+- `footer_region`
+- `sidebar_region`
 - `theme_script_url`
 - `body_end_code`
 - `year`

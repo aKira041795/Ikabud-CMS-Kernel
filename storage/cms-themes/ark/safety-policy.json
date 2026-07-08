@@ -16,6 +16,9 @@
                 "custom_css",
                 "head_code",
                 "body_end_code",
+                "header_region.html",
+                "footer_region.html",
+                "sidebar_region.html",
                 "customized_header",
                 "customized_sidebar",
                 "customized_footer",
@@ -32,7 +35,7 @@
             "requires_capability": [
                 "cms.content.render_raw@1"
             ],
-            "note": "All raw output must be sourced from kernel-approved render context only."
+            "note": "All raw output must be sourced from kernel-approved render context only. Canonical theme shell regions are header_region.html, footer_region.html, and sidebar_region.html; customized_* keys remain transitional compatibility shims only."
         },
         "allowed_context_sources": [
             "kernel",

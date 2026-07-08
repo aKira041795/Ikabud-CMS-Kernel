@@ -226,6 +226,15 @@ function cmsPublicContext(array $extra = []): array
     $footerSettings = function_exists('cmsValidateFooterSettings')
         ? cmsValidateFooterSettings(is_array($footerSection['settings'] ?? null) ? $footerSection['settings'] : [])
         : [];
+    $sidebarSection = ['settings' => function_exists('cmsSidebarSettingsDefaults') ? cmsSidebarSettingsDefaults($activeCustomizerScope) : []];
+    try {
+        $sidebarSection = function_exists('cmsCustomizerGet')
+            ? cmsCustomizerGet($db, 'sidebar', $activeCustomizerScope)
+            : $sidebarSection;
+    } catch (Throwable $e) {
+        $sidebarSection = ['settings' => function_exists('cmsSidebarSettingsDefaults') ? cmsSidebarSettingsDefaults($activeCustomizerScope) : []];
+    }
+    $sidebarSettings = is_array($sidebarSection['settings'] ?? null) ? $sidebarSection['settings'] : [];
 
     $ctx = [
         'site_title'    => (string)($settings['site_title'] ?? ''),
@@ -266,79 +275,93 @@ function cmsPublicContext(array $extra = []): array
         'footer_copyright_text' => trim((string)($footerSettings['copyright_text'] ?? '')),
     ];
 
-    // Render customized footer if customizer data exists
+    $renderCtx = array_merge($ctx, $extra);
+
+    // Render canonical footer region
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         if (cmsPublicContextHasSection($sectionAvailability, 'footer')) {
-            // Prefer CMS customizer rendering (real widget/region content)
-            // over theme orchestrator region template (may only have placeholders).
-            $customizedFooter = cmsRenderCustomizedFooter($db, $ctx);
-            if ($customizedFooter === '') {
-                $customizedFooter = cmsDispatchThemeCustomizer('footer', $db, $ctx);
-            }
-            $ctx['customized_footer'] = $customizedFooter;
-            $ctx['has_customized_footer'] = ($customizedFooter !== '');
+            $footerResult = cmsDispatchThemeCustomizer('footer', $db, $renderCtx);
+            $footerHtml = is_string($footerResult) ? $footerResult : '';
+            $ctx['footer_region'] = [
+                'present' => ($footerHtml !== ''),
+                'html' => $footerHtml,
+                'source' => $footerHtml !== '' ? 'theme_region' : 'none',
+            ];
         } else {
-            $ctx['customized_footer'] = '';
-            $ctx['has_customized_footer'] = false;
+            $ctx['footer_region'] = ['present' => false, 'html' => '', 'source' => 'disabled'];
         }
     } catch (Throwable $e) {
-        $ctx['customized_footer'] = '';
-        $ctx['has_customized_footer'] = false;
+        $ctx['footer_region'] = ['present' => false, 'html' => '', 'source' => 'error'];
     }
+    $ctx['customized_footer'] = (string)($ctx['footer_region']['html'] ?? '');
+    $ctx['has_customized_footer'] = !empty($ctx['footer_region']['present']);
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_footer', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
-    // Render customized header if customizer data exists
+    // Render canonical header region
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
         if (cmsPublicContextHasSection($sectionAvailability, 'header')) {
-            // Prefer CMS customizer rendering (real widget/region content)
-            // over theme orchestrator region template (may only have placeholders).
-            $customizedHeader = cmsRenderCustomizedHeader($db, $ctx);
-            if ($customizedHeader === '') {
-                $customizedHeader = cmsDispatchThemeCustomizer('header', $db, $ctx);
-            }
-            $ctx['customized_header'] = $customizedHeader;
-            $ctx['has_customized_header'] = ($customizedHeader !== '');
+            $headerResult = cmsDispatchThemeCustomizer('header', $db, array_merge($renderCtx, $ctx));
+            $headerHtml = is_string($headerResult) ? $headerResult : '';
+            $ctx['header_region'] = [
+                'present' => ($headerHtml !== ''),
+                'html' => $headerHtml,
+                'source' => $headerHtml !== '' ? 'theme_region' : 'none',
+            ];
         } else {
-            $ctx['customized_header'] = '';
-            $ctx['has_customized_header'] = false;
+            $ctx['header_region'] = ['present' => false, 'html' => '', 'source' => 'disabled'];
         }
     } catch (Throwable $e) {
-        $ctx['customized_header'] = '';
-        $ctx['has_customized_header'] = false;
+        $ctx['header_region'] = ['present' => false, 'html' => '', 'source' => 'error'];
     }
+    $ctx['customized_header'] = (string)($ctx['header_region']['html'] ?? '');
+    $ctx['has_customized_header'] = !empty($ctx['header_region']['present']);
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_header', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
 
-    // Render customized sidebar if enabled by customizer settings
+    // Render canonical sidebar region
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
     try {
-        // Always try CMS customizer rendering — the preload section availability cache
-        // is unreliable (can be missing sections), and cmsRenderCustomizedSidebar handles
-        // the enabled/disabled check internally by reading directly from the DB.
-        $sidebarCtx = array_merge($ctx, $extra);
-        $sidebar = cmsRenderCustomizedSidebar($db, $sidebarCtx);
-        if (($sidebar['html'] ?? '') === '' || !($sidebar['enabled'] ?? false)) {
-            // CMS returned empty/disabled, try the orchestrator theme template as fallback
-            $orchestrated = cmsDispatchThemeCustomizer('sidebar', $db, $sidebarCtx);
-            if ($orchestrated !== null) {
-                $sidebar = $orchestrated;
-            }
-        }
-        $ctx['customized_sidebar'] = (string)($sidebar['html'] ?? '');
-        $ctx['has_customized_sidebar'] = (bool)($sidebar['enabled'] ?? false);
-        $ctx['sidebar_position'] = (string)($sidebar['position'] ?? 'right');
-        $ctx['sidebar_width'] = (string)($sidebar['width'] ?? '300');
+        $sidebarCtx = array_merge($renderCtx, $ctx);
+        $forceHideSidebar = !empty($sidebarCtx['force_hide_customized_sidebar']);
+        $forceShowSidebar = !empty($sidebarCtx['force_customized_sidebar']) || !empty($sidebarCtx['cms_global_sidebar_force']);
+        $sidebarPosition = (string)($sidebarSettings['placement'] ?? 'right');
+        $sidebarWidth = (string)($sidebarSettings['width'] ?? '300');
+        $sidebarEnabled = !$forceHideSidebar && (((int)($sidebarSettings['enabled'] ?? 0) === 1) || $forceShowSidebar);
+
+        $sidebarResult = cmsDispatchThemeCustomizer('sidebar', $db, $sidebarCtx);
+        $sidebarHtml = is_array($sidebarResult)
+            ? (string)($sidebarResult['html'] ?? '')
+            : (is_string($sidebarResult) ? $sidebarResult : '');
+
+        $ctx['sidebar_region'] = [
+            'present' => $sidebarEnabled && $sidebarHtml !== '',
+            'enabled' => $sidebarEnabled,
+            'html' => $sidebarHtml,
+            'position' => $sidebarPosition,
+            'width' => $sidebarWidth,
+            'source' => $sidebarHtml !== '' ? 'theme_region' : 'none',
+        ];
     } catch (Throwable $e) {
-        $ctx['customized_sidebar'] = '';
-        $ctx['has_customized_sidebar'] = false;
-        $ctx['sidebar_position'] = 'right';
-        $ctx['sidebar_width'] = '300';
+        $ctx['sidebar_region'] = [
+            'present' => false,
+            'enabled' => false,
+            'html' => '',
+            'position' => 'right',
+            'width' => '300',
+            'source' => 'error',
+        ];
     }
+    $ctx['customized_sidebar'] = !empty($ctx['sidebar_region']['present'])
+        ? (string)($ctx['sidebar_region']['html'] ?? '')
+        : '';
+    $ctx['has_customized_sidebar'] = !empty($ctx['sidebar_region']['present']);
+    $ctx['sidebar_position'] = (string)($ctx['sidebar_region']['position'] ?? 'right');
+    $ctx['sidebar_width'] = (string)($ctx['sidebar_region']['width'] ?? '300');
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('customized_sidebar', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }

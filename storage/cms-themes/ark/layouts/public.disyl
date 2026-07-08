@@ -36,7 +36,16 @@
 {set current_year = current_year|default:'2026'}
 {set ecommerce_enabled = ecommerce_enabled|default:false}
 
+{set header_region_present = header_region.present|default:false}
+{set header_region_html = header_region.html|default:''}
+{set footer_region_present = footer_region.present|default:false}
+{set footer_region_html = footer_region.html|default:''}
+{set sidebar_region_present = sidebar_region_present_override|default:(sidebar_region.present|default:false)}
+{set sidebar_region_html = sidebar_region.html|default:''}
+{set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
+{set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
 {set force_customized_sidebar = force_customized_sidebar|default:false}
+{set force_hide_customized_sidebar = force_hide_customized_sidebar|default:false}
 {set cms_global_sidebar_force = cms_global_sidebar_force|default:false}
 {set sidebar_position = sidebar_position|default:'right'}
 {set sidebar_width = sidebar_width|default:'300'}
@@ -98,7 +107,9 @@
 <body>
 
      {# ── Runtime helpers ── #}
-    {set sidebar_diag = 'SCS='~(show_sidebar or false)}
+    {set sidebar_requested = show_sidebar|default:(sidebar_region_present or force_customized_sidebar or cms_global_sidebar_force)}
+    {set show_customizer_sidebar = sidebar_requested and not force_hide_customized_sidebar and (sidebar_region_present or force_customized_sidebar or cms_global_sidebar_force)}
+    {set sidebar_diag = 'SCS='~show_customizer_sidebar}
 
     {# Skip-to-content link for accessibility #}
     <a href="#main-content" class="ark-skip">Skip to content</a>
@@ -109,7 +120,11 @@
 
     {block header}
     {if show_header|default:true}
+        {if header_region_present}
+        {header_region_html|raw}
+        {else}
         {include "_cms_active_theme/public/partials/header.disyl"}
+        {/if}
     {/if}
     {/block}
     {ikb_slot name="header.main" /}
@@ -118,17 +133,17 @@
     {ikb_slot name="hero" /}
     {ikb_slot name="breadcrumbs" /}
 
-    {# Orchestrator-aware sidebar: uses cms-content-with-sidebar grid when
-       sidebar is enabled. #}
-    {set show_customizer_sidebar = show_sidebar|default:false and not builder_enabled}
-
-    <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar} cms-content-with-sidebar{if sidebar_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
+    <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-content-with-sidebar{if sidebar_region_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar and not builder_enabled} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
         {# Sidebar on left when position is 'left' #}
-        {if show_customizer_sidebar and sidebar_position == 'left'}
+        {if show_customizer_sidebar and not builder_enabled and sidebar_region_position == 'left'}
+        {if sidebar_region_present}
+        {sidebar_region_html|raw}
+        {else}
         {include "_cms_active_theme/public/partials/sidebar.disyl"}
         {/if}
+        {/if}
 
-        <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar} cms-main-slot{/if}" tabindex="-1">
+        <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-main-slot{/if}" tabindex="-1">
             {ikb_slot name="content.before" /}
             {block content}
                 {ikb_slot name="content"}
@@ -139,7 +154,13 @@
         </main>
 
         {# Sidebar on right (default) or fallback slot sidebars #}
-        {if not show_customizer_sidebar or sidebar_position != 'left'}
+        {if show_customizer_sidebar and not builder_enabled and sidebar_region_position != 'left'}
+        {if sidebar_region_present}
+        {sidebar_region_html|raw}
+        {else}
+        {include "_cms_active_theme/public/partials/sidebar.disyl"}
+        {/if}
+        {elseif not show_customizer_sidebar}
         {include "_cms_active_theme/public/partials/sidebar.disyl"}
         {/if}
     </div>
@@ -147,7 +168,11 @@
     {# Prefer DB/customizer-rendered footer when available. #}
     {ikb_slot name="footer.before" /}
     {if show_footer|default:true}
+        {if footer_region_present}
+        {footer_region_html|raw}
+        {else}
         {include "_cms_active_theme/public/partials/footer.disyl"}
+        {/if}
     {/if}
     {ikb_slot name="footer.main" /}
     {ikb_slot name="footer.after" /}

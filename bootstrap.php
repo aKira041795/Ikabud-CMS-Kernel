@@ -1687,6 +1687,35 @@ spl_autoload_register(static function (string $class): void {
         if (file_exists($path)) {
             require_once $path;
         }
+        return;
+    }
+
+    // Theme namespace: Ikabud\Themes\<ThemeName>\... -> storage/cms-themes/<theme-slug>/src/...
+    $themePrefix = 'Ikabud\\Themes\\';
+    if (strncmp($class, $themePrefix, strlen($themePrefix)) !== 0) {
+        return;
+    }
+
+    $relative = substr($class, strlen($themePrefix));
+    $parts = explode('\\', $relative);
+    $themeName = array_shift($parts);
+    if (!is_string($themeName) || $themeName === '' || $parts === []) {
+        return;
+    }
+
+    $slugCandidates = [];
+    $slugCandidates[] = strtolower($themeName);
+    $slugCandidates[] = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $themeName));
+    $slugCandidates[] = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '_$0', $themeName));
+    $slugCandidates = array_values(array_unique(array_filter($slugCandidates, static fn (mixed $value): bool => is_string($value) && $value !== '')));
+
+    $relativePath = str_replace('\\', '/', implode('\\', $parts)) . '.php';
+    foreach ($slugCandidates as $slug) {
+        $path = STORAGE_PATH . '/cms-themes/' . $slug . '/src/' . $relativePath;
+        if (file_exists($path)) {
+            require_once $path;
+            return;
+        }
     }
 });
 

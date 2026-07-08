@@ -220,7 +220,7 @@ CSS variables generated from tokens:
 - `{block head}` for `<head>` injection
 - `{block content}` as the content slot
 - `{include}` for header, footer, sidebar partials
-- Customizer-aware conditional rendering (`{if has_customized_header}`, `{if show_sidebar}`)
+- Region-aware conditional rendering (`{if header_region.present}`, `{if show_sidebar}`)
 - Alpine.js 3.x CDN include with `x-data` for interactive components
 - Script block interpolation safety (DiSyL v4.7 feature)
 - CSS custom property output from tokens

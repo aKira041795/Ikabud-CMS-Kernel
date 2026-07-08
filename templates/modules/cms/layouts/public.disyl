@@ -91,8 +91,17 @@
     <noscript><style>body:not(.cz-loaded),[data-animate]{opacity:1!important;transform:none!important;}</style></noscript>
 </head>
 <body class="min-h-screen {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
-    {if has_customized_header}
-    {customized_header|raw}
+    {set header_region_present = header_region.present|default:has_customized_header|default:false}
+    {set header_region_html = header_region.html|default:customized_header|default:''}
+    {set footer_region_present = footer_region.present|default:has_customized_footer|default:false}
+    {set footer_region_html = footer_region.html|default:customized_footer|default:''}
+    {set sidebar_region_present = sidebar_region.present|default:has_customized_sidebar|default:false}
+    {set sidebar_region_html = sidebar_region.html|default:customized_sidebar|default:''}
+    {set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
+    {set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
+
+    {if header_region_present}
+    {header_region_html|raw}
     {else}
     <header class="site-header">
         <div class="cms-public-shell px-4 py-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -114,23 +123,23 @@
     {/if}
 
     <div class="site-content">
-        <div class="{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}w-full{else}cms-public-shell{/if}">
-            <div class="{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}cms-content-with-sidebar {if sidebar_position == 'left'}sidebar-left{/if}{/if}"{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
-                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
-                {if sidebar_position == 'left'}
+        <div class="{if builder_enabled && !(sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}w-full{else}cms-public-shell{/if}">
+            <div class="{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}cms-content-with-sidebar {if sidebar_region_position == 'left'}sidebar-left{/if}{/if}"{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
+                {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}
+                {if sidebar_region_position == 'left'}
                 <aside class="cms-sidebar-slot">
-                    {customized_sidebar|raw}
+                    {sidebar_region_html|raw}
                 </aside>
                 {/if}
                 {/if}
-                <main id="main-content" class="{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}w-full{else}cms-public-main{/if}{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} cms-main-slot{/if}" role="main">
+                <main id="main-content" class="{if builder_enabled && !(sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}w-full{else}cms-public-main{/if}{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} cms-main-slot{/if}" role="main">
                     {block content}{/block}
                 </main>
-                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)}
-                {if sidebar_position == 'left'}
+                {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)}
+                {if sidebar_region_position == 'left'}
                 {else}
                 <aside class="cms-sidebar-slot">
-                    {customized_sidebar|raw}
+                    {sidebar_region_html|raw}
                 </aside>
                 {/if}
                 {/if}
@@ -138,8 +147,8 @@
         </div>
     </div>
 
-    {if has_customized_footer}
-    {customized_footer|raw}
+    {if footer_region_present}
+    {footer_region_html|raw}
     {else}
     <footer class="mt-12">
         <div class="cms-public-shell px-4 py-6 text-center text-xs text-gray-400">

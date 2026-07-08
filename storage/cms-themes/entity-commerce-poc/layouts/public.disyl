@@ -16,11 +16,20 @@
 </head>
 <body class="entity-commerce-poc {if builder_enabled && builder_page_settings.body_class}{builder_page_settings.body_class}{/if}">
 
+    {set header_region_present = header_region.present|default:has_customized_header|default:false}
+    {set header_region_html = header_region.html|default:customized_header|default:''}
+    {set footer_region_present = footer_region.present|default:has_customized_footer|default:false}
+    {set footer_region_html = footer_region.html|default:customized_footer|default:''}
+    {set sidebar_region_present = sidebar_region.present|default:has_customized_sidebar|default:false}
+    {set sidebar_region_html = sidebar_region.html|default:customized_sidebar|default:''}
+    {set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
+    {set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
+
     <div class="poc-shell">
         <div class="poc-shell__backdrop"></div>
 
-        {if has_customized_header}
-        {customized_header|raw}
+        {if header_region_present}
+        {header_region_html|raw}
         {else}
         <header class="poc-header">
             <div class="poc-header__inner">
@@ -48,21 +57,21 @@
         {/if}
 
         <main class="poc-main">
-            <div class="poc-main__inner{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} poc-main__inner--sidebar {if sidebar_position == 'left'}poc-main__inner--sidebar-left{/if}{/if}"{if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
-                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force) && sidebar_position == 'left'}
-                <aside class="poc-sidebar">{customized_sidebar|raw}</aside>
+            <div class="poc-main__inner{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} poc-main__inner--sidebar {if sidebar_region_position == 'left'}poc-main__inner--sidebar-left{/if}{/if}"{if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
+                {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force) && sidebar_region_position == 'left'}
+                <aside class="poc-sidebar">{sidebar_region_html|raw}</aside>
                 {/if}
-                <div class="poc-content{if builder_enabled && !(has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force)} poc-content--builder{/if}">
+                <div class="poc-content{if builder_enabled && !(sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force)} poc-content--builder{/if}">
                     {block content}{/block}
                 </div>
-                {if (has_customized_sidebar || force_customized_sidebar || cms_global_sidebar_force) && sidebar_position != 'left'}
-                <aside class="poc-sidebar">{customized_sidebar|raw}</aside>
+                {if (sidebar_region_present || force_customized_sidebar || cms_global_sidebar_force) && sidebar_region_position != 'left'}
+                <aside class="poc-sidebar">{sidebar_region_html|raw}</aside>
                 {/if}
             </div>
         </main>
 
-        {if has_customized_footer}
-        {customized_footer|raw}
+        {if footer_region_present}
+        {footer_region_html|raw}
         {else}
         <footer class="poc-footer">
             <div class="poc-footer__inner">

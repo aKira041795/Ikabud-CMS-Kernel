@@ -34,6 +34,22 @@ window.addEventListener('message', function(event) {
 
 ## Theme Doctrine
 
-> The theme does not **own** the customizer — it provides defaults.
+> ARK owns the public region rendering contract through ThemeCustomizerOrchestrator.
 
-Customizer sections are CMS-owned. ARK documents which controls affect which parts of the theme, but section registration, persistence, and the control UI belong to the CMS module.
+Customizer persistence and administrative editing remain CMS-managed, but ARK is now the rendering authority for public shell regions. The canonical runtime path is:
+
+```
+CMS persistence
+    -> ThemeCustomizerOrchestrator
+    -> ThemeRenderContext
+    -> ARK region templates
+    -> DiSyL output
+```
+
+Region HTML is exposed to layouts through the canonical public-context contract:
+
+- `header_region`
+- `footer_region`
+- `sidebar_region`
+
+Legacy `customized_header`, `customized_footer`, and `customized_sidebar` values remain as temporary compatibility shims only and should not be used for new theme work.

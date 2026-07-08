@@ -197,6 +197,9 @@
 </head>
 <body>
 
+{set header_region_html = header_region.html|default:customized_header|default:''}
+{set footer_region_html = footer_region.html|default:customized_footer|default:''}
+
 {ikb_slot name="site.before" /}
 
 {block header}
@@ -204,7 +207,7 @@
     <div class="en-header__inner">
         <a href="{base_url}/" class="en-header__brand">{site_title|default:app_name|default:'Ikabud'}</a>
         <nav class="en-header__nav">
-            {if customized_header}{customized_header|raw}{else}
+            {if header_region_html}{header_region_html|raw}{else}
             {if primary_menu}{primary_menu|raw}{/if}
             {if social_links}
                 {for link in social_links}
@@ -241,7 +244,7 @@
 
 <footer class="en-footer">
     {ikb_slot name="footer.before" /}
-    {if customized_footer}{customized_footer|raw}{else}
+    {if footer_region_html}{footer_region_html|raw}{else}
     <div class="en-footer__inner">
         <div class="en-footer__col">
             <h4>{site_title|default:'Ikabud'}</h4>

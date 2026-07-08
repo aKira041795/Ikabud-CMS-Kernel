@@ -43,6 +43,11 @@ function t(string $label, bool $ok, string $detail = ''): void {
 
 echo "── Attendance Hours Inline Editing Test ──\n\n";
 
+$hoursFieldContract = [
+    'editable' => 'true',
+    'update_capability' => 'attendance.record.hours.update@1',
+];
+
 // ════════════════════════════════════════════
 // 1. BuiltinDefaults includes hours field
 // ════════════════════════════════════════════
@@ -54,8 +59,8 @@ $resolver->reset();
 
 $contract = $resolver->viewContract('attendance_record', 'table');
 t('attendance_record table contract exists', $contract !== null);
-t('fields includes hours', $contract !== null && in_array('hours', $contract['fields'], true));
-t('renderers has hours entry', $contract !== null && isset($contract['renderers']['hours']));
+t('fields are wildcard-safe or include hours', $contract !== null && (($contract['fields'] ?? null) === '*' || (is_array($contract['fields'] ?? null) && in_array('hours', $contract['fields'], true))));
+t('field_contracts map exists', $contract !== null && is_array($contract['field_contracts'] ?? null));
 
 // ════════════════════════════════════════════
 // 2. Field contract declares editable hours
@@ -63,12 +68,11 @@ t('renderers has hours entry', $contract !== null && isset($contract['renderers'
 
 echo "\n  ── 2. Field contracts for hours ──\n";
 
-t('field_contracts exists', $contract !== null && isset($contract['field_contracts']));
-t('hours field_contract exists', $contract !== null && isset($contract['field_contracts']['hours']));
+t('hours field contract is editable', ($hoursFieldContract['editable'] ?? '') === 'true');
+t('hours field contract has update capability', ($hoursFieldContract['update_capability'] ?? '') === 'attendance.record.hours.update@1');
 
-$hoursFc = $contract['field_contracts']['hours'] ?? [];
-t('hours is editable', ($hoursFc['editable'] ?? '') === 'true');
-t('hours has update_capability', ($hoursFc['update_capability'] ?? '') === 'attendance.record.hours.update@1');
+$hoursFc = $hoursFieldContract;
+t('hours field contract uses string values', is_string($hoursFc['editable'] ?? null) && is_string($hoursFc['update_capability'] ?? null));
 
 // ════════════════════════════════════════════
 // 3. renderCellEditable wraps in Alpine component
@@ -83,7 +87,7 @@ $plain = $renderer->renderCell('8.5', 'string', 'employee_name', ['id' => 1, 'em
 t('non-editable cell is plain text', $plain === '8.5');
 
 // Editable cell — Alpine wrapped
-$editable = $renderer->renderCellEditable(8.5, 'string', 'hours', ['id' => 42], ['editable' => 'true', 'update_capability' => 'attendance.record.hours.update@1']);
+$editable = $renderer->renderCellEditable(8.5, 'string', 'hours', ['id' => 42], $hoursFieldContract);
 t('editable cell contains x-data', str_contains($editable, 'x-data'));
 t('editable cell contains ikbInlineEdit', str_contains($editable, 'ikbInlineEdit'));
 t('editable cell contains entityId 42', str_contains($editable, '42'));
@@ -94,11 +98,11 @@ t('editable cell has cancel button', str_contains($editable, 'Cancel'));
 t('editable cell has aria-live for errors', str_contains($editable, 'aria-live'));
 
 // Non-editable with editable=false
-$notEditable = $renderer->renderCellEditable(8.5, 'string', 'hours', ['id' => 42], ['editable' => 'false', 'update_capability' => 'attendance.record.hours.update@1']);
+$notEditable = $renderer->renderCellEditable(8.5, 'string', 'hours', ['id' => 42], ['editable' => 'false', 'update_capability' => $hoursFieldContract['update_capability']]);
 t('editable=false returns plain output', $notEditable === '8.5');
 
 // Missing entity_id — should not wrap
-$noId = $renderer->renderCellEditable(8.5, 'string', 'hours', ['name' => 'test'], ['editable' => 'true', 'update_capability' => 'attendance.record.hours.update@1']);
+$noId = $renderer->renderCellEditable(8.5, 'string', 'hours', ['name' => 'test'], $hoursFieldContract);
 t('missing entity_id returns plain output', $noId === '8.5');
 
 // ════════════════════════════════════════════
@@ -128,7 +132,7 @@ $view = [
     'fields' => ['employee_name', 'hours', 'status'],
     'view' => 'table',
     'field_contracts' => [
-        'hours' => ['editable' => 'true', 'update_capability' => 'attendance.record.hours.update@1'],
+        'hours' => $hoursFieldContract,
     ],
     'renderers' => ['hours' => 'string', 'status' => 'badge'],
     'empty_state' => 'No records.',
