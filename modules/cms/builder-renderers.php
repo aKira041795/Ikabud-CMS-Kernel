@@ -316,6 +316,9 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
     if ($src === '') {
         return '';
     }
+    if (!array_key_exists('maxWidth', $style)) {
+        $style['maxWidth'] = '100%';
+    }
     $alt = (string)($props['alt'] ?? '');
     $caption = (string)($props['caption'] ?? '');
     $linkUrl = (string)($props['linkUrl'] ?? '');
@@ -1126,8 +1129,10 @@ function cmsRenderWidget_alert(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_anchor(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $anchorId = cmsBuilderEsc((string)($props['anchorId'] ?? 'anchor'));
-    return '<div id="' . $anchorId . '"' . cmsBuilderAttrString($attrs) . ' style="display:block;height:0;visibility:hidden"></div>';
+    $anchorId = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)($props['anchorId'] ?? 'anchor')) ?: 'anchor';
+    $attrs['id'] = $anchorId;
+    $style = array_merge($style, ['display' => 'block', 'height' => '0', 'visibility' => 'hidden']);
+    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '></div>';
 }
 
 function cmsBuilderGridStyle(array $style, string $templateColumns, string $gap = '24px'): array
@@ -1899,10 +1904,12 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         $attrsStr .= ' empty="' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . '"';
     }
 
-    return $engine->renderString(
+    $html = $engine->renderString(
         '{ikb_entity_list source="' . $source . '" view="' . $view . '" limit="' . $limit . '"' . $attrsStr . ' /}',
         $context
     );
+
+    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . $html . '</div>';
 }
 
 /**
