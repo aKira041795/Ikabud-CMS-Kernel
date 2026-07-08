@@ -252,6 +252,11 @@ function auditNode(array &$node, string $path, array &$issues, array &$fixes, bo
     }
 
     $type = (string)($node['type'] ?? '');
+    if (isset($node['style']) && is_array($node['style'])) {
+        auditLegacyDefaultStyles($node['style'], $type, $path . '.style', $issues, $fixes, $changed, $applyFix);
+        auditSuspiciousSpacing($node['style'], $type, $path . '.style', $issues);
+    }
+
     $props = isset($node['props']) && is_array($node['props']) ? $node['props'] : [];
     $hover = trim((string)($props['hoverAnimation'] ?? ''));
     $entrance = trim((string)($props['entranceAnimation'] ?? ''));
@@ -323,6 +328,115 @@ function normalizeStyle(array &$style, string $path, array &$issues, array &$fix
             }
         }
     }
+}
+
+function auditLegacyDefaultStyles(array &$style, string $type, string $path, array &$issues, array &$fixes, bool &$changed, bool $applyFix): void
+{
+    $defaults = legacyPersistedLayoutDefaults($type);
+    if (empty($defaults)) {
+        return;
+    }
+
+    foreach ($defaults as $key => $values) {
+        if (!array_key_exists($key, $style) || is_array($style[$key])) {
+            continue;
+        }
+
+        $value = trim((string)$style[$key]);
+        if (!in_array($value, $values, true)) {
+            continue;
+        }
+
+        $issues[] = [
+            'severity' => 'warn',
+            'path' => $path . '.' . $key,
+            'rule' => 'legacy-default-style',
+            'message' => "Saved {$type} style {$key}={$value} matches a legacy builder default; renderers can supply it at runtime.",
+        ];
+
+        if ($applyFix) {
+            unset($style[$key]);
+            $fixes[] = "remove legacy default style {$path}.{$key}={$value}";
+            $changed = true;
+        }
+    }
+}
+
+function legacyPersistedLayoutDefaults(string $type): array
+{
+    static $defaults = [
+        'section' => [
+            'width' => ['100%'],
+            'display' => ['flex'],
+            'flexDirection' => ['column'],
+            'alignItems' => ['center'],
+            'justifyContent' => ['center'],
+            'padding' => ['48px 24px', '48px 0', '64px 24px'],
+            'minHeight' => ['80px', '200px', '300px'],
+        ],
+        'layout_container' => [
+            'boxSizing' => ['border-box'],
+            'minWidth' => ['0'],
+            'minHeight' => ['60px', '100px'],
+            'display' => ['flex'],
+            'flexDirection' => ['column'],
+            'gap' => ['24px'],
+            'width' => ['100%'],
+        ],
+        'container' => [
+            'maxWidth' => ['1200px'],
+            'margin' => ['0 auto', '0px auto'],
+            'padding' => ['0 24px'],
+        ],
+        'row' => [
+            'display' => ['flex'],
+            'flexDirection' => ['row'],
+            'gap' => ['24px'],
+            'justifyContent' => ['center'],
+            'alignItems' => ['stretch'],
+        ],
+        'column' => [
+            'display' => ['flex'],
+            'flexDirection' => ['column'],
+            'gap' => ['16px'],
+            'alignItems' => ['stretch'],
+        ],
+    ];
+
+    return $defaults[$type] ?? [];
+}
+
+function auditSuspiciousSpacing(array $style, string $type, string $path, array &$issues): void
+{
+    if (!in_array($type, ['section', 'container', 'layout_container', 'row', 'column'], true)) {
+        return;
+    }
+
+    foreach (['height', 'minHeight'] as $key) {
+        if (isset($style[$key]) && !is_array($style[$key]) && cssPxValue($style[$key]) >= 500) {
+            $issues[] = [
+                'severity' => 'info',
+                'path' => $path . '.' . $key,
+                'rule' => 'large-layout-height',
+                'message' => "Saved {$type} {$key} is {$style[$key]}; verify this is intentional for mobile layouts.",
+            ];
+        }
+    }
+
+    foreach (['tablet', 'mobile'] as $bucket) {
+        if (!isset($style[$bucket]) || !is_array($style[$bucket])) {
+            continue;
+        }
+        auditSuspiciousSpacing($style[$bucket], $type, $path . '.' . $bucket, $issues);
+    }
+}
+
+function cssPxValue(mixed $value): float
+{
+    if (!is_scalar($value) || !preg_match('/^\s*(\d+(?:\.\d+)?)px\s*$/', (string)$value, $matches)) {
+        return 0.0;
+    }
+    return (float)$matches[1];
 }
 
 function collectDescendantButtons(array $node, string $path, array &$buttons, string $relativePath): void

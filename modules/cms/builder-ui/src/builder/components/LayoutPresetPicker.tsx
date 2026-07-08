@@ -114,14 +114,7 @@ const LayoutPresetPicker: React.FC<LayoutPresetPickerProps> = ({ onSelect, onClo
   };
 
   const handleEmptyContainer = () => {
-    // Create empty layout container with default flex column
-    const node = createNode('layout_container', {}, {
-      padding: '24px',
-      minHeight: '100px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '16px',
-    });
+    const node = createNode('layout_container');
     onSelect(node);
     onClose();
   };

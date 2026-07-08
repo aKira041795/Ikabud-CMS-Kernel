@@ -61,6 +61,11 @@ import { buildRatioFlexValue } from '../core/layoutSizing';
 import LayoutPresetPicker from './LayoutPresetPicker';
 
 const COMPONENT_DND_MIME = 'application/x-cms-component';
+const RENDER_DEFAULT_LAYOUT_TYPES = new Set(['section', 'container', 'layout_container', 'row', 'column']);
+
+function newNodeStyle(component: ComponentDefinition) {
+  return RENDER_DEFAULT_LAYOUT_TYPES.has(component.type) ? {} : component.defaultStyle;
+}
 
 // =============================================================================
 // Icon Mapping (Extended)
@@ -167,7 +172,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
     const node = createNode(
       component.type,
       component.defaultProps,
-      component.defaultStyle,
+      newNodeStyle(component),
       component.defaultChildren || []
     );
     onAdd(node);
@@ -177,7 +182,7 @@ const EnhancedComponentItem: React.FC<EnhancedComponentItemProps> = memo(({
     const payload = JSON.stringify({
       type: component.type,
       props: component.defaultProps,
-      style: component.defaultStyle,
+      style: newNodeStyle(component),
       children: component.defaultChildren || [],
     });
     e.dataTransfer.setData(COMPONENT_DND_MIME, payload);
@@ -429,31 +434,16 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
     const columns = preset.columns.map((width) =>
       createNode('column', {}, {
         flex: buildRatioFlexValue(width),
-        padding: '16px',
-        minHeight: '100px',
-        boxSizing: 'border-box',
       }, [])
     );
 
     const row = createNode('row', {}, {
-      display: 'flex',
-      flexDirection: 'row',
-      gap: '24px',
       width: '100%',
     }, columns);
 
-    const container = createNode('container', {}, {
-      width: '100%',
-      maxWidth: '1200px',
-      margin: '0 auto',
-      padding: '0 24px',
-      boxSizing: 'border-box',
-    }, [row]);
+    const container = createNode('container', {}, {}, [row]);
 
-    const section = createNode('section', {}, {
-      padding: '48px 0',
-      width: '100%',
-    }, [container]);
+    const section = createNode('section', {}, {}, [container]);
 
     onSelect(section);
     onClose();
@@ -505,11 +495,7 @@ const SectionWizard: React.FC<SectionWizardProps> = ({ onSelect, onClose }) => {
           </button>
           <button
             onClick={() => {
-              const section = createNode('section', {}, {
-                padding: '48px 0',
-                width: '100%',
-                minHeight: '200px',
-              }, []);
+              const section = createNode('section');
               onSelect(section);
               onClose();
             }}

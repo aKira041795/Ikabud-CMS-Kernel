@@ -695,19 +695,6 @@ function cmsBuilderApplyDefaultProps(array $node): array
                 }
             }
         }
-        // Merge default styles into empty/partial style objects so the DB
-        // always has renderable style data matching the React builder visuals
-        $styleDefaults = cmsBuilderDefaultStyle($type);
-        if (!empty($styleDefaults)) {
-            $nodeStyle = (isset($node['style']) && is_array($node['style'])) ? $node['style'] : [];
-            // Only fill in missing keys; never overwrite user-set values
-            foreach ($styleDefaults as $key => $value) {
-                if (!isset($nodeStyle[$key]) || $nodeStyle[$key] === null || $nodeStyle[$key] === '') {
-                    $nodeStyle[$key] = $value;
-                }
-            }
-            $node['style'] = $nodeStyle;
-        }
     }
     if (isset($node['style']) && is_array($node['style'])) {
         $node['style'] = array_filter($node['style'], static fn($v) => $v !== null);
@@ -1650,7 +1637,7 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
                     continue;
                 }
                 $targetSelector = $selector;
-                if ((string)$entry['type'] === 'image' && in_array((string)$prop, ['objectFit', 'objectPosition'], true)) {
+                if ((string)$entry['type'] === 'image' && in_array((string)$prop, ['height', 'minHeight', 'maxHeight', 'borderRadius', 'objectFit', 'objectPosition'], true)) {
                     $targetSelector .= ' img';
                 }
                 $propsBySelector[$targetSelector][] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value . ' !important';
@@ -1669,7 +1656,7 @@ function cmsBuilderRenderResponsiveCss(array $documentNode, string $scopeClass):
                     continue;
                 }
                 $targetSelector = $selector;
-                if ((string)$entry['type'] === 'image' && in_array((string)$prop, ['objectFit', 'objectPosition'], true)) {
+                if ((string)$entry['type'] === 'image' && in_array((string)$prop, ['height', 'minHeight', 'maxHeight', 'borderRadius', 'objectFit', 'objectPosition'], true)) {
                     $targetSelector .= ' img';
                 }
                 $propsBySelector[$targetSelector][] = cmsBuilderCssProp((string)$prop) . ':' . (string)$value . ' !important';

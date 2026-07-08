@@ -324,27 +324,24 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
     $linkUrl = (string)($props['linkUrl'] ?? '');
     $linkTarget = (string)($props['linkTarget'] ?? '');
 
-    // Extract image-specific CSS props that belong on <img>, not <figure>
-    $imgStyle = [];
-    $imgOnlyProps = ['objectFit', 'objectPosition'];
-    foreach ($imgOnlyProps as $ip) {
-        if (isset($style[$ip])) {
-            $imgStyle[$ip] = $style[$ip];
-            unset($style[$ip]);
+    $figureStyle = $style;
+    $imgStyle = [
+        'display' => 'block',
+        'width' => '100%',
+        'maxWidth' => '100%',
+        'height' => 'auto',
+    ];
+
+    foreach (['height', 'minHeight', 'maxHeight', 'borderRadius', 'objectFit', 'objectPosition'] as $ip) {
+        if (isset($figureStyle[$ip])) {
+            $imgStyle[$ip] = $figureStyle[$ip];
+            unset($figureStyle[$ip]);
         }
     }
-    // width/height go on the <img> too so the image itself sizes correctly,
-    // but keep them on <figure> as well for wrapper sizing
-    if (isset($style['width'])) {
-        $imgStyle['width'] = '100%';
-    }
-    if (isset($style['height']) && $style['height'] !== 'auto') {
-        $imgStyle['height'] = '100%';
-    }
 
-    // Full-width breakout: expand figure to 100vw and ensure img fills it
+    // Full-width breakout belongs to the figure/layout wrapper; the image fills it.
     if (!empty($props['fullWidth'])) {
-        cmsBuilderApplyFullWidth($style);
+        cmsBuilderApplyFullWidth($figureStyle);
         $imgStyle['width'] = '100%';
     }
 
@@ -371,7 +368,7 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
             . '</div>';
     }
 
-    $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
+    $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($figureStyle) . '>'
         . $imgTag;
     if ($caption !== '') {
         $html .= '<figcaption>' . cmsBuilderEsc($caption) . '</figcaption>';

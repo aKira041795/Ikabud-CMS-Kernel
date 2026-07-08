@@ -579,9 +579,6 @@ export function createEmptyDocument(): DiSyLNode {
   // Document is a wrapper that contains sections
   // Start with one empty section inside
   return createNode('document', {}, {}, [
-    createNode('section', {}, {
-      padding: '48px 24px',
-      minHeight: '200px',
-    })
+    createNode('section')
   ]);
 }

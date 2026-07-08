@@ -1617,12 +1617,7 @@ export default function PageBuilder() {
                             </button>
                             <button
                               onClick={() => {
-                                // Add a blank section
-                                const newSection = createNode('section', {}, {
-                                  padding: '64px 24px',
-                                  minHeight: '300px',
-                                  backgroundColor: '#ffffff',
-                                });
+                                const newSection = createNode('section');
                                 insertNodeWithGovernedFeedback(newSection, builder.document.id, builder.document.children.length, 'Cannot add');
                               }}
                               className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium border border-gray-200 shadow-sm"
@@ -1813,7 +1808,7 @@ export default function PageBuilder() {
                       // Insert block as a new section in the document
                       const blockNode = node.type === 'section'
                         ? node
-                        : createNode('section', {}, { padding: '48px 24px' }, [
+                        : createNode('section', {}, {}, [
                           node.type === 'layout_container' ? createNode('container', {}, {}, [node]) : node,
                         ]);
                       insertNodeWithGovernedFeedback(blockNode, builder.document.id, builder.document.children.length, 'Cannot insert block');
