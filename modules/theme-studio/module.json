@@ -4,6 +4,9 @@
     "version": "1.0.0",
     "description": "Advanced theme companion — token editor, layout controls, Theme Elements, display rules, pattern import/export, preset management. The base theme works without this module.",
     "author": "Ikabud Kernel Team",
+    "depends": [
+        "cms"
+    ],
     "owns_tables": [
         "theme_studio_presets",
         "theme_studio_elements",
@@ -126,6 +129,11 @@
                 "description": "Apply token overrides to theme rendering at runtime"
             }
         ],
-        "depends": []
+        "depends": [
+            {
+                "id": "cms.content.get@1",
+                "optional": true
+            }
+        ]
     }
 }

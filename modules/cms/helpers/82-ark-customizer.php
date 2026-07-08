@@ -2,6 +2,10 @@
 /**
  * ARK Theme — Customizer Implementation (Phase 11)
  *
+ * @deprecated 2026-07-08 This is the legacy customizer adapter. 
+ * The CMS architectural plan dictates: CMS persistence -> ThemeCustomizerOrchestrator -> ThemeRenderContext -> ARK region template -> DiSyL output.
+ * Legacy customized_* HTML generation should live only inside the legacy adapter, or be removed.
+ *
  * ARK owns its customizer behavior. The CMS module orchestrates and verifies,
  * but ARK provides the actual rendering, defaults, and validation logic.
  *

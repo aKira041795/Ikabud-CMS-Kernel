@@ -121,7 +121,11 @@ class ThemeCustomizerOrchestrator
         array $manifest,
         ?string $themePath,
     ): ?ThemeCustomizerProvider {
-        $className = (string)($manifest['customizer']['class'] ?? '');
+        $className = (string)(
+            $manifest['customizer']['provider']
+            ?? $manifest['customizer']['class']
+            ?? ''
+        );
 
         if ($className !== '' && class_exists($className)) {
             try {
@@ -298,8 +302,16 @@ class ThemeCustomizerOrchestrator
             'presentation' => $publicCtx['public_presentation_mode'] ?? 'traditional',
         ];
 
-        // Slot contributions (empty for now — populated by SlotRegistry)
+        // Slot contributions (resolved via SlotRegistry across all registered slots)
         $slotContributions = [];
+        if (class_exists(\Ikabud\Kernel\Services\SlotRegistry::class)) {
+            foreach (array_keys(\Ikabud\Kernel\Services\SlotRegistry::all()) as $slotName) {
+                $resolved = \Ikabud\Kernel\Services\SlotRegistry::resolve($slotName, $entityContext);
+                if ($resolved !== []) {
+                    $slotContributions[$slotName] = $resolved;
+                }
+            }
+        }
 
         $context = new ThemeRenderContext(
             theme: $scope->themeSlug,

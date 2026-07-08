@@ -36,12 +36,6 @@
 {set current_year = current_year|default:'2026'}
 {set ecommerce_enabled = ecommerce_enabled|default:false}
 
-{set has_customized_header = has_customized_header|default:false}
-{set customized_header = customized_header|default:''}
-{set has_customized_footer = has_customized_footer|default:false}
-{set customized_footer = customized_footer|default:''}
-{set has_customized_sidebar = has_customized_sidebar|default:false}
-{set customized_sidebar = customized_sidebar|default:''}
 {set force_customized_sidebar = force_customized_sidebar|default:false}
 {set cms_global_sidebar_force = cms_global_sidebar_force|default:false}
 {set sidebar_position = sidebar_position|default:'right'}
@@ -104,7 +98,7 @@
 <body>
 
      {# ── Runtime helpers ── #}
-    {set sidebar_diag = 'HCS='~has_customized_sidebar~'|SCS='~(has_customized_sidebar or false)}
+    {set sidebar_diag = 'SCS='~(show_sidebar or false)}
 
     {# Skip-to-content link for accessibility #}
     <a href="#main-content" class="ark-skip">Skip to content</a>
@@ -114,14 +108,8 @@
     {ikb_slot name="header.before" /}
 
     {block header}
-
-     {# Prefer DB/customizer-rendered header when available. #}
     {if show_header|default:true}
-        {if has_customized_header and customized_header}
-            {customized_header|raw}
-        {else}
-            {include "_cms_active_theme/public/partials/header.disyl"}
-        {/if}
+        {include "_cms_active_theme/public/partials/header.disyl"}
     {/if}
     {/block}
     {ikb_slot name="header.main" /}
@@ -130,24 +118,14 @@
     {ikb_slot name="hero" /}
     {ikb_slot name="breadcrumbs" /}
 
-    {# Customizer-aware sidebar: uses cms-content-with-sidebar grid when
-       customizer sidebar is enabled. Falls back to ARK's flex layout when
-       no customizer sidebar data exists (slot-only sidebars). #}
-    {set show_customizer_sidebar = has_customized_sidebar and not builder_enabled}
+    {# Orchestrator-aware sidebar: uses cms-content-with-sidebar grid when
+       sidebar is enabled. #}
+    {set show_customizer_sidebar = show_sidebar|default:false and not builder_enabled}
 
     <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar} cms-content-with-sidebar{if sidebar_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar} style="--sidebar-width:{sidebar_width|default:'300'}px;"{/if}>
         {# Sidebar on left when position is 'left' #}
         {if show_customizer_sidebar and sidebar_position == 'left'}
-        <aside class="cms-sidebar-slot ark-sidebar-customizer" aria-label="Sidebar">
-            {customized_sidebar|raw}
-        </aside>
-        {/if}
-
-        {# Sidebar slots (fallback when no customizer sidebar) #}
-        {if not show_customizer_sidebar}
-        <aside class="ark-sidebar ark-sidebar--primary" aria-label="Primary sidebar">
-            {ikb_slot name="sidebar.primary" /}
-        </aside>
+        {include "_cms_active_theme/public/partials/sidebar.disyl"}
         {/if}
 
         <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar} cms-main-slot{/if}" tabindex="-1">
@@ -160,26 +138,15 @@
             {ikb_slot name="content.after" /}
         </main>
 
-        {# Sidebar slots (fallback when no customizer sidebar) #}
-        {if not show_customizer_sidebar}
-        <aside class="ark-sidebar ark-sidebar--secondary" aria-label="Secondary sidebar">
-            {ikb_slot name="sidebar.secondary" /}
-        </aside>
-        {/if}
-
-        {# Sidebar on right (default) or slot-only sidebars when no customizer sidebar #}
-        {if show_customizer_sidebar and sidebar_position != 'left'}
-        <aside class="cms-sidebar-slot ark-sidebar-customizer" aria-label="Sidebar">
-            {customized_sidebar|raw}
-        </aside>
+        {# Sidebar on right (default) or fallback slot sidebars #}
+        {if not show_customizer_sidebar or sidebar_position != 'left'}
+        {include "_cms_active_theme/public/partials/sidebar.disyl"}
         {/if}
     </div>
 
     {# Prefer DB/customizer-rendered footer when available. #}
     {ikb_slot name="footer.before" /}
-    {if has_customized_footer and customized_footer}
-        {customized_footer|raw}
-    {else}
+    {if show_footer|default:true}
         {include "_cms_active_theme/public/partials/footer.disyl"}
     {/if}
     {ikb_slot name="footer.main" /}
