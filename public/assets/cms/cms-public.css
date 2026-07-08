@@ -407,6 +407,7 @@
 /* Slideshow: reduce height and caption sizes on mobile */
 @media (max-width: 640px) {
     .cms-builder-node--slideshow .cms-builder-slide-track {
+        min-height: 280px !important;
         height: 280px !important;
     }
 
