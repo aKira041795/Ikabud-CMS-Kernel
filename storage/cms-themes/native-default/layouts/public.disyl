@@ -21,6 +21,7 @@
     {set show_header = show_header|default:true}
     {set show_footer = show_footer|default:true}
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
+    <link rel="stylesheet" href="{cms_public_css_url|default:'/assets/cms/cms-public.css'}">
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
     {if storefront_theme_css}{storefront_theme_css|raw}{/if}
