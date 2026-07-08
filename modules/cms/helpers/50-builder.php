@@ -1540,10 +1540,60 @@ function cmsBuilderCollectResponsiveStyles(array $node, array &$collected): void
     $id = (string)($node['id'] ?? '');
     $type = (string)($node['type'] ?? '');
     $style = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
+    $props = isset($node['props']) && is_array($node['props']) ? $node['props'] : [];
 
     $desktopStyle = cmsBuilderResolveViewportStyle($style, 'desktop', $type);
-    $tabletStyle = cmsBuilderResolveViewportStyle($style, 'tablet', $type);
-    $mobileStyle = cmsBuilderResolveViewportStyle($style, 'mobile', $type);
+    $tabletStyle  = cmsBuilderResolveViewportStyle($style, 'tablet', $type);
+    $mobileStyle  = cmsBuilderResolveViewportStyle($style, 'mobile', $type);
+
+    // ─── Widget auto-viewport behaviors (mirrors React) ───
+    // React automatically reduces grid columns on tablet/mobile for gallery,
+    // posts_grid, products_grid, team_grid, entity_list, and logo_grid.
+    // React also stacks horizontal CTA to column on mobile.
+    // PHP must do the same via responsive CSS, without requiring explicit user style overrides.
+    if ($type !== '') {
+        $rawTablet = isset($style['tablet']) && is_array($style['tablet']) ? $style['tablet'] : [];
+        $rawMobile = isset($style['mobile']) && is_array($style['mobile']) ? $style['mobile'] : [];
+
+        // Call-to-action: horizontal/split layout stacks to column on mobile
+        if ($type === 'call_to_action' && !array_key_exists('flexDirection', $rawMobile)) {
+            $ctaLayout = (string)($props['layout'] ?? 'horizontal');
+            if ($ctaLayout !== 'vertical') {
+                $mobileStyle['flexDirection'] = 'column';
+            }
+        }
+
+        $widgetGridTypes = ['gallery', 'posts_grid', 'products_grid', 'team_grid', 'entity_list', 'logo_grid'];
+        if (in_array($type, $widgetGridTypes, true)) {
+            $desktopCols = null;
+            if (in_array($type, ['posts_grid', 'products_grid', 'team_grid', 'entity_list'], true)) {
+                $desktopCols = max(1, min(12, (int)($props['gridColumns'] ?? 3)));
+            } elseif ($type === 'gallery') {
+                $desktopCols = max(1, min(12, (int)($props['columns'] ?? 3)));
+            } elseif ($type === 'logo_grid') {
+                $desktopCols = max(1, min(12, (int)($props['columns'] ?? 6)));
+            }
+
+            // Only add auto overrides when desktop uses more than 1 column and the user has NOT set an explicit gridTemplateColumns override for that viewport.
+            if ($desktopCols !== null && $desktopCols > 1) {
+                // Tablet: reduce columns (logo_grid→min(3,desktop), others→min(2,desktop))
+                if (!array_key_exists('gridTemplateColumns', $rawTablet)) {
+                    $tabletCols = $type === 'logo_grid' ? min(3, $desktopCols) : min(2, $desktopCols);
+                    if ($tabletCols < $desktopCols) {
+                        $tabletStyle['gridTemplateColumns'] = 'repeat(' . $tabletCols . ', 1fr)';
+                    }
+                }
+
+                // Mobile: reduce columns (logo_grid→min(2,desktop), others→1)
+                if (!array_key_exists('gridTemplateColumns', $rawMobile)) {
+                    $mobileCols = $type === 'logo_grid' ? min(2, $desktopCols) : 1;
+                    if ($mobileCols < $desktopCols) {
+                        $mobileStyle['gridTemplateColumns'] = 'repeat(' . $mobileCols . ', 1fr)';
+                    }
+                }
+            }
+        }
+    }
 
     $tabletProps = cmsBuilderDiffStyle($tabletStyle, $desktopStyle);
     $mobileProps = cmsBuilderDiffStyle($mobileStyle, $tabletStyle);
