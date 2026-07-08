@@ -5400,6 +5400,7 @@ class TemplateEngine
             'ikb_timeline' => $this->renderTimeline($attrs, $children),
             'ikb_confirm_action' => $this->renderConfirmAction($attrs, $children),
             'ikb_panel' => $this->renderPanel($attrs, $children),
+            'ikb_region' => $this->renderRegion($attrs, $children, $context),
             'ikb_slot' => $this->renderSlot($attrs, $children, $context),
             'ikb_drawer' => $this->renderDrawer($attrs, $children),
             'ikb_audit_log' => $this->renderAuditLog($attrs, $children, $context),
@@ -5459,6 +5460,7 @@ class TemplateEngine
             'ikb_ai_assist',
             'ikb_report',
             'ikb_signature_block',
+            'ikb_region',
             'ikb_slot',
         ];
 
@@ -6254,6 +6256,62 @@ class TemplateEngine
         }
 
         return $output;
+    }
+
+    /**
+     * Render a governed theme region — resolves region HTML from ThemeCustomizerOrchestrator.
+     *
+     * Attributes:
+     *   name     — Region identifier (required, e.g. "header", "footer", "sidebar")
+     *   position — Sidebar position override ("left" or "right", sidebar only)
+     *   width    — Sidebar width override (sidebar only, e.g. "300")
+     *
+     * At render time, checks the render context for {name}_region.present and
+     * {name}_region.html. If present and non-empty, renders the region HTML.
+     * Otherwise renders children as fallback content (typically an {include}).
+     *
+     * Replaces the traditional boilerplate:
+     *   {if header_region_present}{header_region_html|raw}{else}{include "..."}{/if}
+     * With:
+     *   {ikb_region name="header"}{include "..."}{/ikb_region}
+     */
+    private function renderRegion(array $attrs, string $children, array $context): string
+    {
+        $name = (string)($attrs['name'] ?? '');
+        if ($name === '') {
+            return '<!-- ikb_region: missing name attribute -->';
+        }
+
+        // Check context for {name}_region.present and {name}_region.html
+        $regionKey = $name . '_region';
+        $present = (bool)($context[$regionKey]['present'] ?? false);
+        $html = (string)($context[$regionKey]['html'] ?? '');
+
+        if ($present && $html !== '') {
+            // For sidebar regions, emit a wrapper with position/width metadata
+            if ($name === 'sidebar') {
+                $position = $attrs['position']
+                    ?? $context['sidebar_region_position']
+                    ?? $context['sidebar_position']
+                    ?? 'right';
+                $width = $attrs['width']
+                    ?? $context['sidebar_region_width']
+                    ?? $context['sidebar_width']
+                    ?? '300';
+                $html = '<aside class="ark-sidebar ark-sidebar--' . htmlspecialchars($position, ENT_QUOTES, 'UTF-8')
+                    . '" style="--sidebar-width:' . htmlspecialchars($width, ENT_QUOTES, 'UTF-8') . 'px;">'
+                    . $html . '</aside>';
+            }
+
+            if ($this->debug) {
+                $html = '<!-- region:' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ' -->' . $html;
+            }
+
+            return $html;
+        }
+
+        // No region HTML available — render children as fallback
+        return $children;
     }
 
     /**

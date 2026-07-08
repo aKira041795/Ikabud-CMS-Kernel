@@ -36,12 +36,8 @@
 {set current_year = current_year|default:'2026'}
 {set ecommerce_enabled = ecommerce_enabled|default:false}
 
-{set header_region_present = header_region.present|default:false}
-{set header_region_html = header_region.html|default:''}
-{set footer_region_present = footer_region.present|default:false}
-{set footer_region_html = footer_region.html|default:''}
+{# sidebar_region_present kept for show_customizer_sidebar computation below #}
 {set sidebar_region_present = sidebar_region_present_override|default:(sidebar_region.present|default:false)}
-{set sidebar_region_html = sidebar_region.html|default:''}
 {set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
 {set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
 {set force_customized_sidebar = force_customized_sidebar|default:false}
@@ -120,11 +116,7 @@
 
     {block header}
     {if show_header|default:true}
-        {if header_region_present}
-        {header_region_html|raw}
-        {else}
-        {include "_cms_active_theme/public/partials/header.disyl"}
-        {/if}
+        {ikb_region name="header"}{include "_cms_active_theme/public/partials/header.disyl"}{/ikb_region}
     {/if}
     {/block}
     {ikb_slot name="header.main" /}
@@ -136,11 +128,7 @@
     <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-content-with-sidebar{if sidebar_region_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar and not builder_enabled} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
         {# Sidebar on left when position is 'left' #}
         {if show_customizer_sidebar and not builder_enabled and sidebar_region_position == 'left'}
-        {if sidebar_region_present}
-        {sidebar_region_html|raw}
-        {else}
-        {include "_cms_active_theme/public/partials/sidebar.disyl"}
-        {/if}
+        {ikb_region name="sidebar" position="left"}{include "_cms_active_theme/public/partials/sidebar.disyl"}{/ikb_region}
         {/if}
 
         <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-main-slot{/if}" tabindex="-1">
@@ -155,11 +143,7 @@
 
         {# Sidebar on right (default) or fallback slot sidebars #}
         {if show_customizer_sidebar and not builder_enabled and sidebar_region_position != 'left'}
-        {if sidebar_region_present}
-        {sidebar_region_html|raw}
-        {else}
-        {include "_cms_active_theme/public/partials/sidebar.disyl"}
-        {/if}
+        {ikb_region name="sidebar"}{include "_cms_active_theme/public/partials/sidebar.disyl"}{/ikb_region}
         {elseif not show_customizer_sidebar}
         {include "_cms_active_theme/public/partials/sidebar.disyl"}
         {/if}
@@ -168,11 +152,7 @@
     {# Prefer DB/customizer-rendered footer when available. #}
     {ikb_slot name="footer.before" /}
     {if show_footer|default:true}
-        {if footer_region_present}
-        {footer_region_html|raw}
-        {else}
-        {include "_cms_active_theme/public/partials/footer.disyl"}
-        {/if}
+        {ikb_region name="footer"}{include "_cms_active_theme/public/partials/footer.disyl"}{/ikb_region}
     {/if}
     {ikb_slot name="footer.main" /}
     {ikb_slot name="footer.after" /}

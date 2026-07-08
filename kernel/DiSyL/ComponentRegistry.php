@@ -404,6 +404,25 @@ class ComponentRegistry
             'leaf' => false
         ]);
         
+        // Structural: ikb_region (governed theme region)
+        self::register('ikb_region', [
+            'category' => self::CATEGORY_STRUCTURAL,
+            'description' => 'Governed theme region — renders theme-customizer region HTML if available (via ThemeCustomizerOrchestrator), otherwise renders fallback children content. Replaces the {if *_region_present}...{else}...{/if} boilerplate pattern.',
+            'attributes' => [
+                'name' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => true,
+                    'description' => 'Region identifier (e.g., "header", "footer", "sidebar")'
+                ],
+                'fallback' => [
+                    'type' => Grammar::TYPE_STRING,
+                    'required' => false,
+                    'description' => 'Deprecated — use children instead. Fallback template path if region is not present.'
+                ]
+            ],
+            'leaf' => false
+        ]);
+
         // Structural: ikb_slot (governed theme slot)
         self::register('ikb_slot', [
             'category' => self::CATEGORY_STRUCTURAL,

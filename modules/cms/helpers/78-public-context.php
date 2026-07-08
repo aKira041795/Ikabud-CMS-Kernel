@@ -294,6 +294,8 @@ function cmsPublicContext(array $extra = []): array
     } catch (Throwable $e) {
         $ctx['footer_region'] = ['present' => false, 'html' => '', 'source' => 'error'];
     }
+    // @deprecated 6.1 — legacy alias for footer_region.html/present.
+    // Use {ikb_region name="footer"} in DiSyL templates instead.
     $ctx['customized_footer'] = (string)($ctx['footer_region']['html'] ?? '');
     $ctx['has_customized_footer'] = !empty($ctx['footer_region']['present']);
     if ($detailedTimingEnabled) {
@@ -317,6 +319,8 @@ function cmsPublicContext(array $extra = []): array
     } catch (Throwable $e) {
         $ctx['header_region'] = ['present' => false, 'html' => '', 'source' => 'error'];
     }
+    // @deprecated 6.1 — legacy alias for header_region.html/present.
+    // Use {ikb_region name="header"} in DiSyL templates instead.
     $ctx['customized_header'] = (string)($ctx['header_region']['html'] ?? '');
     $ctx['has_customized_header'] = !empty($ctx['header_region']['present']);
     if ($detailedTimingEnabled) {
@@ -356,6 +360,8 @@ function cmsPublicContext(array $extra = []): array
             'source' => 'error',
         ];
     }
+    // @deprecated 6.1 — legacy aliases for sidebar_region.html/present.
+    // Use {ikb_region name="sidebar"} in DiSyL templates instead.
     $ctx['customized_sidebar'] = !empty($ctx['sidebar_region']['present'])
         ? (string)($ctx['sidebar_region']['html'] ?? '')
         : '';

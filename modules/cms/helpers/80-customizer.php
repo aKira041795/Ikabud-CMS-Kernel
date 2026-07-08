@@ -2,6 +2,23 @@
 
 declare(strict_types=1);
 
+/**
+ * @deprecated 6.1 Legacy CMS customizer — use ThemeCustomizerOrchestrator
+ *             + theme-owned ThemeCustomizerProvider classes instead.
+ *
+ * All new themes should declare customizer.owns: true in theme.manifest.json
+ * and provide a customizer.provider class returning a ThemeCustomizerProvider
+ * implementation. The theme's provider controls region templates, defaults,
+ * validation, and context transformation.
+ *
+ * This file will be extracted to modules/cms/helpers/legacy/ in Kernel OS 6.2
+ * and removed in 7.0. New code MUST NOT add functions here.
+ *
+ * @see \Ikabud\Kernel\Services\ThemeCustomizerOrchestrator
+ * @see \Ikabud\Kernel\Contracts\ThemeCustomizerProvider
+ * @see \Ikabud\Kernel\Services\LegacyCmsCustomizerAdapter
+ */
+
 function cmsFooterSettingsDefaults(): array
 {
     return [
