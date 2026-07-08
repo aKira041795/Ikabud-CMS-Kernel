@@ -388,7 +388,7 @@
         flex-wrap: var(--b-flex-wrap) !important;
     }
 
-    .cms-builder-node--row > .cms-builder-node--column {
+    .cms-builder-node--row:not([data-mobile-layout="0"]) > .cms-builder-node--column {
         --b-width: 100% !important;
         --b-flex: 0 0 100% !important;
         width: var(--b-width) !important;
