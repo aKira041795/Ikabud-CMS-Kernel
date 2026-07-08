@@ -418,7 +418,7 @@
         font-size: 14px !important;
     }
 
-    .cms-builder-node--slideshow [style*="padding:24px"] {
+    .cms-builder-node--slideshow [style*="--caption-padding"] {
         padding: 12px 16px !important;
     }
 }
