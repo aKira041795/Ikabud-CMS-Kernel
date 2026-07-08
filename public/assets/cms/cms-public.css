@@ -325,3 +325,79 @@
         margin-top: 1.5rem;
     }
 }
+
+/* ── Builder responsive visibility (shared across all themes) ── */
+
+.cms-builder-visible--desktop-only {
+    display: inherit;
+}
+
+.cms-builder-visible--mobile-only {
+    display: none;
+}
+
+.cms-builder-visible--tablet-only {
+    display: none;
+}
+
+.cms-builder-visible--desktop-tablet {
+    display: inherit;
+}
+
+.cms-builder-visible--tablet-mobile {
+    display: none;
+}
+
+@media (max-width: 1024px) {
+    .cms-builder-visible--desktop-only {
+        display: none !important;
+    }
+
+    .cms-builder-visible--tablet-only {
+        display: inherit !important;
+    }
+
+    .cms-builder-visible--desktop-tablet {
+        display: inherit !important;
+    }
+
+    .cms-builder-visible--tablet-mobile {
+        display: inherit !important;
+    }
+}
+
+/* Responsive: stack builder rows/columns on mobile */
+@media (max-width: 640px) {
+    .cms-builder-node--row {
+        flex-direction: column !important;
+    }
+
+    .cms-builder-node--column {
+        width: 100% !important;
+        flex: none !important;
+    }
+
+    .cms-builder-node--container[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+    }
+
+    .cms-builder-visible--desktop-only {
+        display: none !important;
+    }
+
+    .cms-builder-visible--tablet-only {
+        display: none !important;
+    }
+
+    .cms-builder-visible--mobile-only {
+        display: inherit !important;
+    }
+
+    .cms-builder-visible--desktop-tablet {
+        display: none !important;
+    }
+
+    .cms-builder-visible--tablet-mobile {
+        display: inherit !important;
+    }
+}

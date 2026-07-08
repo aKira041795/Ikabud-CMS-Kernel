@@ -231,77 +231,12 @@ video {
     overflow-x: auto;
 }
 
-/* Responsive visibility */
-.cms-builder-visible--desktop-only {
-    display: inherit;
-}
-
-.cms-builder-visible--mobile-only {
-    display: none;
-}
-
-.cms-builder-visible--tablet-only {
-    display: none;
-}
-
-.cms-builder-visible--desktop-tablet {
-    display: inherit;
-}
-
-.cms-builder-visible--tablet-mobile {
-    display: none;
-}
-
-@media (max-width: 1024px) {
-    .cms-builder-visible--desktop-only {
-        display: none !important;
-    }
-
-    .cms-builder-visible--tablet-only {
-        display: inherit !important;
-    }
-
-    .cms-builder-visible--desktop-tablet {
-        display: inherit !important;
-    }
-
-    .cms-builder-visible--tablet-mobile {
-        display: inherit !important;
-    }
-}
-
-/* Responsive: stack columns on mobile */
-@media (max-width: 640px) {
-    .cms-builder-node--row {
-        flex-direction: column !important;
-    }
-
-    .cms-builder-node--column {
-        width: 100% !important;
-        flex: none !important;
-    }
-
-    .cms-builder-node--container[style*="grid-template-columns"] {
-        grid-template-columns: 1fr !important;
-    }
-
-    .cms-builder-visible--desktop-only {
-        display: none !important;
-    }
-
-    .cms-builder-visible--tablet-only {
-        display: none !important;
-    }
-
-    .cms-builder-visible--mobile-only {
-        display: inherit !important;
-    }
-
-    .cms-builder-visible--desktop-tablet {
-        display: none !important;
-    }
-
-    .cms-builder-visible--tablet-mobile {
-        display: inherit !important;
-    }
-}
+/* Responsive visibility — SHARED RULES
+ *
+ * These classes are defined in the shared cms-public.css (auto-injected
+ * into every theme). Do NOT duplicate here — keep cms-public.css as the
+ * single source of truth so ARK, minimalist, and all other themes
+ * inherit builder responsive behavior automatically.
+ *
+ * @see public/assets/cms/cms-public.css (section: Builder responsive visibility)
+ */
