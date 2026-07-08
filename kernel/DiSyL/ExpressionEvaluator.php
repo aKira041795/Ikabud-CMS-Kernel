@@ -76,6 +76,20 @@ class ExpressionEvaluator
             $path = substr($path, 1);
         }
 
+        // Strip outer balanced parentheses (e.g. (foo.bar|default:false) → foo.bar|default:false)
+        if (str_starts_with($path, '(') && str_ends_with($path, ')')) {
+            $inner = trim(substr($path, 1, -1));
+            $pdepth = 0;
+            $balanced = true;
+            for ($pi = 0, $pl = strlen($inner); $pi < $pl; $pi++) {
+                if ($inner[$pi] === '(') { $pdepth++; }
+                elseif ($inner[$pi] === ')') { $pdepth--; if ($pdepth < 0) { $balanced = false; break; } }
+            }
+            if ($balanced && $pdepth === 0) {
+                $path = $inner;
+            }
+        }
+
         // String concatenation with ~ operator
         if (str_contains($path, '~') && !preg_match('/^["\'].*["\']$/', $path)) {
             $result = $this->evaluateConcat($path, $context);
@@ -682,6 +696,20 @@ class ExpressionEvaluator
             if (is_numeric($arg)) {
                 return $arg + 0;
             }
+            // Strip outer balanced parentheses before resolving sub-expression
+            // e.g. default:(foo.bar|default:false) → default:foo.bar|default:false
+            if (str_starts_with($arg, '(') && str_ends_with($arg, ')')) {
+                $inner = trim(substr($arg, 1, -1));
+                $pdepth = 0;
+                $balanced = true;
+                for ($pi = 0, $pl = strlen($inner); $pi < $pl; $pi++) {
+                    if ($inner[$pi] === '(') { $pdepth++; }
+                    elseif ($inner[$pi] === ')') { $pdepth--; if ($pdepth < 0) { $balanced = false; break; } }
+                }
+                if ($balanced && $pdepth === 0) {
+                    $arg = $inner;
+                }
+            }
             return $this->resolveValueWithFilters($arg, $context);
         }
 
@@ -757,6 +785,7 @@ class ExpressionEvaluator
         $current = '';
         $inSingle = false;
         $inDouble = false;
+        $depth = 0;
 
         for ($i = 0, $len = strlen($expr); $i < $len; $i++) {
             $ch = $expr[$i];
@@ -768,7 +797,10 @@ class ExpressionEvaluator
             if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; $current .= $ch; continue; }
             if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; $current .= $ch; continue; }
             if ($inSingle || $inDouble) { $current .= $ch; continue; }
-            if ($ch === $delimiter) { $parts[] = $current; $current = ''; continue; }
+            // Track bracket/paren depth to avoid splitting inside nested groups
+            if ($ch === '(' || $ch === '[') { $depth++; $current .= $ch; continue; }
+            if ($ch === ')' || $ch === ']') { if ($depth > 0) $depth--; $current .= $ch; continue; }
+            if ($ch === $delimiter && $depth === 0) { $parts[] = $current; $current = ''; continue; }
             $current .= $ch;
         }
         if ($current !== '') { $parts[] = $current; }
