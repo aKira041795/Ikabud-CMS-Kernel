@@ -401,3 +401,55 @@
         display: inherit !important;
     }
 }
+
+/* ── Builder widget responsive overrides ── */
+
+/* Slideshow: reduce height and caption sizes on mobile */
+@media (max-width: 640px) {
+    .cms-builder-node--slideshow .cms-builder-slide-track {
+        height: 280px !important;
+    }
+
+    .cms-builder-node--slideshow h3 {
+        font-size: 20px !important;
+    }
+
+    .cms-builder-node--slideshow p {
+        font-size: 14px !important;
+    }
+
+    .cms-builder-node--slideshow [style*="padding:24px"] {
+        padding: 12px 16px !important;
+    }
+}
+
+/* Builder images: ensure responsive scaling */
+@media (max-width: 640px) {
+    .cms-builder-node--image img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+}
+
+/* Topbar: wrap widgets on mobile */
+@media (max-width: 640px) {
+    .header-topbar-inner {
+        flex-wrap: wrap !important;
+        gap: 4px 12px !important;
+        justify-content: center !important;
+    }
+
+    .header-widget-text,
+    .header-widget-contact {
+        font-size: 12px !important;
+    }
+}
+
+/* Text/heading widgets: prevent overflow on mobile */
+@media (max-width: 640px) {
+    .cms-builder-node--text,
+    .cms-builder-node--heading {
+        word-break: break-word !important;
+        overflow-wrap: break-word !important;
+    }
+}
