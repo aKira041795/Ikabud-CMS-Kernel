@@ -192,6 +192,42 @@ function ecCartResolveTargetCurrencyForProduct(array $product): string
  * Get the current cart as a unified array regardless of guest/customer mode.
  * Returns ['items' => [...], 'totals' => [...], 'coupon' => [...|null]]
  */
+function ecCartProductImageUrlMap(array $items): array
+{
+    $productIds = array_unique(array_map('intval', array_column($items, 'product_id')));
+    $productIds = array_values(array_filter($productIds));
+    if ($productIds === [] || !function_exists('cmsResolveUploadUrl')) {
+        return [];
+    }
+
+    try {
+        $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+        $rows = ecDb()->query(
+            "SELECT c.id, m.file_path AS featured_image
+             FROM cms_content c
+             LEFT JOIN cms_media m ON m.id = c.featured_image_id
+             WHERE c.id IN ($placeholders)
+               AND c.type = 'product'
+               AND c.deleted_at IS NULL",
+            $productIds
+        )->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    $imageUrlMap = [];
+    foreach ($rows as $row) {
+        $productId = (int)($row['id'] ?? 0);
+        if ($productId <= 0) {
+            continue;
+        }
+        $featuredImage = trim((string)($row['featured_image'] ?? ''));
+        $imageUrlMap[$productId] = $featuredImage !== '' ? cmsResolveUploadUrl($featuredImage) : '';
+    }
+
+    return $imageUrlMap;
+}
+
 function ecCartGet(): array
 {
     $user = app()->user();
@@ -214,21 +250,16 @@ function ecCartGet(): array
     $currencyCode = ecResolveCartItemsCurrencyCode($items);
     $currencySymbol = ecCurrencySymbolFor($currencyCode);
     $resolvedStore = ecCartResolvedStore($items);
+    $imageUrlMap = ecCartProductImageUrlMap($items);
     foreach ($items as &$item) {
         if (function_exists('ecHydrateLineItemOptions')) {
             $item = ecHydrateLineItemOptions($item, $currencyCode);
         }
-        // Hydrate product image URL from product data
+        // Keep a stable fallback when product/image is missing.
         $item['image_url'] = '';
         $productId = (int)($item['product_id'] ?? 0);
-        if ($productId > 0 && function_exists('ecProductGet')) {
-            $product = ecProductGet($productId, false);
-            if ($product) {
-                $featuredImage = trim((string)($product['featured_image'] ?? ''));
-                if ($featuredImage !== '' && function_exists('cmsResolveUploadUrl')) {
-                    $item['image_url'] = cmsResolveUploadUrl($featuredImage);
-                }
-            }
+        if ($productId > 0 && isset($imageUrlMap[$productId])) {
+            $item['image_url'] = (string)$imageUrlMap[$productId];
         }
         $itemCurrency = ecCurrencyNormalizeCode($item['currency'] ?? '') ?: $currencyCode;
         $unitPrice = round((float)($item['price_snapshot'] ?? 0), 2);

@@ -76,6 +76,60 @@ function cmsPublicContextDetailedTimingEnabled(): bool
     return filter_var($value, FILTER_VALIDATE_BOOLEAN);
 }
 
+function cmsPublicContextCrossRequestCacheTtl(): int
+{
+    $ttl = (int)($_ENV['CMS_PUBLIC_CONTEXT_CACHE_TTL'] ?? 120);
+    if ($ttl < 60) {
+        $ttl = 60;
+    }
+    if ($ttl > 180) {
+        $ttl = 180;
+    }
+
+    return $ttl;
+}
+
+function cmsPublicContextCacheHost(): string
+{
+    $host = trim((string)($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+    return strtolower($host);
+}
+
+function cmsPublicContextNormalizeForCache($value)
+{
+    if (!is_array($value)) {
+        return $value;
+    }
+
+    $normalized = [];
+    foreach ($value as $key => $item) {
+        $normalized[$key] = cmsPublicContextNormalizeForCache($item);
+    }
+
+    if (array_keys($normalized) !== range(0, count($normalized) - 1)) {
+        ksort($normalized);
+    }
+
+    return $normalized;
+}
+
+function cmsPublicContextDerivedCacheKey(array $factors, array $extra): string
+{
+    $payload = [
+        'tenant_id' => cmsRuntimeTenantId(),
+        'host' => cmsPublicContextCacheHost(),
+        'factors' => cmsPublicContextNormalizeForCache($factors),
+        'extra' => cmsPublicContextNormalizeForCache($extra),
+    ];
+
+    $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
+    if (!is_string($json) || $json === '') {
+        $json = serialize($payload);
+    }
+
+    return 'cms:public_context:derived:v1:' . hash('sha256', $json);
+}
+
 function cmsPublicContextSectionAvailability(): array
 {
     $cache = $GLOBALS[cmsCustomizerRequestCacheKey('section_row')] ?? null;
@@ -164,6 +218,35 @@ function cmsPublicContext(array $extra = []): array
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('init', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
     }
+
+    $derivedCacheTtl = cmsCacheEnabled() ? cmsPublicContextCrossRequestCacheTtl() : 0;
+    $derivedCacheKey = cmsPublicContextDerivedCacheKey([
+        'theme' => $activeThemeSlug,
+        'theme_source' => $activeThemeSource,
+        'customizer_scope' => $activeCustomizerScope,
+        'public_render_origin' => $publicRenderOrigin,
+        'public_route_kind' => $publicRouteKind,
+        'public_presentation_mode' => $publicPresentationMode,
+        'request_type' => $requestType,
+        'builder_enabled' => $builderEnabled,
+        'builder_sidebar_requested' => $builderSidebarRequested,
+    ], $extra);
+
+    $derivedCtx = null;
+    if ($derivedCacheTtl > 0) {
+        try {
+            $cachedPayload = app()->cache()->get(cmsCacheInstance(), $derivedCacheKey);
+            if (is_array($cachedPayload) && isset($cachedPayload['ctx']) && is_array($cachedPayload['ctx'])) {
+                $derivedCtx = $cachedPayload['ctx'];
+            }
+        } catch (Throwable $e) {
+            $derivedCtx = null;
+        }
+    }
+
+    if ($derivedCtx !== null) {
+        $ctx = $derivedCtx;
+    } else {
 
     // Preload all customizer sections in one DB query instead of 6 separate ones
     $stageStart = $timingEnabled ? microtime(true) : 0.0;
@@ -434,6 +517,21 @@ function cmsPublicContext(array $extra = []): array
     }
     if ($detailedTimingEnabled) {
         cmsPublicContextLogStage('theme_layout', $stageStart, ['theme' => $activeThemeSlug, 'request_type' => $requestType]);
+    }
+
+    if ($derivedCacheTtl > 0) {
+        try {
+            app()->cache()->setWithTags(
+                cmsCacheInstance(),
+                $derivedCacheKey,
+                ['ctx' => $ctx],
+                ['cms:public_context', 'cms:settings', 'cms:menus', 'cms:customizer'],
+                $derivedCacheTtl
+            );
+        } catch (Throwable $e) {
+            // Non-fatal: fall back to uncached behavior.
+        }
+    }
     }
 
     // Inject entity capability context when rendering a specific entity
