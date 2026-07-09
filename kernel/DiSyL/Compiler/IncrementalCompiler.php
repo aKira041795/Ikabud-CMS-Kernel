@@ -9,11 +9,15 @@
 namespace Ikabud\Kernel\DiSyL\Compiler;
 
 class IncrementalCompiler
-// TODO: Add cache file GC (stale compiled templates accumulate)
-
 {
+    private const GC_INTERVAL_SECONDS = 300;
+    private const GC_STALE_GRACE_SECONDS = 3600;
+    private const GC_SCAN_LIMIT = 200;
+    private const GC_DELETE_LIMIT = 20;
+
     private string $cacheDir;
     private string $manifestFile;
+    private string $gcStateFile;
     private array $manifest = [];
     private TemplateCompiler $compiler;
     
@@ -21,6 +25,7 @@ class IncrementalCompiler
     {
         $this->cacheDir = rtrim($cacheDir, '/');
         $this->manifestFile = $this->cacheDir . '/.manifest.json';
+        $this->gcStateFile = $this->cacheDir . '/.gc-state.json';
         $this->compiler = new TemplateCompiler();
         $this->loadManifest();
     }
@@ -78,6 +83,7 @@ class IncrementalCompiler
             'compilerVersion' => TemplateCompiler::COMPILER_VERSION,
         ];
         $this->saveManifest();
+        $this->runCacheGcIfDue();
         
         $duration = (microtime(true) - $startTime) * 1000;
         
@@ -106,6 +112,7 @@ class IncrementalCompiler
     private function recompileDependents(array $changedFiles, array &$results): void
     {
         foreach ($this->manifest as $path => $entry) {
+            if (!is_array($entry)) continue;
             if (isset($results[$path]) && $results[$path]->wasRecompiled) continue;
             
             $deps = $entry['dependencies'] ?? [];
@@ -158,6 +165,75 @@ class IncrementalCompiler
         $name = preg_replace('/[^a-zA-Z0-9]/', '_', basename($path, '.disyl'));
         return 'Template_' . $name . '_v' . $version . '_' . substr(md5($path . ':v' . $version), 0, 8);
     }
+
+    private function runCacheGcIfDue(): void
+    {
+        $lastRun = $this->getLastGcRun();
+        $now = time();
+
+        if ($lastRun > 0 && ($now - $lastRun) < self::GC_INTERVAL_SECONDS) {
+            return;
+        }
+
+        $activeOutputs = [];
+        foreach ($this->manifest as $entry) {
+            if (!is_array($entry)) continue;
+            $output = $entry['output'] ?? null;
+            if (is_string($output) && $output !== '') {
+                $activeOutputs[$output] = true;
+            }
+        }
+
+        $scanCount = 0;
+        $deleteCount = 0;
+        $files = glob($this->cacheDir . '/Template_*.php') ?: [];
+        foreach ($files as $file) {
+            if ($scanCount >= self::GC_SCAN_LIMIT || $deleteCount >= self::GC_DELETE_LIMIT) {
+                break;
+            }
+            $scanCount++;
+
+            if (isset($activeOutputs[$file])) {
+                continue;
+            }
+
+            $mtime = @filemtime($file);
+            if ($mtime !== false && ($now - $mtime) < self::GC_STALE_GRACE_SECONDS) {
+                continue;
+            }
+
+            if (@unlink($file)) {
+                $deleteCount++;
+            }
+        }
+
+        $this->setLastGcRun($now);
+    }
+
+    private function getLastGcRun(): int
+    {
+        if (!file_exists($this->gcStateFile)) {
+            return 0;
+        }
+
+        $raw = @file_get_contents($this->gcStateFile);
+        if (!is_string($raw) || $raw === '') {
+            return 0;
+        }
+
+        $state = json_decode($raw, true);
+        if (!is_array($state)) {
+            return 0;
+        }
+
+        $lastRun = $state['lastRun'] ?? 0;
+        return is_int($lastRun) ? $lastRun : 0;
+    }
+
+    private function setLastGcRun(int $timestamp): void
+    {
+        @file_put_contents($this->gcStateFile, json_encode(['lastRun' => $timestamp], JSON_PRETTY_PRINT));
+    }
     
     public function invalidate(string $templatePath): void
     {
@@ -167,8 +243,15 @@ class IncrementalCompiler
     
     public function getStats(): array
     {
+        $templateCount = 0;
+        foreach ($this->manifest as $entry) {
+            if (is_array($entry)) {
+                $templateCount++;
+            }
+        }
+
         return [
-            'templates' => count($this->manifest),
+            'templates' => $templateCount,
             'cacheDir' => $this->cacheDir,
         ];
     }
