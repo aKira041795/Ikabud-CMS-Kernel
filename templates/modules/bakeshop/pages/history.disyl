@@ -96,15 +96,15 @@
                 </div>
                 <div class="bakeshop-history-field">
                     <label for="history-date-from">Date From</label>
-                    <input id="history-date-from" name="date_from" type="date" value="{history_filters.date_from | default:''}">
+                    <input id="history-date-from" name="date_from" type="date" value="{history_filters.date_from ?? ''}">
                 </div>
                 <div class="bakeshop-history-field">
                     <label for="history-date-to">Date To</label>
-                    <input id="history-date-to" name="date_to" type="date" value="{history_filters.date_to | default:''}">
+                    <input id="history-date-to" name="date_to" type="date" value="{history_filters.date_to ?? ''}">
                 </div>
                 <div class="bakeshop-history-field">
                     <label for="history-search">Search</label>
-                    <input id="history-search" name="search" value="{history_filters.search | default:''}" placeholder="Action, table, or record id">
+                    <input id="history-search" name="search" value="{history_filters.search ?? ''}" placeholder="Action, table, or record id">
                 </div>
                 <div class="bakeshop-history-field">
                     <label for="history-limit">Rows</label>
@@ -122,11 +122,11 @@
             </form>
 
             <div class="bakeshop-history-summary">
-                <span>Showing {entries | count} of {history_total} recorded event(s).</span>
+                <span>Showing {count(entries)} of {history_total} recorded event(s).</span>
                 <span>Older entries stay available through the filters and pager below.</span>
             </div>
 
-            {if entries | count == 0}
+            {if count(entries) == 0}
             <div class="bakeshop-history-empty">No bakeshop activity matched the current filters.</div>
             {else}
             <div class="bakeshop-history-table-wrap">
@@ -157,7 +157,7 @@
                             <td>{if entry.actor_url}<a class="bakeshop-history-link" href="{base_url}{entry.actor_url}">{entry.actor_label}</a>{else}{entry.actor_label}{/if}</td>
                             <td>
                                 <div>{entry.summary}</div>
-                                <div class="bakeshop-history-meta">{entry.entity_type | default:'audit_logs'} / {entry.entity_id | default:'n/a'}</div>
+                                <div class="bakeshop-history-meta">{entry.entity_type ?? 'audit_logs'} / {entry.entity_id ?? 'n/a'}</div>
                             </td>
                         </tr>
                         {/foreach}
