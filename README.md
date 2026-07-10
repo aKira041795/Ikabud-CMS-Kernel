@@ -28,6 +28,8 @@ Many languages. Many outputs.
 - **21 governed DiSyL components** — Build screens by describing intent: `<ikb_entity_list source="orders.recent" view="compact" />`
 - **Entity-view architecture** — Define fields, actions, and views per entity type. 16 registered entity views across modules. Kernel enforces permissions via capability bus.
 - **Visual builder contract composer** — React/Vite builder with governed component palette, source+view pickers, validation.
+- **Mobile backend platform** — JWT auth with Bearer/cookie dual path, CORS for API consumers, rate limiting (DB/APCu), push notification queue (FCM), offline sync engine (entity revisions, cursor-based pull, tombstones, conflict detection), idempotency keys for safe retries.
+- **Standardized API contract** — Consistent `{ok, data, error, meta, request_id}` response envelope, rule-based input validation, offset + cursor pagination, OpenAPI 3.0 spec generation from route metadata.
 - **Export pipeline** — CSV, DOCX (PHPWord), PDF (DomPDF). One click turns any screen into a document.
 - **AI governance** — Provider config, per-capability policy, redaction rules, review queue, audit trail, cost dashboard.
 - **Observability** — 22 superadmin APIs for service health, circuit breakers, capability traces, entity-view debugging.
@@ -103,6 +105,8 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 | [cms-performance-and-scalability.md](docs/cms/cms-performance-and-scalability.md) | CMS performance benchmark + scaling analysis |
 | [ark-authority-layer-plan.md](docs/themes/ark-authority-layer-plan.md) | **ARK** — Architectural Rendering Kit: the visual operating specification of Ikabud |
 | [roadmap.md](docs/kernel/roadmap.md) | Project roadmap |
+| [mobile-offline-db-readiness.md](docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md) | Mobile-app backend capability review — 13 gaps across Kernel OS/DiSyL/ARK |
+| [mobile-api-platform-plan.md](docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md) | 6-phase implementation plan: API reliability, offline sync, mobile auth |
 
 ---
 
