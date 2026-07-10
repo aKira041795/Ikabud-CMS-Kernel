@@ -353,6 +353,17 @@ function request_id(): string
 }
 
 /**
+ * Determine if the current request targets an API route, based on URL prefix.
+ * Standalone helper (no autoloader dependency) for use in the exception handler,
+ * shutdown handler, and anywhere that runs before RequestContext is available.
+ */
+function kernel_is_api_request(): bool
+{
+    $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    return \Ikabud\Kernel\Http\RequestContext::matchIsApiRoute($uri);
+}
+
+/**
  * Kernel-level flash message helpers (kernel 4.0.0+).
  *
  * Replaces ad-hoc per-module $_SESSION['*_message'] writers with a single
@@ -1632,13 +1643,60 @@ function kernelFireShutdownHooks(): void
 }
 
 set_exception_handler(function (Throwable $e): void {
-    write_log($e->getMessage(), 'critical', [
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-        'trace' => $e->getTraceAsString(),
-    ]);
+    // Prevent recursive handler death
+    static $handling = false;
+    if ($handling) {
+        fwrite(STDERR, 'Fatal: recursive exception handler death' . "\n");
+        exit(1);
+    }
+    $handling = true;
+
+    try {
+        write_log($e->getMessage(), 'critical', [
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTraceAsString(),
+        ]);
+    } catch (Throwable $logEx) {
+        error_log('Exception handler log failed: ' . $logEx->getMessage());
+    }
+
+    $isApi = function_exists('kernel_is_api_request') && kernel_is_api_request();
+
+    // Map typed exceptions to proper HTTP status codes
+    $statusCode = 500;
+    if ($e instanceof \Ikabud\Kernel\Exceptions\AuthenticationException) {
+        $statusCode = 401;
+    } elseif ($e instanceof \Ikabud\Kernel\Exceptions\AuthorizationException) {
+        $statusCode = 403;
+    }
+
+    if ($isApi) {
+        // Clear any partial output (warnings, notices, partial JSON)
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        if (!headers_sent()) {
+            http_response_code($statusCode);
+            header('Content-Type: application/json');
+        }
+        $payload = [
+            'ok' => false,
+            'error' => $e->getMessage() ?: 'Internal server error',
+        ];
+        if (function_exists('request_id')) {
+            $payload['request_id'] = request_id();
+        }
+        if (($_ENV['APP_DEBUG'] ?? '') === 'true') {
+            $payload['debug'] = ['type' => get_class($e)];
+        }
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // HTML path — unchanged
     if (!headers_sent()) {
-        http_response_code(500);
+        http_response_code($statusCode);
         header('Content-Type: text/html; charset=utf-8');
     }
     // Tier 1: attempt to render the styled 500 page via DiSyL. Guard carefully —
@@ -1665,6 +1723,32 @@ set_exception_handler(function (Throwable $e): void {
        . '<h1>Application Error</h1><p>An unexpected error occurred. Please try again later.</p>'
        . '</body></html>';
     exit;
+});
+
+// Shutdown handler for fatal errors (parse errors, memory exhaustion, etc.)
+// that cannot be caught by the exception handler.
+register_shutdown_function(function (): void {
+    $error = error_get_last();
+    if ($error === null) {
+        return;
+    }
+    if (!in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+        return;
+    }
+    $isApi = function_exists('kernel_is_api_request') && kernel_is_api_request();
+    if ($isApi && !headers_sent()) {
+        while (ob_get_level() > 0) {
+            @ob_end_clean();
+        }
+        http_response_code(500);
+        header('Content-Type: application/json');
+        $payload = ['ok' => false, 'error' => 'Internal server error'];
+        if (function_exists('request_id')) {
+            $payload['request_id'] = request_id();
+        }
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
 });
 
 spl_autoload_register(static function (string $class): void {

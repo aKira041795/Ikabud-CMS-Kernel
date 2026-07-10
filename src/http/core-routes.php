@@ -117,3 +117,91 @@ if (!function_exists('kernelCoreRoutes')) {
         ];
     }
 }
+
+/**
+ * Route metadata for enhanced API behavior.
+ *
+ * This map serves as the source of truth for:
+ * - API format detection (JSON vs HTML)
+ * - Authentication requirements
+ * - Stateless (no session) designation
+ * - API version
+ * - OpenAPI schema generation
+ *
+ * Routes without metadata fall back to URL-prefix detection.
+ * Add entries incrementally as routes are migrated.
+ *
+ * @return array<string, array<string, array>> Map of 'METHOD:/path' => metadata[]
+ */
+if (!function_exists('kernelRouteMeta')) {
+    function kernelRouteMeta(): array
+    {
+        return [
+            // ── Auth ──────────────────────────────────────
+            'GET:/api/v1/health' => [
+                'format' => 'json',
+                'auth' => false,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            'POST:/api/v1/auth/login' => [
+                'format' => 'json',
+                'auth' => false,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            'POST:/api/v1/auth/refresh' => [
+                'format' => 'json',
+                'auth' => false,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            'POST:/api/v1/auth/forgot-password' => [
+                'format' => 'json',
+                'auth' => false,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            'POST:/api/v1/auth/reset-password' => [
+                'format' => 'json',
+                'auth' => false,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            'GET:/api/v1/auth/logout' => [
+                'format' => 'json',
+                'auth' => true,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            // ── User ──────────────────────────────────────
+            'GET:/api/v1/me' => [
+                'format' => 'json',
+                'auth' => true,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            // ── Health ────────────────────────────────────
+            'GET:/api/v1/platform' => [
+                'format' => 'json',
+                'auth' => false,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            // ── Superadmin ────────────────────────────────
+            'GET:/api/v1/superadmin/modules' => [
+                'format' => 'json',
+                'auth' => true,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+            // ── Admin ─────────────────────────────────────
+            'GET:/api/v1/admin/modules' => [
+                'format' => 'json',
+                'auth' => true,
+                'stateless' => true,
+                'version' => 'v1',
+            ],
+        ];
+    }
+}

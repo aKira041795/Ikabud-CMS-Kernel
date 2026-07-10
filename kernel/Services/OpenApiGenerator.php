@@ -15,12 +15,62 @@ class OpenApiGenerator
     private array $routes;
     private string $title;
     private string $version;
+    /** @var array<string, array> Route metadata map for enhanced schema generation */
+    private array $routeMeta = [];
+    /** @var array Module-owned OpenAPI fragments */
+    private array $moduleFragments = [];
 
     public function __construct(array $routes, string $title = 'Ikabud Platform API', string $version = '1.0.0')
     {
         $this->routes = $routes;
         $this->title = $title;
         $this->version = $version;
+    }
+
+    /**
+     * Attach route metadata for enhanced schema generation.
+     *
+     * @param array<string, array> $routeMeta Map of 'METHOD:/path' => metadata array
+     */
+    public function withRouteMeta(array $routeMeta): self
+    {
+        $this->routeMeta = $routeMeta;
+        return $this;
+    }
+
+    /**
+     * Add a module's routes to the spec.
+     *
+     * @param string $moduleId Module identifier
+     * @param array  $routes   Module route map (GET/POST => path => handler)
+     */
+    public function addModuleRoutes(string $moduleId, array $routes): self
+    {
+        foreach ($routes as $method => $patterns) {
+            foreach ($patterns as $pattern => $handler) {
+                $this->routes[$method][$pattern] = "{$moduleId}:{$handler}";
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Load a module-owned OpenAPI fragment file.
+     *
+     * @param string $moduleId Module identifier
+     * @param string $filePath Path to JSON fragment file
+     */
+    public function loadModuleFragment(string $moduleId, string $filePath): self
+    {
+        if (!file_exists($filePath)) {
+            return $this;
+        }
+        $content = file_get_contents($filePath);
+        $fragment = json_decode($content, true);
+        if (is_array($fragment)) {
+            $this->moduleFragments[$moduleId] = $fragment;
+        }
+        return $this;
     }
 
     /**
@@ -57,7 +107,29 @@ class OpenApiGenerator
         // Sort tags
         usort($tags, fn($a, $b) => strcmp($a['name'], $b['name']));
 
-        return [
+        // Merge module fragments into components
+        $components = [
+            'securitySchemes' => [
+                'bearerAuth' => [
+                    'type' => 'http',
+                    'scheme' => 'bearer',
+                    'bearerFormat' => 'JWT',
+                ],
+                'cookieAuth' => [
+                    'type' => 'apiKey',
+                    'in' => 'cookie',
+                    'name' => 'auth_token',
+                ],
+            ],
+        ];
+
+        foreach ($this->moduleFragments as $moduleId => $fragment) {
+            if (!empty($fragment['components'])) {
+                $components = array_merge_recursive($components, $fragment['components']);
+            }
+        }
+
+        $spec = [
             'openapi' => '3.0.3',
             'info' => [
                 'title' => $this->title,
@@ -66,24 +138,22 @@ class OpenApiGenerator
             ],
             'tags' => $tags,
             'paths' => $paths,
-            'components' => [
-                'securitySchemes' => [
-                    'bearerAuth' => [
-                        'type' => 'http',
-                        'scheme' => 'bearer',
-                        'bearerFormat' => 'JWT',
-                    ],
-                    'cookieAuth' => [
-                        'type' => 'apiKey',
-                        'in' => 'cookie',
-                        'name' => 'auth_token',
-                    ],
-                ],
-            ],
+            'components' => $components,
             'security' => [
                 ['bearerAuth' => []],
             ],
         ];
+
+        // Merge module fragment paths
+        foreach ($this->moduleFragments as $moduleId => $fragment) {
+            if (!empty($fragment['paths'])) {
+                foreach ($fragment['paths'] as $path => $methods) {
+                    $spec['paths'][$path] = array_merge($spec['paths'][$path] ?? [], $methods);
+                }
+            }
+        }
+
+        return $spec;
     }
 
     /**

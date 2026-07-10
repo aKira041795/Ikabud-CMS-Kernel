@@ -155,7 +155,22 @@ require_once __DIR__ . '/../src/http/superadmin-observability-handlers.php';
 require_once __DIR__ . '/../src/http/auth-handlers.php';
 
 
-if (session_status() === PHP_SESSION_NONE) {
+// ── Conditional session: skip for stateless API routes ─────
+$isApiRequest = function_exists('kernel_is_api_request') && kernel_is_api_request();
+
+// Check route metadata for explicit stateless flag
+$routeMetaMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$routeMetaPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+if ($isApiRequest && function_exists('kernelRouteMeta')) {
+    $allMeta = kernelRouteMeta();
+    $routeKey = $routeMetaMethod . ':' . $routeMetaPath;
+    if (isset($allMeta[$routeKey]['stateless']) && $allMeta[$routeKey]['stateless']) {
+        // Route explicitly marked stateless — skip session entirely
+    }
+} elseif ($isApiRequest) {
+    // URL-prefix based detection: stateless by convention
+}
+if (!$isApiRequest && session_status() === PHP_SESSION_NONE) {
     $samesite = in_array(strtolower((string)($_ENV['APP_COOKIE_SAMESITE'] ?? 'Strict')), ['lax', 'strict', 'none'], true)
         ? ucfirst(strtolower($_ENV['APP_COOKIE_SAMESITE']))
         : 'Strict';
@@ -239,12 +254,17 @@ if (should_enforce_https() && !is_https()) {
 }
 
 (new \Ikabud\Kernel\Http\SecurityHeaders())->apply();
-header('X-Request-Id: ' . request_id());
+
+// ── X-Request-Id: emit header for API routes ──────────────
+$reqId = function_exists('request_id') ? request_id() : null;
+if ($reqId && $isApiRequest) {
+    header('X-Request-Id: ' . $reqId);
+}
 
 // ── CORS for API consumers (Android app, external clients) ──────────
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $uri_check = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-if (str_starts_with($uri_check, '/api/')) {
+if ($isApiRequest) {
     $allowedRaw = trim((string)($_ENV['CORS_ORIGINS'] ?? ''));
     $allowedOrigins = array_values(array_filter(array_map('trim', explode(',', $allowedRaw))));
     // Only apply CORS when an explicit Origin is present and is allowlisted.

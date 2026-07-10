@@ -19,13 +19,17 @@ interface AuthContract
     public function user(): ?array;
 
     /**
-     * Require authentication. Redirects or halts if not authenticated.
+     * Require authentication.
+     * - For API routes (detected via URL prefix): emits 401 JSON and exits.
+     * - For web routes: redirects to /login.
      * Returns the user array on success.
      */
     public function requireAuth(): array;
 
     /**
      * Require the user to have the specified role.
+     * - For API routes: emits 403 JSON and exits.
+     * - For web routes: redirects to / (or HTMX partial).
      * Halts with 403 if role does not match.
      */
     public function requireRole(string $role): array;

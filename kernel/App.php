@@ -1448,28 +1448,53 @@ final class App
         $user = $this->user();
         return $user && ($user['role'] ?? '') === $role;
     }
-    
+
     /**
-     * Require authentication, redirect if not
+     * Check if the current request prefers JSON (API route).
+     */
+    public function wantsJson(): bool
+    {
+        return $this->isApiRequest();
+    }
+
+    /**
+     * Create a Paginator for the current request.
+     *
+     * @param int $total    Total item count
+     * @param int $perPage  Items per page (default 20, max 100)
+     * @return \Ikabud\Kernel\Http\Paginator
+     */
+    public function paginate(int $total, int $perPage = 20): \Ikabud\Kernel\Http\Paginator
+    {
+        $page = (int)($this->input('page') ?? 1);
+        return new \Ikabud\Kernel\Http\Paginator($total, $perPage, $page);
+    }
+
+    /**
+     * Require authentication
+     * Returns 401 JSON for API routes, redirects to /login for web routes.
      */
     public function requireAuth(): array
     {
         $user = $this->user();
-        
+
         if (!$user) {
+            if ($this->isApiRequest()) {
+                $this->json(['ok' => false, 'error' => 'Unauthorized'], 401);
+            }
             $this->redirect('/login');
         }
-        
+
         return $user;
     }
-    
+
     /**
      * Require specific role
      */
     public function requireRole(string $role): array
     {
         $user = $this->requireAuth();
-        
+
         if (($user['role'] ?? '') !== $role) {
             $this->log('auth.access_denied', 'warning', [
                 'required_role' => $role,
@@ -1477,6 +1502,9 @@ final class App
                 'user_id' => $user['id'] ?? null,
                 'uri' => $_SERVER['REQUEST_URI'] ?? '',
             ]);
+            if ($this->isApiRequest()) {
+                $this->json(['ok' => false, 'error' => 'Forbidden', 'required_role' => $role], 403);
+            }
             if ($this->isHtmx()) {
                 http_response_code(403);
                 echo '<div class="p-4 text-red-600">Access denied</div>';
@@ -1484,17 +1512,17 @@ final class App
             }
             $this->redirect('/');
         }
-        
+
         return $user;
     }
-    
+
     /**
      * Require any of the specified roles
      */
     public function requireAnyRole(string ...$roles): array
     {
         $user = $this->requireAuth();
-        
+
         if (!in_array($user['role'] ?? '', $roles, true)) {
             $this->log('auth.access_denied', 'warning', [
                 'required_roles' => $roles,
@@ -1502,6 +1530,9 @@ final class App
                 'user_id' => $user['id'] ?? null,
                 'uri' => $_SERVER['REQUEST_URI'] ?? '',
             ]);
+            if ($this->isApiRequest()) {
+                $this->json(['ok' => false, 'error' => 'Forbidden'], 403);
+            }
             if ($this->isHtmx()) {
                 http_response_code(403);
                 echo '<div class="p-4 text-red-600">Access denied</div>';
@@ -1509,17 +1540,37 @@ final class App
             }
             $this->redirect('/');
         }
-        
+
         return $user;
     }
-    
+
+    /**
+     * Check whether the current request is an API (JSON) request.
+     */
+    private function isApiRequest(): bool
+    {
+        if (function_exists('kernel_is_api_request')) {
+            return kernel_is_api_request();
+        }
+        $uri = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+        return \Ikabud\Kernel\Http\RequestContext::matchIsApiRoute($uri);
+    }
+
     /**
      * Send JSON response
      */
     public function json(array $data, int $status = 200): void
     {
+        // Auto-include request_id in error responses (status >= 400)
+        if ($status >= 400 && !isset($data['request_id']) && function_exists('request_id')) {
+            $data['request_id'] = request_id();
+        }
         http_response_code($status);
         header('Content-Type: application/json');
+        // Always emit X-Request-Id header for correlation
+        if (function_exists('request_id') && ($id = request_id())) {
+            header('X-Request-Id: ' . $id);
+        }
         echo json_encode($data, JSON_UNESCAPED_UNICODE);
         exit;
     }

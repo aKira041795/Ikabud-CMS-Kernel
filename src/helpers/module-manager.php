@@ -1717,7 +1717,7 @@ function executeModuleHandler(string $handler, array $params = []): void
         $settings = getModuleSettings($moduleId);
         $allowKernelAdmin = (bool)($settings['allow_kernel_admin'] ?? false);
         if (!$allowKernelAdmin) {
-            $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri);
+            $isApiRoute = \Ikabud\Kernel\Http\ContentNegotiator::isApiRoute();
 
             if (!headers_sent()) {
                 http_response_code(403);
@@ -1744,7 +1744,7 @@ function executeModuleHandler(string $handler, array $params = []): void
     // API routes (Bearer-authenticated) are exempt; browser form posts must pass.
     $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $isModuleLogin = (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/login$#', $requestUri);
-    $isApiRoute = str_starts_with($requestUri, '/api/') || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/api/#', $requestUri) || (bool)preg_match('#^/(?:admin/)?[a-zA-Z0-9\-]+/auth/refresh$#', $requestUri);
+    $isApiRoute = \Ikabud\Kernel\Http\ContentNegotiator::isApiRoute();
 
     if ($requestMethod === 'POST' && $isModuleLogin) {
         \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
