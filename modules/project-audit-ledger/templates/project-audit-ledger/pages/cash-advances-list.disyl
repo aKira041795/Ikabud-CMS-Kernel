@@ -32,3 +32,19 @@
     <a href="/admin/project-audit-ledger/cash-advances/create" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Cash Advance</a>
 </div>
 {ikb_entity_list source="pal_cash_advance" view="table" use="tailwind" empty="No cash advances recorded." /}
+
+<script>
+function approveCa(id) {
+    if (!confirm('Approve this cash advance?')) return;
+    var form = new FormData();
+    form.append('decision', 'approved');
+    form.append('_csrf_token', document.querySelector('input[name=_csrf_token]')?.value || '');
+    fetch('/api/v1/project-audit-ledger/cash-advances/' + id + '/approve', { method: 'POST', body: form })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.ok) { showToast('Approved.', 'success'); location.reload(); }
+        else { showToast(d.error || 'Failed.', 'error'); }
+    })
+    .catch(function(){ showToast('Failed.', 'error'); });
+}
+</script>

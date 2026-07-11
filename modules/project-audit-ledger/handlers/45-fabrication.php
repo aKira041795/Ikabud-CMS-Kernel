@@ -70,17 +70,23 @@ function palPageFabricationDues(array $rp = []): void {
     foreach ($allocations as $a) { $totalDispensed += (float)($a['approved_amount'] ?? 0); }
     $fabBudget = $pj ? round((float)($pj['contract_amount'] ?? 0) * (float)($pj['fabrication_alloc_pct'] ?? 0) / 100, 2) : 0;
 
+    $weeklyDuesRows = $dues->fetchAll(PDO::FETCH_ASSOC);
+
     $t = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($t, [
         'current_user' => $u,
         'page_title' => ($pj ? $pj['title'] : 'Project') . ' — Weekly Dues',
         'page_content' => 'fabrication-dues',
-        'dues' => $dues->fetchAll(PDO::FETCH_ASSOC),
+        'dues' => $weeklyDuesRows,
+        'weekly_dues' => $weeklyDuesRows,
+        'project' => $pj,
         'project' => $pj,
         'allocation' => $allocations[0] ?? null,
         'dispenses' => $dispenses->fetchAll(PDO::FETCH_ASSOC),
         'total_dispensed' => $totalDispensed,
         'fab_budget' => $fabBudget,
+        'remaining_budget' => max(0, $fabBudget - $totalDispensed),
+        'first_allocation_id' => (int)(($allocations[0] ?? [])['id'] ?? 0),
         'project_id' => $pid,
     ]);
 }

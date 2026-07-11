@@ -70,7 +70,7 @@
 
     <!-- BOM Summary -->
     <div class="mt-4 p-4 bg-gray-50 rounded text-sm border-t">
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-4 gap-4">
             <div>
                 <span class="text-xs text-gray-500">Total Line Items</span>
                 <p class="font-semibold">{bom|count}</p>
@@ -82,6 +82,11 @@
             <div>
                 <span class="text-xs text-gray-500">From Sales</span>
                 <p class="font-semibold text-green-700">{bom|filter:item=>item.source_type=='sales'|count}</p>
+            </div>
+            <div>
+                <span class="text-xs text-gray-500">Total Cost</span>
+                {set bom_total = 0}{for item in bom}{set bom_total = bom_total + (item.line_total|default:0)}{/for}
+                <p class="font-semibold text-lg text-gray-900">₱{bom_total|number_format:2}</p>
             </div>
         </div>
     </div>
