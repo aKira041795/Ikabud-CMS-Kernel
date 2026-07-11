@@ -342,6 +342,10 @@ class palProjectService
             if ($data['status'] === 'completed' && empty($project['client_id'])) {
                 throw new InvalidArgumentException('Cannot complete a project without a client.');
             }
+            // Delegate 'completed' to completeProject() which handles smart completion
+            if ($data['status'] === 'completed') {
+                return $this->completeProject($id);
+            }
             $fields[] = 'status = :status';
             $params[':status'] = $data['status'];
         }
