@@ -395,6 +395,23 @@ function palApiMobilizationDisburse(array $rp = []): void
     echo json_encode(['ok' => true]);
 }
 
+// ── Admin Mobilization List ──
+
+/**
+ * Admin: Mobilization list page
+ * GET /admin/project-audit-ledger/mobilization
+ */
+function palPageMobilizationList(): void
+{
+    $u = palCurrentUser(['admin', 'supervisor']);
+    $t = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
+    palRender($t, [
+        'current_user' => $u,
+        'page_title' => 'Mobilization Requests',
+        'page_content' => 'mobilization-list',
+    ]);
+}
+
 // ── Attendance View (via reads_tables) ──
 
 /**

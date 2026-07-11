@@ -1,0 +1,9 @@
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h2 class="font-semibold text-gray-900 mb-4">Mobilization Requests</h2>
+
+    <div class="flex justify-between items-center mb-4">
+        <p class="text-sm text-gray-600">Manage team lead mobilization fund requests.</p>
+    </div>
+
+    {ikb_entity_list source="pal_mobilization" view="table" use="tailwind" empty="No mobilization requests found." /}
+</div>

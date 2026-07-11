@@ -8,6 +8,8 @@
         {elseif entity_path == 'issuance'}{set url_base = '/admin/project-audit-ledger/material-issuance'}
         {elseif entity_path == 'collection'}{set url_base = '/admin/project-audit-ledger/collections'}
         {elseif entity_path == 'fabrication_payment'}{set url_base = '/admin/project-audit-ledger/fabrication'}
+        {elseif entity_path == 'cash_advance'}{set url_base = '/admin/project-audit-ledger/cash-advances'}
+        {elseif entity_path == 'mobilization'}{set url_base = '/admin/project-audit-ledger/mobilization'}
         {else}{set url_base = ''}{/if}
         <div class="p-4 border-b border-gray-100">
             <div class="flex justify-between items-start">
@@ -36,6 +38,8 @@
         {elseif entity_path2 == 'issuance'}{set url_base2 = '/admin/project-audit-ledger/material-issuance'}
         {elseif entity_path2 == 'collection'}{set url_base2 = '/admin/project-audit-ledger/collections'}
         {elseif entity_path2 == 'fabrication_payment'}{set url_base2 = '/admin/project-audit-ledger/fabrication'}
+        {elseif entity_path2 == 'cash_advance'}{set url_base2 = '/admin/project-audit-ledger/cash-advances'}
+        {elseif entity_path2 == 'mobilization'}{set url_base2 = '/admin/project-audit-ledger/mobilization'}
         {else}{set url_base2 = ''}{/if}
         <div class="p-4 border-b border-gray-100">
             <div class="flex justify-between items-start">

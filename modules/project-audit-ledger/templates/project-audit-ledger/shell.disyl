@@ -81,6 +81,9 @@
                 <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                     📋 BOM
                 </a>
+                <a href="/admin/project-audit-ledger/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    🚛 Mobilization
+                </a>
                 {if current_user.role == 'admin'}
                 <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                     💵 Cash Advances

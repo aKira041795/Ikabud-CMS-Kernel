@@ -578,6 +578,14 @@
         "pal.sale.created",
         "pal.collection.recorded",
         "pal.approval.completed",
+        "pal.cash_advance.created",
+        "pal.cash_advance.approved",
+        "pal.cash_advance.rejected",
+        "pal.cash_advance.settled",
+        "pal.mobilization.requested",
+        "pal.mobilization.approved",
+        "pal.mobilization.rejected",
+        "pal.mobilization.disbursed",
         "pal.report.generated"
     ],
     "settings_fields": [
