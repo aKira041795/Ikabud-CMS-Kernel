@@ -64,7 +64,7 @@ function palOtpSendEmail(string $email, string $code, int $ttl): bool
 function palPageTeamLeadLogin(): void
 {
     $t = __DIR__ . '/../templates/project-audit-ledger/team-lead-login.disyl';
-    app()->render($t, ['page_title' => 'Team Lead Login']);
+    echo app()->render($t, ['page_title' => 'Team Lead Login']);
 }
 
 function palPageTeamLeadOtpVerify(): void

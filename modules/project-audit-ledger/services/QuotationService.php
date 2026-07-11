@@ -335,6 +335,68 @@ class palQuotationService
         }
     }
 
+    /**
+     * Convert an approved quotation to a Project.
+     * Creates pal_projects with contract_amount = quotation total,
+     * auto-generates JO number, sets status to 'pending'.
+     */
+    public function convertToProject(int $id): int
+    {
+        $quotation = $this->get($id);
+        if (!$quotation) throw new InvalidArgumentException('Quotation not found.');
+        if ($quotation['status'] !== 'approved') throw new InvalidArgumentException('Only approved quotations can become projects.');
+        if ($quotation['status'] === 'converted') throw new InvalidArgumentException('Quotation already converted.');
+
+        // Auto-generate project ID and JO number
+        $projId = 'P-' . date('Ymd') . '-' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $joCount = $this->db->prepare("SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND job_order_number IS NOT NULL");
+        $joCount->execute([':tid' => $this->tenantId]);
+        $joNum = 'JO-' . date('Ymd') . '-' . str_pad((string)((int)$joCount->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare("INSERT INTO pal_projects 
+                (tenant_id, project_id, job_order_number, title, client_id,
+                 description, location, contract_amount, estimated_cost,
+                 start_date, status, notes, created_by)
+                VALUES (:t, :pi, :jo, :title, :cl, :desc, :loc, :ca, :ec, :sd, 'pending', :no, :cb)");
+
+            $stmt->execute([
+                ':t' => $this->tenantId,
+                ':pi' => $projId,
+                ':jo' => $joNum,
+                ':title' => $quotation['project_title'] ?? ('Quotation #' . $quotation['quotation_number']),
+                ':cl' => $quotation['client_id'],
+                ':desc' => 'Created from quotation #' . $quotation['quotation_number'],
+                ':loc' => null,
+                ':ca' => $quotation['total_amount'],
+                ':ec' => $quotation['subtotal'],
+                ':sd' => $quotation['quotation_date'],
+                ':no' => $quotation['notes'],
+                ':cb' => $this->userId,
+            ]);
+
+            $projectId = (int)$this->db->lastInsertId();
+
+            // Link quotation to the new project
+            $this->db->prepare("UPDATE pal_quotations SET project_id = :pj, status = 'converted', version = version + 1 WHERE id = :qid AND tenant_id = :tid")
+                ->execute([':pj' => $projectId, ':qid' => $id, ':tid' => $this->tenantId]);
+
+            $this->db->commit();
+
+            palAudit('pal.quotation.converted_to_project', $this->userId, 'pal_quotations', (string)$id,
+                null, ['project_id' => $projectId, 'total_amount' => $quotation['total_amount'], 'jo_number' => $joNum]);
+            palFireEvent('pal.quotation.converted_to_project', [
+                'quotation_id' => $id, 'project_id' => $projectId, 'jo_number' => $joNum,
+            ]);
+
+            return $projectId;
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
     private function saveItems(int $quotationId, array $items): void
     {
         if (empty($items)) return;

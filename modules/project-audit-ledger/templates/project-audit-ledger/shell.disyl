@@ -29,75 +29,131 @@
                 <h1 class="text-lg font-bold text-white">{pal_app_name}</h1>
                 <p class="text-xs text-slate-400">{current_user.full_name}</p>
             </div>
-            <nav class="flex-1 overflow-y-auto p-2 space-y-1">
-                <a href="/admin/project-audit-ledger" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📊 Dashboard
-                </a>
-                <a href="/admin/project-audit-ledger/projects" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📁 Projects
-                </a>
-                <a href="/admin/project-audit-ledger/clients" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    👤 Clients
-                </a>
-                <a href="/admin/project-audit-ledger/suppliers" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🏭 Suppliers
-                </a>
-                <a href="/admin/project-audit-ledger/expenses" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    💳 Expenses
-                </a>
-                <a href="/admin/project-audit-ledger/inventory" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📦 Inventory
-                </a>
-                <a href="/admin/project-audit-ledger/inventory/movements" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📤 Stock Movements
-                </a>
-                <a href="/admin/project-audit-ledger/purchases" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🛒 Purchases
-                </a>
-                <a href="/admin/project-audit-ledger/material-issuance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📋 Issuance
-                </a>
-                <a href="/admin/project-audit-ledger/material-returns" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🔄 Returns
-                </a>
-                <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🔧 Fabrication
-                </a>
-                <a href="/admin/project-audit-ledger/quotations" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📋 Quotations
-                </a>
-                <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    💰 Sales
-                </a>
-                <a href="/admin/project-audit-ledger/collections" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    💵 Collections
-                </a>
-                <a href="/admin/project-audit-ledger/approvals" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    ✅ Approvals
-                </a>
-                <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📈 Reports
-                </a>
-                <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📋 BOM
-                </a>
-                <a href="/admin/project-audit-ledger/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🚛 Mobilization
-                </a>
+            <nav class="flex-1 overflow-y-auto p-2 space-y-1" x-data="{ sections: { overview: true, project: true, sales: true, inventory: true, ops: true, oversight: true, admin: true } }">
+                <!-- Overview -->
+                <div @click="sections.overview = !sections.overview" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-2 pb-1 hover:text-slate-300 select-none">
+                    <span>Overview</span>
+                    <span x-text="sections.overview ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.overview" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📊 Dashboard
+                    </a>
+                    <a href="/admin/project-audit-ledger/projects/create" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        ➕ New Job Order
+                    </a>
+                </div>
+
+                <!-- Project Management -->
+                <div @click="sections.project = !sections.project" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
+                    <span>Job Orders</span>
+                    <span x-text="sections.project ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.project" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger/projects" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📋 All Job Orders
+                    </a>
+                    <a href="/admin/project-audit-ledger/clients" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        👤 Clients
+                    </a>
+                    <a href="/admin/project-audit-ledger/suppliers" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        🏭 Suppliers
+                    </a>
+                </div>
+
+                <!-- Sales & Billing -->
+                <div @click="sections.sales = !sections.sales" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
+                    <span>Sales &amp; Billing</span>
+                    <span x-text="sections.sales ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.sales" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        💰 Sales Invoices
+                    </a>
+                    <a href="/admin/project-audit-ledger/collections" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        💵 Collections
+                    </a>
+                    <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📋 BOM
+                    </a>
+                </div>
+
+                <!-- Inventory & Procurement -->
+                <div @click="sections.inventory = !sections.inventory" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
+                    <span>Inventory &amp; Procurement</span>
+                    <span x-text="sections.inventory ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.inventory" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger/inventory" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📦 Inventory
+                    </a>
+                    <a href="/admin/project-audit-ledger/inventory/movements" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📤 Stock Movements
+                    </a>
+                    <a href="/admin/project-audit-ledger/purchases" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        🛒 Purchases
+                    </a>
+                    <a href="/admin/project-audit-ledger/material-issuance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📋 Issuance
+                    </a>
+                    <a href="/admin/project-audit-ledger/material-returns" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        🔄 Returns
+                    </a>
+                    <a href="/admin/project-audit-ledger/expenses" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        💳 Expenses
+                    </a>
+                </div>
+
+                <!-- Operations -->
+                <div @click="sections.ops = !sections.ops" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
+                    <span>Operations</span>
+                    <span x-text="sections.ops ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.ops" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        🔧 Fabrication
+                    </a>
+                    <a href="/admin/project-audit-ledger/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        🚛 Mobilization
+                    </a>
+                    {if current_user.role == 'admin'}
+                    <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        💵 Cash Advances
+                    </a>
+                    {/if}
+                </div>
+
+                <!-- Oversight -->
+                <div @click="sections.oversight = !sections.oversight" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
+                    <span>Oversight</span>
+                    <span x-text="sections.oversight ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.oversight" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger/approvals" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        ✅ Approvals
+                    </a>
+                    <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📈 Reports
+                    </a>
+                </div>
+
+                <!-- Administration -->
                 {if current_user.role == 'admin'}
-                <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    💵 Cash Advances
-                </a>
-                <hr class="my-2 border-slate-700">
-                <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📜 Audit Trail
-                </a>
-                <a href="/admin/project-audit-ledger/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    ⚙️ Settings
-                </a>
-                <a href="/admin/project-audit-ledger/users" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    👥 Users
-                </a>
+                <div @click="sections.admin = !sections.admin" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
+                    <span>Administration</span>
+                    <span x-text="sections.admin ? '−' : '+'">−</span>
+                </div>
+                <div x-show="sections.admin" x-transition.duration.200ms>
+                    <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        📜 Audit Trail
+                    </a>
+                    <a href="/admin/project-audit-ledger/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        ⚙️ Settings
+                    </a>
+                    <a href="/admin/project-audit-ledger/users" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                        👥 Users
+                    </a>
+                </div>
                 {/if}
             </nav>
             <div class="p-4 border-t border-slate-700">

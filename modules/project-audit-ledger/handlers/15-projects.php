@@ -11,7 +11,7 @@ function palPageProjectList(): void
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
-        'page_title' => 'Projects',
+        'page_title' => 'Job Orders',
         'page_content' => 'projects-list',
     ]);
 }
@@ -43,17 +43,25 @@ function palPageProjectForm(array $rp = []): void
     $s3 = $db->prepare('SELECT id, name FROM pal_team_leads WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
     $s3->execute([':tid' => $tid]);
     $teamLeads = $s3->fetchAll(PDO::FETCH_ASSOC);
+    $s4 = $db->prepare("SELECT m.id, m.name, m.material_code, m.price_per_unit, m.price_per_sqft, 
+                               m.default_width, m.default_height, mc.name AS category_name
+                        FROM pal_materials m 
+                        LEFT JOIN pal_material_categories mc ON m.category_id = mc.id 
+                        WHERE m.tenant_id = :tid AND m.is_active = 1 ORDER BY m.name");
+    $s4->execute([':tid' => $tid]);
+    $materials = $s4->fetchAll(PDO::FETCH_ASSOC);
 
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
-        'page_title' => $isEdit ? 'Edit Project' : 'Create Project',
+        'page_title' => $isEdit ? 'Edit Job Order' : 'New Job Order',
         'page_content' => 'project-form',
         'project' => $project,
         'is_edit' => $isEdit,
         'clients' => $clients,
         'project_types' => $types,
         'team_leads' => $teamLeads,
+        'materials' => $materials,
     ]);
 }
 
@@ -106,7 +114,7 @@ function palPageProjectDetail(array $rp = []): void
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
-        'page_title' => $project['title'],
+        'page_title' => 'JO: ' . ($project['title'] ?? 'Project'),
         'page_content' => 'project-detail',
         'project' => $project,
         'costs' => $costs,

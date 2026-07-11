@@ -119,6 +119,8 @@ return [
         '/api/v1/project-audit-ledger/cash-advances/{id}/void' => 'project-audit-ledger:palApiCashAdvanceVoid',
         '/api/v1/project-audit-ledger/approvals/{id}/decide' => 'project-audit-ledger:palApiApprovalDecide',
         '/api/v1/project-audit-ledger/quotations' => 'project-audit-ledger:palApiQuotationStore',
+        '/api/v1/project-audit-ledger/quotations/{id}/convert-project' => 'project-audit-ledger:palApiQuotationConvertToProject',
+        '/api/v1/project-audit-ledger/quotations/{id}/convert' => 'project-audit-ledger:palApiQuotationConvert',
         '/api/v1/project-audit-ledger/quotations/{id}/convert' => 'project-audit-ledger:palApiQuotationConvert',
         '/api/v1/project-audit-ledger/quotations/{id}/status' => 'project-audit-ledger:palApiQuotationStatus',
         '/api/v1/project-audit-ledger/quotations/{id}' => 'project-audit-ledger:palApiQuotationUpdate',

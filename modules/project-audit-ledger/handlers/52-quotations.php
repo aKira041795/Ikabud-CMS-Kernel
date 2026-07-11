@@ -161,6 +161,20 @@ function palApiQuotationConvert(array $rp = []): void
     });
 }
 
+function palApiQuotationConvertToProject(array $rp = []): void
+{
+    palResponseGuard(function () use ($rp): void {
+        $u = palCurrentUser();
+        palEnforceCsrf();
+        $id = (int)($rp['id'] ?? $_GET['id'] ?? 0);
+        if ($id <= 0) { palJsonError('Invalid ID.'); return; }
+        $s = new palQuotationService(palDb(), (int)($u['tenant_id'] ?? 0), (int)$u['id']);
+        $projectId = $s->convertToProject($id);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => true, 'project_id' => $projectId]);
+    });
+}
+
 function palApiQuotationStatus(array $rp = []): void
 {
     palResponseGuard(function () use ($rp): void {

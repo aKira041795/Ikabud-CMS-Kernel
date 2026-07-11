@@ -77,59 +77,115 @@ class palProjectService
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tenant_id' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return is_array($row) ? $row : null;
+        if (!is_array($row)) return null;
+        $row['items'] = $this->getItems($id);
+        return $row;
+    }
+
+    public function getItems(int $projectId): array
+    {
+        $stmt = $this->db->prepare("SELECT pi.*, m.name AS material_name, m.material_code
+                                     FROM pal_project_items pi
+                                     LEFT JOIN pal_materials m ON pi.material_id = m.id
+                                     WHERE pi.project_id = :pid AND pi.tenant_id = :tid
+                                     ORDER BY pi.sort_order ASC");
+        $stmt->execute([':pid' => $projectId, ':tid' => $this->tenantId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public function create(array $data): int
     {
         $this->validate($data);
 
+        // Auto-generate JO number if not provided
+        if (empty($data['job_order_number'])) {
+            $joCount = $this->db->prepare("SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND job_order_number IS NOT NULL");
+            $joCount->execute([':tid' => $this->tenantId]);
+            $data['job_order_number'] = 'JO-' . date('Ymd') . '-' . str_pad((string)((int)$joCount->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+        }
+
+        // Calculate contract_amount from items if not provided
+        $items = $data['items'] ?? [];
+        $calculatedTotal = $this->calculateItemsTotal($items);
+        $contractAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : $calculatedTotal;
+        $installationCharge = (float)($data['installation_charge'] ?? 0);
+        $mobilizationCharge = (float)($data['mobilization_charge'] ?? 0);
+        $otherCharges = (float)($data['other_charges'] ?? 0);
+        $totalAmount = $calculatedTotal + $installationCharge + $mobilizationCharge + $otherCharges;
+
         $sql = "INSERT INTO pal_projects (
                     tenant_id, project_id, job_order_number, title, client_id,
-                    project_type_id, description, location, contract_amount,
-                    estimated_cost, start_date, target_completion_date,
+                    project_type_id, scope_of_work, with_installation,
+                    description, location, contract_amount, installation_charge,
+                    mobilization_charge, other_charges, mode_of_payment,
+                    down_payment, down_payment_type, estimated_cost,
+                    start_date, target_completion_date,
                     project_manager, fabrication_team_lead_id,
                     fabrication_alloc_pct, fabrication_alloc_basis,
                     fabrication_alloc_fixed, status, budget_warning_pct,
                     notes, created_by
                 ) VALUES (
                     :tenant_id, :project_id, :job_order_number, :title, :client_id,
-                    :project_type_id, :description, :location, :contract_amount,
-                    :estimated_cost, :start_date, :target_completion_date,
+                    :project_type_id, :scope_of_work, :with_installation,
+                    :description, :location, :contract_amount, :installation_charge,
+                    :mobilization_charge, :other_charges, :mode_of_payment,
+                    :down_payment, :down_payment_type, :estimated_cost,
+                    :start_date, :target_completion_date,
                     :project_manager, :fabrication_team_lead_id,
                     :fabrication_alloc_pct, :fabrication_alloc_basis,
                     :fabrication_alloc_fixed, :status, :budget_warning_pct,
                     :notes, :created_by
                 )";
 
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
-            ':tenant_id' => $this->tenantId,
-            ':project_id' => $data['project_id'],
-            ':job_order_number' => $data['job_order_number'] ?? null,
-            ':title' => $data['title'],
-            ':client_id' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
-            ':project_type_id' => !empty($data['project_type_id']) ? (int)$data['project_type_id'] : null,
-            ':description' => $data['description'] ?? null,
-            ':location' => $data['location'] ?? null,
-            ':contract_amount' => $data['contract_amount'] ?? 0,
-            ':estimated_cost' => $data['estimated_cost'] ?? 0,
-            ':start_date' => $data['start_date'] ?? null,
-            ':target_completion_date' => $data['target_completion_date'] ?? null,
-            ':project_manager' => $data['project_manager'] ?? null,
-            ':fabrication_team_lead_id' => !empty($data['fabrication_team_lead_id']) ? (int)$data['fabrication_team_lead_id'] : null,
-            ':fabrication_alloc_pct' => $data['fabrication_alloc_pct'] ?? null,
-            ':fabrication_alloc_basis' => $data['fabrication_alloc_basis'] ?? 'expenses',
-            ':fabrication_alloc_fixed' => $data['fabrication_alloc_fixed'] ?? null,
-            ':status' => $data['status'] ?? 'draft',
-            ':budget_warning_pct' => $data['budget_warning_pct'] ?? 80,
-            ':notes' => $data['notes'] ?? null,
-            ':created_by' => $this->userId,
-        ]);
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([
+                ':tenant_id' => $this->tenantId,
+                ':project_id' => $data['project_id'],
+                ':job_order_number' => $data['job_order_number'],
+                ':title' => $data['title'],
+                ':client_id' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
+                ':project_type_id' => !empty($data['project_type_id']) ? (int)$data['project_type_id'] : null,
+                ':scope_of_work' => $data['scope_of_work'] ?? null,
+                ':with_installation' => !empty($data['with_installation']) ? 1 : 0,
+                ':description' => $data['description'] ?? null,
+                ':location' => $data['location'] ?? null,
+                ':contract_amount' => $totalAmount,
+                ':installation_charge' => $installationCharge,
+                ':mobilization_charge' => $mobilizationCharge,
+                ':other_charges' => $otherCharges,
+                ':mode_of_payment' => $data['mode_of_payment'] ?? null,
+                ':down_payment' => !empty($data['down_payment']) ? (float)$data['down_payment'] : null,
+                ':down_payment_type' => $data['down_payment_type'] ?? null,
+                ':estimated_cost' => $data['estimated_cost'] ?? 0,
+                ':start_date' => $data['start_date'] ?? null,
+                ':target_completion_date' => $data['target_completion_date'] ?? null,
+                ':project_manager' => $data['project_manager'] ?? null,
+                ':fabrication_team_lead_id' => !empty($data['fabrication_team_lead_id']) ? (int)$data['fabrication_team_lead_id'] : null,
+                ':fabrication_alloc_pct' => $data['fabrication_alloc_pct'] ?? null,
+                ':fabrication_alloc_basis' => $data['fabrication_alloc_basis'] ?? 'expenses',
+                ':fabrication_alloc_fixed' => $data['fabrication_alloc_fixed'] ?? null,
+                ':status' => $data['status'] ?? 'draft',
+                ':budget_warning_pct' => $data['budget_warning_pct'] ?? 80,
+                ':notes' => $data['notes'] ?? null,
+                ':created_by' => $this->userId,
+            ]);
 
-        $newId = (int)$this->db->lastInsertId();
-        palFireEvent('pal.project.created', ['project_id' => $newId, 'title' => $data['title']]);
-        return $newId;
+            $newId = (int)$this->db->lastInsertId();
+
+            // Save items
+            if (!empty($items)) {
+                $this->saveItems($newId, $items);
+            }
+
+            $this->db->commit();
+            palFireEvent('pal.project.created', ['project_id' => $newId, 'title' => $data['title']]);
+            return $newId;
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     public function update(int $id, array $data): bool
@@ -139,22 +195,41 @@ class palProjectService
             throw new InvalidArgumentException('Project not found.');
         }
 
-        $allowed = ['draft', 'approved', 'in_progress', 'on_hold', 'completed', 'cancelled', 'closed'];
+        $allowed = ['draft', 'pending', 'approved', 'started', 'ongoing', 'completed', 'cancelled', 'closed'];
         $fields = [];
         $params = [':id' => $id, ':tenant_id' => $this->tenantId];
 
         foreach ([
             'project_id', 'job_order_number', 'title', 'client_id', 'project_type_id',
+            'scope_of_work', 'with_installation',
             'description', 'location', 'contract_amount', 'estimated_cost',
+            'installation_charge', 'mobilization_charge', 'other_charges',
+            'mode_of_payment', 'down_payment', 'down_payment_type',
             'start_date', 'target_completion_date', 'actual_completion_date',
             'project_manager', 'fabrication_team_lead_id',
             'fabrication_alloc_pct', 'fabrication_alloc_basis',
             'fabrication_alloc_fixed', 'notes', 'budget_warning_pct',
         ] as $field) {
             if (array_key_exists($field, $data)) {
+                $val = $data[$field];
+                // Handle with_installation as int
+                if ($field === 'with_installation') {
+                    $val = !empty($val) ? 1 : 0;
+                }
                 $fields[] = "{$field} = :{$field}";
-                $params[":{$field}"] = $data[$field];
+                $params[":{$field}"] = $val;
             }
+        }
+
+        // Recalculate contract_amount if items are provided
+        if (isset($data['items'])) {
+            $installationCharge = (float)($data['installation_charge'] ?? $project['installation_charge'] ?? 0);
+            $mobilizationCharge = (float)($data['mobilization_charge'] ?? $project['mobilization_charge'] ?? 0);
+            $otherCharges = (float)($data['other_charges'] ?? $project['other_charges'] ?? 0);
+            $itemsTotal = $this->calculateItemsTotal($data['items']);
+            $newTotal = $itemsTotal + $installationCharge + $mobilizationCharge + $otherCharges;
+            $fields[] = 'contract_amount = :_new_total';
+            $params[':_new_total'] = $newTotal;
         }
 
         if (array_key_exists('status', $data)) {
@@ -173,20 +248,35 @@ class palProjectService
         $fields[] = 'updated_by = :updated_by';
         $params[':updated_by'] = $this->userId;
 
-        $sql = 'UPDATE pal_projects SET ' . implode(', ', $fields) . ' WHERE id = :id AND tenant_id = :tenant_id';
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute($params);
+        $this->db->beginTransaction();
+        try {
+            $sql = 'UPDATE pal_projects SET ' . implode(', ', $fields) . ' WHERE id = :id AND tenant_id = :tenant_id';
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
 
-        $changed = $stmt->rowCount() > 0;
-        if ($changed) {
-            palFireEvent('pal.project.updated', ['project_id' => $id, 'updated_fields' => array_keys($data)]);
+            // Save items if provided
+            if (isset($data['items'])) {
+                $this->db->prepare("DELETE FROM pal_project_items WHERE project_id = :pid AND tenant_id = :tid")
+                    ->execute([':pid' => $id, ':tid' => $this->tenantId]);
+                $this->saveItems($id, $data['items']);
+            }
+
+            $this->db->commit();
+
+            $changed = $stmt->rowCount() > 0;
+            if ($changed) {
+                palFireEvent('pal.project.updated', ['project_id' => $id, 'updated_fields' => array_keys($data)]);
+            }
+            return $changed;
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
         }
-        return $changed;
     }
 
     public function updateStatus(int $id, string $status): bool
     {
-        $allowed = ['draft', 'approved', 'in_progress', 'on_hold', 'completed', 'cancelled', 'closed'];
+        $allowed = ['draft', 'pending', 'approved', 'started', 'ongoing', 'completed', 'cancelled', 'closed'];
         if (!in_array($status, $allowed, true)) {
             throw new InvalidArgumentException('Invalid status: ' . $status);
         }
@@ -223,5 +313,63 @@ class palProjectService
         if (isset($data['estimated_cost']) && $data['estimated_cost'] < 0) {
             throw new InvalidArgumentException('Estimated cost cannot be negative.');
         }
+    }
+
+    private function saveItems(int $projectId, array $items): void
+    {
+        if (empty($items)) return;
+
+        $stmt = $this->db->prepare("INSERT INTO pal_project_items 
+            (tenant_id, project_id, material_id, particulars, width, height, uom, quantity,
+             price_per_unit, price_per_sqft, line_total, sort_order)
+            VALUES (:t, :pj, :mi, :part, :w, :h, :uom, :qty, :ppu, :psf, :lt, :so)");
+
+        foreach ($items as $i => $item) {
+            $qty = (float)($item['quantity'] ?? 1);
+            $unitPrice = (float)($item['price_per_unit'] ?? 0);
+            $sqftPrice = (float)($item['price_per_sqft'] ?? 0);
+            $w = (float)($item['width'] ?? 0);
+            $h = (float)($item['height'] ?? 0);
+
+            if ($sqftPrice > 0 && $w > 0 && $h > 0) {
+                $lineTotal = $w * $h * $sqftPrice * $qty;
+            } else {
+                $lineTotal = $unitPrice * $qty;
+            }
+
+            $stmt->execute([
+                ':t' => $this->tenantId,
+                ':pj' => $projectId,
+                ':mi' => !empty($item['material_id']) ? (int)$item['material_id'] : null,
+                ':part' => $item['particulars'] ?? '',
+                ':w' => !empty($item['width']) ? (float)$item['width'] : null,
+                ':h' => !empty($item['height']) ? (float)$item['height'] : null,
+                ':uom' => $item['uom'] ?? null,
+                ':qty' => $qty,
+                ':ppu' => $unitPrice,
+                ':psf' => $sqftPrice > 0 ? $sqftPrice : null,
+                ':lt' => $lineTotal,
+                ':so' => $i + 1,
+            ]);
+        }
+    }
+
+    private function calculateItemsTotal(array $items): float
+    {
+        $total = 0;
+        foreach ($items as $item) {
+            $qty = (float)($item['quantity'] ?? 1);
+            $unitPrice = (float)($item['price_per_unit'] ?? 0);
+            $sqftPrice = (float)($item['price_per_sqft'] ?? 0);
+            $w = (float)($item['width'] ?? 0);
+            $h = (float)($item['height'] ?? 0);
+
+            if ($sqftPrice > 0 && $w > 0 && $h > 0) {
+                $total += $w * $h * $sqftPrice * $qty;
+            } else {
+                $total += $unitPrice * $qty;
+            }
+        }
+        return $total;
     }
 }

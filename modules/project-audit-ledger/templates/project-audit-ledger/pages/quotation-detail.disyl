@@ -8,6 +8,9 @@
         <div class="flex gap-2 no-print">
             <a href="/admin/project-audit-ledger/quotations" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a>
             <a href="/admin/project-audit-ledger/quotations/{quotation.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
+            {if quotation.status == 'approved'}
+            <button onclick="convertToProject({quotation.id})" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Create Project</button>
+            {/if}
             {if quotation.status != 'converted'}
             <button onclick="convertToSale({quotation.id})" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Convert to Invoice</button>
             {/if}
@@ -21,6 +24,11 @@
     {if quotation.converted_to_sale_id}
     <div class="mb-4 p-3 bg-purple-50 border border-purple-200 rounded text-sm">
         ✅ Converted to Invoice <a href="/admin/project-audit-ledger/sales/{quotation.converted_to_sale_id}" class="text-blue-600 hover:text-blue-800 font-medium">#{quotation.converted_to_sale_id}</a>
+    </div>
+    {/if}
+    {if quotation.project_id}
+    <div class="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded text-sm">
+        📁 Project: <a href="/admin/project-audit-ledger/projects/{quotation.project_id}" class="text-blue-600 hover:text-blue-800 font-medium">{quotation.project_title|default:'View Project'}</a>
     </div>
     {/if}
 
@@ -222,6 +230,16 @@ function convertToSale(id) {
         else { showToast('Conversion failed.', 'error'); }
     })
     .catch(function(){ showToast('Conversion failed.', 'error'); });
+}
+function convertToProject(id) {
+    if (!confirm('Create a project from this approved quotation? A JO number will be auto-generated.')) return;
+    fetch('/api/v1/project-audit-ledger/quotations/' + id + '/convert-project', { method: 'POST', headers: { 'X-CSRF-Token': document.querySelector('input[name=_csrf_token]')?.value || '' } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) { showToast('Project created!', 'success'); setTimeout(function(){ window.location = '/admin/project-audit-ledger/projects/' + d.project_id; }, 1000); }
+        else { showToast(d.error || 'Failed to create project', 'error'); }
+    })
+    .catch(function(){ showToast('Failed to create project.', 'error'); });
 }
 function updateQuotationStatus(id, status) {
     var label = status.replace(/_/g, ' ');
