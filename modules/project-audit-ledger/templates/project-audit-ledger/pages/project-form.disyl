@@ -107,10 +107,10 @@
                 <div class="flex-1">
                     <input type="file" id="mockup-file" accept="image/*" onchange="uploadMockup()" class="w-full text-sm">
                     <p class="text-xs text-gray-500 mt-1">Upload a design mockup or reference image for this JO (max 2MB recommended)</p>
-                    <input type="hidden" name="mockup_attachment_id" id="mockup-attachment-id" value="">
+                    <input type="hidden" name="mockup_attachment_id" id="mockup-attachment-id" value="{mockup_attachment_id|default:0}">
                 </div>
-                <div id="mockup-preview" class="flex-shrink-0" style="display:none">
-                    <img id="mockup-img" src="" alt="Mockup preview" class="rounded-lg border border-gray-200" style="max-width:200px;max-height:150px;object-fit:cover;cursor:pointer" onclick="openLightbox(this.src, 'Mockup Image')" title="Click to enlarge">
+                <div id="mockup-preview" class="flex-shrink-0" {if !mockup_url}style="display:none"{/if}>
+                    <img id="mockup-img" src="{mockup_url|default:''}" alt="Mockup preview" class="rounded-lg border border-gray-200" style="max-width:200px;max-height:150px;object-fit:cover;cursor:pointer" onclick="openLightbox(this.src, 'Mockup Image')" title="Click to enlarge">
                     <button type="button" onclick="removeMockup()" class="block mt-1 text-xs text-red-500 hover:text-red-700" title="Remove mockup">✕ Remove</button>
                 </div>
             </div>

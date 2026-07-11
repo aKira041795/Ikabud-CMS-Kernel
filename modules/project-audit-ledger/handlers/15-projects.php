@@ -52,6 +52,20 @@ function palPageProjectForm(array $rp = []): void
     $materials = $s4->fetchAll(PDO::FETCH_ASSOC);
 
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
+
+    // Fetch existing mockup attachment for edit mode
+    $mockupId = 0;
+    $mockupUrl = '';
+    if ($isEdit && $id > 0) {
+        $attStmt = $db->prepare("SELECT id, file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
+        $attStmt->execute([':tid' => $tid, ':eid' => $id]);
+        $att = $attStmt->fetch(PDO::FETCH_ASSOC);
+        if ($att) {
+            $mockupId = (int)$att['id'];
+            $mockupUrl = '/' . $att['file_path'];
+        }
+    }
+
     palRender($template, [
         'current_user' => $user,
         'page_title' => $isEdit ? 'Edit Job Order' : 'New Job Order',
@@ -62,6 +76,8 @@ function palPageProjectForm(array $rp = []): void
         'project_types' => $types,
         'team_leads' => $teamLeads,
         'materials' => $materials,
+        'mockup_attachment_id' => $mockupId,
+        'mockup_url' => $mockupUrl,
     ]);
 }
 
