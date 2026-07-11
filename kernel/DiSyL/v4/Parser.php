@@ -1034,6 +1034,11 @@ final class Parser
         $trueExpr = trim(substr($content, $qPos + 1, $colonPos - $qPos - 1));
         $falseExpr = trim(substr($content, $colonPos + 1));
 
+        // Shorthand ternary "a ?: b" → use condition as true value
+        if ($trueExpr === '') {
+            $trueExpr = $cond;
+        }
+
         $trueNode = new ExpressionNode([], $this->parseExprValue($trueExpr), null, true);
         $falseNode = new ExpressionNode([], $this->parseExprValue($falseExpr), null, true);
 

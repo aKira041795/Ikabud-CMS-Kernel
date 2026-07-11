@@ -156,7 +156,10 @@ function removeMockup() {
 </script>
 
 <script>
-var matData = { {for m in materials}{m.id}:{ppu:m.price_per_unit ?: 0,psf:m.price_per_sqft ?: 0,w:m.default_width ?: 0,h:m.default_height ?: 0},{/for}_end:0 };
+var matData = {};
+{for m in materials}
+matData[{m.id}] = {ppu:{m.price_per_unit|default:0},psf:{m.price_per_sqft|default:0},w:{m.default_width|default:0},h:{m.default_height|default:0}};
+{/for}
 var itemIdx = {if project.items}{project.items|count}{else}0{/if};
 
 function addItem() {
@@ -167,7 +170,7 @@ function addItem() {
     tr.className = 'border-b border-gray-200 item-row';
     var matOpts = '<option value="">—</option>';
     {for m in materials}
-    matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit ?: 0}" data-psf="{m.price_per_sqft ?: 0}" data-w="{m.default_width ?: 0}" data-h="{m.default_height ?: 0}">{m.name|escape:'html'}</option>';
+    matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit|default:0}" data-psf="{m.price_per_sqft|default:0}" data-w="{m.default_width|default:0}" data-h="{m.default_height|default:0}">{m.name|escape:'html'}</option>';
     {/for}
     matOpts += '<option value="__other__">✦ Other: type name…</option>';
     tr.innerHTML = '<td class="py-2 px-2 text-center item-num">' + itemIdx + '</td>' +
