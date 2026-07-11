@@ -225,7 +225,7 @@ function palApiProjectUpdate(array $rp = []): void
             $db->prepare("UPDATE pal_attachments SET entity_id = :eid WHERE id = :aid AND tenant_id = :tid AND entity_id = 0")
                 ->execute([':eid' => $id, ':aid' => $mockupId, ':tid' => $tid]);
             // Update file_path and move file on disk from project/0/ to project/{id}/
-            $db->prepare("UPDATE pal_attachments SET file_path = REPLACE(file_path, '/project/0/', :np) WHERE id = :aid AND tenant_id = :tid")
+            $db->prepare("UPDATE pal_attachments SET file_path = REPLACE(file_path, '/project/0/', :np) WHERE id = :aid AND tenant_id = :tid AND file_path LIKE '%/project/0/%'")
                 ->execute([':np' => '/project/' . $id . '/', ':aid' => $mockupId, ':tid' => $tid]);
             $oldDir = PUBLIC_PATH . '/uploads/pal/' . $tid . '/project/0';
             $newDir = PUBLIC_PATH . '/uploads/pal/' . $tid . '/project/' . $id;
