@@ -42,6 +42,8 @@ function project_audit_ledger_capability_handlers(): array
         'pal.sales.items.manage@1' => 'pal_cap_sales_items_manage_1',
         'pal.cash_advances.read@1' => 'pal_cap_cash_advances_read_1',
         'pal.cash_advances.write@1' => 'pal_cap_cash_advances_write_1',
+        'pal.mobilization.read@1' => 'pal_cap_mobilization_read_1',
+        'pal.mobilization.write@1' => 'pal_cap_mobilization_write_1',
         'entity.list.pal_project@1' => 'pal_cap_entity_list_project_1',
         'entity.get.pal_project@1' => 'pal_cap_entity_get_project_1',
         'entity.list.pal_expense@1' => 'pal_cap_entity_list_expense_1',
@@ -67,6 +69,7 @@ function project_audit_ledger_capability_handlers(): array
         'entity.list.pal_quotation_item@1' => 'pal_cap_entity_list_quotation_item_1',
         'entity.list.pal_sale_item@1' => 'pal_cap_entity_list_sale_item_1',
         'entity.list.pal_cash_advance@1' => 'pal_cap_entity_list_cash_advance_1',
+        'entity.list.pal_mobilization@1' => 'pal_cap_entity_list_mobilization_1',
     ];
 }
 
@@ -932,6 +935,16 @@ function pal_cap_cash_advances_write_1(array $args): array
     return palCapCheck(['admin', 'supervisor']);
 }
 
+function pal_cap_mobilization_read_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor']);
+}
+
+function pal_cap_mobilization_write_1(array $args): array
+{
+    return palCapCheck(['admin']);
+}
+
 // ── Entity View Handlers for Quotations ──
 
 function pal_cap_entity_list_quotation_1(array $args): array
@@ -1071,6 +1084,31 @@ function pal_cap_entity_list_cash_advance_1(array $args): array
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
         if (isset($filters['month']) && $filters['month'] !== '') $stmt->bindValue(':month', str_pad((string)(int)$filters['month'], 2, '0', STR_PAD_LEFT), PDO::PARAM_STR);
         if (isset($filters['year']) && $filters['year'] !== '') $stmt->bindValue(':year', (int)$filters['year'], PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_mobilization_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'DESC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
+
+        $count = $db->prepare("SELECT COUNT(*) FROM pal_mobilization_requests WHERE tenant_id = :tid");
+        $count->execute([':tid' => $tid]);
+        $total = (int)$count->fetchColumn();
+
+        $stmt = $db->prepare("SELECT mr.*, tl.name AS team_lead_name, p.title AS project_title FROM pal_mobilization_requests mr LEFT JOIN pal_team_leads tl ON mr.team_lead_id = tl.id LEFT JOIN pal_projects p ON mr.project_id = p.id WHERE mr.tenant_id = :tid ORDER BY mr.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
         $stmt->execute();
         return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
     } catch (Throwable $e) {

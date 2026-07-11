@@ -58,9 +58,7 @@
         "pal_mobilization_requests"
     ],
     "reads_tables": [
-        "audit_logs",
-        "attendance_records",
-        "employee_profiles"
+        "audit_logs"
     ],
     "migrations": [
         "database/migrations/001_pal_core_schema.sql",
