@@ -125,12 +125,12 @@ class palProjectService
             $contractAmount = max($contractAmount, $calculatedTotal + $installationCharge + $mobilizationCharge + $otherCharges);
         }
 
-        // Fabrication fields: only when with_installation = YES and items-type JO
-        $fabTeamLeadId = ($withInstallation && $joType === 'items' && !empty($data['fabrication_team_lead_id']))
+        // Fabrication fields: only when with_installation = YES
+        $fabTeamLeadId = ($withInstallation && !empty($data['fabrication_team_lead_id']))
             ? (int)$data['fabrication_team_lead_id'] : null;
-        $fabAllocPct = ($withInstallation && $joType === 'items') ? ($data['fabrication_alloc_pct'] ?? null) : null;
-        $fabAllocBasis = ($withInstallation && $joType === 'items') ? ($data['fabrication_alloc_basis'] ?? 'expenses') : null;
-        $fabAllocFixed = ($withInstallation && $joType === 'items') ? ($data['fabrication_alloc_fixed'] ?? null) : null;
+        $fabAllocPct = $withInstallation ? ($data['fabrication_alloc_pct'] ?? null) : null;
+        $fabAllocBasis = $withInstallation ? ($data['fabrication_alloc_basis'] ?? 'expenses') : null;
+        $fabAllocFixed = $withInstallation ? ($data['fabrication_alloc_fixed'] ?? null) : null;
 
         $sql = "INSERT INTO pal_projects (
                     tenant_id, project_id, job_order_number, title, client_id,
