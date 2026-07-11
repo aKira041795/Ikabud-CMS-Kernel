@@ -95,6 +95,7 @@ class palProjectService
 
     public function create(array $data): int
     {
+        $data = $this->sanitize($data);
         $this->validate($data);
 
         // Auto-generate JO number if not provided
@@ -219,6 +220,7 @@ class palProjectService
 
     public function update(int $id, array $data): bool
     {
+        $data = $this->sanitize($data);
         $project = $this->get($id);
         if ($project === null) {
             throw new InvalidArgumentException('Project not found.');
@@ -395,6 +397,34 @@ class palProjectService
         }
 
         return $changed;
+    }
+
+    /**
+     * Sanitize input data: convert empty strings to null for ENUM/decimal/date fields,
+     * so MySQL strict mode doesn't reject '' values. Run before create/update.
+     */
+    private function sanitize(array $data): array
+    {
+        // Fields that must never be empty strings (null = "not set")
+        $nonTextFields = [
+            // ENUMs
+            'scope_of_work', 'mode_of_payment', 'down_payment_type', 'fabrication_alloc_basis',
+            'project_type_id', 'status',
+            // Decimals
+            'contract_amount', 'estimated_cost', 'installation_charge', 'mobilization_charge',
+            'other_charges', 'down_payment', 'fabrication_alloc_pct', 'fabrication_alloc_fixed',
+            'budget_warning_pct', 'client_id',
+            // Dates
+            'start_date', 'target_completion_date', 'actual_completion_date',
+            // Ints
+            'fabrication_team_lead_id', 'project_manager',
+        ];
+        foreach ($nonTextFields as $field) {
+            if (array_key_exists($field, $data) && $data[$field] === '') {
+                $data[$field] = null;
+            }
+        }
+        return $data;
     }
 
     private function validate(array $data): void
