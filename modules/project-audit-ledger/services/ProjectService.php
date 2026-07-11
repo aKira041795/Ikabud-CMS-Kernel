@@ -176,7 +176,7 @@ class palProjectService
                 ':title' => $data['title'],
                 ':client_id' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
                 ':project_type_id' => !empty($data['project_type_id']) ? (int)$data['project_type_id'] : null,
-                ':scope_of_work' => $data['scope_of_work'] ?? null,
+                ':scope_of_work' => !empty($data['scope_of_work']) ? $data['scope_of_work'] : null,
                 ':with_installation' => $withInstallation,
                 ':description' => $data['description'] ?? null,
                 ':location' => $data['location'] ?? null,
@@ -256,6 +256,12 @@ class palProjectService
                         $val = null;
                     } else {
                         $val = (float)$val;
+                    }
+                }
+                // Null empty ENUM/string fields (MySQL strict mode rejects '' for ENUM)
+                if (in_array($field, ['scope_of_work', 'mode_of_payment', 'down_payment_type', 'fabrication_alloc_basis'], true)) {
+                    if ($val === '' || $val === null) {
+                        $val = null;
                     }
                 }
                 // Null out fabrication fields when with_installation is off
