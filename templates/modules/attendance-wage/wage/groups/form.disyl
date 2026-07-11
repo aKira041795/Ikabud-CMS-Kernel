@@ -1,0 +1,90 @@
+<div class="max-w-2xl" x-data="groupForm()">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h2 class="font-semibold text-gray-900 mb-4">{is_edit ? 'Edit Group' : 'Create Attendance Group'}</h2>
+    <form onsubmit="return submitGroupForm(this)" action="/api/v1/wage/groups{if is_edit}{if group.group_id}/{group.group_id}{/if}{/if}" method="POST" class="space-y-4">
+        {csrf_field | raw}
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Group Name *</label>
+            <input type="text" name="name" value="{group.name}" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="e.g., Tarpaulin Team, Sticker Department">
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Team Leader *</label>
+            <select name="leader_profile_id" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <option value="">— Select Team Leader —</option>
+                {for e in employees}
+                <option value="{e.profile_id}"{if group.leader_profile_id==e.profile_id} selected{/if}>{e.name}{if e.position} — {e.position}{/if}{if e.department} [{e.department}]{/if}</option>
+                {/for}
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">PAL Team Lead Email</label>
+            <input type="email" name="pal_team_lead_email" value="{group.pal_team_lead_email}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="team.lead@zap-arts.com — links to PAL team lead">
+            <p class="text-xs text-gray-500 mt-1">Optional. Used as the bridge key for PAL team lead attendance views.</p>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea name="description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Describe this group's purpose">{group.description}</textarea>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Members</label>
+            <div class="border border-gray-200 rounded p-3 max-h-64 overflow-y-auto">
+                {for e in employees}
+                <label class="flex items-center gap-2 py-1 text-sm hover:bg-gray-50 px-1 rounded cursor-pointer">
+                    <input type="checkbox" value="{e.profile_id}" class="member-checkbox rounded border-gray-300"
+                           {if group && group.members}{for m in group.members}{if m.profile_id==e.profile_id} checked{/if}{/for}{/if}
+                           onchange="updateMemberIds()">
+                    <span>{e.name}</span>
+                    {if e.position}<span class="text-xs text-gray-500">({e.position})</span>{/if}
+                    {if e.department}<span class="text-xs text-gray-400">[{e.department}]</span>{/if}
+                </label>
+                {/for}
+            </div>
+            <input type="hidden" name="member_profile_ids" id="member-profile-ids" value="">
+        </div>
+
+        <div class="flex gap-3">
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit ? 'Update Group' : 'Create Group'}</button>
+            <a href="/admin/wage/groups" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+        </div>
+    </form>
+</div>
+</div>
+
+<script>
+function groupForm() {
+    return {
+        init() { updateMemberIds(); }
+    };
+}
+function updateMemberIds() {
+    var ids = [];
+    document.querySelectorAll('.member-checkbox:checked').forEach(function(cb) { ids.push(cb.value); });
+    document.getElementById('member-profile-ids').value = JSON.stringify(ids);
+}
+function submitGroupForm(form) {
+    updateMemberIds();
+    var formData = new FormData(form);
+    var csrf = document.querySelector('input[name=_csrf_token]');
+    if (csrf) formData.append('_csrf_token', csrf.value);
+    var action = form.action;
+    var method = (action.indexOf('/api/v1/wage/groups/') > -1 && action.split('/').length > 6) ? 'PUT' : 'POST';
+
+    if (method === 'PUT') {
+        formData.append('_method', 'PUT');
+    }
+
+    fetch(action, { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) { showToast('Group saved.', 'success'); setTimeout(function(){ window.location = '/admin/wage/groups'; }, 500); }
+        else { showToast(d.error || 'Failed to save.', 'error'); }
+    })
+    .catch(function(){ showToast('Failed to save.', 'error'); });
+    return false;
+}
+</script>
