@@ -82,7 +82,7 @@ class palSalesService
                 ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null,
                 ':cl' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
                 ':qi' => !empty($data['quotation_id']) ? (int)$data['quotation_id'] : null,
-                ':inv' => $data['invoice_number'] ?? null,
+                ':inv' => !empty($data['invoice_number']) ? $data['invoice_number'] : $num,
                 ':sd' => $data['sales_date'] ?? date('Y-m-d'),
                 ':ga' => $grossAmount,
                 ':da' => $data['discount_amount'] ?? 0,
