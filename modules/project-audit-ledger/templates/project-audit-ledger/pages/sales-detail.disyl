@@ -1,6 +1,25 @@
 <div class="max-w-4xl print-area">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class=\"font-semibold text-gray-900 mb-2\">Invoice #{sale.invoice_number ? sale.invoice_number : sale.sales_number}</h2>
+    <!-- Amount Due Callout -->
+    {if sale.status != 'paid' && sale.outstanding|default:0 > 0}
+    <div class="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg text-center">
+        <p class="text-xs text-red-700 uppercase tracking-wider font-semibold">Amount Due</p>
+        <p class="text-2xl font-bold text-red-600">₱{sale.outstanding|number_format:2}</p>
+        {if sale.due_date}
+        <p class="text-xs text-red-500 mt-1">Due: {sale.due_date}</p>
+        {else}
+        <p class="text-xs text-red-500 mt-1">Due upon receipt</p>
+        {/if}
+        {if sale.total_collected|default:0 > 0}
+        <p class="text-xs text-red-400 mt-1">₱{sale.total_collected|number_format:2} already collected</p>
+        {/if}
+    </div>
+    {elseif sale.status == 'paid'}
+    <div class="mb-4 p-3 bg-green-50 border border-green-300 rounded-lg text-center">
+        <p class="text-sm font-bold text-green-700">✓ Fully Paid — ₱{sale.net_amount|number_format:2}</p>
+    </div>
+    {/if}
     <div class="space-y-2 text-sm mb-4">
         <div class="flex justify-between"><span class="text-gray-600">Project (JO)</span><span>{if sale.project_title && sale.project_id}<a href="/admin/project-audit-ledger/projects/{sale.project_id}" class="text-blue-600 hover:text-blue-800">{sale.project_title}</a>{else}{sale.project_title|default:'—'}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{if sale.client_name && sale.client_id}<a href="/admin/project-audit-ledger/clients/{sale.client_id}" class="text-blue-600 hover:text-blue-800">{sale.client_name}</a>{else}{sale.client_name|default:'—'}{/if}</span></div>
