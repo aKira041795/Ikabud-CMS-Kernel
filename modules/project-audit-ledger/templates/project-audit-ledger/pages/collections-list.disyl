@@ -1,7 +1,31 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="font-semibold text-gray-900">Collections</h2>
-        <a href="/admin/project-audit-ledger/collections/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Record Collection</a>
+        <div class="flex gap-2">
+            <button onclick="generateCollections()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">⚡ Generate from Invoices</button>
+            <a href="/admin/project-audit-ledger/collections/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Record Collection</a>
+        </div>
     </div>
     {ikb_entity_list source="pal_collection" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search collections..." empty="No collections recorded." /}
 </div>
+
+<script>
+function generateCollections() {
+    if (!confirm('Generate collection records for invoices that don\'t have one yet?')) return;
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    fetch('/api/v1/project-audit-ledger/collections/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_token={csrf_token|raw}'
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.ok) { alert('\u2713 ' + d.message); location.reload(); }
+        else { alert('\u2717 ' + d.error); }
+    })
+    .catch(function(){ alert('\u2717 Network error'); })
+    .finally(function(){ btn.disabled = false; btn.textContent = '\u26a1 Generate from Invoices'; });
+}
+</script>
