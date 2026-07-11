@@ -969,3 +969,270 @@ The original flow was purely admin-driven. The proposed flow distributes respons
 - Approval queue centralizes all pending decisions in one place
 - Integration with existing `pal_approvals` ensures consistency
 - Fabrication dues are visible per JO, not just globally
+
+---
+
+## 12. Revised Architecture: Email OTP Auth + Kernel Convention Compliance
+
+> **Date**: 2026-07-11
+> **Status**: Revised Design — Replaces password-auth approach from Section 11
+
+### 12.1 Why Email OTP Instead of Password Login?
+
+Team leads are field/site workers, not office staff. They:
+- Don't need permanent accounts with passwords to manage
+- May have high turnover — creating/deleting `pal_users` records per hire is overhead
+- Already have emails in `pal_team_leads.email`
+- Need simple, secure access without password reset flows
+
+**Email OTP** provides:
+- No password to create, store, or reset
+- Built-in 2FA (possession of email inbox is the factor)
+- Low admin overhead — auto-resolution by matching `pal_team_leads.email`
+- Session lasts for a configurable window (e.g., 8 hours = one workday)
+- Proven pattern: the **guidance module** already implements this exactly
+
+### 12.2 Proven Reference: Guidance Module OTP System
+
+The guidance module (`modules/guidance/`) has a complete, battle-tested OTP system:
+
+```
+┌─ Schema ───────────────────────────────────────────┐
+│ gm_otp_codes (email, code, purpose, expires_at,    │
+│   verified_at, attempts)                            │
+├─ Core Functions ───────────────────────────────────┤
+│ guidanceIssueOtpCode()    → 6-digit code + DB + email │
+│ guidanceCreateOtpChallenge() → OTP + JWT ticket    │
+│ guidanceValidateOtpCode() → DB check, hash_equals() │
+│ guidanceConsumeOtpCode()  → mark verified           │
+│ guidanceOtpRateLimitAllowed() → rate limit per IP   │
+├─ Flow ─────────────────────────────────────────────┤
+│ 1. POST email → challenge: {ticket, masked_email}   │
+│ 2. POST ticket+code → verify → session JWT          │
+│ 3. POST ticket → resend (rate-limited)              │
+└─────────────────────────────────────────────────────┘
+```
+
+Key characteristics:
+- 6-digit numeric code
+- 10-minute TTL (`guidanceOtpTicketTtlSeconds() = 600`)
+- Max 5 attempts per code (`attempts >= 5` → permanent fail)
+- Rate-limited per IP (`rateLimit()` global)
+- JWT ticket binds the OTP challenge to the session
+- HTML styled email with large centered code
+- Purpose-based (`login`, `booking`) for reuse
+
+### 12.3 PAL Team Lead OTP Design
+
+**New table**: `pal_otp_codes` (mirrors `gm_otp_codes` pattern)
+
+```sql
+CREATE TABLE pal_otp_codes (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    code VARCHAR(10) NOT NULL,
+    purpose VARCHAR(50) NOT NULL DEFAULT 'team_lead_login',
+    expires_at DATETIME NOT NULL,
+    verified_at DATETIME DEFAULT NULL,
+    attempts INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_email_purpose (email, purpose),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Flow**:
+
+```
+┌─ Step 1: Team Lead visits /team-lead/login ──────────────┐
+│  Enters email                                             │
+│  PAL looks up pal_team_leads WHERE email=:email AND is_active=1 │
+│  If not found → "Email not registered as team lead"       │
+│  If found → issue OTP + email it                          │
+│  Response: {ticket, masked_email, expires_in}              │
+├─ Step 2: OTP Verification ───────────────────────────────┤
+│  Team lead enters 6-digit code from email                  │
+│  POST ticket + code → validate → consume OTP              │
+│  Create JWT session: {sub: tl.id, email, name,            │
+│    role: 'team_lead', source: 'pal-team-lead'}             │
+│  Set cookie: pal_tl_token                                  │
+│  Redirect → /admin/project-audit-ledger/team-lead          │
+├─ Session Management ─────────────────────────────────────┤
+│  JWT with TTL (8 hours default, configurable)              │
+│  Refresh: POST email → new OTP if expired                  │
+│  Logout: clear cookie + unset session                      │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Benefits over password auth (Section 11 approach)**:
+| Aspect | Password Auth | Email OTP |
+|---|---|---|
+| User creation overhead | Admin creates `pal_users` + links `pal_team_leads` | None — auto-resolved from `pal_team_leads.email` |
+| Password management | Reset flow, bcrypt hashing, storage | None |
+| Turnover handling | Admin deactivates `pal_users` | Just deactivate `pal_team_leads.is_active=0` |
+| Security | Password + optional 2FA | Inherent 2FA (email = factor) |
+| UX | Username + password + forgot password | Enter email → enter 6-digit code |
+| Audit trail | `pal_users`-based | `pal_team_leads`-based, email-audited |
+| Proven in codebase | General approach | Guidance module's `gm_otp_codes` system |
+
+### 12.4 Kernel Convention Compliance for AW Module Integration
+
+Per the kernel's **ADR-003** (`reads_tables` alongside capabilities) and the **entity view system**:
+
+**Approach**: PAL declares `reads_tables` in `module.json` and queries attendance-wage tables directly via `palDb()`. This follows the proven kernel convention for cross-module read access.
+
+```json
+// In modules/project-audit-ledger/module.json:
+"reads_tables": [
+    "audit_logs",
+    "attendance_records",
+    "employee_profiles"
+]
+```
+
+**Entity View Bridge**: Instead of deep-linking or iframe, PAL renders attendance data via the entity view system:
+
+```sql
+-- Team lead attendance query (in pal_cap_entity_list_attendance_1 handler):
+SELECT 
+    ar.id,
+    ar.clock_in,
+    ar.clock_out,
+    TIMESTAMPDIFF(HOUR, ar.clock_in, ar.clock_out) AS hours_worked,
+    ar.status,
+    ep.full_name AS employee_name,
+    ep.position
+FROM attendance_records ar
+JOIN employee_profiles ep ON ar.user_id = ep.user_id
+WHERE ep.team_lead_email = :team_lead_email
+  AND ar.clock_in >= :date_from
+  AND ar.clock_in <= :date_to
+ORDER BY ar.clock_in DESC
+```
+
+**Team lead email matching**: The bridge key is `pal_team_leads.email` = `employee_profiles.team_lead_email` (new column to add via migration on AW module — or use a mapping table).
+
+**Kernel convention principles applied**:
+1. **Declarative reads**: `reads_tables` tells the kernel PAL needs read access to AW tables
+2. **Entity views**: Attendance rendered via `{ikb_entity_list source="attendance_record" view="table"}` — same pattern as all other PAL pages
+3. **Capability gating**: New `pal.team_lead.attendance@1` capability gates access
+4. **No writes**: PAL only reads AW data — never writes to AW tables
+5. **Tenant-scoped**: All queries include `tenant_id` from the PAL session context
+6. **Email bridge**: `pal_team_leads.email` ↔ `employee_profiles.team_lead_email` is a natural key match (no synthetic IDs needed)
+
+### 12.5 Revised Architecture Diagram
+
+```
+┌──────────────────────────────────────────────────┐
+│               PAL Module                          │
+│                                                   │
+│  pal_team_leads                                   │
+│    ├─ email ←──────── OTP challenge ──────────┐  │
+│    ├─ user_id (optional, for admin link)       │  │
+│    └─ is_active                                │  │
+│                                                   │
+│  pal_otp_codes ←── guidance-proven pattern     │  │
+│    (email, code, purpose, expires_at)          │  │
+│                                                   │
+│  Team Lead Views:                               │  │
+│    ├─ Fabrication/JO (my projects only)         │  │
+│    ├─ CA Requests (submit + history)            │  │
+│    ├─ Mobilization (submit + history)            │  │
+│    └─ Team Attendance ◄── reads_tables ────────┼──┤
+│                          attendance_records     │  │
+│                          employee_profiles      │  │
+└──────────────────────────────────────────────────┘  │
+                                                       │
+┌──────────────────────────────────────────────────┐  │
+│          Attendance-Wage Module                   │  │
+│                                                   │  │
+│  attendance_records            ◄── PAL reads ────┼──┘
+│    (clock_in, clock_out, status, user_id)        │
+│                                                   │
+│  employee_profiles             ◄── PAL reads      │
+│    (user_id, team_lead_email, full_name,          │
+│     position, department)                         │
+│                                                   │
+│  AW owns auth (attendance_wage_token)            │
+│  PAL does NOT write to AW tables                 │
+└──────────────────────────────────────────────────┘
+```
+
+### 12.6 Revised Implementation Phases
+
+#### Phase 6 — Team Lead OTP Auth (replaces password auth)
+
+| Step | Description |
+|---|---|
+| 6.1 | Migration `011_pal_otp.sql`: `pal_otp_codes` table (following `gm_otp_codes` pattern) |
+| 6.2 | Add `pal_otp_ttl` and `pal_otp_from_email` to `pal_settings` |
+| 6.3 | Handler: `palPageTeamLeadLogin()` — email entry form |
+| 6.4 | Handler: `palApiTeamLeadOtpRequest()` — validate email → issue OTP + email |
+| 6.5 | Handler: `palApiTeamLeadOtpVerify()` — verify code → JWT session |
+| 6.6 | Handler: `palApiTeamLeadOtpResend()` — rate-limited resend |
+| 6.7 | Handler: `palAuthTeamLeadLogout()` — clear cookie |
+| 6.8 | Template: `team-lead-login.disyl` |
+| 6.9 | Template: `team-lead-otp-verify.disyl` |
+| 6.10 | JWT helper: `palTeamLeadBuildSession()`, `palTeamLeadFromCookie()` |
+| 6.11 | Route: public `/project-audit-ledger/team-lead/login` |
+
+#### Phase 7 — Team Lead Dashboard + Shell
+
+| Step | Description |
+|---|---|
+| 7.1 | Template: `team-lead-shell.disyl` — stripped nav |
+| 7.2 | Template: `team-lead-dashboard.disyl` — personal KPIs |
+| 7.3 | Route: `GET /admin/project-audit-ledger/team-lead` |
+
+#### Phase 8 — Fabrication per JO (unchanged from Section 11)
+
+#### Phase 9 — CA Request Flow + Approval Integration (unchanged from Section 11)
+
+#### Phase 10 — Mobilization Entity (unchanged from Section 11)
+
+#### Phase 11 — Team Attendance (kernel convention approach)
+
+| Step | Description |
+|---|---|
+| 11.1 | Add `reads_tables: ["attendance_records", "employee_profiles"]` to `module.json` |
+| 11.2 | Migration on AW module: `ALTER TABLE employee_profiles ADD COLUMN team_lead_email VARCHAR(255)` |
+| 11.3 | Entity view capability: `pal_cap_entity_list_attendance_1` |
+| 11.4 | Entity view config: `helpers/views/pal_attendance_record.disyl` |
+| 11.5 | Template: `team-lead-attendance.disyl` — date range filter, employee list |
+| 11.6 | Route: `GET /admin/project-audit-ledger/team-lead/attendance` |
+
+### 12.7 Updated Files Checklist
+
+#### Phase 6 — Create
+- [ ] `database/migrations/011_pal_otp.sql`
+- [ ] `handlers/06-team-lead-auth.php`
+- [ ] `templates/project-audit-ledger/team-lead-login.disyl`
+- [ ] `templates/project-audit-ledger/team-lead-otp-verify.disyl`
+- [ ] `templates/project-audit-ledger/team-lead-shell.disyl`
+- [ ] `templates/project-audit-ledger/pages/team-lead-dashboard.disyl`
+
+#### Phase 6 — Modify
+- [ ] `module.json` — add `pal_otp_codes` to `owns_tables`, add migration
+- [ ] `routes.php` — add team lead login/OTP routes
+- [ ] `handlers.php` — require `06-team-lead-auth.php`
+
+#### Phase 11 — Create
+- [ ] `helpers/views/pal_attendance_record.disyl`
+- [ ] `templates/project-audit-ledger/pages/team-lead-attendance.disyl`
+
+#### Phase 11 — Modify
+- [ ] `module.json` — add `reads_tables`, add entity view capability
+- [ ] `handlers.php` — require new handler
+- [ ] `helpers.php` — add `pal_cap_entity_list_attendance_1`
+- [ ] `routes.php` — add attendance route
+
+### 12.8 Summary of Design Decisions
+
+| Decision | Rationale |
+|---|---|
+| **Email OTP instead of password auth** | Follows guidance module's proven OTP pattern. Zero password management. Inherent 2FA. Auto-resolves via `pal_team_leads.email`. |
+| **No `team_lead` role in `pal_users`** | Not needed. Team leads authenticate via OTP → JWT with `source: 'pal-team-lead'`. `pal_team_leads` remains the source of truth. |
+| **`reads_tables` for AW integration** | Follows ADR-003. PAL declares read access. No writes. Tenant-scoped queries. |
+| **Email bridge (`team_lead_email`)** | `pal_team_leads.email` ↔ `employee_profiles.team_lead_email` — natural key, no synthetic IDs needed. |
+| **Entity views for attendance** | Follows proven PAL pattern. `{ikb_entity_list}` for consistent rendering. |
+| **JWT session (8-hour TTL)** | Matches a workday. Configurable via `pal_settings`. No permanent session needed. |
