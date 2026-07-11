@@ -385,8 +385,7 @@ function palApiProjectSendEmail(array $rp = []): void
         $mockupStmt->execute([':tid' => $tid, ':eid' => $id]);
         $mockup = $mockupStmt->fetch(PDO::FETCH_ASSOC);
         if ($mockup) {
-            $mockupUrl = 'http://' . ($_SERVER['HTTP_HOST'] ?? 'palsystem.test') . '/' . $mockup['file_path'];
-            $mockupHtml = '<p><strong>Design Mockup:</strong></p><p><a href="' . htmlspecialchars($mockupUrl, ENT_QUOTES, 'UTF-8') . '" target="_blank"><img src="' . htmlspecialchars($mockupUrl, ENT_QUOTES, 'UTF-8') . '" style="max-width:400px;border:1px solid #e5e7eb;border-radius:8px;"></a></p>';
+            $mockupHtml = '<p><strong>Design Mockup:</strong></p><p><a href="' . htmlspecialchars('/' . $mockup['file_path'], ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;padding:10px 20px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;text-decoration:none;color:#374151;font-size:14px;">🖼 View Design Mockup →</a></p>';
         }
 
         $content = '<p>Hi ' . $clientName . ',</p>'
