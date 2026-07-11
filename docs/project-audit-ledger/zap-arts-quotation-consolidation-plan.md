@@ -1236,3 +1236,62 @@ ORDER BY ar.clock_in DESC
 | **Email bridge (`team_lead_email`)** | `pal_team_leads.email` ↔ `employee_profiles.team_lead_email` — natural key, no synthetic IDs needed. |
 | **Entity views for attendance** | Follows proven PAL pattern. `{ikb_entity_list}` for consistent rendering. |
 | **JWT session (8-hour TTL)** | Matches a workday. Configurable via `pal_settings`. No permanent session needed. |
+
+---
+
+## 13. AW Module — Attendance Groups Implementation
+
+> **Status**: ✅ Implemented (2026-07-11)
+> **Purpose**: Group-based attendance checking with team lead → member hierarchy, PAL bridge
+
+### 13.1 What Was Built
+
+**Migration**: `024_create_attendance_groups.sql`
+- `attendance_groups` — group_id, name, leader_profile_id, pal_team_lead_email, description, is_active
+- `attendance_group_members` — group_id, profile_id (many-to-many)
+- PAL bridge via `pal_team_lead_email` column with index
+
+**Service**: `services/AttendanceGroupService.php`
+- `list()` — all active groups with leader name + member count
+- `get($groupId)` — full group with members array
+- `create($data)` — creates group, auto-adds leader as member, adds additional members
+- `update($groupId, $data)` — updates group + replaces members
+- `getGroupAttendance($groupId, $dateFrom, $dateTo)` — cross-join query: group members → attendance_records → hours worked
+- `getGroupsByLeader($profileId)` — groups where profile is leader
+- `toggleActive($groupId)` — soft enable/disable
+
+**Handler**: `handlers/140-api-groups.php`
+- Pages: list (index), create/edit (form), view (detail with attendance)
+- APIs: store, update, toggle
+
+**Templates**:
+- `wage/groups/index.disyl` — card grid of groups with member counts
+- `wage/groups/form.disyl` — name, leader dropdown, PAL bridge email, member checkboxes
+- `wage/groups/view.disyl` — members table, date-range attendance table with hours worked
+
+**Wiring**:
+- Routes: 4 GET + 4 POST routes
+- Nav: "Attendance Groups" entry (admin + supervisor roles)
+- Migration registered in module.json
+- Tables registered in owns_tables
+
+**PAL Bridge**:
+- PAL declares `reads_tables: ["attendance_records", "employee_profiles"]` in module.json
+- Bridge key: `attendance_groups.pal_team_lead_email` ↔ `pal_team_leads.email`
+- PAL's future team lead attendance view queries via this email bridge
+
+### 13.2 Files Created
+
+- [x] `database/migrations/024_create_attendance_groups.sql`
+- [x] `services/AttendanceGroupService.php`
+- [x] `handlers/140-api-groups.php`
+- [x] `templates/modules/attendance-wage/wage/groups/index.disyl`
+- [x] `templates/modules/attendance-wage/wage/groups/form.disyl`
+- [x] `templates/modules/attendance-wage/wage/groups/view.disyl`
+
+### 13.3 Files Modified
+
+- [x] `module.json` — owns_tables, migrations, nav
+- [x] `routes.php` — GET + POST routes
+- [x] `handlers.php` — require 140-api-groups
+- [x] `modules/project-audit-ledger/module.json` — reads_tables for AW bridge

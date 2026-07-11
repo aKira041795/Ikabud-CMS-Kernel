@@ -19,7 +19,9 @@
         "cash_advances",
         "cash_advance_repayments",
         "payroll_settings",
-        "office_locations"
+        "office_locations",
+        "attendance_groups",
+        "attendance_group_members"
     ],
     "reads_tables": [
         "audit_logs"
@@ -289,7 +291,8 @@
         "database/migrations/020_add_onsite_attendance.sql",
         "database/migrations/021_add_lat_lng_to_attendance_records.sql",
         "database/migrations/022_add_employee_photo_url.sql",
-        "database/migrations/023_add_thirteenth_month_enabled.sql"
+        "database/migrations/023_add_thirteenth_month_enabled.sql",
+        "database/migrations/024_create_attendance_groups.sql"
     ],
     "nav": [
         {
@@ -314,6 +317,15 @@
             "icon": "users",
             "roles": [
                 "admin"
+            ]
+        },
+        {
+            "label": "Attendance Groups",
+            "url": "/admin/wage/groups",
+            "icon": "group",
+            "roles": [
+                "admin",
+                "supervisor"
             ]
         },
         {

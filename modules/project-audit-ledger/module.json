@@ -56,7 +56,9 @@
         "pal_cash_advances"
     ],
     "reads_tables": [
-        "audit_logs"
+        "audit_logs",
+        "attendance_records",
+        "employee_profiles"
     ],
     "migrations": [
         "database/migrations/001_pal_core_schema.sql",
