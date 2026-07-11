@@ -228,6 +228,11 @@ class palProjectService
         $fields = [];
         $params = [':id' => $id, ':tenant_id' => $this->tenantId];
 
+        // Map form field _jo_type to DB column jo_type
+        if (isset($data['_jo_type'])) {
+            $data['jo_type'] = $data['_jo_type'];
+        }
+
         foreach ([
             'project_id', 'job_order_number', 'jo_type', 'title', 'client_id', 'project_type_id',
             'scope_of_work', 'with_installation',
