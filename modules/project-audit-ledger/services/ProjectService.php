@@ -236,6 +236,14 @@ class palProjectService
                 if ($field === 'with_installation') {
                     $val = !empty($val) ? 1 : 0;
                 }
+                // Null empty decimal fields (MySQL strict mode rejects '' for DECIMAL)
+                if (in_array($field, ['down_payment', 'fabrication_alloc_pct', 'fabrication_alloc_fixed', 'estimated_cost', 'contract_amount', 'installation_charge', 'mobilization_charge', 'other_charges'], true)) {
+                    if ($val === '' || $val === null) {
+                        $val = null;
+                    } else {
+                        $val = (float)$val;
+                    }
+                }
                 // Null out fabrication fields when with_installation is off
                 if ($val === 0 && $field === 'with_installation') {
                     // Also null out fabrication fields
