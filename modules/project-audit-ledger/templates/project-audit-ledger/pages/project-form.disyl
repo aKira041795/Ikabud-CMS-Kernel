@@ -105,16 +105,17 @@
 </div>
 
 <script>
-var matData = {for m in materials}{m.id}:{ppu:m.price_per_unit,psf:m.price_per_sqft,w:m.default_width,h:m.default_height},{/for};
-var itemIdx = {project.items ? project.items.length : 0};
+var matData = { {for m in materials}{m.id}:{ppu:m.price_per_unit,psf:m.price_per_sqft,w:m.default_width,h:m.default_height},{/for}_end:0 };
+var itemIdx = {if project.items}{project.items|count}{else}0{/if};
 function addItem() {
     itemIdx++;
     var tbody = document.getElementById('items-body');
+    if (!tbody) return;
     var tr = document.createElement('tr');
     tr.className = 'border-b border-gray-200 item-row';
     var matOpts = '<option value="">—</option>';
     {for m in materials}
-    matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit}" data-psf="{m.price_per_sqft}" data-w="{m.default_width}" data-h="{m.default_height}">{m.name}</option>';
+    matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit}" data-psf="{m.price_per_sqft}" data-w="{m.default_width}" data-h="{m.default_height}">{m.name|escape:'html'}</option>';
     {/for}
     tr.innerHTML = '<td class="py-2 px-2 text-center item-num">' + itemIdx + '</td>' +
         '<td class="py-2 px-2"><select name="items[' + itemIdx + '][material_id]" class="w-full px-2 py-1 border border-gray-300 rounded text-xs" onchange="selMat(this)">' + matOpts + '</select></td>' +

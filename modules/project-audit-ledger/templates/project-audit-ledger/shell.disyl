@@ -274,6 +274,8 @@ function showQuickCreateModal(select) {
         _quickCreateModal = { overlay: overlay, input: document.getElementById('qc-input'), btn: document.getElementById('qc-btn'), title: document.getElementById('qc-title') };
     }
     var m = _quickCreateModal;
+    m.btn.disabled = false;
+    m.btn.textContent = 'Add';
     m.title.textContent = 'Add New ' + type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
     m.input.value = '';
     m.input.focus();
