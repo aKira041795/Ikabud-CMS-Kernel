@@ -1,0 +1,166 @@
+{* Inventory Scanner — Products Page *}
+{extends file="layouts/admin-base"}
+{block name="head_title"}Products — Inventory Scanner{/block}
+
+{block name="content"}
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Products</h1>
+    <button onclick="document.getElementById('product-form').classList.toggle('hidden')"
+            class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+      + Add Product
+    </button>
+  </div>
+
+  {* Product Form *}
+  <div id="product-form" class="hidden bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-lg font-semibold mb-4">Add / Edit Product</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700">SKU *</label>
+        <input type="text" id="prod-sku" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Barcode</label>
+        <input type="text" id="prod-barcode" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Name *</label>
+        <input type="text" id="prod-name" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Category</label>
+        <input type="text" id="prod-category" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Unit</label>
+        <input type="text" id="prod-unit" value="pcs" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Location</label>
+        <input type="text" id="prod-location" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Quantity</label>
+        <input type="number" id="prod-qty" value="0" step="0.001" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700">Price</label>
+        <input type="number" id="prod-price" step="0.01" class="mt-1 block w-full rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+      </div>
+    </div>
+    <div class="mt-4 flex gap-2">
+      <button id="btn-save-product" class="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">Save</button>
+      <button onclick="document.getElementById('product-form').classList.add('hidden')" class="rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">Cancel</button>
+    </div>
+  </div>
+
+  {* Product List *}
+  <div class="bg-white rounded-lg shadow">
+    <div class="p-4 border-b">
+      <input type="text" id="prod-search" placeholder="Search by barcode, SKU, or name..."
+             class="block w-full md:w-96 rounded-md border-0 py-1.5 px-3 ring-1 ring-inset ring-gray-300">
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Barcode</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Location</th>
+            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
+          </tr>
+        </thead>
+        <tbody id="products-table" class="divide-y divide-gray-200">
+          <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '/api/v1/inventory-scanner';
+  const token = localStorage.getItem('is_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? {'Authorization': 'Bearer ' + token} : {})
+  };
+
+  function loadProducts(search) {
+    let url = API + '/products?limit=100';
+    if (search) url += '&q=' + encodeURIComponent(search);
+    fetch(url, {headers})
+      .then(r => r.json())
+      .then(data => {
+        const tbody = document.getElementById('products-table');
+        if (!data.products || data.products.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No products found</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.products.map(p =>
+          '<tr class="hover:bg-gray-50 cursor-pointer" onclick="fillProductForm(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')">' +
+            '<td class="px-4 py-2 text-sm font-medium text-gray-900">' + (p.sku || '—') + '</td>' +
+            '<td class="px-4 py-2 text-sm text-gray-500 font-mono">' + (p.barcode || '—') + '</td>' +
+            '<td class="px-4 py-2 text-sm text-gray-900">' + p.name + '</td>' +
+            '<td class="px-4 py-2 text-sm text-gray-500">' + (p.category || '—') + '</td>' +
+            '<td class="px-4 py-2 text-sm text-right">' + p.quantity + ' ' + p.unit + '</td>' +
+            '<td class="px-4 py-2 text-sm text-gray-500">' + (p.location || '—') + '</td>' +
+            '<td class="px-4 py-2 text-sm text-right">' + (p.price != null ? parseFloat(p.price).toFixed(2) : '—') + '</td>' +
+          '</tr>'
+        ).join('');
+      });
+  }
+
+  document.getElementById('prod-search').addEventListener('input', function() {
+    loadProducts(this.value);
+  });
+
+  function fillProductForm(p) {
+    document.getElementById('product-form').classList.remove('hidden');
+    document.getElementById('prod-sku').value = p.sku || '';
+    document.getElementById('prod-barcode').value = p.barcode || '';
+    document.getElementById('prod-name').value = p.name || '';
+    document.getElementById('prod-category').value = p.category || '';
+    document.getElementById('prod-unit').value = p.unit || 'pcs';
+    document.getElementById('prod-location').value = p.location || '';
+    document.getElementById('prod-qty').value = p.quantity || 0;
+    document.getElementById('prod-price').value = p.price != null ? p.price : '';
+    document.getElementById('prod-sku').dataset.id = p.id || '';
+  }
+
+  document.getElementById('btn-save-product').addEventListener('click', function() {
+    const data = {
+      sku: document.getElementById('prod-sku').value.trim(),
+      barcode: document.getElementById('prod-barcode').value.trim(),
+      name: document.getElementById('prod-name').value.trim(),
+      category: document.getElementById('prod-category').value.trim(),
+      unit: document.getElementById('prod-unit').value.trim() || 'pcs',
+      location: document.getElementById('prod-location').value.trim(),
+      quantity: parseFloat(document.getElementById('prod-qty').value) || 0,
+      price: document.getElementById('prod-price').value ? parseFloat(document.getElementById('prod-price').value) : null
+    };
+    const id = document.getElementById('prod-sku').dataset.id;
+    if (id) data.id = parseInt(id);
+
+    fetch(API + '/products/save', {method: 'POST', headers, body: JSON.stringify(data)})
+      .then(r => r.json())
+      .then(result => {
+        if (result.ok) {
+          document.getElementById('product-form').classList.add('hidden');
+          loadProducts(document.getElementById('prod-search').value);
+        } else {
+          alert(result.error || 'Failed to save product');
+        }
+      });
+  });
+
+  window.fillProductForm = fillProductForm;
+  loadProducts('');
+})();
+</script>
+{/block}

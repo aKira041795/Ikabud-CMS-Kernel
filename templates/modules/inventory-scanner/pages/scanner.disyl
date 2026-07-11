@@ -1,0 +1,274 @@
+{* Inventory Scanner — Web Scanner Page *}
+{extends file="layouts/admin-base"}
+{block name="head_title"}Inventory Scanner{/block}
+
+{block name="content"}
+<div class="max-w-4xl mx-auto px-4 py-6">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">Inventory Scanner</h1>
+    <div id="sync-status" class="flex items-center gap-2 text-sm">
+      <span id="sync-indicator" class="w-2 h-2 rounded-full bg-green-500"></span>
+      <span id="sync-label">Online</span>
+      <span id="pending-count" class="hidden bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full text-xs"></span>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    {* Scan Input Panel *}
+    <div class="bg-white rounded-lg shadow p-6">
+      <h2 class="text-lg font-semibold mb-4">Scan Barcode</h2>
+      <div class="mb-4">
+        <input type="text" id="scan-input" autofocus autocomplete="off"
+               placeholder="Scan or type barcode..."
+               class="block w-full rounded-md border-0 py-3 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 text-lg">
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+        <input type="number" id="scan-qty" value="1" min="1" step="1"
+               class="block w-32 rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600">
+      </div>
+      <div class="flex gap-2 mb-4">
+        <select id="session-type" class="rounded-md border-0 py-1.5 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300">
+          <option value="manual">Manual Scan</option>
+          <option value="receive">Receive</option>
+          <option value="pick">Pick</option>
+          <option value="count">Cycle Count</option>
+          <option value="audit">Audit</option>
+        </select>
+        <button id="btn-new-session" class="rounded-md bg-white px-3 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+          New Session
+        </button>
+      </div>
+      <div id="scan-result" class="mt-4 hidden">
+        <div class="rounded-md bg-gray-50 p-4">
+          <p class="text-sm"><span class="font-medium">Barcode:</span> <span id="result-barcode"></span></p>
+          <p class="text-sm"><span class="font-medium">Product:</span> <span id="result-name"></span></p>
+          <p class="text-sm"><span class="font-medium">SKU:</span> <span id="result-sku"></span></p>
+          <p class="text-sm"><span class="font-medium">Location:</span> <span id="result-location"></span></p>
+          <p class="text-sm"><span class="font-medium">Qty on hand:</span> <span id="result-qty"></span></p>
+          <p id="result-unmatched" class="text-sm text-red-600 hidden">⚠ Not found in database</p>
+        </div>
+      </div>
+    </div>
+
+    {* Recent Scans Panel *}
+    <div class="bg-white rounded-lg shadow p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Recent Scans</h2>
+        <span id="item-count" class="text-sm text-gray-500">0 items</span>
+      </div>
+      <div id="recent-scans" class="space-y-2 max-h-96 overflow-y-auto">
+        <p class="text-sm text-gray-400">No scans yet. Start scanning above.</p>
+      </div>
+      <div class="mt-4 flex gap-2">
+        <button id="btn-export-csv" class="rounded-md bg-green-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-green-500">
+          Export CSV
+        </button>
+        <button id="btn-close-session" class="rounded-md bg-gray-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-gray-500">
+          Close Session
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '/api/v1/inventory-scanner';
+  let currentSessionId = null;
+  let scannedItems = [];
+  let isOnline = navigator.onLine;
+  let pendingSync = [];
+
+  // Load token from login
+  const token = localStorage.getItem('is_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(token ? {'Authorization': 'Bearer ' + token} : {})
+  };
+
+  function updateOnlineStatus() {
+    isOnline = navigator.onLine;
+    document.getElementById('sync-indicator').className = isOnline
+      ? 'w-2 h-2 rounded-full bg-green-500'
+      : 'w-2 h-2 rounded-full bg-yellow-500';
+    document.getElementById('sync-label').textContent = isOnline ? 'Online' : 'Offline';
+  }
+
+  window.addEventListener('online', () => { updateOnlineStatus(); syncPending(); });
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
+
+  function addScanItem(item) {
+    scannedItems.push(item);
+    renderRecentScans();
+    document.getElementById('item-count').textContent = scannedItems.length + ' items';
+    updatePendingBadge();
+  }
+
+  function renderRecentScans() {
+    const container = document.getElementById('recent-scans');
+    if (scannedItems.length === 0) {
+      container.innerHTML = '<p class="text-sm text-gray-400">No scans yet. Start scanning above.</p>';
+      return;
+    }
+    container.innerHTML = scannedItems.slice(-20).reverse().map((item, i) =>
+      '<div class="flex items-center justify-between py-2 border-b border-gray-100">' +
+        '<div>' +
+          '<p class="text-sm font-medium">' + (item.product_name || 'Unknown') + '</p>' +
+          '<p class="text-xs text-gray-500">' + item.barcode + (item.sku ? ' · ' + item.sku : '') + '</p>' +
+        '</div>' +
+        '<div class="text-right">' +
+          '<p class="text-sm">×' + item.quantity + '</p>' +
+          '<p class="text-xs ' + (item.status === 'matched' ? 'text-green-600' : 'text-red-600') + '">' + item.status + '</p>' +
+        '</div>' +
+      '</div>'
+    ).join('');
+  }
+
+  function updatePendingBadge() {
+    const badge = document.getElementById('pending-count');
+    if (pendingSync.length > 0) {
+      badge.textContent = pendingSync.length + ' pending';
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+
+  async function syncPending() {
+    if (!isOnline || pendingSync.length === 0) return;
+    const toSync = [...pendingSync];
+    pendingSync = [];
+    updatePendingBadge();
+
+    try {
+      const resp = await fetch(API + '/scan/save-batch', {
+        method: 'POST', headers, body: JSON.stringify({items: toSync, session_type: 'batch_sync'})
+      });
+      const result = await resp.json();
+      if (!result.ok) {
+        pendingSync.push(...toSync);
+        updatePendingBadge();
+      }
+    } catch {
+      pendingSync.push(...toSync);
+      updatePendingBadge();
+    }
+  }
+
+  function saveScan(barcode, quantity) {
+    const item = {
+      barcode: barcode,
+      quantity: quantity,
+      scanned_at: new Date().toISOString(),
+      status: 'scanned'
+    };
+
+    if (isOnline) {
+      fetch(API + '/scan/save', {
+        method: 'POST', headers,
+        body: JSON.stringify({
+          barcode: barcode,
+          quantity: quantity,
+          session_id: currentSessionId,
+          session_type: document.getElementById('session-type').value
+        })
+      }).then(r => r.json()).then(result => {
+        if (result.ok && result.item) {
+          item.product_name = result.item.product_name;
+          item.sku = result.item.sku;
+          item.status = result.item.status;
+          item.location = result.item.location;
+          if (!currentSessionId) currentSessionId = result.session_id;
+          addScanItem(item);
+        }
+      }).catch(() => {
+        pendingSync.push(item);
+        updatePendingBadge();
+        addScanItem(item);
+      });
+    } else {
+      pendingSync.push(item);
+      updatePendingBadge();
+      addScanItem(item);
+    }
+  }
+
+  // Look up barcode and show result
+  async function lookupBarcode(barcode) {
+    const resultDiv = document.getElementById('scan-result');
+    try {
+      const resp = await fetch(API + '/scan/lookup?barcode=' + encodeURIComponent(barcode), {headers});
+      const result = await resp.json();
+      resultDiv.classList.remove('hidden');
+
+      if (result.found && result.product) {
+        document.getElementById('result-barcode').textContent = result.barcode;
+        document.getElementById('result-name').textContent = result.product.name;
+        document.getElementById('result-sku').textContent = result.product.sku;
+        document.getElementById('result-location').textContent = result.product.location || '—';
+        document.getElementById('result-qty').textContent = result.product.quantity + ' ' + result.product.unit;
+        document.getElementById('result-unmatched').classList.add('hidden');
+      } else {
+        document.getElementById('result-barcode').textContent = result.barcode;
+        document.getElementById('result-name').textContent = '—';
+        document.getElementById('result-sku').textContent = '—';
+        document.getElementById('result-location').textContent = '—';
+        document.getElementById('result-qty').textContent = '—';
+        document.getElementById('result-unmatched').classList.remove('hidden');
+      }
+    } catch {
+      resultDiv.classList.remove('hidden');
+      document.getElementById('result-barcode').textContent = barcode;
+      document.getElementById('result-unmatched').classList.remove('hidden');
+    }
+  }
+
+  // Scan input: Enter = lookup + save
+  document.getElementById('scan-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      const barcode = this.value.trim();
+      if (!barcode) return;
+      const qty = parseFloat(document.getElementById('scan-qty').value) || 1;
+      lookupBarcode(barcode);
+      saveScan(barcode, qty);
+      this.value = '';
+      this.focus();
+    }
+  });
+
+  // Export CSV
+  document.getElementById('btn-export-csv').addEventListener('click', function() {
+    const url = currentSessionId
+      ? API + '/export/csv?type=session&session_id=' + currentSessionId
+      : API + '/export/csv?type=products';
+    window.open(url, '_blank');
+  });
+
+  // Close session
+  document.getElementById('btn-close-session').addEventListener('click', async function() {
+    if (!currentSessionId) return;
+    if (!confirm('Close this scan session?')) return;
+    try {
+      await fetch(API + '/sessions/close', {
+        method: 'POST', headers,
+        body: JSON.stringify({session_id: currentSessionId})
+      });
+      currentSessionId = null;
+      scannedItems = [];
+      renderRecentScans();
+      document.getElementById('item-count').textContent = '0 items';
+    } catch {}
+  });
+
+  // New session
+  document.getElementById('btn-new-session').addEventListener('click', function() {
+    currentSessionId = null;
+    scannedItems = [];
+    renderRecentScans();
+    document.getElementById('item-count').textContent = '0 items';
+  });
+})();
+</script>
+{/block}

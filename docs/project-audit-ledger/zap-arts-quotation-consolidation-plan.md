@@ -527,9 +527,21 @@ Phase 5 (Cash Advances)   ← Independent, can run anytime
 | Cash advances | 3 | 3 | 0 | 0 |
 | **Total** | **33** | **30** | **3** | **0** |
 
-### Remaining Gaps (Low Priority)
+### Remaining Gaps (Low Priority) — Status: ✅ All Closed
 
-1. **Job Order Number auto-generation** — The field exists on `pal_projects` but there's no auto-gen logic that fires when a quotation is converted. Currently it's manual input only.
-2. **BOM standalone view** — BOM data can be queried from `pal_materials` + `pal_quotation_items`/`pal_sale_items` but there's no dedicated BOM management interface.
-3. **Monthly cash advance grouping** — The "Team lead" sheet shows monthly grouping. The cash advances list could benefit from a month filter.
-4. **Mockup upload type tag** — Attachments exist generically. Adding a `type='mockup'` filter on the attachment upload for quotations would complete this.
+The following low-priority gaps from the initial implementation have been closed:
+
+1. **Job Order Number auto-generation** ✅ — On quotation convert, if the linked project has no `job_order_number`, it's auto-generated as `JO-YYYYMMDD-NNNN`.
+2. **BOM standalone view** ✅ — New `/admin/project-audit-ledger/bom` page with project selector, material listing from quotations + sales, and CSV export.
+3. **Monthly cash advance grouping** ✅ — Month/year filter added to cash advances list page and entity view handler.
+4. **Mockup upload type tag** ✅ — Type selector (Mockup/Photo/Reference/Other) on quotation detail page attachments, stored in `description` field. New `/api/v1/project-audit-ledger/attachments/list` endpoint for entity-scoped queries.
+
+### Audit Trail Coverage
+
+All new entities and operations emit audit log entries via `palAudit()`:
+- `pal.quotation.created` / `pal.quotation.updated` / `pal.quotation.converted`
+- `pal.sale.created` / `pal.sale.updated` (enhanced with line items)
+- `pal.cash_advance.created` / `pal.cash_advance.approved` / `pal.cash_advance.settled` / `pal.cash_advance.voided`
+- `pal.attachment.uploaded` / `pal.attachment.deleted`
+
+Domain events are also fired through the kernel event bus via `palFireEvent()` for all major state transitions.

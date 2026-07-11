@@ -1,0 +1,68 @@
+{* Inventory Scanner — History Page *}
+{extends file="layouts/admin-base"}
+{block name="head_title"}Scan History — Inventory Scanner{/block}
+
+{block name="content"}
+<div class="max-w-6xl mx-auto px-4 py-6">
+  <h1 class="text-2xl font-bold text-gray-900 mb-6">Scan History</h1>
+
+  <div class="bg-white rounded-lg shadow">
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Session</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Items</th>
+            <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Matched</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sessions-table" class="divide-y divide-gray-200">
+          <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const API = '/api/v1/inventory-scanner';
+  const token = localStorage.getItem('is_token');
+  const headers = token ? {'Authorization': 'Bearer ' + token} : {};
+
+  fetch(API + '/sessions', {headers})
+    .then(r => r.json())
+    .then(data => {
+      const tbody = document.getElementById('sessions-table');
+      if (!data.sessions || data.sessions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No sessions found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.sessions.map(s =>
+        '<tr>' +
+          '<td class="px-4 py-2 text-sm font-medium text-gray-900">#' + s.id + '</td>' +
+          '<td class="px-4 py-2 text-sm text-gray-500 capitalize">' + s.session_type + '</td>' +
+          '<td class="px-4 py-2 text-sm"><span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ' +
+            (s.status === 'open' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' : 'bg-gray-50 text-gray-600 ring-1 ring-inset ring-gray-500/10') +
+            '">' + s.status + '</span></td>' +
+          '<td class="px-4 py-2 text-sm text-center">' + s.item_count + '</td>' +
+          '<td class="px-4 py-2 text-sm text-center">' + s.matched_count + '</td>' +
+          '<td class="px-4 py-2 text-sm text-gray-500">' + s.started_at + '</td>' +
+          '<td class="px-4 py-2 text-sm">' +
+            '<a href="' + API + '/export/csv?type=session&session_id=' + s.id + '" class="text-indigo-600 hover:text-indigo-900 mr-2">CSV</a>' +
+            '<a href="#" onclick="viewSession(' + s.id + ')" class="text-indigo-600 hover:text-indigo-900">View</a>' +
+          '</td>' +
+        '</tr>'
+      ).join('');
+    });
+
+  window.viewSession = function(id) {
+    alert('Session detail view coming soon. Session ID: ' + id + '\nExport CSV instead.');
+  };
+})();
+</script>
+{/block}
