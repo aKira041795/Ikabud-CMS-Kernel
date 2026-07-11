@@ -545,3 +545,427 @@ All new entities and operations emit audit log entries via `palAudit()`:
 - `pal.attachment.uploaded` / `pal.attachment.deleted`
 
 Domain events are also fired through the kernel event bus via `palFireEvent()` for all major state transitions.
+
+---
+
+## 11. Team Leader Views & Role Implementation Plan
+
+> **Date**: 2026-07-11
+> **Status**: 📋 Design Phase
+> **Dependency**: Phase 1–5 completion (✅ done)
+
+---
+
+### 11.1 Current State Assessment
+
+| Element | Current State | Gap |
+|---|---|---|
+| PAL user roles | `admin`, `supervisor`, `encoder` only | No `team_lead` role |
+| `pal_team_leads` table | Standalone (name, contact, email, address) | No link to `pal_users` — team leads cannot log in |
+| CA approval flow | Direct status update (`pending→approved→settled`) in service | No `pal_approvals` integration, no multi-step review |
+| CA submission | Admin/supervisor only | Team leads cannot request their own CAs |
+| Mobilization requests | **Does not exist** | No entity, no workflow |
+| Team attendance view | PAL has no attendance data | `attendance-wage` module has it but separate DB/auth |
+| Fabrication view per JO | Admin sees all projects | No team-lead-filtered view |
+| CA request notifications | `palFireEvent()` fires events | No notification handler consuming them |
+
+### Attendance-Wages Module (Reference Integration)
+
+The `attendance-wage` module (`modules/attendance-wage/`) provides:
+- `attendance_wage_users` — roles: `admin`, `supervisor`, `employee`
+- `employee_profiles` — position, department, salary, gov IDs, `cash_advance_allowed`
+- `attendance_records` — clock_in, clock_out, photo, location, status
+- `cash_advances` — with repayment schedules (`full_next_payroll`, `installment`, `lumpsum_date`)
+- `payroll_periods` + `salary_computation` — payroll engine
+- Own auth cookie (`attendance_wage_token`), completely separate from PAL
+
+**Integration challenge**: PAL and attendance-wages are separate modules with their own databases, auth, and user tables. A team lead in PAL needs to see their team's attendance data from the attendance-wages module.
+
+---
+
+### 11.2 Architecture Decision: Add `team_lead` Role to PAL
+
+**Decision**: Add `team_lead` to `pal_users.role` ENUM, link `pal_team_leads.user_id` → `pal_users.id`.
+
+**Why not keep team_leads standalone?**
+- Team leads need to log in, view dashboards, submit requests — that requires authentication
+- `pal_users` already has the auth infrastructure (password_hash, token_version, sessions)
+- Adding a `user_id` FK to `pal_team_leads` creates a proper entity relationship without duplicating auth
+
+**Migration**:
+```sql
+ALTER TABLE pal_users MODIFY COLUMN role ENUM('admin','supervisor','encoder','team_lead') NOT NULL DEFAULT 'encoder';
+ALTER TABLE pal_team_leads ADD COLUMN user_id INT UNSIGNED DEFAULT NULL AFTER email;
+ALTER TABLE pal_team_leads ADD INDEX idx_pal_tl_user (user_id);
+```
+
+**Backfill**: Existing `pal_team_leads` records with matching email to `pal_users` get linked. New team leads created via user management auto-create the `pal_team_leads` record.
+
+---
+
+### 11.3 Team Leader Shell & Views
+
+Team leads get a **stripped-down shell** with only their relevant nav items:
+
+```
+📊 My Dashboard         — personal KPI cards
+📁 My Projects          — projects assigned via fabrication_team_lead_id
+🔧 Fabrication Dues     — fab allocations & dues for assigned JOs
+💵 My Cash Advances     — requested + received CAs
+🚛 Mobilization         — request mobilization funds
+👥 Team Attendance      — team member hours (from attendance-wage)
+⚙️ My Profile           — view/edit personal info
+```
+
+Capabilities:
+- `pal.team_lead.dashboard@1` — View dashboard
+- `pal.team_lead.fabrication@1` — View fab for assigned JOs
+- `pal.team_lead.ca.request@1` — Submit CA requests
+- `pal.team_lead.ca.view@1` — View own CA history
+- `pal.team_lead.mobilization.request@1` — Submit mobilization requests
+- `pal.team_lead.mobilization.view@1` — View own mobilization history
+- `pal.team_lead.attendance@1` — View team attendance
+
+---
+
+### 11.4 View 1: Fabrications per JO Assigned
+
+**Query**: Projects where `p.fabrication_team_lead_id` matches the team lead's `pal_team_leads.id`.
+
+**Data shown**:
+- Project title, job_order_number, contract_amount
+- Fabrication budget (contract × alloc_pct%)
+- CA dispensed so far (SUM of approved allocations)
+- Remaining budget
+- Weekly dues breakdown (due_amount, paid_amount, balance)
+
+**Template**: `templates/.../pages/team-lead-fabrication.disyl`
+**Route**: `GET /admin/project-audit-ledger/team-lead/fabrication`
+
+---
+
+### 11.5 View 2: Cash Advances — Requested & Received
+
+**Current state**: CA created by admin, directly approved. No team lead self-service.
+
+**Better flow**:
+
+```
+Team Lead submits CA request
+         │
+         ▼
+   Status: pending
+   pal_approvals record created (entity_type='cash_advance')
+   Event: pal.ca.requested
+         │
+         ▼
+   Supervisor notified (if supervisor role exists)
+         │
+         ▼
+   Admin reviews in Approval Queue
+         │
+    ┌────┴────┐
+    ▼         ▼
+approved   rejected
+    │         │
+    ▼         ▼
+Status:    Status:
+approved   rejected
+Event:     Event:
+pal.ca.    pal.ca.
+approved   rejected
+    │
+    ▼
+Team lead sees
+"Received: ₱X"
+    │
+    ▼
+Admin marks settled
+→ Status: settled
+```
+
+**Changes needed**:
+| File | Change |
+|---|---|
+| `pal_users` migration | Add `role='team_lead'` to ENUM |
+| `pal_team_leads` migration | Add `user_id` FK |
+| `CashAdvanceService.php` | Add `submitForApproval()` method, integrate with `palApprovalService` |
+| `ApprovalService.php` | Add `cash_advance` to `TABLES` constant, add post-approval handler |
+| `handlers/57-cash-advances.php` | Add `palApiCashAdvanceSubmit()` and team lead views |
+| `templates/.../team-lead-ca-list.disyl` | Team lead CA list (filtered by team_lead_id) |
+| `templates/.../team-lead-ca-form.disyl` | Team lead CA request form |
+| `shell.disyl` | Add team lead shell variant |
+
+**Immediate CA list for team leads** (before full approval integration):
+Pass `team_lead_id` filter from the authenticated user's linked `pal_team_leads` record. Show status with badges.
+
+---
+
+### 11.6 View 3: Mobilization Request (NEW Entity)
+
+**New table**: `pal_mobilization_requests`
+
+```sql
+CREATE TABLE pal_mobilization_requests (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    tenant_id INT UNSIGNED NOT NULL,
+    team_lead_id INT UNSIGNED NOT NULL,
+    project_id INT UNSIGNED DEFAULT NULL,
+    amount DECIMAL(18,2) NOT NULL,
+    request_date DATE NOT NULL,
+    purpose VARCHAR(255) DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    status ENUM('pending','approved','rejected','disbursed','voided') NOT NULL DEFAULT 'pending',
+    approved_by INT UNSIGNED DEFAULT NULL,
+    approved_at DATETIME DEFAULT NULL,
+    disbursed_at DATETIME DEFAULT NULL,
+    created_by INT UNSIGNED DEFAULT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT DEFAULT NULL,
+    approval_id INT UNSIGNED DEFAULT NULL,
+    INDEX idx_pal_mob_tenant (tenant_id),
+    INDEX idx_pal_mob_teamlead (team_lead_id),
+    INDEX idx_pal_mob_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+**Flow**:
+```
+Team Lead submits mobilization request
+         │
+         ▼
+   pal_mobilization_requests (status: pending)
+   pal_approvals (entity_type='mobilization')
+   Event: pal.mobilization.requested
+         │
+         ▼
+   Admin reviews → approve/reject
+         │
+    ┌────┴────┐
+    ▼         ▼
+approved   rejected
+    │
+    ▼
+   Status: disbursed (when funds released)
+```
+
+**New files**:
+| File | Purpose |
+|---|---|
+| `database/migrations/011_pal_mobilization.sql` | New table |
+| `services/MobilizationService.php` | CRUD + approval |
+| `handlers/58-mobilization.php` | Team lead + admin handlers |
+| `templates/.../team-lead-mobilization-list.disyl` | Team lead view |
+| `templates/.../team-lead-mobilization-form.disyl` | Request form |
+
+**New routes**:
+| Method | Path | Handler |
+|---|---|---|
+| GET | `/admin/project-audit-ledger/team-lead/mobilization` | Team lead list |
+| GET | `/admin/project-audit-ledger/team-lead/mobilization/create` | Request form |
+| POST | `/api/v1/project-audit-ledger/mobilization` | Submit request |
+| POST | `/api/v1/project-audit-ledger/mobilization/{id}/approve` | Admin approve |
+| POST | `/api/v1/project-audit-ledger/mobilization/{id}/reject` | Admin reject |
+
+---
+
+### 11.7 View 4: Team Member Attendance (Cross-Module Integration)
+
+**Challenge**: PAL and `attendance-wage` are separate modules with separate:
+- Databases (tenant DBs may be the same, but user tables differ)
+- Auth cookies (`pal_token` vs `attendance_wage_token`)
+- User tables (`pal_users` vs `attendance_wage_users`)
+
+**Recommended approach**: **Direct DB read bridge**
+
+Since both modules run under the same tenant and share the same MySQL database, PAL can read `attendance_records` and `employee_profiles` directly via the kernel's tenant-scoped DB connection.
+
+**Implementation**:
+1. Add a `team_lead_email` column to `pal_team_leads` (already has `email`)
+2. In the `attendance-wage` module, add `team_lead_email` to `employee_profiles`
+3. PAL's team lead attendance handler queries:
+```sql
+SELECT ar.*, ep.full_name, ep.position
+FROM attendance_records ar
+JOIN employee_profiles ep ON ar.user_id = ep.user_id
+WHERE ep.team_lead_email = :team_lead_email
+  AND ar.clock_in >= :date_from AND ar.clock_in <= :date_to
+ORDER BY ar.clock_in DESC
+```
+
+**Or simpler** (Phase 1):
+- Team lead manages their team via the `attendance-wage` module's own interface
+- PAL provides a deep-link to `/admin/attendance` or an iframe embed
+- No cross-module schema changes needed
+
+**Recommended for MVP**: The simpler approach — deep-link to attendance-wage module. Cross-module DB reads can be Phase 2.
+
+---
+
+### 11.8 Better Flow: Summary
+
+#### Current Flow (Admin-only)
+```
+Admin → Creates CA → Directly approves → Settles
+Admin → Creates mobilization (doesn't exist yet)
+Admin → Views all fabrication
+No team lead login
+```
+
+#### Proposed Flow (Team Lead + Admin)
+```
+┌─────────────────────────────────────────────────────────┐
+│ TEAM LEAD                                              │
+│                                                         │
+│ Login → Dashboard                                       │
+│   ├─ View fabrications per assigned JO                  │
+│   ├─ Submit CA request ──────────┐                      │
+│   ├─ Submit mobilization request ─┤                     │
+│   ├─ View CA history (received)   │                     │
+│   └─ View team attendance ────────┤                     │
+│                                    ▼                     │
+│                          pal_approvals queue            │
+│                                    │                     │
+├────────────────────────────────────┼─────────────────────┤
+│ ADMIN                              │                     │
+│                                    ▼                     │
+│ Login → Approval Queue             │                     │
+│   ├─ Review pending CA requests ◄──┘                     │
+│   ├─ Review mobilization requests                        │
+│   ├─ Approve/Reject → status updated                    │
+│   └─ Mark CA as settled, mobilization as disbursed      │
+│                                                         │
+│ Login → Fabrication Management                          │
+│   ├─ All projects (admin view)                          │
+│   └─ Per-team-lead breakdown                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 11.9 Implementation Phases
+
+#### Phase 6 — Team Lead Role & Auth
+
+| Step | Description |
+|---|---|
+| 6.1 | Migration: Add `team_lead` to `pal_users.role` ENUM |
+| 6.2 | Migration: Add `user_id` FK to `pal_team_leads` |
+| 6.3 | Update `handlers/75-users.php` — allow creating team_lead users |
+| 6.4 | Update `handlers/00-bootstrap.php` — team_lead role in `palRequireRole()` |
+| 6.5 | Add new capabilities to `module.json` |
+| 6.6 | Create team lead shell template variant |
+| 6.7 | Update `handlers/70-settings.php` — team lead management links to user |
+
+#### Phase 7 — Team Lead Fabrication View
+
+| Step | Description |
+|---|---|
+| 7.1 | Handler: `palPageTeamLeadFabrication()` — filter projects by team_lead_id |
+| 7.2 | Template: `team-lead-fabrication.disyl` — fabrication table per JO |
+| 7.3 | Route + nav item |
+
+#### Phase 8 — CA Request Flow (Team Lead → Admin)
+
+| Step | Description |
+|---|---|
+| 8.1 | Update `CashAdvanceService` — add `submitForApproval()` |
+| 8.2 | Update `ApprovalService` — add `cash_advance` entity support |
+| 8.3 | Handler: team lead CA request form & submission API |
+| 8.4 | Handler: team lead CA list (own records only) |
+| 8.5 | Template: team lead CA request form + list with status badges |
+| 8.6 | Admin approval queue: show CA requests, link to decide |
+
+#### Phase 9 — Mobilization Request (NEW)
+
+| Step | Description |
+|---|---|
+| 9.1 | Migration: `011_pal_mobilization.sql` |
+| 9.2 | Service: `MobilizationService.php` |
+| 9.3 | Handler: `58-mobilization.php` |
+| 9.4 | Templates: list + form |
+| 9.5 | Approval integration |
+| 9.6 | Routes + nav |
+
+#### Phase 10 — Team Attendance View
+
+| Step | Description |
+|---|---|
+| 10.1 | Deep-link or iframe embed to attendance-wage module |
+| 10.2 | (Phase 2) Cross-module DB query bridge |
+
+---
+
+### 11.10 Files Checklist
+
+#### Phase 6 — Create
+- [ ] `database/migrations/011_pal_team_lead_role.sql`
+- [ ] `templates/project-audit-ledger/team-lead-shell.disyl`
+
+#### Phase 6 — Modify
+- [ ] `module.json` — add team_lead capabilities
+- [ ] `handlers/00-bootstrap.php` — team_lead in role checks
+- [ ] `handlers/75-users.php` — team_lead role in create/update
+- [ ] `handlers/70-settings.php` — link team leads to users
+
+#### Phase 7 — Create
+- [ ] `templates/project-audit-ledger/pages/team-lead-fabrication.disyl`
+
+#### Phase 7 — Modify
+- [ ] `routes.php`
+- [ ] `handlers.php`
+- [ ] `handlers/45-fabrication.php` — add team lead handler
+
+#### Phase 8 — Create
+- [ ] `templates/project-audit-ledger/pages/team-lead-ca-list.disyl`
+- [ ] `templates/project-audit-ledger/pages/team-lead-ca-form.disyl`
+
+#### Phase 8 — Modify
+- [ ] `services/CashAdvanceService.php`
+- [ ] `services/ApprovalService.php`
+- [ ] `handlers/57-cash-advances.php`
+
+#### Phase 9 — Create
+- [ ] `database/migrations/012_pal_mobilization.sql`
+- [ ] `services/MobilizationService.php`
+- [ ] `handlers/58-mobilization.php`
+- [ ] `templates/project-audit-ledger/pages/team-lead-mobilization-list.disyl`
+- [ ] `templates/project-audit-ledger/pages/team-lead-mobilization-form.disyl`
+- [ ] `helpers/views/pal_mobilization.disyl`
+
+#### Phase 9 — Modify
+- [ ] `module.json`
+- [ ] `routes.php`
+- [ ] `handlers.php`
+- [ ] `helpers.php`
+- [ ] `services/ApprovalService.php`
+
+#### Phase 10 — Create
+- [ ] `templates/project-audit-ledger/pages/team-lead-attendance.disyl`
+
+#### Phase 10 — Modify
+- [ ] `routes.php`
+
+---
+
+### 11.11 Suggested Better Flow
+
+The original flow was purely admin-driven. The proposed flow distributes responsibility:
+
+| Action | Who | Checkpoint |
+|---|---|---|
+| Submit CA request | Team Lead | Supervisor notified |
+| Submit mobilization request | Team Lead | Supervisor notified |
+| Review CA/mobilization | Admin (via Approval Queue) | Approve or reject |
+| View fabrication per JO | Team Lead | Read-only, filtered |
+| View own CA history | Team Lead | Status + amounts |
+| View team attendance | Team Lead | Deep-link to attendance-wage |
+| Settle approved CA | Admin | Marks CA as settled |
+| Disburse mobilization | Admin | Marks as disbursed |
+
+**Benefits**:
+- Team leads have autonomy to request funds without admin manually creating everything
+- Audit trail is clear: who requested, who approved
+- Approval queue centralizes all pending decisions in one place
+- Integration with existing `pal_approvals` ensures consistency
+- Fabrication dues are visible per JO, not just globally
