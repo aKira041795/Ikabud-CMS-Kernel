@@ -124,28 +124,31 @@
 <script>
 // ── Mockup Image Upload ──
 function uploadMockup() {
-    var file = document.getElementById('mockup-file').files[0];
-    if (!file) return;
+    var fileInput = document.getElementById('mockup-file');
+    if (!fileInput || !fileInput.files || !fileInput.files[0]) return;
+    var file = fileInput.files[0];
     var fd = new FormData();
     fd.append('file', file);
     fd.append('entity_type', 'project');
-    fd.append('entity_id', '0'); // temporary, will be linked on save
+    fd.append('entity_id', '0');
     fd.append('description', 'Mockup image');
     var csrf = document.querySelector('input[name="_token"]');
     if (csrf) fd.append('_token', csrf.value);
+
+    // Show inline preview immediately (client-side)
+    document.getElementById('mockup-img').src = URL.createObjectURL(file);
+    document.getElementById('mockup-preview').style.display = 'block';
+
     fetch('/api/v1/project-audit-ledger/attachments', { method: 'POST', body: fd })
     .then(function(r){ return r.json(); })
     .then(function(d){
         if (d.ok) {
             document.getElementById('mockup-attachment-id').value = d.id;
-            document.getElementById('mockup-img').src = d.url || URL.createObjectURL(file);
-            document.getElementById('mockup-preview').style.display = 'block';
-            showToast('Mockup uploaded');
         } else {
             showToast(d.error || 'Upload failed', 'error');
         }
     })
-    .catch(function(){ showToast('Upload failed', 'error'); });
+    .catch(function(){ showToast('Upload silently failed — preview shown', 'warning'); });
 }
 function removeMockup() {
     document.getElementById('mockup-attachment-id').value = '';
