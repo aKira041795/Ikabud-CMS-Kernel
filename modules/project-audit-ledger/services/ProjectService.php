@@ -516,6 +516,16 @@ class palProjectService
 
                 palAudit('pal.sale.created', $this->userId, 'pal_sales', (string)$saleId, null,
                     ['project_id' => $id, 'auto_created_on_completion' => true, 'amount' => $contractAmount]);
+
+                // Auto-create collection record
+                $collCount = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
+                $collCount->execute([':tid' => $this->tenantId]);
+                $collPrefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
+                $collNum = $collPrefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$collCount->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+                $collAmount = !empty($project['down_payment']) ? (float)$project['down_payment'] : $contractAmount;
+                $pm = $project['mode_of_payment'] ?? 'cash';
+                $collStmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :no, :rb, :st, :cb)");
+                $collStmt->execute([':t' => $this->tenantId, ':cn' => $collNum, ':si' => $saleId, ':pj' => $id, ':cl' => (int)$project['client_id'], ':pd' => date('Y-m-d'), ':amt' => $collAmount, ':pm' => $pm, ':no' => 'Auto-created from project completion', ':rb' => $this->userId, ':st' => 'pending', ':cb' => $this->userId]);
             }
 
             $this->db->commit();
