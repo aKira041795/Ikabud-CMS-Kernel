@@ -104,14 +104,33 @@ class palProjectService
             $data['job_order_number'] = 'JO-' . date('Ymd') . '-' . str_pad((string)((int)$joCount->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
         }
 
-        // Calculate contract_amount from items if not provided
-        $items = $data['items'] ?? [];
-        $calculatedTotal = $this->calculateItemsTotal($items);
-        $contractAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : $calculatedTotal;
-        $installationCharge = (float)($data['installation_charge'] ?? 0);
-        $mobilizationCharge = (float)($data['mobilization_charge'] ?? 0);
-        $otherCharges = (float)($data['other_charges'] ?? 0);
-        $totalAmount = $calculatedTotal + $installationCharge + $mobilizationCharge + $otherCharges;
+        // Determine JO type: 'items' (quotation) or 'contract' (contracted amount)
+        $joType = $data['_jo_type'] ?? (empty($data['items']) ? 'contract' : 'items');
+        $withInstallation = !empty($data['with_installation']) ? 1 : 0;
+
+        // Calculate contract_amount based on JO type
+        if ($joType === 'contract') {
+            $contractAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : 0;
+            $installationCharge = 0;
+            $mobilizationCharge = 0;
+            $otherCharges = 0;
+            $items = [];
+        } else {
+            $items = $data['items'] ?? [];
+            $calculatedTotal = $this->calculateItemsTotal($items);
+            $contractAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : $calculatedTotal;
+            $installationCharge = (float)($data['installation_charge'] ?? 0);
+            $mobilizationCharge = (float)($data['mobilization_charge'] ?? 0);
+            $otherCharges = (float)($data['other_charges'] ?? 0);
+            $contractAmount = max($contractAmount, $calculatedTotal + $installationCharge + $mobilizationCharge + $otherCharges);
+        }
+
+        // Fabrication fields: only when with_installation = YES and items-type JO
+        $fabTeamLeadId = ($withInstallation && $joType === 'items' && !empty($data['fabrication_team_lead_id']))
+            ? (int)$data['fabrication_team_lead_id'] : null;
+        $fabAllocPct = ($withInstallation && $joType === 'items') ? ($data['fabrication_alloc_pct'] ?? null) : null;
+        $fabAllocBasis = ($withInstallation && $joType === 'items') ? ($data['fabrication_alloc_basis'] ?? 'expenses') : null;
+        $fabAllocFixed = ($withInstallation && $joType === 'items') ? ($data['fabrication_alloc_fixed'] ?? null) : null;
 
         $sql = "INSERT INTO pal_projects (
                     tenant_id, project_id, job_order_number, title, client_id,
@@ -148,10 +167,10 @@ class palProjectService
                 ':client_id' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
                 ':project_type_id' => !empty($data['project_type_id']) ? (int)$data['project_type_id'] : null,
                 ':scope_of_work' => $data['scope_of_work'] ?? null,
-                ':with_installation' => !empty($data['with_installation']) ? 1 : 0,
+                ':with_installation' => $withInstallation,
                 ':description' => $data['description'] ?? null,
                 ':location' => $data['location'] ?? null,
-                ':contract_amount' => $totalAmount,
+                ':contract_amount' => $contractAmount,
                 ':installation_charge' => $installationCharge,
                 ':mobilization_charge' => $mobilizationCharge,
                 ':other_charges' => $otherCharges,
@@ -162,10 +181,10 @@ class palProjectService
                 ':start_date' => $data['start_date'] ?? null,
                 ':target_completion_date' => $data['target_completion_date'] ?? null,
                 ':project_manager' => $data['project_manager'] ?? null,
-                ':fabrication_team_lead_id' => !empty($data['fabrication_team_lead_id']) ? (int)$data['fabrication_team_lead_id'] : null,
-                ':fabrication_alloc_pct' => $data['fabrication_alloc_pct'] ?? null,
-                ':fabrication_alloc_basis' => $data['fabrication_alloc_basis'] ?? 'expenses',
-                ':fabrication_alloc_fixed' => $data['fabrication_alloc_fixed'] ?? null,
+                ':fabrication_team_lead_id' => $fabTeamLeadId,
+                ':fabrication_alloc_pct' => $fabAllocPct,
+                ':fabrication_alloc_basis' => $fabAllocBasis,
+                ':fabrication_alloc_fixed' => $fabAllocFixed,
                 ':status' => $data['status'] ?? 'draft',
                 ':budget_warning_pct' => $data['budget_warning_pct'] ?? 80,
                 ':notes' => $data['notes'] ?? null,
@@ -216,13 +235,52 @@ class palProjectService
                 if ($field === 'with_installation') {
                     $val = !empty($val) ? 1 : 0;
                 }
+                // Null out fabrication fields when with_installation is off
+                if ($val === 0 && $field === 'with_installation') {
+                    // Also null out fabrication fields
+                    if (array_key_exists('fabrication_team_lead_id', $data)) {
+                        $fields[] = 'fabrication_team_lead_id = :_fab_tlid';
+                        $params[':_fab_tlid'] = null;
+                    }
+                    if (array_key_exists('fabrication_alloc_pct', $data)) {
+                        $fields[] = 'fabrication_alloc_pct = :_fab_pct';
+                        $params[':_fab_pct'] = null;
+                    }
+                    if (array_key_exists('fabrication_alloc_basis', $data)) {
+                        $fields[] = 'fabrication_alloc_basis = :_fab_basis';
+                        $params[':_fab_basis'] = null;
+                    }
+                    if (array_key_exists('fabrication_alloc_fixed', $data)) {
+                        $fields[] = 'fabrication_alloc_fixed = :_fab_fixed';
+                        $params[':_fab_fixed'] = null;
+                    }
+                }
                 $fields[] = "{$field} = :{$field}";
                 $params[":{$field}"] = $val;
             }
         }
 
-        // Recalculate contract_amount if items are provided
-        if (isset($data['items'])) {
+        // Determine JO type and recalculate contract_amount
+        $joType = $data['_jo_type'] ?? (isset($data['items']) ? 'items' : null);
+        if ($joType === 'contract' && !empty($data['contract_amount'])) {
+            // Contracted amount: zero out charges, keep contract_amount as-is
+            $fields[] = 'installation_charge = :_ic_zero';
+            $params[':_ic_zero'] = 0;
+            $fields[] = 'mobilization_charge = :_mc_zero';
+            $params[':_mc_zero'] = 0;
+            $fields[] = 'other_charges = :_oc_zero';
+            $params[':_oc_zero'] = 0;
+        } elseif ($joType === 'items' && isset($data['items'])) {
+            // Items mode: recalculate from items + charges
+            $installationCharge = (float)($data['installation_charge'] ?? $project['installation_charge'] ?? 0);
+            $mobilizationCharge = (float)($data['mobilization_charge'] ?? $project['mobilization_charge'] ?? 0);
+            $otherCharges = (float)($data['other_charges'] ?? $project['other_charges'] ?? 0);
+            $itemsTotal = $this->calculateItemsTotal($data['items']);
+            $newTotal = $itemsTotal + $installationCharge + $mobilizationCharge + $otherCharges;
+            $fields[] = 'contract_amount = :_new_total';
+            $params[':_new_total'] = $newTotal;
+        } elseif (isset($data['items'])) {
+            // Legacy: items provided without _jo_type
             $installationCharge = (float)($data['installation_charge'] ?? $project['installation_charge'] ?? 0);
             $mobilizationCharge = (float)($data['mobilization_charge'] ?? $project['mobilization_charge'] ?? 0);
             $otherCharges = (float)($data['other_charges'] ?? $project['other_charges'] ?? 0);
