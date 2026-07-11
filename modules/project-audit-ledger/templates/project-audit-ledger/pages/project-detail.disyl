@@ -6,7 +6,7 @@
         <p class="text-sm text-gray-600 mb-4">{project.description|default:'No description'}</p>
         <div class="grid grid-cols-3 gap-4 text-sm">
             <div><span class="text-gray-600">Status</span><br><span class="font-medium">{project.status|default:'draft'}</span></div>
-            <div><span class="text-gray-600">Amount</span><br><span class="font-medium">₱{project.contract_amount|default:0|number_format:2}</span></div>
+            <div><span class="text-gray-600">Amount</span><br><span class="font-medium">₱{project.contract_amount|default:0|number_format:2}{if project.jo_type == 'contract'} <span class="text-xs text-gray-500 font-normal">(contracted)</span>{/if}</span></div>
             <div><span class="text-gray-600">Client</span><br><span class="font-medium">{if project.client_name && project.client_id}<a href="/admin/project-audit-ledger/clients/{project.client_id}" class="text-blue-600 hover:text-blue-800">{project.client_name}</a>{else}{project.client_name|default:'—'}{/if}</span></div>
             <div><span class="text-gray-600">Start</span><br><span class="font-medium">{project.start_date|default:'—'}</span></div>
             <div><span class="text-gray-600">Target End</span><br><span class="font-medium">{project.target_completion_date|default:'—'}</span></div>

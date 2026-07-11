@@ -1,4 +1,4 @@
-<div class="max-w-4xl" x-data="{ joType: '{if project.items && project.items|count > 0}items{else}contract{/if}', hasInstallation: {if project.with_installation|default:0}true{else}false{/if} }">
+<div class="max-w-4xl" x-data="{ joType: '{project.jo_type|default:"items"}', hasInstallation: {if project.with_installation|default:0}true{else}false{/if} }">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit|default:false ? 'Edit Job Order' : 'Create Job Order'}</h2>
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="space-y-4">

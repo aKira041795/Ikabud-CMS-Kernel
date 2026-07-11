@@ -108,22 +108,30 @@ class palProjectService
         $joType = $data['_jo_type'] ?? (empty($data['items']) ? 'contract' : 'items');
         $withInstallation = !empty($data['with_installation']) ? 1 : 0;
 
-        // Calculate contract_amount based on JO type
-        if ($joType === 'contract') {
-            $contractAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : 0;
-            $installationCharge = 0;
-            $mobilizationCharge = 0;
-            $otherCharges = 0;
-            // Items are still saved for material tracking but don't affect contract_amount
-            $items = $data['items'] ?? [];
-        } else {
-            $items = $data['items'] ?? [];
-            $calculatedTotal = $this->calculateItemsTotal($items);
-            $contractAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : $calculatedTotal;
+        // Items are always saved (BOM / material tracking)
+        $items = $data['items'] ?? [];
+        $itemsTotal = !empty($items) ? $this->calculateItemsTotal($items) : 0;
+
+        // Source of truth for contract_amount:
+        // - If user explicitly set contract_amount (non-empty, non-zero), keep it
+        // - If contract_amount is empty/zero but items exist → items total is truth
+        // - If both are empty → 0
+        $userEnteredAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : 0;
+        $contractAmount = $userEnteredAmount > 0 ? $userEnteredAmount : $itemsTotal;
+
+        if ($joType === 'items') {
             $installationCharge = (float)($data['installation_charge'] ?? 0);
             $mobilizationCharge = (float)($data['mobilization_charge'] ?? 0);
             $otherCharges = (float)($data['other_charges'] ?? 0);
-            $contractAmount = max($contractAmount, $calculatedTotal + $installationCharge + $mobilizationCharge + $otherCharges);
+            // For items mode, contract_amount = items + charges if user didn't override
+            if ($userEnteredAmount <= 0 && $itemsTotal > 0) {
+                $contractAmount = $itemsTotal + $installationCharge + $mobilizationCharge + $otherCharges;
+            }
+        } else {
+            // Contract mode: zero out charges, items are for tracking only
+            $installationCharge = 0;
+            $mobilizationCharge = 0;
+            $otherCharges = 0;
         }
 
         // Fabrication fields: only when with_installation = YES
@@ -134,7 +142,7 @@ class palProjectService
         $fabAllocFixed = $withInstallation ? ($data['fabrication_alloc_fixed'] ?? null) : null;
 
         $sql = "INSERT INTO pal_projects (
-                    tenant_id, project_id, job_order_number, title, client_id,
+                    tenant_id, project_id, job_order_number, jo_type, title, client_id,
                     project_type_id, scope_of_work, with_installation,
                     description, location, contract_amount, installation_charge,
                     mobilization_charge, other_charges, mode_of_payment,
@@ -145,7 +153,7 @@ class palProjectService
                     fabrication_alloc_fixed, status, budget_warning_pct,
                     notes, created_by
                 ) VALUES (
-                    :tenant_id, :project_id, :job_order_number, :title, :client_id,
+                    :tenant_id, :project_id, :job_order_number, :jo_type, :title, :client_id,
                     :project_type_id, :scope_of_work, :with_installation,
                     :description, :location, :contract_amount, :installation_charge,
                     :mobilization_charge, :other_charges, :mode_of_payment,
@@ -164,6 +172,7 @@ class palProjectService
                 ':tenant_id' => $this->tenantId,
                 ':project_id' => $data['project_id'],
                 ':job_order_number' => $data['job_order_number'],
+                ':jo_type' => $joType,
                 ':title' => $data['title'],
                 ':client_id' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
                 ':project_type_id' => !empty($data['project_type_id']) ? (int)$data['project_type_id'] : null,
@@ -220,7 +229,7 @@ class palProjectService
         $params = [':id' => $id, ':tenant_id' => $this->tenantId];
 
         foreach ([
-            'project_id', 'job_order_number', 'title', 'client_id', 'project_type_id',
+            'project_id', 'job_order_number', 'jo_type', 'title', 'client_id', 'project_type_id',
             'scope_of_work', 'with_installation',
             'description', 'location', 'contract_amount', 'estimated_cost',
             'installation_charge', 'mobilization_charge', 'other_charges',
@@ -269,18 +278,28 @@ class palProjectService
             }
         }
 
-        // Determine JO type and recalculate contract_amount
-        $joType = $data['_jo_type'] ?? (isset($data['items']) ? 'items' : null);
+        // Determine JO type from form or stored data
+        $joType = $data['_jo_type'] ?? $project['jo_type'] ?? (isset($data['items']) ? 'items' : 'contract');
+
         if ($joType === 'contract') {
-            // Contracted amount: zero out charges, keep contract_amount from the form
+            // Contracted amount: zero out charges
             $fields[] = 'installation_charge = :_ic_zero';
             $params[':_ic_zero'] = 0;
             $fields[] = 'mobilization_charge = :_mc_zero';
             $params[':_mc_zero'] = 0;
             $fields[] = 'other_charges = :_oc_zero';
             $params[':_oc_zero'] = 0;
-            // Items are saved for tracking but don't recalculate contract_amount
-        } elseif ($joType === 'items' && isset($data['items'])) {
+            // Items are saved for tracking — contract_amount is authoritative if set
+            // If contract_amount is empty/zero and items exist → items total is truth
+            $userAmount = !empty($data['contract_amount']) ? (float)$data['contract_amount'] : 0;
+            if ($userAmount <= 0 && isset($data['items'])) {
+                $itemsTotal = $this->calculateItemsTotal($data['items']);
+                if ($itemsTotal > 0) {
+                    $fields[] = 'contract_amount = :_ct_new';
+                    $params[':_ct_new'] = $itemsTotal;
+                }
+            }
+        } elseif (isset($data['items'])) {
             // Items mode: recalculate from items + charges
             $installationCharge = (float)($data['installation_charge'] ?? $project['installation_charge'] ?? 0);
             $mobilizationCharge = (float)($data['mobilization_charge'] ?? $project['mobilization_charge'] ?? 0);
