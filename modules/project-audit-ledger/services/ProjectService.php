@@ -406,6 +406,104 @@ class palProjectService
     }
 
     /**
+     * Smart completion: marks project completed + auto-creates invoice if needed.
+     * Call this from the handler when status = 'completed'.
+     */
+    public function completeProject(int $id): bool
+    {
+        $project = $this->get($id);
+        if (!$project) throw new InvalidArgumentException('Project not found.');
+
+        $this->db->beginTransaction();
+        try {
+            // 1. Update status + set actual completion date
+            $this->db->prepare("UPDATE pal_projects SET status = 'completed', actual_completion_date = CURDATE(), version = version + 1, updated_by = :ub WHERE id = :id AND tenant_id = :tid")
+                ->execute([':id' => $id, ':tid' => $this->tenantId, ':ub' => $this->userId]);
+
+            // 2. Check if there's an existing sale for this project
+            $saleStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE project_id = :pid AND tenant_id = :tid");
+            $saleStmt->execute([':pid' => $id, ':tid' => $this->tenantId]);
+            $hasSale = (int)$saleStmt->fetchColumn() > 0;
+
+            // 3. If no sale exists and project has a client, auto-create invoice
+            if (!$hasSale && !empty($project['client_id'])) {
+                $contractAmount = (float)($project['contract_amount'] ?? 0);
+                // Generate invoice number
+                $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE tenant_id = :tid");
+                $countStmt->execute([':tid' => $this->tenantId]);
+                $prefix = (function_exists('palSettings') ? (palSettings()['sales_prefix'] ?? 'INV') : 'INV');
+                $invNum = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$countStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+
+                $stmt = $this->db->prepare("INSERT INTO pal_sales
+                    (tenant_id, sales_number, project_id, client_id, sales_date, gross_amount,
+                     installation_charge, mobilization_charge, other_charges, mode_of_payment,
+                     down_payment, down_payment_type, scope_of_work, with_installation, status, created_by)
+                    VALUES (:t, :sn, :pj, :cl, :sd, :ga, :ic, :mc, :oc, :mop, :dp, :dpt, :sow, :wi, 'issued', :cb)");
+                $stmt->execute([
+                    ':t' => $this->tenantId,
+                    ':sn' => $invNum,
+                    ':pj' => $id,
+                    ':cl' => (int)$project['client_id'],
+                    ':sd' => date('Y-m-d'),
+                    ':ga' => $contractAmount,
+                    ':ic' => (float)($project['installation_charge'] ?? 0),
+                    ':mc' => (float)($project['mobilization_charge'] ?? 0),
+                    ':oc' => (float)($project['other_charges'] ?? 0),
+                    ':mop' => $project['mode_of_payment'] ?? null,
+                    ':dp' => !empty($project['down_payment']) ? (float)$project['down_payment'] : null,
+                    ':dpt' => $project['down_payment_type'] ?? null,
+                    ':sow' => $project['scope_of_work'] ?? null,
+                    ':wi' => !empty($project['with_installation']) ? 1 : 0,
+                    ':cb' => $this->userId,
+                ]);
+                $saleId = (int)$this->db->lastInsertId();
+
+                // 4. Copy line items from project to sale items
+                $items = $this->getItems($id);
+                if (!empty($items)) {
+                    $itemStmt = $this->db->prepare("INSERT INTO pal_sale_items
+                        (tenant_id, sale_id, material_id, particulars, width, height, uom, quantity,
+                         price_per_unit, price_per_sqft, line_total, sort_order)
+                        VALUES (:t, :si, :mi, :part, :w, :h, :uom, :qty, :ppu, :psf, :lt, :so)");
+                    foreach ($items as $item) {
+                        $itemStmt->execute([
+                            ':t' => $this->tenantId,
+                            ':si' => $saleId,
+                            ':mi' => $item['material_id'],
+                            ':part' => $item['particulars'] ?? '',
+                            ':w' => $item['width'],
+                            ':h' => $item['height'],
+                            ':uom' => $item['uom'] ?? null,
+                            ':qty' => (float)($item['quantity'] ?? 1),
+                            ':ppu' => (float)($item['price_per_unit'] ?? 0),
+                            ':psf' => $item['price_per_sqft'] ? (float)$item['price_per_sqft'] : null,
+                            ':lt' => (float)($item['line_total'] ?? 0),
+                            ':so' => (int)($item['sort_order'] ?? 0),
+                        ]);
+                    }
+                }
+
+                palAudit('pal.sale.created', $this->userId, 'pal_sales', (string)$saleId, null,
+                    ['project_id' => $id, 'auto_created_on_completion' => true, 'amount' => $contractAmount]);
+            }
+
+            $this->db->commit();
+
+            // Fire event
+            palFireEvent('pal.project.completed', [
+                'project_id' => $id,
+                'auto_invoiced' => !$hasSale && !empty($project['client_id']),
+                'contract_amount' => $project['contract_amount'] ?? 0,
+            ]);
+
+            return true;
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
      * Sanitize input data: convert empty strings to null for ENUM/decimal/date fields,
      * so MySQL strict mode doesn't reject '' values. Run before create/update.
      */

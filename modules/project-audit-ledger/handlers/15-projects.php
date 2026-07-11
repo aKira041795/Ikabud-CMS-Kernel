@@ -265,10 +265,17 @@ function palApiProjectStatus(array $rp = []): void
         $status = $_POST['status'] ?? '';
 
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-        $svc->updateStatus($id, $status);
 
-        $event = $status === 'completed' ? 'pal.project.completed' : 'pal.project.updated';
-        palAudit($event, (int)$user['id'], 'pal_projects', (string)$id, null, ['status' => $status]);
+        if ($status === 'completed') {
+            // Smart completion: auto-creates invoice if none exists
+            $svc->completeProject($id);
+            palAudit('pal.project.completed', (int)$user['id'], 'pal_projects', (string)$id, null, [
+                'status' => $status, 'auto_invoiced' => true,
+            ]);
+        } else {
+            $svc->updateStatus($id, $status);
+            palAudit('pal.project.status_changed', (int)$user['id'], 'pal_projects', (string)$id, null, ['status' => $status]);
+        }
 
         header('Content-Type: application/json');
         echo json_encode(['ok' => true]);
