@@ -442,7 +442,7 @@ function pal_cap_entity_list_collection_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT c.id, c.collection_number, c.amount, c.payment_method, c.reference_number, c.status, c.payment_date, c.created_at, s.sales_number, p.title AS project_title, cl.name AS client_name FROM pal_collections c LEFT JOIN pal_sales s ON c.sales_id = s.id LEFT JOIN pal_projects p ON c.project_id = p.id LEFT JOIN pal_clients cl ON c.client_id = cl.id WHERE c.tenant_id = :tid ORDER BY c.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT c.id, c.collection_number, c.amount, c.payment_method, c.reference_number, c.status, c.payment_date, c.created_at, COALESCE(s.invoice_number, s.sales_number) AS sales_number, p.title AS project_title, cl.name AS client_name FROM pal_collections c LEFT JOIN pal_sales s ON c.sales_id = s.id LEFT JOIN pal_projects p ON c.project_id = p.id LEFT JOIN pal_clients cl ON c.client_id = cl.id WHERE c.tenant_id = :tid ORDER BY c.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
