@@ -272,7 +272,7 @@ class palSalesService
         return $total;
     }
 
-    private function updateSaleCollectionStatus(int $salesId): void
+    public function updateSaleCollectionStatus(int $salesId): void
     {
         $sale = $this->get($salesId);
         if (!$sale) return;

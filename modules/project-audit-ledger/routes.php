@@ -119,6 +119,7 @@ return [
         '/api/v1/project-audit-ledger/sales/{id}/email' => 'project-audit-ledger:palApiSalesSendEmail',
         '/api/v1/project-audit-ledger/collections' => 'project-audit-ledger:palApiCollectionStore',
         '/api/v1/project-audit-ledger/collections/generate' => 'project-audit-ledger:palApiCollectionsGenerate',
+        '/api/v1/project-audit-ledger/collections/{id}/status' => 'project-audit-ledger:palApiCollectionStatus',
         '/api/v1/project-audit-ledger/cash-advances' => 'project-audit-ledger:palApiCashAdvanceStore',
         '/api/v1/project-audit-ledger/cash-advances/{id}/approve' => 'project-audit-ledger:palApiCashAdvanceApprove',
         '/api/v1/project-audit-ledger/cash-advances/{id}/settle' => 'project-audit-ledger:palApiCashAdvanceSettle',
