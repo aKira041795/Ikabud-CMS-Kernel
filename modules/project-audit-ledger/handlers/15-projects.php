@@ -221,11 +221,14 @@ function palApiProjectUpdate(array $rp = []): void
         $mockupId = !empty($_POST['mockup_attachment_id']) ? (int)$_POST['mockup_attachment_id'] : 0;
         if ($mockupId > 0) {
             $db = palDb();
+            $tid = (int)($user['tenant_id'] ?? 0);
             $db->prepare("UPDATE pal_attachments SET entity_id = :eid WHERE id = :aid AND tenant_id = :tid AND entity_id = 0")
-                ->execute([':eid' => $id, ':aid' => $mockupId, ':tid' => (int)($user['tenant_id'] ?? 0)]);
-            // Move file on disk from project/0/ to project/{id}/
-            $oldDir = PUBLIC_PATH . '/uploads/pal/' . (int)($user['tenant_id'] ?? 0) . '/project/0';
-            $newDir = PUBLIC_PATH . '/uploads/pal/' . (int)($user['tenant_id'] ?? 0) . '/project/' . $id;
+                ->execute([':eid' => $id, ':aid' => $mockupId, ':tid' => $tid]);
+            // Update file_path and move file on disk from project/0/ to project/{id}/
+            $db->prepare("UPDATE pal_attachments SET file_path = REPLACE(file_path, '/project/0/', :np) WHERE id = :aid AND tenant_id = :tid")
+                ->execute([':np' => '/project/' . $id . '/', ':aid' => $mockupId, ':tid' => $tid]);
+            $oldDir = PUBLIC_PATH . '/uploads/pal/' . $tid . '/project/0';
+            $newDir = PUBLIC_PATH . '/uploads/pal/' . $tid . '/project/' . $id;
             if (is_dir($oldDir) && !is_dir($newDir)) {
                 @rename($oldDir, $newDir);
             }
