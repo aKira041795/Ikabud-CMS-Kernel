@@ -61,6 +61,7 @@
                             <th class="text-left py-2 px-2">Particulars</th>
                             <th class="text-center py-2 px-2">Width</th>
                             <th class="text-center py-2 px-2">Height</th>
+                            <th class="text-center py-2 px-2">Unit</th>
                             <th class="text-center py-2 px-2">QTY</th>
                             <th class="text-right py-2 px-2">Price/Unit</th>
                             <th class="text-right py-2 px-2">Price/SqFt</th>
@@ -84,6 +85,16 @@
                             <td class="py-2 px-2"><input type="text" name="items[{item.sort_order}][particulars]" value="{item.particulars}" class="w-full px-2 py-1 border border-gray-300 rounded text-xs" oninput="calcRow(this)"></td>
                             <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][width]" value="{item.width}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
                             <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][height]" value="{item.height}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
+                            <td class="py-2 px-2">
+                                <select name="items[{item.sort_order}][uom]" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs" onchange="selUom(this)">
+                                    <option value="">—</option>
+                                    <option value="meter"{if item.uom=='meter'} selected{/if}>Meter</option>
+                                    <option value="inches"{if item.uom=='inches'} selected{/if}>Inches</option>
+                                    <option value="cm"{if item.uom=='cm'} selected{/if}>CM</option>
+                                    <option value="liter"{if item.uom=='liter'} selected{/if}>Liter</option>
+                                    <option value="__uom_other__">✦ Other…</option>
+                                </select>
+                            </td>
                             <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][quantity]" value="{item.quantity|default:1}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
                             <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][price_per_unit]" value="{item.price_per_unit|default:0}" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>
                             <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][price_per_sqft]" value="{item.price_per_sqft|default:''}" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>
@@ -186,12 +197,13 @@ function addItem() {
     {for m in materials}
     matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit|default:0}" data-psf="{m.price_per_sqft|default:0}" data-w="{m.default_width|default:0}" data-h="{m.default_height|default:0}">{m.name|escape:'html'}</option>';
     {/for}
-    matOpts += '<option value="__other__">✦ Other: type name…</option>';
+    matOpts += '<option value="__other__">✦ Custom: type name…</option>';
     tr.innerHTML = '<td class="py-2 px-2 text-center item-num">' + itemIdx + '</td>' +
         '<td class="py-2 px-2"><select name="items[' + itemIdx + '][material_id]" class="w-full px-2 py-1 border border-gray-300 rounded text-xs item-mat-sel" onchange="selMat(this)">' + matOpts + '</select></td>' +
         '<td class="py-2 px-2"><input type="text" name="items[' + itemIdx + '][particulars]" class="w-full px-2 py-1 border border-gray-300 rounded text-xs" oninput="calcRow(this)"></td>' +
         '<td class="py-2 px-2"><input type="number" step="0.01" name="items[' + itemIdx + '][width]" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>' +
         '<td class="py-2 px-2"><input type="number" step="0.01" name="items[' + itemIdx + '][height]" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>' +
+        '<td class="py-2 px-2"><select name="items[' + itemIdx + '][uom]" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs" onchange="selUom(this)"><option value="">—</option><option value="meter">Meter</option><option value="inches">Inches</option><option value="cm">CM</option><option value="liter">Liter</option><option value="__uom_other__">✦ Other…</option></select></td>' +
         '<td class="py-2 px-2"><input type="number" step="0.01" name="items[' + itemIdx + '][quantity]" value="1" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>' +
         '<td class="py-2 px-2"><input type="number" step="0.01" name="items[' + itemIdx + '][price_per_unit]" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>' +
         '<td class="py-2 px-2"><input type="number" step="0.01" name="items[' + itemIdx + '][price_per_sqft]" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>' +
@@ -205,19 +217,20 @@ function selMat(sel) {
     if (!row) return;
     if (sel.value === '__other__') {
         // Replace select with inline text input for custom material
+        // Use custom_material field name so backend stores it as custom entry
         var input = document.createElement('input');
         input.type = 'text';
-        input.name = sel.name;
+        // Use custom_material name (backend stores in particulars)
+        input.name = sel.name.replace('[material_id]', '[custom_material]');
         input.placeholder = 'Type material name…';
         input.className = 'w-full px-2 py-1 border border-blue-400 rounded text-xs bg-blue-50';
         input.value = '';
         input.oninput = function() { calcRow(this); };
         input.onblur = function() {
             if (!this.value.trim()) {
-                // Revert to select if empty
                 var td = this.parentElement;
                 var newSel = document.createElement('select');
-                newSel.name = this.name;
+                newSel.name = this.name.replace('[custom_material]', '[material_id]');
                 newSel.className = 'w-full px-2 py-1 border border-gray-300 rounded text-xs item-mat-sel';
                 newSel.onchange = function() { selMat(this); };
                 newSel.innerHTML = sel.innerHTML.replace('selected','');
@@ -241,6 +254,29 @@ function selMat(sel) {
         if (d.psf) row.querySelector('[name$="[price_per_sqft]"]').value = d.psf;
     }
     calcRow(sel);
+}
+function selUom(sel) {
+    if (sel.value === '__uom_other__') {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.name = sel.name;
+        input.placeholder = 'Type unit…';
+        input.className = 'w-20 px-2 py-1 border border-blue-400 rounded text-xs bg-blue-50';
+        input.value = '';
+        input.onblur = function() {
+            if (!this.value.trim()) {
+                var td = this.parentElement;
+                var newSel = document.createElement('select');
+                newSel.name = this.name;
+                newSel.className = 'w-20 px-2 py-1 border border-gray-300 rounded text-xs';
+                newSel.onchange = function() { selUom(this); };
+                newSel.innerHTML = '<option value="">—</option><option value="meter">Meter</option><option value="inches">Inches</option><option value="cm">CM</option><option value="liter">Liter</option><option value="__uom_other__">✦ Other…</option>';
+                this.replaceWith(newSel);
+            }
+        };
+        sel.replaceWith(input);
+        input.focus();
+    }
 }
 function calcRow(el) {
     var row = el.closest('tr');

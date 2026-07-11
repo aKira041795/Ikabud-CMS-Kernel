@@ -408,8 +408,8 @@ class palProjectService
             $stmt->execute([
                 ':t' => $this->tenantId,
                 ':pj' => $projectId,
-                ':mi' => !empty($item['material_id']) ? (int)$item['material_id'] : null,
-                ':part' => $item['particulars'] ?? '',
+                ':mi' => !empty($item['material_id']) && is_numeric($item['material_id']) ? (int)$item['material_id'] : null,
+                ':part' => !empty($item['custom_material']) ? ($item['particulars'] ?? '') . ' [' . $item['custom_material'] . ']' : ($item['particulars'] ?? ''),
                 ':w' => !empty($item['width']) ? (float)$item['width'] : null,
                 ':h' => !empty($item['height']) ? (float)$item['height'] : null,
                 ':uom' => $item['uom'] ?? null,
