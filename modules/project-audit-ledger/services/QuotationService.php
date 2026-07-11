@@ -221,6 +221,10 @@ class palQuotationService
 
     public function updateStatus(int $id, string $status): void
     {
+        $allowed = ['draft', 'sent', 'approved', 'rejected', 'converted', 'expired'];
+        if (!in_array($status, $allowed, true)) {
+            throw new InvalidArgumentException('Invalid quotation status: ' . $status);
+        }
         $stmt = $this->db->prepare("UPDATE pal_quotations SET status = :st, version = version + 1 WHERE id = :id AND tenant_id = :tid");
         $stmt->execute([':st' => $status, ':id' => $id, ':tid' => $this->tenantId]);
     }

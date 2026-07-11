@@ -32,6 +32,9 @@ class palApprovalService
         'returned' => 'returned',
     ];
 
+    // Tables whose ENUM includes 'returned' — all others map 'returned' → 'rejected'
+    private const RETURN_CAPABLE = ['expense'];
+
     private const EVENT_PREFIX = [
         'expense'            => 'pal.expense',
         'purchase'           => 'pal.purchase',
@@ -89,7 +92,10 @@ class palApprovalService
 
         $entityType = $approval['entity_type'];
         $entityId = (int)$approval['entity_id'];
-        $newStatus = self::STATUS_MAP[$decision] ?? 'pending';
+        // 'returned' only valid for tables whose ENUM includes it — others fall back to 'rejected'
+        $newStatus = ($decision === 'returned' && !in_array($entityType, self::RETURN_CAPABLE, true))
+            ? 'rejected'
+            : (self::STATUS_MAP[$decision] ?? 'pending');
 
         $this->db->beginTransaction();
         try {
