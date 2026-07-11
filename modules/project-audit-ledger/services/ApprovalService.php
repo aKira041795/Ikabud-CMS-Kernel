@@ -190,6 +190,12 @@ class palApprovalService
             $this->db->prepare("UPDATE pal_fabrication_weekly_dues SET paid_amount = paid_amount + :amt WHERE id = :id AND tenant_id = :tid")
                  ->execute([':amt' => $pay['amount'], ':id' => $pay['weekly_due_id'], ':tid' => $this->tenantId]);
         }
+
+        palFireEvent('pal.fabrication.payment_approved', [
+            'payment_id' => $paymentId,
+            'project_id' => (int)($pay['project_id'] ?? 0),
+            'amount' => (float)($pay['amount'] ?? 0),
+        ]);
     }
 
     private function processPurchaseApproval(int $purchaseId): void
@@ -230,6 +236,11 @@ class palApprovalService
 
             $this->db->prepare("UPDATE pal_materials SET current_avg_cost=:ac WHERE id=:id AND tenant_id=:tid")->execute([':ac' => $na, ':id' => $mid, ':tid' => $this->tenantId]);
         }
+
+        palFireEvent('pal.inventory.stocked_in', [
+            'purchase_id' => $purchaseId,
+            'items' => $items,
+        ]);
     }
 
     private function processIssuanceApproval(int $issuanceId): void
@@ -253,5 +264,11 @@ class palApprovalService
         }
 
         $this->db->prepare("UPDATE pal_material_issuances SET status='fully_issued' WHERE id=:id AND tenant_id=:tid")->execute([':id' => $issuanceId, ':tid' => $this->tenantId]);
+
+        palFireEvent('pal.inventory.material_issued', [
+            'issuance_id' => $issuanceId,
+            'project_id' => (int)($issuance['project_id'] ?? 0),
+            'issuance_number' => $issuance['issuance_number'] ?? '',
+        ]);
     }
 }

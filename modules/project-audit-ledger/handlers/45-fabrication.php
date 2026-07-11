@@ -119,6 +119,11 @@ function palApiFabricationAllocationStore(): void {
         $s = new palFabricationService(palDb(), (int)($u['tenant_id'] ?? 0), (int)$u['id']);
         $id = $s->createAllocation($_POST);
         palAudit('pal.fabrication.allocation_created', (int)$u['id'], 'pal_fabrication_allocations', (string)$id, null, []);
+        palFireEvent('pal.fabrication.allocation_created', [
+            'allocation_id' => $id,
+            'project_id' => (int)($_POST['project_id'] ?? 0),
+            'approved_amount' => (float)($_POST['approved_amount'] ?? 0),
+        ]);
         header('Content-Type: application/json');
         echo json_encode(['ok' => true, 'id' => $id]);
     });
@@ -164,6 +169,11 @@ function palApiFabricationPaymentStore(): void {
         $id = $s->recordPayment($_POST);
         $s->submitPayment($id);
         palAudit('pal.fabrication.payment_recorded', (int)$u['id'], 'pal_fabrication_payments', (string)$id, null, []);
+        palFireEvent('pal.fabrication.payment_recorded', [
+            'payment_id' => $id,
+            'project_id' => (int)($_POST['project_id'] ?? 0),
+            'amount' => (float)($_POST['amount'] ?? 0),
+        ]);
         header('Content-Type: application/json');
         echo json_encode(['ok' => true, 'id' => $id]);
     });

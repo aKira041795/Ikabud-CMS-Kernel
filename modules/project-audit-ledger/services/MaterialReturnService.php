@@ -87,6 +87,14 @@ class palMaterialReturnService
                 ]);
             }
 
+            palFireEvent('pal.inventory.material_returned', [
+                'return_id' => $returnId,
+                'material_id' => (int)($data['material_id'] ?? 0),
+                'quantity' => $data['quantity'] ?? 0,
+                'project_id' => (int)($data['project_id'] ?? 0),
+                'condition' => $data['condition'] ?? 'reusable',
+            ]);
+
             $this->db->commit();
             return $returnId;
         } catch (Throwable $e) {

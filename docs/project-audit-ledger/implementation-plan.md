@@ -1984,3 +1984,22 @@ The ZAP-ARTS quotation form (Excel) maps to PAL fields as follows:
 - ✅ Price per sq ft → `price_per_sqft` column on all line-item tables
 - ✅ Upload button → `pal_attachments`
 - ⚠️ SALES INVOICE NUMBER (manual input) — `pal_sales.invoice_number` exists but is not populated from the form; entered manually by admin
+
+### A.8 Fix: Missing domain events & dead code (2026-07-11 review)
+
+**Gap**: 8 domain events declared in `module.json` were never fired. 1 handler had no route (dead code). 1 duplicate table entry in `module.json`. 1 duplicate route.
+
+| # | Issue | File | Fix |
+|---|---|---|---|
+| 1 | `pal.inventory.stocked_in` never fired | `ApprovalService.php` | Added `palFireEvent` after stock-in movement loop |
+| 2 | `pal.inventory.material_issued` never fired | `ApprovalService.php` | Added `palFireEvent` after issuance approval side effects |
+| 3 | `pal.inventory.material_returned` never fired | `MaterialReturnService.php` | Added `palFireEvent` after return + restock |
+| 4 | `pal.inventory.adjusted` never fired | `handlers/35-inventory.php` | Added `palFireEvent` after adjustment audit |
+| 5 | `pal.fabrication.allocation_created` never fired | `handlers/45-fabrication.php` | Added `palFireEvent` after audit call |
+| 6 | `pal.fabrication.payment_recorded` never fired | `handlers/45-fabrication.php` | Added `palFireEvent` after audit call |
+| 7 | `pal.fabrication.payment_approved` — wrong event name fired | `ApprovalService.php` | Added explicit `palFireEvent('pal.fabrication.payment_approved')` in process method |
+| 8 | `pal.quotation.converted` — wrong event name fired | `QuotationService.php` | Changed `pal.quotation.converted_to_project` → `pal.quotation.converted` |
+| 9 | `palApiProjectCost()` — no route (dead code) | `routes.php` | Added `GET /api/v1/project-audit-ledger/projects/{id}/cost` route |
+| 10 | `pal_material_categories` listed twice in `owns_tables` | `module.json` | Removed duplicate entry |
+| 11 | Duplicate quotation convert route | `routes.php` | Removed duplicate line |
+

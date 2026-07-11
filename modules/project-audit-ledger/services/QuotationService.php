@@ -435,7 +435,7 @@ class palQuotationService
 
             palAudit('pal.quotation.converted_to_project', $this->userId, 'pal_quotations', (string)$id,
                 null, ['project_id' => $projectId, 'total_amount' => $contractAmount, 'jo_number' => $joNum, 'item_count' => count($lineItems)]);
-            palFireEvent('pal.quotation.converted_to_project', [
+            palFireEvent('pal.quotation.converted', [
                 'quotation_id' => $id, 'project_id' => $projectId, 'jo_number' => $joNum,
             ]);
 
