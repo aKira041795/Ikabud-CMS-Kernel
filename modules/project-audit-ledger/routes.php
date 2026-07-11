@@ -138,6 +138,8 @@ return [
         '/api/v1/project-audit-ledger/attachments/{id}/delete' => 'project-audit-ledger:palApiAttachmentDelete',
         '/api/v1/project-audit-ledger/users' => 'project-audit-ledger:palApiUserStore',
         '/api/v1/project-audit-ledger/users/{id}/delete' => 'project-audit-ledger:palApiUserDelete',
+        // ── Email ──
+        '/api/v1/project-audit-ledger/projects/{id}/email' => 'project-audit-ledger:palApiProjectSendEmail',
         '/api/v1/project-audit-ledger/users/{id}' => 'project-audit-ledger:palApiUserUpdate',
     ],
 ];
