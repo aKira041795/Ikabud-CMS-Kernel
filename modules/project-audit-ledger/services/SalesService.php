@@ -191,7 +191,7 @@ class palSalesService
         $this->db->beginTransaction();
         try {
             $paymentMethod = $data['payment_method'] ?? 'cash';
-            $status = 'approved';
+            $status = $data['status'] ?? 'pending';
 
             $stmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, reference_number, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, :st, :cb)");
             $stmt->execute([':t' => $this->tenantId, ':cn' => $num, ':si' => (int)$data['sales_id'], ':pj' => $sale['project_id'], ':cl' => $sale['client_id'], ':pd' => $data['payment_date'] ?? date('Y-m-d'), ':amt' => $data['amount'] ?? 0, ':pm' => $paymentMethod, ':ref' => $data['reference_number'] ?? null, ':no' => $data['notes'] ?? null, ':rb' => $this->userId, ':st' => $status, ':cb' => $this->userId]);

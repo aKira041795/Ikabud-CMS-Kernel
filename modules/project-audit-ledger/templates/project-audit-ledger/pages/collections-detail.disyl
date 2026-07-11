@@ -1,19 +1,42 @@
-<div class="max-w-lg">
+<div class="max-w-2xl">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <h2 class="font-semibold text-gray-900 mb-2">Collection #{collection.id}</h2>
+    <h2 class="font-semibold text-gray-900 mb-2">Collection #{collection.collection_number|default:collection.id}</h2>
+
+    <!-- Status badge -->
+    <div class="mb-4">
+        <span class="inline-block px-3 py-1 rounded text-xs font-semibold {if collection.status=='approved' || collection.status=='paid'}bg-green-100 text-green-800{elseif collection.status=='rejected' || collection.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}">{collection.status|default:'pending'|capitalize}</span>
+    </div>
+
+    <!-- Amount Collected Callout -->
+    <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Amount Collected</p>
+        <p class="text-2xl font-bold text-gray-900">₱{collection.amount|number_format:2}</p>
+        {if collection.payment_date}
+        <p class="text-xs text-gray-500 mt-1">Paid on: {collection.payment_date}</p>
+        {/if}
+    </div>
+
     <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-gray-600">Invoice</span><span class="font-medium">{collection.sales_number|default:'INV#'~collection.sales_id}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Invoice</span><span class="font-medium"><a href="/admin/project-audit-ledger/sales/{collection.sales_id}" class="text-blue-600 hover:text-blue-800">{collection.sales_number|default:'INV#'~collection.sales_id}</a></span></div>
         <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if collection.project_title && collection.project_id}<a href="/admin/project-audit-ledger/projects/{collection.project_id}" class="text-blue-600 hover:text-blue-800">{collection.project_title}</a>{else}{collection.project_title|default:'—'}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{if collection.client_name && collection.client_id}<a href="/admin/project-audit-ledger/clients/{collection.client_id}" class="text-blue-600 hover:text-blue-800">{collection.client_name}</a>{else}{collection.client_name|default:'—'}{/if}</span></div>
         <hr>
-        <div class="flex justify-between"><span class="text-gray-600">Amount Collected</span><span class="font-medium text-green-600">₱{collection.amount|number_format:2}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Invoice Net</span><span>₱{collection.sale_net|default:0|number_format:2}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Payment Method</span><span>{collection.payment_method|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Reference</span><span>{collection.reference_number|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Invoice Status</span><span>{collection.sale_status|default:'—'|replace:'_':' '|capitalize}</span></div>
+        {if collection.sale_net > 0 && collection.amount > 0}
+        <div class="flex justify-between"><span class="text-gray-600">Remaining Balance</span><span class="{if (collection.sale_net - collection.amount) > 0}text-red-600{else}text-green-600{/if} font-medium">₱{(collection.sale_net - collection.amount)|number_format:2}</span></div>
+        {/if}
+        <hr>
+        <div class="flex justify-between"><span class="text-gray-600">Payment Method</span><span>{collection.payment_method|default:'—'|capitalize}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Reference #</span><span>{collection.reference_number|default:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Payment Date</span><span>{collection.payment_date|default:collection.created_at}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Notes</span><span>{collection.notes|default:'—'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{collection.status|default:'pending'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{collection.payment_date|default:collection.created_at}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Recorded By</span><span>{collection.created_by|default:'—'}</span></div>
     </div>
-    <div class="mt-4 flex gap-2"><a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a><a href="/admin/project-audit-ledger/sales/{collection.sales_id}" class="px-3 py-1.5 text-blue-600 text-sm hover:text-blue-800">View Invoice →</a></div>
+
+    <div class="mt-4 flex gap-2">
+        <a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back to Collections</a>
+        <a href="/admin/project-audit-ledger/sales/{collection.sales_id}" class="px-3 py-1.5 text-blue-600 text-sm hover:text-blue-800">View Invoice →</a>
+    </div>
 </div>
 </div>
