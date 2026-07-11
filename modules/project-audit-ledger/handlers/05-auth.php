@@ -164,7 +164,9 @@ function palAuthLogin(): void
     }
 
     palSetAuthCookie($token);
-    session_regenerate_id(true);
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_regenerate_id(true);
+    }
     $_SESSION['pal_user'] = $payload;
 
     // Update last login

@@ -243,7 +243,7 @@ function palApiTeamLeadOtpVerify(): void
         $teamLead = $tlStmt->fetch(PDO::FETCH_ASSOC);
 
         // Get associated projects
-        $projStmt = $db->prepare("SELECT COUNT(*) FROM pal_projects WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid AND status IN ('approved','in_progress','on_hold')");
+        $projStmt = $db->prepare("SELECT COUNT(*) FROM pal_projects WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid AND status IN ('pending','approved','started','ongoing')");
         $projStmt->execute([':tlid' => $teamLead['id'], ':tid' => (int)(app()->tenant()->current() ?? 0)]);
         $projectCount = (int)$projStmt->fetchColumn();
 

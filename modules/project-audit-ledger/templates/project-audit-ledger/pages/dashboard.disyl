@@ -192,7 +192,7 @@
                     <a href="/admin/project-audit-ledger/projects/{p.id}" class="text-sm font-medium text-gray-900 hover:text-blue-600 truncate block">{p.title}</a>
                     <p class="text-xs text-gray-500">{p.project_id} · {p.created_at|default:'—'}</p>
                 </div>
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {if p.status == 'in_progress' || p.status == 'approved'}bg-green-100 text-green-700{elseif p.status == 'draft'}bg-gray-100 text-gray-600{elseif p.status == 'on_hold'}bg-amber-100 text-amber-700{else}bg-blue-100 text-blue-700{/if}">{p.status|replace:'_':' '}</span>
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {if p.status == 'ongoing' || p.status == 'started' || p.status == 'approved'}bg-green-100 text-green-700{elseif p.status == 'draft' || p.status == 'pending'}bg-gray-100 text-gray-600{elseif p.status == 'completed'}bg-blue-100 text-blue-700{elseif p.status == 'cancelled' || p.status == 'closed'}bg-red-100 text-red-700{else}bg-yellow-100 text-yellow-700{/if}">{p.status}</span>
             </div>
             {/for}
         </div>

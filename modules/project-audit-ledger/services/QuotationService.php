@@ -353,13 +353,30 @@ class palQuotationService
         $joCount->execute([':tid' => $this->tenantId]);
         $joNum = 'JO-' . date('Ymd') . '-' . str_pad((string)((int)$joCount->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
+        // Fetch quotation line items
+        $items = $this->db->prepare("SELECT * FROM pal_quotation_items WHERE quotation_id = :qid AND tenant_id = :tid ORDER BY sort_order");
+        $items->execute([':qid' => $id, ':tid' => $this->tenantId]);
+        $lineItems = $items->fetchAll(PDO::FETCH_ASSOC);
+
+        // Recalculate contract_amount from items + charges
+        $itemsTotal = 0.0;
+        foreach ($lineItems as $item) {
+            $itemsTotal += (float)$item['line_total'];
+        }
+        $contractAmount = $itemsTotal + (float)$quotation['installation_charge'] + (float)$quotation['mobilization_charge'] + (float)$quotation['other_charges'];
+
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare("INSERT INTO pal_projects 
                 (tenant_id, project_id, job_order_number, title, client_id,
-                 description, location, contract_amount, estimated_cost,
+                 description, location, scope_of_work, with_installation,
+                 contract_amount, estimated_cost, installation_charge, mobilization_charge, other_charges,
+                 mode_of_payment, down_payment, down_payment_type,
                  start_date, status, notes, created_by)
-                VALUES (:t, :pi, :jo, :title, :cl, :desc, :loc, :ca, :ec, :sd, 'pending', :no, :cb)");
+                VALUES (:t, :pi, :jo, :title, :cl, :desc, :loc, :sow, :wi,
+                        :ca, :ec, :ic, :mc, :oc,
+                        :mop, :dp, :dpt,
+                        :sd, 'pending', :no, :cb)");
 
             $stmt->execute([
                 ':t' => $this->tenantId,
@@ -369,14 +386,46 @@ class palQuotationService
                 ':cl' => $quotation['client_id'],
                 ':desc' => 'Created from quotation #' . $quotation['quotation_number'],
                 ':loc' => null,
-                ':ca' => $quotation['total_amount'],
-                ':ec' => $quotation['subtotal'],
+                ':sow' => $quotation['scope_of_work'] ?? null,
+                ':wi' => (int)($quotation['with_installation'] ?? 0),
+                ':ca' => $contractAmount,
+                ':ec' => $itemsTotal,
+                ':ic' => (float)($quotation['installation_charge'] ?? 0),
+                ':mc' => (float)($quotation['mobilization_charge'] ?? 0),
+                ':oc' => (float)($quotation['other_charges'] ?? 0),
+                ':mop' => $quotation['mode_of_payment'] ?? null,
+                ':dp' => $quotation['down_payment'] !== null ? (float)$quotation['down_payment'] : null,
+                ':dpt' => $quotation['down_payment_type'] ?? null,
                 ':sd' => $quotation['quotation_date'],
                 ':no' => $quotation['notes'],
                 ':cb' => $this->userId,
             ]);
 
             $projectId = (int)$this->db->lastInsertId();
+
+            // Copy line items from quotation to project
+            if (!empty($lineItems)) {
+                $itemStmt = $this->db->prepare("INSERT INTO pal_project_items 
+                    (tenant_id, project_id, material_id, particulars, width, height, uom, quantity,
+                     price_per_unit, price_per_sqft, line_total, sort_order)
+                    VALUES (:t, :pj, :mi, :part, :w, :h, :uom, :qty, :ppu, :psf, :lt, :so)");
+                foreach ($lineItems as $item) {
+                    $itemStmt->execute([
+                        ':t' => $this->tenantId,
+                        ':pj' => $projectId,
+                        ':mi' => $item['material_id'],
+                        ':part' => $item['particulars'] ?? '',
+                        ':w' => $item['width'] !== null ? (float)$item['width'] : null,
+                        ':h' => $item['height'] !== null ? (float)$item['height'] : null,
+                        ':uom' => $item['uom'] ?? null,
+                        ':qty' => (float)$item['quantity'],
+                        ':ppu' => (float)$item['price_per_unit'],
+                        ':psf' => $item['price_per_sqft'] !== null ? (float)$item['price_per_sqft'] : null,
+                        ':lt' => (float)$item['line_total'],
+                        ':so' => (int)$item['sort_order'],
+                    ]);
+                }
+            }
 
             // Link quotation to the new project
             $this->db->prepare("UPDATE pal_quotations SET project_id = :pj, status = 'converted', version = version + 1 WHERE id = :qid AND tenant_id = :tid")
@@ -385,7 +434,7 @@ class palQuotationService
             $this->db->commit();
 
             palAudit('pal.quotation.converted_to_project', $this->userId, 'pal_quotations', (string)$id,
-                null, ['project_id' => $projectId, 'total_amount' => $quotation['total_amount'], 'jo_number' => $joNum]);
+                null, ['project_id' => $projectId, 'total_amount' => $contractAmount, 'jo_number' => $joNum, 'item_count' => count($lineItems)]);
             palFireEvent('pal.quotation.converted_to_project', [
                 'quotation_id' => $id, 'project_id' => $projectId, 'jo_number' => $joNum,
             ]);

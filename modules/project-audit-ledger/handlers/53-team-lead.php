@@ -20,7 +20,7 @@ function palPageTeamLeadDashboard(): void
                COALESCE((SELECT SUM(fa.approved_amount) FROM pal_fabrication_allocations fa WHERE fa.project_id = p.id AND fa.tenant_id = p.tenant_id), 0) AS fab_dispensed
         FROM pal_projects p
         WHERE p.fabrication_team_lead_id = :tlid AND p.tenant_id = :tid
-          AND p.status IN ('approved','in_progress','on_hold','completed')
+          AND p.status IN ('pending','approved','started','ongoing','completed')
         ORDER BY p.created_at DESC
         LIMIT 20
     ");
@@ -80,7 +80,7 @@ function palPageTeamLeadFabrication(): void
                COALESCE((SELECT SUM(fa.approved_amount) FROM pal_fabrication_allocations fa WHERE fa.project_id = p.id AND fa.tenant_id = p.tenant_id), 0) AS total_dispensed
         FROM pal_projects p
         WHERE p.fabrication_team_lead_id = :tlid AND p.tenant_id = :tid
-          AND p.status IN ('approved','in_progress','on_hold')
+          AND p.status IN ('pending','approved','started','ongoing')
         ORDER BY p.created_at DESC
     ");
     $projStmt->execute([':tlid' => $tlId, ':tid' => $tid]);
@@ -158,7 +158,7 @@ function palPageTeamLeadCashAdvanceForm(): void
         SELECT id, title, job_order_number
         FROM pal_projects
         WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid
-          AND status IN ('approved','in_progress','on_hold')
+          AND status IN ('pending','approved','started','ongoing')
         ORDER BY title
     ");
     $projects->execute([':tlid' => $tlId, ':tid' => $tid]);
@@ -268,7 +268,7 @@ function palPageTeamLeadMobilizationForm(): void
         SELECT id, title, job_order_number
         FROM pal_projects
         WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid
-          AND status IN ('approved','in_progress','on_hold')
+          AND status IN ('pending','approved','started','ongoing')
         ORDER BY title
     ");
     $projects->execute([':tlid' => $tlId, ':tid' => $tid]);
@@ -445,35 +445,7 @@ function palPageTeamLeadAttendance(): void
 
         if (!empty($groups)) {
             $groupIds = array_column($groups, 'group_id');
-            $placeholders = implode(',', array_fill(0, count($groupIds), '?'));
 
-            $attStmt = $db->prepare("
-                SELECT 
-                    ar.id, ar.clock_in, ar.clock_out,
-                    ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60.0, 2) AS hours_worked,
-                    ar.status,
-                    CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, '')) AS employee_name,
-                    ep.position, ep.employee_number, ep.profile_id,
-                    ag.name AS group_name
-                FROM attendance_records ar
-                JOIN attendance_group_members agm ON ar.user_id = (
-                    SELECT au.id FROM attendance_wage_users au
-                    JOIN employee_profiles ep2 ON au.id = ep2.user_id
-                    WHERE ep2.profile_id = agm.profile_id AND ep2.tenant_id = agm.tenant_id
-                    LIMIT 1
-                )
-                JOIN employee_profiles ep ON agm.profile_id = ep.profile_id AND agm.tenant_id = ep.tenant_id
-                JOIN attendance_groups ag ON agm.group_id = ag.group_id AND agm.tenant_id = ag.tenant_id
-                WHERE agm.group_id IN ({$placeholders})
-                  AND agm.tenant_id = :tid2
-                  AND ar.clock_in >= :df
-                  AND ar.clock_in <= :dt
-                ORDER BY ar.clock_in DESC
-                LIMIT 200
-            ");
-
-            $params = array_merge($groupIds, [$tid, $dateFrom . ' 00:00:00', $dateTo . ' 23:59:59']);
-            // Rebuild with named params
             $namedParams = [];
             $namedPlaceholders = [];
             foreach ($groupIds as $i => $gid) {

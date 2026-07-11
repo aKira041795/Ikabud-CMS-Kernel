@@ -1919,3 +1919,68 @@ Page [n] of [N]
 ---
 
 *End of Implementation Plan*
+
+---
+
+## Appendix A: 2026-07-11 Implementation Review — Gaps & Fixes
+
+### A.1 Critical Fix: `convertToProject()` was incomplete
+
+**Gap**: `QuotationService::convertToProject()` only created a project shell — it did NOT copy quotation line items to `pal_project_items` nor transfer the financial detail fields (`scope_of_work`, `with_installation`, `installation_charge`, `mobilization_charge`, `other_charges`, `mode_of_payment`, `down_payment`, `down_payment_type`).
+
+**Fix**: `convertToProject()` now:
+1. Fetches all `pal_quotation_items` for the quotation
+2. Inserts the full set of JO-merge fields into `pal_projects`
+3. Copies each line item into `pal_project_items` with all dimension/pricing fields preserved
+4. Recalculates `contract_amount` as `items_total + charges` (consistent with `ProjectService::create()`)
+
+### A.2 Fix: Missing `reads_tables` declaration
+
+**Gap**: PAL queries `attendance_groups`, `attendance_group_members`, `attendance_wage_users`, `employee_profiles`, and `attendance_records` (all owned by the `attendance-wage` module) but only declared `["audit_logs"]` in `module.json`.
+
+**Fix**: Added the 5 AW tables to `reads_tables`:
+```json
+"reads_tables": ["audit_logs", "attendance_groups", "attendance_group_members", "attendance_wage_users", "employee_profiles", "attendance_records"]
+```
+
+### A.3 Fix: Project status values updated to post-migration-014 ENUM
+
+**Gap**: After migration `014_pal_jo_merge.sql` changed `pal_projects.status` to `ENUM('draft','pending','approved','started','ongoing','completed','cancelled','closed')`, several handlers and templates still used the old statuses `'in_progress'` and `'on_hold'`.
+
+**Fix**: Updated all status references across:
+- `handlers/06-team-lead-auth.php` — team lead OTP login project count  
+- `handlers/10-dashboard.php` — active project count
+- `handlers/40-issuance.php` — issuance and return form project dropdowns
+- `handlers/50-sales.php` — sales and collection form project dropdowns
+- `handlers/53-team-lead.php` — all 4 team lead queries (dashboard, fabrication, CA form, mobilization form)
+- `templates/.../dashboard.disyl` — project status badges
+- `templates/.../team-lead-dashboard.disyl` — project status badges
+
+### A.4 Fix: Dead code removed from attendance query
+
+**Gap**: `palPageTeamLeadAttendance()` in `53-team-lead.php` built a query with `?` placeholders, then immediately rebuilt the same query with named parameters. The first query was never executed.
+
+**Fix**: Removed the dead code path; the handler now directly uses named parameters.
+
+### A.5 Fix: `session_regenerate_id` warning
+
+**Gap**: `05-auth.php` called `session_regenerate_id(true)` unconditionally, causing a PHP warning when no session was active.
+
+**Fix**: Added `session_status() === PHP_SESSION_ACTIVE` guard before calling `session_regenerate_id()`.
+
+### A.6 Gap: Team lead ↔ AW group bridge (documented, not automated)
+
+The cross-module bridge uses `attendance_groups.pal_team_lead_email` ↔ `pal_team_leads.email`. This is a manual admin setup — PAL team leads must be manually linked to AW attendance groups by entering the team lead's email in the AW group form. No automated sync exists.
+
+### A.7 Excel form coverage
+
+The ZAP-ARTS quotation form (Excel) maps to PAL fields as follows:
+- ✅ Customer name, company, address → `pal_clients` / `pal_settings`
+- ✅ Quotation number → `pal_quotations.quotation_number`
+- ✅ Job Order Number → `pal_projects.job_order_number`
+- ✅ Scope of work, with installation, installation charge, mobilization charge, other charges → `pal_projects` (via 014 migration)
+- ✅ Mode of payment, down payment → `pal_projects` (via 014 migration)
+- ✅ Product/particulars with dimensions (width×height) → `pal_quotation_items` / `pal_project_items`
+- ✅ Price per sq ft → `price_per_sqft` column on all line-item tables
+- ✅ Upload button → `pal_attachments`
+- ⚠️ SALES INVOICE NUMBER (manual input) — `pal_sales.invoice_number` exists but is not populated from the form; entered manually by admin

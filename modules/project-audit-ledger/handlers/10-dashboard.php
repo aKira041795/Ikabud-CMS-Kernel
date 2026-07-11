@@ -9,7 +9,7 @@ function palPageDashboard(): void
     $db = palDb();
 
     // ── Project Pipeline ──
-    $activeStmt = $db->prepare("SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','in_progress')");
+    $activeStmt = $db->prepare("SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','started','ongoing')");
     $activeStmt->execute([':tid' => $tid]);
     $activeProjects = (int)$activeStmt->fetchColumn();
 
