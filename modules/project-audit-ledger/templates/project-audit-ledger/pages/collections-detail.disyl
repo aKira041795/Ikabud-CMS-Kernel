@@ -4,10 +4,10 @@
 
     <!-- Status badge with inline edit -->
     <div class="mb-4 flex items-center gap-2">
-        <span class="inline-block px-3 py-1 rounded text-xs font-semibold {if collection.status=='approved' || collection.status=='paid'}bg-green-100 text-green-800{elseif collection.status=='rejected' || collection.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}" id="status-badge">{collection.status|default:'pending'|capitalize}</span>
+        <span class="inline-block px-3 py-1 rounded text-xs font-semibold {if collection.status=='approved'}bg-green-100 text-green-800{elseif collection.status=='rejected' || collection.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}" id="status-badge">{if collection.status=='approved'}Paid{else}{collection.status|default:'pending'|capitalize}{/if}</span>
         <select id="status-select" class="text-xs px-2 py-1 border border-gray-300 rounded" onchange="updateStatus(this.value)" style="display:none">
             <option value="pending" {if collection.status=='pending'}selected{/if}>Pending</option>
-            <option value="approved" {if collection.status=='approved'||collection.status=='paid'}selected{/if}>Paid / Approved</option>
+            <option value="approved" {if collection.status=='approved'}selected{/if}>Paid</option>
             <option value="rejected" {if collection.status=='rejected'}selected{/if}>Rejected</option>
             <option value="voided" {if collection.status=='voided'}selected{/if}>Voided</option>
         </select>

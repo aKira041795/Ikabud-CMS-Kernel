@@ -8,7 +8,7 @@
         <p class="text-2xl font-bold text-amber-600">{stats.pending_count|default:0}</p>
         <p class="text-xs text-gray-500 mt-1">Pending — ₱{stats.pending_amount|default:0|number_format:0}</p>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='approved'}ring-2 ring-green-500{/if}">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='paid'}ring-2 ring-green-500{/if}">
         <p class="text-2xl font-bold text-green-600">{stats.approved_count|default:0}</p>
         <p class="text-xs text-gray-500 mt-1">Paid — ₱{stats.approved_amount|default:0|number_format:0}</p>
     </div>
@@ -33,7 +33,7 @@
         <div class="flex gap-1 text-sm border-b border-gray-200 -mx-4 px-4">
             <a href="?tab=all" class="px-3 py-2 border-b-2 {if tab=='all'}border-blue-600 text-blue-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">All</a>
             <a href="?tab=pending" class="px-3 py-2 border-b-2 {if tab=='pending'}border-amber-500 text-amber-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Pending</a>
-            <a href="?tab=approved" class="px-3 py-2 border-b-2 {if tab=='approved'}border-green-500 text-green-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Paid</a>
+            <a href="?tab=paid" class="px-3 py-2 border-b-2 {if tab=='paid'}border-green-500 text-green-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Paid</a>
             <a href="?tab=rejected" class="px-3 py-2 border-b-2 {if tab=='rejected'}border-red-500 text-red-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Rejected</a>
             <a href="?tab=voided" class="px-3 py-2 border-b-2 {if tab=='voided'}border-red-500 text-red-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Voided</a>
             <div class="ml-auto px-3 py-2">
@@ -66,7 +66,7 @@
                     <td class="py-3 px-4 text-sm">{c.client_name|default:'—'}</td>
                     <td class="py-3 px-4 text-sm text-right font-medium">₱{c.amount|number_format:2}</td>
                     <td class="py-3 px-4 text-sm text-center">{c.payment_method|default:'—'|capitalize}</td>
-                    <td class="py-3 px-4 text-center"><span class="inline-block px-2 py-0.5 rounded text-xs font-semibold {if c.status=='approved'}bg-green-100 text-green-800{elseif c.status=='rejected'||c.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}">{c.status|capitalize}</span></td>
+                    <td class="py-3 px-4 text-center"><span class="inline-block px-2 py-0.5 rounded text-xs font-semibold {if c.status=='approved'}bg-green-100 text-green-800{elseif c.status=='rejected'||c.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}">{if c.status=='approved'}Paid{else}{c.status|capitalize}{/if}</span></td>
                     <td class="py-3 px-4 text-sm text-center">{c.payment_date|default:c.created_at}</td>
                     <td class="py-3 px-4 text-center"><a href="/admin/project-audit-ledger/collections/{c.id}" class="text-blue-600 hover:text-blue-800 text-xs">View</a></td>
                 </tr>
