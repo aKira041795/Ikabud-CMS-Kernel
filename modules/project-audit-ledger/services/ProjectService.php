@@ -475,7 +475,7 @@ class palProjectService
                 ':t' => $this->tenantId,
                 ':pj' => $projectId,
                 ':mi' => !empty($item['material_id']) && is_numeric($item['material_id']) ? (int)$item['material_id'] : null,
-                ':part' => mb_substr((!empty($item['custom_material']) ? ($item['particulars'] ?? '') . ' [' . $item['custom_material'] . ']' : ($item['particulars'] ?? '')), 0, 255),
+                ':part' => $this->buildParticulars($item),
                 ':w' => !empty($item['width']) ? (float)$item['width'] : null,
                 ':h' => !empty($item['height']) ? (float)$item['height'] : null,
                 ':uom' => $item['uom'] ?? null,
@@ -505,6 +505,42 @@ class palProjectService
             }
         }
         return $total;
+    }
+
+    /**
+     * Build the particulars value for a line item, avoiding double-appending
+     * the custom_material name on subsequent saves.
+     */
+    private function buildParticulars(array $item): string
+    {
+        $particulars = $item['particulars'] ?? '';
+        $custom = $item['custom_material'] ?? '';
+
+        if ($custom === '') {
+            return mb_substr($particulars, 0, 255);
+        }
+
+        // Strip any existing brackets from the custom name (it may come from the
+        // form pre-filled with the full particulars)
+        $clean = trim(str_replace(['[', ']'], '', $custom));
+
+        // Check if custom name is already appended in brackets to avoid doubling
+        $bracketed = '[' . $clean . ']';
+        if (str_ends_with(trim($particulars), $bracketed)) {
+            return mb_substr($particulars, 0, 255);
+        }
+
+        // Also check if the clean name already appears at the end (without brackets)
+        if (str_ends_with(trim($particulars), $clean)) {
+            return mb_substr($particulars, 0, 255);
+        }
+
+        // If customs and particulars are practically the same, just use particulars
+        if (trim($particulars) === $clean || trim($particulars) === $bracketed) {
+            return mb_substr($bracketed, 0, 255);
+        }
+
+        return mb_substr(($particulars ? $particulars . ' ' : '') . $bracketed, 0, 255);
     }
 
     /**
