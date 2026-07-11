@@ -63,6 +63,9 @@
                 <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                     🔧 Fabrication
                 </a>
+                <a href="/admin/project-audit-ledger/quotations" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    📋 Quotations
+                </a>
                 <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                     💰 Sales
                 </a>
@@ -75,7 +78,13 @@
                 <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                     📈 Reports
                 </a>
+                <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    📋 BOM
+                </a>
                 {if current_user.role == 'admin'}
+                <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    💵 Cash Advances
+                </a>
                 <hr class="my-2 border-slate-700">
                 <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                     📜 Audit Trail

@@ -1,0 +1,5 @@
+{!-- Quotations List --}
+{ikb_entity_list source="pal_quotation" view="table" use="tailwind" empty="No quotations found." /}
+<div class="mt-4 no-print">
+    <a href="/admin/project-audit-ledger/quotations/create" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Quotation</a>
+</div>

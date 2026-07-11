@@ -222,3 +222,26 @@ function palRenderAttachments(string $entityType, int $entityId, ?int $tenantId 
         return '';
     }
 }
+
+/**
+ * API: List attachments by entity type and ID (JSON)
+ */
+function palApiAttachmentList(): void
+{
+    $u = palCurrentUser();
+    $tid = (int)(app()->tenant()->current() ?? $u['tenant_id'] ?? 0);
+    $entityType = $_GET['entity_type'] ?? '';
+    $entityId = (int)($_GET['entity_id'] ?? 0);
+
+    if (!$entityType || !$entityId) {
+        header('Content-Type: application/json');
+        echo json_encode([]);
+        return;
+    }
+
+    $db = palDb();
+    $stmt = $db->prepare("SELECT id, original_filename, description, file_path, mime_type, file_size, created_at FROM pal_attachments WHERE tenant_id = :tid AND entity_type = :et AND entity_id = :eid ORDER BY created_at DESC");
+    $stmt->execute([':tid' => $tid, ':et' => $entityType, ':eid' => $entityId]);
+    header('Content-Type: application/json');
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+}

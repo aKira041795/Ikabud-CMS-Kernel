@@ -48,7 +48,12 @@
         "pal_attachments",
         "pal_audit_logs",
         "pal_report_exports",
-        "pal_settings"
+        "pal_settings",
+        "pal_quotations",
+        "pal_quotation_items",
+        "pal_sale_items",
+        "pal_material_categories",
+        "pal_cash_advances"
     ],
     "reads_tables": [
         "audit_logs"
@@ -59,7 +64,11 @@
         "database/migrations/003_pal_password_resets.sql",
         "database/migrations/004_pal_fabrication_remove_unique.sql",
         "database/migrations/005_pal_purchases_add_project_id.sql",
-        "database/migrations/006_pal_materials_unit_conversion.sql"
+        "database/migrations/006_pal_materials_unit_conversion.sql",
+        "database/migrations/007_pal_quotations.sql",
+        "database/migrations/008_pal_sale_items.sql",
+        "database/migrations/009_pal_materials_enhance.sql",
+        "database/migrations/010_pal_cash_advances.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -255,6 +264,54 @@
                 "description": "Manage module users"
             },
             {
+                "id": "pal.quotations.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View quotations"
+            },
+            {
+                "id": "pal.quotations.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Create and manage quotations"
+            },
+            {
+                "id": "pal.quotations.convert@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Convert quotations to sales invoices"
+            },
+            {
+                "id": "pal.sales.items.manage@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage sales line items"
+            },
+            {
+                "id": "pal.cash_advances.read@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View cash advances"
+            },
+            {
+                "id": "pal.cash_advances.write@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Manage cash advances"
+            },
+            {
                 "id": "entity.list.pal_project@1",
                 "priority": 50,
                 "modes": [
@@ -413,6 +470,46 @@
                     "first"
                 ],
                 "description": "List material returns"
+            },
+            {
+                "id": "entity.list.pal_quotation@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List quotations"
+            },
+            {
+                "id": "entity.get.pal_quotation@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single quotation"
+            },
+            {
+                "id": "entity.list.pal_quotation_item@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List quotation items"
+            },
+            {
+                "id": "entity.list.pal_sale_item@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List sale items"
+            },
+            {
+                "id": "entity.list.pal_cash_advance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "List cash advances"
             }
         ],
         "depends": [
@@ -447,6 +544,9 @@
         "pal.fabrication.allocation_created",
         "pal.fabrication.payment_recorded",
         "pal.fabrication.payment_approved",
+        "pal.quotation.created",
+        "pal.quotation.updated",
+        "pal.quotation.converted",
         "pal.sale.created",
         "pal.collection.recorded",
         "pal.approval.completed",

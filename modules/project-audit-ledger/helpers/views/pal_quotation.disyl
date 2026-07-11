@@ -1,0 +1,10 @@
+{ikb_entity_view name="pal_quotation" view="table"}
+    {field name="quotation_number" type="string"}
+    {field name="client_name" type="string"}
+    {field name="total_amount" type="number" renderer="money:2"}
+    {field name="scope_of_work" type="enum" renderer="badge:{new|blue|refurbish|amber|warranty_claim|red|labor_only|green|print_only|purple}"}
+    {field name="status" type="enum" renderer="badge:{draft|gray|sent|blue|approved|green|rejected|red|converted|purple|expired|amber}"}
+    {field name="quotation_date" type="date" renderer="datetime:date"}
+    {field name="id" type="number" visible="false"}
+    {action name="view" url="/admin/project-audit-ledger/quotations/{id}" label="View"}
+{/ikb_entity_view}

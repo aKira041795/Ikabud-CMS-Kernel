@@ -1,0 +1,11 @@
+{ikb_entity_view name="pal_quotation_item" view="table"}
+    {field name="particulars" type="string"}
+    {field name="material_name" type="string"}
+    {field name="width" type="number" renderer="decimal:2"}
+    {field name="height" type="number" renderer="decimal:2"}
+    {field name="quantity" type="number" renderer="decimal:2"}
+    {field name="price_per_unit" type="number" renderer="money:2"}
+    {field name="price_per_sqft" type="number" renderer="money:2"}
+    {field name="line_total" type="number" renderer="money:2"}
+    {field name="sort_order" type="number" visible="false"}
+{/ikb_entity_view}

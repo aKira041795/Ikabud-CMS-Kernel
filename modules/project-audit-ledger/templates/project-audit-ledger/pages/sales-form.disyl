@@ -1,20 +1,159 @@
-<div class="max-w-lg">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+<div class="max-w-4xl">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" x-data="saleForm()">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit ? 'Edit Sales Invoice' : 'Create Sales Invoice'}</h2>
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}Invoice updated{else}Invoice created{/if}')" action="/api/v1/project-audit-ledger/sales{if is_edit}{if sale.id}/{sale.id}{/if}{/if}" method="POST" class="space-y-4">
         {csrf_field | raw}
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Project *</label><select name="project_id" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="project"><option value="">—</option>{for p in projects}<option value="{p.id}"{if sale.project_id==p.id} selected{/if}>{p.title}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Client *</label><select name="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="client"><option value="">—</option>{for c in clients}<option value="{c.id}"{if sale.client_id==c.id} selected{/if}>{c.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=client_id]');if(e)makeCreatable(e);});</script></div>
-        <div class="grid grid-cols-2 gap-3">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Gross Amount *</label><input type="number" step="0.01" name="gross_amount" value="{sale.gross_amount}" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Project</label><select name="project_id" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="project"><option value="">—</option>{for p in projects}<option value="{p.id}"{if sale.project_id==p.id} selected{/if}>{p.title}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Client *</label><select name="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="client"><option value="">—</option>{for c in clients}<option value="{c.id}"{if sale.client_id==c.id} selected{/if}>{c.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=client_id]');if(e)makeCreatable(e);});</script></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Sales Date</label><input type="date" name="sales_date" value="{is_edit ? sale.sales_date : ('now'|date:'Y-m-d')}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Invoice #</label><input type="text" name="invoice_number" value="{sale.invoice_number}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label><input type="date" name="due_date" value="{sale.due_date}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Scope of Work</label><select name="scope_of_work" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="">—</option><option value="new"{if sale.scope_of_work=='new'} selected{/if}>New</option><option value="refurbish"{if sale.scope_of_work=='refurbish'} selected{/if}>Refurbish</option><option value="warranty_claim"{if sale.scope_of_work=='warranty_claim'} selected{/if}>Warranty Claim</option><option value="labor_only"{if sale.scope_of_work=='labor_only'} selected{/if}>Labor Only</option><option value="print_only"{if sale.scope_of_work=='print_only'} selected{/if}>Print Only</option></select></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="flex items-center gap-2 text-sm"><input type="checkbox" name="with_installation" value="1"{if sale.with_installation} checked{/if} class="rounded border-gray-300"><span class="text-gray-700">With Installation</span></label></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Mode of Payment</label><select name="mode_of_payment" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="">—</option><option value="cash"{if sale.mode_of_payment=='cash'} selected{/if}>Cash</option><option value="check"{if sale.mode_of_payment=='check'} selected{/if}>Check</option><option value="bank_transfer"{if sale.mode_of_payment=='bank_transfer'} selected{/if}>Bank Transfer</option><option value="gcash"{if sale.mode_of_payment=='gcash'} selected{/if}>GCash</option></select></div>
+        </div>
+
+        <!-- Line Items -->
+        <div class="border-t pt-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">📋 Line Items</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 border-b">
+                            <th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">#</th>
+                            <th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Material</th>
+                            <th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Particulars</th>
+                            <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Width</th>
+                            <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Height</th>
+                            <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">UOM</th>
+                            <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">QTY</th>
+                            <th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/Unit</th>
+                            <th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/SqFt</th>
+                            <th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(item, idx) in items" :key="idx">
+                            <tr class="border-b border-gray-100">
+                                <td class="py-1 px-2 text-xs text-gray-500 text-center" x-text="idx + 1"></td>
+                                <td class="py-1 px-2">
+                                    <select x-model="item.material_id" @change="onMaterialSelect(idx)" class="w-28 px-1 py-1 border border-gray-300 rounded text-xs">
+                                        <option value="">—</option>
+                                        {for m in materials}
+                                        <option value="{m.id}"
+                                                data-name="{m.name}"
+                                                data-price-per-unit="{m.price_per_unit|default:0}"
+                                                data-price-per-sqft="{m.price_per_sqft|default:0}"
+                                                data-width="{m.default_width|default:0}"
+                                                data-height="{m.default_height|default:0}">{if m.category_name}[{m.category_name}] {/if}{m.name}</option>
+                                        {/for}
+                                    </select>
+                                </td>
+                                <td class="py-1 px-2"><input type="text" x-model="item.particulars" class="w-36 px-1 py-1 border border-gray-300 rounded text-xs"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.width" @input="calcLine(idx)" class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.height" @input="calcLine(idx)" class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center"></td>
+                                <td class="py-1 px-2"><select x-model="item.uom" class="w-14 px-1 py-1 border border-gray-300 rounded text-xs"><option value="ft">ft</option><option value="m">m</option><option value="in">in</option></select></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.quantity" @input="calcLine(idx)" class="w-14 px-1 py-1 border border-gray-300 rounded text-xs text-center"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.price_per_unit" @input="calcLine(idx)" class="w-20 px-1 py-1 border border-gray-300 rounded text-xs text-right"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.price_per_sqft" @input="calcLine(idx)" class="w-20 px-1 py-1 border border-gray-300 rounded text-xs text-right"></td>
+                                <td class="py-1 px-2 text-xs text-right font-medium" x-text="formatMoney(item.line_total)"></td>
+                                <td class="py-1 px-2 text-center"><button type="button" @click="removeItem(idx)" class="text-red-500 hover:text-red-700 text-xs" x-show="items.length > 1">✕</button></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" @click="addItem()" class="mt-2 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 border border-gray-300">+ Add Item</button>
+        </div>
+
+        <!-- Charges -->
+        <div class="grid grid-cols-3 gap-4 border-t pt-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Installation Charge</label><input type="number" step="0.01" name="installation_charge" value="{sale.installation_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Mobilization Charge</label><input type="number" step="0.01" name="mobilization_charge" value="{sale.mobilization_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Other Charges</label><input type="number" step="0.01" name="other_charges" value="{sale.other_charges|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+        </div>
+
+        <!-- Discount/Tax/Down Payment -->
+        <div class="grid grid-cols-3 gap-4">
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Discount</label><input type="number" step="0.01" name="discount_amount" value="{sale.discount_amount|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Tax</label><input type="number" step="0.01" name="tax_amount" value="{sale.tax_amount|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Sales Date</label><input type="date" name="sales_date" value="{is_edit ? sale.sales_date : ('now'|date:'Y-m-d')}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Due Date</label><input type="date" name="due_date" value="{sale.due_date}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Invoice #</label><input type="text" name="invoice_number" value="{sale.invoice_number}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Down Payment</label><input type="number" step="0.01" name="down_payment" value="{sale.down_payment|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
         </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Down Payment Type</label><select name="down_payment_type" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="">—</option><option value="down_payment"{if sale.down_payment_type=='down_payment'} selected{/if}>Down Payment</option><option value="full_payment"{if sale.down_payment_type=='full_payment'} selected{/if}>Full Payment</option></select></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label><input type="text" name="payment_terms" value="{sale.payment_terms}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+        </div>
+
         <div><label class="block text-sm font-medium text-gray-700 mb-1">Notes</label><textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{sale.notes}</textarea></div>
         <div class="flex gap-3"><button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit ? 'Update' : 'Create Invoice'}</button><a href="/admin/project-audit-ledger/sales" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a></div>
     </form>
 </div>
 </div>
+
+<script>
+function saleForm() {
+    return {
+        items: [{ material_id: '', particulars: '', width: '', height: '', uom: 'ft', quantity: 1, price_per_unit: 0, price_per_sqft: '', line_total: 0 }],
+        init() {
+            {if is_edit && sale.items && sale.items|count > 0}
+            this.items = [
+                {for item in sale.items}
+                {if item_index > 0},{/if}
+                { material_id: '{item.material_id|default:''}', particulars: '{item.particulars|escape:'js'}', width: '{item.width|default:''}', height: '{item.height|default:''}', uom: '{item.uom|default:'ft'}', quantity: {item.quantity|default:1}, price_per_unit: {item.price_per_unit|default:0}, price_per_sqft: '{item.price_per_sqft|default:''}', line_total: {item.line_total|default:0} }
+                {/for}
+            ];
+            {/if}
+            var self = this;
+            document.querySelector('form').addEventListener('submit', function(e) {
+                var input = document.createElement('input');
+                input.name = 'items';
+                input.type = 'hidden';
+                input.value = JSON.stringify(self.items.filter(function(i) { return i.particulars.trim(); }));
+                document.querySelector('form').appendChild(input);
+            });
+        },
+        addItem() { this.items.push({ material_id: '', particulars: '', width: '', height: '', uom: 'ft', quantity: 1, price_per_unit: 0, price_per_sqft: '', line_total: 0 }); },
+        removeItem(idx) { if (this.items.length > 1) this.items.splice(idx, 1); },
+        onMaterialSelect(idx) {
+            var tr = document.querySelectorAll('tbody tr')[idx];
+            if (!tr) return;
+            var sel = tr.querySelector('select');
+            if (!sel) return;
+            var opt = sel.options[sel.selectedIndex];
+            if (opt && opt.value) {
+                var name = opt.getAttribute('data-name') || '';
+                var ppu = parseFloat(opt.getAttribute('data-price-per-unit') || 0);
+                var psf = parseFloat(opt.getAttribute('data-price-per-sqft') || 0);
+                var w = parseFloat(opt.getAttribute('data-width') || 0);
+                var h = parseFloat(opt.getAttribute('data-height') || 0);
+                this.items[idx].particulars = name;
+                this.items[idx].price_per_unit = ppu;
+                this.items[idx].price_per_sqft = psf > 0 ? psf : '';
+                if (w > 0) this.items[idx].width = w;
+                if (h > 0) this.items[idx].height = h;
+                this.calcLine(idx);
+            }
+        },
+        calcLine(idx) {
+            var item = this.items[idx];
+            var qty = parseFloat(item.quantity) || 1;
+            var ppu = parseFloat(item.price_per_unit) || 0;
+            var psf = parseFloat(item.price_per_sqft) || 0;
+            var w = parseFloat(item.width) || 0;
+            var h = parseFloat(item.height) || 0;
+            if (psf > 0 && w > 0 && h > 0) {
+                item.line_total = Math.round(w * h * psf * qty * 100) / 100;
+            } else {
+                item.line_total = Math.round(ppu * qty * 100) / 100;
+            }
+        },
+        formatMoney(val) { return '₱' + parseFloat(val || 0).toFixed(2); }
+    };
+}
+</script>

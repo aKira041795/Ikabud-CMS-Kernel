@@ -36,6 +36,12 @@ function project_audit_ledger_capability_handlers(): array
         'pal.settings.read@1' => 'pal_cap_settings_read_1',
         'pal.settings.write@1' => 'pal_cap_settings_write_1',
         'pal.users.manage@1' => 'pal_cap_users_manage_1',
+        'pal.quotations.read@1' => 'pal_cap_quotations_read_1',
+        'pal.quotations.write@1' => 'pal_cap_quotations_write_1',
+        'pal.quotations.convert@1' => 'pal_cap_quotations_convert_1',
+        'pal.sales.items.manage@1' => 'pal_cap_sales_items_manage_1',
+        'pal.cash_advances.read@1' => 'pal_cap_cash_advances_read_1',
+        'pal.cash_advances.write@1' => 'pal_cap_cash_advances_write_1',
         'entity.list.pal_project@1' => 'pal_cap_entity_list_project_1',
         'entity.get.pal_project@1' => 'pal_cap_entity_get_project_1',
         'entity.list.pal_expense@1' => 'pal_cap_entity_list_expense_1',
@@ -56,6 +62,11 @@ function project_audit_ledger_capability_handlers(): array
         'entity.list.pal_issuance@1' => 'pal_cap_entity_list_issuance_1',
         'entity.get.pal_issuance@1' => 'pal_cap_entity_get_issuance_1',
         'entity.list.pal_material_return@1' => 'pal_cap_entity_list_material_return_1',
+        'entity.list.pal_quotation@1' => 'pal_cap_entity_list_quotation_1',
+        'entity.get.pal_quotation@1' => 'pal_cap_entity_get_quotation_1',
+        'entity.list.pal_quotation_item@1' => 'pal_cap_entity_list_quotation_item_1',
+        'entity.list.pal_sale_item@1' => 'pal_cap_entity_list_sale_item_1',
+        'entity.list.pal_cash_advance@1' => 'pal_cap_entity_list_cash_advance_1',
     ];
 }
 
@@ -887,4 +898,182 @@ function palRejectStaleSession(): void
     palClearAuthCookie();
     unset($_SESSION['pal_user']);
     app()->redirect(palBaseUrl() . '/project-audit-ledger/login');
+}
+
+// ── New Capability Handlers (Quotations, Sale Items, Cash Advances) ──
+
+function pal_cap_quotations_read_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor', 'encoder']);
+}
+
+function pal_cap_quotations_write_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor']);
+}
+
+function pal_cap_quotations_convert_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor']);
+}
+
+function pal_cap_sales_items_manage_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor']);
+}
+
+function pal_cap_cash_advances_read_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor']);
+}
+
+function pal_cap_cash_advances_write_1(array $args): array
+{
+    return palCapCheck(['admin', 'supervisor']);
+}
+
+// ── Entity View Handlers for Quotations ──
+
+function pal_cap_entity_list_quotation_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'DESC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
+
+        $count = $db->prepare("SELECT COUNT(*) FROM pal_quotations WHERE tenant_id = :tid");
+        $count->execute([':tid' => $tid]);
+        $total = (int)$count->fetchColumn();
+
+        $stmt = $db->prepare("SELECT q.id, q.quotation_number, q.total_amount, q.scope_of_work, q.status, q.quotation_date, q.created_at, c.name AS client_name FROM pal_quotations q LEFT JOIN pal_clients c ON q.client_id = c.id WHERE q.tenant_id = :tid ORDER BY q.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_get_quotation_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $id = (int)($args['id'] ?? 0);
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $stmt = $db->prepare("SELECT q.*, c.name AS client_name, p.title AS project_title FROM pal_quotations q LEFT JOIN pal_clients c ON q.client_id = c.id LEFT JOIN pal_projects p ON q.project_id = p.id WHERE q.id = :id AND q.tenant_id = :tid");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_quotation_item_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $filters = $args['filters'] ?? [];
+
+        $where = 'qi.tenant_id = :tid';
+        $params = [':tid' => $tid];
+        if (isset($filters['quotation_id'])) {
+            $where .= ' AND qi.quotation_id = :qid';
+            $params[':qid'] = (int)$filters['quotation_id'];
+        }
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM pal_quotation_items qi WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $stmt = $db->prepare("SELECT qi.*, m.name AS material_name FROM pal_quotation_items qi LEFT JOIN pal_materials m ON qi.material_id = m.id WHERE {$where} ORDER BY qi.sort_order ASC LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        if (isset($filters['quotation_id'])) $stmt->bindValue(':qid', (int)$filters['quotation_id'], PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_sale_item_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $filters = $args['filters'] ?? [];
+
+        $where = 'si.tenant_id = :tid';
+        $params = [':tid' => $tid];
+        if (isset($filters['sale_id'])) {
+            $where .= ' AND si.sale_id = :sid';
+            $params[':sid'] = (int)$filters['sale_id'];
+        }
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM pal_sale_items si WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $stmt = $db->prepare("SELECT si.*, m.name AS material_name FROM pal_sale_items si LEFT JOIN pal_materials m ON si.material_id = m.id WHERE {$where} ORDER BY si.sort_order ASC LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        if (isset($filters['sale_id'])) $stmt->bindValue(':sid', (int)$filters['sale_id'], PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function pal_cap_entity_list_cash_advance_1(array $args): array
+{
+    try {
+        $db = palDb();
+        $tid = (int)(app()->tenant()->current() ?? 0);
+        $limit = min((int)($args['limit'] ?? 20), 100);
+        $offset = (int)($args['offset'] ?? 0);
+        $sortDir = strtoupper((string)($args['sort']['direction'] ?? 'DESC'));
+        $sortDir = in_array($sortDir, ['ASC', 'DESC'], true) ? $sortDir : 'DESC';
+
+        $filters = $args['filters'] ?? [];
+        $where = 'ca.tenant_id = :tid';
+        $params = [':tid' => $tid];
+
+        if (isset($filters['month']) && $filters['month'] !== '') {
+            $where .= ' AND MONTH(ca.advance_date) = :month';
+            $params[':month'] = str_pad((string)(int)$filters['month'], 2, '0', STR_PAD_LEFT);
+        }
+        if (isset($filters['year']) && $filters['year'] !== '') {
+            $where .= ' AND YEAR(ca.advance_date) = :year';
+            $params[':year'] = (int)$filters['year'];
+        }
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM pal_cash_advances ca WHERE {$where}");
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        $stmt = $db->prepare("SELECT ca.*, tl.name AS team_lead_name, p.title AS project_title FROM pal_cash_advances ca LEFT JOIN pal_team_leads tl ON ca.team_lead_id = tl.id LEFT JOIN pal_projects p ON ca.project_id = p.id WHERE {$where} ORDER BY ca.advance_date {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
+        $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
+        if (isset($filters['month']) && $filters['month'] !== '') $stmt->bindValue(':month', str_pad((string)(int)$filters['month'], 2, '0', STR_PAD_LEFT), PDO::PARAM_STR);
+        if (isset($filters['year']) && $filters['year'] !== '') $stmt->bindValue(':year', (int)$filters['year'], PDO::PARAM_INT);
+        $stmt->execute();
+        return ['ok' => true, 'rows' => $stmt->fetchAll(PDO::FETCH_ASSOC), 'total' => $total];
+    } catch (Throwable $e) {
+        return ['ok' => false, 'error' => $e->getMessage()];
+    }
 }

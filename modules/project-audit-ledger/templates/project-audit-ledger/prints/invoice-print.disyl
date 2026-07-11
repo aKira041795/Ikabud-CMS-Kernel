@@ -1,0 +1,127 @@
+<div class="print-only" style="font-family: Arial, sans-serif; max-width: 210mm; margin: 0 auto; padding: 20px;">
+    <div style="text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px;">
+        <h1 style="margin: 0; font-size: 18px; color: #333;">SALES INVOICE</h1>
+        <p style="margin: 2px 0; font-size: 12px; color: #666;">ZAP-ARTS Signage & Printing Solutions</p>
+    </div>
+
+    <table style="width: 100%; font-size: 12px; margin-bottom: 15px;">
+        <tr>
+            <td style="width: 60%; vertical-align: top;">
+                <p style="margin: 2px 0;"><strong>Customer:</strong> {sale.client_name|default:'—'}</p>
+                <p style="margin: 2px 0;"><strong>Project:</strong> {sale.project_title|default:'—'}</p>
+                {if sale.scope_of_work}
+                <p style="margin: 2px 0;"><strong>Scope:</strong> {sale.scope_of_work|replace:'_':' '|capitalize}</p>
+                {/if}
+            </td>
+            <td style="width: 40%; vertical-align: top; text-align: right;">
+                <p style="margin: 2px 0;"><strong>Invoice #:</strong> {sale.sales_number|default:sale.id}</p>
+                <p style="margin: 2px 0;"><strong>Date:</strong> {sale.sales_date|default:sale.created_at}</p>
+                {if sale.due_date}
+                <p style="margin: 2px 0;"><strong>Due Date:</strong> {sale.due_date}</p>
+                {/if}
+                {if sale.invoice_number}
+                <p style="margin: 2px 0;"><strong>Ref #:</strong> {sale.invoice_number}</p>
+                {/if}
+            </td>
+        </tr>
+    </table>
+
+    {if sale.items && sale.items|count > 0}
+    <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 15px;">
+        <thead>
+            <tr style="background-color: #333; color: #fff;">
+                <th style="padding: 6px 8px; text-align: left; border: 1px solid #333;">#</th>
+                <th style="padding: 6px 8px; text-align: left; border: 1px solid #333;">Particulars</th>
+                <th style="padding: 6px 8px; text-align: center; border: 1px solid #333;">Width</th>
+                <th style="padding: 6px 8px; text-align: center; border: 1px solid #333;">Height</th>
+                <th style="padding: 6px 8px; text-align: center; border: 1px solid #333;">QTY</th>
+                <th style="padding: 6px 8px; text-align: right; border: 1px solid #333;">Unit Price</th>
+                <th style="padding: 6px 8px; text-align: right; border: 1px solid #333;">SqFt Price</th>
+                <th style="padding: 6px 8px; text-align: right; border: 1px solid #333;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {for item in sale.items}
+            <tr>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: center;">{item.sort_order|default:item_index+1}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc;">{item.particulars}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: center;">{item.width|default:'—'}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: center;">{item.height|default:'—'}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: center;">{item.quantity|default:1}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: right;">{if item.price_per_unit > 0}₱{item.price_per_unit|number_format:2}{else}—{/if}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: right;">{if item.price_per_sqft > 0}₱{item.price_per_sqft|number_format:2}{else}—{/if}</td>
+                <td style="padding: 4px 8px; border: 1px solid #ccc; text-align: right; font-weight: bold;">₱{item.line_total|number_format:2}</td>
+            </tr>
+            {/for}
+        </tbody>
+    </table>
+    {/if}
+
+    <table style="width: 100%; font-size: 12px;">
+        <tr>
+            <td style="width: 50%; vertical-align: top;">
+                {if sale.notes}
+                <p style="margin: 2px 0;"><strong>Notes:</strong></p>
+                <p style="margin: 2px 0; font-size: 11px;">{sale.notes}</p>
+                {/if}
+            </td>
+            <td style="width: 50%; vertical-align: top; text-align: right;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <tr><td style="padding: 3px 8px; text-align: right;">Gross Amount:</td><td style="padding: 3px 8px; text-align: right;">₱{sale.gross_amount|number_format:2}</td></tr>
+                    <tr><td style="padding: 3px 8px; text-align: right;">Discount:</td><td style="padding: 3px 8px; text-align: right;">{if sale.discount_amount > 0}−₱{sale.discount_amount|number_format:2}{else}₱0.00{/if}</td></tr>
+                    <tr><td style="padding: 3px 8px; text-align: right;">Tax:</td><td style="padding: 3px 8px; text-align: right;">₱{sale.tax_amount|default:0|number_format:2}</td></tr>
+                    {if sale.installation_charge > 0}
+                    <tr><td style="padding: 3px 8px; text-align: right;">Installation:</td><td style="padding: 3px 8px; text-align: right;">₱{sale.installation_charge|number_format:2}</td></tr>
+                    {/if}
+                    {if sale.mobilization_charge > 0}
+                    <tr><td style="padding: 3px 8px; text-align: right;">Mobilization:</td><td style="padding: 3px 8px; text-align: right;">₱{sale.mobilization_charge|number_format:2}</td></tr>
+                    {/if}
+                    {if sale.other_charges > 0}
+                    <tr><td style="padding: 3px 8px; text-align: right;">Other Charges:</td><td style="padding: 3px 8px; text-align: right;">₱{sale.other_charges|number_format:2}</td></tr>
+                    {/if}
+                    <tr style="font-weight: bold; border-top: 2px solid #333;">
+                        <td style="padding: 5px 8px; text-align: right; font-size: 14px;">NET AMOUNT:</td>
+                        <td style="padding: 5px 8px; text-align: right; font-size: 14px;">₱{sale.net_amount|number_format:2}</td>
+                    </tr>
+                    {if sale.mode_of_payment}
+                    <tr><td style="padding: 3px 8px; text-align: right; font-size: 11px;">Mode of Payment:</td><td style="padding: 3px 8px; text-align: right; font-size: 11px;">{sale.mode_of_payment|replace:'_':' '|capitalize}</td></tr>
+                    {/if}
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 11px;">
+        <table style="width: 100%;">
+            <tr>
+                <td style="width: 33%; text-align: center;">
+                    <p>______________________________</p>
+                    <p><strong>Prepared By</strong></p>
+                </td>
+                <td style="width: 33%; text-align: center;">
+                    <p>______________________________</p>
+                    <p><strong>Client Signature</strong></p>
+                </td>
+                <td style="width: 33%; text-align: center;">
+                    <p>______________________________</p>
+                    <p><strong>Date</strong></p>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <div style="margin-top: 20px; text-align: center; font-size: 10px; color: #999;">
+        <p>ZAP-ARTS Signage & Printing Solutions</p>
+        <p>{sale.status|capitalize} — Outstanding: ₱{sale.outstanding|default:0|number_format:2}</p>
+    </div>
+</div>
+
+<style>
+    @media print {
+        body { margin: 0; padding: 0; }
+        .no-print { display: none !important; }
+    }
+    @media screen {
+        .print-only { border: 1px dashed #ccc; padding: 20px; background: #fff; }
+    }
+</style>

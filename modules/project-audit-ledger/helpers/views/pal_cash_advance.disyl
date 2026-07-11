@@ -1,0 +1,9 @@
+{ikb_entity_view name="pal_cash_advance" view="table"}
+    {field name="team_lead_name" type="string"}
+    {field name="project_title" type="string"}
+    {field name="amount" type="number" renderer="money:2"}
+    {field name="advance_date" type="date" renderer="datetime:date"}
+    {field name="status" type="enum" renderer="badge:{pending|amber|approved|green|settled|blue|voided|gray}"}
+    {field name="created_at" type="date" renderer="datetime:datetime"}
+    {action name="view" url="/admin/project-audit-ledger/cash-advances/{id}" label="View"}
+{/ikb_entity_view}
