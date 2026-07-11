@@ -425,8 +425,8 @@ class palProjectService
             $saleStmt->execute([':pid' => $id, ':tid' => $this->tenantId]);
             $hasSale = (int)$saleStmt->fetchColumn() > 0;
 
-            // 3. If no sale exists and project has a client, auto-create invoice
-            if (!$hasSale && !empty($project['client_id'])) {
+            // 3. If no sale exists, auto-create invoice even without a client (walk-in)
+            if (!$hasSale) {
                 $contractAmount = (float)($project['contract_amount'] ?? 0);
                 // Generate invoice number
                 $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE tenant_id = :tid");
@@ -492,7 +492,7 @@ class palProjectService
             // Fire event
             palFireEvent('pal.project.completed', [
                 'project_id' => $id,
-                'auto_invoiced' => !$hasSale && !empty($project['client_id']),
+                'auto_invoiced' => !$hasSale,
                 'contract_amount' => $project['contract_amount'] ?? 0,
             ]);
 
