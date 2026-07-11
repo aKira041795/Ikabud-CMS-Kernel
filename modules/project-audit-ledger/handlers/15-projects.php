@@ -34,7 +34,7 @@ function palPageProjectForm(array $rp = []): void
 
     $db = palDb();
     $tid = (int)($user['tenant_id'] ?? 0);
-    $s1 = $db->prepare('SELECT id, name FROM pal_clients WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
+    $s1 = $db->prepare('SELECT id, name, contact_person, email, phone, address FROM pal_clients WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
     $s1->execute([':tid' => $tid]);
     $clients = $s1->fetchAll(PDO::FETCH_ASSOC);
     $s2 = $db->prepare('SELECT id, name FROM pal_project_types WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');

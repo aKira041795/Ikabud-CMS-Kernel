@@ -67,7 +67,7 @@ class palProjectService
     public function get(int $id): ?array
     {
         $sql = "SELECT p.*, c.name AS client_name, c.contact_person AS client_contact,
-                       c.email AS client_email, c.phone AS client_phone,
+                       c.email AS client_email, c.phone AS client_phone, c.address AS client_address,
                        pt.name AS project_type_name, tl.name AS team_lead_name
                 FROM pal_projects p
                 LEFT JOIN pal_clients c ON p.client_id = c.id
