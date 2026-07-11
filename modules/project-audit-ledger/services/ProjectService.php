@@ -417,7 +417,7 @@ class palProjectService
             // Dates
             'start_date', 'target_completion_date', 'actual_completion_date',
             // Ints
-            'fabrication_team_lead_id', 'project_manager',
+            'fabrication_team_lead_id',
         ];
         foreach ($nonTextFields as $field) {
             if (array_key_exists($field, $data) && $data[$field] === '') {
@@ -469,7 +469,7 @@ class palProjectService
                 ':t' => $this->tenantId,
                 ':pj' => $projectId,
                 ':mi' => !empty($item['material_id']) && is_numeric($item['material_id']) ? (int)$item['material_id'] : null,
-                ':part' => !empty($item['custom_material']) ? ($item['particulars'] ?? '') . ' [' . $item['custom_material'] . ']' : ($item['particulars'] ?? ''),
+                ':part' => mb_substr((!empty($item['custom_material']) ? ($item['particulars'] ?? '') . ' [' . $item['custom_material'] . ']' : ($item['particulars'] ?? '')), 0, 255),
                 ':w' => !empty($item['width']) ? (float)$item['width'] : null,
                 ':h' => !empty($item['height']) ? (float)$item['height'] : null,
                 ':uom' => $item['uom'] ?? null,
