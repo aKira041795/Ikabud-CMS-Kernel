@@ -64,7 +64,15 @@ function palApiAttachmentUpload(): void
         // entity_id=0 is allowed for pre-creation uploads (e.g. mockup before save)
 
         if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-            palJsonError('File upload failed.', 422);
+            $details = '';
+            if (!isset($_FILES['file'])) {
+                $details = 'No file in request.';
+            } else {
+                $code = $_FILES['file']['error'];
+                $errNames = [0=>'OK',1=>'INI_SIZE',2=>'FORM_SIZE',3=>'PARTIAL',4=>'NO_FILE',6=>'TMP_DIR',7=>'CANT_WRITE',8=>'EXTENSION'];
+                $details = 'Upload error code ' . $code . ' (' . ($errNames[$code] ?? 'UNKNOWN') . ')';
+            }
+            palJsonError('File upload failed: ' . $details, 422);
             return;
         }
 
