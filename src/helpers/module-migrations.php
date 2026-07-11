@@ -637,7 +637,20 @@ function applyModuleSqlArtifacts(PDO $db, string $moduleId, string $manifestKey,
 
         $sql = (string)file_get_contents($fullPath);
         if (trim($sql) !== '') {
-            $db->exec($sql);
+            try {
+                $db->exec($sql);
+            } catch (\PDOException $e) {
+                $mysqlCode = isset($e->errorInfo[1]) ? (int)$e->errorInfo[1] : 0;
+                $idempotentCodes = [
+                    1060, // Duplicate column name
+                    1061, // Duplicate key name
+                    1050, // Table already exists
+                    1091, // Can't DROP index/key
+                ];
+                if (!in_array($mysqlCode, $idempotentCodes, true)) {
+                    throw $e;
+                }
+            }
         }
 
         tenantRecordModuleMigration($db, $moduleId, $artifactName);

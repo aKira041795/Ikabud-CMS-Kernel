@@ -13,7 +13,7 @@
 
 CREATE TABLE IF NOT EXISTS kernel_entity_revisions (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    revision BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    revision BIGINT UNSIGNED NOT NULL COMMENT 'Monotonically incremented per entity type. Managed by application logic, not auto_increment.',
     entity_type VARCHAR(64) NOT NULL COMMENT 'e.g. ledger_entry, product, order',
     entity_id VARCHAR(128) NOT NULL COMMENT 'Server-side entity identifier (string for UUID support)',
     operation ENUM('created', 'updated', 'deleted') NOT NULL,

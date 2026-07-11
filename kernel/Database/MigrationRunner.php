@@ -132,6 +132,7 @@ class MigrationRunner
                     1060, // Duplicate column name  — ADD COLUMN on existing column
                     1061, // Duplicate key name     — ADD INDEX on existing index
                     1050, // Table already exists   — CREATE TABLE without IF NOT EXISTS
+                    1091, // Can't DROP index/key   — DROP INDEX on non-existent index
                 ];
                 if (!in_array($mysqlCode, $idempotentCodes, true)) {
                     throw $e;
