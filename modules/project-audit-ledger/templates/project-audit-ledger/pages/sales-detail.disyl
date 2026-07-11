@@ -108,7 +108,7 @@ function sendInvoiceEmail(saleId) {
     fetch('/api/v1/project-audit-ledger/sales/' + saleId + '/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: '{csrf_token|raw}'
+        body: '_token={csrf_token|raw}'
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {
