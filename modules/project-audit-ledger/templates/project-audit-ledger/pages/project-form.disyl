@@ -151,10 +151,21 @@ function uploadMockup() {
     .catch(function(){ showToast('Upload silently failed — preview shown', 'warning'); });
 }
 function removeMockup() {
+    var attId = document.getElementById('mockup-attachment-id').value;
     document.getElementById('mockup-attachment-id').value = '';
     document.getElementById('mockup-file').value = '';
     document.getElementById('mockup-preview').style.display = 'none';
     document.getElementById('mockup-img').src = '';
+    // Delete from server if already saved (has attachment ID)
+    if (attId && attId !== '0') {
+        var csrf = document.querySelector('input[name="_token"]');
+        var fd = new FormData();
+        if (csrf) fd.append('_token', csrf.value);
+        fetch('/api/v1/project-audit-ledger/attachments/' + attId + '/delete', { method: 'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if (d.ok) showToast('Mockup removed'); else showToast(d.error || 'Failed', 'warning'); })
+        .catch(function(){});
+    }
 }
 </script>
 
