@@ -114,7 +114,8 @@ class palProjectService
             $installationCharge = 0;
             $mobilizationCharge = 0;
             $otherCharges = 0;
-            $items = [];
+            // Items are still saved for material tracking but don't affect contract_amount
+            $items = $data['items'] ?? [];
         } else {
             $items = $data['items'] ?? [];
             $calculatedTotal = $this->calculateItemsTotal($items);
@@ -262,14 +263,15 @@ class palProjectService
 
         // Determine JO type and recalculate contract_amount
         $joType = $data['_jo_type'] ?? (isset($data['items']) ? 'items' : null);
-        if ($joType === 'contract' && !empty($data['contract_amount'])) {
-            // Contracted amount: zero out charges, keep contract_amount as-is
+        if ($joType === 'contract') {
+            // Contracted amount: zero out charges, keep contract_amount from the form
             $fields[] = 'installation_charge = :_ic_zero';
             $params[':_ic_zero'] = 0;
             $fields[] = 'mobilization_charge = :_mc_zero';
             $params[':_mc_zero'] = 0;
             $fields[] = 'other_charges = :_oc_zero';
             $params[':_oc_zero'] = 0;
+            // Items are saved for tracking but don't recalculate contract_amount
         } elseif ($joType === 'items' && isset($data['items'])) {
             // Items mode: recalculate from items + charges
             $installationCharge = (float)($data['installation_charge'] ?? $project['installation_charge'] ?? 0);
