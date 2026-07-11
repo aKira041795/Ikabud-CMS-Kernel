@@ -7,6 +7,8 @@ applyTo: "**/*.php **/*.disyl"
 ## Core directive
 **If DiSyL does not support a PHP syntax construct that a template needs, improve DiSyL at the engine/root level. Do NOT add template-level workarounds.** If DiSyL has gaps rendering from any programming language, update DiSyL, not the template.
 
+**If DiSyL has undefined filters, silent pass-through, or any observed weakness (missing aliases, broken edge cases, poor error messages) — fix DiSyL at the engine level, not the template.** Every template workaround that could have been a DiSyL engine fix is technical debt. When in doubt, fix the engine.
+
 ## PHP syntax supported by DiSyL
 
 | Construct | Syntax | Example |
@@ -23,6 +25,8 @@ applyTo: "**/*.php **/*.disyl"
 | Ternary | `{cond ? a : b}` | `{active ? 'Yes' : 'No'}` |
 | Null-coalescing | `??` (desugared to `\|default:`) | `{var ?? fallback}` |
 | Filters | `\|filter` `\|filter:arg1,arg2` | `{name \| upper}` |
+| Filter: escape | `\|escape:'js'` `\|escape:'html'` `\|escape:'attr'` `\|escape:'url'` | `{text \| escape:'js'}` — delegates to `esc_js`/`esc_html`/`esc_attr`/`esc_url` |
+| Filter: json | `\|json` (output raw: `\|json\|raw`) | `{data \| json \| raw}` — passes PHP data to JS via JSON |
 | Control: if/elseif/else | `{if}` `{elseif}` `{else}` `{/if}` | — |
 | Control: loops | `{for x in list}` `{foreach list as x}` `{each list as x}` | — |
 | Control: assignment | `{set var = expr}` | `{set total = price * qty}` |
@@ -96,6 +100,8 @@ applyTo: "**/*.php **/*.disyl"
 ### Weaknesses in existing support
 
 1. **Tight operator binding for `|`**: `{a + b \| filter}` parses `b \| filter` first instead of `a + b` as arithmetic. Fixed only if parenthesized: `{(a + b) \| filter}`.
+
+2. ~~**Unknown filters silently pass through**~~ **FIXED (2026-07-11)**: `FilterRegistry::apply()` now logs a warning via `write_log()` when an unregistered filter name is used. Previously `escape:'js'` (note: correct filter is `esc_js`, not `escape`) would silently return the value unchanged, making JavaScript strings with special characters break. Added `escape` as a meta-filter in `FilterRegistry.php` that delegates to `esc_js`/`esc_html`/`esc_attr`/`esc_url` based on the first argument. Use `{var|escape:'js'}` instead of raw string interpolation in JS contexts. For passing entire PHP data structures to JS, use `{data|json|raw}` which produces proper JSON.
 
 2. ~~**`isset()`/`empty()` only work in interpreted mode**~~ **FIXED (2026-06-26)**: `isset()`, `empty()`, and `is_array()` are now registered in `FunctionRegistry::init()`. Both `isset(var)` and `isset($var)` syntaxes work in compiled mode — the `$` prefix is stripped automatically. This caveat is no longer valid.
 

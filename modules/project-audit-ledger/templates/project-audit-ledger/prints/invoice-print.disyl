@@ -64,6 +64,7 @@
                 <th style="padding: 7px 10px; text-align: left; border: 1px solid #1e40af;">Particulars</th>
                 <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">Width</th>
                 <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">Height</th>
+                <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">UOM</th>
                 <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">QTY</th>
                 <th style="padding: 7px 10px; text-align: right; border: 1px solid #1e40af;">Unit Price</th>
                 <th style="padding: 7px 10px; text-align: right; border: 1px solid #1e40af;">SqFt Price</th>
@@ -77,6 +78,7 @@
                 <td style="padding: 5px 10px; border: 1px solid #e5e7eb;">{item.particulars}{if item.material_name} <span style="color: #6b7280; font-size: 10px;">({item.material_name})</span>{/if}</td>
                 <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.width|default:'—'}</td>
                 <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.height|default:'—'}</td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.uom|default:'—'}</td>
                 <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.quantity|default:1}</td>
                 <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: right;">{if item.price_per_unit > 0}₱{item.price_per_unit|number_format:2}{else}—{/if}</td>
                 <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: right;">{if item.price_per_sqft > 0}₱{item.price_per_sqft|number_format:2}{else}—{/if}</td>

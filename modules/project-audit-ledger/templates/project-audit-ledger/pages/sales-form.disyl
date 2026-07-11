@@ -133,12 +133,11 @@ function saleForm() {
         items: [{ material_id: '', particulars: '', width: '', height: '', uom: 'ft', quantity: 1, price_per_unit: 0, price_per_sqft: '', line_total: 0 }],
         init() {
             {if is_edit && sale.items && sale.items|count > 0}
-            this.items = [
-                {for item in sale.items}
-                {if item_index > 0},{/if}
-                { material_id: '{item.material_id|default:''}', particulars: '{item.particulars|escape:'js'}', width: '{item.width|default:''}', height: '{item.height|default:''}', uom: '{item.uom|default:'ft'}', quantity: {item.quantity|default:1}, price_per_unit: {item.price_per_unit|default:0}, price_per_sqft: '{item.price_per_sqft|default:''}', line_total: {item.line_total|default:0} }
-                {/for}
-            ];
+            try {
+                this.items = {sale.items|json|raw};
+            } catch(e) {
+                this.items = [{ material_id: '', particulars: '(error loading items)', width: '', height: '', uom: 'ft', quantity: 1, price_per_unit: 0, price_per_sqft: '', line_total: 0 }];
+            }
             {/if}
             var self = this;
             document.querySelector('form').addEventListener('submit', function(e) {

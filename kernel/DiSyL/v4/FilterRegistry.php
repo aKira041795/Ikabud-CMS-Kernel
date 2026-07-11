@@ -33,7 +33,11 @@ final class FilterRegistry
     public function apply(string $name, mixed $value, array $args = []): mixed
     {
         if (!isset($this->filters[$name])) {
-            return $value; // Unknown filters pass through
+            // Log warning for unknown filters so template bugs don't hide silently
+            if (function_exists('write_log')) {
+                write_log("disyl.filter.unknown: filter '{$name}' not registered — value passed through unchanged", 'warning');
+            }
+            return $value;
         }
         // Some filters expect positional and named args separately.
         // Unpack the combined $args into the two arrays.
@@ -52,6 +56,27 @@ final class FilterRegistry
     private function registerDefaults(): void
     {
         $this->filters = [
+            'escape' => function($v, $args) {
+                $mode = $args[0] ?? 'html';
+                $filters = [
+                    'esc_html' => fn($x) => htmlspecialchars((string) $x, ENT_QUOTES, 'UTF-8'),
+                    'esc_attr' => fn($x) => htmlspecialchars((string) $x, ENT_QUOTES, 'UTF-8'),
+                    'esc_js' => fn($x) => str_replace(
+                        ['\\', "'", '"', "\n", "\r", '</', "\xe2\x80\xa8", "\xe2\x80\xa9"],
+                        ['\\\\', "\\'", '\\"', '\\n', '\\r', '<\\/', '\\u2028', '\\u2029'],
+                        (string) $x
+                    ),
+                    'esc_url' => function($x) {
+                        $url = filter_var((string) $x, FILTER_SANITIZE_URL);
+                        if (str_starts_with($url, '//')) return '#';
+                        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+                        if ($scheme !== '' && !in_array($scheme, ['http', 'https', 'mailto', 'tel', 'ftp'], true)) return '#';
+                        return $url;
+                    },
+                ];
+                $target = match($mode) { 'js'=>'esc_js', 'attr'=>'esc_attr', 'url'=>'esc_url', default=>'esc_html' };
+                return ($filters[$target])($v);
+            },
             'esc_html' => fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
             'esc_attr' => fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'),
             'esc_url' => function ($v) {
