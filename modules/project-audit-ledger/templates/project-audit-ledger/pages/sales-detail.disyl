@@ -2,7 +2,7 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-2">Invoice #{sale.sales_number|default:sale.id}</h2>
     <div class="space-y-2 text-sm mb-4">
-        <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if sale.project_title && sale.project_id}<a href="/admin/project-audit-ledger/projects/{sale.project_id}" class="text-blue-600 hover:text-blue-800">{sale.project_title}</a>{else}{sale.project_title|default:'—'}{/if}</span></div>
+        <div class="flex justify-between"><span class="text-gray-600">Project (JO)</span><span>{if sale.project_title && sale.project_id}<a href="/admin/project-audit-ledger/projects/{sale.project_id}" class="text-blue-600 hover:text-blue-800">{sale.project_title}</a>{else}{sale.project_title|default:'—'}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{if sale.client_name && sale.client_id}<a href="/admin/project-audit-ledger/clients/{sale.client_id}" class="text-blue-600 hover:text-blue-800">{sale.client_name}</a>{else}{sale.client_name|default:'—'}{/if}</span></div>
         {if sale.scope_of_work}
         <div class="flex justify-between"><span class="text-gray-600">Scope of Work</span><span>{sale.scope_of_work|replace:'_':' '|capitalize}</span></div>
@@ -12,9 +12,9 @@
         {/if}
     </div>
 
-    <!-- Line Items -->
+    <!-- Line Items from JO / Sale -->
     {if sale.items && sale.items|count > 0}
-    <h3 class="text-sm font-semibold text-gray-800 mb-2">Line Items</h3>
+    <h3 class="text-sm font-semibold text-gray-800 mb-2">📋 Line Items</h3>
     <div class="overflow-x-auto mb-4">
         <table class="w-full text-sm border-collapse">
             <thead>
@@ -24,8 +24,8 @@
                     <th class="text-center py-2 px-3">Width</th>
                     <th class="text-center py-2 px-3">Height</th>
                     <th class="text-center py-2 px-3">QTY</th>
-                    <th class="text-right py-2 px-3">Price/Unit</th>
-                    <th class="text-right py-2 px-3">Price/SqFt</th>
+                    <th class="text-right py-2 px-3">Unit Price</th>
+                    <th class="text-right py-2 px-3">SqFt Price</th>
                     <th class="text-right py-2 px-3">Total</th>
                 </tr>
             </thead>
@@ -45,6 +45,8 @@
             </tbody>
         </table>
     </div>
+    {else}
+    <p class="text-sm text-gray-400 italic mb-4">No line items.</p>
     {/if}
 
     <!-- Amount Summary -->
@@ -52,15 +54,19 @@
         <div class="flex justify-end">
             <div class="w-64 space-y-1 text-sm">
                 <div class="flex justify-between"><span class="text-gray-600">Gross Amount</span><span>₱{sale.gross_amount|number_format:2}</span></div>
-                <div class="flex justify-between"><span class="text-gray-600">Discount</span><span>₱{sale.discount_amount|default:0|number_format:2}</span></div>
-                <div class="flex justify-between"><span class="text-gray-600">Tax</span><span>₱{sale.tax_amount|default:0|number_format:2}</span></div>
-                {if sale.installation_charge > 0}
+                {if sale.discount_amount|default:0 > 0}
+                <div class="flex justify-between"><span class="text-gray-600">Discount</span><span class="text-red-600">−₱{sale.discount_amount|number_format:2}</span></div>
+                {/if}
+                {if sale.tax_amount|default:0 > 0}
+                <div class="flex justify-between"><span class="text-gray-600">Tax</span><span>₱{sale.tax_amount|number_format:2}</span></div>
+                {/if}
+                {if sale.installation_charge|default:0 > 0}
                 <div class="flex justify-between"><span class="text-gray-600">Installation</span><span>₱{sale.installation_charge|number_format:2}</span></div>
                 {/if}
-                {if sale.mobilization_charge > 0}
+                {if sale.mobilization_charge|default:0 > 0}
                 <div class="flex justify-between"><span class="text-gray-600">Mobilization</span><span>₱{sale.mobilization_charge|number_format:2}</span></div>
                 {/if}
-                {if sale.other_charges > 0}
+                {if sale.other_charges|default:0 > 0}
                 <div class="flex justify-between"><span class="text-gray-600">Other Charges</span><span>₱{sale.other_charges|number_format:2}</span></div>
                 {/if}
                 <div class="flex justify-between font-semibold text-base border-t pt-1">
@@ -69,21 +75,46 @@
                 </div>
                 <div class="flex justify-between"><span class="text-gray-600">Collected</span><span class="text-green-600">₱{sale.total_collected|default:0|number_format:2}</span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Outstanding</span><span class="font-medium {if sale.outstanding|default:0 > 0}text-red-600{else}text-green-600{/if}">₱{sale.outstanding|default:0|number_format:2}</span></div>
-                <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-medium">{sale.status|default:'draft'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Status</span><span class="font-semibold px-2 py-0.5 rounded text-xs {if sale.status=='paid'}bg-green-100 text-green-800{elseif sale.status=='partially_paid'}bg-yellow-100 text-yellow-800{elseif sale.status=='overdue'}bg-red-100 text-red-800{else}bg-blue-100 text-blue-800{/if}">{sale.status|default:'draft'|replace:'_':' '|capitalize}</span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Date</span><span>{sale.sales_date|default:sale.created_at}</span></div>
-                <div class="flex justify-between"><span class="text-gray-600">Due Date</span><span>{sale.due_date|default:'—'}</span></div>
-                <div class="flex justify-between"><span class="text-gray-600">Invoice #</span><span>{sale.invoice_number|default:'—'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Due Date</span><span class="font-medium {if sale.due_date}text-amber-700{else}text-gray-400{/if}">{sale.due_date|default:'Upon Receipt'}</span></div>
+                <div class="flex justify-between"><span class="text-gray-600">Invoice #</span><span>{sale.invoice_number|default:sale.sales_number|default:'—'}</span></div>
                 {if sale.quotation_id}
                 <div class="flex justify-between"><span class="text-gray-600">Quotation</span><span><a href="/admin/project-audit-ledger/quotations/{sale.quotation_id}" class="text-blue-600 hover:text-blue-800">View Source</a></span></div>
                 {/if}
-                <div class="flex justify-between"><span class="text-gray-600">Notes</span><span>{sale.notes|default:'—'}</span></div>
+                {if sale.notes}
+                <div class="flex justify-between"><span class="text-gray-600">Notes</span><span>{sale.notes}</span></div>
+                {/if}
             </div>
         </div>
     </div>
-    <div class="mt-4 flex gap-2 no-print">
+
+    <!-- Actions -->
+    <div class="mt-4 flex gap-2 no-print flex-wrap">
         <a href="/admin/project-audit-ledger/sales/{sale.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
         <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print Invoice</button>
+        <button onclick="sendInvoiceEmail({sale.id})" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">📧 Email to Client</button>
         <a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
     </div>
 </div>
 </div>
+
+<script>
+function sendInvoiceEmail(saleId) {
+    if (!confirm('Send this invoice to the client via email?')) return;
+    var btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    fetch('/api/v1/project-audit-ledger/sales/' + saleId + '/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '{csrf_token|raw}'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) { alert('✓ ' + d.message); } else { alert('✗ ' + d.error); }
+    })
+    .catch(function() { alert('✗ Network error'); })
+    .finally(function() { btn.disabled = false; btn.textContent = '📧 Email to Client'; });
+}
+</script>

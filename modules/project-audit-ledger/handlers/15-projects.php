@@ -423,3 +423,32 @@ function palApiProjectSendEmail(array $rp = []): void
         echo json_encode(['ok' => true, 'to' => $clientEmail]);
     });
 }
+
+/**
+ * API: Get project items (JO line items) for auto-populating sales/quotations
+ * GET /api/v1/project-audit-ledger/projects/{id}/items
+ */
+function palApiProjectItems(array $rp = []): void
+{
+    palResponseGuard(function () use ($rp): void {
+        $user = palCurrentUser();
+        $id = (int)($rp['id'] ?? $_GET['id'] ?? 0);
+        if ($id <= 0) { palJsonError('Invalid project ID.'); return; }
+
+        $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+        $project = $svc->get($id);
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'ok' => true,
+            'items' => $project['items'] ?? [],
+            'contract_amount' => $project['contract_amount'] ?? 0,
+            'installation_charge' => $project['installation_charge'] ?? 0,
+            'mobilization_charge' => $project['mobilization_charge'] ?? 0,
+            'other_charges' => $project['other_charges'] ?? 0,
+            'scope_of_work' => $project['scope_of_work'] ?? null,
+            'mode_of_payment' => $project['mode_of_payment'] ?? null,
+            'client_id' => $project['client_id'] ?? null,
+        ]);
+    });
+}

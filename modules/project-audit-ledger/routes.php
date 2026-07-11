@@ -16,6 +16,7 @@ return [
         '/admin/project-audit-ledger/projects/{id}' => 'project-audit-ledger:palPageProjectDetail',
         '/api/v1/project-audit-ledger/projects' => 'project-audit-ledger:palApiProjectList',
         '/api/v1/project-audit-ledger/projects/{id}/cost' => 'project-audit-ledger:palApiProjectCost',
+        '/api/v1/project-audit-ledger/projects/{id}/items' => 'project-audit-ledger:palApiProjectItems',
         '/admin/project-audit-ledger/clients' => 'project-audit-ledger:palPageClientList',
         '/admin/project-audit-ledger/clients/create' => 'project-audit-ledger:palPageClientForm',
         '/admin/project-audit-ledger/clients/{id}/edit' => 'project-audit-ledger:palPageClientForm',
@@ -113,6 +114,8 @@ return [
         '/api/v1/project-audit-ledger/fabrication/payments' => 'project-audit-ledger:palApiFabricationPaymentStore',
         '/api/v1/project-audit-ledger/sales' => 'project-audit-ledger:palApiSalesStore',
         '/api/v1/project-audit-ledger/sales/{id}' => 'project-audit-ledger:palApiSalesUpdate',
+        // ── Sales Email ──
+        '/api/v1/project-audit-ledger/sales/{id}/email' => 'project-audit-ledger:palApiSalesSendEmail',
         '/api/v1/project-audit-ledger/collections' => 'project-audit-ledger:palApiCollectionStore',
         '/api/v1/project-audit-ledger/cash-advances' => 'project-audit-ledger:palApiCashAdvanceStore',
         '/api/v1/project-audit-ledger/cash-advances/{id}/approve' => 'project-audit-ledger:palApiCashAdvanceApprove',
