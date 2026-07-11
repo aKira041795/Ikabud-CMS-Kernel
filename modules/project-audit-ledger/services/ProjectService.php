@@ -209,6 +209,9 @@ class palProjectService
                 $this->saveItems($newId, $items);
             }
 
+            // Sync client data back to pal_clients if edited inline
+            $this->syncClientData($newId, $data);
+
             $this->db->commit();
             palFireEvent('pal.project.created', ['project_id' => $newId, 'title' => $data['title']]);
             return $newId;
@@ -361,6 +364,9 @@ class palProjectService
                 $this->saveItems($id, $data['items']);
             }
 
+            // Sync client data back to pal_clients if edited inline
+            $this->syncClientData($id, $data);
+
             $this->db->commit();
 
             $changed = $stmt->rowCount() > 0;
@@ -499,5 +505,46 @@ class palProjectService
             }
         }
         return $total;
+    }
+
+    /**
+     * Sync client data edited inline in the JO form back to pal_clients.
+     * Updates contact_person (company), phone, email, address.
+     * Only updates when the project has a client_id and the form
+     * includes the relevant fields.
+     */
+    private function syncClientData(int $projectId, array $data): void
+    {
+        $clientId = !empty($data['client_id']) ? (int)$data['client_id'] : 0;
+        if ($clientId <= 0) return;
+
+        $fields = [];
+        $params = [':id' => $clientId, ':tenant_id' => $this->tenantId];
+
+        // Map form field names to DB column names
+        $map = [
+            'client_company' => 'contact_person',
+            'client_phone' => 'phone',
+            'client_email' => 'email',
+            'client_address' => 'address',
+        ];
+        foreach ($map as $formField => $dbColumn) {
+            if (array_key_exists($formField, $data)) {
+                $val = $data[$formField];
+                if ($val === '' || $val === null) {
+                    $val = null;
+                }
+                $fields[] = "{$dbColumn} = :{$dbColumn}";
+                $params[":{$dbColumn}"] = $val;
+            }
+        }
+
+        if (empty($fields)) return;
+
+        $fields[] = 'updated_by = :updated_by';
+        $params[':updated_by'] = $this->userId;
+
+        $sql = 'UPDATE pal_clients SET ' . implode(', ', $fields) . ' WHERE id = :id AND tenant_id = :tenant_id';
+        $this->db->prepare($sql)->execute($params);
     }
 }

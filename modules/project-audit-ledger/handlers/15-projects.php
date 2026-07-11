@@ -68,6 +68,7 @@ function palPageProjectForm(array $rp = []): void
 
     palRender($template, [
         'current_user' => $user,
+        'prepared_by' => $user['full_name'] ?? $user['username'] ?? 'Unknown',
         'page_title' => $isEdit ? 'Edit Job Order' : 'New Job Order',
         'page_content' => 'project-form',
         'project' => $project,
