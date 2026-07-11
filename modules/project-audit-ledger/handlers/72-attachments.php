@@ -57,10 +57,11 @@ function palApiAttachmentUpload(): void
         $entityId = (int)($_POST['entity_id'] ?? 0);
         $description = $_POST['description'] ?? '';
 
-        if ($entityType === '' || $entityId <= 0) {
-            palJsonError('Entity type and ID are required.');
+        if ($entityType === '') {
+            palJsonError('Entity type is required.');
             return;
         }
+        // entity_id=0 is allowed for pre-creation uploads (e.g. mockup before save)
 
         if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
             palJsonError('File upload failed.', 422);

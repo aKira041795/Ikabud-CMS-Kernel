@@ -167,6 +167,14 @@ function palApiProjectStore(): void
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
         $id = $svc->create($_POST);
 
+        // Relink mockup attachment if uploaded
+        $mockupId = !empty($_POST['mockup_attachment_id']) ? (int)$_POST['mockup_attachment_id'] : 0;
+        if ($mockupId > 0) {
+            $db = palDb();
+            $db->prepare("UPDATE pal_attachments SET entity_id = :eid WHERE id = :aid AND tenant_id = :tid AND entity_id = 0")
+                ->execute([':eid' => $id, ':aid' => $mockupId, ':tid' => (int)($user['tenant_id'] ?? 0)]);
+        }
+
         palAudit('pal.project.created', (int)$user['id'], 'pal_projects', (string)$id, null, ['title' => $_POST['title'] ?? '']);
 
         header('Content-Type: application/json');

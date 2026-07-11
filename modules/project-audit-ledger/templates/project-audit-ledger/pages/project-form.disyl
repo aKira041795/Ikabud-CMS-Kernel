@@ -100,10 +100,60 @@
             </div>
         </div>
 
+        <!-- Mockup Image Upload -->
+        <div class="border-t pt-4 mt-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-2">🖼 Mockup / Reference Image</h3>
+            <div class="flex gap-4 items-start">
+                <div class="flex-1">
+                    <input type="file" id="mockup-file" accept="image/*" onchange="uploadMockup()" class="w-full text-sm">
+                    <p class="text-xs text-gray-500 mt-1">Upload a design mockup or reference image for this JO</p>
+                    <input type="hidden" name="mockup_attachment_id" id="mockup-attachment-id" value="">
+                </div>
+                <div id="mockup-preview" class="flex-shrink-0" style="display:none">
+                    <img id="mockup-img" src="" alt="Mockup preview" class="rounded-lg border border-gray-200" style="max-width:200px;max-height:150px;object-fit:cover;cursor:pointer" onclick="openLightbox(this.src, 'Mockup Image')" title="Click to enlarge">
+                    <button type="button" onclick="removeMockup()" class="block mt-1 text-xs text-red-500 hover:text-red-700" title="Remove mockup">✕ Remove</button>
+                </div>
+            </div>
+        </div>
+
         <div class="flex gap-3"><button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit ? 'Update' : 'Create'} Job Order</button> <a href="/admin/project-audit-ledger/projects" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a></div>
     </form>
 </div>
 </div>
+
+<script>
+// ── Mockup Image Upload ──
+function uploadMockup() {
+    var file = document.getElementById('mockup-file').files[0];
+    if (!file) return;
+    var fd = new FormData();
+    fd.append('file', file);
+    fd.append('entity_type', 'project');
+    fd.append('entity_id', '0'); // temporary, will be linked on save
+    fd.append('description', 'Mockup image');
+    var csrf = document.querySelector('input[name="_token"]');
+    if (csrf) fd.append('_token', csrf.value);
+    fetch('/api/v1/project-audit-ledger/attachments', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.ok) {
+            document.getElementById('mockup-attachment-id').value = d.id;
+            document.getElementById('mockup-img').src = d.url || URL.createObjectURL(file);
+            document.getElementById('mockup-preview').style.display = 'block';
+            showToast('Mockup uploaded');
+        } else {
+            showToast(d.error || 'Upload failed', 'error');
+        }
+    })
+    .catch(function(){ showToast('Upload failed', 'error'); });
+}
+function removeMockup() {
+    document.getElementById('mockup-attachment-id').value = '';
+    document.getElementById('mockup-file').value = '';
+    document.getElementById('mockup-preview').style.display = 'none';
+    document.getElementById('mockup-img').src = '';
+}
+
 
 <script>
 var matData = { {for m in materials}{m.id}:{ppu:m.price_per_unit,psf:m.price_per_sqft,w:m.default_width,h:m.default_height},{/for}_end:0 };
