@@ -72,22 +72,26 @@
             <button type="button" @click="addItem()" class="mt-2 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 border border-gray-300">+ Add Item</button>
         </div>
 
-        <!-- Charges -->
-        <div class="grid grid-cols-3 gap-4 border-t pt-4">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Installation Charge</label><input type="number" step="0.01" name="installation_charge" value="{sale.installation_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Mobilization Charge</label><input type="number" step="0.01" name="mobilization_charge" value="{sale.mobilization_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Other Charges</label><input type="number" step="0.01" name="other_charges" value="{sale.other_charges|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+        <!-- Extra Charges -->
+        <div class="border-t pt-3">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Extra Charges</h3>
+            <div class="grid grid-cols-3 gap-4">
+                <div><label class="block text-xs font-medium text-gray-700 mb-1">Installation</label><input type="number" step="0.01" name="installation_charge" value="{sale.installation_charge|default:0}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
+                <div><label class="block text-xs font-medium text-gray-700 mb-1">Mobilization</label><input type="number" step="0.01" name="mobilization_charge" value="{sale.mobilization_charge|default:0}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
+                <div><label class="block text-xs font-medium text-gray-700 mb-1">Other Charges</label><input type="number" step="0.01" name="other_charges" value="{sale.other_charges|default:0}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
+            </div>
         </div>
 
-        <!-- Discount/Tax/Down Payment -->
-        <div class="grid grid-cols-3 gap-4">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Discount</label><input type="number" step="0.01" name="discount_amount" value="{sale.discount_amount|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Tax</label><input type="number" step="0.01" name="tax_amount" value="{sale.tax_amount|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Down Payment</label><input type="number" step="0.01" name="down_payment" value="{sale.down_payment|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+        <!-- Financial Summary Row -->
+        <div class="grid grid-cols-4 gap-4 border-t pt-4 bg-gray-50 rounded-lg p-3">
+            <div><label class="block text-xs font-medium text-gray-700 mb-1">Discount</label><input type="number" step="0.01" name="discount_amount" value="{sale.discount_amount|default:0}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
+            <div><label class="block text-xs font-medium text-gray-700 mb-1">Tax</label><input type="number" step="0.01" name="tax_amount" value="{sale.tax_amount|default:0}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
+            <div><label class="block text-xs font-medium text-gray-700 mb-1">Down Payment</label><input type="number" step="0.01" name="down_payment" value="{sale.down_payment|default:''}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
+            <div><label class="block text-xs font-medium text-gray-700 mb-1">Payment Terms</label><input type="text" name="payment_terms" value="{sale.payment_terms}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"></div>
         </div>
         <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Down Payment Type</label><select name="down_payment_type" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="">—</option><option value="down_payment"{if sale.down_payment_type=='down_payment'} selected{/if}>Down Payment</option><option value="full_payment"{if sale.down_payment_type=='full_payment'} selected{/if}>Full Payment</option></select></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Terms</label><input type="text" name="payment_terms" value="{sale.payment_terms}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+            <div><label class="block text-sm font-medium text-gray-700 mb-1">Payment Classification</label><select name="down_payment_type" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="full_payment"{if !sale.down_payment_type || sale.down_payment_type=='full_payment'} selected{/if}>Full Payment (pay in full)</option><option value="down_payment"{if sale.down_payment_type=='down_payment'} selected{/if}>Down Payment (partial / installment)</option></select></div>
+            <div></div>
         </div>
 
         <div><label class="block text-sm font-medium text-gray-700 mb-1">Notes</label><textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{sale.notes}</textarea></div>
