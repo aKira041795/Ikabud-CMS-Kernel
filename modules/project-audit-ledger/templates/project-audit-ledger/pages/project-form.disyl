@@ -106,7 +106,7 @@
             <div class="flex gap-4 items-start">
                 <div class="flex-1">
                     <input type="file" id="mockup-file" accept="image/*" onchange="uploadMockup()" class="w-full text-sm">
-                    <p class="text-xs text-gray-500 mt-1">Upload a design mockup or reference image for this JO</p>
+                    <p class="text-xs text-gray-500 mt-1">Upload a design mockup or reference image for this JO (max 2MB recommended)</p>
                     <input type="hidden" name="mockup_attachment_id" id="mockup-attachment-id" value="">
                 </div>
                 <div id="mockup-preview" class="flex-shrink-0" style="display:none">
