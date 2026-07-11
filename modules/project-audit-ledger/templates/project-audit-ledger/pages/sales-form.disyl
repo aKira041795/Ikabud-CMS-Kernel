@@ -98,16 +98,18 @@
 
 <script>
 function loadProjectItems(projectId) {
-    if (!projectId || {if is_edit}true{else}false{/if}) return; // skip on edit — items are already saved
-    var form = document.querySelector('[x-data]');
-    if (!form) return;
-    var alpine = Alpine.$data(form);
-    if (!alpine) return;
+    if (!projectId || {if is_edit}true{else}false{/if}) return;
     fetch('/api/v1/project-audit-ledger/projects/' + projectId + '/items')
         .then(function(r) { return r.json(); })
         .then(function(data) {
             if (data.ok && data.items && data.items.length > 0) {
-                alpine.items = data.items.map(function(item) {
+                // Access Alpine component via DOM
+                var form = document.querySelector('[x-data]');
+                if (!form) return;
+                // Alpine v3: component data via __x
+                var scope = form.__x ? form.__x.$data : null;
+                if (!scope) return;
+                var newItems = data.items.map(function(item) {
                     return {
                         material_id: item.material_id || '',
                         particulars: item.particulars || '',
@@ -120,8 +122,8 @@ function loadProjectItems(projectId) {
                         line_total: parseFloat(item.line_total) || 0
                     };
                 });
-                // Recalculate lines
-                alpine.items.forEach(function(item, idx) { alpine.calcLine(idx); });
+                scope.items = newItems;
+                scope.items.forEach(function(item, idx) { scope.calcLine(idx); });
             }
         })
         .catch(function() {});

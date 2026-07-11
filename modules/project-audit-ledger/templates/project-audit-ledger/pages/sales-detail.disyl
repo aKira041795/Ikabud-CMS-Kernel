@@ -92,7 +92,7 @@
     <!-- Actions -->
     <div class="mt-4 flex gap-2 no-print flex-wrap">
         <a href="/admin/project-audit-ledger/sales/{sale.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
-        <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print Invoice</button>
+        <a href="/admin/project-audit-ledger/sales/{sale.id}/print" target="_blank" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print Invoice</a>
         <button onclick="sendInvoiceEmail({sale.id})" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">📧 Email to Client</button>
         <a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
     </div>

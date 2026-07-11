@@ -55,6 +55,7 @@ return [
         '/admin/project-audit-ledger/sales/create' => 'project-audit-ledger:palPageSalesForm',
         '/admin/project-audit-ledger/sales/{id}/edit' => 'project-audit-ledger:palPageSalesForm',
         '/admin/project-audit-ledger/sales/{id}' => 'project-audit-ledger:palPageSalesDetail',
+        '/admin/project-audit-ledger/sales/{id}/print' => 'project-audit-ledger:palPageSalesPrint',
         '/admin/project-audit-ledger/collections' => 'project-audit-ledger:palPageCollectionList',
         '/admin/project-audit-ledger/collections/create' => 'project-audit-ledger:palPageCollectionForm',
         '/admin/project-audit-ledger/collections/{id}' => 'project-audit-ledger:palPageCollectionDetail',
