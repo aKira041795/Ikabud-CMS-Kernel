@@ -1,0 +1,63 @@
+<div class="max-w-lg">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" x-data="{ amount: 0, purpose: '', description: '', project_id: '' }">
+    <h2 class="font-semibold text-gray-900 mb-4">Request Mobilization</h2>
+    <form onsubmit="return submitMobRequest(this)" action="/api/v1/project-audit-ledger/tl/mobilization" method="POST" class="space-y-4">
+        {csrf_field | raw}
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+            <input type="number" step="0.01" name="amount" required min="1" x-model="amount" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="0.00">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Project</label>
+            <select name="project_id" x-model="project_id" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <option value="">— Select (optional) —</option>
+                {for p in projects}
+                <option value="{p.id}">{p.title}{if p.job_order_number} [{p.job_order_number}]{/if}</option>
+                {/for}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Purpose *</label>
+            <input type="text" name="purpose" required x-model="purpose" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="e.g., Site materials, Transport">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Details</label>
+            <textarea name="description" rows="2" x-model="description" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Additional details"></textarea>
+        </div>
+        <div class="bg-gray-50 p-3 rounded text-sm">
+            <p class="text-xs text-gray-600">Requesting: <strong class="text-lg" x-text="'₱' + parseFloat(amount || 0).toFixed(2)">₱0.00</strong></p>
+        </div>
+        <div class="flex gap-3">
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit Request</button>
+            <a href="/admin/project-audit-ledger/team-lead/mobilization" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+        </div>
+    </form>
+</div>
+</div>
+
+<script>
+function submitMobRequest(form) {
+    var btn = form.querySelector('button[type=submit]');
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+    var formData = new FormData(form);
+    fetch(form.action, { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) {
+            showToast('Mobilization request submitted!', 'success');
+            setTimeout(function(){ window.location = '/admin/project-audit-ledger/team-lead/mobilization'; }, 1000);
+        } else {
+            btn.disabled = false;
+            btn.textContent = 'Submit Request';
+            showToast(d.error || 'Failed to submit.', 'error');
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.textContent = 'Submit Request';
+        showToast('Failed to submit.', 'error');
+    });
+    return false;
+}
+</script>

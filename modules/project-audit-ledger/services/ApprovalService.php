@@ -22,6 +22,8 @@ class palApprovalService
         'issuance'           => 'pal_material_issuances',
         'collection'         => 'pal_collections',
         'fabrication_payment' => 'pal_fabrication_payments',
+        'cash_advance'       => 'pal_cash_advances',
+        'mobilization'       => 'pal_mobilization_requests',
     ];
 
     private const STATUS_MAP = [
@@ -36,6 +38,8 @@ class palApprovalService
         'issuance'           => 'pal.inventory',
         'collection'         => 'pal.collection',
         'fabrication_payment' => 'pal.fabrication.payment',
+        'cash_advance'       => 'pal.cash_advance',
+        'mobilization'       => 'pal.mobilization',
     ];
 
     public function __construct(Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId, int $userId)

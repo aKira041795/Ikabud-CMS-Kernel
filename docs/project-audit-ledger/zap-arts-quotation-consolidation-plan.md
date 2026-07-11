@@ -1295,3 +1295,68 @@ ORDER BY ar.clock_in DESC
 - [x] `routes.php` — GET + POST routes
 - [x] `handlers.php` — require 140-api-groups
 - [x] `modules/project-audit-ledger/module.json` — reads_tables for AW bridge
+
+---
+
+## 14. Team Lead Views Implementation
+
+> **Status**: ✅ Implemented (2026-07-11)
+> **Phases**: 6–11
+
+### Phase 6 — OTP Auth (Email-based)
+
+| File | Type | Purpose |
+|---|---|---|
+| `database/migrations/011_pal_otp.sql` | Create | `pal_otp_codes` table (guidance-proven pattern) |
+| `handlers/06-team-lead-auth.php` | Create | OTP request/verify/resend/logout + JWT session management |
+| `templates/.../team-lead-login.disyl` | Create | Email entry form with Tailwind |
+| `templates/.../team-lead-otp-verify.disyl` | Create | 6-digit code input with auto-submit on 6 digits, resend with timer |
+
+**Flow**: Email → OTP sent (6-digit, 10-min TTL, 5 max attempts) → verify → JWT session (8-hour TTL) → cookie `pal_tl_token`
+
+### Phase 7 — Shell & Dashboard
+
+| File | Type | Purpose |
+|---|---|---|
+| `templates/.../team-lead-shell.disyl` | Create | Stripped-down shell: 5 nav items |
+| `templates/.../pages/team-lead-dashboard.disyl` | Create | KPIs, project table, quick actions |
+| `handlers/53-team-lead.php` | Create | Dashboard KPIs aggregation |
+
+### Phase 8 — Fabrication per JO
+
+| File | Type | Purpose |
+|---|---|---|
+| `templates/.../pages/team-lead-fabrication.disyl` | Create | Project cards with fab budget + weekly dues |
+| `handlers/53-team-lead.php` | Create | Filtered by `fabrication_team_lead_id` |
+
+### Phase 9 — CA Request Flow
+
+| File | Type | Purpose |
+|---|---|---|
+| `templates/.../pages/team-lead-ca-form.disyl` | Create | Request form with live preview |
+| `templates/.../pages/team-lead-ca-list.disyl` | Create | History with color-coded status |
+| `services/ApprovalService.php` | Modify | Added `cash_advance` entity support |
+
+### Phase 10 — Mobilization Entity
+
+| File | Type | Purpose |
+|---|---|---|
+| `database/migrations/012_pal_mobilization.sql` | Create | `pal_mobilization_requests` table |
+| `templates/.../pages/team-lead-mobilization-list.disyl` | Create | List with status badges |
+| `templates/.../pages/team-lead-mobilization-form.disyl` | Create | Request form |
+| `handlers/53-team-lead.php` | Create | List/form + admin approve/reject/disburse APIs |
+| `services/ApprovalService.php` | Modify | Added `mobilization` entity support |
+
+### Phase 11 — Team Attendance
+
+| File | Type | Purpose |
+|---|---|---|
+| `templates/.../pages/team-lead-attendance.disyl` | Create | Date filter, group badges, hours worked |
+
+### Wiring
+
+| File | Purpose |
+|---|---|
+| `module.json` | owns_tables + migrations + capabilities |
+| `routes.php` | 9 GET + 10 POST routes |
+| `handlers.php` | Required 06 + 53 handlers |

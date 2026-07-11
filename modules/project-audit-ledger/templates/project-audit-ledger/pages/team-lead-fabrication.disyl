@@ -1,0 +1,57 @@
+<div class="space-y-6">
+    {for p in projects}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex justify-between items-start mb-3">
+            <div>
+                <h3 class="font-semibold text-gray-900">{p.title}</h3>
+                <p class="text-xs text-gray-500">JO: {p.job_order_number|default:'—'} | Status: {p.status|replace:'_':' '|capitalize}</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-gray-500">Budget</p>
+                <p class="font-semibold text-indigo-600">₱{p.fab_budget|number_format:2}</p>
+                <p class="text-xs text-gray-400">({p.fabrication_alloc_pct|default:0}% of ₱{p.contract_amount|number_format:2})</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mb-3 text-sm">
+            <div><span class="text-gray-500">Basis:</span> <span class="font-medium">{p.fabrication_alloc_basis|default:'expenses'|replace:'_':' '|capitalize}</span></div>
+            <div><span class="text-gray-500">Dispensed:</span> <span class="font-medium">₱{p.total_dispensed|number_format:2}</span></div>
+            <div><span class="text-gray-500">Remaining:</span> <span class="font-medium {if p.remaining > 0}text-green-600{else}text-red-600{/if}">₱{p.remaining|number_format:2}</span></div>
+        </div>
+
+        {if p.weekly_dues|count > 0}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 border-b">
+                        <th class="text-left py-1 px-2 font-semibold text-gray-600 text-xs">Week</th>
+                        <th class="text-right py-1 px-2 font-semibold text-gray-600 text-xs">Due</th>
+                        <th class="text-right py-1 px-2 font-semibold text-gray-600 text-xs">Paid</th>
+                        <th class="text-right py-1 px-2 font-semibold text-gray-600 text-xs">Balance</th>
+                        <th class="text-center py-1 px-2 font-semibold text-gray-600 text-xs">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for due in p.weekly_dues}
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1 px-2 text-xs">Week {due.week_number}</td>
+                        <td class="py-1 px-2 text-xs text-right">₱{due.due_amount|number_format:2}</td>
+                        <td class="py-1 px-2 text-xs text-right">₱{due.paid_amount|number_format:2}</td>
+                        <td class="py-1 px-2 text-xs text-right font-medium">₱{due.balance|number_format:2}</td>
+                        <td class="py-1 px-2 text-center">
+                            <span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if due.status=='paid'}bg-green-100 text-green-700{elseif due.status=='waived'}bg-gray-100 text-gray-700{else}bg-yellow-100 text-yellow-700{/if}">{due.status|default:'pending'}</span>
+                        </td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+        {else}
+        <p class="text-xs text-gray-500">No weekly dues generated yet.</p>
+        {/if}
+    </div>
+    {else}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center text-gray-600 text-sm">
+        No fabrication projects assigned to you.
+    </div>
+    {/for}
+</div>

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title} — Team Lead Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        * { border-radius: 3px !important; }
+        @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {csrf_field | raw}
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-slate-900 flex flex-col">
+            <div class="p-4 border-b border-slate-700">
+                <h1 class="text-lg font-bold text-white">ZAP-ARTS</h1>
+                <p class="text-xs text-slate-400">Team Lead Portal</p>
+                <p class="text-xs text-slate-500 mt-1">{tl.name|default:''}</p>
+            </div>
+            <nav class="flex-1 overflow-y-auto p-2 space-y-1">
+                <a href="/admin/project-audit-ledger/team-lead" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    📊 Dashboard
+                </a>
+                <a href="/admin/project-audit-ledger/team-lead/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    🔧 My Fabrications
+                </a>
+                <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    💵 Cash Advances
+                </a>
+                <a href="/admin/project-audit-ledger/team-lead/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    🚛 Mobilization Requests
+                </a>
+                <a href="/admin/project-audit-ledger/team-lead/attendance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    👥 Team Attendance
+                </a>
+            </nav>
+            <div class="p-4 border-t border-slate-700">
+                <form method="POST" action="/api/v1/project-audit-ledger/tl/logout">
+                    <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">Sign Out</button>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
+                {page_body|raw}
+            </div>
+        </main>
+    </div>
+<!-- Toast -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+<script>
+function showToast(msg, type) {
+    type = type || 'success';
+    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+    var el = document.createElement('div');
+    el.className = (colors[type] || 'bg-gray-700') + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm transition-opacity duration-300';
+    el.textContent = msg;
+    document.getElementById('toast-container').appendChild(el);
+    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 3000);
+}
+function ajaxSubmit(form, successMsg) {
+    var formData = new FormData(form);
+    fetch(form.action, { method: 'POST', body: formData })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) { showToast(successMsg || 'Saved.', 'success'); }
+        else { showToast(d.error || 'Error.', 'error'); }
+    })
+    .catch(function(){ showToast('Request failed.', 'error'); });
+    return false;
+}
+</script>
+</body>
+</html>
