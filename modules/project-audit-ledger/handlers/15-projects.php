@@ -128,6 +128,15 @@ function palPageProjectDetail(array $rp = []): void
     $netProfit = $runAfterSpent;
     $remainingCollectible = max(0, $contractAmt - $collectedAmt);
 
+    // Fetch mockup image for detail view
+    $mockupUrl = '';
+    $mStmt = $db->prepare("SELECT file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
+    $mStmt->execute([':tid' => $tid, ':eid' => $id]);
+    $mRow = $mStmt->fetch(PDO::FETCH_ASSOC);
+    if ($mRow) {
+        $mockupUrl = '/' . $mRow['file_path'];
+    }
+
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
@@ -149,6 +158,7 @@ function palPageProjectDetail(array $rp = []): void
         'purchase_history' => $poRows->fetchAll(PDO::FETCH_ASSOC),
         'attachments_html' => palRenderAttachments('project', $id, $tid),
         'po_images_html' => palRenderPoImages($id, $tid),
+        'mockup_url' => $mockupUrl,
     ]);
 }
 
@@ -336,6 +346,7 @@ function palApiProjectSendEmail(array $rp = []): void
                 . '<th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Material</th>'
                 . '<th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Particulars</th>'
                 . '<th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">W×H</th>'
+                . '<th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">Unit</th>'
                 . '<th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">QTY</th>'
                 . '<th style="padding:8px 12px;text-align:right;border-bottom:2px solid #e5e7eb;">Price/Unit</th>'
                 . '<th style="padding:8px 12px;text-align:right;border-bottom:2px solid #e5e7eb;">Total</th>'
@@ -345,6 +356,7 @@ function palApiProjectSendEmail(array $rp = []): void
                 $part = htmlspecialchars($item['particulars'] ?? '', ENT_QUOTES, 'UTF-8');
                 $wh = ($item['width'] && $item['height']) ? htmlspecialchars((string)$item['width'], ENT_QUOTES, 'UTF-8') . '×' . htmlspecialchars((string)$item['height'], ENT_QUOTES, 'UTF-8') : '—';
                 $qty = number_format((float)($item['quantity'] ?? 1), 2);
+                $uom = htmlspecialchars($item['uom'] ?? '—', ENT_QUOTES, 'UTF-8');
                 $ppu = '₱' . number_format((float)($item['price_per_unit'] ?? 0), 2);
                 $lineTotal = '₱' . number_format((float)($item['line_total'] ?? 0), 2);
                 $bomHtml .= '<tr style="border-bottom:1px solid #e5e7eb;">'
@@ -352,6 +364,7 @@ function palApiProjectSendEmail(array $rp = []): void
                     . '<td style="padding:6px 12px;">' . $matName . '</td>'
                     . '<td style="padding:6px 12px;">' . $part . '</td>'
                     . '<td style="padding:6px 12px;text-align:center;">' . $wh . '</td>'
+                    . '<td style="padding:6px 12px;text-align:center;">' . $uom . '</td>'
                     . '<td style="padding:6px 12px;text-align:center;">' . $qty . '</td>'
                     . '<td style="padding:6px 12px;text-align:right;">' . $ppu . '</td>'
                     . '<td style="padding:6px 12px;text-align:right;font-weight:bold;">' . $lineTotal . '</td>'
@@ -361,7 +374,7 @@ function palApiProjectSendEmail(array $rp = []): void
             $subtotal = 0;
             foreach ($items as $item) { $subtotal += (float)($item['line_total'] ?? 0); }
             $bomHtml .= '<tr style="background:#f9fafb;font-weight:bold;">'
-                . '<td colspan="6" style="padding:8px 12px;text-align:right;">Subtotal:</td>'
+                . '<td colspan="7" style="padding:8px 12px;text-align:right;">Subtotal:</td>'
                 . '<td style="padding:8px 12px;text-align:right;">₱' . number_format($subtotal, 2) . '</td>'
                 . '</tr></tbody></table>';
         }

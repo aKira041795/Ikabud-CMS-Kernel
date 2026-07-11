@@ -17,10 +17,10 @@
             <h4 class="font-semibold text-gray-900 text-sm mb-3">📋 Line Items</h4>
             <div class="overflow-x-auto">
             <table class="w-full text-sm">
-                <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">#</th><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Material</th><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Particulars</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">W×H</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">QTY</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/Unit</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/SqFt</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Total</th></tr></thead>
+                <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">#</th><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Material</th><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Particulars</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">W×H</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Unit</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">QTY</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/Unit</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/SqFt</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Total</th></tr></thead>
                 <tbody>
                 {for item in project.items}
-                <tr class="border-b border-gray-100"><td class="py-2 px-2 text-xs text-center">{item.sort_order}</td><td class="py-2 px-2 text-xs text-gray-700">{item.material_name|default:item.particulars}</td><td class="py-2 px-2 text-xs text-gray-700">{item.particulars}</td><td class="py-2 px-2 text-xs text-center">{if item.width && item.height}{item.width} × {item.height}{else}—{/if}</td><td class="py-2 px-2 text-xs text-center">{item.quantity}</td><td class="py-2 px-2 text-xs text-right">₱{item.price_per_unit|number_format:2}</td><td class="py-2 px-2 text-xs text-right">{if item.price_per_sqft}₱{item.price_per_sqft|number_format:2}{else}—{/if}</td><td class="py-2 px-2 text-xs text-right font-medium">₱{item.line_total|number_format:2}</td></tr>
+                <tr class="border-b border-gray-100"><td class="py-2 px-2 text-xs text-center">{item.sort_order}</td><td class="py-2 px-2 text-xs text-gray-700">{item.material_name|default:item.particulars}</td><td class="py-2 px-2 text-xs text-gray-700">{item.particulars}</td><td class="py-2 px-2 text-xs text-center">{if item.width && item.height}{item.width} × {item.height}{else}—{/if}</td><td class="py-2 px-2 text-xs text-center">{item.uom|default:'—'}</td><td class="py-2 px-2 text-xs text-center">{item.quantity}</td><td class="py-2 px-2 text-xs text-right">₱{item.price_per_unit|number_format:2}</td><td class="py-2 px-2 text-xs text-right">{if item.price_per_sqft}₱{item.price_per_sqft|number_format:2}{else}—{/if}</td><td class="py-2 px-2 text-xs text-right font-medium">₱{item.line_total|number_format:2}</td></tr>
                 {/for}
                 </tbody>
             </table>
@@ -28,6 +28,12 @@
         </div>
         {else}
         <div class="mt-6 border-t pt-4"><p class="text-sm text-gray-500">No line items recorded.</p></div>
+        {/if}
+        {if mockup_url}
+        <div class="mt-4 border-t pt-4">
+            <h4 class="font-semibold text-gray-900 text-sm mb-3">🖼 Mockup / Reference Image</h4>
+            <img src="{mockup_url}" alt="Mockup" class="rounded-lg border border-gray-200 cursor-zoom-in" style="max-width:300px;max-height:200px;object-fit:cover;" onclick="openLightbox(this.src, 'Mockup Image')">
+        </div>
         {/if}
         <div class="mt-6 border-t pt-4">
             <h4 class="font-semibold text-gray-900 text-sm mb-2">📄 Project Documents</h4>
