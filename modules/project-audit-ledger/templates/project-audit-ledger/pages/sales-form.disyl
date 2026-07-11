@@ -30,7 +30,7 @@
                             <th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Particulars</th>
                             <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Width</th>
                             <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Height</th>
-                            <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">UOM</th>
+                            <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Unit</th>
                             <th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">QTY</th>
                             <th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/Unit</th>
                             <th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/SqFt</th>

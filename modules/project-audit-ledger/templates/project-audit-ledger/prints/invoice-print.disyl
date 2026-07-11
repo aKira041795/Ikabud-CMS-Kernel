@@ -64,7 +64,7 @@
                 <th style="padding: 7px 10px; text-align: left; border: 1px solid #1e40af;">Particulars</th>
                 <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">Width</th>
                 <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">Height</th>
-                <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">UOM</th>
+                <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">Unit</th>
                 <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">QTY</th>
                 <th style="padding: 7px 10px; text-align: right; border: 1px solid #1e40af;">Unit Price</th>
                 <th style="padding: 7px 10px; text-align: right; border: 1px solid #1e40af;">SqFt Price</th>
