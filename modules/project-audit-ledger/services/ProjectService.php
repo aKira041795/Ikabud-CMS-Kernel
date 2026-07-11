@@ -339,6 +339,9 @@ class palProjectService
             if (!in_array($data['status'], $allowed, true)) {
                 throw new InvalidArgumentException('Invalid status: ' . $data['status']);
             }
+            if ($data['status'] === 'completed' && empty($project['client_id'])) {
+                throw new InvalidArgumentException('Cannot complete a project without a client.');
+            }
             $fields[] = 'status = :status';
             $params[':status'] = $data['status'];
         }
@@ -387,6 +390,14 @@ class palProjectService
             throw new InvalidArgumentException('Invalid status: ' . $status);
         }
 
+        if ($status === 'completed') {
+            $project = $this->get($id);
+            if (!$project) throw new InvalidArgumentException('Project not found.');
+            if (empty($project['client_id'])) {
+                throw new InvalidArgumentException('Cannot complete a project without a client.');
+            }
+        }
+
         $sql = 'UPDATE pal_projects SET status = :status, version = version + 1, updated_by = :updated_by WHERE id = :id AND tenant_id = :tenant_id';
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -413,6 +424,9 @@ class palProjectService
     {
         $project = $this->get($id);
         if (!$project) throw new InvalidArgumentException('Project not found.');
+        if (empty($project['client_id'])) {
+            throw new InvalidArgumentException('Cannot complete a project without a client.');
+        }
 
         $this->db->beginTransaction();
         try {
