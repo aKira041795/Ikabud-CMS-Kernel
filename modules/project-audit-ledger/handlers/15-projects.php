@@ -173,6 +173,12 @@ function palApiProjectStore(): void
             $db = palDb();
             $db->prepare("UPDATE pal_attachments SET entity_id = :eid WHERE id = :aid AND tenant_id = :tid AND entity_id = 0")
                 ->execute([':eid' => $id, ':aid' => $mockupId, ':tid' => (int)($user['tenant_id'] ?? 0)]);
+            // Move file on disk from project/0/ to project/{id}/
+            $oldDir = PUBLIC_PATH . '/uploads/pal/' . (int)($user['tenant_id'] ?? 0) . '/project/0';
+            $newDir = PUBLIC_PATH . '/uploads/pal/' . (int)($user['tenant_id'] ?? 0) . '/project/' . $id;
+            if (is_dir($oldDir) && !is_dir($newDir)) {
+                @rename($oldDir, $newDir);
+            }
         }
 
         palAudit('pal.project.created', (int)$user['id'], 'pal_projects', (string)$id, null, ['title' => $_POST['title'] ?? '']);
@@ -201,6 +207,12 @@ function palApiProjectUpdate(array $rp = []): void
             $db = palDb();
             $db->prepare("UPDATE pal_attachments SET entity_id = :eid WHERE id = :aid AND tenant_id = :tid AND entity_id = 0")
                 ->execute([':eid' => $id, ':aid' => $mockupId, ':tid' => (int)($user['tenant_id'] ?? 0)]);
+            // Move file on disk from project/0/ to project/{id}/
+            $oldDir = PUBLIC_PATH . '/uploads/pal/' . (int)($user['tenant_id'] ?? 0) . '/project/0';
+            $newDir = PUBLIC_PATH . '/uploads/pal/' . (int)($user['tenant_id'] ?? 0) . '/project/' . $id;
+            if (is_dir($oldDir) && !is_dir($newDir)) {
+                @rename($oldDir, $newDir);
+            }
         }
 
         palAudit('pal.project.updated', (int)$user['id'], 'pal_projects', (string)$id, null, ['updated_fields' => array_keys($_POST)]);
