@@ -3,24 +3,24 @@
     <h2 class=\"font-semibold text-gray-900 mb-2\">Invoice #{sale.invoice_number ? sale.invoice_number : sale.sales_number}</h2>
     <!-- Amount Due Callout -->
     {if sale.status == 'paid'}
-    <div class="mb-4 p-3 bg-green-50 border border-green-300 rounded-lg text-center">
-        <p class="text-sm font-bold text-green-700">✓ Fully Paid — ₱{sale.net_amount|number_format:2}</p>
+    <div class="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg text-center">
+        <p class="text-sm font-bold text-gray-800">✓ Fully Paid — ₱{sale.net_amount|number_format:2}</p>
     </div>
     {elseif sale.down_payment_type == 'down_payment' && sale.down_payment|default:0 > 0}
-    <div class="mb-4 p-4 bg-amber-50 border-2 border-amber-300 rounded-lg text-center">
-        <p class="text-xs text-amber-700 uppercase tracking-wider font-semibold">Down Payment Due</p>
-        <p class="text-2xl font-bold text-amber-600">₱{sale.down_payment|number_format:2}</p>
-        {if sale.due_date}<p class="text-xs text-amber-500 mt-1">Due: {sale.due_date}</p>{/if}
-        <p class="text-xs text-amber-400 mt-1">Partial payment — balance of ₱{(sale.net_amount - sale.down_payment)|number_format:2} due later</p>
+    <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Down Payment Due</p>
+        <p class="text-2xl font-bold text-gray-900">₱{sale.down_payment|number_format:2}</p>
+        {if sale.due_date}<p class="text-xs text-gray-500 mt-1">Due: {sale.due_date}</p>{/if}
+        <p class="text-xs text-gray-500 mt-1">Partial — ₱{(sale.net_amount - sale.down_payment)|number_format:2} remaining</p>
     </div>
     {elseif sale.outstanding|default:0 > 0}
-    <div class="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg text-center">
-        <p class="text-xs text-red-700 uppercase tracking-wider font-semibold">Amount Due</p>
-        <p class="text-2xl font-bold text-red-600">₱{sale.outstanding|number_format:2}</p>
-        {if sale.due_date}<p class="text-xs text-red-500 mt-1">Due: {sale.due_date}</p>
-        {else}<p class="text-xs text-red-500 mt-1">Due upon receipt</p>{/if}
+    <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Amount Due</p>
+        <p class="text-2xl font-bold text-gray-900">₱{sale.outstanding|number_format:2}</p>
+        {if sale.due_date}<p class="text-xs text-gray-500 mt-1">Due: {sale.due_date}</p>
+        {else}<p class="text-xs text-gray-500 mt-1">Due upon receipt</p>{/if}
         {if sale.total_collected|default:0 > 0}
-        <p class="text-xs text-red-400 mt-1">₱{sale.total_collected|number_format:2} already collected</p>
+        <p class="text-xs text-gray-500 mt-1">₱{sale.total_collected|number_format:2} collected</p>
         {/if}
     </div>
     {/if}
