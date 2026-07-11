@@ -1,6 +1,6 @@
 <div class="max-w-4xl print-area">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <h2 class="font-semibold text-gray-900 mb-2">Invoice #{sale.sales_number|default:sale.id}</h2>
+    <h2 class=\"font-semibold text-gray-900 mb-2\">Invoice #{sale.invoice_number ? sale.invoice_number : sale.sales_number}</h2>
     <div class="space-y-2 text-sm mb-4">
         <div class="flex justify-between"><span class="text-gray-600">Project (JO)</span><span>{if sale.project_title && sale.project_id}<a href="/admin/project-audit-ledger/projects/{sale.project_id}" class="text-blue-600 hover:text-blue-800">{sale.project_title}</a>{else}{sale.project_title|default:'—'}{/if}</span></div>
         <div class="flex justify-between"><span class="text-gray-600">Client</span><span>{if sale.client_name && sale.client_id}<a href="/admin/project-audit-ledger/clients/{sale.client_id}" class="text-blue-600 hover:text-blue-800">{sale.client_name}</a>{else}{sale.client_name|default:'—'}{/if}</span></div>
