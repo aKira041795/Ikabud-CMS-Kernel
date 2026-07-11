@@ -153,7 +153,7 @@ function removeMockup() {
     document.getElementById('mockup-preview').style.display = 'none';
     document.getElementById('mockup-img').src = '';
 }
-
+</script>
 
 <script>
 var matData = { {for m in materials}{m.id}:{ppu:m.price_per_unit,psf:m.price_per_sqft,w:m.default_width,h:m.default_height},{/for}_end:0 };
