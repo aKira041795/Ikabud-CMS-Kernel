@@ -1135,15 +1135,9 @@ final class Parser
                 $this->parseBitwiseExpr(trim($split[2]))
             );
         }
-        $split = $this->findLastBinaryOp($expr, ['|']);
-        if ($split !== false && trim($split[1]) !== '') {
-            return new BinaryOpNode(
-                [],
-                $this->parseBitwiseExpr(trim($split[1])),
-                trim($split[0]),
-                $this->parseBitwiseExpr(trim($split[2]))
-            );
-        }
+        // NOTE: single | is NOT a bitwise OR — it's a filter pipe handled by
+        // parsePrimaryExpr() via findOuterSinglePipe().  Only || (double-pipe)
+        // is a logical OR, handled by parseOrExpr().
         return $this->parseAddExpr($expr);
     }
 

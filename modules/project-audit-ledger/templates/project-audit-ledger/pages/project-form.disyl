@@ -1,4 +1,4 @@
-<div class="max-w-4xl" x-data="{ joType: '{if project.items && project.items|count > 0}items{else}contract{/if}', hasInstallation: {if project.with_installation|or:0}true{else}false{/if} }">
+<div class="max-w-4xl" x-data="{ joType: '{if project.items && project.items|count > 0}items{else}contract{/if}', hasInstallation: {if project.with_installation|default:0}true{else}false{/if} }">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit|default:false ? 'Edit Job Order' : 'Create Job Order'}</h2>
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="space-y-4">
@@ -76,7 +76,7 @@
                                 <select name="items[{item.sort_order}][material_id]" class="w-full px-2 py-1 border border-gray-300 rounded text-xs item-mat-sel" onchange="selMat(this)">
                                     <option value="">—</option>
                                     {for m in materials}
-                                    <option value="{m.id}" data-ppu="{m.price_per_unit|or:0}" data-psf="{m.price_per_sqft|or:0}" data-w="{m.default_width|or:0}" data-h="{m.default_height|or:0}"{if item.material_id==m.id} selected{/if}>{m.name}</option>
+                                    <option value="{m.id}" data-ppu="{m.price_per_unit|default:0}" data-psf="{m.price_per_sqft|default:0}" data-w="{m.default_width|default:0}" data-h="{m.default_height|default:0}"{if item.material_id==m.id} selected{/if}>{m.name}</option>
                                     {/for}
                                     <option value="__other__">✦ Other: type name…</option>
                                 </select>
@@ -156,7 +156,7 @@ function removeMockup() {
 </script>
 
 <script>
-var matData = { {for m in materials}{m.id}:{ppu:m.price_per_unit|or:0,psf:m.price_per_sqft|or:0,w:m.default_width|or:0,h:m.default_height|or:0},{/for}_end:0 };
+var matData = { {for m in materials}{m.id}:{ppu:m.price_per_unit|default:0,psf:m.price_per_sqft|default:0,w:m.default_width|default:0,h:m.default_height|default:0},{/for}_end:0 };
 var itemIdx = {if project.items}{project.items|count}{else}0{/if};
 
 function addItem() {
@@ -167,7 +167,7 @@ function addItem() {
     tr.className = 'border-b border-gray-200 item-row';
     var matOpts = '<option value="">—</option>';
     {for m in materials}
-    matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit|or:0}" data-psf="{m.price_per_sqft|or:0}" data-w="{m.default_width|or:0}" data-h="{m.default_height|or:0}">{m.name|escape:'html'}</option>';
+    matOpts += '<option value="{m.id}" data-ppu="{m.price_per_unit|default:0}" data-psf="{m.price_per_sqft|default:0}" data-w="{m.default_width|default:0}" data-h="{m.default_height|default:0}">{m.name|escape:'html'}</option>';
     {/for}
     matOpts += '<option value="__other__">✦ Other: type name…</option>';
     tr.innerHTML = '<td class="py-2 px-2 text-center item-num">' + itemIdx + '</td>' +

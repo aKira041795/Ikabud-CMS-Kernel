@@ -222,7 +222,6 @@ PHP;
             '%' => "({$right} != 0 ? {$left} % {$right} : 0)",
             '~' => "((string)({$left}) . (string)({$right}))",
             '&' => "({$left} & {$right})",
-            '|' => "({$left} | {$right})",
             '^' => "({$left} ^ {$right})",
             '<<' => "({$left} << {$right})",
             '>>' => "({$left} >> {$right})",
