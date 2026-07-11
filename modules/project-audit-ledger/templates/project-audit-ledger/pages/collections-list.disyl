@@ -1,12 +1,82 @@
+<!-- Stat Cards -->
+<div class="grid grid-cols-4 gap-4 mb-4">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='all'}ring-2 ring-blue-500{/if}">
+        <p class="text-2xl font-bold text-gray-900">{stats.total|default:0}</p>
+        <p class="text-xs text-gray-500 mt-1">Total Collections</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='pending'}ring-2 ring-amber-500{/if}">
+        <p class="text-2xl font-bold text-amber-600">{stats.pending_count|default:0}</p>
+        <p class="text-xs text-gray-500 mt-1">Pending — ₱{stats.pending_amount|default:0|number_format:0}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='approved'}ring-2 ring-green-500{/if}">
+        <p class="text-2xl font-bold text-green-600">{stats.approved_count|default:0}</p>
+        <p class="text-xs text-gray-500 mt-1">Paid — ₱{stats.approved_amount|default:0|number_format:0}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
+        <p class="text-2xl font-bold text-red-500">{(stats.rejected_count|default:0) + (stats.voided_count|default:0)}</p>
+        <p class="text-xs text-gray-500 mt-1">Rejected / Voided</p>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">Collections</h2>
-        <div class="flex gap-2">
-            <button onclick="generateCollections()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">⚡ Generate from Invoices</button>
-            <a href="/admin/project-audit-ledger/collections/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Record Collection</a>
+    <!-- Header -->
+    <div class="p-4 border-b border-gray-200">
+        <div class="flex justify-between items-center mb-3">
+            <h2 class="font-semibold text-gray-900">Collections</h2>
+            <div class="flex gap-2">
+                <button onclick="generateCollections()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">⚡ Generate</button>
+                <a href="/admin/project-audit-ledger/collections/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Record</a>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-1 text-sm border-b border-gray-200 -mx-4 px-4">
+            <a href="?tab=all" class="px-3 py-2 border-b-2 {if tab=='all'}border-blue-600 text-blue-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">All</a>
+            <a href="?tab=pending" class="px-3 py-2 border-b-2 {if tab=='pending'}border-amber-500 text-amber-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Pending</a>
+            <a href="?tab=approved" class="px-3 py-2 border-b-2 {if tab=='approved'}border-green-500 text-green-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Paid</a>
+            <a href="?tab=rejected" class="px-3 py-2 border-b-2 {if tab=='rejected'}border-red-500 text-red-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Rejected</a>
+            <a href="?tab=voided" class="px-3 py-2 border-b-2 {if tab=='voided'}border-red-500 text-red-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Voided</a>
+            <div class="ml-auto px-3 py-2">
+                <input type="text" placeholder="Search..." class="text-xs px-2 py-1 border border-gray-300 rounded" value="{search|default:''|escape:'html'}" onkeyup="if(event.key==='Enter'&&this.value)window.location='?tab={tab|url_encode}&search='+encodeURIComponent(this.value);if(event.key==='Enter'&&!this.value)window.location='?tab={tab|url_encode}'">
+            </div>
         </div>
     </div>
-    {ikb_entity_list source="pal_collection" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search collections..." empty="No collections recorded." /}
+
+    <!-- Table -->
+    {if collections && collections|count > 0}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 border-b text-xs text-gray-600">
+                    <th class="text-left py-3 px-4 font-semibold">Collection #</th>
+                    <th class="text-left py-3 px-4 font-semibold">Invoice</th>
+                    <th class="text-left py-3 px-4 font-semibold">Client</th>
+                    <th class="text-center py-3 px-4 font-semibold">Amount</th>
+                    <th class="text-center py-3 px-4 font-semibold">Method</th>
+                    <th class="text-center py-3 px-4 font-semibold">Status</th>
+                    <th class="text-center py-3 px-4 font-semibold">Date</th>
+                    <th class="text-center py-3 px-4 font-semibold"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {for c in collections}
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-3 px-4 text-sm font-medium text-gray-900">{c.collection_number}</td>
+                    <td class="py-3 px-4 text-sm">{c.sales_number|default:'—'}</td>
+                    <td class="py-3 px-4 text-sm">{c.client_name|default:'—'}</td>
+                    <td class="py-3 px-4 text-sm text-right font-medium">₱{c.amount|number_format:2}</td>
+                    <td class="py-3 px-4 text-sm text-center">{c.payment_method|default:'—'|capitalize}</td>
+                    <td class="py-3 px-4 text-center"><span class="inline-block px-2 py-0.5 rounded text-xs font-semibold {if c.status=='approved'}bg-green-100 text-green-800{elseif c.status=='rejected'||c.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}">{c.status|capitalize}</span></td>
+                    <td class="py-3 px-4 text-sm text-center">{c.payment_date|default:c.created_at}</td>
+                    <td class="py-3 px-4 text-center"><a href="/admin/project-audit-ledger/collections/{c.id}" class="text-blue-600 hover:text-blue-800 text-xs">View</a></td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+    {else}
+    <div class="p-8 text-center text-gray-400 text-sm">No collections found.</div>
+    {/if}
 </div>
 
 <script>
@@ -26,6 +96,6 @@ function generateCollections() {
         else { alert('\u2717 ' + d.error); }
     })
     .catch(function(){ alert('\u2717 Network error'); })
-    .finally(function(){ btn.disabled = false; btn.textContent = '\u26a1 Generate from Invoices'; });
+    .finally(function(){ btn.disabled = false; btn.textContent = '\u26a1 Generate'; });
 }
 </script>
