@@ -233,6 +233,11 @@ class palProjectService
         $fields = [];
         $params = [':id' => $id, ':tenant_id' => $this->tenantId];
 
+        // Guard: cannot un-complete a project with a paid invoice
+        if ($project['status'] === 'completed' && array_key_exists('status', $data) && $data['status'] !== 'completed') {
+            $this->guardNotPaid($id);
+        }
+
         // Map form field _jo_type to DB column jo_type
         if (isset($data['_jo_type'])) {
             $data['jo_type'] = $data['_jo_type'];
@@ -394,9 +399,15 @@ class palProjectService
             throw new InvalidArgumentException('Invalid status: ' . $status);
         }
 
+        $project = $this->get($id);
+        if (!$project) throw new InvalidArgumentException('Project not found.');
+
+        // Guard: cannot un-complete a project with a paid invoice
+        if ($project['status'] === 'completed' && $status !== 'completed') {
+            $this->guardNotPaid($id);
+        }
+
         if ($status === 'completed') {
-            $project = $this->get($id);
-            if (!$project) throw new InvalidArgumentException('Project not found.');
             if (empty($project['client_id'])) {
                 throw new InvalidArgumentException('Cannot complete a project without a client.');
             }
@@ -453,13 +464,14 @@ class palProjectService
                 $invNum = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$countStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
                 $stmt = $this->db->prepare("INSERT INTO pal_sales
-                    (tenant_id, sales_number, project_id, client_id, sales_date, gross_amount,
+                    (tenant_id, sales_number, invoice_number, project_id, client_id, sales_date, gross_amount,
                      installation_charge, mobilization_charge, other_charges, mode_of_payment,
-                     down_payment, down_payment_type, scope_of_work, with_installation, status, created_by)
-                    VALUES (:t, :sn, :pj, :cl, :sd, :ga, :ic, :mc, :oc, :mop, :dp, :dpt, :sow, :wi, 'issued', :cb)");
+                     down_payment, down_payment_type, scope_of_work, with_installation, due_date, status, created_by)
+                    VALUES (:t, :sn, :invn, :pj, :cl, :sd, :ga, :ic, :mc, :oc, :mop, :dp, :dpt, :sow, :wi, :dd, 'issued', :cb)");
                 $stmt->execute([
                     ':t' => $this->tenantId,
                     ':sn' => $invNum,
+                    ':invn' => $invNum,
                     ':pj' => $id,
                     ':cl' => (int)$project['client_id'],
                     ':sd' => date('Y-m-d'),
@@ -472,6 +484,7 @@ class palProjectService
                     ':dpt' => $project['down_payment_type'] ?? null,
                     ':sow' => $project['scope_of_work'] ?? null,
                     ':wi' => !empty($project['with_installation']) ? 1 : 0,
+                    ':dd' => date('Y-m-d', strtotime('+30 days')),
                     ':cb' => $this->userId,
                 ]);
                 $saleId = (int)$this->db->lastInsertId();
@@ -518,6 +531,18 @@ class palProjectService
         } catch (Throwable $e) {
             $this->db->rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * Guard: prevent un-completing a project when a paid invoice exists.
+     */
+    private function guardNotPaid(int $projectId): void
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE project_id = :pid AND tenant_id = :tid AND status = 'paid'");
+        $stmt->execute([':pid' => $projectId, ':tid' => $this->tenantId]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            throw new InvalidArgumentException('Cannot change status: this project has a paid invoice.');
         }
     }
 
