@@ -70,6 +70,11 @@ class palProjectCompletionCoordinator
             if (!$project) {
                 throw new InvalidArgumentException('Project not found.');
             }
+            if ($project['status'] === 'completed') {
+                // Already completed — idempotent early return
+                $this->db->commit();
+                return true;
+            }
 
             // 2. Validate transition using the LOCKED status (safe from race)
             $workflow->transition($projectId, 'completed', ['status' => $project['status'], 'client_id' => (int)($project['client_id'] ?? 0)]);

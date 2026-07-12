@@ -29,8 +29,8 @@ class palPaymentService
 
     /**
      * Record a payment (collection) against a sale.
-     * Creates the collection record WITHOUT allocating to receivables.
-     * Allocation happens only on approve(), not on pending record.
+     * Status is always 'pending' — allocation happens only on approve().
+     * For trusted import workflows, use recordAndApprove().
      *
      * @param int $saleId
      * @param int|null $projectId
@@ -40,7 +40,6 @@ class palPaymentService
      * @param string $paymentDate Y-m-d
      * @param string|null $referenceNumber Check/ref number
      * @param string|null $notes
-     * @param string $status pending or approved (use approve() for pending)
      * @return int Collection ID
      */
     public function record(
@@ -52,7 +51,6 @@ class palPaymentService
         string $paymentDate = '',
         ?string $referenceNumber = null,
         ?string $notes = null,
-        string $status = 'pending',
     ): int {
         if ($amount <= 0) {
             throw new InvalidArgumentException('Payment amount must be positive.');
@@ -68,7 +66,7 @@ class palPaymentService
                 (tenant_id, collection_number, sales_id, project_id, client_id,
                  payment_date, amount, payment_method, reference_number, notes,
                  received_by, status, created_by)
-             VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, :st, :cb)"
+             VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, 'pending', :cb)"
         );
         $stmt->execute([
             ':t' => $this->tenantId,
@@ -82,7 +80,6 @@ class palPaymentService
             ':ref' => $referenceNumber,
             ':no' => $notes,
             ':rb' => $this->userId,
-            ':st' => $status,
             ':cb' => $this->userId,
         ]);
         $collectionId = (int)$this->db->lastInsertId();
@@ -90,6 +87,28 @@ class palPaymentService
         palAudit('pal.payment.recorded', $this->userId, 'pal_collections', (string)$collectionId,
             null, ['sales_id' => $saleId, 'amount' => $amount, 'method' => $paymentMethod]);
 
+        return $collectionId;
+    }
+
+    /**
+     * Record AND approve in one atomic operation.
+     * For trusted import or cash-counter workflows where the payment
+     * is immediately considered received.
+     *
+     * @return int Collection ID
+     */
+    public function recordAndApprove(
+        int $saleId,
+        ?int $projectId,
+        ?int $clientId,
+        float $amount,
+        string $paymentMethod = 'cash',
+        string $paymentDate = '',
+        ?string $referenceNumber = null,
+        ?string $notes = null,
+    ): int {
+        $collectionId = $this->record($saleId, $projectId, $clientId, $amount, $paymentMethod, $paymentDate, $referenceNumber, $notes);
+        $this->approve($collectionId);
         return $collectionId;
     }
 
@@ -122,6 +141,22 @@ class palPaymentService
                 "UPDATE pal_collections SET status = 'approved', approved_by = :ab, approved_at = NOW()
                  WHERE id = :id AND tenant_id = :tid"
             )->execute([':ab' => $this->userId, ':id' => $collectionId, ':tid' => $this->tenantId]);
+
+            // Check for overpayment: payment exceeds total outstanding receivables
+            $totalOutstandingStmt = $this->db->prepare(
+                "SELECT COALESCE(SUM(outstanding), 0) FROM pal_receivables
+                 WHERE tenant_id = :tid AND sales_id = :si AND status IN ('pending', 'partial', 'overdue')"
+            );
+            $totalOutstandingStmt->execute([':tid' => $this->tenantId, ':si' => $coll['sales_id']]);
+            $totalOutstanding = (float)$totalOutstandingStmt->fetchColumn();
+            $paymentAmount = (float)$coll['amount'];
+
+            if ($paymentAmount > $totalOutstanding) {
+                throw new InvalidArgumentException(
+                    "Payment amount ({$paymentAmount}) exceeds total outstanding receivables ({$totalOutstanding}). "
+                    . "Overpayment is not supported. Adjust the payment amount or create a credit note."
+                );
+            }
 
             // Allocate to receivables (within same transaction)
             $this->allocatePaymentWithinTransaction(

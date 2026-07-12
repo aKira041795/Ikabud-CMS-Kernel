@@ -117,16 +117,14 @@ class palSalesService
                 $this->saveItems($saleId, $items);
             }
 
-            // Auto-create collection record
-            $collCount = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
-            $collCount->execute([':tid' => $this->tenantId]);
-            $collPrefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
-            $collNum = $collPrefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$collCount->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
-            $collAmount = !empty($data['down_payment']) ? (float)$data['down_payment'] : $grossAmount;
-            $collStatus = 'pending';
-            $pm = $data['mode_of_payment'] ?? 'cash';
-            $collStmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :no, :rb, :st, :cb)");
-            $collStmt->execute([':t' => $this->tenantId, ':cn' => $collNum, ':si' => $saleId, ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null, ':cl' => !empty($data['client_id']) ? (int)$data['client_id'] : null, ':pd' => $data['sales_date'] ?? date('Y-m-d'), ':amt' => $collAmount, ':pm' => $pm, ':no' => 'Auto-created from invoice', ':rb' => $this->userId, ':st' => $collStatus, ':cb' => $this->userId]);
+            // Create receivable for this invoice
+            $invoiceTotal = $grossAmount;
+            $dueDate = $data['due_date'] ?? date('Y-m-d', strtotime('+30 days'));
+            $clientId = !empty($data['client_id']) ? (int)$data['client_id'] : null;
+            $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : null;
+
+            $rcvService = new palReceivableService($this->db, $this->tenantId, $this->userId);
+            $rcvService->createFromInvoice($saleId, $projectId, $clientId, $invoiceTotal, $dueDate);
 
             $this->db->commit();
 

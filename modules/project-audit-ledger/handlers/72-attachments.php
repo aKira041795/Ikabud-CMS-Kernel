@@ -44,7 +44,7 @@ function palPageAttachmentDownload(array $rp = []): void
 }
 
 /**
- * API: Upload attachment
+ * API: Upload attachment — delegates to palAttachmentService for security controls.
  */
 function palApiAttachmentUpload(): void
 {
@@ -57,68 +57,15 @@ function palApiAttachmentUpload(): void
         $entityId = (int)($_POST['entity_id'] ?? 0);
         $description = $_POST['description'] ?? '';
 
-        if ($entityType === '') {
-            palJsonError('Entity type is required.');
-            return;
+        try {
+            $svc = new palAttachmentService(palDb(), $tid, (int)$u['id']);
+            $attachId = $svc->upload($entityType, $entityId, $_FILES['file'] ?? [], $description);
+
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => true, 'id' => $attachId]);
+        } catch (InvalidArgumentException $e) {
+            palJsonError($e->getMessage(), 422);
         }
-        // entity_id=0 is allowed for pre-creation uploads (e.g. mockup before save)
-
-        if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-            $details = '';
-            if (!isset($_FILES['file'])) {
-                $details = 'No file in request.';
-            } else {
-                $code = $_FILES['file']['error'];
-                $errNames = [0=>'OK',1=>'INI_SIZE',2=>'FORM_SIZE',3=>'PARTIAL',4=>'NO_FILE',6=>'TMP_DIR',7=>'CANT_WRITE',8=>'EXTENSION'];
-                $details = 'Upload error code ' . $code . ' (' . ($errNames[$code] ?? 'UNKNOWN') . ')';
-            }
-            palJsonError('File upload failed: ' . $details, 422);
-            return;
-        }
-
-        $file = $_FILES['file'];
-        $originalName = basename($file['name']);
-        $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        $safeName = bin2hex(random_bytes(16)) . '.' . $ext;
-
-        // Relative path: uploads/pal/{tenant_id}/{entity_type}/{entity_id}/
-        $relDir = 'uploads/pal/' . $tid . '/' . $entityType . '/' . $entityId;
-        $absDir = PUBLIC_PATH . '/' . $relDir;
-        if (!is_dir($absDir)) {
-            mkdir($absDir, 0755, true);
-        }
-
-        $destPath = $absDir . '/' . $safeName;
-        if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-            palJsonError('Failed to save file.');
-            return;
-        }
-
-        $db = palDb();
-        $stmt = $db->prepare(
-            "INSERT INTO pal_attachments (tenant_id, entity_type, entity_id, filename, original_filename, mime_type, file_size, file_path, description, uploaded_by)
-             VALUES (:t, :et, :eid, :fn, :ofn, :mime, :fs, :fp, :desc, :ub)"
-        );
-        $stmt->execute([
-            ':t' => $tid,
-            ':et' => $entityType,
-            ':eid' => $entityId,
-            ':fn' => $safeName,
-            ':ofn' => $originalName,
-            ':mime' => $file['type'] ?? null,
-            ':fs' => $file['size'] ?? 0,
-            ':fp' => $relDir . '/' . $safeName,
-            ':desc' => $description ?: null,
-            ':ub' => (int)$u['id'],
-        ]);
-
-        $attachId = (int)$db->lastInsertId();
-        palAudit('pal.attachment.uploaded', (int)$u['id'], $entityType, (string)$entityId, null, [
-            'attachment_id' => $attachId, 'filename' => $originalName,
-        ]);
-
-        header('Content-Type: application/json');
-        echo json_encode(['ok' => true, 'id' => $attachId]);
     });
 }
 

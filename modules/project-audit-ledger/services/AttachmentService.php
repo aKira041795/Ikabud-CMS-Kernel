@@ -35,7 +35,7 @@ class palAttachmentService
 
     /** @var string[] Allowlisted entity types */
     private const ALLOWED_ENTITY_TYPES = [
-        'project', 'sale', 'expense', 'purchase', 'quotation', 'client', 'supplier',
+        'project', 'sale', 'expense', 'purchase', 'quotation', 'client', 'supplier', 'po',
     ];
 
     public function __construct(Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId, int $userId)
