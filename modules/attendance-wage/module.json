@@ -28,6 +28,10 @@
     ],
     "routes": "routes.php",
     "handlers": "handlers.php",
+    "application_profile": {
+        "id": "ark.workbench",
+        "version": "^0.1"
+    },
     "capabilities": {
         "exposes": [
             {

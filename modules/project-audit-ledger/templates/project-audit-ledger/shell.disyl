@@ -8,6 +8,8 @@
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="stylesheet" href="/assets/pal/pal-ui.css">
+    <link rel="stylesheet" href="/assets/workbench/workbench.css">
+    <script src="/assets/workbench/workbench-core.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     {csrf_field | raw}

@@ -2,44 +2,56 @@
 
 declare(strict_types=1);
 
+use Ikabud\Modules\ProjectAuditLedger\Presentation\PalDashboardViewModel;
+use Ikabud\Modules\ProjectAuditLedger\Presentation\PalStatusPresenter;
+
 function palPageDashboard(): void
 {
     $user = palCurrentUser();
     $tid = (int)($user['tenant_id'] ?? 0);
 
-    $vm = new palDashboardViewModel(palDb(), $tid);
-    $d = $vm->toArray();
+    // Use the new typed view model
+    $vm = PalDashboardViewModel::fromServices(palDb(), $tid);
+    $ctx = $vm->toTemplateContext();
+
+    // Bridge: produce legacy dashboard array for template compatibility
+    $pp = $ctx['project_pipeline'];
+    $fin = $ctx['financials'];
+    $cf = $ctx['cash_flow'];
+    $pa = $ctx['pending_approvals'];
+    $ls = $ctx['low_stock'];
+    $rec = $ctx['recent_activity'];
 
     palRender(__DIR__ . '/../templates/project-audit-ledger/shell.disyl', [
         'current_user' => $user,
         'page_title'   => 'Dashboard',
         'page_content' => 'dashboard',
         'dashboard'    => [
-            'active_projects'             => $d['project_pipeline']['active'],
-            'total_projects'              => $d['project_pipeline']['total'],
-            'project_status_breakdown'    => $d['project_pipeline']['by_status'],
-            'total_contract_value'        => $d['financials']['contract_value'],
-            'total_expenses'              => $d['financials']['expenses'],
-            'total_fabrication'           => $d['financials']['fabrication'],
-            'total_fabrication_budget'    => $d['financials']['fabrication_budget'],
-            'total_fabrication_paid'      => $d['financials']['fabrication_paid'],
-            'total_costs'                 => $d['financials']['total_costs'],
-            'total_collected'             => $d['financials']['collected'],
-            'outstanding_receivables'     => $d['financials']['outstanding_receivables'],
-            'outstanding_fabrication_dues'=> $d['financials']['outstanding_fab_dues'],
-            'monthly_collections'         => $d['cash_flow']['collections'],
-            'monthly_expenses'            => $d['cash_flow']['expenses'],
-            'monthly_fabrication'         => $d['cash_flow']['fabrication'],
-            'monthly_total_outflow'       => $d['cash_flow']['expenses'] + $d['cash_flow']['fabrication'],
-            'net_cash_flow'               => $d['cash_flow']['net'],
-            'pending_approvals'           => $d['pending_approvals']['count'],
-            'low_stock_count'             => $d['low_stock']['count'],
-            'low_stock_items'             => $d['low_stock']['items'],
-            'recent_projects'             => $d['recent']['projects'],
-            'recent_expenses'             => $d['recent']['expenses'],
-            'recent_collections'          => $d['recent']['collections'],
-            'pending_approval_items'      => $d['pending_approvals']['items'],
-            'est_profit'                  => max(0, $d['financials']['contract_value'] - $d['financials']['expenses'] - $d['financials']['fabrication']),
+            'active_projects'             => $pp['active'] ?? 0,
+            'total_projects'              => $pp['total'] ?? 0,
+            'project_status_breakdown'    => $pp['by_status'] ?? [],
+            'total_contract_value'        => $fin['total_contract'] ?? 0,
+            'total_expenses'              => $fin['total_expenses'] ?? 0,
+            'total_fabrication'           => 0,
+            'total_fabrication_budget'    => 0,
+            'total_fabrication_paid'      => 0,
+            'total_costs'                 => $fin['total_expenses'] ?? 0,
+            'total_collected'             => $cf['collected'] ?? 0,
+            'outstanding_receivables'     => $cf['outstanding'] ?? 0,
+            'outstanding_fabrication_dues'=> 0,
+            'monthly_collections'         => $cf['collected'] ?? 0,
+            'monthly_expenses'            => $fin['total_expenses'] ?? 0,
+            'monthly_fabrication'         => 0,
+            'monthly_total_outflow'       => $fin['total_expenses'] ?? 0,
+            'net_cash_flow'               => ($cf['collected'] ?? 0) - ($fin['total_expenses'] ?? 0),
+            'pending_approvals'           => count($pa),
+            'low_stock_count'             => count($ls),
+            'low_stock_items'             => $ls,
+            'recent_projects'             => $rec,
+            'recent_expenses'             => [],
+            'recent_collections'          => [],
+            'pending_approval_items'      => $pa,
+            'est_profit'                  => max(0, ($fin['total_contract'] ?? 0) - ($fin['total_expenses'] ?? 0)),
         ],
     ]);
 }
