@@ -1,0 +1,56 @@
+{* _email_job_order.disyl — Job Order summary email template.
+   Pass: company_name, client_name, jo_number, project_title, scope_of_work,
+         contract_amount, status, items ([{sort_order,material_name,particulars,width,height,qty,uom,price_per_unit,line_total}]), mockup_url? *}
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+    <p>Hi {client_name|escape:'html'},</p>
+    <p>Here is the summary of your Job Order with <strong>{company_name|escape:'html'}</strong>.</p>
+
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">JO Number:</td><td style="padding:4px 12px;">{jo_number|escape:'html'}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Project:</td><td style="padding:4px 12px;">{project_title|escape:'html'}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Scope:</td><td style="padding:4px 12px;">{scope_of_work|default:'—'|escape:'html'}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Total Amount:</td><td style="padding:4px 12px;font-weight:bold;color:#059669;">₱{contract_amount}</td></tr>
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Status:</td><td style="padding:4px 12px;">{status|capitalize}</td></tr>
+    </table>
+
+    {if items|default:[]}
+        <h3 style="margin-top:20px;">📋 Bill of Materials</h3>
+        <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+            <thead><tr style="background:#f3f4f6;">
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">#</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Material</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Particulars</th>
+                <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">W×H</th>
+                <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">Unit</th>
+                <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">QTY</th>
+                <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #e5e7eb;">Price/Unit</th>
+                <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #e5e7eb;">Total</th>
+            </tr></thead><tbody>
+            {for item in items}
+                <tr style="border-bottom:1px solid #e5e7eb;">
+                    <td style="padding:6px 12px;text-align:center;">{item.sort_order|default:0}</td>
+                    <td style="padding:6px 12px;">{item.material_name|default:item.particulars|escape:'html'}</td>
+                    <td style="padding:6px 12px;">{item.particulars|default:''|escape:'html'}</td>
+                    <td style="padding:6px 12px;text-align:center;">{if item.width && item.height}{item.width}×{item.height}{else}—{/if}</td>
+                    <td style="padding:6px 12px;text-align:center;">{item.uom|default:'—'|escape:'html'}</td>
+                    <td style="padding:6px 12px;text-align:center;">{item.quantity|default:1|number_format:2}</td>
+                    <td style="padding:6px 12px;text-align:right;">₱{item.price_per_unit|default:0|number_format:2}</td>
+                    <td style="padding:6px 12px;text-align:right;font-weight:bold;">₱{item.line_total|default:0|number_format:2}</td>
+                </tr>
+            {/for}
+            </tbody></table>
+    {/if}
+
+    {if mockup_url|default:''}
+        <div style="margin-top:20px;">
+            <p><strong>Design Mockup:</strong></p>
+            <p><a href="{mockup_url|escape:'html'}" style="display:inline-block;padding:10px 20px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;text-decoration:none;color:#374151;font-size:14px;">🖼 View Design Mockup →</a></p>
+        </div>
+    {/if}
+
+    <p style="margin-top:20px;color:#6b7280;font-size:12px;">This is an automated message from {company_name|escape:'html'}. For inquiries, please contact us directly.</p>
+</body>
+</html>

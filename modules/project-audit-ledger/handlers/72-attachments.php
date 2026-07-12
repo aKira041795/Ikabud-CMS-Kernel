@@ -82,22 +82,8 @@ function palRenderPoImages(int $projectId, ?int $tenantId = null): string
     $files = palGetAttachments('po', $projectId, $tenantId);
     if (empty($files)) return '<p class="text-xs text-gray-400 col-span-full">No PO images uploaded yet.</p>';
 
-    // Build thumbnail gallery — rendered by DiSyL template
-    $html = '';
-    foreach ($files as $f) {
-        $dlUrl = '/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download';
-        $caption = htmlspecialchars($f['description'] ?? $f['original_filename'], ENT_QUOTES, 'UTF-8');
-        $html .= '<div class="relative group w-20">';
-        $html .= '<a href="#" data-wb-lightbox="' . $dlUrl . '" data-wb-lightbox-caption="' . htmlspecialchars($caption, ENT_QUOTES, 'UTF-8') . '" class="block w-20 border rounded overflow-hidden bg-gray-100 cursor-zoom-in">';
-        $html .= '<img src="' . $dlUrl . '" class="w-20 h-20 object-cover rounded" loading="lazy">';
-        $html .= '</a>';
-        if ($f['description']) {
-            $html .= '<p class="text-xs text-gray-500 mt-1 truncate">' . htmlspecialchars($f['description'], ENT_QUOTES, 'UTF-8') . '</p>';
-        }
-        $html .= '<button data-wb-delete-attachment="' . (int)$f['id'] . '" class="absolute top-1 right-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">✕</button>';
-        $html .= '</div>';
-    }
-    return $html;
+    $template = __DIR__ . '/../templates/project-audit-ledger/_po_gallery.disyl';
+    return app()->render($template, ['files' => $files]);
 }
 
 /**

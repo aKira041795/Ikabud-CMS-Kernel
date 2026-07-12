@@ -1,0 +1,75 @@
+{* _email_invoice.disyl — Sales invoice email template.
+   Pass: company_name, client_name, invoice_number, project_title,
+         gross_amount, tax_amount, discount_amount, down_payment,
+         outstanding, total_collected, mode_of_payment, scope_of_work,
+         charges ([{label, amount}]), items ([{sort_order,material_name,particulars,
+         width,height,qty,uom,price_per_unit,line_total}]) *}
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+    <p>Hi {client_name|escape:'html'},</p>
+    <p>Here is your invoice summary from <strong>{company_name|escape:'html'}</strong>.</p>
+
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Invoice:</td><td style="padding:4px 12px;">{invoice_number|escape:'html'}</td></tr>
+        {if project_title|default:''}
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Project:</td><td style="padding:4px 12px;">{project_title|escape:'html'}</td></tr>
+        {/if}
+        {if scope_of_work|default:''}
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Scope:</td><td style="padding:4px 12px;">{scope_of_work|escape:'html'}</td></tr>
+        {/if}
+        <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Gross Amount:</td><td style="padding:4px 12px;font-weight:bold;">₱{gross_amount|default:'0.00'}</td></tr>
+        {if tax_amount|default:0 > 0}<tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Tax:</td><td style="padding:4px 12px;">₱{tax_amount|number_format:2}</td></tr>{/if}
+        {if discount_amount|default:0 > 0}<tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Discount:</td><td style="padding:4px 12px;">₱{discount_amount|number_format:2}</td></tr>{/if}
+        {if down_payment|default:0 > 0}<tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">Down Payment:</td><td style="padding:4px 12px;">₱{down_payment|number_format:2}</td></tr>{/if}
+    </table>
+
+    {if charges|default:[]}
+        <h4 style="margin-top:12px;">Additional Charges</h4>
+        <table style="width:100%;border-collapse:collapse;">
+            {for charge in charges}
+                {if charge.amount|default:0 > 0}
+                    <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">{charge.label|escape:'html'}:</td><td style="padding:4px 12px;">₱{charge.amount|number_format:2}</td></tr>
+                {/if}
+            {/for}
+        </table>
+    {/if}
+
+    {if items|default:[]}
+        <h3 style="margin-top:20px;">📋 Items</h3>
+        <table style="width:100%;border-collapse:collapse;margin-top:12px;font-size:13px;">
+            <thead><tr style="background:#f3f4f6;">
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">#</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Material</th>
+                <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e5e7eb;">Particulars</th>
+                <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">W×H</th>
+                <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">QTY</th>
+                <th style="padding:8px 12px;text-align:center;border-bottom:2px solid #e5e7eb;">Unit</th>
+                <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #e5e7eb;">Price/Unit</th>
+                <th style="padding:8px 12px;text-align:right;border-bottom:2px solid #e5e7eb;">Total</th>
+            </tr></thead><tbody>
+            {for item in items}
+                <tr style="border-bottom:1px solid #e5e7eb;">
+                    <td style="padding:6px 12px;text-align:center;">{item.sort_order|default:0}</td>
+                    <td style="padding:6px 12px;">{item.material_name|default:item.particulars|escape:'html'}</td>
+                    <td style="padding:6px 12px;">{item.particulars|default:''|escape:'html'}</td>
+                    <td style="padding:6px 12px;text-align:center;">{if item.width && item.height}{item.width}×{item.height}{else}—{/if}</td>
+                    <td style="padding:6px 12px;text-align:center;">{item.quantity|default:1|number_format:2}</td>
+                    <td style="padding:6px 12px;text-align:center;">{item.uom|default:'—'|escape:'html'}</td>
+                    <td style="padding:6px 12px;text-align:right;">₱{item.price_per_unit|default:0|number_format:2}</td>
+                    <td style="padding:6px 12px;text-align:right;font-weight:bold;">₱{item.line_total|default:0|number_format:2}</td>
+                </tr>
+            {/for}
+            </tbody></table>
+    {/if}
+
+    <div style="margin-top:16px;padding:12px;background:#f9fafb;border-radius:6px;">
+        {if outstanding|default:''}<p style="font-weight:bold;">Outstanding Balance: <span style="color:#dc2626;">{outstanding}</span></p>{/if}
+        {if total_collected|default:''}<p>Total Collected: {total_collected}</p>{/if}
+        {if mode_of_payment|default:''}<p>Payment Mode: {mode_of_payment|escape:'html'}</p>{/if}
+    </div>
+
+    <p style="margin-top:20px;color:#6b7280;font-size:12px;">This is an automated message from {company_name|escape:'html'}. For inquiries, please contact us directly.</p>
+</body>
+</html>

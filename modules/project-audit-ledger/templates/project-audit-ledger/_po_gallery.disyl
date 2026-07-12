@@ -1,0 +1,23 @@
+{* _po_gallery.disyl — PO image thumbnail grid.
+   Pass: files ([{id, original_filename, description, is_image}]) *}
+{if files|default:[]}
+    {for f in files}
+        <div class="relative group w-20">
+            <a href="#" data-wb-lightbox="/admin/project-audit-ledger/attachments/{f.id}/download"
+               data-wb-lightbox-caption="{f.description|default:f.original_filename|escape:'html'}"
+               class="block w-20 border rounded overflow-hidden bg-gray-100 cursor-zoom-in">
+                <img src="/admin/project-audit-ledger/attachments/{f.id}/download"
+                     class="w-20 h-20 object-cover rounded" loading="lazy">
+            </a>
+            {if f.description|default:''}
+                <p class="text-xs text-gray-500 mt-1 truncate">{f.description|escape:'html'}</p>
+            {/if}
+            <button data-wb-delete-attachment="{f.id}"
+                    class="absolute top-1 right-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                ✕
+            </button>
+        </div>
+    {/for}
+{else}
+    <p class="text-xs text-gray-400 col-span-full">No PO images uploaded yet.</p>
+{/if}
