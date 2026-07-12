@@ -28,7 +28,7 @@ function palPageAttachmentDownload(array $rp = []): void
         return;
     }
 
-    $absPath = PUBLIC_PATH . '/' . $att['file_path'];
+    $absPath = STORAGE_PATH . '/' . $att['file_path'];
     if (!file_exists($absPath)) {
         http_response_code(404);
         echo 'File not found on disk';
@@ -91,11 +91,11 @@ function palRenderPoImages(int $projectId, ?int $tenantId = null): string
 
         $html = '';
         foreach ($files as $f) {
-            $imgUrl = '/' . $f['file_path'];
+            $dlUrl = '/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download';
             $caption = htmlspecialchars($f['description'] ?? $f['original_filename'], ENT_QUOTES, 'UTF-8');
             $html .= '<div class="relative group w-20">';
-            $html .= '<a href="#" onclick="openLightbox(\'' . $imgUrl . '\',\'' . addslashes($caption) . '\');return false" class="block w-20 border rounded overflow-hidden bg-gray-100 cursor-zoom-in">';
-            $html .= '<img src="' . $imgUrl . '" class="w-20 h-20 object-cover rounded" loading="lazy">';
+            $html .= '<a href="#" onclick="openLightbox(\'' . $dlUrl . '\',\'' . addslashes($caption) . '\');return false" class="block w-20 border rounded overflow-hidden bg-gray-100 cursor-zoom-in">';
+            $html .= '<img src="' . $dlUrl . '" class="w-20 h-20 object-cover rounded" loading="lazy">';
             $html .= '</a>';
             if ($f['description']) {
                 $html .= '<p class="text-xs text-gray-500 mt-1 truncate">' . htmlspecialchars($f['description'], ENT_QUOTES, 'UTF-8') . '</p>';
@@ -123,10 +123,10 @@ function palRenderAttachments(string $entityType, int $entityId, ?int $tenantId 
         $html = '<div class="space-y-1">';
         foreach ($files as $f) {
             $isImg = preg_match('/\.(jpg|jpeg|png|gif|webp|svg)$/i', $f['original_filename']);
+            $dlUrl = '/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download';
             $html .= '<div class="flex justify-between items-center text-sm py-1">';
             if ($isImg) {
-                $imgUrl = '/' . $f['file_path'];
-                $html .= '<a href="#" onclick="openLightbox(\'' . $imgUrl . '\',\'' . addslashes(htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8')) . '\');return false" class="text-blue-600 hover:text-blue-800">🖼 ' . htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8') . '</a>';
+                $html .= '<a href="#" onclick="openLightbox(\'' . $dlUrl . '\',\'' . addslashes(htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8')) . '\');return false" class="text-blue-600 hover:text-blue-800">🖼 ' . htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8') . '</a>';
             } else {
                 $html .= '<a href="/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download" class="text-blue-600 hover:text-blue-800">📎 ' . htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8') . '</a>';
             }
@@ -157,8 +157,13 @@ function palApiAttachmentList(): void
     }
 
     $db = palDb();
-    $stmt = $db->prepare("SELECT id, original_filename, description, file_path, mime_type, file_size, created_at FROM pal_attachments WHERE tenant_id = :tid AND entity_type = :et AND entity_id = :eid ORDER BY created_at DESC");
+    $stmt = $db->prepare("SELECT id, original_filename, description, mime_type, file_size, created_at FROM pal_attachments WHERE tenant_id = :tid AND entity_type = :et AND entity_id = :eid ORDER BY created_at DESC");
     $stmt->execute([':tid' => $tid, ':et' => $entityType, ':eid' => $entityId]);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as &$r) {
+        $r['download_url'] = '/admin/project-audit-ledger/attachments/' . (int)$r['id'] . '/download';
+        unset($r['file_path']);
+    }
     header('Content-Type: application/json');
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    echo json_encode($rows);
 }

@@ -4,14 +4,14 @@
     <!-- Amount Due Callout -->
     {if sale.status == 'paid'}
     <div class="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg text-center">
-        <p class="text-sm font-bold text-gray-800">✓ Fully Paid — ₱{sale.net_amount|number_format:2}</p>
+        <p class="text-sm font-bold text-gray-800">✓ Fully Paid — ₱{sale.invoice_total|default:sale.net_amount|number_format:2}</p>
     </div>
     {elseif sale.down_payment_type == 'down_payment' && sale.down_payment|default:0 > 0}
     <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
         <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Down Payment Due</p>
         <p class="text-2xl font-bold text-gray-900">₱{sale.down_payment|number_format:2}</p>
         {if sale.due_date}<p class="text-xs text-gray-500 mt-1">Due: {sale.due_date}</p>{/if}
-        <p class="text-xs text-gray-500 mt-1">Partial — ₱{(sale.net_amount - sale.down_payment)|number_format:2} remaining</p>
+        <p class="text-xs text-gray-500 mt-1">Partial — ₱{(sale.invoice_total|default:sale.net_amount - sale.down_payment)|number_format:2} remaining</p>
     </div>
     {elseif sale.outstanding|default:0 > 0}
     <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
@@ -95,8 +95,8 @@
                 <div class="flex justify-between"><span class="text-gray-600">Other Charges</span><span>₱{sale.other_charges|number_format:2}</span></div>
                 {/if}
                 <div class="flex justify-between font-semibold text-base border-t pt-1">
-                    <span>Net Amount</span>
-                    <span>₱{sale.net_amount|number_format:2}</span>
+                    <span>Invoice Total</span>
+                    <span>₱{sale.invoice_total|default:sale.net_amount|number_format:2}</span>
                 </div>
                 <div class="flex justify-between"><span class="text-gray-600">Collected</span><span class="text-green-600">₱{sale.total_collected|default:0|number_format:2}</span></div>
                 <div class="flex justify-between"><span class="text-gray-600">Outstanding</span><span class="font-medium {if sale.outstanding|default:0 > 0}text-red-600{else}text-green-600{/if}">₱{sale.outstanding|default:0|number_format:2}</span></div>

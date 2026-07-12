@@ -98,9 +98,11 @@ class palAttachmentService
 
         $safeName = bin2hex(random_bytes(16)) . '.' . $ext;
 
-        // Build relative path: uploads/pal/{tenant_id}/{entity_type}/{entity_id}/
-        $relDir = 'uploads/pal/' . $this->tenantId . '/' . $entityType . '/' . $entityId;
-        $absDir = PUBLIC_PATH . '/' . $relDir;
+        // Build relative path: private/pal/{tenant_id}/{entity_type}/{entity_id}/
+        // Files are stored outside the public web root and served only through
+        // the authenticated download handler at /admin/.../attachments/{id}/download.
+        $relDir = 'private/pal/' . $this->tenantId . '/' . $entityType . '/' . $entityId;
+        $absDir = STORAGE_PATH . '/' . $relDir;
         if (!is_dir($absDir)) {
             mkdir($absDir, 0755, true);
         }
@@ -174,8 +176,8 @@ class palAttachmentService
             throw new InvalidArgumentException('Attachment not found.');
         }
 
-        // Remove file from disk
-        $absPath = PUBLIC_PATH . '/' . $att['file_path'];
+        // Remove file from private storage
+        $absPath = STORAGE_PATH . '/' . $att['file_path'];
         if (file_exists($absPath)) {
             unlink($absPath);
         }
@@ -207,8 +209,8 @@ class palAttachmentService
         $affected = $stmt->rowCount();
 
         // Also move files on disk
-        $oldDir = PUBLIC_PATH . '/uploads/pal/' . $this->tenantId . '/' . $entityType . '/' . $oldEntityId;
-        $newDir = PUBLIC_PATH . '/uploads/pal/' . $this->tenantId . '/' . $entityType . '/' . $newEntityId;
+        $oldDir = STORAGE_PATH . '/private/pal/' . $this->tenantId . '/' . $entityType . '/' . $oldEntityId;
+        $newDir = STORAGE_PATH . '/private/pal/' . $this->tenantId . '/' . $entityType . '/' . $newEntityId;
         if (is_dir($oldDir) && $oldEntityId !== $newEntityId) {
             if (!is_dir($newDir)) {
                 mkdir($newDir, 0755, true);
@@ -228,6 +230,6 @@ class palAttachmentService
      */
     public function getFilePath(array $attachment): string
     {
-        return PUBLIC_PATH . '/' . ltrim($attachment['file_path'] ?? '', '/');
+        return STORAGE_PATH . '/' . ltrim($attachment['file_path'] ?? '', '/');
     }
 }

@@ -121,8 +121,8 @@
                     <tr><td style="padding: 4px 10px; text-align: right; color: #6b7280;">Other Charges:</td><td style="padding: 4px 10px; text-align: right;">₱{sale.other_charges|number_format:2}</td></tr>
                     {/if}
                     <tr style="font-weight: bold;">
-                        <td style="padding: 6px 10px; text-align: right; font-size: 14px; border-top: 2px solid #1e40af; color: #1e40af;">NET AMOUNT:</td>
-                        <td style="padding: 6px 10px; text-align: right; font-size: 14px; border-top: 2px solid #1e40af; color: #1e40af;">₱{sale.net_amount|number_format:2}</td>
+                        <td style="padding: 6px 10px; text-align: right; font-size: 14px; border-top: 2px solid #1e40af; color: #1e40af;">INVOICE TOTAL:</td>
+                        <td style="padding: 6px 10px; text-align: right; font-size: 14px; border-top: 2px solid #1e40af; color: #1e40af;">₱{sale.invoice_total|default:sale.net_amount|number_format:2}</td>
                     </tr>
                 </table>
             </td>
