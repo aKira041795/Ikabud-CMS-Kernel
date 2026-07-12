@@ -72,46 +72,7 @@ function palApiAttachmentUpload(): void
 /**
  * API: Delete attachment
  */
-function palApiAttachmentDelete(array $rp = []): void
-{
-    palResponseGuard(function () use ($rp): void {
-        $u = palCurrentUser();
-        palEnforceCsrf();
-        $tid = (int)(app()->tenant()->current() ?? $u['tenant_id'] ?? 0);
-        $id = (int)($rp['id'] ?? $_GET['id'] ?? $_POST['id'] ?? 0);
-
-        if ($id <= 0) {
-            palJsonError('Invalid attachment ID.');
-            return;
-        }
-
-        $db = palDb();
-        $stmt = $db->prepare("SELECT * FROM pal_attachments WHERE id = :id AND tenant_id = :tid");
-        $stmt->execute([':id' => $id, ':tid' => $tid]);
-        $att = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$att) {
-            palJsonError('Attachment not found.');
-            return;
-        }
-
-        // Delete file from disk
-        $absPath = PUBLIC_PATH . '/' . $att['file_path'];
-        if (file_exists($absPath)) {
-            unlink($absPath);
-        }
-
-        $del = $db->prepare("DELETE FROM pal_attachments WHERE id = :id AND tenant_id = :tid");
-        $del->execute([':id' => $id, ':tid' => $tid]);
-
-        palAudit('pal.attachment.deleted', (int)$u['id'], $att['entity_type'], (string)$att['entity_id'], null, [
-            'attachment_id' => $id, 'filename' => $att['original_filename'],
-        ]);
-
-        header('Content-Type: application/json');
-        echo json_encode(['ok' => true]);
-    });
-}
+function palApiAttachmentDelete(array $rp = []): void { palResponseGuard(function(): void { $id=(int)($rp['id']??$_POST['id']??0); if($id<=0){palJsonError('Invalid attachment ID.',400);return;} $u=palCurrentUser(); try{ $svc=new palAttachmentService(palDb(),(int)($u['tenant_id']??0),(int)$u['id']); $svc->delete($id); header('Content-Type: application/json'); echo json_encode(['ok'=>true,'message'=>'Deleted']); }catch(Throwable $e){ palJsonError($e->getMessage(),400); } }); }
 
 /**
  * Helper: Render PO image gallery (thumbnail grid with lightbox)

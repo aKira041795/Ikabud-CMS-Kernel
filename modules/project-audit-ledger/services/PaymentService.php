@@ -91,7 +91,7 @@ class palPaymentService
     }
 
     /**
-     * Record AND approve in one atomic operation.
+     * Record AND approve in one atomic transaction.
      * For trusted import or cash-counter workflows where the payment
      * is immediately considered received.
      *
@@ -107,9 +107,46 @@ class palPaymentService
         ?string $referenceNumber = null,
         ?string $notes = null,
     ): int {
-        $collectionId = $this->record($saleId, $projectId, $clientId, $amount, $paymentMethod, $paymentDate, $referenceNumber, $notes);
-        $this->approve($collectionId);
-        return $collectionId;
+        $this->db->beginTransaction();
+        try {
+            // Record within the transaction
+            $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
+            $countStmt->execute([':tid' => $this->tenantId]);
+            $prefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
+            $collNum = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$countStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
+
+            $stmt = $this->db->prepare(
+                "INSERT INTO pal_collections
+                    (tenant_id, collection_number, sales_id, project_id, client_id,
+                     payment_date, amount, payment_method, reference_number, notes,
+                     received_by, status, created_by)
+                 VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, 'pending', :cb)"
+            );
+            $stmt->execute([
+                ':t' => $this->tenantId,
+                ':cn' => $collNum,
+                ':si' => $saleId,
+                ':pj' => $projectId,
+                ':cl' => $clientId,
+                ':pd' => $paymentDate ?: date('Y-m-d'),
+                ':amt' => $amount,
+                ':pm' => $paymentMethod,
+                ':ref' => $referenceNumber,
+                ':no' => $notes,
+                ':rb' => $this->userId,
+                ':cb' => $this->userId,
+            ]);
+            $collectionId = (int)$this->db->lastInsertId();
+
+            // Approve within the same transaction (lock + allocate)
+            $this->approveWithinTransaction($collectionId);
+
+            $this->db->commit();
+            return $collectionId;
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -121,61 +158,64 @@ class palPaymentService
     {
         $this->db->beginTransaction();
         try {
-            // Lock the collection row
-            $lockStmt = $this->db->prepare(
-                "SELECT id, sales_id, amount, status FROM pal_collections
-                 WHERE id = :id AND tenant_id = :tid FOR UPDATE"
-            );
-            $lockStmt->execute([':id' => $collectionId, ':tid' => $this->tenantId]);
-            $coll = $lockStmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$coll) {
-                throw new InvalidArgumentException('Collection not found.');
-            }
-            if ($coll['status'] !== 'pending') {
-                throw new InvalidArgumentException('Collection is not in pending status.');
-            }
-
-            // Update collection status to approved
-            $this->db->prepare(
-                "UPDATE pal_collections SET status = 'approved', approved_by = :ab, approved_at = NOW()
-                 WHERE id = :id AND tenant_id = :tid"
-            )->execute([':ab' => $this->userId, ':id' => $collectionId, ':tid' => $this->tenantId]);
-
-            // Check for overpayment: payment exceeds total outstanding receivables
-            $totalOutstandingStmt = $this->db->prepare(
-                "SELECT COALESCE(SUM(outstanding), 0) FROM pal_receivables
-                 WHERE tenant_id = :tid AND sales_id = :si AND status IN ('pending', 'partial', 'overdue')"
-            );
-            $totalOutstandingStmt->execute([':tid' => $this->tenantId, ':si' => $coll['sales_id']]);
-            $totalOutstanding = (float)$totalOutstandingStmt->fetchColumn();
-            $paymentAmount = (float)$coll['amount'];
-
-            if ($paymentAmount > $totalOutstanding) {
-                throw new InvalidArgumentException(
-                    "Payment amount ({$paymentAmount}) exceeds total outstanding receivables ({$totalOutstanding}). "
-                    . "Overpayment is not supported. Adjust the payment amount or create a credit note."
-                );
-            }
-
-            // Allocate to receivables (within same transaction)
-            $this->allocatePaymentWithinTransaction(
-                (int)$coll['id'],
-                (int)$coll['sales_id'],
-                (float)$coll['amount']
-            );
-
-            // Update sale collection status
-            $this->updateSaleCollectionStatus((int)$coll['sales_id']);
-
+            $this->approveWithinTransaction($collectionId);
             $this->db->commit();
-
-            palAudit('pal.payment.approved', $this->userId, 'pal_collections', (string)$collectionId,
-                null, ['sales_id' => $coll['sales_id'], 'amount' => $coll['amount']]);
         } catch (Throwable $e) {
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Approve within an existing transaction. Caller owns commit/rollback.
+     */
+    private function approveWithinTransaction(int $collectionId): void
+    {
+        // Lock the collection row
+        $lockStmt = $this->db->prepare(
+            "SELECT id, sales_id, amount, status FROM pal_collections
+             WHERE id = :id AND tenant_id = :tid FOR UPDATE"
+        );
+        $lockStmt->execute([':id' => $collectionId, ':tid' => $this->tenantId]);
+        $coll = $lockStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$coll) {
+            throw new InvalidArgumentException('Collection not found.');
+        }
+        if ($coll['status'] !== 'pending') {
+            throw new InvalidArgumentException('Collection is not in pending status.');
+        }
+
+        // Update collection status to approved
+        $this->db->prepare(
+            "UPDATE pal_collections SET status = 'approved', approved_by = :ab, approved_at = NOW()
+             WHERE id = :id AND tenant_id = :tid"
+        )->execute([':ab' => $this->userId, ':id' => $collectionId, ':tid' => $this->tenantId]);
+
+        // Check for overpayment: payment exceeds total outstanding receivables
+        $totalOutstandingStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(outstanding), 0) FROM pal_receivables
+             WHERE tenant_id = :tid AND sales_id = :si AND status IN ('pending', 'partial', 'overdue')"
+        );
+        $totalOutstandingStmt->execute([':tid' => $this->tenantId, ':si' => $coll['sales_id']]);
+        $totalOutstanding = (float)$totalOutstandingStmt->fetchColumn();
+        $paymentAmount = (float)$coll['amount'];
+
+        if ($paymentAmount > $totalOutstanding) {
+            throw new InvalidArgumentException(
+                "Payment amount ({$paymentAmount}) exceeds total outstanding receivables ({$totalOutstanding}). "
+                . "Overpayment is not supported. Adjust the payment amount or create a credit note."
+            );
+        }
+
+        // Allocate to receivables (within same transaction)
+        $this->allocatePaymentWithinTransaction((int)$coll['id'], (int)$coll['sales_id'], (float)$coll['amount']);
+
+        // Update sale collection status
+        $this->updateSaleCollectionStatus((int)$coll['sales_id']);
+
+        palAudit('pal.payment.approved', $this->userId, 'pal_collections', (string)$collectionId,
+            null, ['sales_id' => $coll['sales_id'], 'amount' => $coll['amount']]);
     }
 
     /**

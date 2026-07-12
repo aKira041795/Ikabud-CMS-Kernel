@@ -117,8 +117,18 @@ class palSalesService
                 $this->saveItems($saleId, $items);
             }
 
-            // Create receivable for this invoice
-            $invoiceTotal = $grossAmount;
+            // Create receivable for this invoice.
+            // Canonical invoice total = gross + charges - discount + tax.
+            // This matches what the client actually owes (net_amount in pal_sales
+            // doesn't include installation/mobilization/other charges, so we
+            // compute the full amount here).
+            $invoiceTotal = $grossAmount
+                + (float)($data['installation_charge'] ?? 0)
+                + (float)($data['mobilization_charge'] ?? 0)
+                + (float)($data['other_charges'] ?? 0)
+                - (float)($data['discount_amount'] ?? 0)
+                + (float)($data['tax_amount'] ?? 0);
+            if ($invoiceTotal < 0) $invoiceTotal = 0;
             $dueDate = $data['due_date'] ?? date('Y-m-d', strtotime('+30 days'));
             $clientId = !empty($data['client_id']) ? (int)$data['client_id'] : null;
             $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : null;

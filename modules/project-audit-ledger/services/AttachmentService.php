@@ -27,6 +27,7 @@ class palAttachmentService
         'application/vnd.ms-excel' => ['xls'],
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => ['xlsx'],
         'text/plain'               => ['txt', 'csv'],
+        'text/csv'                 => ['csv'],
         'application/zip'          => ['zip'],
     ];
 
