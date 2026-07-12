@@ -154,7 +154,7 @@ class ExpressionEvaluator
             }
         }
 
-        // Array literal: [val1, val2, ...]
+        // Array literal: [val1, val2, ...] or ['key1' => val1, 'key2' => val2, ...]
         if ($path !== '' && $path[0] === '[') {
             $close = $this->findUnquotedChar($path, ']');
             if ($close !== false && $close === strlen($path) - 1) {
@@ -168,18 +168,53 @@ class ExpressionEvaluator
                 foreach ($parts as $part) {
                     $part = trim($part);
                     if ($part === '') { continue; }
-                    if (preg_match('/^["\'](.*)["\']$/', $part, $m)) {
-                        $result[] = $m[1];
-                    } elseif (is_numeric($part)) {
-                        $result[] = str_contains($part, '.') ? (float)$part : (int)$part;
-                    } elseif (strtolower($part) === 'true') {
-                        $result[] = true;
-                    } elseif (strtolower($part) === 'false') {
-                        $result[] = false;
-                    } elseif (strtolower($part) === 'null') {
-                        $result[] = null;
+
+                    // Associative entry: key => value
+                    $arrowPos = $this->findUnquotedArrow($part);
+                    if ($arrowPos !== false) {
+                        $keyPart = trim(substr($part, 0, $arrowPos));
+                        $valPart = trim(substr($part, $arrowPos + 2));
+
+                        // Resolve key
+                        if (preg_match('/^["\'](.*)["\']$/', $keyPart, $km)) {
+                            $key = $km[1];
+                        } elseif (preg_match('/^[a-zA-Z_]\w*$/', $keyPart)) {
+                            $key = $keyPart;
+                        } else {
+                            $key = $this->resolveValue($keyPart, $context);
+                        }
+
+                        // Resolve value
+                        if (preg_match('/^["\'](.*)["\']$/', $valPart, $vm)) {
+                            $resolvedVal = $vm[1];
+                        } elseif (is_numeric($valPart)) {
+                            $resolvedVal = str_contains($valPart, '.') ? (float)$valPart : (int)$valPart;
+                        } elseif (strtolower($valPart) === 'true') {
+                            $resolvedVal = true;
+                        } elseif (strtolower($valPart) === 'false') {
+                            $resolvedVal = false;
+                        } elseif (strtolower($valPart) === 'null') {
+                            $resolvedVal = null;
+                        } else {
+                            $resolvedVal = $this->resolveValue($valPart, $context);
+                        }
+
+                        $result[(string)$key] = $resolvedVal;
                     } else {
-                        $result[] = $this->resolveValue($part, $context);
+                        // Indexed entry (no =>)
+                        if (preg_match('/^["\'](.*)["\']$/', $part, $m)) {
+                            $result[] = $m[1];
+                        } elseif (is_numeric($part)) {
+                            $result[] = str_contains($part, '.') ? (float)$part : (int)$part;
+                        } elseif (strtolower($part) === 'true') {
+                            $result[] = true;
+                        } elseif (strtolower($part) === 'false') {
+                            $result[] = false;
+                        } elseif (strtolower($part) === 'null') {
+                            $result[] = null;
+                        } else {
+                            $result[] = $this->resolveValue($part, $context);
+                        }
                     }
                 }
                 $this->currentExpression = $prevExpr;
@@ -827,6 +862,37 @@ class ExpressionEvaluator
                 continue;
             }
             if (!$inSingle && !$inDouble && $ch === $char) {
+                return $i;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Find the unquoted => arrow operator in a string.
+     * Returns the position of '=' (first char of =>), or false if not found.
+     * Skips => inside single or double quotes.
+     */
+    public function findUnquotedArrow(string $str, int $start = 0): int|false
+    {
+        $inSingle = false;
+        $inDouble = false;
+
+        for ($i = $start, $len = strlen($str); $i < $len; $i++) {
+            $ch = $str[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble)) {
+                $i++;
+                continue;
+            }
+            if ($ch === "'" && !$inDouble) {
+                $inSingle = !$inSingle;
+                continue;
+            }
+            if ($ch === '"' && !$inSingle) {
+                $inDouble = !$inDouble;
+                continue;
+            }
+            if (!$inSingle && !$inDouble && $ch === '=' && ($i + 1 < $len) && $str[$i + 1] === '>') {
                 return $i;
             }
         }

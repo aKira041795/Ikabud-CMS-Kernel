@@ -1369,6 +1369,12 @@ class TemplateEngine
      */
     private function resolveSetValue(string $expr, array $context, ?string $varType): mixed
     {
+        // Array literal: delegate directly to expression evaluator
+        if (trim($expr) !== '' && trim($expr)[0] === '[') {
+            $value = $this->evaluator()->resolveValue(trim($expr), $context);
+            return $this->coerceType($value, $varType, '');
+        }
+
         // Try arithmetic first
         $value = $this->evaluateArithmetic($expr, $context);
         if ($value !== null) {
