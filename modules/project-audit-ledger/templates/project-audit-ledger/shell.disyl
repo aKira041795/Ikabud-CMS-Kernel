@@ -189,5 +189,6 @@
 <script src="/assets/pal/pal-core.js"></script>
 <script src="/assets/pal/pal-forms.js"></script>
 <script src="/assets/pal/pal-settings.js"></script>
+<script src="/assets/pal/pal-routes.js"></script>
 </body>
 </html>
