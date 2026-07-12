@@ -1,0 +1,27 @@
+{* workbench:combobox — Searchable select with keyboard navigation.
+   Requires: workbench-combobox.js
+   Pass: name, options ({value,label,group?}[]), selected_value?, placeholder?,
+         multiple? (bool), required? (bool), disabled? (bool), empty_message? *}
+<div class="wb-combobox relative">
+    <input type="text"
+           class="wb-combobox__input w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+           role="combobox"
+           aria-expanded="false"
+           aria-autocomplete="list"
+           aria-haspopup="listbox"
+           placeholder="{placeholder|default:'Search...'}"
+           {if required|default:false}required{/if}
+           {if disabled|default:false}disabled{/if}
+           value="{selected_value|default:''}">
+    <input type="hidden" name="{name}" value="{selected_value|default:''}">
+    <ul class="wb-combobox__listbox absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto" role="listbox" hidden>
+        {if options|default:[]}
+            {for option in options}
+                <li id="wb-cb-{name}-{option.value}" class="wb-combobox__option px-3 py-2 text-sm cursor-pointer hover:bg-blue-50" role="option" data-value="{option.value}" aria-selected="{if option.value==selected_value|default:''}true{else}false{/if}">
+                    {option.label}
+                </li>
+            {/for}
+        {/if}
+        <li class="wb-combobox__empty px-3 py-2 text-sm text-gray-500" hidden>{empty_message|default:'No results found'}</li>
+    </ul>
+</div>

@@ -1,0 +1,19 @@
+{* workbench:dialog — Accessible modal dialog.
+   Requires: workbench-dialog.js
+   Trigger: <button data-wb-dialog="{id}">
+   Pass: id, title, body (raw HTML), footer (raw HTML), variant? (default|alert|confirm),
+         close_on_backdrop? (bool, default true) *}
+<div id="{id}" class="wb-dialog fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="{id}-title" data-wb-close-on-backdrop="{if close_on_backdrop|default:true}true{else}false{/if}" hidden>
+    <div class="fixed inset-0 bg-black/50" aria-hidden="true"></div>
+    <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
+        <h2 id="{id}-title" class="text-lg font-semibold text-gray-900 mb-4">
+            {if variant|default:'default'=='alert'}⚠ {/if}
+            {title}
+        </h2>
+        <div class="text-sm text-gray-700 mb-6">{body|raw}</div>
+        <div class="flex justify-end gap-2">
+            {footer|raw}
+            <button type="button" data-wb-dialog-close class="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200" aria-label="Close dialog">Cancel</button>
+        </div>
+    </div>
+</div>

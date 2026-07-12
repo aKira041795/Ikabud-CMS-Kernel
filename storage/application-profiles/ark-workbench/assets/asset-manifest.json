@@ -12,6 +12,21 @@
                 "path": "assets/workbench-core.js",
                 "size": "~4KB",
                 "provides": ["shell", "drawer", "bottom-nav", "sidebar-section", "toast", "validation-summary"]
+            },
+            "workbench-dialog.js": {
+                "path": "assets/workbench-dialog.js",
+                "size": "~3KB",
+                "provides": ["dialog"]
+            },
+            "workbench-combobox.js": {
+                "path": "assets/workbench-combobox.js",
+                "size": "~4KB",
+                "provides": ["combobox"]
+            },
+            "workbench-table.js": {
+                "path": "assets/workbench-table.js",
+                "size": "~1KB",
+                "provides": ["responsive-table"]
             }
         }
     }

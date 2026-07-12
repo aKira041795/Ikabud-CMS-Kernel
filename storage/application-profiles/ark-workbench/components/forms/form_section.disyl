@@ -1,0 +1,20 @@
+{* workbench:form_section — Grouped form fields with header.
+   Pass: title, description?, collapsible? (bool), collapsed? (bool),
+         has_errors? (bool), body (raw HTML) *}
+<fieldset class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+        <legend class="text-base font-semibold text-gray-900 flex items-center gap-2">
+            {title}
+            {if has_errors|default:false}<span class="wb-badge wb-badge--danger wb-badge--sm">!</span>{/if}
+        </legend>
+        {if collapsible|default:false}
+            <button type="button" class="text-sm text-gray-500 hover:text-gray-700" onclick="this.closest('fieldset').querySelector('.wb-form-section__body').classList.toggle('hidden')">
+                {if collapsed|default:false}Show{else}Hide{/if}
+            </button>
+        {/if}
+    </div>
+    {if description|default:''}<p class="text-sm text-gray-600 mb-3">{description}</p>{/if}
+    <div class="wb-form-section__body {if collapsed|default:false}hidden{/if}">
+        {body|raw}
+    </div>
+</fieldset>

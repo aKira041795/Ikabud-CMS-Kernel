@@ -1,0 +1,12 @@
+{* workbench:validation_summary — Accessible error summary with focus management.
+   Pass: errors ({field_id,message}[]), heading? *}
+<div id="wb-validation-summary" class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6" role="alert" aria-live="assertive" tabindex="-1">
+    <h2 class="text-sm font-semibold text-red-800 mb-2">
+        {heading|default:'{errors|count} error{if errors|count != 1}s{/if} found'}
+    </h2>
+    <ul class="list-disc list-inside text-sm text-red-700 space-y-1">
+        {for error in errors}
+            <li><a href="#{error.field_id}" class="underline hover:text-red-900">{error.message}</a></li>
+        {/for}
+    </ul>
+</div>

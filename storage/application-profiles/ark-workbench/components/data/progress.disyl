@@ -1,0 +1,20 @@
+{* workbench:progress — Progress bar with label.
+   Pass: percent (int 0-100), label?, tone? (neutral|success|warning|danger), size? (sm|md|lg) *}
+<div>
+    {if label|default:''}
+        <div class="flex justify-between text-sm mb-1">
+            <span class="text-gray-700">{label}</span>
+            <span class="text-gray-500">{percent}%</span>
+        </div>
+    {/if}
+    <div class="w-full bg-gray-200 rounded-full overflow-hidden" style="height:{if size|default:'md'=='sm'}0.375rem{elseif size|default:'md'=='lg'}0.75rem{else}0.5rem{/if}">
+        <div class="h-full rounded-full transition-all duration-300"
+             style="width:{percent}%; background:var(--wb-tone-{tone|default:'success'})"
+             role="progressbar"
+             aria-valuenow="{percent}"
+             aria-valuemin="0"
+             aria-valuemax="100"
+             {if label|default:''}aria-label="{label}: {percent}%"{/if}>
+        </div>
+    </div>
+</div>

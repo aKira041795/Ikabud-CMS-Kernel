@@ -1,0 +1,34 @@
+{* workbench:activity_timeline — Chronological event feed.
+   Pass: items ({icon_key,timestamp,actor,action,detail?}[]), variant? (default|compact),
+         load_more_url? *}
+<div class="relative">
+    {if items|default:[]}
+        {for item in items}
+            <div class="flex gap-3 {if variant|default:'default'=='compact'}text-sm{/if}">
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm flex-shrink-0">
+                        {item.icon_key|default:'•'}
+                    </div>
+                    <div class="w-0.5 flex-1 bg-gray-200 my-1"></div>
+                </div>
+                <div class="pb-4 flex-1">
+                    <p class="text-xs text-gray-500">{item.timestamp}</p>
+                    <p class="text-sm text-gray-900">
+                        <span class="font-medium">{item.actor}</span>
+                        {if variant|default:'default'!='compact'}<span class="text-gray-600"> — {item.action}</span>{/if}
+                    </p>
+                    {if item.detail|default:'' && variant|default:'default'!='compact'}
+                        <p class="text-sm text-gray-600 mt-1">{item.detail}</p>
+                    {/if}
+                </div>
+            </div>
+        {/for}
+    {else}
+        <p class="text-sm text-gray-500 text-center py-4">No activity recorded</p>
+    {/if}
+</div>
+{if load_more_url|default:''}
+    <div class="text-center mt-2">
+        <a href="{load_more_url}" class="text-sm text-blue-600 hover:underline">Load more</a>
+    </div>
+{/if}
