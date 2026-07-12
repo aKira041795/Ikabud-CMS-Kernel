@@ -38,7 +38,7 @@ class TemplateCompiler
      * changes.  TemplateCache includes this in cache filenames so stale
      * compiled files are automatically bypassed after an upgrade.
      */
-    public const COMPILER_VERSION = 8;
+    public const COMPILER_VERSION = 11;
 
     private int $indentLevel = 0;
     private string $indent = '    ';
@@ -744,7 +744,37 @@ PHP;
         $template = var_export($node->getTemplate(), true);
         $variables = $node->getVariables();
         
-        // Compile each variable value as a DiSyL expression
+        // Block include: body content is captured into page_body buffer,
+        // then passed as a variable to the included template.
+        // The included template uses {page_body|raw} to embed it.
+        //
+        // NOTE: compileDocument() generates "$output .= ..." lines, so we
+        // compile the body to PHP code, then rewrite $output → $__body__
+        // so the body accumulates in a separate buffer that gets passed
+        // as page_body to the include call.
+        $hasBody = $node->hasBody();
+        if ($hasBody) {
+            $bodyCode = $this->compileDocument($node->getBody());
+            // Rewrite output variable to body buffer
+            $bodyCode = str_replace("\$output .=", "\$__body__ .=", $bodyCode);
+            $code = $this->line('$__body__ = \'\';');
+            $code .= $bodyCode;
+
+            // Build vars array with explicit params + page_body
+            $varsCode = '[';
+            foreach ($variables as $name => $expr) {
+                $nameStr = var_export($name, true);
+                $valueStr = $this->compileExpressionValue($expr);
+                $varsCode .= "\n" . str_repeat($this->indent, $this->indentLevel + 3) . "{$nameStr} => {$valueStr},";
+            }
+            $varsCode .= "\n" . str_repeat($this->indent, $this->indentLevel + 3) . "'page_body' => \$__body__,";
+            $varsCode .= "\n" . str_repeat($this->indent, $this->indentLevel + 2) . ']';
+
+            $code .= $this->line("\$output .= \$this->include({$template}, {$varsCode}, \$ctx);");
+            return $code;
+        }
+        
+        // Self-closing include (no body)
         $varsCode = '[';
         foreach ($variables as $name => $expr) {
             $nameStr = var_export($name, true);

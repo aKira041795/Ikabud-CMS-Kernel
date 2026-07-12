@@ -896,7 +896,9 @@ final class Parser
         return new ControlNode([], 'set', $attrs);
     }
 
-    /** {include "template" [with {k: v}]} */
+    /** {include "template" [key=val ...]}  —  supports key=value and with {k:v} syntax.
+     *  Block form: {include "template" key=val} body {/include}
+     *  Self-closing: {include "template" key=val /} or {include "template" key=val} */
     private function parseIncludeTag(): IncludeNode
     {
         $tag = $this->readTagContent();
@@ -910,13 +912,131 @@ final class Parser
             $template = $m[1];
             $rest = trim(substr($inner, strlen($m[0])));
 
-            // Parse optional "with {key: value, ...}"
+            // Parse optional "with {key: value, ...}" (legacy syntax)
             if (preg_match('/^with\s+\{(.+)\}$/s', $rest, $wm)) {
                 $variables = $this->parseInlineObject($wm[1]);
+            } else {
+                // Parse key=value pairs (preferred syntax)
+                $variables = $this->parseIncludeKeyValueParams($rest);
             }
         }
 
-        return new IncludeNode([], $template, $variables);
+        // Detect block include: {include "..." params} body {/include}
+        // Body is everything between the opening } and {/include}, including
+        // DiSyL tags that start with {.  Scan ahead for {/include} to decide.
+        $body = null;
+        if (!$this->lookingAt('/}')) {
+            $savedPos = $this->pos;
+            // Scan ahead for {/include} to determine if this is a block include
+            $scanPos = $this->pos;
+            $foundClose = false;
+            while ($scanPos < $this->len) {
+                if (substr($this->source, $scanPos, 10) === '{/include}') {
+                    $foundClose = true;
+                    break;
+                }
+                // Skip past nested {include} blocks to avoid false matches
+                if (substr($this->source, $scanPos, 9) === '{include ') {
+                    $nestedEnd = strpos($this->source, '{/include}', $scanPos + 9);
+                    if ($nestedEnd === false) break;
+                    $scanPos = $nestedEnd + 10;
+                } else {
+                    $scanPos++;
+                }
+            }
+            if ($foundClose) {
+                // Block include — parse body content up to {/include}
+                $this->pos = $savedPos;
+                $bodyChildren = $this->parseChildren(['{/include}']);
+                $this->consumeExact('{/include}');
+                if (!empty($bodyChildren)) {
+                    $body = new DocumentNode([], $bodyChildren);
+                }
+            }
+            // else: self-closing, no body — pos stays at savedPos
+        }
+
+        return new IncludeNode([], $template, $variables, $body);
+    }
+
+    /**
+     * Parse key=value include parameters (e.g. shell=shell_ctx).
+     * Values can be variable paths (foo.bar), quoted strings ('val'),
+     * or numeric literals.
+     *
+     * @return array<string, AbstractNode>
+     */
+    private function parseIncludeKeyValueParams(string $str): array
+    {
+        $result = [];
+        if (trim($str) === '') {
+            return $result;
+        }
+
+        // Split on whitespace, respecting that the tag end } or /> is not part of params
+        // Remove trailing /} or }
+        $str = preg_replace('/\s*\/?\}\s*$/', '', $str);
+        $str = trim($str);
+        if ($str === '') {
+            return $result;
+        }
+
+        // Match key=value pairs separated by whitespace
+        // Handles: ident=ident, ident='quoted', ident="quoted", ident=123
+        $pattern = '/([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(
+            "[^"]*" |
+            \'[^\']*\' |
+            [a-zA-Z_][a-zA-Z0-9_.]* |
+            \d+\.?\d*
+        )/x';
+
+        if (preg_match_all($pattern, $str, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $key = $match[1];
+                $rawVal = $match[2];
+
+                if (($rawVal[0] === '"' && $rawVal[-1] === '"') ||
+                    ($rawVal[0] === "'" && $rawVal[-1] === "'")) {
+                    // Quoted string literal
+                    $val = substr($rawVal, 1, -1);
+                    $result[$key] = new LiteralNode([], $val);
+                } elseif (is_numeric($rawVal)) {
+                    $result[$key] = new LiteralNode([], str_contains($rawVal, '.') ? (float)$rawVal : (int)$rawVal);
+                } else {
+                    // Variable path (identifier or dotted path)
+                    $result[$key] = $this->parseVariablePath($rawVal);
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Parse a dot-separated variable path into nested PropertyAccessNode / IdentifierNode.
+     */
+    private function parseVariablePath(string $path): AbstractNode
+    {
+        $parts = explode('.', $path);
+        $node = new IdentifierNode([], $parts[0]);
+        for ($i = 1, $n = count($parts); $i < $n; $i++) {
+            $node = new PropertyAccessNode([], $node, $parts[$i]);
+        }
+        return $node;
+    }
+
+    /**
+     * Skip whitespace and newlines at current position.
+     */
+    private function skipWhitespaceAndNewlines(): void
+    {
+        while ($this->pos < $this->len &&
+               ($this->source[$this->pos] === ' ' ||
+                $this->source[$this->pos] === "\t" ||
+                $this->source[$this->pos] === "\n" ||
+                $this->source[$this->pos] === "\r")) {
+            $this->pos++;
+        }
     }
 
     /** {extends "parent"} */

@@ -68,6 +68,11 @@ class ExpressionEvaluator
             return null;
         }
 
+        // Quoted string literal
+        if (preg_match('/^["\'](.*)["\']$/', $path, $qm)) {
+            return $qm[1];
+        }
+
         $prevExpr = $this->currentExpression;
         $this->currentExpression = $path;
 
@@ -90,8 +95,8 @@ class ExpressionEvaluator
             }
         }
 
-        // String concatenation with ~ operator
-        if (str_contains($path, '~') && !preg_match('/^["\'].*["\']$/', $path)) {
+        // String concatenation with ~ operator (skip if array literal)
+        if (str_contains($path, '~') && $path[0] !== '[' && !preg_match('/^["\'].*["\']$/', $path)) {
             $result = $this->evaluateConcat($path, $context);
             if ($result !== null) {
                 $this->currentExpression = $prevExpr;
@@ -156,7 +161,7 @@ class ExpressionEvaluator
 
         // Array literal: [val1, val2, ...] or ['key1' => val1, 'key2' => val2, ...]
         if ($path !== '' && $path[0] === '[') {
-            $close = $this->findUnquotedChar($path, ']');
+            $close = $this->findMatchingBracket($path, '[', ']', 0);
             if ($close !== false && $close === strlen($path) - 1) {
                 $inner = trim(substr($path, 1, -1));
                 if ($inner === '') {
@@ -196,7 +201,7 @@ class ExpressionEvaluator
                         } elseif (strtolower($valPart) === 'null') {
                             $resolvedVal = null;
                         } else {
-                            $resolvedVal = $this->resolveValue($valPart, $context);
+                            $resolvedVal = $this->resolveValueWithFilters($valPart, $context);
                         }
 
                         $result[(string)$key] = $resolvedVal;
@@ -213,7 +218,7 @@ class ExpressionEvaluator
                         } elseif (strtolower($part) === 'null') {
                             $result[] = null;
                         } else {
-                            $result[] = $this->resolveValue($part, $context);
+                            $result[] = $this->resolveValueWithFilters($part, $context);
                         }
                     }
                 }
@@ -935,6 +940,27 @@ class ExpressionEvaluator
     }
 
     // ── Coercion ─────────────────────────────────────────────────────
+
+    /**
+     * Find the matching closing bracket, tracking nested brackets and quotes.
+     */
+    public function findMatchingBracket(string $str, string $open, string $close, int $start = 0): int|false
+    {
+        $inSingle = false;
+        $inDouble = false;
+        $depth = 1;
+
+        for ($i = $start + 1, $len = strlen($str); $i < $len; $i++) {
+            $ch = $str[$i];
+            if ($ch === '\\' && ($inSingle || $inDouble)) { $i++; continue; }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; continue; }
+            if ($inSingle || $inDouble) continue;
+            if ($ch === $open) $depth++;
+            if ($ch === $close) { $depth--; if ($depth === 0) return $i; }
+        }
+        return false;
+    }
 
     public function coerceType(mixed $value, ?string $type, string $varName): mixed
     {

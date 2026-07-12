@@ -76,7 +76,7 @@ final readonly class PalMoneyPresenter
         $fraction = $abs % $divisor;
 
         $formatted = number_format(
-            (float)"{$whole}." . str_pad((string)$fraction, $this->decimalPlaces, '0', STR_PAD_LEFT),
+            (float) ("{$whole}." . str_pad((string)$fraction, $this->decimalPlaces, '0', STR_PAD_LEFT)),
             $this->decimalPlaces,
             '.',
             ','

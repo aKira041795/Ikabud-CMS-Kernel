@@ -1774,6 +1774,82 @@ spl_autoload_register(static function (string $class): void {
         return;
     }
 
+    // Application profile namespace: Ikabud\ApplicationProfiles\ProfileName\... → storage/application-profiles/profile-name/...
+    $appProfilePrefix = 'Ikabud\\ApplicationProfiles\\';
+    if (strncmp($class, $appProfilePrefix, strlen($appProfilePrefix)) === 0) {
+        $relative = substr($class, strlen($appProfilePrefix));
+        $parts = explode('\\', $relative);
+        $profileName = array_shift($parts);
+        if (is_string($profileName) && $profileName !== '') {
+            $slug = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $profileName));
+            $relativePath = implode('/', $parts) . '.php';
+            $path = STORAGE_PATH . '/application-profiles/' . $slug . '/src/' . $relativePath;
+            if (file_exists($path)) {
+                require_once $path;
+                return;
+            }
+            // Fallback: lowercase directory segments (Linux case-sensitivity)
+            $dirParts = array_slice($parts, 0, -1);
+            $fileName = end($parts);
+            $lowerDirParts = array_map('strtolower', $dirParts);
+            $lowerRelativePath = (count($lowerDirParts) > 0 ? implode('/', $lowerDirParts) . '/' : '') . $fileName . '.php';
+            if ($lowerRelativePath !== $relativePath) {
+                $path = STORAGE_PATH . '/application-profiles/' . $slug . '/src/' . $lowerRelativePath;
+                if (file_exists($path)) {
+                    require_once $path;
+                    return;
+                }
+            }
+        }
+        return;
+    }
+
+    // Module namespace: Ikabud\Modules\ModuleName\... → modules/module-name/...
+    $modulePrefix = 'Ikabud\\Modules\\';
+    if (strncmp($class, $modulePrefix, strlen($modulePrefix)) === 0) {
+        $relative = substr($class, strlen($modulePrefix));
+        $parts = explode('\\', $relative);
+        $moduleName = array_shift($parts);
+        if (is_string($moduleName) && $moduleName !== '') {
+            // Convert PascalCase/StudlyCaps to kebab-case directory name
+            $slug = strtolower((string) preg_replace('/(?<!^)[A-Z]/', '-$0', $moduleName));
+            $relativePath = implode('/', $parts) . '.php';
+            $path = BASE_PATH . '/modules/' . $slug . '/' . $relativePath;
+            if (file_exists($path)) {
+                require_once $path;
+                return;
+            }
+            // Fallback: try lowercasing directory segments (Linux case-sensitivity)
+            // Keep filename casing intact — only lowercase directory parts
+            $dirParts = array_slice($parts, 0, -1);
+            $fileName = end($parts);
+            $lowerDirParts = array_map('strtolower', $dirParts);
+            $lowerRelativePath = (count($lowerDirParts) > 0 ? implode('/', $lowerDirParts) . '/' : '') . $fileName . '.php';
+            if ($lowerRelativePath !== $relativePath) {
+                $path = BASE_PATH . '/modules/' . $slug . '/' . $lowerRelativePath;
+                if (file_exists($path)) {
+                    require_once $path;
+                    return;
+                }
+            }
+            // Also try without kebab conversion (exact match lowercase module name)
+            $path = BASE_PATH . '/modules/' . strtolower($moduleName) . '/' . $relativePath;
+            if (file_exists($path)) {
+                require_once $path;
+                return;
+            }
+            // And with lowercased directory segments
+            if ($lowerRelativePath !== $relativePath) {
+                $path = BASE_PATH . '/modules/' . strtolower($moduleName) . '/' . $lowerRelativePath;
+                if (file_exists($path)) {
+                    require_once $path;
+                    return;
+                }
+            }
+        }
+        return;
+    }
+
     // Theme namespace: Ikabud\Themes\<ThemeName>\... -> storage/cms-themes/<theme-slug>/src/...
     $themePrefix = 'Ikabud\\Themes\\';
     if (strncmp($class, $themePrefix, strlen($themePrefix)) !== 0) {

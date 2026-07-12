@@ -777,12 +777,112 @@ function palDb(): Ikabud\Kernel\Contracts\ModuleDB
     }
 }
 
+/**
+ * Build the shell context array for workbench:app_shell.
+ * Lives in PHP to avoid DiSyL scale limits with deeply nested arrays.
+ */
+function palBuildShellContext(array $ctx): array
+{
+    $user = $ctx['current_user'] ?? [];
+    $pc   = $ctx['page_content'] ?? '';
+    $is   = fn(string $match): bool => $pc === $match;
+
+    return [
+        'application_name'    => $ctx['pal_app_name'] ?? 'Project Audit Ledger',
+        'logo_url'            => (!empty($ctx['pal_logo_path']) ? '/' . $ctx['pal_logo_path'] : ''),
+        'user_display'        => $user['full_name'] ?? '',
+        'page_title'          => $ctx['page_title'] ?? '',
+        'navigation_sections' => [
+            [
+                'label' => 'Overview', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'Dashboard',    'url' => '/admin/project-audit-ledger',                   'icon_key' => '📊', 'is_active' => $is('dashboard')],
+                    ['label' => 'New Job Order','url' => '/admin/project-audit-ledger/projects/create',  'icon_key' => '➕', 'is_active' => $is('project-form')],
+                ],
+            ],
+            [
+                'label' => 'Job Orders', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'All Job Orders','url' => '/admin/project-audit-ledger/projects',  'icon_key' => '📋', 'is_active' => $is('project-list')],
+                    ['label' => 'Clients',       'url' => '/admin/project-audit-ledger/clients',   'icon_key' => '👤', 'is_active' => $is('client-list') || $is('client-form')],
+                    ['label' => 'Suppliers',     'url' => '/admin/project-audit-ledger/suppliers', 'icon_key' => '🏭', 'is_active' => $is('supplier-list') || $is('supplier-form')],
+                ],
+            ],
+            [
+                'label' => 'Sales & Billing', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'Sales Invoices', 'url' => '/admin/project-audit-ledger/sales',       'icon_key' => '💰', 'is_active' => $is('sales-list') || $is('sales-form')],
+                    ['label' => 'Collections',    'url' => '/admin/project-audit-ledger/collections', 'icon_key' => '💵', 'is_active' => $is('collection-list') || $is('collection-form')],
+                    ['label' => 'Quotations',     'url' => '/admin/project-audit-ledger/quotations',  'icon_key' => '📝', 'is_active' => $is('quotation-list') || $is('quotation-form')],
+                    ['label' => 'BOM',            'url' => '/admin/project-audit-ledger/bom',         'icon_key' => '📋', 'is_active' => $is('bom-list') || $is('bom-form')],
+                ],
+            ],
+            [
+                'label' => 'Inventory & Procurement', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'Inventory',        'url' => '/admin/project-audit-ledger/inventory',           'icon_key' => '📦', 'is_active' => $is('inventory-list')],
+                    ['label' => 'Stock Movements',   'url' => '/admin/project-audit-ledger/inventory/movements','icon_key' => '📤', 'is_active' => $is('movement-list')],
+                    ['label' => 'Purchases',         'url' => '/admin/project-audit-ledger/purchases',          'icon_key' => '🛒', 'is_active' => $is('purchase-list') || $is('purchase-form')],
+                    ['label' => 'Issuances',         'url' => '/admin/project-audit-ledger/issuances',          'icon_key' => '📤', 'is_active' => $is('issuance-list')],
+                    ['label' => 'Returns',           'url' => '/admin/project-audit-ledger/issuances/returns',  'icon_key' => '↩',  'is_active' => $is('material-return-list')],
+                    ['label' => 'Expenses',          'url' => '/admin/project-audit-ledger/expenses',           'icon_key' => '💳', 'is_active' => $is('expense-list') || $is('expense-form')],
+                ],
+            ],
+            [
+                'label' => 'Operations', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'Fabrication',   'url' => '/admin/project-audit-ledger/fabrication/allocations','icon_key' => '🔧', 'is_active' => $is('fabrication-allocations')],
+                    ['label' => 'Mobilization',  'url' => '/admin/project-audit-ledger/mobilization',           'icon_key' => '🚛', 'is_active' => $is('mobilization-list')],
+                    ['label' => 'Cash Advances', 'url' => '/admin/project-audit-ledger/cash-advances',          'icon_key' => '💵', 'is_active' => $is('cash-advances-list')],
+                ],
+            ],
+            [
+                'label' => 'Oversight', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'Approvals',  'url' => '/admin/project-audit-ledger/approvals',   'icon_key' => '✅', 'is_active' => $is('approval-queue')],
+                    ['label' => 'Reports',    'url' => '/admin/project-audit-ledger/reports',     'icon_key' => '📊', 'is_active' => $is('reports-center')],
+                    ['label' => 'Audit Trail','url' => '/admin/project-audit-ledger/audit-trail', 'icon_key' => '🔍', 'is_active' => $is('audit-trail')],
+                ],
+            ],
+            [
+                'label' => 'Administration', 'collapsed_default' => false,
+                'items' => [
+                    ['label' => 'Settings','url' => '/admin/project-audit-ledger/settings','icon_key' => '⚙', 'is_active' => $is('settings-overview')],
+                    ['label' => 'Users',   'url' => '/admin/project-audit-ledger/users',   'icon_key' => '👥', 'is_active' => $is('users-list')],
+                ],
+            ],
+        ],
+        'user_actions' => [
+            ['label' => 'Sign Out', 'url' => '/api/v1/project-audit-ledger/auth/logout'],
+        ],
+        'mobile_navigation' => [
+            ['label' => 'Home',      'url' => '/admin/project-audit-ledger',           'icon_key' => '📊', 'is_active' => $is('dashboard')],
+            ['label' => 'Projects',  'url' => '/admin/project-audit-ledger/projects',  'icon_key' => '📋', 'is_active' => $is('project-list')],
+            ['label' => 'Sales',     'url' => '/admin/project-audit-ledger/sales',     'icon_key' => '💰', 'is_active' => $is('sales-list')],
+            ['label' => 'Inventory', 'url' => '/admin/project-audit-ledger/inventory', 'icon_key' => '📦', 'is_active' => $is('inventory-list')],
+            ['label' => 'Approvals', 'url' => '/admin/project-audit-ledger/approvals', 'icon_key' => '✅', 'is_active' => $is('approval-queue')],
+        ],
+        'extra_styles' => ['/assets/pal/pal-ui.css'],
+        'extra_scripts' => [
+            'https://cdn.tailwindcss.com',
+            'https://unpkg.com/htmx.org@1.9.12',
+            'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',
+            '/assets/pal/pal-routes.js',
+            '/assets/pal/pal-core.js',
+            '/assets/pal/pal-forms.js',
+        ],
+    ];
+}
+
 function palRender(string $template, array $context = []): void
 {
     $settings = palSettings();
     $context['settings'] = $settings;
     $context['pal_app_name'] = $settings['app_name'] ?? 'Project Audit Ledger';
     $context['pal_logo_path'] = $settings['logo_path'] ?? '';
+
+    // Build shell context in PHP (navigation, user display, etc.)
+    $context['shell_ctx'] = palBuildShellContext($context);
 
     // Auto-render page body from individual template file
     $pageContent = $context['page_content'] ?? '';

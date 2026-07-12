@@ -15,12 +15,3 @@ interface TemplateContextValue
     /** @return array<string,mixed>|string|int|bool|null */
     public function toTemplateValue(): array|string|int|bool|null;
 }
-
-/**
- * TemplateViewModel — contract for view models passed to DiSyL templates.
- */
-interface TemplateViewModel
-{
-    /** @return array<string,mixed> */
-    public function toTemplateContext(): array;
-}

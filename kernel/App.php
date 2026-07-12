@@ -976,6 +976,12 @@ final class App
                 'app_version' => $this->config('app.version', '1.0.0'),
                 'hour' => (int) date('G'),
             ]);
+
+            // Register ARK Workbench component namespace
+            $workbenchComponents = STORAGE_PATH . '/application-profiles/ark-workbench/components';
+            if (is_dir($workbenchComponents)) {
+                $this->templateEngine->addComponentDirectory('workbench', $workbenchComponents);
+            }
         }
         
         return $this->templateEngine;

@@ -97,6 +97,9 @@ class TemplateEngine
 
     /** @var array<string, string> {@var} declarations: variable name => type string */
     private array $declaredVars = [];
+
+    /** @var array<string, string> Component namespace => directory path */
+    private array $componentDirs = [];
     
     /** @var ExpressionEvaluator Lazy-instantiated expression evaluator */
     private ?ExpressionEvaluator $evaluator = null;
@@ -110,6 +113,15 @@ class TemplateEngine
 
         $this->registerDefaultFilters();
         $this->registerDefaultComponents();
+    }
+
+    /**
+     * Register a component directory for a namespace (e.g., 'workbench' => '.../components').
+     * Enables {include "workbench:app_shell"} resolution.
+     */
+    public function addComponentDirectory(string $namespace, string $dir): void
+    {
+        $this->componentDirs[$namespace] = rtrim($dir, '/');
     }
 
     /**
@@ -1310,37 +1322,56 @@ class TemplateEngine
     
     /**
      * Process {set var = expression} statements.
-     * Also supports shorthand {var = expr} (without the set keyword).
-     * Removes the tag from output and adds the computed value to context.
-     * Supports: {set x = 5}, {set total = items | count}, {set next = page + 1},
-     *           {set locked = status != 'pending'}, {set ok = count > 0}
+     *
+     * Uses a depth-aware scanner instead of a greedy regex so that array
+     * literals containing '[' / ']' (which would never match '}') don't
+     * cause the value capture to skip past the closing '}' and merge
+     * adjacent {set} blocks.
      */
     private function processSetStatements(string $content, array &$context): string
     {
-        // Normalize shorthand {var = expr} to {set var = expr} before processing
-        $content = preg_replace('/\{(?!set\s)(\w+)\s*=\s*([^}]+)\}/', '{set $1 = $2}', $content);
-        // Normalize {var++} to {set var++} and {var--} to {set var--}
+        // Normalize shorthand {var++} and {var--}
         $content = preg_replace('/\{(?!set\s)(\w+)(\+\+|--)\}/', '{set $1$2}', $content);
 
-        // Match {set ...}, {set ... += ...}, {set ... ++}, etc.
-        // Uses `#` as delimiter to avoid escaping / inside character classes.
-        return preg_replace_callback(
-            '#\{set\s+(\w+)(?::\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*(?:(?:([+\-*\/]))?\s*=\s*([^}]+)|(\+\+|--))\}#',
-            function($match) use (&$context) {
-                $varName = trim($match[1]);
-                $varType = isset($match[2]) && $match[2] !== '' ? trim($match[2]) : null;
+        $result = '';
+        $len = strlen($content);
+        $i = 0;
 
-                // Case 1: {set x++} or {set x--} (postfix)
-                if (isset($match[5]) && ($match[5] === '++' || $match[5] === '--')) {
+        while ($i < $len) {
+            // Look for {set at current position
+            $rest = substr($content, $i);
+            if (preg_match('/^\{set\s+(\w+)(?::\s*(\??(?:"[^"]*"(?:\s*\|\s*"[^"]*")*|\w+)))?\s*(?:(?:([+\-*\/]))?\s*=\s*|(\+\+|--)\})/', $rest, $m, PREG_OFFSET_CAPTURE)) {
+                $matchStart = $i + $m[0][1];
+                $matchLen = strlen($m[0][0]);
+
+                // Output everything before this match
+                $result .= substr($content, $i, $m[0][1]);
+
+                $varName = $m[1][0];
+                $varType = isset($m[2]) && $m[2][0] !== '' ? trim($m[2][0]) : null;
+                $compoundOp = isset($m[3]) && $m[3][0] !== '' ? trim($m[3][0]) : null;
+
+                // Postfix: {set x++} / {set x--}
+                if (isset($m[4]) && $m[4][0] !== '') {
                     $current = (int)($context[$varName] ?? 0);
-                    $context[$varName] = $match[5] === '++' ? $current + 1 : $current - 1;
-                    return '';
+                    $context[$varName] = $m[4][0] === '++' ? $current + 1 : $current - 1;
+                    $i = $matchStart + $matchLen;
+                    continue;
                 }
 
-                // Case 2: compound assignment {set x += val} or simple {set x = val}
-                $compoundOp = isset($match[3]) && $match[3] !== '' ? trim($match[3]) : null;
-                $expr = isset($match[4]) ? trim($match[4]) : '';
+                // Find the value: scan from after '=' tracking bracket/quote depth
+                $eqPos = strrpos($m[0][0], '=');
+                $valStart = $matchStart + $eqPos + 1;
+                $valEnd = $this->scanToClosingBrace($content, $valStart);
 
+                if ($valEnd === false) {
+                    // Couldn't find closing brace — output the tag as-is
+                    $result .= $m[0][0];
+                    $i = $matchStart + $matchLen;
+                    continue;
+                }
+
+                $expr = trim(substr($content, $valStart, $valEnd - $valStart));
                 $value = $this->resolveSetValue($expr, $context, $varType);
 
                 if ($compoundOp !== null) {
@@ -1353,15 +1384,72 @@ class TemplateEngine
                         default => $value,
                     };
                     $value = $this->coerceType($value, $varType, $varName);
-                    $context[$varName] = $value;
-                    return '';
                 }
 
                 $context[$varName] = $value;
-                return '';
-            },
-            $content
-        );
+                $i = $valEnd + 1; // skip past closing '}'
+                continue;
+            }
+
+            // Also normalize shorthand {var = expr} (no 'set' keyword)
+            if (preg_match('/^\{(\w+)\s*=\s*/', $rest, $sm, PREG_OFFSET_CAPTURE)) {
+                $matchStart = $i + $sm[0][1];
+                $varName = $sm[1][0];
+                $eqPos = strlen($sm[0][0]);
+                $valStart = $matchStart + $eqPos;
+                $valEnd = $this->scanToClosingBrace($content, $valStart);
+
+                if ($valEnd !== false) {
+                    $expr = trim(substr($content, $valStart, $valEnd - $valStart));
+                    $value = $this->resolveSetValue($expr, $context, null);
+                    $context[$varName] = $value;
+                    $result .= substr($content, $i, $sm[0][1]);
+                    $i = $valEnd + 1;
+                    continue;
+                }
+            }
+
+            $result .= $content[$i];
+            $i++;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Scan from $start to find the matching '}' that closes a {set} or {...} block,
+     * tracking bracket, paren, and quote depth.
+     */
+    private function scanToClosingBrace(string $content, int $start): int|false
+    {
+        $len = strlen($content);
+        $depth = 0;
+        $inSingle = false;
+        $inDouble = false;
+
+        for ($i = $start; $i < $len; $i++) {
+            $ch = $content[$i];
+
+            if ($ch === '\\' && ($inSingle || $inDouble)) {
+                $i++; continue;
+            }
+            if ($ch === "'" && !$inDouble) { $inSingle = !$inSingle; continue; }
+            if ($ch === '"' && !$inSingle) { $inDouble = !$inDouble; continue; }
+            if ($inSingle || $inDouble) continue;
+
+            if ($ch === '{' || $ch === '[' || $ch === '(') { $depth++; continue; }
+            if ($ch === '}') {
+                if ($depth === 0) return $i;
+                $depth--;
+                continue;
+            }
+            if ($ch === ']' || $ch === ')') {
+                if ($depth > 0) $depth--;
+                continue;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -4062,7 +4150,11 @@ class TemplateEngine
     private int $componentDepth = 0;
 
     /**
-     * Process includes
+     * Process include tags — supports both self-closing and block forms:
+     *   {include "name"}                        — no params
+     *   {include "name" with: {k: v}}           — with: inline object
+     *   {include "name" key=value key2=value2}  — key=value params
+     *   {include "name" key=val} ... {/include} — block: body becomes page_body
      */
     private function processIncludes(string $content, array $context): string
     {
@@ -4072,48 +4164,208 @@ class TemplateEngine
 
         $maxIterations = 20;
         $iteration = 0;
-        
+
         while ($iteration < $maxIterations && preg_match('/\{include\s+"([^"]+)"/', $content)) {
+            // Block include: {include "name" ...} ... {/include}
             $content = preg_replace_callback(
-                '/\{include\s+"([^"]+)"(?:\s+with:?\s+(\{(?:[^{}]|\{[^}]*\})*\}?))?\s*\}/',
-                function($match) use ($context) {
-                    $includePath = $this->resolveTemplatePath($match[1]);
-                    if (!file_exists($includePath)) {
-                        $this->logError("Include not found: {$match[1]}");
-                        return '';
-                    }
-
-                    // Circular include detection
-                    $realPath = realpath($includePath) ?: $includePath;
-                    if (isset($this->includeStack[$realPath])) {
-                        $this->logError("Circular include detected: {$match[1]}");
-                        return '';
-                    }
-                    $this->includeStack[$realPath] = true;
-                    
-                    $includeContext = $context;
-                    if (!empty($match[2])) {
-                        $extra = $this->parseInlineObject($match[2], $context);
-                        $includeContext = array_merge($context, $extra);
-                    }
-
-                    $includeContent = $this->readIncludeSource($includePath);
-                    if ($includeContent === false) {
-                        unset($this->includeStack[$realPath]);
-                        $this->logError("Failed to read include: {$match[1]}");
-                        return '';
-                    }
-                    $result = $this->compile($includeContent, $includeContext);
-
-                    unset($this->includeStack[$realPath]);
-                    return $result;
+                '/\{include\s+"([^"]+)"((?:\s+[^}]*?)?)\s*\}\s*((?:(?!\{include\s).)*?)\s*\{\/include\}/s',
+                function ($match) use ($context) {
+                    return $this->processIncludeTag($match[1], $match[2], $context, $match[3] ?? null);
                 },
-                $content
+                $content,
+                1
             );
+
+            // Self-closing include: {include "name" ...} (no matching {/include})
+            $content = preg_replace_callback(
+                '/\{include\s+"([^"]+)"((?:\s+[^}]*?)?)\s*\/?\s*\}/',
+                function ($match) use ($context) {
+                    return $this->processIncludeTag($match[1], $match[2], $context, null);
+                },
+                $content,
+                1
+            );
+
             $iteration++;
         }
-        
+
         return $content;
+    }
+
+    /**
+     * Process a single include tag — resolve template, merge params, compile.
+     */
+    private function processIncludeTag(string $templateName, string $paramsStr, array $context, ?string $bodyContent): string
+    {
+        $includePath = $this->resolveTemplatePath($templateName);
+        if (!file_exists($includePath)) {
+            $this->logError("Include not found: {$templateName}");
+            return $bodyContent ?? '';
+        }
+
+        // Circular include detection
+        $realPath = realpath($includePath) ?: $includePath;
+        if (isset($this->includeStack[$realPath])) {
+            $this->logError("Circular include detected: {$templateName}");
+            return $bodyContent ?? '';
+        }
+        $this->includeStack[$realPath] = true;
+
+        $includeContext = $context;
+
+        // Parse params: both with: {...} and key=value
+        $params = $this->parseIncludeParams($paramsStr, $context);
+        if ($params !== []) {
+            $includeContext = array_merge($context, $params);
+        }
+
+        // Block include: body content becomes page_body (compiled as DiSyL first)
+        if ($bodyContent !== null) {
+            $includeContext['page_body'] = $this->compile(trim($bodyContent), $includeContext);
+        }
+
+        $includeSource = $this->readIncludeSource($includePath);
+        if ($includeSource === false) {
+            unset($this->includeStack[$realPath]);
+            $this->logError("Failed to read include: {$templateName}");
+            return $bodyContent ?? '';
+        }
+
+        $result = $this->compile($includeSource, $includeContext);
+        unset($this->includeStack[$realPath]);
+        return $result;
+    }
+
+    /**
+     * Parse include params string into key-value array.
+     * Supports: with: {k: v, ...} and key=value key2=value2
+     */
+    private function parseIncludeParams(string $paramsStr, array $context): array
+    {
+        $paramsStr = trim($paramsStr);
+        if ($paramsStr === '') {
+            return [];
+        }
+
+        $result = [];
+
+        // with: {...} syntax
+        if (preg_match('/^with:?\s*(\{[^}]*\})/', $paramsStr, $m)) {
+            $result = $this->parseInlineObject($m[1], $context);
+            // Also check for key=value params after the with: block
+            $rest = trim(substr($paramsStr, strlen($m[0])));
+            if ($rest !== '') {
+                $kv = $this->parseKeyValueParams($rest, $context);
+                $result = array_merge($result, $kv);
+            }
+            return $result;
+        }
+
+        // key=value syntax only
+        return $this->parseKeyValueParams($paramsStr, $context);
+    }
+
+    /**
+     * Parse space-separated key=value pairs using a character-by-character
+     * scanner that correctly handles quoted strings, nested braces, and
+     * filter expressions like val|default:'Hello World'.
+     */
+    private function parseKeyValueParams(string $str, array $context): array
+    {
+        $result = [];
+        $len = strlen($str);
+        $i = 0;
+
+        while ($i < $len) {
+            // Skip whitespace
+            while ($i < $len && ($str[$i] === ' ' || $str[$i] === "\t" || $str[$i] === "\n")) {
+                $i++;
+            }
+            if ($i >= $len) break;
+
+            // Read key (up to '=')
+            $keyStart = $i;
+            while ($i < $len && $str[$i] !== '=' && $str[$i] !== ' ') {
+                $i++;
+            }
+            $key = substr($str, $keyStart, $i - $keyStart);
+            if ($key === '') break;
+
+            // Skip whitespace before '='
+            while ($i < $len && ($str[$i] === ' ' || $str[$i] === "\t")) {
+                $i++;
+            }
+            if ($i >= $len || $str[$i] !== '=') break;
+            $i++; // skip '='
+
+            // Skip whitespace after '='
+            while ($i < $len && ($str[$i] === ' ' || $str[$i] === "\t")) {
+                $i++;
+            }
+            if ($i >= $len) break;
+
+            // Read value — scan until unquoted/unbraced space or end
+            $valStart = $i;
+            $depth = 0;
+            $quote = null;
+
+            while ($i < $len) {
+                $c = $str[$i];
+
+                if ($quote !== null) {
+                    if ($c === '\\' && $i + 1 < $len) {
+                        $i += 2; continue;
+                    }
+                    if ($c === $quote) {
+                        $quote = null;
+                    }
+                    $i++;
+                    continue;
+                }
+
+                if ($c === '"' || $c === "'") {
+                    $quote = $c;
+                    $i++;
+                    continue;
+                }
+
+                if ($c === '{') {
+                    $depth++;
+                    $i++;
+                    continue;
+                }
+
+                if ($c === '}') {
+                    if ($depth > 0) {
+                        $depth--;
+                        $i++;
+                        continue;
+                    }
+                    // Unnested '}' at top level — end of value
+                    // But don't consume it; it belongs to the include tag closing
+                    break;
+                }
+
+                if ($c === ' ' || $c === "\t" || $c === "\n") {
+                    if ($depth === 0) break;
+                }
+
+                $i++;
+            }
+
+            $rawValue = substr($str, $valStart, $i - $valStart);
+
+            // Resolve the value
+            if (str_starts_with($rawValue, '{') && str_ends_with($rawValue, '}')) {
+                $result[$key] = $this->parseInlineObject($rawValue, $context);
+            } elseif (preg_match('/^["\']/', $rawValue)) {
+                $result[$key] = trim($rawValue, ' "\'');
+            } else {
+                $result[$key] = $this->resolveValueWithFilters($rawValue, $context);
+            }
+        }
+
+        return $result;
     }
 
     private function readIncludeSource(string $includePath): string|false
@@ -5275,6 +5527,12 @@ class TemplateEngine
             return $moduleAliasPath;
         }
 
+        // Component namespace resolution: "workbench:app_shell" → registered component dir
+        $componentPath = $this->resolveComponentNamespacePath($template);
+        if ($componentPath !== null) {
+            return $componentPath;
+        }
+
         if (str_starts_with($template, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
             $resolvedPath = cmsResolveThemeTemplateAliasPath($template);
             if ($resolvedPath !== '') {
@@ -5351,6 +5609,56 @@ class TemplateEngine
 
         if (is_file($normalizedCandidate)) {
             return $normalizedCandidate;
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve "namespace:component" include paths to registered component directories.
+     * Example: "workbench:app_shell" → "{componentDirs['workbench']}/app_shell.disyl"
+     */
+    private function resolveComponentNamespacePath(string $template): ?string
+    {
+        $colonPos = strpos($template, ':');
+        if ($colonPos === false) {
+            return null;
+        }
+
+        $namespace = substr($template, 0, $colonPos);
+        $componentName = substr($template, $colonPos + 1);
+
+        if (!isset($this->componentDirs[$namespace])) {
+            return null;
+        }
+
+        $baseDir = $this->componentDirs[$namespace];
+
+        // If componentName already includes a category: "shell/app_shell" → direct match
+        if (str_contains($componentName, '/')) {
+            $candidates = [
+                $baseDir . '/' . $componentName,
+                $baseDir . '/' . $componentName . '/index.disyl',
+            ];
+            foreach ($candidates as $candidate) {
+                if (is_file($candidate)) {
+                    return $candidate;
+                }
+            }
+            return null;
+        }
+
+        // Scan subdirectories for the component file
+        $dirs = glob($baseDir . '/*', GLOB_ONLYDIR);
+        if ($dirs === false) {
+            return null;
+        }
+
+        foreach ($dirs as $dir) {
+            $candidate = $dir . '/' . $componentName;
+            if (is_file($candidate)) {
+                return $candidate;
+            }
         }
 
         return null;

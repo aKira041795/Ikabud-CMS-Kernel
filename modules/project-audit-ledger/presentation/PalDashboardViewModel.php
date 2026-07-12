@@ -59,7 +59,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     private static function projectPipeline(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
         $active = $db->prepare(
-            "SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','started','ongoing')"
+            "SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','in_progress')"
         );
         $active->execute([':tid' => $tenantId]);
 
@@ -90,7 +90,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
 
         $expenses = $db->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM pal_expenses
-             WHERE tenant_id = :tid AND status IN ('approved','paid')"
+             WHERE tenant_id = :tid AND status = 'approved'"
         );
         $expenses->execute([':tid' => $tenantId]);
         $totalExpenses = (float)$expenses->fetchColumn();
@@ -124,13 +124,13 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
 
         // Receivables
         $collected = $db->prepare(
-            "SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'completed'"
+            "SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'approved'"
         );
         $collected->execute([':tid' => $tenantId]);
         $totalCollected = (float)$collected->fetchColumn();
 
         $outstanding = $db->prepare(
-            "SELECT COALESCE(SUM(balance), 0) FROM pal_receivables WHERE tenant_id = :tid AND status != 'paid'"
+            "SELECT COALESCE(SUM(outstanding), 0) FROM pal_receivables WHERE tenant_id = :tid AND status NOT IN ('settled','cancelled','voided')"
         );
         $outstanding->execute([':tid' => $tenantId]);
         $outstandingReceivables = (float)$outstanding->fetchColumn();
@@ -155,20 +155,20 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
 
         $collections = $db->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM pal_collections
-             WHERE tenant_id = :tid AND status = 'completed' AND collection_date >= :month_start"
+             WHERE tenant_id = :tid AND status = 'approved' AND payment_date >= :month_start"
         );
         $collections->execute([':tid' => $tenantId, ':month_start' => $monthStart]);
         $monthlyCollections = (float)$collections->fetchColumn();
 
         $expenses = $db->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM pal_expenses
-             WHERE tenant_id = :tid AND status IN ('approved','paid') AND expense_date >= :month_start"
+             WHERE tenant_id = :tid AND status = 'approved' AND expense_date >= :month_start"
         );
         $expenses->execute([':tid' => $tenantId, ':month_start' => $monthStart]);
         $monthlyExpenses = (float)$expenses->fetchColumn();
 
         $fabrication = $db->prepare(
-            "SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues
+            "SELECT COALESCE(SUM(amount), 0) FROM pal_fabrication_payments
              WHERE tenant_id = :tid AND payment_date >= :month_start"
         );
         $fabrication->execute([':tid' => $tenantId, ':month_start' => $monthStart]);
@@ -191,7 +191,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     {
         $stmt = $db->prepare(
             "SELECT entity_type, entity_id, submitted_by, submitted_at
-             FROM pal_approvals WHERE tenant_id = :tid AND status = 'pending'
+             FROM pal_approvals WHERE tenant_id = :tid AND decision = 'pending'
              ORDER BY submitted_at DESC LIMIT 10"
         );
         $stmt->execute([':tid' => $tenantId]);
@@ -202,8 +202,17 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     private static function lowStock(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
         $stmt = $db->prepare(
-            "SELECT name, quantity, reorder_level FROM pal_materials
-             WHERE tenant_id = :tid AND quantity <= reorder_level
+            "SELECT m.name, m.reorder_level,
+                    COALESCE(SUM(CASE WHEN im.movement_type IN ('stock_in','return','transfer_in','adjustment_up','initial_balance')
+                                      THEN im.quantity
+                                      WHEN im.movement_type IN ('issuance','wastage','damage','transfer_out','adjustment_down')
+                                      THEN -im.quantity
+                                      ELSE 0 END), 0) AS quantity
+             FROM pal_materials m
+             LEFT JOIN pal_inventory_movements im ON im.material_id = m.id AND im.tenant_id = m.tenant_id
+             WHERE m.tenant_id = :tid
+             GROUP BY m.id, m.name, m.reorder_level
+             HAVING quantity <= m.reorder_level
              ORDER BY quantity ASC LIMIT 5"
         );
         $stmt->execute([':tid' => $tenantId]);
@@ -214,8 +223,8 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     private static function recentActivity(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
         $stmt = $db->prepare(
-            "SELECT action, entity_type, entity_id, created_at, user_name
-             FROM audit_logs WHERE tenant_id = :tid
+            "SELECT action, entity_type, entity_id, created_at, actor_user_id AS user_name
+             FROM pal_audit_logs WHERE tenant_id = :tid
              ORDER BY created_at DESC LIMIT 10"
         );
         $stmt->execute([':tid' => $tenantId]);
@@ -238,7 +247,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     private static function recentCollections(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
         $stmt = $db->prepare(
-            "SELECT id, description, amount, status, collection_date AS created_at
+            "SELECT id, notes AS description, amount, status, payment_date AS created_at
              FROM pal_collections WHERE tenant_id = :tid
              ORDER BY created_at DESC LIMIT 5"
         );

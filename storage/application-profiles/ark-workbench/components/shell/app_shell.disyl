@@ -7,15 +7,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{s.application_name} — {s.page_title|default:'Dashboard'}</title>
-    <link rel="stylesheet" href="/application-profiles/ark-workbench/assets/workbench.css">
-    {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="/{style}">{/for}{/if}
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=1">
+    {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="{style}">{/for}{/if}
 </head>
 <body class="wb-app-shell">
     {* Skip to content *}
     <a href="#wb-main" class="wb-skip-link">Skip to content</a>
 
     {* Mobile menu toggle *}
-    <button id="wb-menu-btn" class="lg:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" aria-expanded="false">
+    <button id="wb-menu-btn" class="md:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" aria-expanded="false">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
 
@@ -58,7 +58,7 @@
     </aside>
 
     {* Main Content *}
-    <main id="wb-main" class="wb-app-shell__main pb-16 lg:pb-0">
+    <main id="wb-main" class="wb-app-shell__main pb-16 md:pb-0">
         {page_body|raw}
     </main>
 
@@ -77,7 +77,7 @@
     {* Toast container *}
     <div id="wb-toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
-    <script src="/application-profiles/ark-workbench/assets/workbench-core.js"></script>
-    {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="/{script}"></script>{/for}{/if}
+    <script src="/assets/workbench/workbench-core.js"></script>
+    {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
 </body>
 </html>
