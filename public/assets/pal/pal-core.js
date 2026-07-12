@@ -334,4 +334,21 @@
         return false;
     };
 
+    // ── Responsive tables: auto-generate data-label from thead ──
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.pal-responsive-table').forEach(function (table) {
+            var headers = [];
+            table.querySelectorAll('thead th').forEach(function (th) {
+                headers.push(th.textContent.trim());
+            });
+            table.querySelectorAll('tbody tr').forEach(function (tr) {
+                tr.querySelectorAll('td').forEach(function (td, i) {
+                    if (!td.hasAttribute('data-label') && headers[i]) {
+                        td.setAttribute('data-label', headers[i]);
+                    }
+                });
+            });
+        });
+    });
+
 })();

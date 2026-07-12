@@ -16,6 +16,7 @@ window.PalRoutes = (function () {
         'project.update': BASE_API + '/projects/{id}',
         'project.status': BASE_API + '/projects/{id}/status',
         'project.cost': BASE_API + '/projects/{id}/cost',
+        'project.email': BASE_API + '/projects/{id}/email',
         'collection.store': BASE_API + '/collections',
         'expense.store': BASE_API + '/expenses',
         'purchase.store': BASE_API + '/purchases',
