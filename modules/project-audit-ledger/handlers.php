@@ -15,6 +15,7 @@ require_once __DIR__ . '/services/CashAdvanceService.php';
 require_once __DIR__ . '/services/FabricationService.php';
 require_once __DIR__ . '/services/SalesService.php';
 require_once __DIR__ . '/services/ApprovalService.php';
+require_once __DIR__ . '/services/AttachmentService.php';
 require_once __DIR__ . '/handlers/00-bootstrap.php';
 require_once __DIR__ . '/handlers/06-team-lead-auth.php';
 require_once __DIR__ . '/handlers/05-auth.php';

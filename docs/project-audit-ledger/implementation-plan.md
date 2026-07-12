@@ -2003,3 +2003,22 @@ The ZAP-ARTS quotation form (Excel) maps to PAL fields as follows:
 | 10 | `pal_material_categories` listed twice in `owns_tables` | `module.json` | Removed duplicate entry |
 | 11 | Duplicate quotation convert route | `routes.php` | Removed duplicate line |
 
+### A.9 PAL domain hardening — completion safety & client snapshots (2026-07-12)
+
+**Scope**: P0 contract correctness + P1 domain hardening from the July 2026 repository review.
+
+| # | Issue | File | Fix |
+|---|---|---|---|
+| 1 | Dead-code `elseif (isset($data['items']))` branch (unreachable) | `ProjectService.php` | Removed duplicate branch |
+| 2 | Concurrent completion can double-create invoices | `ProjectService.php` | Added `SELECT ... FOR UPDATE` row lock + idempotent early-return for already-completed projects |
+| 3 | No unique constraints on business numbers | `016_pal_unique_business_numbers.sql` | Added `uq_pal_proj_jo_number`, `uq_pal_sales_number`, `uq_pal_invoice_number`, `uq_pal_collection_number` (all per-tenant) |
+| 4 | `pal.sale.created` domain event not emitted on auto-created invoices | `ProjectService.php` | Added `palFireEvent('pal.sale.created', ...)` after audit log |
+| 5 | Client master changes mutate historical invoice data | `017_pal_client_snapshot.sql`, `SalesService.php`, `ProjectService.php` | Added `client_name`, `client_contact`, `client_email`, `client_phone`, `client_address` columns to `pal_sales`; populated at creation time via `loadClientSnapshot()` |
+| 6 | Invoice `client_name` must fall back to snapshot before live join | `SalesService.php` | Changed SELECT queries to `COALESCE(s.client_name, c.name)` |
+| 7 | No formal AttachmentService | `AttachmentService.php`, `handlers.php` | Created `palAttachmentService` with `upload()`, `get()`, `listForEntity()`, `delete()`, `reassign()`, `getFilePath()` |
+| 8 | `palDb()` crashes in test/CLI context when `module()` is undefined | `helpers.php` | Added `catch (Throwable)` fallback with explicit `owns_tables`/`reads_tables` lists |
+| 9 | No regression coverage for completion flow | `PalProjectCompletionTest.php` | 26 integration tests: idempotency, invoice creation, client snapshots + immutability, no-client guard, duplicate prevention, unique constraint verification |
+
+**Migration files added**: `016_pal_unique_business_numbers.sql`, `017_pal_client_snapshot.sql`
+
+**Test**: `php tests/PalProjectCompletionTest.php` — 26 passed, 0 failed, clean logs.

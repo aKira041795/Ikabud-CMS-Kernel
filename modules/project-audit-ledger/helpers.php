@@ -746,7 +746,35 @@ function palDb(): Ikabud\Kernel\Contracts\ModuleDB
             app()->tenant()->setTenantId($userTid);
         }
     }
-    return palCtx()->db();
+    try {
+        return palCtx()->db();
+    } catch (Throwable $e) {
+        // Fallback: module context not available (test/CLI context).
+        // Return a properly configured ModuleDB so palAudit() and other
+        // helpers don't crash. Table lists mirror module.json declarations.
+        $pdo = app()->db();
+        return new Ikabud\Kernel\Contracts\ModuleDB(
+            $pdo,
+            'project-audit-ledger',
+            [   // owns_tables
+                'pal_users', 'pal_password_resets', 'pal_projects', 'pal_project_items',
+                'pal_project_types', 'pal_clients', 'pal_suppliers', 'pal_materials',
+                'pal_material_categories', 'pal_units', 'pal_inventory_locations',
+                'pal_inventory_movements', 'pal_inventory_balances', 'pal_purchases',
+                'pal_purchase_items', 'pal_material_issuances', 'pal_material_issuance_items',
+                'pal_material_returns', 'pal_expenses', 'pal_expense_categories',
+                'pal_sales', 'pal_sale_items', 'pal_collections', 'pal_fabrication_allocations',
+                'pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_team_leads',
+                'pal_approvals', 'pal_attachments', 'pal_audit_logs', 'pal_report_exports',
+                'pal_settings', 'pal_quotations', 'pal_quotation_items', 'pal_cash_advances',
+                'pal_otp_codes', 'pal_mobilization_requests',
+            ],
+            [   // reads_tables
+                'audit_logs', 'attendance_groups', 'attendance_group_members',
+                'attendance_wage_users', 'employee_profiles', 'attendance_records',
+            ]
+        );
+    }
 }
 
 function palRender(string $template, array $context = []): void

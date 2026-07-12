@@ -329,15 +329,6 @@ class palProjectService
             $newTotal = $itemsTotal + $installationCharge + $mobilizationCharge + $otherCharges;
             $fields[] = 'contract_amount = :_new_total';
             $params[':_new_total'] = $newTotal;
-        } elseif (isset($data['items'])) {
-            // Legacy: items provided without _jo_type
-            $installationCharge = (float)($data['installation_charge'] ?? $project['installation_charge'] ?? 0);
-            $mobilizationCharge = (float)($data['mobilization_charge'] ?? $project['mobilization_charge'] ?? 0);
-            $otherCharges = (float)($data['other_charges'] ?? $project['other_charges'] ?? 0);
-            $itemsTotal = $this->calculateItemsTotal($data['items']);
-            $newTotal = $itemsTotal + $installationCharge + $mobilizationCharge + $otherCharges;
-            $fields[] = 'contract_amount = :_new_total';
-            $params[':_new_total'] = $newTotal;
         }
 
         if (array_key_exists('status', $data)) {
@@ -445,35 +436,60 @@ class palProjectService
 
         $this->db->beginTransaction();
         try {
-            // 1. Update status + set actual completion date
+            // 1. Lock the project row to prevent concurrent completion
+            $lockStmt = $this->db->prepare("SELECT status, contract_amount, client_id FROM pal_projects WHERE id = :id AND tenant_id = :tid FOR UPDATE");
+            $lockStmt->execute([':id' => $id, ':tid' => $this->tenantId]);
+            $locked = $lockStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$locked) {
+                throw new InvalidArgumentException('Project not found.');
+            }
+            if ($locked['status'] === 'completed') {
+                // Already completed — idempotent: return true without double-creating
+                $this->db->commit();
+                return true;
+            }
+
+            // 2. Update status + set actual completion date
             $this->db->prepare("UPDATE pal_projects SET status = 'completed', actual_completion_date = CURDATE(), version = version + 1, updated_by = :ub WHERE id = :id AND tenant_id = :tid")
                 ->execute([':id' => $id, ':tid' => $this->tenantId, ':ub' => $this->userId]);
 
-            // 2. Check if there's an existing sale for this project
+            // 3. Check if there's an existing sale for this project (locked-safe: within same transaction)
             $saleStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE project_id = :pid AND tenant_id = :tid");
             $saleStmt->execute([':pid' => $id, ':tid' => $this->tenantId]);
             $hasSale = (int)$saleStmt->fetchColumn() > 0;
 
+            // Extract contract amount from locked row (needed both inside and outside the sale block)
+            $contractAmount = (float)($locked['contract_amount'] ?? 0);
+
             // 3. If no sale exists, auto-create invoice even without a client (walk-in)
             if (!$hasSale) {
-                $contractAmount = (float)($project['contract_amount'] ?? 0);
                 // Generate invoice number
                 $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE tenant_id = :tid");
                 $countStmt->execute([':tid' => $this->tenantId]);
                 $prefix = (function_exists('palSettings') ? (palSettings()['sales_prefix'] ?? 'INV') : 'INV');
                 $invNum = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$countStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
+                // Snapshot client information at time of invoice creation
+                $clientSnapshot = $this->loadClientSnapshot((int)$locked['client_id']);
+
                 $stmt = $this->db->prepare("INSERT INTO pal_sales
-                    (tenant_id, sales_number, invoice_number, project_id, client_id, sales_date, gross_amount,
+                    (tenant_id, sales_number, invoice_number, project_id, client_id,
+                     client_name, client_contact, client_email, client_phone, client_address,
+                     sales_date, gross_amount,
                      installation_charge, mobilization_charge, other_charges, mode_of_payment,
                      down_payment, down_payment_type, scope_of_work, with_installation, due_date, status, created_by)
-                    VALUES (:t, :sn, :invn, :pj, :cl, :sd, :ga, :ic, :mc, :oc, :mop, :dp, :dpt, :sow, :wi, :dd, 'issued', :cb)");
+                    VALUES (:t, :sn, :invn, :pj, :cl, :cn, :cc, :ce, :cp, :cad, :sd, :ga, :ic, :mc, :oc, :mop, :dp, :dpt, :sow, :wi, :dd, 'issued', :cb)");
                 $stmt->execute([
                     ':t' => $this->tenantId,
                     ':sn' => $invNum,
                     ':invn' => $invNum,
                     ':pj' => $id,
-                    ':cl' => (int)$project['client_id'],
+                    ':cl' => (int)$locked['client_id'],
+                    ':cn' => $clientSnapshot['name'],
+                    ':cc' => $clientSnapshot['contact_person'],
+                    ':ce' => $clientSnapshot['email'],
+                    ':cp' => $clientSnapshot['phone'],
+                    ':cad' => $clientSnapshot['address'],
                     ':sd' => date('Y-m-d'),
                     ':ga' => $contractAmount,
                     ':ic' => (float)($project['installation_charge'] ?? 0),
@@ -517,6 +533,14 @@ class palProjectService
                 palAudit('pal.sale.created', $this->userId, 'pal_sales', (string)$saleId, null,
                     ['project_id' => $id, 'auto_created_on_completion' => true, 'amount' => $contractAmount]);
 
+                // Emit domain event for sale creation
+                palFireEvent('pal.sale.created', [
+                    'sale_id' => $saleId,
+                    'project_id' => $id,
+                    'amount' => $contractAmount,
+                    'auto_created_on_completion' => true,
+                ]);
+
                 // Auto-create collection record
                 $collCount = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
                 $collCount->execute([':tid' => $this->tenantId]);
@@ -525,7 +549,7 @@ class palProjectService
                 $collAmount = !empty($project['down_payment']) ? (float)$project['down_payment'] : $contractAmount;
                 $pm = $project['mode_of_payment'] ?? 'cash';
                 $collStmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :no, :rb, :st, :cb)");
-                $collStmt->execute([':t' => $this->tenantId, ':cn' => $collNum, ':si' => $saleId, ':pj' => $id, ':cl' => (int)$project['client_id'], ':pd' => date('Y-m-d'), ':amt' => $collAmount, ':pm' => $pm, ':no' => 'Auto-created from project completion', ':rb' => $this->userId, ':st' => 'pending', ':cb' => $this->userId]);
+                $collStmt->execute([':t' => $this->tenantId, ':cn' => $collNum, ':si' => $saleId, ':pj' => $id, ':cl' => (int)$locked['client_id'], ':pd' => date('Y-m-d'), ':amt' => $collAmount, ':pm' => $pm, ':no' => 'Auto-created from project completion', ':rb' => $this->userId, ':st' => 'pending', ':cb' => $this->userId]);
             }
 
             $this->db->commit();
@@ -534,7 +558,7 @@ class palProjectService
             palFireEvent('pal.project.completed', [
                 'project_id' => $id,
                 'auto_invoiced' => !$hasSale,
-                'contract_amount' => $project['contract_amount'] ?? 0,
+                'contract_amount' => $contractAmount,
             ]);
 
             return true;
@@ -692,6 +716,21 @@ class palProjectService
         }
 
         return mb_substr(($particulars ? $particulars . ' ' : '') . $bracketed, 0, 255);
+    }
+
+    /**
+     * Load client snapshot data at the time of invoice creation.
+     * Returns defaults if no client is linked.
+     */
+    private function loadClientSnapshot(int $clientId): array
+    {
+        if ($clientId <= 0) {
+            return ['name' => null, 'contact_person' => null, 'email' => null, 'phone' => null, 'address' => null];
+        }
+        $stmt = $this->db->prepare("SELECT name, contact_person, email, phone, address FROM pal_clients WHERE id = :id AND tenant_id = :tid");
+        $stmt->execute([':id' => $clientId, ':tid' => $this->tenantId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: ['name' => null, 'contact_person' => null, 'email' => null, 'phone' => null, 'address' => null];
     }
 
     /**

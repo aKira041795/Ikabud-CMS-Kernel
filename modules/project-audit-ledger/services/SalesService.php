@@ -22,7 +22,7 @@ class palSalesService
         if (!empty($filters['project_id'])) { $where[] = 's.project_id = :pid'; $params[':pid'] = (int)$filters['project_id']; }
         if (!empty($filters['status'])) { $where[] = 's.status = :st'; $params[':st'] = $filters['status']; }
         $w = implode(' AND ', $where);
-        $sql = "SELECT s.*, p.title AS project_title, c.name AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE {$w} ORDER BY s.created_at DESC LIMIT 50";
+        $sql = "SELECT s.*, p.title AS project_title, COALESCE(s.client_name, c.name) AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE {$w} ORDER BY s.created_at DESC LIMIT 50";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -30,7 +30,7 @@ class palSalesService
 
     public function get(int $id): ?array
     {
-        $sql = "SELECT s.*, p.title AS project_title, c.name AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE s.id = :id AND s.tenant_id = :tid";
+        $sql = "SELECT s.*, p.title AS project_title, COALESCE(s.client_name, c.name) AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE s.id = :id AND s.tenant_id = :tid";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -70,17 +70,27 @@ class palSalesService
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare("INSERT INTO pal_sales 
-                (tenant_id, sales_number, project_id, client_id, quotation_id, invoice_number, sales_date,
+                (tenant_id, sales_number, project_id, client_id, 
+                 client_name, client_contact, client_email, client_phone, client_address,
+                 quotation_id, invoice_number, sales_date,
                  gross_amount, discount_amount, tax_amount, installation_charge, mobilization_charge, other_charges,
                  down_payment, down_payment_type, mode_of_payment, scope_of_work, with_installation,
                  due_date, payment_terms, notes, status, created_by) 
-                VALUES (:t, :sn, :pj, :cl, :qi, :inv, :sd, :ga, :da, :ta, :ic, :mc, :oc, :dp, :dpt, :mop, :sow, :wi, :dd, :pt, :no, 'issued', :cb)");
+                VALUES (:t, :sn, :pj, :cl, :cn, :cc, :ce, :cp, :ca, :qi, :inv, :sd, :ga, :da, :ta, :ic, :mc, :oc, :dp, :dpt, :mop, :sow, :wi, :dd, :pt, :no, 'issued', :cb)");
+
+            // Snapshot client information at time of invoice creation
+            $clientSnapshot = $this->loadClientSnapshot($data['client_id'] ?? null);
 
             $stmt->execute([
                 ':t' => $this->tenantId,
                 ':sn' => $num,
                 ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null,
                 ':cl' => !empty($data['client_id']) ? (int)$data['client_id'] : null,
+                ':cn' => $clientSnapshot['name'],
+                ':cc' => $clientSnapshot['contact_person'],
+                ':ce' => $clientSnapshot['email'],
+                ':cp' => $clientSnapshot['phone'],
+                ':ca' => $clientSnapshot['address'],
                 ':qi' => !empty($data['quotation_id']) ? (int)$data['quotation_id'] : null,
                 ':inv' => !empty($data['invoice_number']) ? $data['invoice_number'] : $num,
                 ':sd' => $data['sales_date'] ?? date('Y-m-d'),
@@ -213,6 +223,21 @@ class palSalesService
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Load client snapshot data at the time of invoice creation.
+     * Returns defaults if no client is linked (walk-in sale).
+     */
+    private function loadClientSnapshot(?int $clientId): array
+    {
+        if ($clientId === null || $clientId <= 0) {
+            return ['name' => null, 'contact_person' => null, 'email' => null, 'phone' => null, 'address' => null];
+        }
+        $stmt = $this->db->prepare("SELECT name, contact_person, email, phone, address FROM pal_clients WHERE id = :id AND tenant_id = :tid");
+        $stmt->execute([':id' => $clientId, ':tid' => $this->tenantId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ?: ['name' => null, 'contact_person' => null, 'email' => null, 'phone' => null, 'address' => null];
     }
 
     private function saveItems(int $saleId, array $items): void

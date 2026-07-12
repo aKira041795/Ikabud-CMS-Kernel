@@ -80,7 +80,9 @@
         "database/migrations/012_pal_mobilization.sql",
         "database/migrations/013_pal_project_pending_status.sql",
         "database/migrations/014_pal_jo_merge.sql",
-        "database/migrations/015_pal_jo_type.sql"
+        "database/migrations/015_pal_jo_type.sql",
+        "database/migrations/016_pal_unique_business_numbers.sql",
+        "database/migrations/017_pal_client_snapshot.sql"
     ],
     "capabilities": {
         "exposes": [
