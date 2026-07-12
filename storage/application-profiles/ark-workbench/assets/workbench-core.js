@@ -53,21 +53,14 @@
         });
     }
 
-    // ── Sidebar Sections ──
+    // ── Sidebar Sections (CSS-only — toggle class, no inline maxHeight) ──
     function initSidebarSections() {
         document.querySelectorAll('.wb-sidebar-section__trigger').forEach(function (trigger) {
             trigger.addEventListener('click', function () {
                 var section = this.closest('.wb-sidebar-section');
-                var items = section.querySelector('.wb-sidebar-section__items');
-                var isOpen = items.style.maxHeight !== '0px' && items.style.maxHeight !== '';
-
-                if (isOpen) {
-                    items.style.maxHeight = '0px';
-                    this.setAttribute('aria-expanded', 'false');
-                } else {
-                    items.style.maxHeight = items.scrollHeight + 'px';
-                    this.setAttribute('aria-expanded', 'true');
-                }
+                if (!section) return;
+                var isCollapsed = section.classList.toggle('wb-sidebar-section--collapsed');
+                this.setAttribute('aria-expanded', String(!isCollapsed));
             });
         });
     }

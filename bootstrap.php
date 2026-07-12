@@ -2851,4 +2851,12 @@ if (PHP_SAPI === 'cli' && app()->tenant()->current() === null) {
     }
 }
 
+// Initialize ApplicationProfileRegistry — discovers ARK Workbench and
+// other application profiles from storage/application-profiles/.
+// Must run after app() boots so the autoloader can resolve profile namespaces.
+if (!defined('APP_PROFILES_INIT')) {
+    define('APP_PROFILES_INIT', true);
+    \Ikabud\Kernel\Services\ApplicationProfileRegistry::discover(BASE_PATH);
+}
+
 return $config;

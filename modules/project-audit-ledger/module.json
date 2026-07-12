@@ -2,6 +2,10 @@
     "id": "project-audit-ledger",
     "name": "Project Audit Ledger",
     "version": "1.0.0",
+    "application_profile": {
+        "id": "ark.workbench",
+        "version": "^0.1"
+    },
     "description": "Project costing, inventory, fabrication dues, sales, and audit management for construction, fabrication, signage, and installation businesses.",
     "author": "Ikabud Kernel Team",
     "auth_owned": {

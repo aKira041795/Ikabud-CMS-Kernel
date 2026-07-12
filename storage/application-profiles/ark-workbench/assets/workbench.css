@@ -98,7 +98,7 @@
     transition: transform 300ms ease;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
     .wb-app-shell__sidebar {
         position: relative;
         transform: none;
@@ -117,7 +117,7 @@
     display: none;
 }
 
-@media (max-width: 1023px) {
+@media (max-width: 767px) {
     .wb-app-shell__overlay.is-visible {
         display: block;
     }
@@ -129,7 +129,7 @@
     padding: var(--wb-space-4);
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
     .wb-app-shell__main {
         padding: var(--wb-space-6);
     }
@@ -159,6 +159,13 @@
 .wb-sidebar-section__items {
     overflow: hidden;
     transition: max-height 200ms ease;
+    max-height: none; /* expanded by default */
+}
+
+.wb-sidebar-section--collapsed > .wb-sidebar-section__items {
+    max-height: 0 !important;
+    padding-top: 0;
+    padding-bottom: 0;
 }
 
 /* ── Nav Items ── */
@@ -199,7 +206,7 @@
     padding-bottom: env(safe-area-inset-bottom, var(--wb-space-2));
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 768px) {
     .wb-bottom-nav {
         display: none;
     }
