@@ -4,55 +4,120 @@
  */
 
 /* ── Lightbox ── */
-.lightbox-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; }
-.lightbox-overlay.active { display: flex; }
-.lightbox-overlay img { max-width: min(600px, 90vw); max-height: 85vh; object-fit: contain; border-radius: 6px; }
-.lightbox-close { position: absolute; top: 20px; right: 30px; color: #fff; font-size: 32px; cursor: pointer; font-weight: bold; z-index: 10000; }
-.lightbox-close:hover { color: #ccc; }
-.lightbox-caption { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: #ccc; font-size: 13px; }
+.lightbox-overlay {
+    display: none;
+    position: fixed;
+    z-index: 9999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    justify-content: center;
+    align-items: center;
+}
+
+.lightbox-overlay.active {
+    display: flex;
+}
+
+.lightbox-overlay img {
+    max-width: min(600px, 90vw);
+    max-height: 85vh;
+    object-fit: contain;
+    border-radius: 6px;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    color: #fff;
+    font-size: 32px;
+    cursor: pointer;
+    font-weight: bold;
+    z-index: 10000;
+}
+
+.lightbox-close:hover {
+    color: #ccc;
+}
+
+.lightbox-caption {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    color: #ccc;
+    font-size: 13px;
+}
 
 /* ── Responsive table: card fallback on screens < 640px ── */
 @media (max-width: 639px) {
-  .pal-responsive-table thead { display: none; }
-  .pal-responsive-table tr {
-    display: block;
-    margin-bottom: 0.75rem;
-    border: 1px solid #e5e7eb;
-    border-radius: 0.5rem;
-    background: #fff;
-    padding: 0.75rem;
-  }
-  .pal-responsive-table td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.375rem 0;
-    border-bottom: 1px solid #f3f4f6;
-    font-size: 0.8125rem;
-  }
-  .pal-responsive-table td:last-child { border-bottom: none; }
-  .pal-responsive-table td::before {
-    content: attr(data-label);
-    font-weight: 600;
-    color: #6b7280;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    margin-right: 0.75rem;
-    flex-shrink: 0;
-  }
+    .pal-responsive-table thead {
+        display: none;
+    }
+
+    .pal-responsive-table tr {
+        display: block;
+        margin-bottom: 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        background: #fff;
+        padding: 0.75rem;
+    }
+
+    .pal-responsive-table td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.375rem 0;
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 0.8125rem;
+    }
+
+    .pal-responsive-table td:last-child {
+        border-bottom: none;
+    }
+
+    .pal-responsive-table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        color: #6b7280;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+    }
 }
 
 /* ── Focus ring (visible only on keyboard focus) ── */
 *:focus-visible {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-  border-radius: 2px;
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 2px;
 }
 
 /* ── Print-only overrides ── */
 @media print {
-  body * { visibility: hidden; }
-  .print-area, .print-area * { visibility: visible; }
-  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
-  .no-print { display: none !important; }
+    body * {
+        visibility: hidden;
+    }
+
+    .print-area,
+    .print-area * {
+        visibility: visible;
+    }
+
+    .print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+
+    .no-print {
+        display: none !important;
+    }
 }
