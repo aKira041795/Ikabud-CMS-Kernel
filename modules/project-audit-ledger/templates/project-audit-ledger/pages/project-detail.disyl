@@ -12,7 +12,16 @@
 {set _dh_actions = _dh_actions ~ ' <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button>'}
 {include "pal_detail_header"}
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 print-area">
+<div x-data="{ tab: 'overview' }" class="print-area">
+  <div class="flex gap-1 mb-4 border-b border-gray-200 no-print overflow-x-auto">
+    <button @click="tab='overview'" :class="tab==='overview'?'border-blue-600 text-blue-600':'border-transparent text-gray-600 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap">📋 Overview</button>
+    <button @click="tab='items'" :class="tab==='items'?'border-blue-600 text-blue-600':'border-transparent text-gray-600 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap">📦 Items</button>
+    <button @click="tab='financials'" :class="tab==='financials'?'border-blue-600 text-blue-600':'border-transparent text-gray-600 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap">💰 Financials</button>
+    <button @click="tab='docs'" :class="tab==='docs'?'border-blue-600 text-blue-600':'border-transparent text-gray-600 hover:text-gray-700'" class="px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap">📄 Docs</button>
+  </div>
+
+  <!-- Tab: Overview -->
+  <div x-show="tab==='overview'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {if project.items && project.items|count > 0}
         <div class="mt-6 border-t pt-4">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">📋 Line Items</h4>
@@ -112,6 +121,7 @@
             <div class="text-xs text-gray-600">{if profitability.total_collected|default:0 > 0}Collected − Fab − Spent | Contract − Collected{else}Contract − Fab − Spent | Full contract collectible{/if}</div>
         </div>
     </div>
+  </div>
 </div>
 
 <script>

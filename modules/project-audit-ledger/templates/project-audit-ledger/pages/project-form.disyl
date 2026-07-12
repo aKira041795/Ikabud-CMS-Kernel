@@ -1,16 +1,21 @@
-<div class="max-w-6xl" x-data="{ joType: '{project.jo_type|default:"items"}', hasInstallation: {if project.with_installation|default:0}true{else}false{/if}, activeStep: 1 }">
+<div class="max-w-6xl" x-data="{ joType: '{project.jo_type|default:"items"}', hasInstallation: {if project.with_installation|default:0}true{else}false{/if}, activeStep: 1, visitedSteps: [1], dirty: false }" x-init="
+    window.addEventListener('beforeunload', function(e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+    $watch('activeStep', function(v) { if (visitedSteps.indexOf(v) === -1) visitedSteps.push(v); });
+    document.addEventListener('change', function() { dirty = true; });
+    document.addEventListener('input', function() { dirty = true; });
+">
 <div class="flex flex-col lg:flex-row gap-6">
   <div class="flex-1 space-y-4">
     <!-- Step navigation -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
         <h2 class="font-semibold text-gray-900 mb-2">{is_edit|default:false ? 'Edit Job Order' : 'Create Job Order'}</h2>
         <div class="flex flex-wrap gap-1">
-            <button type="button" @click="activeStep=1;document.getElementById('sec-customer').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===1?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">👤 Customer</button>
-            <button type="button" @click="activeStep=2;document.getElementById('sec-details').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===2?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">📋 Details</button>
-            <button type="button" @click="activeStep=3;document.getElementById('sec-pricing').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===3?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">💰 Pricing</button>
-            <button type="button" @click="activeStep=4;document.getElementById('sec-fab').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===4?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">🔧 Fab</button>
-            <button type="button" @click="activeStep=5;document.getElementById('sec-items').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===5?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">📦 Items</button>
-            <button type="button" @click="activeStep=6;document.getElementById('sec-docs').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===6?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">🖼 Docs</button>
+            <button type="button" @click="activeStep=1;document.getElementById('sec-customer').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===1?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">👤 Customer<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(1)>=0?'bg-green-400':'bg-gray-400'"></span></button>
+            <button type="button" @click="activeStep=2;document.getElementById('sec-details').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===2?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">📋 Details<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(2)>=0?'bg-green-400':'bg-gray-400'"></span></button>
+            <button type="button" @click="activeStep=3;document.getElementById('sec-pricing').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===3?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">💰 Pricing<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(3)>=0?'bg-green-400':'bg-gray-400'"></span></button>
+            <button type="button" @click="activeStep=4;document.getElementById('sec-fab').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===4?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">🔧 Fab<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(4)>=0?'bg-green-400':'bg-gray-400'"></span></button>
+            <button type="button" @click="activeStep=5;document.getElementById('sec-items').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===5?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">📦 Items<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(5)>=0?'bg-green-400':'bg-gray-400'"></span></button>
+            <button type="button" @click="activeStep=6;document.getElementById('sec-docs').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===6?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">🖼 Docs<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(6)>=0?'bg-green-400':'bg-gray-400'"></span></button>
         </div>
     </div>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -186,8 +191,8 @@
 
         <div class="flex gap-3">
             {if !is_edit|default:false || project.status=='draft'}
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='draft'" class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Save as Draft</button>
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='pending'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit for Approval</button>
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='draft';dirty=false" class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Save as Draft</button>
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='pending';dirty=false" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit for Approval</button>
             {elseif project.status=='approved'}
             <button type="submit" onclick="document.querySelector('input[name=status]').value='started'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Start Work</button>
             {elseif project.status=='started'}
