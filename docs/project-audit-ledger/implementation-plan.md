@@ -1,5 +1,10 @@
 # Project Audit Ledger — Implementation Plan
 
+> ⚠️ **This document is a pre-implementation planning artifact (2025–2026).**  
+> The actual implementation has diverged significantly from the planned structure below.  
+> For the current approved financial workflow, service architecture, and amount semantics, see:  
+> **[`invoice-receivable-payment-architecture.md`](./invoice-receivable-payment-architecture.md)**
+
 > **Module**: `project-audit-ledger`  
 > **Kernel OS**: Ikabud Kernel OS (DiSyL, PHP 8.3+, MySQL 8+)  
 > **Domain**: Project Costing, Inventory, Fabrication Dues, Sales, and Audit Management  
