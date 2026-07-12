@@ -162,11 +162,6 @@ if ($setPassword !== null && $tenantId === null) {
     exit(1);
 }
 
-if ($apply && $setPassword === null && $legacyKey === '') {
-    fwrite(STDERR, "--apply requires --legacy-key=... or --set-password=...\n");
-    exit(1);
-}
-
 try {
     $currentCrypto = new Crypto();
 } catch (Throwable $e) {
@@ -189,6 +184,26 @@ $rows = tenantCryptoAuditRows($controlDb, $tenantId);
 if ($rows === []) {
     fwrite(STDERR, $tenantId !== null ? 'No tenant DB connection row found for tenant ' . $tenantId . ".\n" : "No tenant DB connection rows found.\n");
     exit(1);
+}
+
+// Validate --apply: block if there are NO plaintext-only or legacy-key-ok rows to repair.
+if ($apply && $setPassword === null && $legacyKey === '') {
+    $hasRepairable = false;
+    foreach ($rows as $row) {
+        if (!is_array($row)) continue;
+        $cipher = (string)($row['db_pass_ciphertext'] ?? '');
+        $iv = (string)($row['db_pass_iv'] ?? '');
+        $tag = (string)($row['db_pass_tag'] ?? '');
+        $plaintext = (string)($row['db_pass'] ?? '');
+        if (($cipher === '' || $iv === '' || $tag === '') && $plaintext !== '') {
+            $hasRepairable = true;
+            break;
+        }
+    }
+    if (!$hasRepairable) {
+        fwrite(STDERR, "--apply requires --legacy-key=... or --set-password=... (no plaintext-only rows found).\n");
+        exit(1);
+    }
 }
 
 $summary = [
