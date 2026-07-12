@@ -186,9 +186,9 @@
     <img id="lightbox-img" src="" alt="">
     <div id="lightbox-caption" class="lightbox-caption"></div>
 </div>
+<script src="/assets/pal/pal-routes.js"></script>
 <script src="/assets/pal/pal-core.js"></script>
 <script src="/assets/pal/pal-forms.js"></script>
 <script src="/assets/pal/pal-settings.js"></script>
-<script src="/assets/pal/pal-routes.js"></script>
 </body>
 </html>

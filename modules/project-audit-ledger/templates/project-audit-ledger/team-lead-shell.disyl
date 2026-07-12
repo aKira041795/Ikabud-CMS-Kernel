@@ -80,8 +80,8 @@
     </nav>
 <!-- Toast (accessible) -->
 <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
+<script src="/assets/pal/pal-routes.js"></script>
 <script src="/assets/pal/pal-core.js"></script>
 <script src="/assets/pal/pal-forms.js"></script>
-<script src="/assets/pal/pal-routes.js"></script>
 </body>
 </html>

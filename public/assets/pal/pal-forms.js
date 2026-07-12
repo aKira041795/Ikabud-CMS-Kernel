@@ -77,67 +77,33 @@
         });
     };
 
-    // ── Quick-create modal ──
-    var _quickCreateModal = null;
+    // ── Quick-create modal (uses shared palDialog) ──
     window.showQuickCreateModal = function (select) {
         var type = select.getAttribute('data-creatable') || '';
         if (!type) return;
-        if (!_quickCreateModal) {
-            var overlay = document.createElement('div');
-            overlay.id = 'qc-modal';
-            overlay.setAttribute('role', 'dialog');
-            overlay.setAttribute('aria-modal', 'true');
-            overlay.setAttribute('aria-label', 'Quick Create');
-            overlay.style.cssText = 'position:fixed;z-index:9999;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;';
-            overlay.addEventListener('click', function (e) { if (e.target === overlay) window.closeQuickCreateModal(); });
-            overlay.addEventListener('keydown', function (e) { if (e.key === 'Escape') window.closeQuickCreateModal(); });
-            var box = document.createElement('div');
-            box.style.cssText = 'background:#fff;border-radius:8px;padding:24px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
-            box.innerHTML = '<h3 class="text-sm font-semibold text-gray-900 mb-3" id="qc-title">Add New</h3>'
-                + '<input type="text" id="qc-input" placeholder="Enter name" class="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-3" style="box-sizing:border-box;">'
-                + '<div class="flex gap-2 justify-end">'
-                + '<button onclick="closeQuickCreateModal()" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button>'
-                + '<button id="qc-btn" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Add</button>'
-                + '</div>';
-            overlay.appendChild(box);
-            document.body.appendChild(overlay);
-            _quickCreateModal = { overlay: overlay, input: document.getElementById('qc-input'), btn: document.getElementById('qc-btn'), title: document.getElementById('qc-title') };
-        }
-        var m = _quickCreateModal;
-        m.btn.disabled = false;
-        m.btn.textContent = 'Add';
-        m.title.textContent = 'Add New ' + type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
-        m.input.value = '';
-        m.input.focus();
-        m.input.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); doQuickCreate(select, type); } };
-        m.btn.onclick = function () { doQuickCreate(select, type); };
-        m.overlay.style.display = 'flex';
+        var title = 'Add New ' + type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+        palDialog({
+            title: title,
+            input: true,
+            placeholder: 'Enter name',
+            confirmLabel: 'Add',
+            onClose: function (result) {
+                if (result.cancelled || !result.value) return;
+                var name = result.value.trim();
+                if (!name) { window.showToast('Enter a name', 'error'); return; }
+                doQuickCreate(select, type, name);
+            }
+        });
     };
 
-    window.closeQuickCreateModal = function () {
-        if (_quickCreateModal) _quickCreateModal.overlay.style.display = 'none';
-    };
-
-    function qcResetBtn() {
-        if (_quickCreateModal && _quickCreateModal.btn) {
-            _quickCreateModal.btn.disabled = false;
-            _quickCreateModal.btn.textContent = 'Add';
-        }
-    }
-
-    function doQuickCreate(select, type) {
-        if (!_quickCreateModal || !_quickCreateModal.input) { window.showToast('Modal not ready', 'error'); return; }
-        var name = _quickCreateModal.input.value.trim();
-        if (!name) { window.showToast('Enter a name', 'error'); return; }
-        _quickCreateModal.btn.disabled = true;
-        _quickCreateModal.btn.textContent = 'Adding...';
+    function doQuickCreate(select, type, name) {
         var fd = new FormData();
         fd.append('type', type);
         fd.append('name', name);
         var csrf = document.querySelector('input[name="_token"]');
         if (csrf) fd.append('_token', csrf.value);
         var timedOut = false;
-        var timer = setTimeout(function () { timedOut = true; window.showToast('Request timed out', 'error'); qcResetBtn(); }, 10000);
+        var timer = setTimeout(function () { timedOut = true; window.showToast('Request timed out', 'error'); }, 10000);
         fetch(window.PalRoutes.action('quick_create'), { method: 'POST', body: fd })
             .then(function (r) { if (timedOut) return; clearTimeout(timer); return r.json(); })
             .then(function (d) {
@@ -147,11 +113,10 @@
                     o.value = d.id; o.textContent = d.label; o.selected = true;
                     select.add(o);
                     select.value = d.id;
-                    window.closeQuickCreateModal();
                     window.showToast('Added: ' + d.label);
-                } else { window.showToast(d.error || 'Failed', 'error'); qcResetBtn(); }
+                } else { window.showToast(d.error || 'Failed', 'error'); }
             })
-            .catch(function () { if (!timedOut) { clearTimeout(timer); window.showToast('Failed to create', 'error'); } qcResetBtn(); });
+            .catch(function () { if (!timedOut) { clearTimeout(timer); window.showToast('Failed to create', 'error'); } });
     }
 
     // ── PO row management ──
