@@ -366,12 +366,12 @@
                 fetch(window.PalRoutes.action('user.toggle', id), {
                     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
                 })
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                    if (d.ok) { window.showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function () { location.reload(); }, 600); }
-                    else { window.showToast(d.error || 'Failed', 'error'); }
-                })
-                .catch(function () { window.showToast('Request failed', 'error'); });
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d.ok) { window.showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function () { location.reload(); }, 600); }
+                        else { window.showToast(d.error || 'Failed', 'error'); }
+                    })
+                    .catch(function () { window.showToast('Request failed', 'error'); });
             }
         });
     };
@@ -409,12 +409,12 @@
                 fetch(window.PalRoutes.action('attachment.delete', id), {
                     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
                 })
-                .then(function (r) { return r.json(); })
-                .then(function (d) {
-                    if (d.ok) { window.showToast('Deleted'); setTimeout(function () { location.reload(); }, 400); }
-                    else { window.showToast(d.error || 'Failed', 'error'); }
-                })
-                .catch(function () { window.showToast('Request failed', 'error'); });
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (d.ok) { window.showToast('Deleted'); setTimeout(function () { location.reload(); }, 400); }
+                        else { window.showToast(d.error || 'Failed', 'error'); }
+                    })
+                    .catch(function () { window.showToast('Request failed', 'error'); });
             }
         });
     };
