@@ -39,8 +39,8 @@ class palSalesService
         $colStmt->execute([':sid' => $id, ':tid' => $this->tenantId]);
         $row['total_collected'] = (float)$colStmt->fetchColumn();
         // Use the canonical invoice total for outstanding, not net_amount alone.
-        $invoiceTotal = palInvoiceTotalCalculator::total($row);
-        $row['outstanding'] = max(0, $invoiceTotal - $row['total_collected']);
+        $row['invoice_total'] = palInvoiceTotalCalculator::total($row);
+        $row['outstanding'] = max(0, $row['invoice_total'] - $row['total_collected']);
         $row['items'] = $this->getItems($id);
         return $row;
     }
@@ -140,8 +140,13 @@ class palSalesService
 
             $this->db->commit();
 
-            palAudit('pal.sale.created', $this->userId, 'pal_sales', (string)$saleId, null, ['amount' => $grossAmount]);
-            palFireEvent('pal.sale.created', ['sale_id' => $saleId, 'amount' => $grossAmount]);
+            palAudit('pal.sale.created', $this->userId, 'pal_sales', (string)$saleId, null,
+                ['amount' => $invoiceTotal, 'gross_amount' => $grossAmount]);
+            palFireEvent('pal.sale.created', [
+                'sale_id' => $saleId,
+                'amount' => $invoiceTotal,
+                'gross_amount' => $grossAmount,
+            ]);
 
             return $saleId;
         } catch (Throwable $e) {
@@ -170,7 +175,11 @@ class palSalesService
             }
         }
 
-        if (isset($data['items']) && is_array($data['items']) && !empty($data['items'])) {
+        // Treat submitted items as an invoice-total change (even empty array =
+        // deleting all items recalculates gross to 0).
+        $itemsSubmitted = array_key_exists('items', $data) && is_array($data['items']);
+
+        if ($itemsSubmitted) {
             $gross = $this->calculateItemsTotal($data['items']);
             $fields[] = 'gross_amount = :ga';
             $params[':ga'] = $gross;
@@ -185,22 +194,25 @@ class palSalesService
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
 
-            if (isset($data['items']) && is_array($data['items'])) {
+            if ($itemsSubmitted) {
                 $this->db->prepare("DELETE FROM pal_sale_items WHERE sale_id = :sid AND tenant_id = :tid")
                     ->execute([':sid' => $id, ':tid' => $this->tenantId]);
-                $this->saveItems($id, $data['items']);
+                if (!empty($data['items'])) {
+                    $this->saveItems($id, $data['items']);
+                }
             }
 
-            // Sync receivable amount if invoice total changed and no payments exist.
-            // If approved payments already exist, prevent editing amount fields.
-            $hasApprovedAllocations = $this->hasApprovedPayments($id);
-            $hasAmountFields = !empty(array_intersect(
-                array_keys($data),
-                ['gross_amount', 'discount_amount', 'tax_amount',
-                 'installation_charge', 'mobilization_charge', 'other_charges']
-            ));
+            // Determine whether this edit changes the invoice total.
+            // Both direct amount fields AND items changes count.
+            $changesInvoiceTotal = $itemsSubmitted
+                || !empty(array_intersect(
+                    array_keys($data),
+                    ['gross_amount', 'discount_amount', 'tax_amount',
+                     'installation_charge', 'mobilization_charge', 'other_charges']
+                ));
 
-            if ($hasAmountFields) {
+            if ($changesInvoiceTotal) {
+                $hasApprovedAllocations = $this->hasApprovedPayments($id);
                 if ($hasApprovedAllocations) {
                     $this->db->rollBack();
                     throw new InvalidArgumentException(
@@ -248,7 +260,7 @@ class palSalesService
         $this->db->prepare(
             "UPDATE pal_receivables
              SET amount = :amt, version = version + 1
-             WHERE sales_id = :si AND tenant_id = :tid AND status IN ('pending', 'partial')"
+             WHERE sales_id = :si AND tenant_id = :tid AND status IN ('pending', 'partial', 'overdue')"
         )->execute([':amt' => $invoiceTotal, ':si' => $saleId, ':tid' => $this->tenantId]);
     }
 

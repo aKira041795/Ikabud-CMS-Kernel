@@ -111,6 +111,7 @@ $testTenantId = 999901;
 
 // ── Clean up any leftover data from a prior interrupted run ────────
 $cleanupTables = [
+    'pal_receivable_payments', 'pal_receivables',
     'pal_sale_items', 'pal_collections', 'pal_sales', 'pal_project_items',
     'pal_projects', 'pal_clients', 'pal_project_types',
 ];
@@ -347,6 +348,9 @@ try {
 
     // Delete in FK-safe order (children first)
     foreach ($saleIds as $sid) {
+        $db->prepare('DELETE FROM pal_receivable_payments WHERE collection_id IN (SELECT id FROM pal_collections WHERE sales_id = ?)')->execute([$sid]);
+        $db->prepare('DELETE FROM pal_receivable_payments WHERE receivable_id IN (SELECT id FROM pal_receivables WHERE sales_id = ?)')->execute([$sid]);
+        $db->prepare('DELETE FROM pal_receivables WHERE sales_id = ?')->execute([$sid]);
         $db->prepare('DELETE FROM pal_sale_items WHERE sale_id = ?')->execute([$sid]);
         $db->prepare('DELETE FROM pal_collections WHERE sales_id = ?')->execute([$sid]);
         $db->prepare('DELETE FROM pal_sales WHERE id = ?')->execute([$sid]);

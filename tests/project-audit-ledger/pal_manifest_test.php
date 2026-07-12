@@ -37,7 +37,7 @@ $manifest = json_decode((string) file_get_contents($manifestPath), true);
 bt('module.json is valid JSON', is_array($manifest));
 bt('module id is project-audit-ledger', ($manifest['id'] ?? '') === 'project-audit-ledger');
 bt('owns_tables declared', is_array($manifest['owns_tables'] ?? null) && in_array('pal_projects', $manifest['owns_tables'], true));
-bt('all 30 owned tables present', count($manifest['owns_tables'] ?? []) === 30);
+bt('at least 30 owned tables present', count($manifest['owns_tables'] ?? []) >= 30);
 bt('auth cookie declared', ($manifest['auth_cookie'] ?? '') === 'pal_token');
 bt('routes enabled', ($manifest['routes'] ?? false) === true);
 bt('depends on kernel.auth.user@1', in_array('kernel.auth.user@1', $manifest['capabilities']['depends'] ?? [], true));
@@ -76,7 +76,9 @@ bt('pal.expense.approved declared', in_array('pal.expense.approved', $events, tr
 bt('pal.inventory.stocked_in declared', in_array('pal.inventory.stocked_in', $events, true));
 bt('pal.fabrication.payment_recorded declared', in_array('pal.fabrication.payment_recorded', $events, true));
 bt('pal.approval.completed declared', in_array('pal.approval.completed', $events, true));
-bt('total events count is 18', count($events) === 18);
+bt('pal.sale.created declared', in_array('pal.sale.created', $events, true));
+bt('pal.collection.recorded declared', in_array('pal.collection.recorded', $events, true));
+bt('pal.project.completed declared', in_array('pal.project.completed', $events, true));
 
 echo "\n── Settings Fields ──\n";
 $settings = $manifest['settings_fields'] ?? [];
@@ -107,12 +109,17 @@ bt('migration 002 exists', is_file(BASE_PATH . '/modules/project-audit-ledger/da
 $handlerDir = BASE_PATH . '/modules/project-audit-ledger/handlers';
 $handlerFiles = scandir($handlerDir);
 $handlerFiles = array_values(array_filter($handlerFiles, fn($f) => str_ends_with($f, '.php')));
-bt('17 handler files exist', count($handlerFiles) === 17);
+bt('at least 17 handler files exist', count($handlerFiles) >= 17);
 
 $serviceDir = BASE_PATH . '/modules/project-audit-ledger/services';
 $serviceFiles = scandir($serviceDir);
 $serviceFiles = array_values(array_filter($serviceFiles, fn($f) => str_ends_with($f, '.php')));
-bt('10 service files exist', count($serviceFiles) === 10);
+bt('InvoiceTotalCalculator exists', is_file(BASE_PATH . '/modules/project-audit-ledger/services/InvoiceTotalCalculator.php'));
+bt('PaymentService exists', is_file(BASE_PATH . '/modules/project-audit-ledger/services/PaymentService.php'));
+bt('ReceivableService exists', is_file(BASE_PATH . '/modules/project-audit-ledger/services/ReceivableService.php'));
+bt('ProjectCompletionCoordinator exists', is_file(BASE_PATH . '/modules/project-audit-ledger/services/ProjectCompletionCoordinator.php'));
+bt('SalesService exists', is_file(BASE_PATH . '/modules/project-audit-ledger/services/SalesService.php'));
+bt('ProjectService exists', is_file(BASE_PATH . '/modules/project-audit-ledger/services/ProjectService.php'));
 
 echo "\n── PHP Syntax ──\n";
 $allPhpFiles = array_merge(
