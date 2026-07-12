@@ -240,6 +240,14 @@ class palSalesService
         return $row ?: ['name' => null, 'contact_person' => null, 'email' => null, 'phone' => null, 'address' => null];
     }
 
+    /**
+     * Save items for a sale — public entry point for the ProjectCompletionCoordinator.
+     */
+    public function saveItemsForSale(int $saleId, array $items): void
+    {
+        $this->saveItems($saleId, $items);
+    }
+
     private function saveItems(int $saleId, array $items): void
     {
         if (empty($items)) return;

@@ -55,7 +55,9 @@
         "pal_sale_items",
         "pal_cash_advances",
         "pal_otp_codes",
-        "pal_mobilization_requests"
+        "pal_mobilization_requests",
+        "pal_receivables",
+        "pal_receivable_payments"
     ],
     "reads_tables": [
         "audit_logs",
@@ -82,7 +84,8 @@
         "database/migrations/014_pal_jo_merge.sql",
         "database/migrations/015_pal_jo_type.sql",
         "database/migrations/016_pal_unique_business_numbers.sql",
-        "database/migrations/017_pal_client_snapshot.sql"
+        "database/migrations/017_pal_client_snapshot.sql",
+        "database/migrations/018_pal_receivables.sql"
     ],
     "capabilities": {
         "exposes": [

@@ -2022,3 +2022,24 @@ The ZAP-ARTS quotation form (Excel) maps to PAL fields as follows:
 **Migration files added**: `016_pal_unique_business_numbers.sql`, `017_pal_client_snapshot.sql`
 
 **Test**: `php tests/PalProjectCompletionTest.php` — 26 passed, 0 failed, clean logs.
+
+### A.10 Service decomposition — state machine, coordinator, receivables (2026-07-12)
+
+**Scope**: P1 architectural refactoring — formal Job Order state machine, completion coordinator, receivable/payment separation.
+
+| # | Change | Files | Description |
+|---|---|---|---|
+| 1 | Formal Job Order state machine | `JobOrderWorkflow.php` | `palJobOrderWorkflow` defines all allowed transitions (`draft→pending→approved→started→ongoing→completed→closed`), guards (client required for completion, paid invoice protection), and side-effect hooks. Replaces scattered status logic. |
+| 2 | Completion coordinator | `ProjectCompletionCoordinator.php` | Extracts completion orchestration from `ProjectService` into a focused coordinator: validate → lock FOR UPDATE → update status → create invoice → copy items → create receivable → audit → emit events. All in one transaction. |
+| 3 | ProjectService delegation | `ProjectService.php` | `completeProject()` now delegates to `ProjectCompletionCoordinator`. Backward compatible — all existing handlers and tests unchanged. |
+| 4 | ReceivableService | `ReceivableService.php` | First-class receivable management: `createFromInvoice()`, `allocatePayment()`, `listOutstanding()`, `markOverdue()`, `void()`, `clientOutstanding()`. Separates "money expected" from "money received". |
+| 5 | PaymentService | `PaymentService.php` | Payment recording with auto-allocation to earliest-due receivables: `record()`, `approve()`, `reject()`. Updates sale status (paid/partial/overdue) after payment allocation. |
+| 6 | Receivables table | `018_pal_receivables.sql` | `pal_receivables` with type (full/installment/down_payment/progress_billing), amount_paid, outstanding (generated), status. `pal_receivable_payments` junction table for payment allocation. |
+| 7 | SalesService public method | `SalesService.php` | Added `saveItemsForSale()` public entry point for coordinator. |
+| 8 | Module manifest | `module.json` | Added `pal_receivables`, `pal_receivable_payments` to `owns_tables`. Added migration 018. |
+
+**New service files**: `JobOrderWorkflow.php`, `ProjectCompletionCoordinator.php`, `ReceivableService.php`, `PaymentService.php`
+
+**Migration files added**: `018_pal_receivables.sql`
+
+**Test**: `php tests/PalProjectCompletionTest.php` — 26 passed, 0 failed, clean logs.

@@ -41,9 +41,46 @@ echo "\n=== PAL PROJECT COMPLETION TEST ===\n\n";
 
 $db = app()->db();
 
-// ── Run PAL migrations against the test DB ────────────────────────
-$runner = new \Ikabud\Kernel\Database\MigrationRunner($db);
-$runner->migrate('project-audit-ledger');
+// ── Create pal_receivables + pal_receivable_payments if not exist ─
+$db->exec("
+    CREATE TABLE IF NOT EXISTS pal_receivables (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT UNSIGNED NOT NULL,
+        receivable_number VARCHAR(50) NOT NULL,
+        sales_id INT UNSIGNED NOT NULL,
+        project_id INT UNSIGNED DEFAULT NULL,
+        client_id INT UNSIGNED DEFAULT NULL,
+        due_date DATE NOT NULL,
+        amount DECIMAL(18,2) NOT NULL,
+        amount_paid DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+        receivable_type ENUM('full','installment','down_payment','progress_billing') NOT NULL DEFAULT 'full',
+        installment_number INT UNSIGNED DEFAULT NULL,
+        notes TEXT DEFAULT NULL,
+        status ENUM('pending','partial','settled','overdue','cancelled','voided') NOT NULL DEFAULT 'pending',
+        created_by INT UNSIGNED DEFAULT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_by INT UNSIGNED DEFAULT NULL,
+        updated_at DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        voided_by INT UNSIGNED DEFAULT NULL,
+        voided_at DATETIME DEFAULT NULL,
+        void_reason VARCHAR(255) DEFAULT NULL,
+        version INT UNSIGNED NOT NULL DEFAULT 1,
+        INDEX idx_tenant (tenant_id),
+        INDEX idx_sales (sales_id),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+    CREATE TABLE IF NOT EXISTS pal_receivable_payments (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        tenant_id INT UNSIGNED NOT NULL,
+        receivable_id INT UNSIGNED NOT NULL,
+        collection_id INT UNSIGNED NOT NULL,
+        amount DECIMAL(18,2) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_receivable (receivable_id),
+        INDEX idx_collection (collection_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+");
 
 // ── Create ModuleDB for PAL so the service can run ────────────────
 $ownsTables = [
@@ -58,6 +95,7 @@ $ownsTables = [
     'pal_approvals', 'pal_attachments', 'pal_audit_logs', 'pal_report_exports',
     'pal_settings', 'pal_quotations', 'pal_quotation_items', 'pal_sale_items',
     'pal_cash_advances', 'pal_otp_codes', 'pal_mobilization_requests',
+    'pal_receivables', 'pal_receivable_payments',
 ];
 $readsTables = [
     'audit_logs', 'attendance_groups', 'attendance_group_members',
@@ -109,7 +147,7 @@ function createTestProject(PDO $db, int $tenantId, string $suffix, ?int $clientI
              contract_amount, estimated_cost, status, created_by)
          VALUES
             (:tid, :pid, :jo, 'contract', :title, :cid,
-             :ca, :est, 'draft', :cb)"
+             :ca, :est, 'ongoing', :cb)"
     );
     $stmt->execute([
         ':tid' => $tenantId,
@@ -268,10 +306,10 @@ try {
     $saleCount1 = saleCountForProject($db, $testTenantId, $projectIds['dup']);
     btAdmin('one sale exists after first completion', $saleCount1 === 1, "count={$saleCount1}");
 
-    // Reset project status to 'draft' directly (bypassing service guards)
+    // Reset project status to 'ongoing' directly (bypassing service guards)
     // to simulate a scenario where the app-level duplicate check must prevent
     // a second invoice
-    $db->prepare("UPDATE pal_projects SET status = 'draft' WHERE id = :id")
+    $db->prepare("UPDATE pal_projects SET status = 'ongoing' WHERE id = :id")
         ->execute([':id' => $projectIds['dup']]);
 
     // Second completion attempt — the FOR UPDATE lock + COUNT(*) check
