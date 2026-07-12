@@ -127,7 +127,18 @@ class ApplicationProfileResolver
             return version_compare($actual, $min, '>=');
         }
 
-        // Plain minimum: >= X.Y.Z
-        return version_compare($actual, $requiredVersion, '>=');
+        // Plain minimum: >=X.Y.Z
+        if (str_starts_with($requiredVersion, '>=')) {
+            $minimum = trim(substr($requiredVersion, 2));
+            return version_compare($actual, $minimum, '>=');
+        }
+
+        // Exact version
+        if (preg_match('/^\d+\.\d+\.\d+$/', $requiredVersion)) {
+            return version_compare($actual, $requiredVersion, '==');
+        }
+
+        // Unrecognized constraint — fail safe
+        return false;
     }
 }

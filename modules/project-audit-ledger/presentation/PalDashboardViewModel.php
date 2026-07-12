@@ -22,29 +22,36 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     public function toTemplateContext(): array
     {
         return [
-            'project_pipeline'  => $this->data['project_pipeline'] ?? [],
-            'financials'        => $this->data['financials'] ?? [],
-            'cash_flow'         => $this->data['cash_flow'] ?? [],
-            'pending_approvals' => $this->data['pending_approvals'] ?? [],
-            'low_stock'         => $this->data['low_stock'] ?? [],
-            'recent_activity'   => $this->data['recent'] ?? [],
+            'project_pipeline'   => $this->data['project_pipeline'] ?? [],
+            'financials'         => $this->data['financials'] ?? [],
+            'cash_flow'          => $this->data['cash_flow'] ?? [],
+            'pending_approvals'  => $this->data['pending_approvals'] ?? [],
+            'low_stock'          => $this->data['low_stock'] ?? [],
+            'recent_activity'    => $this->data['recent'] ?? [],
+            'recent_expenses'    => $this->data['recent_expenses'] ?? [],
+            'recent_collections' => $this->data['recent_collections'] ?? [],
         ];
     }
 
     /**
      * Build from services (replaces inline queries in the handler).
+     *
+     * Note: Financial values are cast to float for dashboard aggregation only.
+     * Transactional money operations use integer minor units via PalMoneyPresenter.
      */
     public static function fromServices(
         \Ikabud\Kernel\Contracts\ModuleDB $db,
         int $tenantId,
     ): self {
         return new self([
-            'project_pipeline'  => self::projectPipeline($db, $tenantId),
-            'financials'        => self::financials($db, $tenantId),
-            'cash_flow'         => self::cashFlow($db, $tenantId),
-            'pending_approvals' => self::pendingApprovals($db, $tenantId),
-            'low_stock'         => self::lowStock($db, $tenantId),
-            'recent'            => self::recentActivity($db, $tenantId),
+            'project_pipeline'   => self::projectPipeline($db, $tenantId),
+            'financials'         => self::financials($db, $tenantId),
+            'cash_flow'          => self::cashFlow($db, $tenantId),
+            'pending_approvals'  => self::pendingApprovals($db, $tenantId),
+            'low_stock'          => self::lowStock($db, $tenantId),
+            'recent'             => self::recentActivity($db, $tenantId),
+            'recent_expenses'    => self::recentExpenses($db, $tenantId),
+            'recent_collections' => self::recentCollections($db, $tenantId),
         ]);
     }
 
@@ -210,6 +217,30 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
             "SELECT action, entity_type, entity_id, created_at, user_name
              FROM audit_logs WHERE tenant_id = :tid
              ORDER BY created_at DESC LIMIT 10"
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** @return array<int, array<string,mixed>> */
+    private static function recentExpenses(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
+    {
+        $stmt = $db->prepare(
+            "SELECT id, description, amount, status, expense_date AS created_at
+             FROM pal_expenses WHERE tenant_id = :tid
+             ORDER BY created_at DESC LIMIT 5"
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** @return array<int, array<string,mixed>> */
+    private static function recentCollections(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
+    {
+        $stmt = $db->prepare(
+            "SELECT id, description, amount, status, collection_date AS created_at
+             FROM pal_collections WHERE tenant_id = :tid
+             ORDER BY created_at DESC LIMIT 5"
         );
         $stmt->execute([':tid' => $tenantId]);
         return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];

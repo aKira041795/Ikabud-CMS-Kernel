@@ -4,11 +4,17 @@
         "raw_output": {
             "allowed_keys": [
                 "page_body",
-                "status_badge",
                 "pagination"
             ],
+            "restricted_keys": {
+                "section_body": "form_section and approval_panel section bodies — MUST be rendered by trusted module handler, never from user input or view model",
+                "dialog_body": "dialog body content — MUST be rendered by trusted module handler",
+                "dialog_footer": "dialog footer actions — MUST be rendered by trusted module handler",
+                "status_badge": "detail_header status badge — MUST be a pre-compiled workbench:status_badge include"
+            },
             "requires_capability": [],
-            "note": "Only compiled template output and pre-rendered pagination may use |raw. Structured data (actions, metrics, sections, fields, evidence, items) must be passed as arrays, not HTML strings. View models never contain HTML."
+            "note": "page_body and pagination are the only freely-allowed raw keys. Restricted keys carry mandatory usage constraints. All raw output must originate from compiled DiSyL templates or trusted module handlers — never from view models or user input.",
+            "todo_01": "Replace section_body/dialog_body/dialog_footer with structured contracts in Workbench 0.2"
         },
         "allowed_context_sources": [
             "kernel",

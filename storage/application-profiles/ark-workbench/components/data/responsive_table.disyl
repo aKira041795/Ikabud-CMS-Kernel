@@ -16,7 +16,7 @@
         <tbody>
             {if rows|default:[]}
                 {for row in rows}
-                    <tr {if row.href|default:''}class="cursor-pointer" onclick="window.location='{row.href}'"{/if}>
+                    <tr {if row.href|default:''}class="wb-table__row--clickable" data-wb-href="{row.href}" tabindex="0" role="link"{/if}>
                         {for col in columns}
                             <td data-label="{col.label}" style="text-align:{col.align|default:'left'}">{row.cells[col.key]|default:'—'}</td>
                         {/for}

@@ -124,5 +124,43 @@
         initMobileDrawer();
         initSidebarSections();
         initValidationSummary();
+        initDelegatedClicks();
     });
+
+    // ── Delegated click handlers (no inline onclick) ──
+    function initDelegatedClicks() {
+        document.addEventListener('click', function (e) {
+            // Collapse toggle
+            var toggle = e.target.closest('.wb-collapse-toggle');
+            if (toggle) {
+                var targetSelector = toggle.getAttribute('data-wb-collapse-target');
+                var container = toggle.closest('fieldset') || toggle.closest('.wb-form-section');
+                if (container && targetSelector) {
+                    var target = container.querySelector(targetSelector);
+                    if (target) {
+                        target.classList.toggle('hidden');
+                        var isHidden = target.classList.contains('hidden');
+                        toggle.setAttribute('aria-expanded', String(!isHidden));
+                    }
+                }
+            }
+
+            // Clickable rows and cards
+            var clickable = e.target.closest('[data-wb-href]');
+            if (clickable && e.target.tagName !== 'A' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
+                window.location = clickable.getAttribute('data-wb-href');
+            }
+        });
+
+        // Keyboard activation for role="link" elements
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                var el = e.target.closest('[data-wb-href][role="link"]');
+                if (el) {
+                    e.preventDefault();
+                    window.location = el.getAttribute('data-wb-href');
+                }
+            }
+        });
+    }
 })();

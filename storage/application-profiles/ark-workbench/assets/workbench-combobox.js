@@ -21,20 +21,38 @@
 
         if (!input || !listbox) return;
 
+        function getVisibleOptions() {
+            return Array.from(options).filter(function (o) { return !o.hidden; });
+        }
+
         function open() {
             isOpen = true;
             listbox.hidden = false;
             input.setAttribute('aria-expanded', 'true');
-            var selected = findSelectedIndex();
-            activeIndex = selected >= 0 ? selected : firstVisibleIndex();
-            highlightOption(activeIndex);
+            resetActiveIndex();
+            highlightActive();
         }
 
-        function firstVisibleIndex() {
-            for (var i = 0; i < options.length; i++) {
-                if (!options[i].hidden) return i;
+        function resetActiveIndex() {
+            var visible = getVisibleOptions();
+            var selectedIdx = visible.findIndex(function (opt) {
+                return opt.getAttribute('aria-selected') === 'true';
+            });
+            activeIndex = selectedIdx >= 0 ? selectedIdx : (visible.length > 0 ? 0 : -1);
+        }
+
+        function highlightActive() {
+            var visible = getVisibleOptions();
+            var option = visible[activeIndex];
+            options.forEach(function (opt) {
+                opt.classList.remove('wb-combobox__option--highlighted');
+            });
+            if (option) {
+                option.classList.add('wb-combobox__option--highlighted');
+                input.setAttribute('aria-activedescendant', option.id);
+            } else {
+                input.removeAttribute('aria-activedescendant');
             }
-            return -1;
         }
 
         function close() {
@@ -44,24 +62,9 @@
             activeIndex = -1;
         }
 
-        function findSelectedIndex() {
-            for (var i = 0; i < options.length; i++) {
-                if (options[i].getAttribute('aria-selected') === 'true') return i;
-            }
-            return -1;
-        }
-
-        function highlightOption(index) {
-            options.forEach(function (opt, i) {
-                opt.classList.toggle('wb-combobox__option--highlighted', i === index);
-                if (i === index) {
-                    input.setAttribute('aria-activedescendant', opt.id);
-                }
-            });
-        }
-
         function selectOption(index) {
-            var option = options[index];
+            var visible = getVisibleOptions();
+            var option = visible[index];
             if (!option) return;
             var value = option.getAttribute('data-value');
             var label = option.textContent.trim();
@@ -97,31 +100,32 @@
         input.addEventListener('input', function () {
             if (!isOpen) open();
             filterOptions(this.value);
-            activeIndex = firstVisibleIndex();
-            highlightOption(activeIndex);
+            resetActiveIndex();
+            highlightActive();
         });
 
         input.addEventListener('keydown', function (e) {
-            var visibleOptions = Array.from(options).filter(function (o) { return !o.hidden; });
+            var visible = getVisibleOptions();
 
             switch (e.key) {
                 case 'ArrowDown':
                     e.preventDefault();
                     if (!isOpen) { open(); return; }
-                    activeIndex = Math.min(activeIndex + 1, visibleOptions.length - 1);
-                    highlightOption(Array.from(options).indexOf(visibleOptions[activeIndex]));
+                    if (visible.length === 0) return;
+                    activeIndex = Math.min(activeIndex + 1, visible.length - 1);
+                    highlightActive();
                     break;
                 case 'ArrowUp':
                     e.preventDefault();
                     if (!isOpen) { open(); return; }
+                    if (visible.length === 0) return;
                     activeIndex = Math.max(activeIndex - 1, 0);
-                    highlightOption(Array.from(options).indexOf(visibleOptions[activeIndex]));
+                    highlightActive();
                     break;
                 case 'Enter':
                     e.preventDefault();
-                    if (isOpen && activeIndex >= 0) {
-                        var realIndex = Array.from(options).indexOf(visibleOptions[activeIndex]);
-                        selectOption(realIndex);
+                    if (isOpen && activeIndex >= 0 && visible.length > 0) {
+                        selectOption(activeIndex);
                     }
                     break;
                 case 'Escape':
@@ -133,7 +137,9 @@
         listbox.addEventListener('click', function (e) {
             var option = e.target.closest('.wb-combobox__option');
             if (option) {
-                selectOption(Array.from(options).indexOf(option));
+                var visible = getVisibleOptions();
+                var idx = visible.indexOf(option);
+                if (idx >= 0) selectOption(idx);
             }
         });
 

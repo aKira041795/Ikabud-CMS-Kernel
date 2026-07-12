@@ -111,7 +111,10 @@ class ApplicationProfileRegistry
             $realPath = realpath($fullPath);
 
             // Security: ensure the file is within the profile directory
-            if ($realPath === false || !str_starts_with($realPath, realpath($profilePath))) {
+            $profileRoot = rtrim((string)realpath($profilePath), DIRECTORY_SEPARATOR)
+                . DIRECTORY_SEPARATOR;
+
+            if ($realPath === false || !str_starts_with($realPath, $profileRoot)) {
                 write_log("ApplicationProfileRegistry: provider file '{$providerFile}' for profile '{$manifest['name']}' is outside the profile directory — skipping");
                 return;
             }
