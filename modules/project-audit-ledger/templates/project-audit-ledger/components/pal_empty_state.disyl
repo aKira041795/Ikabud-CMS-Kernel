@@ -1,8 +1,7 @@
-{* pal_empty_state — Empty state placeholder with icon, title, description, and optional action.
-   Pass: _es_icon (emoji), _es_title, _es_desc (optional), _es_action (optional, raw HTML) *}
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
-    <div class="text-4xl mb-4">{_es_icon|default:'📋'}</div>
-    <h3 class="text-lg font-semibold text-gray-900 mb-2">{_es_title}</h3>
-    {if _es_desc|default:''}<p class="text-sm text-gray-600 mb-4 max-w-md mx-auto">{_es_desc}</p>{/if}
-    {if _es_action|default:''}<div>{_es_action|raw}</div>{/if}
-</div>
+{* pal_empty_state — delegates to workbench:empty_state. *}
+{include "workbench:empty_state"
+    icon_key=_es_icon|default:'📋'
+    title=_es_title|default:''
+    description=_es_desc|default:''
+    action=_es_action|default:''
+}

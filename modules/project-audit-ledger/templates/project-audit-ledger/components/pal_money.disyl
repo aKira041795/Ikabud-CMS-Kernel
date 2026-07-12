@@ -1,6 +1,6 @@
-{* pal_money — Formatted currency display.
-   Pass: _m_amount (number), _m_label (optional), _m_class (optional extra class) *}
-<span class="{_m_class|default:''} {if _m_amount|default:0 < 0}text-red-600{else}text-gray-900{/if}">
-    {if _m_label|default:''}<span class="text-xs text-gray-500 mr-1">{_m_label}</span>{/if}
-    ₱{_m_amount|default:0|number_format:2}
-</span>
+{* pal_money — delegates to workbench:money. *}
+{include "workbench:money"
+    formatted='₱' ~ (_m_amount|default:0|number_format:2)
+    is_negative=(_m_amount|default:0 < 0)
+    emphasis='primary'
+}

@@ -3,6 +3,10 @@
     "name": "Guidance Monitoring",
     "version": "1.0.0",
     "description": "School guidance counseling case management and scheduling.",
+    "application_profile": {
+        "id": "ark.workbench",
+        "version": "^0.1"
+    },
     "commercial_mode": "freemium",
     "tier_features": {
         "free": [

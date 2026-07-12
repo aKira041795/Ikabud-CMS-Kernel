@@ -1,18 +1,7 @@
-{* pal_summary_card — Metric card with label, value, optional icon and color.
-   Pass: _sc_label, _sc_value, _sc_icon (optional emoji), _sc_color (optional: blue|green|red|yellow|indigo) *}
-{set c = _sc_color|default:'blue'}
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-    <div class="flex items-center gap-3">
-        {if _sc_icon|default:''}<div class="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-lg
-            {if c=='blue'}bg-blue-100 text-blue-600
-            {elseif c=='green'}bg-green-100 text-green-600
-            {elseif c=='red'}bg-red-100 text-red-600
-            {elseif c=='yellow'}bg-yellow-100 text-yellow-600
-            {elseif c=='indigo'}bg-indigo-100 text-indigo-600
-            {else}bg-blue-100 text-blue-600{/if}">{_sc_icon}</div>{/if}
-        <div>
-            <p class="text-sm text-gray-600">{_sc_label}</p>
-            <p class="text-xl font-bold text-gray-900">{_sc_value}</p>
-        </div>
-    </div>
-</div>
+{* pal_summary_card — delegates to workbench:summary_card. *}
+{include "workbench:summary_card"
+    label=_sc_label|default:''
+    value=_sc_value|default:''
+    icon_key=_sc_icon|default:''
+    tone=_sc_color|default:'blue'
+}

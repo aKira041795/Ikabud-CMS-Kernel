@@ -1,24 +1,15 @@
-{* pal_detail_header — Standard entity detail header.
-   Pass: _dh_title (e.g. "JO-2024-001"), _dh_subtitle (e.g. "ACME Corp"),
-         _dh_status (for pal_status_badge), _dh_amount (total), _dh_collected,
-         _dh_outstanding, _dh_target_date, _dh_actions (raw HTML) *}
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-            <div class="flex items-center gap-3 mb-1">
-                <h2 class="text-xl font-bold text-gray-900">{_dh_title}</h2>
-                {if _dh_status|default:''}{set _sb_status = _dh_status}{include "pal_status_badge"}{/if}
-            </div>
-            {if _dh_subtitle|default:''}<p class="text-sm text-gray-600">{_dh_subtitle}</p>{/if}
-        </div>
-        {if _dh_actions|default:''}<div class="flex items-center gap-2">{_dh_actions|raw}</div>{/if}
-    </div>
-    {if _dh_amount|default:0 > 0}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-gray-100">
-        <div><p class="text-xs text-gray-500">Total</p><p class="text-lg font-bold text-gray-900">{include "pal_money" _m_amount=_dh_amount}</p></div>
-        {if _dh_collected|default:null !== null}<div><p class="text-xs text-gray-500">Collected</p><p class="text-lg font-bold text-green-700">{include "pal_money" _m_amount=_dh_collected}</p></div>{/if}
-        {if _dh_outstanding|default:null !== null}<div><p class="text-xs text-gray-500">Outstanding</p><p class="text-lg font-bold text-red-700">{include "pal_money" _m_amount=_dh_outstanding}</p></div>{/if}
-        {if _dh_target_date|default:''}<div><p class="text-xs text-gray-500">Target</p><p class="text-sm font-semibold text-gray-900">{_dh_target_date}</p></div>{/if}
-    </div>
-    {/if}
-</div>
+{* pal_detail_header — delegates to workbench:detail_header. *}
+{include "workbench:detail_header"
+    title=_dh_title|default:''
+    subtitle=_dh_subtitle|default:''
+    status_badge=_dh_status|default:''
+    metrics=[
+        {if _dh_amount|default:0 > 0}
+            ['label' => 'Total', 'value' => '₱' ~ (_dh_amount|number_format:2)],
+            {if _dh_collected|default:null !== null}['label' => 'Collected', 'value' => '₱' ~ (_dh_collected|number_format:2)],{/if}
+            {if _dh_outstanding|default:null !== null}['label' => 'Outstanding', 'value' => '₱' ~ (_dh_outstanding|number_format:2)],{/if}
+            {if _dh_target_date|default:''}['label' => 'Target', 'value' => _dh_target_date]{/if}
+        {/if}
+    ]
+    actions=_dh_actions|default:''
+}

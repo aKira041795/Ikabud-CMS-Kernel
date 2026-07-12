@@ -1,196 +1,113 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{page_title} — Project Audit Ledger</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/assets/pal/pal-ui.css">
-    <link rel="stylesheet" href="/assets/workbench/workbench.css">
-    <script src="/assets/workbench/workbench-core.js"></script>
-</head>
-<body class="bg-gray-50 min-h-screen">
-    {csrf_field | raw}
-    <!-- Mobile sidebar toggle -->
-    <button id="mobile-menu-btn" class="lg:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" onclick="toggleMobileSidebar()">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-    </button>
-    <!-- Mobile overlay -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeMobileSidebar()" aria-hidden="true"></div>
-    <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="w-64 bg-slate-900 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out" x-data="{ collapsed: false }">
-            <div class="p-4 border-b border-slate-700">
-                {if pal_logo_path}<img src="/{pal_logo_path}" class="h-8 mb-1">{/if}
-                <h1 class="text-lg font-bold text-white">{pal_app_name}</h1>
-                <p class="text-xs text-slate-400">{current_user.full_name}</p>
-            </div>
-            <nav class="flex-1 overflow-y-auto p-2 space-y-1" x-data="{ sections: { overview: false, project: false, sales: false, inventory: false, ops: false, oversight: false, admin: false } }" x-init="
-                var active = $el.querySelector('.bg-slate-700');
-                if (active) {
-                    var section = active.closest('[x-show]');
-                    if (section) {
-                        var sectionName = section.getAttribute('x-show');
-                        var match = sectionName.match(/sections\.(\w+)/);
-                        if (match) sections[match[1]] = true;
-                    }
-                }
-            ">
-                {set pc = page_content|default:''}
-                <!-- Overview -->
-                <div @click="sections.overview = !sections.overview" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-2 pb-1 hover:text-slate-300 select-none">
-                    <span>Overview</span>
-                    <span x-text="sections.overview ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.overview" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='dashboard'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📊 Dashboard
-                    </a>
-                    <a href="/admin/project-audit-ledger/projects/create" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='project-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        ➕ New Job Order
-                    </a>
-                </div>
+{* PAL Admin Shell — delegates to workbench:app_shell.
+   All handlers pass: current_user, page_title, page_content, page_body
+   plus optional pal_logo_path, pal_app_name *}
 
-                <!-- Project Management -->
-                <div @click="sections.project = !sections.project" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
-                    <span>Job Orders</span>
-                    <span x-text="sections.project ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.project" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/projects" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='project-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📋 All Job Orders
-                    </a>
-                    <a href="/admin/project-audit-ledger/clients" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='client-list'||pc=='client-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        👤 Clients
-                    </a>
-                    <a href="/admin/project-audit-ledger/suppliers" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='supplier-list'||pc=='supplier-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        🏭 Suppliers
-                    </a>
-                </div>
+{* Build shell context from handler-supplied variables *}
+{set user = current_user|default:[]}
+{set pc = page_content|default:''}
 
-                <!-- Sales & Billing -->
-                <div @click="sections.sales = !sections.sales" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
-                    <span>Sales &amp; Billing</span>
-                    <span x-text="sections.sales ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.sales" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='sales-list'||pc=='sales-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        💰 Sales Invoices
-                    </a>
-                    <a href="/admin/project-audit-ledger/collections" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='collection-list'||pc=='collection-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        💵 Collections
-                    </a>
-                    <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='bom-list'||pc=='bom-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📋 Bill of Materials
-                    </a>
-                </div>
+{set shell_ctx = [
+    'application_name' => pal_app_name|default:'Project Audit Ledger',
+    'logo_url' => pal_logo_path|default:'' ? '/' ~ pal_logo_path : '',
+    'user_display' => user.full_name|default:'',
+    'page_title' => page_title|default:'',
+    'navigation_sections' => [
+        [
+            'label' => 'Overview',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'Dashboard',    'url' => '/admin/project-audit-ledger',                   'icon_key' => '📊', 'is_active' => (pc=='dashboard')],
+                ['label' => 'New Job Order','url' => '/admin/project-audit-ledger/projects/create',  'icon_key' => '➕', 'is_active' => (pc=='project-form')]
+            ]
+        ],
+        [
+            'label' => 'Job Orders',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'All Job Orders','url' => '/admin/project-audit-ledger/projects',  'icon_key' => '📋', 'is_active' => (pc=='project-list')],
+                ['label' => 'Clients',       'url' => '/admin/project-audit-ledger/clients',   'icon_key' => '👤', 'is_active' => (pc=='client-list'||pc=='client-form')],
+                ['label' => 'Suppliers',     'url' => '/admin/project-audit-ledger/suppliers', 'icon_key' => '🏭', 'is_active' => (pc=='supplier-list'||pc=='supplier-form')]
+            ]
+        ],
+        [
+            'label' => 'Sales & Billing',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'Sales Invoices', 'url' => '/admin/project-audit-ledger/sales',       'icon_key' => '💰', 'is_active' => (pc=='sales-list'||pc=='sales-form')],
+                ['label' => 'Collections',    'url' => '/admin/project-audit-ledger/collections', 'icon_key' => '💵', 'is_active' => (pc=='collection-list'||pc=='collection-form')],
+                ['label' => 'Quotations',     'url' => '/admin/project-audit-ledger/quotations',  'icon_key' => '📝', 'is_active' => (pc=='quotation-list'||pc=='quotation-form')],
+                ['label' => 'BOM',            'url' => '/admin/project-audit-ledger/bom',         'icon_key' => '📋', 'is_active' => (pc=='bom-list'||pc=='bom-form')]
+            ]
+        ],
+        [
+            'label' => 'Inventory & Procurement',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'Inventory',        'url' => '/admin/project-audit-ledger/inventory',           'icon_key' => '📦', 'is_active' => (pc=='inventory-list')],
+                ['label' => 'Stock Movements',   'url' => '/admin/project-audit-ledger/inventory/movements','icon_key' => '📤', 'is_active' => (pc=='movement-list')],
+                ['label' => 'Purchases',         'url' => '/admin/project-audit-ledger/purchases',          'icon_key' => '🛒', 'is_active' => (pc=='purchase-list'||pc=='purchase-form')],
+                ['label' => 'Issuances',         'url' => '/admin/project-audit-ledger/issuances',          'icon_key' => '📤', 'is_active' => (pc=='issuance-list')],
+                ['label' => 'Returns',           'url' => '/admin/project-audit-ledger/issuances/returns',  'icon_key' => '↩',  'is_active' => (pc=='material-return-list')],
+                ['label' => 'Expenses',          'url' => '/admin/project-audit-ledger/expenses',           'icon_key' => '💳', 'is_active' => (pc=='expense-list'||pc=='expense-form')]
+            ]
+        ],
+        [
+            'label' => 'Operations',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'Fabrication',   'url' => '/admin/project-audit-ledger/fabrication/allocations','icon_key' => '🔧', 'is_active' => (pc=='fabrication-allocations')],
+                ['label' => 'Mobilization',  'url' => '/admin/project-audit-ledger/mobilization',           'icon_key' => '🚛', 'is_active' => (pc=='mobilization-list')],
+                ['label' => 'Cash Advances', 'url' => '/admin/project-audit-ledger/cash-advances',          'icon_key' => '💵', 'is_active' => (pc=='cash-advances-list')]
+            ]
+        ],
+        [
+            'label' => 'Oversight',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'Approvals',  'url' => '/admin/project-audit-ledger/approvals',   'icon_key' => '✅', 'is_active' => (pc=='approval-queue')],
+                ['label' => 'Reports',    'url' => '/admin/project-audit-ledger/reports',     'icon_key' => '📊', 'is_active' => (pc=='reports-center')],
+                ['label' => 'Audit Trail','url' => '/admin/project-audit-ledger/audit-trail', 'icon_key' => '🔍', 'is_active' => (pc=='audit-trail')]
+            ]
+        ],
+        [
+            'label' => 'Administration',
+            'collapsed_default' => false,
+            'items' => [
+                ['label' => 'Settings','url' => '/admin/project-audit-ledger/settings','icon_key' => '⚙', 'is_active' => (pc=='settings-overview')],
+                ['label' => 'Users',   'url' => '/admin/project-audit-ledger/users',   'icon_key' => '👥', 'is_active' => (pc=='users-list')]
+            ]
+        ]
+    ],
+    'user_actions' => [
+        ['label' => 'Sign Out', 'url' => '/api/v1/project-audit-ledger/auth/logout']
+    ],
+    'mobile_navigation' => [
+        ['label' => 'Home',      'url' => '/admin/project-audit-ledger',           'icon_key' => '📊', 'is_active' => (pc=='dashboard')],
+        ['label' => 'Projects',  'url' => '/admin/project-audit-ledger/projects',  'icon_key' => '📋', 'is_active' => (pc=='project-list')],
+        ['label' => 'Sales',     'url' => '/admin/project-audit-ledger/sales',     'icon_key' => '💰', 'is_active' => (pc=='sales-list')],
+        ['label' => 'Inventory', 'url' => '/admin/project-audit-ledger/inventory', 'icon_key' => '📦', 'is_active' => (pc=='inventory-list')],
+        ['label' => 'Approvals', 'url' => '/admin/project-audit-ledger/approvals', 'icon_key' => '✅', 'is_active' => (pc=='approval-queue')]
+    ],
+    'extra_styles' => ['/assets/pal/pal-ui.css'],
+    'extra_scripts' => [
+        'https://cdn.tailwindcss.com',
+        'https://unpkg.com/htmx.org@1.9.12',
+        'https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js',
+        '/assets/pal/pal-routes.js',
+        '/assets/pal/pal-core.js',
+        '/assets/pal/pal-forms.js'
+    ]
+]}
 
-                <!-- Inventory & Procurement -->
-                <div @click="sections.inventory = !sections.inventory" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
-                    <span>Inventory &amp; Procurement</span>
-                    <span x-text="sections.inventory ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.inventory" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/inventory" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='inventory-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📦 Inventory
-                    </a>
-                    <a href="/admin/project-audit-ledger/inventory/movements" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='movement-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📤 Stock Movements
-                    </a>
-                    <a href="/admin/project-audit-ledger/purchases" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='purchase-list'||pc=='purchase-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        🛒 Purchases
-                    </a>
-                    <a href="/admin/project-audit-ledger/material-issuance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='issuance-list'||pc=='issuance-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📋 Issuance
-                    </a>
-                    <a href="/admin/project-audit-ledger/material-returns" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='return-list'||pc=='return-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        🔄 Returns
-                    </a>
-                    <a href="/admin/project-audit-ledger/expenses" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='expense-list'||pc=='expense-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        💳 Expenses
-                    </a>
-                </div>
-
-                <!-- Operations -->
-                <div @click="sections.ops = !sections.ops" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
-                    <span>Operations</span>
-                    <span x-text="sections.ops ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.ops" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='fabrication-list'||pc=='fabrication-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        🔧 Fabrication
-                    </a>
-                    <a href="/admin/project-audit-ledger/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='mobilization-list'||pc=='mobilization-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        🚛 Mobilization
-                    </a>
-                    {if current_user.role == 'admin'}
-                    <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='cash-advance-list'||pc=='cash-advance-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        💵 Cash Advances
-                    </a>
-                    {/if}
-                </div>
-
-                <!-- Oversight -->
-                <div @click="sections.oversight = !sections.oversight" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
-                    <span>Oversight</span>
-                    <span x-text="sections.oversight ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.oversight" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/approvals" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='approval-queue'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        ✅ Approvals
-                    </a>
-                    <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='reports-center'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📈 Reports
-                    </a>
-                </div>
-
-                <!-- Administration -->
-                {if current_user.role == 'admin'}
-                <div @click="sections.admin = !sections.admin" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
-                    <span>Administration</span>
-                    <span x-text="sections.admin ? '−' : '+'">+</span>
-                </div>
-                <div x-show="sections.admin" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='audit-trail'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        📜 Audit Trail
-                    </a>
-                    <a href="/admin/project-audit-ledger/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='settings-categories'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        ⚙️ Settings
-                    </a>
-                    <a href="/admin/project-audit-ledger/users" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='users-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
-                        👥 Users
-                    </a>
-                </div>
-                {/if}
-            </nav>
-            <div class="p-4 border-t border-slate-700">
-                <form method="POST" action="/api/v1/project-audit-ledger/auth/logout">
-                    <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">Sign Out</button>
-                </form>
-            </div>
-        </aside>
-
-        <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto">
-            <div class="p-6">
-                <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
-                {page_body|raw}
-            </div>
-        </main>
+{include "workbench:app_shell" shell=shell_ctx}
+    {csrf_field|raw}
+    <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
+    {page_body|raw}
+    {* Lightbox *}
+    <div id="lightbox" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Image viewer" onclick="closeLightbox()" hidden>
+        <span class="lightbox-close" role="button" tabindex="0" aria-label="Close viewer">&times;</span>
+        <img id="lightbox-img" src="" alt="">
+        <div id="lightbox-caption" class="lightbox-caption"></div>
     </div>
-<!-- Toast (accessible) -->
-<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
-<!-- Lightbox (accessible dialog) -->
-<div id="lightbox" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Image viewer" onclick="closeLightbox()">
-    <span class="lightbox-close" role="button" tabindex="0" aria-label="Close viewer" onclick="closeLightbox()" onkeydown="if(event.key==='Enter'||event.key===' ')closeLightbox()">&times;</span>
-    <img id="lightbox-img" src="" alt="">
-    <div id="lightbox-caption" class="lightbox-caption"></div>
-</div>
-<script src="/assets/pal/pal-routes.js"></script>
-<script src="/assets/pal/pal-core.js"></script>
-<script src="/assets/pal/pal-forms.js"></script>
-<script src="/assets/pal/pal-settings.js"></script>
-</body>
-</html>
+{/include}
+
