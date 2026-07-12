@@ -1,0 +1,25 @@
+{* _attachments_list — DiSyL template for attachment galleries.
+   Pass: files ([{id, original_filename, file_size, description?, is_image}]), entity_type *}
+{if files|default:[]}
+    <div class="space-y-1">
+        {for f in files}
+            <div class="flex justify-between items-center text-sm py-1">
+                {if f.is_image|default:false}
+                    <a href="#" data-wb-lightbox="/admin/project-audit-ledger/attachments/{f.id}/download"
+                       data-wb-lightbox-caption="{f.original_filename|escape:'html'}"
+                       class="text-blue-600 hover:text-blue-800">
+                        🖼 {f.original_filename|escape:'html'}
+                    </a>
+                {else}
+                    <a href="/admin/project-audit-ledger/attachments/{f.id}/download"
+                       class="text-blue-600 hover:text-blue-800">
+                        📎 {f.original_filename|escape:'html'}
+                    </a>
+                {/if}
+                <span class="text-xs text-gray-400">{(f.file_size / 1024)|number_format:1} KB</span>
+            </div>
+        {/for}
+    </div>
+{else}
+    <p class="text-xs text-gray-400">No files uploaded yet.</p>
+{/if}

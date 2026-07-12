@@ -79,36 +79,50 @@ function palApiAttachmentDelete(array $rp = []): void { palResponseGuard(functio
  */
 function palRenderPoImages(int $projectId, ?int $tenantId = null): string
 {
-    try {
-        $db = palDb();
-        $tid = $tenantId ?? (int)(app()->tenant()->current() ?? 0);
-        $stmt = $db->prepare(
-            "SELECT * FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'po' AND entity_id = :eid ORDER BY created_at DESC"
-        );
-        $stmt->execute([':tid' => $tid, ':eid' => $projectId]);
-        $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (empty($files)) return '<p class="text-xs text-gray-400 col-span-full">No PO images uploaded yet.</p>';
+    $files = palGetAttachments('po', $projectId, $tenantId);
+    if (empty($files)) return '<p class="text-xs text-gray-400 col-span-full">No PO images uploaded yet.</p>';
 
-        $html = '';
-        foreach ($files as $f) {
-            $dlUrl = '/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download';
-            $caption = htmlspecialchars($f['description'] ?? $f['original_filename'], ENT_QUOTES, 'UTF-8');
-            $html .= '<div class="relative group w-20">';
-            $html .= '<a href="#" onclick="openLightbox(\'' . $dlUrl . '\',\'' . addslashes($caption) . '\');return false" class="block w-20 border rounded overflow-hidden bg-gray-100 cursor-zoom-in">';
-            $html .= '<img src="' . $dlUrl . '" class="w-20 h-20 object-cover rounded" loading="lazy">';
-            $html .= '</a>';
-            if ($f['description']) {
-                $html .= '<p class="text-xs text-gray-500 mt-1 truncate">' . htmlspecialchars($f['description'], ENT_QUOTES, 'UTF-8') . '</p>';
-            }
-            $html .= '<button onclick="deletePoImage(' . (int)$f['id'] . ')" class="absolute top-1 right-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">✕</button>';
-            $html .= '</div>';
+    // Build thumbnail gallery — rendered by DiSyL template
+    $html = '';
+    foreach ($files as $f) {
+        $dlUrl = '/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download';
+        $caption = htmlspecialchars($f['description'] ?? $f['original_filename'], ENT_QUOTES, 'UTF-8');
+        $html .= '<div class="relative group w-20">';
+        $html .= '<a href="#" data-wb-lightbox="' . $dlUrl . '" data-wb-lightbox-caption="' . htmlspecialchars($caption, ENT_QUOTES, 'UTF-8') . '" class="block w-20 border rounded overflow-hidden bg-gray-100 cursor-zoom-in">';
+        $html .= '<img src="' . $dlUrl . '" class="w-20 h-20 object-cover rounded" loading="lazy">';
+        $html .= '</a>';
+        if ($f['description']) {
+            $html .= '<p class="text-xs text-gray-500 mt-1 truncate">' . htmlspecialchars($f['description'], ENT_QUOTES, 'UTF-8') . '</p>';
         }
-        return $html;
-    } catch (Throwable) {
-        return '<p class="text-xs text-gray-400">Error loading images.</p>';
+        $html .= '<button data-wb-delete-attachment="' . (int)$f['id'] . '" class="absolute top-1 right-1 bg-red-600 text-white text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">✕</button>';
+        $html .= '</div>';
     }
+    return $html;
 }
+
+/**
+ * Render attachment list via DiSyL template instead of PHP string building.
+ */
 function palRenderAttachments(string $entityType, int $entityId, ?int $tenantId = null): string
+{
+    $files = palGetAttachments($entityType, $entityId, $tenantId);
+    if (empty($files)) return '';
+
+    // Tag images for template
+    $items = [];
+    foreach ($files as $f) {
+        $f['is_image'] = (bool)preg_match('/\.(jpg|jpeg|png|gif|webp|svg)$/i', $f['original_filename']);
+        $items[] = $f;
+    }
+
+    $template = __DIR__ . '/../templates/project-audit-ledger/_attachments_list.disyl';
+    return app()->render($template, ['files' => $items, 'entity_type' => $entityType]);
+}
+
+/**
+ * Fetch attachments from DB (shared by render functions).
+ */
+function palGetAttachments(string $entityType, int $entityId, ?int $tenantId = null): array
 {
     try {
         $db = palDb();
@@ -117,26 +131,9 @@ function palRenderAttachments(string $entityType, int $entityId, ?int $tenantId 
             "SELECT * FROM pal_attachments WHERE tenant_id = :tid AND entity_type = :et AND entity_id = :eid ORDER BY created_at DESC"
         );
         $stmt->execute([':tid' => $tid, ':et' => $entityType, ':eid' => $entityId]);
-        $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        if (empty($files)) return '<p class="text-xs text-gray-400">No files uploaded yet.</p>';
-
-        $html = '<div class="space-y-1">';
-        foreach ($files as $f) {
-            $isImg = preg_match('/\.(jpg|jpeg|png|gif|webp|svg)$/i', $f['original_filename']);
-            $dlUrl = '/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download';
-            $html .= '<div class="flex justify-between items-center text-sm py-1">';
-            if ($isImg) {
-                $html .= '<a href="#" onclick="openLightbox(\'' . $dlUrl . '\',\'' . addslashes(htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8')) . '\');return false" class="text-blue-600 hover:text-blue-800">🖼 ' . htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8') . '</a>';
-            } else {
-                $html .= '<a href="/admin/project-audit-ledger/attachments/' . (int)$f['id'] . '/download" class="text-blue-600 hover:text-blue-800">📎 ' . htmlspecialchars($f['original_filename'], ENT_QUOTES, 'UTF-8') . '</a>';
-            }
-            $html .= '<span class="text-xs text-gray-400">' . number_format((int)$f['file_size'] / 1024, 1) . ' KB</span>';
-            $html .= '</div>';
-        }
-        $html .= '</div>';
-        return $html;
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable) {
-        return '';
+        return [];
     }
 }
 
