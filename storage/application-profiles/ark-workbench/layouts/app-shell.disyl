@@ -1,0 +1,93 @@
+{* ARK Workbench: App Shell Layout
+   This is the standard layout that operational modules extend.
+   
+   Usage in a module template:
+     {extends "workbench:layouts/app-shell"}
+     
+     {block page_body}
+       {include "workbench:page_header" title=vm.page_title}
+       ...page content...
+     {/block}
+*}
+
+{* The shell view model is supplied by the module handler as 'shell' *}
+{set s = shell|default:[]}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{s.application_name|default:'Application'} — {s.page_title|default:'Dashboard'}</title>
+    <link rel="stylesheet" href="/assets/workbench/workbench.css">
+    {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="{style}">{/for}{/if}
+</head>
+<body class="wb-app-shell">
+    {* Skip to content *}
+    <a href="#wb-main" class="wb-skip-link">Skip to content</a>
+
+    {* Mobile menu toggle *}
+    <button id="wb-menu-btn" class="wb-mobile-menu-btn" aria-label="Open menu" aria-expanded="false">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+
+    {* Mobile overlay *}
+    <div id="wb-overlay" class="wb-app-shell__overlay" aria-hidden="true"></div>
+
+    {* Sidebar *}
+    <aside id="wb-sidebar" class="wb-app-shell__sidebar">
+        <div class="wb-sidebar__brand">
+            {if s.logo_url}<img src="{s.logo_url}" class="h-8 mb-1" alt="">{/if}
+            <h1 class="wb-sidebar__title">{s.application_name|default:'Application'}</h1>
+            {if s.user_display|default:''}<p class="wb-sidebar__user">{s.user_display}</p>{/if}
+        </div>
+        <nav class="wb-sidebar__nav" aria-label="Main navigation">
+            {for section in s.navigation_sections|default:[]}
+                <div class="wb-sidebar-section">
+                    <button class="wb-sidebar-section__trigger" aria-expanded="{if section.collapsed_default|default:false}false{else}true{/if}">
+                        <span>{section.label}</span>
+                        <span aria-hidden="true">{if section.collapsed_default|default:false}+{else}−{/if}</span>
+                    </button>
+                    <div class="wb-sidebar-section__items" style="max-height:{if section.collapsed_default|default:false}0{else}none{/if}">
+                        {for item in section.items|default:[]}
+                            <a href="{item.url}" class="wb-nav-item {if item.is_active}is-active{/if}">
+                                <span aria-hidden="true">{item.icon_key|default:'•'}</span>
+                                {item.label}
+                                {if item.badge_count|default:0 > 0}<span class="wb-nav-badge">{item.badge_count}</span>{/if}
+                            </a>
+                        {/for}
+                    </div>
+                </div>
+            {/for}
+        </nav>
+        {if s.user_actions|default:[]}
+        <div class="wb-sidebar__footer">
+            {for action in s.user_actions}
+                <a href="{action.url}" class="wb-nav-item wb-nav-item--footer">{action.label}</a>
+            {/for}
+        </div>
+        {/if}
+    </aside>
+
+    {* Main Content *}
+    <main id="wb-main" class="wb-app-shell__main">
+        {page_body|raw}
+    </main>
+
+    {* Bottom Navigation (mobile) *}
+    {if s.mobile_navigation|default:[]}
+    <nav class="wb-bottom-nav" aria-label="Mobile navigation">
+        {for item in s.mobile_navigation}
+            <a href="{item.url}" class="wb-bottom-nav__item {if item.is_active}is-active{/if}">
+                <span class="wb-bottom-nav__icon" aria-hidden="true">{item.icon_key|default:'•'}</span>
+                <span class="wb-bottom-nav__label">{item.label}</span>
+            </a>
+        {/for}
+    </nav>
+    {/if}
+
+    <div id="wb-toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+    <script src="/assets/workbench/workbench-core.js"></script>
+    {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
+</body>
+</html>

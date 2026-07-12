@@ -23,13 +23,23 @@
     },
     "assets": {
         "core": {
-            "styles": ["assets/workbench.css"],
-            "scripts": ["assets/workbench-core.js"]
+            "styles": [
+                "assets/workbench.css"
+            ],
+            "scripts": [
+                "assets/workbench-core.js"
+            ]
         },
         "components": {
-            "workbench:dialog": ["assets/workbench-dialog.js"],
-            "workbench:combobox": ["assets/workbench-combobox.js"],
-            "workbench:responsive_table": ["assets/workbench-table.js"]
+            "workbench:dialog": [
+                "assets/workbench-dialog.js"
+            ],
+            "workbench:combobox": [
+                "assets/workbench-combobox.js"
+            ],
+            "workbench:responsive_table": [
+                "assets/workbench-table.js"
+            ]
         }
     },
     "customizer": {
@@ -73,23 +83,44 @@
         ],
         "tone_contract": {
             "neutral": {
-                "allowed_families": ["gray", "slate", "zinc", "neutral"],
+                "allowed_families": [
+                    "gray",
+                    "slate",
+                    "zinc",
+                    "neutral"
+                ],
                 "min_contrast_text": 4.5
             },
             "informational": {
-                "allowed_families": ["blue", "cyan", "sky"],
+                "allowed_families": [
+                    "blue",
+                    "cyan",
+                    "sky"
+                ],
                 "min_contrast_text": 4.5
             },
             "warning": {
-                "allowed_families": ["amber", "yellow", "orange"],
+                "allowed_families": [
+                    "amber",
+                    "yellow",
+                    "orange"
+                ],
                 "min_contrast_text": 4.5
             },
             "success": {
-                "allowed_families": ["green", "teal", "emerald"],
+                "allowed_families": [
+                    "green",
+                    "teal",
+                    "emerald"
+                ],
                 "min_contrast_text": 4.5
             },
             "danger": {
-                "allowed_families": ["red", "rose", "crimson"],
+                "allowed_families": [
+                    "red",
+                    "rose",
+                    "crimson"
+                ],
                 "min_contrast_text": 4.5,
                 "must_use_confirmation": true,
                 "must_include_text_label": true

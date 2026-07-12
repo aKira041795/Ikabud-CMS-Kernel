@@ -1,0 +1,128 @@
+{
+    "version": "1.0",
+    "profile": "ark.workbench",
+    "sections": {
+        "brand": {
+            "label": "Brand",
+            "description": "Organization identity settings",
+            "controls": {
+                "brand.primary": {
+                    "type": "color",
+                    "label": "Primary Color",
+                    "default": "#2563eb"
+                },
+                "brand.logo": {
+                    "type": "image",
+                    "label": "Logo",
+                    "default": null
+                },
+                "brand.app_name": {
+                    "type": "text",
+                    "label": "Application Name",
+                    "default": null
+                }
+            }
+        },
+        "sidebar": {
+            "label": "Sidebar",
+            "description": "Navigation sidebar appearance",
+            "controls": {
+                "sidebar.variant": {
+                    "type": "select",
+                    "label": "Sidebar Style",
+                    "options": ["dark", "light", "branded"],
+                    "default": "dark"
+                },
+                "sidebar.default_state": {
+                    "type": "select",
+                    "label": "Default Sidebar State",
+                    "options": ["expanded", "collapsed"],
+                    "default": "expanded",
+                    "note": "User preference override available"
+                }
+            }
+        },
+        "radius": {
+            "label": "Corner Radius",
+            "description": "Border radius for cards and components",
+            "controls": {
+                "radius": {
+                    "type": "select",
+                    "label": "Corner Style",
+                    "options": ["none", "sm", "md", "lg"],
+                    "default": "lg"
+                }
+            }
+        },
+        "typography": {
+            "label": "Typography",
+            "description": "Font settings",
+            "controls": {
+                "font.interface": {
+                    "type": "select",
+                    "label": "Interface Font",
+                    "options": ["Inter", "System Default", "Open Sans", "Roboto"],
+                    "default": "Inter"
+                },
+                "font.size_scale": {
+                    "type": "select",
+                    "label": "Size Scale",
+                    "options": ["compact", "default", "large"],
+                    "default": "default"
+                }
+            }
+        },
+        "table": {
+            "label": "Table Display",
+            "description": "Table density and styling",
+            "controls": {
+                "table.default_density": {
+                    "type": "select",
+                    "label": "Default Table Density",
+                    "options": ["comfortable", "compact"],
+                    "default": "comfortable",
+                    "note": "User preference override available"
+                },
+                "table.zebra_striping": {
+                    "type": "toggle",
+                    "label": "Zebra Striping",
+                    "default": false
+                }
+            }
+        },
+        "density": {
+            "label": "Application Density",
+            "description": "Overall application spacing",
+            "controls": {
+                "density.default": {
+                    "type": "select",
+                    "label": "Default Density",
+                    "options": ["comfortable", "compact"],
+                    "default": "comfortable",
+                    "note": "User preference override available"
+                }
+            }
+        },
+        "spacing": {
+            "label": "Spacing Scale",
+            "controls": {
+                "spacing.scale": {
+                    "type": "select",
+                    "label": "Spacing",
+                    "options": ["compact", "default", "comfortable"],
+                    "default": "default"
+                }
+            }
+        },
+        "print": {
+            "label": "Print Branding",
+            "controls": {
+                "print.branding": {
+                    "type": "toggle",
+                    "label": "Show Branding on Prints",
+                    "default": true
+                }
+            }
+        }
+    }
+}
