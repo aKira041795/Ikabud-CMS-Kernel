@@ -1,0 +1,10 @@
+{* workbench:empty_state — Empty state placeholder.
+   Pass: title, icon_key?, description?, action? (ActionValue), size? (sm|lg), bordered? (bool) *}
+<div class="wb-empty-state {if bordered|default:true}wb-empty-state--bordered{/if} {if size|default:'lg'=='sm'}p-6{/if}">
+    {if icon_key|default:''}<div class="wb-empty-state__icon">{icon_key}</div>{/if}
+    <h3 class="wb-empty-state__title">{title}</h3>
+    {if description|default:''}<p class="wb-empty-state__desc">{description}</p>{/if}
+    {if action|default:[]}
+        <a href="{action.url}" class="btn btn--{action.variant|default:'primary'}">{action.label}</a>
+    {/if}
+</div>

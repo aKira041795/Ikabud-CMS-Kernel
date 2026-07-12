@@ -1,0 +1,40 @@
+{* workbench:detail_header — Entity detail header with identity, status, metrics, and tabs.
+   Pass: title, subtitle?, status_badge? (pre-rendered workbench:status_badge include),
+         metrics? ({label,value,variant}[]), actions? (ActionValue[]), tabs? ({label,url,active}[]) *}
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <h2 class="text-xl font-bold text-gray-900">{title}</h2>
+                {if status_badge|default:''}{status_badge|raw}{/if}
+            </div>
+            {if subtitle|default:''}<p class="text-sm text-gray-600">{subtitle}</p>{/if}
+        </div>
+        {if actions|default:[]}
+        <div class="flex items-center gap-2">
+            {for action in actions}
+                <a href="{action.url}" class="btn btn--{action.variant|default:'primary'}">{action.label}</a>
+            {/for}
+        </div>
+        {/if}
+    </div>
+    {if metrics|default:[]}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-3 border-t border-gray-100">
+        {for metric in metrics}
+        <div>
+            <p class="text-xs text-gray-500">{metric.label}</p>
+            <p class="text-lg font-bold text-gray-900">{metric.value}</p>
+        </div>
+        {/for}
+    </div>
+    {/if}
+    {if tabs|default:[]}
+    <div class="flex gap-1 mt-4 pt-3 border-t border-gray-100" role="tablist">
+        {for tab in tabs}
+            <a href="{tab.url}" class="px-3 py-2 text-sm rounded-lg {if tab.active|default:false}bg-blue-100 text-blue-700 font-medium{else}text-gray-600 hover:bg-gray-100{/if}" role="tab" aria-selected="{if tab.active|default:false}true{else}false{/if}">
+                {tab.label}
+            </a>
+        {/for}
+    </div>
+    {/if}
+</div>

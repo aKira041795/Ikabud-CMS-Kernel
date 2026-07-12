@@ -1,0 +1,6 @@
+{* workbench:money — Currency display with visual emphasis only.
+   Module supplies pre-formatted value. Workbench controls alignment and emphasis.
+   Pass: formatted (string), is_negative? (bool), emphasis? (primary|secondary|muted), align? (left|right|tabular) *}
+<span class="wb-money wb-money--{emphasis|default:'primary'} {if is_negative|default:false}wb-money--negative{/if} wb-money--{align|default:'left'}">
+    {formatted}
+</span>

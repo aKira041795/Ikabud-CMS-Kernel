@@ -1,0 +1,35 @@
+{
+    "version": "1.0",
+    "policy": {
+        "raw_output": {
+            "allowed_keys": [
+                "page_body",
+                "section_body",
+                "form_body",
+                "actions_html",
+                "financial_impact_html",
+                "audit_context_html"
+            ],
+            "requires_capability": [],
+            "note": "Raw output in workbench components is limited to pre-rendered content from trusted module handlers and view models."
+        },
+        "allowed_context_sources": [
+            "kernel",
+            "module",
+            "application_profile",
+            "customizer"
+        ],
+        "blocked_patterns": [
+            "direct database queries",
+            "php function invocation from templates",
+            "session access",
+            "cookie writes",
+            "filesystem access"
+        ],
+        "allowed_js_bridges": [
+            "alpine",
+            "workbench"
+        ],
+        "csp_note": "Workbench uses its own JS modules (workbench-core.js, workbench-dialog.js, etc.) rather than inline onclick handlers."
+    }
+}

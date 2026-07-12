@@ -1,0 +1,26 @@
+{* workbench:summary_card — Metric card with label, value, icon, and tone.
+   Pass: label, value, icon_key?, tone? (neutral|informational|warning|success|danger),
+         trend? (up|down|neutral), href? *}
+{set t = tone|default:'neutral'}
+<div class="wb-summary-card {if href|default:''}cursor-pointer hover:shadow-md transition-shadow{/if}"
+     {if href|default:''}onclick="window.location='{href}'" role="link" tabindex="0"{/if}>
+    <div class="flex items-center gap-3">
+        {if icon_key|default:''}
+        <div class="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-lg" style="background: var(--wb-tone-{t}-bg); color: var(--wb-tone-{t})">
+            {icon_key}
+        </div>
+        {/if}
+        <div>
+            <p class="wb-summary-card__label">
+                {label}
+                {if trend|default:''}
+                    {if trend=='up'}<span aria-label="Increasing">↑</span>
+                    {elseif trend=='down'}<span aria-label="Decreasing">↓</span>
+                    {else}<span aria-label="No change">→</span>
+                    {/if}
+                {/if}
+            </p>
+            <p class="wb-summary-card__value">{value}</p>
+        </div>
+    </div>
+</div>

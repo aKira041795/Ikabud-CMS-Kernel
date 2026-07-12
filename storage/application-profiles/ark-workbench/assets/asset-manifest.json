@@ -1,0 +1,18 @@
+{
+    "version": "1.0",
+    "assets": {
+        "styles": {
+            "workbench.css": {
+                "path": "assets/workbench.css",
+                "size": "~8KB"
+            }
+        },
+        "scripts": {
+            "workbench-core.js": {
+                "path": "assets/workbench-core.js",
+                "size": "~4KB",
+                "provides": ["shell", "drawer", "bottom-nav", "sidebar-section", "toast", "validation-summary"]
+            }
+        }
+    }
+}

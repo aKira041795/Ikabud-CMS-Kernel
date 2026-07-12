@@ -1,0 +1,65 @@
+{
+    "version": "1.0",
+    "profile": "ark.workbench",
+    "configurable": [
+        "brand.primary",
+        "brand.logo",
+        "brand.app_name",
+        "font.interface",
+        "font.size_scale",
+        "density.default",
+        "sidebar.variant",
+        "sidebar.default_state",
+        "table.default_density",
+        "table.zebra_striping",
+        "radius",
+        "spacing.scale",
+        "print.branding"
+    ],
+    "locked": [
+        "status.meaning",
+        "status.color_contract",
+        "danger.emphasis",
+        "approval.context",
+        "financial.total.visibility",
+        "action.priority",
+        "required.field_indicator",
+        "workflow.state",
+        "business.terminology",
+        "access.rules"
+    ],
+    "tone_contract": {
+        "neutral": {
+            "allowed_families": ["gray", "slate", "zinc", "neutral"],
+            "min_contrast_text": 4.5
+        },
+        "informational": {
+            "allowed_families": ["blue", "cyan", "sky"],
+            "min_contrast_text": 4.5
+        },
+        "warning": {
+            "allowed_families": ["amber", "yellow", "orange"],
+            "min_contrast_text": 4.5
+        },
+        "success": {
+            "allowed_families": ["green", "teal", "emerald"],
+            "min_contrast_text": 4.5
+        },
+        "danger": {
+            "allowed_families": ["red", "rose", "crimson"],
+            "min_contrast_text": 4.5,
+            "must_use_confirmation": true,
+            "must_include_text_label": true
+        }
+    },
+    "danger_emphasis": {
+        "min_contrast_ratio": 4.5,
+        "must_use_confirmation": true
+    },
+    "resolution_precedence": [
+        "workbench_component_defaults",
+        "tenant_profile_defaults",
+        "user_preference_overrides",
+        "runtime_accessibility_overrides"
+    ]
+}

@@ -1,0 +1,6 @@
+{* workbench:status_badge — Semantic tone badge.
+   Pass: label (string), tone (neutral|informational|warning|success|danger),
+         variant? (pill|dot), size? (sm|md|lg) *}
+<span class="wb-badge wb-badge--{tone} wb-badge--{size|default:'md'} {if variant|default:'pill'=='dot'}wb-badge--dot{/if}">
+    {label}
+</span>
