@@ -111,4 +111,54 @@ class ApplicationProfileValidatorTest extends \PHPUnit\Framework\TestCase
 
         $this->assertNotEmpty($result['warnings']);
     }
+
+    public function testArkWorkbenchManifestPasses(): void
+    {
+        $root = dirname(__DIR__, 3)
+            . '/storage/application-profiles/ark-workbench';
+
+        $manifest = json_decode(
+            file_get_contents($root . '/profile.manifest.json'),
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+
+        $result = $this->validator->validate($manifest, $root);
+
+        $this->assertTrue(
+            $result['valid'],
+            "ARK Workbench manifest failed validation:\n" . implode("\n", $result['errors'])
+        );
+    }
+
+    public function testProviderMustBeObject(): void
+    {
+        $manifest = [
+            'name'               => 'test',
+            'version'            => '0.1.0',
+            'label'              => 'Test',
+            'supported_surfaces' => ['desktop'],
+            'provider'           => 'SomeClass',  // string, not {class, file}
+        ];
+
+        $result = $this->validator->validate($manifest, '/tmp');
+
+        $this->assertFalse($result['valid']);
+    }
+
+    public function testProviderMustHaveClassAndFile(): void
+    {
+        $manifest = [
+            'name'               => 'test',
+            'version'            => '0.1.0',
+            'label'              => 'Test',
+            'supported_surfaces' => ['desktop'],
+            'provider'           => ['class' => 'Foo'],  // missing file
+        ];
+
+        $result = $this->validator->validate($manifest, '/tmp');
+
+        $this->assertFalse($result['valid']);
+    }
 }

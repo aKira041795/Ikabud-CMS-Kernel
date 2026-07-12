@@ -145,10 +145,15 @@
                 }
             }
 
-            // Clickable rows and cards
+            // Clickable rows and cards — skip if click originated from interactive element
             var clickable = e.target.closest('[data-wb-href]');
-            if (clickable && e.target.tagName !== 'A' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
-                window.location = clickable.getAttribute('data-wb-href');
+            if (clickable) {
+                var interactive = e.target.closest(
+                    'a, button, input, select, textarea, [role="button"], [data-wb-stop-row-click]'
+                );
+                if (!interactive) {
+                    window.location.assign(clickable.getAttribute('data-wb-href'));
+                }
             }
         });
 

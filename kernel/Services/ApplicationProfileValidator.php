@@ -32,7 +32,7 @@ class ApplicationProfileValidator
         'assets'        => ['type' => 'object', 'required' => false],
         'customizer'    => ['type' => 'object', 'required' => false],
         'design_policy' => ['type' => 'object', 'required' => false],
-        'provider'      => ['type' => 'string', 'required' => false],
+        'provider'      => ['type' => 'object', 'required' => true],
     ];
 
     /**
@@ -59,6 +59,7 @@ class ApplicationProfileValidator
         $this->warnings = [];
 
         $this->validateSchema($manifest);
+        $this->validateProvider($manifest);
         $this->validateSurfaces($manifest);
         $this->validateContracts($manifest);
         $this->validateAssets($manifest, $profilePath);
@@ -100,6 +101,27 @@ class ApplicationProfileValidator
         // Version must be semver
         if (isset($manifest['version']) && !preg_match('/^\d+\.\d+\.\d+$/', (string)$manifest['version'])) {
             $this->errors[] = "Version '{$manifest['version']}' must be semver (e.g., 0.1.0)";
+        }
+    }
+
+    /**
+     * Validate provider declaration.
+     */
+    private function validateProvider(array $manifest): void
+    {
+        $provider = $manifest['provider'] ?? null;
+
+        if (!is_array($provider)) {
+            $this->errors[] = 'provider must be an object with class and file keys';
+            return;
+        }
+
+        if (!isset($provider['class']) || !is_string($provider['class']) || trim($provider['class']) === '') {
+            $this->errors[] = 'provider.class must be a non-empty string';
+        }
+
+        if (!isset($provider['file']) || !is_string($provider['file']) || trim($provider['file']) === '') {
+            $this->errors[] = 'provider.file must be a non-empty string';
         }
     }
 

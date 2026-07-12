@@ -30,13 +30,20 @@
                 "sidebar.variant": {
                     "type": "select",
                     "label": "Sidebar Style",
-                    "options": ["dark", "light", "branded"],
+                    "options": [
+                        "dark",
+                        "light",
+                        "branded"
+                    ],
                     "default": "dark"
                 },
                 "sidebar.default_state": {
                     "type": "select",
                     "label": "Default Sidebar State",
-                    "options": ["expanded", "collapsed"],
+                    "options": [
+                        "expanded",
+                        "collapsed"
+                    ],
                     "default": "expanded",
                     "note": "User preference override available"
                 }
@@ -49,7 +56,12 @@
                 "radius": {
                     "type": "select",
                     "label": "Corner Style",
-                    "options": ["none", "sm", "md", "lg"],
+                    "options": [
+                        "none",
+                        "sm",
+                        "md",
+                        "lg"
+                    ],
                     "default": "lg"
                 }
             }
@@ -61,13 +73,22 @@
                 "font.interface": {
                     "type": "select",
                     "label": "Interface Font",
-                    "options": ["Inter", "System Default", "Open Sans", "Roboto"],
+                    "options": [
+                        "Inter",
+                        "System Default",
+                        "Open Sans",
+                        "Roboto"
+                    ],
                     "default": "Inter"
                 },
                 "font.size_scale": {
                     "type": "select",
                     "label": "Size Scale",
-                    "options": ["compact", "default", "large"],
+                    "options": [
+                        "compact",
+                        "default",
+                        "large"
+                    ],
                     "default": "default"
                 }
             }
@@ -79,7 +100,10 @@
                 "table.default_density": {
                     "type": "select",
                     "label": "Default Table Density",
-                    "options": ["comfortable", "compact"],
+                    "options": [
+                        "comfortable",
+                        "compact"
+                    ],
                     "default": "comfortable",
                     "note": "User preference override available"
                 },
@@ -97,7 +121,10 @@
                 "density.default": {
                     "type": "select",
                     "label": "Default Density",
-                    "options": ["comfortable", "compact"],
+                    "options": [
+                        "comfortable",
+                        "compact"
+                    ],
                     "default": "comfortable",
                     "note": "User preference override available"
                 }
@@ -109,7 +136,11 @@
                 "spacing.scale": {
                     "type": "select",
                     "label": "Spacing",
-                    "options": ["compact", "default", "comfortable"],
+                    "options": [
+                        "compact",
+                        "default",
+                        "comfortable"
+                    ],
                     "default": "default"
                 }
             }
