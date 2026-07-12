@@ -87,7 +87,8 @@ class palReceivableService
 
     /**
      * Allocate a payment (collection) to a receivable.
-     * Updates both the receivable amount_paid and the collection's payment allocation.
+     * Owns its own transaction. For callers already in a transaction,
+     * use allocatePaymentWithinTransaction() instead.
      *
      * @param int $receivableId
      * @param int $collectionId
@@ -96,57 +97,81 @@ class palReceivableService
      */
     public function allocatePayment(int $receivableId, int $collectionId, float $amount): void
     {
-        $rcv = $this->get($receivableId);
-        if ($rcv === null) {
+        $this->db->beginTransaction();
+        try {
+            $this->allocatePaymentWithinTransaction($receivableId, $collectionId, $amount);
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Allocate a payment within an existing transaction.
+     * Assumes the caller owns the transaction. Uses SELECT FOR UPDATE
+     * on the receivable row to prevent concurrent allocation races.
+     *
+     * @param int $receivableId
+     * @param int $collectionId
+     * @param float $amount
+     * @throws InvalidArgumentException
+     */
+    public function allocatePaymentWithinTransaction(int $receivableId, int $collectionId, float $amount): void
+    {
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('Allocation amount must be positive.');
+        }
+
+        // Lock the receivable row and calculate outstanding from locked data
+        $lockStmt = $this->db->prepare(
+            "SELECT id, amount, amount_paid, outstanding, status
+             FROM pal_receivables
+             WHERE id = :id AND tenant_id = :tid
+             FOR UPDATE"
+        );
+        $lockStmt->execute([':id' => $receivableId, ':tid' => $this->tenantId]);
+        $rcv = $lockStmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$rcv) {
             throw new InvalidArgumentException('Receivable not found.');
         }
 
         $outstanding = (float)$rcv['outstanding'];
-        if ($amount <= 0) {
-            throw new InvalidArgumentException('Allocation amount must be positive.');
-        }
         if ($amount > $outstanding) {
             throw new InvalidArgumentException(
                 "Allocation amount ({$amount}) exceeds outstanding balance ({$outstanding})."
             );
         }
 
-        $this->db->beginTransaction();
-        try {
-            // Insert allocation record
-            $allocStmt = $this->db->prepare(
-                "INSERT INTO pal_receivable_payments (tenant_id, receivable_id, collection_id, amount)
-                 VALUES (:t, :ri, :ci, :amt)"
-            );
-            $allocStmt->execute([
-                ':t' => $this->tenantId,
-                ':ri' => $receivableId,
-                ':ci' => $collectionId,
-                ':amt' => $amount,
-            ]);
+        // Insert allocation record
+        $allocStmt = $this->db->prepare(
+            "INSERT INTO pal_receivable_payments (tenant_id, receivable_id, collection_id, amount)
+             VALUES (:t, :ri, :ci, :amt)"
+        );
+        $allocStmt->execute([
+            ':t' => $this->tenantId,
+            ':ri' => $receivableId,
+            ':ci' => $collectionId,
+            ':amt' => $amount,
+        ]);
 
-            // Update receivable amount_paid
-            $this->db->prepare(
-                "UPDATE pal_receivables SET amount_paid = amount_paid + :amt, version = version + 1
-                 WHERE id = :id AND tenant_id = :tid"
-            )->execute([':amt' => $amount, ':id' => $receivableId, ':tid' => $this->tenantId]);
+        // Update receivable amount_paid
+        $this->db->prepare(
+            "UPDATE pal_receivables SET amount_paid = amount_paid + :amt, version = version + 1
+             WHERE id = :id AND tenant_id = :tid"
+        )->execute([':amt' => $amount, ':id' => $receivableId, ':tid' => $this->tenantId]);
 
-            // Update status based on new outstanding
-            $newPaid = (float)$rcv['amount_paid'] + $amount;
-            $total = (float)$rcv['amount'];
-            $newStatus = $newPaid >= $total ? 'settled' : 'partial';
-            $this->db->prepare(
-                "UPDATE pal_receivables SET status = :st WHERE id = :id AND tenant_id = :tid"
-            )->execute([':st' => $newStatus, ':id' => $receivableId, ':tid' => $this->tenantId]);
+        // Update status based on new outstanding
+        $newPaid = (float)$rcv['amount_paid'] + $amount;
+        $total = (float)$rcv['amount'];
+        $newStatus = $newPaid >= $total ? 'settled' : 'partial';
+        $this->db->prepare(
+            "UPDATE pal_receivables SET status = :st WHERE id = :id AND tenant_id = :tid"
+        )->execute([':st' => $newStatus, ':id' => $receivableId, ':tid' => $this->tenantId]);
 
-            $this->db->commit();
-
-            palAudit('pal.receivable.payment_allocated', $this->userId, 'pal_receivable_payments', null,
-                null, ['receivable_id' => $receivableId, 'collection_id' => $collectionId, 'amount' => $amount]);
-        } catch (Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+        palAudit('pal.receivable.payment_allocated', $this->userId, 'pal_receivable_payments', null,
+            null, ['receivable_id' => $receivableId, 'collection_id' => $collectionId, 'amount' => $amount]);
     }
 
     /**

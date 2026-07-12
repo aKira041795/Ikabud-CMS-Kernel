@@ -28,7 +28,9 @@ class palPaymentService
     }
 
     /**
-     * Record a payment (collection) against a sale and allocate it to receivables.
+     * Record a payment (collection) against a sale.
+     * Creates the collection record WITHOUT allocating to receivables.
+     * Allocation happens only on approve(), not on pending record.
      *
      * @param int $saleId
      * @param int|null $projectId
@@ -38,7 +40,7 @@ class palPaymentService
      * @param string $paymentDate Y-m-d
      * @param string|null $referenceNumber Check/ref number
      * @param string|null $notes
-     * @param string $status pending or approved
+     * @param string $status pending or approved (use approve() for pending)
      * @return int Collection ID
      */
     public function record(
@@ -61,67 +63,84 @@ class palPaymentService
         $prefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
         $collNum = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$countStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
-        $this->db->beginTransaction();
-        try {
-            $stmt = $this->db->prepare(
-                "INSERT INTO pal_collections
-                    (tenant_id, collection_number, sales_id, project_id, client_id,
-                     payment_date, amount, payment_method, reference_number, notes,
-                     received_by, status, created_by)
-                 VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, :st, :cb)"
-            );
-            $stmt->execute([
-                ':t' => $this->tenantId,
-                ':cn' => $collNum,
-                ':si' => $saleId,
-                ':pj' => $projectId,
-                ':cl' => $clientId,
-                ':pd' => $paymentDate ?: date('Y-m-d'),
-                ':amt' => $amount,
-                ':pm' => $paymentMethod,
-                ':ref' => $referenceNumber,
-                ':no' => $notes,
-                ':rb' => $this->userId,
-                ':st' => $status,
-                ':cb' => $this->userId,
-            ]);
-            $collectionId = (int)$this->db->lastInsertId();
+        $stmt = $this->db->prepare(
+            "INSERT INTO pal_collections
+                (tenant_id, collection_number, sales_id, project_id, client_id,
+                 payment_date, amount, payment_method, reference_number, notes,
+                 received_by, status, created_by)
+             VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, :st, :cb)"
+        );
+        $stmt->execute([
+            ':t' => $this->tenantId,
+            ':cn' => $collNum,
+            ':si' => $saleId,
+            ':pj' => $projectId,
+            ':cl' => $clientId,
+            ':pd' => $paymentDate ?: date('Y-m-d'),
+            ':amt' => $amount,
+            ':pm' => $paymentMethod,
+            ':ref' => $referenceNumber,
+            ':no' => $notes,
+            ':rb' => $this->userId,
+            ':st' => $status,
+            ':cb' => $this->userId,
+        ]);
+        $collectionId = (int)$this->db->lastInsertId();
 
-            // Allocate to receivable(s) — auto-allocate to the earliest pending receivable
-            $this->autoAllocate($collectionId, $saleId, $amount);
+        palAudit('pal.payment.recorded', $this->userId, 'pal_collections', (string)$collectionId,
+            null, ['sales_id' => $saleId, 'amount' => $amount, 'method' => $paymentMethod]);
 
-            // Update sale collection status
-            $this->updateSaleCollectionStatus($saleId);
-
-            $this->db->commit();
-
-            palAudit('pal.payment.recorded', $this->userId, 'pal_collections', (string)$collectionId,
-                null, ['sales_id' => $saleId, 'amount' => $amount, 'method' => $paymentMethod]);
-
-            return $collectionId;
-        } catch (Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
-        }
+        return $collectionId;
     }
 
     /**
      * Approve a pending payment.
-     * Updates collection status + re-allocates to receivables.
+     * Locks the collection, allocates to receivables, updates sale status.
+     * Allocates only upon approval — never on pending record.
      */
     public function approve(int $collectionId): void
     {
-        $stmt = $this->db->prepare(
-            "UPDATE pal_collections SET status = 'approved', approved_by = :ab, approved_at = NOW()
-             WHERE id = :id AND tenant_id = :tid AND status = 'pending'"
-        );
-        $stmt->execute([':ab' => $this->userId, ':id' => $collectionId, ':tid' => $this->tenantId]);
+        $this->db->beginTransaction();
+        try {
+            // Lock the collection row
+            $lockStmt = $this->db->prepare(
+                "SELECT id, sales_id, amount, status FROM pal_collections
+                 WHERE id = :id AND tenant_id = :tid FOR UPDATE"
+            );
+            $lockStmt->execute([':id' => $collectionId, ':tid' => $this->tenantId]);
+            $coll = $lockStmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($stmt->rowCount() === 0) {
-            throw new InvalidArgumentException('Collection not found or already processed.');
+            if (!$coll) {
+                throw new InvalidArgumentException('Collection not found.');
+            }
+            if ($coll['status'] !== 'pending') {
+                throw new InvalidArgumentException('Collection is not in pending status.');
+            }
+
+            // Update collection status to approved
+            $this->db->prepare(
+                "UPDATE pal_collections SET status = 'approved', approved_by = :ab, approved_at = NOW()
+                 WHERE id = :id AND tenant_id = :tid"
+            )->execute([':ab' => $this->userId, ':id' => $collectionId, ':tid' => $this->tenantId]);
+
+            // Allocate to receivables (within same transaction)
+            $this->allocatePaymentWithinTransaction(
+                (int)$coll['id'],
+                (int)$coll['sales_id'],
+                (float)$coll['amount']
+            );
+
+            // Update sale collection status
+            $this->updateSaleCollectionStatus((int)$coll['sales_id']);
+
+            $this->db->commit();
+
+            palAudit('pal.payment.approved', $this->userId, 'pal_collections', (string)$collectionId,
+                null, ['sales_id' => $coll['sales_id'], 'amount' => $coll['amount']]);
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
         }
-
-        palAudit('pal.payment.approved', $this->userId, 'pal_collections', (string)$collectionId, null, []);
     }
 
     /**
@@ -143,10 +162,11 @@ class palPaymentService
     }
 
     /**
-     * Auto-allocate a payment to receivables for a sale.
-     * Allocates to the earliest-due pending receivable first.
+     * Allocate a payment to receivables within an existing transaction.
+     * Calls ReceivableService::allocatePaymentWithinTransaction() so no
+     * nested transaction occurs.
      */
-    private function autoAllocate(int $collectionId, int $saleId, float $amount): void
+    private function allocatePaymentWithinTransaction(int $collectionId, int $saleId, float $amount): void
     {
         $rcv = new palReceivableService($this->db, $this->tenantId, $this->userId);
 
@@ -167,7 +187,7 @@ class palPaymentService
             $allocAmount = min($remaining, $outstanding);
 
             if ($allocAmount > 0) {
-                $rcv->allocatePayment((int)$rcvRow['id'], $collectionId, $allocAmount);
+                $rcv->allocatePaymentWithinTransaction((int)$rcvRow['id'], $collectionId, $allocAmount);
                 $remaining -= $allocAmount;
             }
         }

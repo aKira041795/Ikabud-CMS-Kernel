@@ -85,7 +85,8 @@
         "database/migrations/015_pal_jo_type.sql",
         "database/migrations/016_pal_unique_business_numbers.sql",
         "database/migrations/017_pal_client_snapshot.sql",
-        "database/migrations/018_pal_receivables.sql"
+        "database/migrations/018_pal_receivables.sql",
+        "database/migrations/019_pal_allocation_idempotency.sql"
     ],
     "capabilities": {
         "exposes": [

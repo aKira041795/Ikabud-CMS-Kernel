@@ -45,7 +45,7 @@ class palJobOrderWorkflow
     ];
 
     /** @var array<string, string[]> Statuses that are considered "final" (irreversible) */
-    private const FINAL_STATUSES = ['completed', 'cancelled', 'closed'];
+    private const FINAL_STATUSES = ['cancelled', 'closed'];
 
     private Ikabud\Kernel\Contracts\ModuleDB $db;
     private int $tenantId;
@@ -104,26 +104,36 @@ class palJobOrderWorkflow
 
     /**
      * Validate and apply a status transition.
+     * When called from within a transaction with a locked row, pass the
+     * pre-loaded status and client_id via context to avoid a separate SELECT.
      *
      * @param int $projectId
      * @param string $newStatus
-     * @param array $context Extra context for guard evaluation (e.g., ['client_id' => 123])
+     * @param array $context Extra context. If 'status' is set, uses it as current status
+     *                       (avoids re-fetching when caller already holds a lock).
+     *                       Supports 'client_id' for guard evaluation.
      * @return bool True if status was changed
      * @throws InvalidArgumentException if transition is not allowed or guard fails
      */
     public function transition(int $projectId, string $newStatus, array $context = []): bool
     {
-        // Fetch current state
-        $stmt = $this->db->prepare("SELECT status, client_id FROM pal_projects WHERE id = :id AND tenant_id = :tid");
-        $stmt->execute([':id' => $projectId, ':tid' => $this->tenantId]);
-        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+        // Use pre-loaded status from context if available (caller holds lock)
+        if (array_key_exists('status', $context)) {
+            $currentStatus = $context['status'];
+            $clientId = (int)($context['client_id'] ?? 0);
+        } else {
+            // Fetch current state
+            $stmt = $this->db->prepare("SELECT status, client_id FROM pal_projects WHERE id = :id AND tenant_id = :tid");
+            $stmt->execute([':id' => $projectId, ':tid' => $this->tenantId]);
+            $current = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$current) {
-            throw new InvalidArgumentException('Project not found.');
+            if (!$current) {
+                throw new InvalidArgumentException('Project not found.');
+            }
+
+            $currentStatus = $current['status'];
+            $clientId = (int)($current['client_id'] ?? 0);
         }
-
-        $currentStatus = $current['status'];
-        $clientId = (int)($current['client_id'] ?? 0);
 
         if ($currentStatus === $newStatus) {
             return false; // No change needed

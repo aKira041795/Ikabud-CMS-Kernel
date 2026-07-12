@@ -15,6 +15,29 @@ class palAttachmentService
     private int $tenantId;
     private int $userId;
 
+    /** @var array<string, string[]> Allowlisted MIME type → extension pairs */
+    private const ALLOWED_MIMES = [
+        'image/jpeg'               => ['jpg', 'jpeg'],
+        'image/png'                => ['png'],
+        'image/gif'                => ['gif'],
+        'image/webp'               => ['webp'],
+        'application/pdf'          => ['pdf'],
+        'application/msword'       => ['doc'],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => ['docx'],
+        'application/vnd.ms-excel' => ['xls'],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => ['xlsx'],
+        'text/plain'               => ['txt', 'csv'],
+        'application/zip'          => ['zip'],
+    ];
+
+    /** @var int Maximum file size in bytes (10MB) */
+    private const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+    /** @var string[] Allowlisted entity types */
+    private const ALLOWED_ENTITY_TYPES = [
+        'project', 'sale', 'expense', 'purchase', 'quotation', 'client', 'supplier',
+    ];
+
     public function __construct(Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId, int $userId)
     {
         $this->db = $db;
@@ -37,6 +60,12 @@ class palAttachmentService
         if ($entityType === '') {
             throw new InvalidArgumentException('Entity type is required.');
         }
+
+        // Validate entity type against allowlist
+        if (!in_array($entityType, self::ALLOWED_ENTITY_TYPES, true)) {
+            throw new InvalidArgumentException("Entity type '{$entityType}' is not allowed.");
+        }
+
         if (!isset($file['tmp_name']) || $file['error'] !== UPLOAD_ERR_OK) {
             $code = $file['error'] ?? -1;
             throw new InvalidArgumentException("File upload failed (error code: {$code}).");
@@ -44,12 +73,29 @@ class palAttachmentService
         if ($file['size'] <= 0) {
             throw new InvalidArgumentException('Uploaded file is empty.');
         }
+        if ($file['size'] > self::MAX_FILE_SIZE) {
+            throw new InvalidArgumentException('File exceeds maximum size of ' . (self::MAX_FILE_SIZE / 1024 / 1024) . 'MB.');
+        }
+
+        // Determine MIME type server-side only (never trust client-provided MIME)
+        $detectedMime = mime_content_type($file['tmp_name']);
+        if ($detectedMime === false || $detectedMime === '') {
+            throw new InvalidArgumentException('Could not determine file type.');
+        }
 
         $originalName = basename($file['name']);
         $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        // Validate MIME + extension against allowlist
+        $allowedExts = self::ALLOWED_MIMES[$detectedMime] ?? null;
+        if ($allowedExts === null) {
+            throw new InvalidArgumentException("File type '{$detectedMime}' is not allowed.");
+        }
+        if (!in_array($ext, $allowedExts, true)) {
+            throw new InvalidArgumentException("Extension '.{$ext}' does not match detected type '{$detectedMime}'.");
+        }
+
         $safeName = bin2hex(random_bytes(16)) . '.' . $ext;
-        $mimeType = $file['type'] ?: mime_content_type($file['tmp_name']) ?: 'application/octet-stream';
-        $fileSize = $file['size'];
 
         // Build relative path: uploads/pal/{tenant_id}/{entity_type}/{entity_id}/
         $relDir = 'uploads/pal/' . $this->tenantId . '/' . $entityType . '/' . $entityId;
@@ -74,8 +120,8 @@ class palAttachmentService
             ':eid' => $entityId,
             ':fn' => $safeName,
             ':ofn' => $originalName,
-            ':mime' => $mimeType,
-            ':fs' => $fileSize,
+            ':mime' => $detectedMime,
+            ':fs' => $file['size'],
             ':fp' => $relDir . '/' . $safeName,
             ':desc' => mb_substr($description, 0, 255),
             ':ub' => $this->userId,
