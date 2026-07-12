@@ -28,13 +28,42 @@ class palPaymentService
     }
 
     /**
+     * Load sale data and derive the real project_id and client_id from the invoice.
+     * Rejects payments against cancelled, voided, or already-paid invoices.
+     *
+     * @return array Sale row with project_id and client_id
+     * @throws InvalidArgumentException
+     */
+    private function loadAndValidateSale(int $saleId): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT id, project_id, client_id, status, net_amount
+             FROM pal_sales WHERE id = :id AND tenant_id = :tid"
+        );
+        $stmt->execute([':id' => $saleId, ':tid' => $this->tenantId]);
+        $sale = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$sale) {
+            throw new InvalidArgumentException('Sale not found.');
+        }
+        if (in_array($sale['status'], ['cancelled', 'voided'], true)) {
+            throw new InvalidArgumentException(
+                'Cannot record payment against a ' . $sale['status'] . ' invoice.'
+            );
+        }
+        if ($sale['status'] === 'paid') {
+            throw new InvalidArgumentException('Invoice is already fully paid.');
+        }
+
+        return $sale;
+    }
+
+    /**
      * Record a payment (collection) against a sale.
      * Status is always 'pending' — allocation happens only on approve().
      * For trusted import workflows, use recordAndApprove().
      *
      * @param int $saleId
-     * @param int|null $projectId
-     * @param int|null $clientId
      * @param float $amount Payment amount
      * @param string $paymentMethod cash, check, bank_transfer, gcash
      * @param string $paymentDate Y-m-d
@@ -44,8 +73,6 @@ class palPaymentService
      */
     public function record(
         int $saleId,
-        ?int $projectId,
-        ?int $clientId,
         float $amount,
         string $paymentMethod = 'cash',
         string $paymentDate = '',
@@ -56,6 +83,36 @@ class palPaymentService
             throw new InvalidArgumentException('Payment amount must be positive.');
         }
 
+        // Derive project_id and client_id from the invoice, not from submitted data
+        $sale = $this->loadAndValidateSale($saleId);
+        $projectId = $sale['project_id'] ? (int)$sale['project_id'] : null;
+        $clientId = $sale['client_id'] ? (int)$sale['client_id'] : null;
+
+        $collectionId = $this->insertPendingPaymentWithinTransaction(
+            $saleId, $projectId, $clientId, $amount,
+            $paymentMethod, $paymentDate, $referenceNumber, $notes,
+        );
+
+        palAudit('pal.payment.recorded', $this->userId, 'pal_collections', (string)$collectionId,
+            null, ['sales_id' => $saleId, 'amount' => $amount, 'method' => $paymentMethod]);
+
+        return $collectionId;
+    }
+
+    /**
+     * Insert a pending payment record within an existing transaction.
+     * Caller owns the transaction. Returns the new collection ID.
+     */
+    private function insertPendingPaymentWithinTransaction(
+        int $saleId,
+        ?int $projectId,
+        ?int $clientId,
+        float $amount,
+        string $paymentMethod,
+        string $paymentDate,
+        ?string $referenceNumber,
+        ?string $notes,
+    ): int {
         $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
         $countStmt->execute([':tid' => $this->tenantId]);
         $prefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
@@ -82,12 +139,7 @@ class palPaymentService
             ':rb' => $this->userId,
             ':cb' => $this->userId,
         ]);
-        $collectionId = (int)$this->db->lastInsertId();
-
-        palAudit('pal.payment.recorded', $this->userId, 'pal_collections', (string)$collectionId,
-            null, ['sales_id' => $saleId, 'amount' => $amount, 'method' => $paymentMethod]);
-
-        return $collectionId;
+        return (int)$this->db->lastInsertId();
     }
 
     /**
@@ -99,44 +151,28 @@ class palPaymentService
      */
     public function recordAndApprove(
         int $saleId,
-        ?int $projectId,
-        ?int $clientId,
         float $amount,
         string $paymentMethod = 'cash',
         string $paymentDate = '',
         ?string $referenceNumber = null,
         ?string $notes = null,
     ): int {
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('Payment amount must be positive.');
+        }
+
+        // Derive project_id and client_id from the invoice, not from submitted data
+        $sale = $this->loadAndValidateSale($saleId);
+        $projectId = $sale['project_id'] ? (int)$sale['project_id'] : null;
+        $clientId = $sale['client_id'] ? (int)$sale['client_id'] : null;
+
         $this->db->beginTransaction();
         try {
             // Record within the transaction
-            $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
-            $countStmt->execute([':tid' => $this->tenantId]);
-            $prefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
-            $collNum = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$countStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
-
-            $stmt = $this->db->prepare(
-                "INSERT INTO pal_collections
-                    (tenant_id, collection_number, sales_id, project_id, client_id,
-                     payment_date, amount, payment_method, reference_number, notes,
-                     received_by, status, created_by)
-                 VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, 'pending', :cb)"
+            $collectionId = $this->insertPendingPaymentWithinTransaction(
+                $saleId, $projectId, $clientId, $amount,
+                $paymentMethod, $paymentDate, $referenceNumber, $notes,
             );
-            $stmt->execute([
-                ':t' => $this->tenantId,
-                ':cn' => $collNum,
-                ':si' => $saleId,
-                ':pj' => $projectId,
-                ':cl' => $clientId,
-                ':pd' => $paymentDate ?: date('Y-m-d'),
-                ':amt' => $amount,
-                ':pm' => $paymentMethod,
-                ':ref' => $referenceNumber,
-                ':no' => $notes,
-                ':rb' => $this->userId,
-                ':cb' => $this->userId,
-            ]);
-            $collectionId = (int)$this->db->lastInsertId();
 
             // Approve within the same transaction (lock + allocate)
             $this->approveWithinTransaction($collectionId);
@@ -192,13 +228,22 @@ class palPaymentService
              WHERE id = :id AND tenant_id = :tid"
         )->execute([':ab' => $this->userId, ':id' => $collectionId, ':tid' => $this->tenantId]);
 
-        // Check for overpayment: payment exceeds total outstanding receivables
-        $totalOutstandingStmt = $this->db->prepare(
-            "SELECT COALESCE(SUM(outstanding), 0) FROM pal_receivables
-             WHERE tenant_id = :tid AND sales_id = :si AND status IN ('pending', 'partial', 'overdue')"
+        // Lock all receivables for this sale, then calculate total outstanding
+        // from the locked set. This prevents a race where two simultaneous
+        // approvals both see a stale total and one incorrectly passes.
+        $receivablesStmt = $this->db->prepare(
+            "SELECT id, outstanding FROM pal_receivables
+             WHERE tenant_id = :tid AND sales_id = :si AND status IN ('pending', 'partial', 'overdue')
+             ORDER BY due_date ASC
+             FOR UPDATE"
         );
-        $totalOutstandingStmt->execute([':tid' => $this->tenantId, ':si' => $coll['sales_id']]);
-        $totalOutstanding = (float)$totalOutstandingStmt->fetchColumn();
+        $receivablesStmt->execute([':tid' => $this->tenantId, ':si' => $coll['sales_id']]);
+        $receivables = $receivablesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $totalOutstanding = 0;
+        foreach ($receivables as $rcvRow) {
+            $totalOutstanding += (float)$rcvRow['outstanding'];
+        }
         $paymentAmount = (float)$coll['amount'];
 
         if ($paymentAmount > $totalOutstanding) {
@@ -208,8 +253,8 @@ class palPaymentService
             );
         }
 
-        // Allocate to receivables (within same transaction)
-        $this->allocatePaymentWithinTransaction((int)$coll['id'], (int)$coll['sales_id'], (float)$coll['amount']);
+        // Allocate to receivables using the already-locked set
+        $this->allocatePaymentUsingLockedSet((int)$coll['id'], $receivables, (float)$coll['amount']);
 
         // Update sale collection status
         $this->updateSaleCollectionStatus((int)$coll['sales_id']);
@@ -240,19 +285,12 @@ class palPaymentService
      * Allocate a payment to receivables within an existing transaction.
      * Calls ReceivableService::allocatePaymentWithinTransaction() so no
      * nested transaction occurs.
+     * Uses the already-locked receivables set from approveWithinTransaction().
+     * For callers outside approval (e.g. legacy), the caller should lock first.
      */
-    private function allocatePaymentWithinTransaction(int $collectionId, int $saleId, float $amount): void
+    private function allocatePaymentUsingLockedSet(int $collectionId, array $receivables, float $amount): void
     {
         $rcv = new palReceivableService($this->db, $this->tenantId, $this->userId);
-
-        // Get unpaid receivables for this sale, ordered by due date
-        $stmt = $this->db->prepare(
-            "SELECT id, outstanding FROM pal_receivables
-             WHERE tenant_id = :tid AND sales_id = :si AND status IN ('pending', 'partial', 'overdue')
-             ORDER BY due_date ASC"
-        );
-        $stmt->execute([':tid' => $this->tenantId, ':si' => $saleId]);
-        $receivables = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $remaining = $amount;
         foreach ($receivables as $rcvRow) {
@@ -270,17 +308,20 @@ class palPaymentService
 
     /**
      * Update the sale's collection/payment status based on total collections.
+     * Uses InvoiceTotalCalculator to get the canonical invoice total.
      */
     private function updateSaleCollectionStatus(int $saleId): void
     {
         $saleStmt = $this->db->prepare(
-            "SELECT net_amount FROM pal_sales WHERE id = :id AND tenant_id = :tid"
+            "SELECT gross_amount, discount_amount, tax_amount,
+                    installation_charge, mobilization_charge, other_charges
+             FROM pal_sales WHERE id = :id AND tenant_id = :tid"
         );
         $saleStmt->execute([':id' => $saleId, ':tid' => $this->tenantId]);
         $sale = $saleStmt->fetch(PDO::FETCH_ASSOC);
         if (!$sale) return;
 
-        $netAmount = (float)$sale['net_amount'];
+        $invoiceTotal = palInvoiceTotalCalculator::total($sale);
 
         $collStmt = $this->db->prepare(
             "SELECT COALESCE(SUM(c.amount), 0) FROM pal_collections c
@@ -290,7 +331,7 @@ class palPaymentService
         $totalCollected = (float)$collStmt->fetchColumn();
 
         $newStatus = 'issued';
-        if ($totalCollected >= $netAmount && $netAmount > 0) {
+        if ($totalCollected >= $invoiceTotal && $invoiceTotal > 0) {
             $newStatus = 'paid';
         } elseif ($totalCollected > 0) {
             $newStatus = 'partially_paid';

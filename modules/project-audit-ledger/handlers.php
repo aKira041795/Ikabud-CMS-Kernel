@@ -18,6 +18,7 @@ require_once __DIR__ . '/services/ApprovalService.php';
 require_once __DIR__ . '/services/AttachmentService.php';
 require_once __DIR__ . '/services/JobOrderWorkflow.php';
 require_once __DIR__ . '/services/ReceivableService.php';
+require_once __DIR__ . '/services/InvoiceTotalCalculator.php';
 require_once __DIR__ . '/services/PaymentService.php';
 require_once __DIR__ . '/services/ProjectCompletionCoordinator.php';
 require_once __DIR__ . '/handlers/00-bootstrap.php';

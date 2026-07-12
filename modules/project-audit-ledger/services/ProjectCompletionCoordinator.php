@@ -95,6 +95,9 @@ class palProjectCompletionCoordinator
 
             if (!$hasSale) {
                 // 5. Create invoice
+                // Use grossFromContract to avoid double-counting: when contract_amount
+                // already includes separate charges (items mode), gross_amount is
+                // contract_amount minus those charges.
                 $salesService = new palSalesService($this->db, $this->tenantId, $this->userId);
                 $saleId = $this->createInvoiceFromProject($project, $projectId, $contractAmount);
 
@@ -104,20 +107,26 @@ class palProjectCompletionCoordinator
                     $salesService->saveItemsForSale($saleId, $items);
                 }
 
-                // 7. Create receivable
+                // 7. Create receivable using the canonical invoice total.
+                // Query the created sale to get the DB-computed net_amount
+                // (which includes charges per migration 008).
                 $dueDate = date('Y-m-d', strtotime('+30 days'));
                 $clientId = (int)($project['client_id'] ?? 0);
-                $this->createReceivable($saleId, $projectId, $clientId, $contractAmount, $dueDate);
+                $saleRow = $salesService->get($saleId);
+                $invoiceTotal = $saleRow !== null
+                    ? palInvoiceTotalCalculator::total($saleRow)
+                    : $contractAmount;
+                $this->createReceivable($saleId, $projectId, $clientId, $invoiceTotal, $dueDate);
 
                 // 8. Audit inside transaction (safe — app.log is append-only)
                 palAudit('pal.sale.created', $this->userId, 'pal_sales', (string)$saleId, null,
-                    ['project_id' => $projectId, 'auto_created_on_completion' => true, 'amount' => $contractAmount]);
+                    ['project_id' => $projectId, 'auto_created_on_completion' => true, 'amount' => $invoiceTotal]);
 
                 // Collect events for post-commit emission
                 $pendingEvents[] = ['pal.sale.created', [
                     'sale_id' => $saleId,
                     'project_id' => $projectId,
-                    'amount' => $contractAmount,
+                    'amount' => $invoiceTotal,
                     'auto_created_on_completion' => true,
                 ]];
             } else {
@@ -160,6 +169,10 @@ class palProjectCompletionCoordinator
         $clientId = !empty($project['client_id']) ? (int)$project['client_id'] : null;
         $maxRetries = 3;
 
+        // When contract_amount already includes separate charges (items mode),
+        // gross_amount must not double-count them.
+        $grossAmount = palInvoiceTotalCalculator::grossFromContract($contractAmount, $project);
+
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             // Generate unique number each attempt
             $countStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_sales WHERE tenant_id = :tid");
@@ -190,7 +203,7 @@ class palProjectCompletionCoordinator
                     ':cp' => $project['phone'] ?? null,
                     ':cad' => $project['address'] ?? null,
                     ':sd' => date('Y-m-d'),
-                    ':ga' => $contractAmount,
+                    ':ga' => $grossAmount,
                     ':ic' => (float)($project['installation_charge'] ?? 0),
                     ':mc' => (float)($project['mobilization_charge'] ?? 0),
                     ':oc' => (float)($project['other_charges'] ?? 0),

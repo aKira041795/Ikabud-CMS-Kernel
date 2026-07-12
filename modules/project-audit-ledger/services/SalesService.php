@@ -38,7 +38,9 @@ class palSalesService
         $colStmt = $this->db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE sales_id = :sid AND tenant_id = :tid AND status = 'approved'");
         $colStmt->execute([':sid' => $id, ':tid' => $this->tenantId]);
         $row['total_collected'] = (float)$colStmt->fetchColumn();
-        $row['outstanding'] = max(0, (float)$row['net_amount'] - $row['total_collected']);
+        // Use the canonical invoice total for outstanding, not net_amount alone.
+        $invoiceTotal = palInvoiceTotalCalculator::total($row);
+        $row['outstanding'] = max(0, $invoiceTotal - $row['total_collected']);
         $row['items'] = $this->getItems($id);
         return $row;
     }
@@ -189,6 +191,28 @@ class palSalesService
                 $this->saveItems($id, $data['items']);
             }
 
+            // Sync receivable amount if invoice total changed and no payments exist.
+            // If approved payments already exist, prevent editing amount fields.
+            $hasApprovedAllocations = $this->hasApprovedPayments($id);
+            $hasAmountFields = !empty(array_intersect(
+                array_keys($data),
+                ['gross_amount', 'discount_amount', 'tax_amount',
+                 'installation_charge', 'mobilization_charge', 'other_charges']
+            ));
+
+            if ($hasAmountFields) {
+                if ($hasApprovedAllocations) {
+                    $this->db->rollBack();
+                    throw new InvalidArgumentException(
+                        'Cannot change invoice amounts after payments have been allocated. '
+                        . 'Create a credit note or debit note instead.'
+                    );
+                }
+
+                // Recalculate and sync the receivable
+                $this->syncReceivableAmount($id);
+            }
+
             $this->db->commit();
         } catch (Throwable $e) {
             $this->db->rollBack();
@@ -196,41 +220,61 @@ class palSalesService
         }
     }
 
+    /**
+     * Check if a sale has any approved payment allocations.
+     */
+    private function hasApprovedPayments(int $saleId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM pal_collections
+             WHERE sales_id = :si AND tenant_id = :tid AND status = 'approved'
+             LIMIT 1"
+        );
+        $stmt->execute([':si' => $saleId, ':tid' => $this->tenantId]);
+        return (bool)$stmt->fetchColumn();
+    }
+
+    /**
+     * Recalculate the receivable amount to match the canonical invoice total.
+     * Only call within a transaction. Only safe when no payments have been allocated.
+     */
+    private function syncReceivableAmount(int $saleId): void
+    {
+        $sale = $this->get($saleId);
+        if ($sale === null) return;
+
+        $invoiceTotal = palInvoiceTotalCalculator::total($sale);
+
+        $this->db->prepare(
+            "UPDATE pal_receivables
+             SET amount = :amt, version = version + 1
+             WHERE sales_id = :si AND tenant_id = :tid AND status IN ('pending', 'partial')"
+        )->execute([':amt' => $invoiceTotal, ':si' => $saleId, ':tid' => $this->tenantId]);
+    }
+
+    /**
+     * @deprecated Use PaymentService::record() instead.
+     *             This method delegates to PaymentService and is retained
+     *             temporarily for backward compatibility. Do not call directly
+     *             in new code. Will be removed in a future release.
+     */
     public function recordCollection(array $data): int
     {
-        $sale = $this->get((int)$data['sales_id']);
-        if (!$sale) throw new InvalidArgumentException('Sale not found.');
+        $pmt = new palPaymentService($this->db, $this->tenantId, $this->userId);
+        $saleId = (int)($data['sales_id'] ?? 0);
+        $amount = (float)($data['amount'] ?? 0);
+        $method = $data['payment_method'] ?? 'cash';
+        $date = $data['payment_date'] ?? date('Y-m-d');
+        $ref = $data['reference_number'] ?? null;
+        $notes = $data['notes'] ?? null;
 
-        $cStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_collections WHERE tenant_id = :tid");
-        $cStmt->execute([':tid' => $this->tenantId]);
-        $prefix = (function_exists('palSettings') ? (palSettings()['collection_prefix'] ?? 'COL') : 'COL');
-        $num = $prefix . '-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
-
-        $this->db->beginTransaction();
-        try {
-            $paymentMethod = $data['payment_method'] ?? 'cash';
-            $status = $data['status'] ?? 'pending';
-
-            $stmt = $this->db->prepare("INSERT INTO pal_collections (tenant_id, collection_number, sales_id, project_id, client_id, payment_date, amount, payment_method, reference_number, notes, received_by, status, created_by) VALUES (:t, :cn, :si, :pj, :cl, :pd, :amt, :pm, :ref, :no, :rb, :st, :cb)");
-            $stmt->execute([':t' => $this->tenantId, ':cn' => $num, ':si' => (int)$data['sales_id'], ':pj' => $sale['project_id'], ':cl' => $sale['client_id'], ':pd' => $data['payment_date'] ?? date('Y-m-d'), ':amt' => $data['amount'] ?? 0, ':pm' => $paymentMethod, ':ref' => $data['reference_number'] ?? null, ':no' => $data['notes'] ?? null, ':rb' => $this->userId, ':st' => $status, ':cb' => $this->userId]);
-
-            $collectionId = (int)$this->db->lastInsertId();
-            $this->updateSaleCollectionStatus((int)$data['sales_id']);
-
-            $this->db->commit();
-
-            palAudit('pal.collection.recorded', $this->userId, 'pal_collections', (string)$collectionId,
-                null, ['sales_id' => $data['sales_id'], 'amount' => $data['amount'] ?? 0]);
-            palFireEvent('pal.collection.recorded', [
-                'collection_id' => $collectionId, 'sales_id' => (int)$data['sales_id'],
-                'amount' => $data['amount'] ?? 0,
-            ]);
-
-            return $collectionId;
-        } catch (Throwable $e) {
-            $this->db->rollBack();
-            throw $e;
+        // If the caller explicitly asked for immediate approval, use recordAndApprove.
+        $status = $data['status'] ?? 'pending';
+        if ($status === 'approved') {
+            return $pmt->recordAndApprove($saleId, $amount, $method, $date, $ref, $notes);
         }
+
+        return $pmt->record($saleId, $amount, $method, $date, $ref, $notes);
     }
 
     /**
@@ -318,8 +362,8 @@ class palSalesService
         $sale = $this->get($salesId);
         if (!$sale) return;
         $totalCollected = (float)($sale['total_collected'] ?? 0);
-        $netAmount = (float)($sale['net_amount'] ?? 0);
-        if ($totalCollected >= $netAmount && $netAmount > 0) {
+        $invoiceTotal = palInvoiceTotalCalculator::total($sale);
+        if ($totalCollected >= $invoiceTotal && $invoiceTotal > 0) {
             $this->db->prepare("UPDATE pal_sales SET status = 'paid', version = version + 1 WHERE id = :id AND tenant_id = :tid")
                  ->execute([':id' => $salesId, ':tid' => $this->tenantId]);
         } elseif ($totalCollected > 0) {
