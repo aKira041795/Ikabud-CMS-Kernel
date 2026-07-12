@@ -14,9 +14,15 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     {csrf_field | raw}
+    <!-- Mobile sidebar toggle -->
+    <button id="mobile-menu-btn" class="lg:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" onclick="toggleMobileSidebar()">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <!-- Mobile overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeMobileSidebar()" aria-hidden="true"></div>
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-        <aside class="w-64 bg-slate-900 flex flex-col">
+        <aside id="sidebar" class="w-64 bg-slate-900 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
             <div class="p-4 border-b border-slate-700">
                 <h1 class="text-lg font-bold text-white">ZAP-ARTS</h1>
                 <p class="text-xs text-slate-400">Team Lead Portal</p>
@@ -54,17 +60,35 @@
             </div>
         </main>
     </div>
-<!-- Toast -->
-<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+<!-- Toast (accessible) -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
 <script>
+// ── Mobile sidebar ──
+function toggleMobileSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    var isOpen = sidebar.classList.contains('-translate-x-full');
+    if (isOpen) {
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+    } else {
+        closeMobileSidebar();
+    }
+}
+function closeMobileSidebar() {
+    document.getElementById('sidebar').classList.add('-translate-x-full');
+    document.getElementById('sidebar-overlay').classList.add('hidden');
+}
+
 function showToast(msg, type) {
     type = type || 'success';
-    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-500 text-yellow-900' };
     var el = document.createElement('div');
     el.className = (colors[type] || 'bg-gray-700') + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm transition-opacity duration-300';
     el.textContent = msg;
+    el.setAttribute('role', 'alert');
     document.getElementById('toast-container').appendChild(el);
-    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 3000);
+    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 4000);
 }
 function ajaxSubmit(form, successMsg) {
     var formData = new FormData(form);

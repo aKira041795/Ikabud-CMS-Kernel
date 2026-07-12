@@ -11,11 +11,12 @@
         </tr></thead>
         <tbody>
             {for log in audit_logs}
+            {set aurl = palAuditEntityUrl(log.entity_type, log.entity_id)}
             <tr class="border-b border-gray-100 hover:bg-gray-50">
                 <td class="py-3 px-4 text-xs text-gray-600">{log.created_at}</td>
                 <td class="py-3 px-4 text-gray-700">{log.actor_name}</td>
                 <td class="py-3 px-4"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{log.action_icon} {log.action_label}</span></td>
-                <td class="py-3 px-4 text-gray-700" title="{log.entity_type}{if log.entity_id} #{log.entity_id}{/if}">{if log.entity_type == 'pal_projects' && log.entity_id}<a href="/admin/project-audit-ledger/projects/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_clients' && log.entity_id}<a href="/admin/project-audit-ledger/clients/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_expenses' && log.entity_id}<a href="/admin/project-audit-ledger/expenses/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_purchases' && log.entity_id}<a href="/admin/project-audit-ledger/purchases/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_sales' && log.entity_id}<a href="/admin/project-audit-ledger/sales/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_collections' && log.entity_id}<a href="/admin/project-audit-ledger/collections/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_material_issuances' && log.entity_id}<a href="/admin/project-audit-ledger/material-issuance/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_materials' && log.entity_id}<a href="/admin/project-audit-ledger/inventory/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{elseif log.entity_type == 'pal_suppliers' && log.entity_id}<a href="/admin/project-audit-ledger/suppliers/{log.entity_id}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{else}{log.entity_display}{/if}</td>
+                <td class="py-3 px-4 text-gray-700">{if aurl}<a href="{aurl}" class="text-blue-600 hover:text-blue-800">{log.entity_display}</a>{else}{log.entity_display}{/if}</td>
                 <td class="py-3 px-4 text-xs text-gray-600">{log.details|default:'—'}</td>
             </tr>
             {/for}

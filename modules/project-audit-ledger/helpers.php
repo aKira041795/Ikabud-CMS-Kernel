@@ -869,6 +869,93 @@ function palFireEvent(string $event, array $payload = []): void
     }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Entity URL Registry
+// Single source of truth for entity-type → admin URL mapping.
+// Used by approval queue, audit trail, and any view that links
+// to entity detail pages from an entity_type + entity_id pair.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Maps an internal entity_type string (as stored in pal_approvals.entity_type
+ * and pal_audit_logs.entity_type) to an admin URL prefix.
+ *
+ * Usage: palEntityUrl('expense', 42) → '/admin/project-audit-ledger/expenses/42'
+ *        palEntityUrl('expense')     → '/admin/project-audit-ledger/expenses'
+ */
+function palEntityUrl(string $entityType, ?int $entityId = null): ?string
+{
+    $map = [
+        'expense'             => '/admin/project-audit-ledger/expenses',
+        'purchase'            => '/admin/project-audit-ledger/purchases',
+        'issuance'            => '/admin/project-audit-ledger/material-issuance',
+        'collection'          => '/admin/project-audit-ledger/collections',
+        'fabrication_payment' => '/admin/project-audit-ledger/fabrication',
+        'cash_advance'        => '/admin/project-audit-ledger/cash-advances',
+        'mobilization'        => '/admin/project-audit-ledger/mobilization',
+    ];
+
+    $base = $map[$entityType] ?? null;
+    if ($base === null) {
+        return null;
+    }
+
+    return $entityId !== null ? "{$base}/{$entityId}" : $base;
+}
+
+/**
+ * Maps an audit-log entity_type (prefixed with 'pal_') to an admin URL.
+ * Covers the pal_audit_logs table which uses 'pal_projects', 'pal_expenses', etc.
+ */
+function palAuditEntityUrl(string $entityType, ?int $entityId = null): ?string
+{
+    $map = [
+        'pal_projects'           => '/admin/project-audit-ledger/projects',
+        'pal_clients'            => '/admin/project-audit-ledger/clients',
+        'pal_expenses'           => '/admin/project-audit-ledger/expenses',
+        'pal_purchases'          => '/admin/project-audit-ledger/purchases',
+        'pal_sales'              => '/admin/project-audit-ledger/sales',
+        'pal_collections'        => '/admin/project-audit-ledger/collections',
+        'pal_material_issuances' => '/admin/project-audit-ledger/material-issuance',
+        'pal_materials'          => '/admin/project-audit-ledger/inventory',
+        'pal_suppliers'          => '/admin/project-audit-ledger/suppliers',
+    ];
+
+    $base = $map[$entityType] ?? null;
+    if ($base === null) {
+        return null;
+    }
+
+    return $entityId !== null ? "{$base}/{$entityId}" : $base;
+}
+
+/**
+ * Returns a human-readable label for an entity type.
+ */
+function palEntityLabel(string $entityType): string
+{
+    $labels = [
+        'expense'             => 'Expense',
+        'purchase'            => 'Purchase',
+        'issuance'            => 'Material Issuance',
+        'collection'          => 'Payment',
+        'fabrication_payment' => 'Fabrication Payment',
+        'cash_advance'        => 'Cash Advance',
+        'mobilization'        => 'Mobilization',
+        'pal_projects'        => 'Job Order',
+        'pal_clients'         => 'Client',
+        'pal_expenses'        => 'Expense',
+        'pal_purchases'       => 'Purchase',
+        'pal_sales'           => 'Invoice',
+        'pal_collections'     => 'Payment',
+        'pal_material_issuances' => 'Material Issuance',
+        'pal_materials'       => 'Material',
+        'pal_suppliers'       => 'Supplier',
+    ];
+
+    return $labels[$entityType] ?? ucfirst(str_replace(['pal_', '_'], ['', ' '], $entityType));
+}
+
 function palSettings(): array
 {
     static $cache = null;

@@ -21,9 +21,15 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     {csrf_field | raw}
+    <!-- Mobile sidebar toggle -->
+    <button id="mobile-menu-btn" class="lg:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" onclick="toggleMobileSidebar()">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <!-- Mobile overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeMobileSidebar()" aria-hidden="true"></div>
     <div class="flex h-screen overflow-hidden">
         <!-- Sidebar -->
-        <aside class="w-64 bg-slate-900 flex flex-col" x-data="{ collapsed: false }">
+        <aside id="sidebar" class="w-64 bg-slate-900 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out" x-data="{ collapsed: false }">
             <div class="p-4 border-b border-slate-700">
                 {if pal_logo_path}<img src="/{pal_logo_path}" class="h-8 mb-1">{/if}
                 <h1 class="text-lg font-bold text-white">{pal_app_name}</h1>
@@ -171,23 +177,41 @@
             </div>
         </main>
     </div>
-<!-- Toast -->
-<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
-<!-- Lightbox -->
-<div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
-    <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+<!-- Toast (accessible) -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
+<!-- Lightbox (accessible dialog) -->
+<div id="lightbox" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Image viewer" onclick="closeLightbox()">
+    <span class="lightbox-close" role="button" tabindex="0" aria-label="Close viewer" onclick="closeLightbox()" onkeydown="if(event.key==='Enter'||event.key===' ')closeLightbox()">&times;</span>
     <img id="lightbox-img" src="" alt="">
     <div id="lightbox-caption" class="lightbox-caption"></div>
 </div>
 <script>
+// ── Mobile sidebar ──
+function toggleMobileSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    var isOpen = sidebar.classList.contains('-translate-x-full');
+    if (isOpen) {
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+    } else {
+        closeMobileSidebar();
+    }
+}
+function closeMobileSidebar() {
+    document.getElementById('sidebar').classList.add('-translate-x-full');
+    document.getElementById('sidebar-overlay').classList.add('hidden');
+}
+
 function showToast(msg, type) {
     type = type || 'success';
-    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600' };
+    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-500 text-yellow-900' };
     var el = document.createElement('div');
     el.className = (colors[type] || 'bg-gray-700') + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm transition-opacity duration-300';
     el.textContent = msg;
+    el.setAttribute('role', 'alert');
     document.getElementById('toast-container').appendChild(el);
-    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 3000);
+    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 4000);
 }
 function autocomplete(input, type, opts) {
     opts = opts || {};
@@ -326,9 +350,12 @@ function doQuickCreate(select, type) {
 function ajaxSubmit(form, successMsg) {
     if (form.dataset.submitting === '1') return false;
     form.dataset.submitting = '1';
+    // Clear previous errors
+    form.querySelectorAll('.field-error').forEach(function(e){ e.remove(); });
+    form.querySelectorAll('.border-red-500').forEach(function(e){ e.classList.remove('border-red-500'); });
     var btn = form.querySelector('button[type="submit"]');
-    var orig = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Saving...';
+    var orig = btn ? btn.textContent : 'Submit';
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
     var data = new FormData(form);
     fetch(form.action, { method: 'POST', body: data })
     .then(function(r){ return r.json(); })
@@ -338,13 +365,30 @@ function ajaxSubmit(form, successMsg) {
             showToast(successMsg || 'Saved');
             setTimeout(function(){ location.reload(); }, 600);
         } else {
-            showToast(d.error || 'Request failed', 'error');
-            btn.disabled = false; btn.textContent = orig;
+            var errMsg = d.error || 'Request failed';
+            showToast(errMsg, 'error');
+            // Field-level errors
+            if (d.errors && typeof d.errors === 'object') {
+                var firstField = null;
+                Object.keys(d.errors).forEach(function(fieldName){
+                    var field = form.querySelector('[name="' + fieldName + '"]');
+                    if (field) {
+                        field.classList.add('border-red-500');
+                        var errEl = document.createElement('p');
+                        errEl.className = 'field-error text-red-600 text-xs mt-1';
+                        errEl.textContent = d.errors[fieldName];
+                        field.parentNode.appendChild(errEl);
+                        if (!firstField) firstField = field;
+                    }
+                });
+                if (firstField) firstField.focus();
+            }
+            if (btn) { btn.disabled = false; btn.textContent = orig; }
         }
     })
     .catch(function(){
         showToast('Network error', 'error');
-        btn.disabled = false; btn.textContent = orig;
+        if (btn) { btn.disabled = false; btn.textContent = orig; }
     });
     return false;
 }
@@ -372,11 +416,16 @@ function toggleUser(id) {
     .catch(function(){ showToast('Request failed', 'error'); });
 }
 function approve(id) {
-    if (!confirm('Approve this request?')) return;
+    if (!confirm('Approve this request? This action cannot be undone.')) return;
     decide(id, 'approved');
 }
 function reject(id) {
-    var remarks = prompt('Rejection reason (optional):');
+    var remarks = prompt('Rejection reason (required):');
+    if (remarks === null) return; // Cancelled
+    if (!remarks.trim()) {
+        showToast('A rejection reason is required.', 'error');
+        return;
+    }
     decide(id, 'rejected', remarks);
 }
 function decide(id, decision, remarks) {
@@ -497,9 +546,20 @@ function openLightbox(url, caption) {
     img.src = url;
     cap.textContent = caption || '';
     lb.classList.add('active');
+    // Focus trap: move focus to close button
+    var closeBtn = lb.querySelector('.lightbox-close');
+    if (closeBtn) closeBtn.focus();
+    // Close on Escape
+    lb._escHandler = function(e) { if (e.key === 'Escape') closeLightbox(); };
+    document.addEventListener('keydown', lb._escHandler);
 }
 function closeLightbox() {
-    document.getElementById('lightbox').classList.remove('active');
+    var lb = document.getElementById('lightbox');
+    lb.classList.remove('active');
+    if (lb._escHandler) {
+        document.removeEventListener('keydown', lb._escHandler);
+        lb._escHandler = null;
+    }
 }
 </script>
 </body>

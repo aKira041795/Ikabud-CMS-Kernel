@@ -66,6 +66,140 @@ class palApprovalService
     }
 
     /**
+     * Enriched pending list — includes entity-specific details (amount, project, etc.)
+     * for richer approval decision cards.
+     */
+    public function pendingListEnriched(): array
+    {
+        $pending = $this->pendingList();
+        if (empty($pending)) {
+            return [];
+        }
+
+        // Group by entity_type for batched lookups
+        $byType = [];
+        foreach ($pending as $a) {
+            $byType[$a['entity_type']][] = (int)$a['entity_id'];
+        }
+
+        $lookups = [];
+        foreach ($byType as $type => $ids) {
+            $lookups[$type] = $this->fetchEntityDetails($type, $ids);
+        }
+
+        $enriched = [];
+        foreach ($pending as $a) {
+            $eid = (int)$a['entity_id'];
+            $detail = $lookups[$a['entity_type']][$eid] ?? [];
+            $a['amount'] = $detail['amount'] ?? null;
+            $a['project_title'] = $detail['project_title'] ?? null;
+            $a['project_id'] = $detail['project_id'] ?? null;
+            $a['entity_label'] = $detail['entity_label'] ?? null;
+            $a['budget_remaining'] = $detail['budget_remaining'] ?? null;
+            $a['previous_status'] = $a['previous_status'] ?? null;
+            $a['new_status'] = $a['new_status'] ?? 'pending_approval';
+            $enriched[] = $a;
+        }
+
+        return $enriched;
+    }
+
+    /**
+     * Batch-fetch entity details for a given entity type and set of IDs.
+     * Returns array keyed by entity_id with amount, project_title, project_id, entity_label.
+     */
+    private function fetchEntityDetails(string $entityType, array $ids): array
+    {
+        if (empty($ids)) return [];
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $params = array_merge([$this->tenantId], $ids);
+
+        switch ($entityType) {
+            case 'expense':
+                $stmt = $this->db->prepare(
+                    "SELECT e.id, e.amount, e.description AS entity_label,
+                            p.title AS project_title, p.id AS project_id
+                     FROM pal_expenses e
+                     LEFT JOIN pal_projects p ON e.project_id = p.id
+                     WHERE e.tenant_id = ? AND e.id IN ({$placeholders})"
+                );
+                break;
+
+            case 'purchase':
+                $stmt = $this->db->prepare(
+                    "SELECT pu.id, pu.total_amount AS amount, pu.purchase_number AS entity_label,
+                            '' AS project_title, NULL AS project_id
+                     FROM pal_purchases pu
+                     WHERE pu.tenant_id = ? AND pu.id IN ({$placeholders})"
+                );
+                break;
+
+            case 'issuance':
+                $stmt = $this->db->prepare(
+                    "SELECT mi.id, 0 AS amount, mi.issuance_number AS entity_label,
+                            p.title AS project_title, p.id AS project_id
+                     FROM pal_material_issuances mi
+                     LEFT JOIN pal_projects p ON mi.project_id = p.id
+                     WHERE mi.tenant_id = ? AND mi.id IN ({$placeholders})"
+                );
+                break;
+
+            case 'collection':
+                $stmt = $this->db->prepare(
+                    "SELECT c.id, c.amount, c.collection_number AS entity_label,
+                            p.title AS project_title, p.id AS project_id
+                     FROM pal_collections c
+                     LEFT JOIN pal_sales s ON c.sales_id = s.id
+                     LEFT JOIN pal_projects p ON s.project_id = p.id
+                     WHERE c.tenant_id = ? AND c.id IN ({$placeholders})"
+                );
+                break;
+
+            case 'fabrication_payment':
+                $stmt = $this->db->prepare(
+                    "SELECT fp.id, fp.amount, fp.payment_number AS entity_label,
+                            p.title AS project_title, p.id AS project_id
+                     FROM pal_fabrication_payments fp
+                     LEFT JOIN pal_projects p ON fp.project_id = p.id
+                     WHERE fp.tenant_id = ? AND fp.id IN ({$placeholders})"
+                );
+                break;
+
+            case 'cash_advance':
+                $stmt = $this->db->prepare(
+                    "SELECT ca.id, ca.amount, ca.advance_number AS entity_label,
+                            p.title AS project_title, p.id AS project_id
+                     FROM pal_cash_advances ca
+                     LEFT JOIN pal_projects p ON ca.project_id = p.id
+                     WHERE ca.tenant_id = ? AND ca.id IN ({$placeholders})"
+                );
+                break;
+
+            case 'mobilization':
+                $stmt = $this->db->prepare(
+                    "SELECT mr.id, mr.amount, mr.request_number AS entity_label,
+                            p.title AS project_title, p.id AS project_id
+                     FROM pal_mobilization_requests mr
+                     LEFT JOIN pal_projects p ON mr.project_id = p.id
+                     WHERE mr.tenant_id = ? AND mr.id IN ({$placeholders})"
+                );
+                break;
+
+            default:
+                return [];
+        }
+
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(int)$row['id']] = $row;
+        }
+        return $result;
+    }
+
+    /**
      * Decide on a pending approval — the only way to approve/reject entities.
      */
     public function decide(int $approvalId, string $decision, string $remarks = ''): void

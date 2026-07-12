@@ -21,7 +21,17 @@
             </div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea name="description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{project.description}</textarea></div>
             <div class="flex gap-4">
-                <div><label class="block text-sm font-medium text-gray-700 mb-1">Status</label><select name="status" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="draft"{if project.status=='draft'} selected{/if}>Draft</option><option value="pending"{if project.status=='pending'} selected{/if}>Pending</option><option value="approved"{if project.status=='approved'} selected{/if}>Approved</option><option value="started"{if project.status=='started'} selected{/if}>Started</option><option value="ongoing"{if project.status=='ongoing'} selected{/if}>Ongoing</option><option value="completed"{if project.status=='completed'} selected{/if}>Completed</option></select></div>
+                <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    {if is_edit|default:false}
+                    <span class="inline-flex items-center px-3 py-2 rounded text-sm font-medium {if project.status=='draft'}bg-gray-100 text-gray-700{elseif project.status=='pending'}bg-yellow-100 text-yellow-800{elseif project.status=='approved'}bg-green-100 text-green-800{elseif project.status=='started'}bg-blue-100 text-blue-800{elseif project.status=='ongoing'}bg-indigo-100 text-indigo-800{elseif project.status=='completed'}bg-teal-100 text-teal-800{else}bg-gray-100 text-gray-700{/if}">
+                        {project.status|capitalize}
+                    </span>
+                    <input type="hidden" name="status" value="{project.status}">
+                    {else}
+                    <span class="inline-flex items-center px-3 py-2 rounded text-sm font-medium bg-gray-100 text-gray-700">Draft</span>
+                    <input type="hidden" name="status" value="draft">
+                    {/if}
+                </div>
                 <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Target End</label><input type="date" name="target_completion_date" value="{project.target_completion_date}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
             </div>
 
@@ -146,7 +156,21 @@
             </div>
         </div>
 
-        <div class="flex gap-3"><button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit ? 'Update' : 'Create'} Job Order</button> <a href="/admin/project-audit-ledger/projects" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a></div>
+        <div class="flex gap-3">
+            {if !is_edit|default:false || project.status=='draft'}
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='draft'" class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Save as Draft</button>
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='pending'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit for Approval</button>
+            {elseif project.status=='approved'}
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='started'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Start Work</button>
+            {elseif project.status=='started'}
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='ongoing'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Mark Ongoing</button>
+            {elseif project.status=='ongoing'}
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='completed'" class="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">Complete Job Order</button>
+            {else}
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit|default:false ? 'Update' : 'Create'} Job Order</button>
+            {/if}
+            <a href="/admin/project-audit-ledger/projects" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+        </div>
     </form>
 </div>
 </div>
