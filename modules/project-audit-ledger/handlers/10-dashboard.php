@@ -6,152 +6,40 @@ function palPageDashboard(): void
 {
     $user = palCurrentUser();
     $tid = (int)($user['tenant_id'] ?? 0);
-    $db = palDb();
 
-    // ── Project Pipeline ──
-    $activeStmt = $db->prepare("SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','started','ongoing')");
-    $activeStmt->execute([':tid' => $tid]);
-    $activeProjects = (int)$activeStmt->fetchColumn();
-
-    $totalProjects = $db->prepare("SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid");
-    $totalProjects->execute([':tid' => $tid]);
-    $totalProjectCount = (int)$totalProjects->fetchColumn();
-
-    $projectStatuses = $db->prepare("SELECT status, COUNT(*) AS cnt FROM pal_projects WHERE tenant_id = :tid GROUP BY status ORDER BY cnt DESC");
-    $projectStatuses->execute([':tid' => $tid]);
-    $projectStatusBreakdown = $projectStatuses->fetchAll(\PDO::FETCH_ASSOC);
-
-    // ── Financials ──
-    // Total contract value (all projects)
-    $contractVal = $db->prepare("SELECT COALESCE(SUM(contract_amount), 0) FROM pal_projects WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed')");
-    $contractVal->execute([':tid' => $tid]);
-    $totalContractValue = (float)$contractVal->fetchColumn();
-
-    // Total expenses (approved)
-    $totalExp = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_expenses WHERE tenant_id = :tid AND status IN ('approved','paid')");
-    $totalExp->execute([':tid' => $tid]);
-    $totalExpenses = (float)$totalExp->fetchColumn();
-    // ── Fabrication costs ──
-    // Budgeted = contract_amount * alloc_pct / 100 (matches project-detail view)
-    // Actual = paid_amount from weekly dues (CA paid to team leads)
-    $fabBudget = $db->prepare("SELECT COALESCE(SUM(ROUND(contract_amount * COALESCE(fabrication_alloc_pct, 0) / 100, 2)), 0) FROM pal_projects WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed') AND fabrication_alloc_pct > 0");
-    $fabBudget->execute([':tid' => $tid]);
-    $totalFabricationBudget = (float)$fabBudget->fetchColumn();
-
-    // Actual fabrication cash spent = SUM of paid_amount from weekly dues
-    $fabPaid = $db->prepare("SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid");
-    $fabPaid->execute([':tid' => $tid]);
-    $totalFabricationPaid = (float)$fabPaid->fetchColumn();
-
-    // Use budgeted amount for the main KPI (matches project-detail), actual for drill-down
-    $totalFabrication = $totalFabricationBudget;
-
-    // ── Outstanding fabrication dues (unpaid weekly dues balance) ──
-    $fabDues = $db->prepare("SELECT COALESCE(SUM(balance), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND status NOT IN ('paid','waived')");
-    $fabDues->execute([':tid' => $tid]);
-    $outstandingFabricationDues = (float)$fabDues->fetchColumn();
-    // Total collected
-    $totalCol = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'approved'");
-    $totalCol->execute([':tid' => $tid]);
-    $totalCollected = (float)$totalCol->fetchColumn();
-
-    // Outstanding receivables (sales with unpaid balance)
-    $outstanding = $db->prepare("SELECT COALESCE(SUM(s.net_amount - COALESCE((SELECT SUM(c.amount) FROM pal_collections c WHERE c.sales_id = s.id AND c.status = 'approved'), 0)), 0) FROM pal_sales s WHERE s.tenant_id = :tid AND s.status NOT IN ('cancelled','voided')");
-    $outstanding->execute([':tid' => $tid]);
-    $outstandingReceivables = (float)$outstanding->fetchColumn();
-
-    // ── Cash Flow (this month) ──
-    $monthlyCol = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'approved' AND MONTH(payment_date) = MONTH(CURRENT_DATE) AND YEAR(payment_date) = YEAR(CURRENT_DATE)");
-    $monthlyCol->execute([':tid' => $tid]);
-    $monthlyCollections = (float)$monthlyCol->fetchColumn();
-
-    $monthlyExp = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM pal_expenses WHERE tenant_id = :tid AND status IN ('approved','paid') AND MONTH(expense_date) = MONTH(CURRENT_DATE) AND YEAR(expense_date) = YEAR(CURRENT_DATE)");
-    $monthlyExp->execute([':tid' => $tid]);
-    $monthlyExpenses = (float)$monthlyExp->fetchColumn();
-
-    // ── Monthly fabrication: paid_amount from weekly dues based on week_start ──
-    $monthlyFabPaid = $db->prepare("SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid AND MONTH(week_start) = MONTH(CURRENT_DATE) AND YEAR(week_start) = YEAR(CURRENT_DATE)");
-    $monthlyFabPaid->execute([':tid' => $tid]);
-    $monthlyFabrication = (float)$monthlyFabPaid->fetchColumn();
-    if ($monthlyFabrication <= 0 && $totalFabricationBudget > 0) {
-        $monthlyFabrication = $totalFabricationBudget;
-    }
-
-    // ── Pending Approvals ──
-    $pendingStmt = $db->prepare("SELECT COUNT(*) FROM pal_approvals WHERE tenant_id = :tid AND decision = 'pending'");
-    $pendingStmt->execute([':tid' => $tid]);
-    $pendingApprovals = (int)$pendingStmt->fetchColumn();
-
-    // ── Low Stock Alerts ──
-    $lowStockStmt = $db->prepare("
-        SELECT m.name, m.material_code, b.quantity, m.reorder_level, u.name AS unit
-        FROM pal_materials m
-        JOIN pal_inventory_balances b ON m.id = b.material_id
-        LEFT JOIN pal_units u ON m.unit_id = u.id
-        WHERE m.tenant_id = :tid AND m.reorder_level IS NOT NULL AND b.quantity <= m.reorder_level
-        ORDER BY (b.quantity / NULLIF(m.reorder_level, 0)) ASC
-        LIMIT 10");
-    $lowStockStmt->execute([':tid' => $tid]);
-    $lowStockItems = $lowStockStmt->fetchAll(\PDO::FETCH_ASSOC);
-    $lowStockCount = count($lowStockItems);
-
-    // ── Recent Activity ──
-    $recentProjects = $db->prepare("SELECT id, project_id, title, status, contract_amount, created_at FROM pal_projects WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT 5");
-    $recentProjects->execute([':tid' => $tid]);
-    $recentProj = $recentProjects->fetchAll(\PDO::FETCH_ASSOC);
-
-    $recentExpenses = $db->prepare("SELECT e.id, e.description, e.amount, e.expense_date, e.status, ec.name AS category_name FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id WHERE e.tenant_id = :tid ORDER BY e.created_at DESC LIMIT 5");
-    $recentExpenses->execute([':tid' => $tid]);
-    $recentExp = $recentExpenses->fetchAll(\PDO::FETCH_ASSOC);
-
-    $recentCollections = $db->prepare("SELECT c.id, c.collection_number, c.amount, c.payment_date, c.payment_method, p.title AS project_title FROM pal_collections c LEFT JOIN pal_projects p ON c.project_id = p.id WHERE c.tenant_id = :tid ORDER BY c.created_at DESC LIMIT 5");
-    $recentCollections->execute([':tid' => $tid]);
-    $recentColl = $recentCollections->fetchAll(\PDO::FETCH_ASSOC);
-
-    // ── Pending Approvals Detail ──
-    $pendingDetail = $db->prepare("
-        SELECT a.id, a.entity_type, a.submitted_by, a.submitted_at AS created_at,
-               CASE a.entity_type
-                    WHEN 'expense' THEN (SELECT description FROM pal_expenses WHERE id = a.entity_id)
-                    WHEN 'purchase' THEN (SELECT purchase_number FROM pal_purchases WHERE id = a.entity_id)
-                    ELSE '—' END AS description
-        FROM pal_approvals a
-        WHERE a.tenant_id = :tid AND a.decision = 'pending'
-        ORDER BY a.submitted_at DESC
-        LIMIT 10");
-    $pendingDetail->execute([':tid' => $tid]);
-    $pendingItems = $pendingDetail->fetchAll(\PDO::FETCH_ASSOC);
+    $vm = new palDashboardViewModel(palDb(), $tid);
+    $d = $vm->toArray();
 
     palRender(__DIR__ . '/../templates/project-audit-ledger/shell.disyl', [
         'current_user' => $user,
-        'page_title' => 'Dashboard',
+        'page_title'   => 'Dashboard',
         'page_content' => 'dashboard',
-        'dashboard' => [
-            'active_projects' => $activeProjects,
-            'total_projects' => $totalProjectCount,
-            'project_status_breakdown' => $projectStatusBreakdown,
-            'total_contract_value' => $totalContractValue,
-            'total_expenses' => $totalExpenses,
-            'total_fabrication' => $totalFabrication,
-            'total_fabrication_budget' => $totalFabricationBudget,
-            'total_fabrication_paid' => $totalFabricationPaid,
-            'total_costs' => $totalExpenses + $totalFabrication,
-            'total_collected' => $totalCollected,
-            'outstanding_receivables' => $outstandingReceivables,
-            'outstanding_fabrication_dues' => $outstandingFabricationDues,
-            'monthly_collections' => $monthlyCollections,
-            'monthly_expenses' => $monthlyExpenses,
-            'monthly_fabrication' => $monthlyFabrication,
-            'monthly_total_outflow' => $monthlyExpenses + $monthlyFabrication,
-            'net_cash_flow' => $monthlyCollections - $monthlyExpenses - $monthlyFabrication,
-            'pending_approvals' => $pendingApprovals,
-            'low_stock_count' => $lowStockCount,
-            'low_stock_items' => $lowStockItems,
-            'recent_projects' => $recentProj,
-            'recent_expenses' => $recentExp,
-            'recent_collections' => $recentColl,
-            'pending_approval_items' => $pendingItems,
-            'est_profit' => max(0, $totalContractValue - $totalExpenses - $totalFabrication),
+        'dashboard'    => [
+            'active_projects'             => $d['project_pipeline']['active'],
+            'total_projects'              => $d['project_pipeline']['total'],
+            'project_status_breakdown'    => $d['project_pipeline']['by_status'],
+            'total_contract_value'        => $d['financials']['contract_value'],
+            'total_expenses'              => $d['financials']['expenses'],
+            'total_fabrication'           => $d['financials']['fabrication'],
+            'total_fabrication_budget'    => $d['financials']['fabrication_budget'],
+            'total_fabrication_paid'      => $d['financials']['fabrication_paid'],
+            'total_costs'                 => $d['financials']['total_costs'],
+            'total_collected'             => $d['financials']['collected'],
+            'outstanding_receivables'     => $d['financials']['outstanding_receivables'],
+            'outstanding_fabrication_dues'=> $d['financials']['outstanding_fab_dues'],
+            'monthly_collections'         => $d['cash_flow']['collections'],
+            'monthly_expenses'            => $d['cash_flow']['expenses'],
+            'monthly_fabrication'         => $d['cash_flow']['fabrication'],
+            'monthly_total_outflow'       => $d['cash_flow']['expenses'] + $d['cash_flow']['fabrication'],
+            'net_cash_flow'               => $d['cash_flow']['net'],
+            'pending_approvals'           => $d['pending_approvals']['count'],
+            'low_stock_count'             => $d['low_stock']['count'],
+            'low_stock_items'             => $d['low_stock']['items'],
+            'recent_projects'             => $d['recent']['projects'],
+            'recent_expenses'             => $d['recent']['expenses'],
+            'recent_collections'          => $d['recent']['collections'],
+            'pending_approval_items'      => $d['pending_approvals']['items'],
+            'est_profit'                  => max(0, $d['financials']['contract_value'] - $d['financials']['expenses'] - $d['financials']['fabrication']),
         ],
     ]);
 }
