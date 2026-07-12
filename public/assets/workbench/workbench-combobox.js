@@ -25,8 +25,16 @@
             isOpen = true;
             listbox.hidden = false;
             input.setAttribute('aria-expanded', 'true');
-            activeIndex = findSelectedIndex() || 0;
+            var selected = findSelectedIndex();
+            activeIndex = selected >= 0 ? selected : firstVisibleIndex();
             highlightOption(activeIndex);
+        }
+
+        function firstVisibleIndex() {
+            for (var i = 0; i < options.length; i++) {
+                if (!options[i].hidden) return i;
+            }
+            return -1;
         }
 
         function close() {
@@ -89,7 +97,7 @@
         input.addEventListener('input', function () {
             if (!isOpen) open();
             filterOptions(this.value);
-            activeIndex = 0;
+            activeIndex = firstVisibleIndex();
             highlightOption(activeIndex);
         });
 

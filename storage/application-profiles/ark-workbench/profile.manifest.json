@@ -36,9 +36,6 @@
             ],
             "workbench:combobox": [
                 "assets/workbench-combobox.js"
-            ],
-            "workbench:responsive_table": [
-                "assets/workbench-table.js"
             ]
         }
     },
@@ -133,5 +130,8 @@
             "runtime_accessibility_overrides"
         ]
     },
-    "provider": "Ikabud\\Themes\\ArkWorkbench\\ArkWorkbenchProvider"
+    "provider": {
+        "class": "Ikabud\\ApplicationProfiles\\ArkWorkbench\\ArkWorkbenchProvider",
+        "file": "src/ArkWorkbenchProvider.php"
+    }
 }

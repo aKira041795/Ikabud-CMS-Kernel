@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Ikabud\Themes\ArkWorkbench;
+namespace Ikabud\ApplicationProfiles\ArkWorkbench;
 
 use Ikabud\Kernel\Contracts\ApplicationProfileProvider;
 
@@ -53,7 +53,7 @@ final class ArkWorkbenchProvider implements ApplicationProfileProvider
 
     public function assets(): array
     {
-        return [
+        return $this->getManifest()['assets'] ?? [
             'core' => [
                 'styles'  => ['assets/workbench.css'],
                 'scripts' => ['assets/workbench-core.js'],

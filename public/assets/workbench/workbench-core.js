@@ -74,7 +74,7 @@
 
     // ── Toast Notifications ──
     window.wbToast = function (message, variant) {
-        variant = variant || 'info';
+        variant = variant || 'informational';
         var container = document.getElementById('wb-toast-container');
         if (!container) {
             container = document.createElement('div');

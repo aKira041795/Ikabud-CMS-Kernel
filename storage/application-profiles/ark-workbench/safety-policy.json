@@ -4,14 +4,11 @@
         "raw_output": {
             "allowed_keys": [
                 "page_body",
-                "section_body",
-                "form_body",
-                "actions_html",
-                "financial_impact_html",
-                "audit_context_html"
+                "status_badge",
+                "pagination"
             ],
             "requires_capability": [],
-            "note": "Raw output in workbench components is limited to pre-rendered content from trusted module handlers and view models."
+            "note": "Only compiled template output and pre-rendered pagination may use |raw. Structured data (actions, metrics, sections, fields, evidence, items) must be passed as arrays, not HTML strings. View models never contain HTML."
         },
         "allowed_context_sources": [
             "kernel",

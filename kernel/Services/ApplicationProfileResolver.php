@@ -81,7 +81,13 @@ class ApplicationProfileResolver
 
     /**
      * Check if a profile satisfies a version constraint.
-     * Simple semver comparison: "^0.1", "^1.0", ">=1.0"
+     *
+     * Supported constraints:
+     *   ^0.1  → >=0.1.0 and <0.2.0  (zero-major: minor must match)
+     *   ^0.2  → >=0.2.0 and <0.3.0
+     *   ^1.0  → >=1.0.0 and <2.0.0
+     *   ^1.2  → >=1.2.0 and <2.0.0
+     *   >=1.0  → >=1.0.0
      */
     private static function isCompatible(ApplicationProfileProvider $profile, string $requiredId, ?string $requiredVersion): bool
     {
@@ -94,24 +100,34 @@ class ApplicationProfileResolver
         }
 
         $actual = $profile->version();
+        $actualParts = explode('.', $actual);
+        $actualMajor = (int)($actualParts[0] ?? 0);
+        $actualMinor = (int)($actualParts[1] ?? 0);
 
-        // Caret constraint: ^X.Y means >=X.Y.0 and <(X+1).0.0
+        // Caret constraint: ^X.Y
         if (str_starts_with($requiredVersion, '^')) {
             $min = substr($requiredVersion, 1);
             $parts = explode('.', $min);
-            $major = (int)($parts[0] ?? 0);
+            $reqMajor = (int)($parts[0] ?? 0);
+            $reqMinor = (int)($parts[1] ?? 0);
 
-            // Simple: actual major must match, actual >= required
-            $actualParts = explode('.', $actual);
-            $actualMajor = (int)($actualParts[0] ?? 0);
+            // Zero-major: minor must match exactly. ^0.1 accepts 0.1.x only.
+            if ($reqMajor === 0) {
+                if ($actualMajor !== 0 || $actualMinor !== $reqMinor) {
+                    return false;
+                }
+                return version_compare($actual, $min, '>=');
+            }
 
-            if ($actualMajor !== $major) {
+            // Stable major: >= req and < (reqMajor+1).0.0
+            if ($actualMajor !== $reqMajor) {
                 return false;
             }
 
             return version_compare($actual, $min, '>=');
         }
 
+        // Plain minimum: >= X.Y.Z
         return version_compare($actual, $requiredVersion, '>=');
     }
 }

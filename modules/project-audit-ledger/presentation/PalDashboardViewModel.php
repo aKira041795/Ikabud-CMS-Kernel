@@ -79,35 +79,103 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
              WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed')"
         );
         $contract->execute([':tid' => $tenantId]);
+        $totalContract = (float)$contract->fetchColumn();
 
         $expenses = $db->prepare(
             "SELECT COALESCE(SUM(amount), 0) FROM pal_expenses
              WHERE tenant_id = :tid AND status IN ('approved','paid')"
         );
         $expenses->execute([':tid' => $tenantId]);
+        $totalExpenses = (float)$expenses->fetchColumn();
+
+        // Fabrication budget: contract_amount × allocation percentage
+        $fabBudget = $db->prepare(
+            "SELECT COALESCE(SUM(ROUND(contract_amount * COALESCE(fabrication_alloc_pct, 0) / 100, 2)), 0)
+             FROM pal_projects WHERE tenant_id = :tid AND status NOT IN ('cancelled','closed')
+             AND fabrication_alloc_pct > 0"
+        );
+        $fabBudget->execute([':tid' => $tenantId]);
+        $totalFabBudget = (float)$fabBudget->fetchColumn();
+
+        // Actual fabrication paid
+        $fabPaid = $db->prepare(
+            "SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues WHERE tenant_id = :tid"
+        );
+        $fabPaid->execute([':tid' => $tenantId]);
+        $totalFabPaid = (float)$fabPaid->fetchColumn();
+
+        // Outstanding fabrication dues
+        $fabDues = $db->prepare(
+            "SELECT COALESCE(SUM(balance), 0) FROM pal_fabrication_weekly_dues
+             WHERE tenant_id = :tid AND balance > 0"
+        );
+        $fabDues->execute([':tid' => $tenantId]);
+        $outstandingFabDues = (float)$fabDues->fetchColumn();
+
+        // Total costs (expenses + fabrication paid)
+        $totalCosts = $totalExpenses + $totalFabPaid;
+
+        // Receivables
+        $collected = $db->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'completed'"
+        );
+        $collected->execute([':tid' => $tenantId]);
+        $totalCollected = (float)$collected->fetchColumn();
+
+        $outstanding = $db->prepare(
+            "SELECT COALESCE(SUM(balance), 0) FROM pal_receivables WHERE tenant_id = :tid AND status != 'paid'"
+        );
+        $outstanding->execute([':tid' => $tenantId]);
+        $outstandingReceivables = (float)$outstanding->fetchColumn();
 
         return [
-            'total_contract' => (float)$contract->fetchColumn(),
-            'total_expenses' => (float)$expenses->fetchColumn(),
+            'contract_value'          => $totalContract,
+            'expenses'                => $totalExpenses,
+            'fabrication'             => $totalFabPaid,
+            'fabrication_budget'      => $totalFabBudget,
+            'fabrication_paid'        => $totalFabPaid,
+            'total_costs'             => $totalCosts,
+            'collected'               => $totalCollected,
+            'outstanding_receivables'  => $outstandingReceivables,
+            'outstanding_fab_dues'    => $outstandingFabDues,
         ];
     }
 
     /** @return array<string,mixed> */
     private static function cashFlow(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
-        $collected = $db->prepare(
-            "SELECT COALESCE(SUM(amount), 0) FROM pal_collections WHERE tenant_id = :tid AND status = 'completed'"
-        );
-        $collected->execute([':tid' => $tenantId]);
+        $monthStart = date('Y-m-01');
 
-        $outstanding = $db->prepare(
-            "SELECT COALESCE(SUM(balance), 0) FROM pal_receivables WHERE tenant_id = :tid AND status != 'paid'"
+        $collections = $db->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM pal_collections
+             WHERE tenant_id = :tid AND status = 'completed' AND collection_date >= :month_start"
         );
-        $outstanding->execute([':tid' => $tenantId]);
+        $collections->execute([':tid' => $tenantId, ':month_start' => $monthStart]);
+        $monthlyCollections = (float)$collections->fetchColumn();
+
+        $expenses = $db->prepare(
+            "SELECT COALESCE(SUM(amount), 0) FROM pal_expenses
+             WHERE tenant_id = :tid AND status IN ('approved','paid') AND expense_date >= :month_start"
+        );
+        $expenses->execute([':tid' => $tenantId, ':month_start' => $monthStart]);
+        $monthlyExpenses = (float)$expenses->fetchColumn();
+
+        $fabrication = $db->prepare(
+            "SELECT COALESCE(SUM(paid_amount), 0) FROM pal_fabrication_weekly_dues
+             WHERE tenant_id = :tid AND payment_date >= :month_start"
+        );
+        $fabrication->execute([':tid' => $tenantId, ':month_start' => $monthStart]);
+        $monthlyFabrication = (float)$fabrication->fetchColumn();
+
+        $totalOutflow = $monthlyExpenses + $monthlyFabrication;
+        $netFlow = $monthlyCollections - $totalOutflow;
 
         return [
-            'collected'   => (float)$collected->fetchColumn(),
-            'outstanding' => (float)$outstanding->fetchColumn(),
+            'collections'  => $monthlyCollections,
+            'expenses'     => $monthlyExpenses,
+            'fabrication'  => $monthlyFabrication,
+            'total_outflow' => $totalOutflow,
+            'net'          => $netFlow,
         ];
     }
 

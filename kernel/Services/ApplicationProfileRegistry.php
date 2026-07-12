@@ -91,15 +91,52 @@ class ApplicationProfileRegistry
             return;
         }
 
-        // Look for a provider class
-        $providerClass = $manifest['provider'] ?? null;
-        if ($providerClass && class_exists($providerClass)) {
-            /** @var ApplicationProfileProvider $provider */
-            $provider = new $providerClass();
-            if ($provider instanceof ApplicationProfileProvider) {
-                self::register($provider);
-            }
+        // Look for provider declaration
+        $provider = $manifest['provider'] ?? null;
+        if ($provider === null) {
+            return;
         }
+
+        // Support both string (class name only) and object {class, file} formats
+        $providerClass = is_string($provider) ? $provider : ($provider['class'] ?? null);
+        $providerFile = is_array($provider) ? ($provider['file'] ?? null) : null;
+
+        if ($providerClass === null) {
+            return;
+        }
+
+        // If a provider file is specified, require it explicitly
+        if ($providerFile !== null) {
+            $fullPath = $profilePath . '/' . $providerFile;
+            $realPath = realpath($fullPath);
+
+            // Security: ensure the file is within the profile directory
+            if ($realPath === false || !str_starts_with($realPath, realpath($profilePath))) {
+                write_log("ApplicationProfileRegistry: provider file '{$providerFile}' for profile '{$manifest['name']}' is outside the profile directory — skipping");
+                return;
+            }
+
+            if (!is_file($realPath)) {
+                write_log("ApplicationProfileRegistry: provider file '{$providerFile}' not found for profile '{$manifest['name']}' — skipping");
+                return;
+            }
+
+            require_once $realPath;
+        }
+
+        if (!class_exists($providerClass)) {
+            write_log("ApplicationProfileRegistry: provider class '{$providerClass}' not found for profile '{$manifest['name']}' after loading '{$providerFile}'");
+            return;
+        }
+
+        $instance = new $providerClass();
+
+        if (!($instance instanceof \Ikabud\Kernel\Contracts\ApplicationProfileProvider)) {
+            write_log("ApplicationProfileRegistry: provider class '{$providerClass}' does not implement ApplicationProfileProvider");
+            return;
+        }
+
+        self::register($instance);
     }
 
     /**
