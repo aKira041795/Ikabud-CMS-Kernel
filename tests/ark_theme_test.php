@@ -281,9 +281,40 @@ assert_true($lintCode === 0, 'lint exits 0');
 assert_true(str_contains($lintText, 'valid') && !str_contains($lintText, 'err(s)'), 'no lint errors');
 
 // ══════════════════════════════════════════════════════════════════════════
-// Test 17: No errors in logs after all checks
+// Test 17: Canonical rendering flow — no dead-code includes in ikb_region
 // ══════════════════════════════════════════════════════════════════════════
-echo "\nTest 17: Log check\n";
+echo "\nTest 17: Canonical rendering flow — no dead-code includes in ikb_region\n";
+
+$layoutContent = file_get_contents($themeDir . '/layouts/public.disyl');
+
+// ikb_region tags should NOT contain {include} — those were dead code
+// (the ikb_region DiSyL component replaces body with orchestrator HTML)
+$regionPattern = '/\{ikb_region\s+name="(header|footer|sidebar)"[^}]*\}(.*?)\{\/ikb_region\}/s';
+preg_match_all($regionPattern, $layoutContent, $regionMatches, PREG_SET_ORDER);
+
+foreach ($regionMatches as $match) {
+    $regionName = $match[1];
+    $body = trim($match[2]);
+    $hasInclude = str_contains($body, '{include');
+    assert_true(!$hasInclude, "region '{$regionName}' has no dead-code {include} fallback");
+}
+
+// Verify all 3 required ikb_region tags exist
+$headerRegion = preg_match('/\{ikb_region\s+name="header"[^}]*\}\{\/ikb_region\}/', $layoutContent);
+$footerRegion = preg_match('/\{ikb_region\s+name="footer"[^}]*\}\{\/ikb_region\}/', $layoutContent);
+$sidebarRegion = preg_match('/\{ikb_region\s+name="sidebar"[^}]*\}\{\/ikb_region\}/', $layoutContent);
+assert_true((bool)$headerRegion, 'ikb_region name="header" present');
+assert_true((bool)$footerRegion, 'ikb_region name="footer" present');
+assert_true((bool)$sidebarRegion, 'ikb_region name="sidebar" present');
+
+// Verify no stale {include} to partials/ remain in layout
+$partialInclude = preg_match('/\{include\s+["\'].*public\/partials\//', $layoutContent);
+assert_true(!$partialInclude, 'no stale {include} to public/partials/');
+
+// ══════════════════════════════════════════════════════════════════════════
+// Test 18: Log check
+// ══════════════════════════════════════════════════════════════════════════
+echo "\nTest 18: Log check\n";
 $appLog = dirname(__DIR__) . '/storage/logs/app.log';
 $errorLog = dirname(__DIR__) . '/storage/logs/error.log';
 

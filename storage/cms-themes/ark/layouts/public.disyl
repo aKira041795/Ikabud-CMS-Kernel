@@ -115,8 +115,11 @@
     {ikb_slot name="header.before" /}
 
     {block header}
+    {# ── Header region — rendered by ThemeCustomizerOrchestrator via the canonical pipeline:
+       CMS persistence → ThemeCustomizerOrchestrator → ThemeRegionRenderer → region template → HTML
+       The {ikb_region} body is a no-op fallback; in production the orchestrator output replaces it. #}
     {if show_header|default:true}
-        {ikb_region name="header"}{include "_cms_active_theme/public/partials/header.disyl"}{/ikb_region}
+        {ikb_region name="header"}{/ikb_region}
     {/if}
     {/block}
     {ikb_slot name="header.main" /}
@@ -128,7 +131,7 @@
     <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-content-with-sidebar{if sidebar_region_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar and not builder_enabled} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
         {# Sidebar on left when position is 'left' #}
         {if show_customizer_sidebar and not builder_enabled and sidebar_region_position == 'left'}
-        {ikb_region name="sidebar" position="left"}{include "_cms_active_theme/public/partials/sidebar.disyl"}{/ikb_region}
+        {ikb_region name="sidebar" position="left"}{/ikb_region}
         {/if}
 
         <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-main-slot{/if}" tabindex="-1">
@@ -141,18 +144,16 @@
             {ikb_slot name="content.after" /}
         </main>
 
-        {# Sidebar on right (default) or fallback slot sidebars #}
+        {# Sidebar on right (default) — rendered by orchestrator, no fallback partial #}
         {if show_customizer_sidebar and not builder_enabled and sidebar_region_position != 'left'}
-        {ikb_region name="sidebar"}{include "_cms_active_theme/public/partials/sidebar.disyl"}{/ikb_region}
-        {elseif not show_customizer_sidebar}
-        {include "_cms_active_theme/public/partials/sidebar.disyl"}
+        {ikb_region name="sidebar"}{/ikb_region}
         {/if}
     </div>
 
-    {# Prefer DB/customizer-rendered footer when available. #}
+    {# ── Footer region — same canonical pipeline as header #}
     {ikb_slot name="footer.before" /}
     {if show_footer|default:true}
-        {ikb_region name="footer"}{include "_cms_active_theme/public/partials/footer.disyl"}{/ikb_region}
+        {ikb_region name="footer"}{/ikb_region}
     {/if}
     {ikb_slot name="footer.main" /}
     {ikb_slot name="footer.after" /}
