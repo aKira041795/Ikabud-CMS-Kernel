@@ -1,6 +1,14 @@
+{set _dh_title = 'Invoice #' ~ (sale.invoice_number ? sale.invoice_number : sale.sales_number)}
+{set _dh_subtitle = sale.client_name|default:''}
+{set _dh_status = sale.status|default:'draft'}
+{set _dh_amount = sale.invoice_total|default:sale.net_amount|default:0}
+{set _dh_collected = (sale.invoice_total|default:sale.net_amount|default:0) - (sale.outstanding|default:0)}
+{set _dh_outstanding = sale.outstanding|default:0}
+{set _dh_target_date = sale.due_date|default:''}
+{set _dh_actions = '<a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a> <a href="/admin/project-audit-ledger/sales/' ~ sale.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a> <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button>'}
+{include "pal_detail_header"}
+
 <div class="max-w-4xl print-area">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <h2 class=\"font-semibold text-gray-900 mb-2\">Invoice #{sale.invoice_number ? sale.invoice_number : sale.sales_number}</h2>
     <!-- Amount Due Callout -->
     {if sale.status == 'paid'}
     <div class="mb-4 p-3 bg-gray-100 border border-gray-300 rounded-lg text-center">

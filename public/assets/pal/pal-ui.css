@@ -121,3 +121,8 @@
         display: none !important;
     }
 }
+
+/* ── Mobile safe area for bottom nav (iPhone notch) ── */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}

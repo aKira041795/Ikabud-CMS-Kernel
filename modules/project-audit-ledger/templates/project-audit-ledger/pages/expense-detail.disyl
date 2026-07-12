@@ -1,13 +1,12 @@
+{set _dh_title = 'Expense #' ~ (expense.expense_number|default:expense.id)}
+{set _dh_subtitle = expense.project_title|default:''}
+{set _dh_status = expense.status|default:'draft'}
+{set _dh_amount = expense.amount|default:0}
+{set _dh_actions = '<a href="/admin/project-audit-ledger/expenses/' ~ expense.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>'}
+{if expense.status|default:'draft' == 'draft'}{set _dh_actions = _dh_actions ~ ' <form onsubmit="return ajaxSubmit(this, \'Submitted for approval\')" action="/api/v1/project-audit-ledger/expenses/' ~ expense.id ~ '/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Submit for Approval</button></form>'}{/if}
+{set _dh_actions = _dh_actions ~ ' <a href="/admin/project-audit-ledger/expenses" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>'}
+{include "pal_detail_header"}
+
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200">
-        <h2 class="font-semibold text-gray-900">Expense #{expense.expense_number|default:expense.id}</h2>
-    </div>
     {ikb_entity_detail source="pal_expense" id="{expense.id}" view="detailed" /}
-    <div class="px-4 py-3 bg-gray-50 flex gap-2">
-        <a href="/admin/project-audit-ledger/expenses/{expense.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
-        {if expense.status|default:'draft' == 'draft'}
-        <form onsubmit="return ajaxSubmit(this, 'Submitted for approval')" action="/api/v1/project-audit-ledger/expenses/{expense.id}/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Submit for Approval</button></form>
-        {/if}
-        <a href="/admin/project-audit-ledger/expenses" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
-    </div>
 </div>

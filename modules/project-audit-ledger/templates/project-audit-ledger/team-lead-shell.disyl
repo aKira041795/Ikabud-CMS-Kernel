@@ -53,13 +53,34 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto">
-            <div class="p-6">
-                <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
+        <main class="flex-1 overflow-y-auto pb-16 lg:pb-0">
+            <div class="p-4 lg:p-6">
+                <h1 class="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6">{page_title}</h1>
                 {page_body|raw}
             </div>
         </main>
     </div>
+
+    <!-- Mobile bottom nav (visible on small screens only) -->
+    <nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom">
+        <div class="flex justify-around py-2">
+            <a href="/admin/project-audit-ledger/team-lead" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-dashboard'}text-blue-600{else}text-gray-600{/if}">
+                <span class="text-lg">📊</span><span>Home</span>
+            </a>
+            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-fabrication'}text-blue-600{else}text-gray-600{/if}">
+                <span class="text-lg">🔧</span><span>Fabrication</span>
+            </a>
+            <a href="/admin/project-audit-ledger/team-lead/attendance" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-attendance'}text-blue-600{else}text-gray-600{/if}">
+                <span class="text-lg">👥</span><span>Attendance</span>
+            </a>
+            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-cash-advances'}text-blue-600{else}text-gray-600{/if}">
+                <span class="text-lg">💵</span><span>Cash</span>
+            </a>
+            <button onclick="toggleMobileSidebar()" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs text-gray-600">
+                <span class="text-lg">☰</span><span>More</span>
+            </button>
+        </div>
+    </nav>
 <!-- Toast (accessible) -->
 <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
 <script>
