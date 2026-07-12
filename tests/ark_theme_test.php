@@ -185,10 +185,14 @@ $layoutSource = file_get_contents($layoutPath);
 $declaredSlots = [
     'site.before', 'header.before', 'header.main', 'header.after',
     'hero', 'breadcrumbs', 'content.before', 'content',
-    'content.after', 'sidebar.primary', 'sidebar.secondary',
+    'content.after',
     'footer.before', 'footer.main', 'footer.after',
     'site.after', 'notifications',
 ];
+
+// Note: sidebar.primary and sidebar.secondary are declared in slots.json
+// for use within the sidebar region template, not as {ikb_slot} markers
+// in the main layout. Sidebar rendering uses {ikb_region name="sidebar"}.
 
 foreach ($declaredSlots as $slot) {
     $escaped = preg_quote($slot, '/');
