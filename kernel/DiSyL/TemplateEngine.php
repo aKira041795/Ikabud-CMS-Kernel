@@ -3526,12 +3526,17 @@ class TemplateEngine
             return $result;
         }
 
-        if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', trim($expr), $parts)) {
+        // {for key, value in list} — key-value iteration
+        if (preg_match('/^(\w+)\s*,\s*(\w+)\s+in\s+(.+)$/s', trim($expr), $parts)) {
+            $keyName = $parts[1];
+            $itemName = $parts[2];
+            $listExpr = trim($parts[3]);
+        } elseif (preg_match('/^(\w+)\s+in\s+(.+)$/s', trim($expr), $parts)) {
+            $itemName = $parts[1];
+            $listExpr = trim($parts[2]);
+        } else {
             return '';
         }
-
-        $itemName = $parts[1];
-        $listExpr = trim($parts[2]);
 
         $body = $innerContent;
         $emptyContent = '';
@@ -3568,6 +3573,10 @@ class TemplateEngine
                     'length' => $count,
                 ],
             ]);
+            // When {for key, value in list} syntax is used, expose the key as a named variable
+            if (isset($keyName)) {
+                $loopContext[$keyName] = $key;
+            }
             $chunk = $this->compile($body, $loopContext);
             [$chunk, $signal] = $this->consumeLoopSignal($chunk);
             $result .= $chunk;

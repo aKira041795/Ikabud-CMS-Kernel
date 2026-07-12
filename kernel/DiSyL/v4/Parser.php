@@ -725,12 +725,18 @@ final class Parser
             );
         }
 
-        // Parse "item in iterable"
-        if (!preg_match('/^(\w+)\s+in\s+(.+)$/s', $expr, $m)) {
+        // Parse "key, value in iterable"
+        if (preg_match('/^(\w+)\s*,\s*(\w+)\s+in\s+(.+)$/s', $expr, $m)) {
+            $keyName = $m[1];
+            $itemName = $m[2];
+            $iterable = trim($m[3]);
+        } elseif (preg_match('/^(\w+)\s+in\s+(.+)$/s', $expr, $m)) {
+            $itemName = $m[1];
+            $iterable = trim($m[2]);
+            $keyName = null;
+        } else {
             throw new \RuntimeException("Invalid {for} syntax: expected 'item in list' or 'init; condition; increment', got '{$expr}'");
         }
-        $itemName = $m[1];
-        $iterable = trim($m[2]);
 
         $body = $this->parseChildren(['{/for}', '{empty}', '{forelse}']);
         $elseDoc = null;
@@ -742,10 +748,15 @@ final class Parser
 
         $this->consumeExact('{/for}');
 
+        $attrs = ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)];
+        if (isset($keyName)) {
+            $attrs['key'] = $keyName;
+        }
+
         return new ControlNode(
             [],
             'for',
-            ['item' => $itemName, 'iterable' => $this->parseExprValue($iterable)],
+            $attrs,
             new DocumentNode([], $body),
             $elseDoc
         );
