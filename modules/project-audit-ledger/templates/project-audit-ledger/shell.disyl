@@ -7,17 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        * { border-radius: 3px !important; }
-        @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
-        /* Lightbox */
-        .lightbox-overlay { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); justify-content: center; align-items: center; }
-        .lightbox-overlay.active { display: flex; }
-        .lightbox-overlay img { max-width: min(600px, 90vw); max-height: 85vh; object-fit: contain; border-radius: 6px; }
-        .lightbox-close { position: absolute; top: 20px; right: 30px; color: #fff; font-size: 32px; cursor: pointer; font-weight: bold; z-index: 10000; }
-        .lightbox-close:hover { color: #ccc; }
-        .lightbox-caption { position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: #ccc; font-size: 13px; }
-    </style>
+    <link rel="stylesheet" href="/assets/pal/pal-ui.css">
 </head>
 <body class="bg-gray-50 min-h-screen">
     {csrf_field | raw}
@@ -35,17 +25,28 @@
                 <h1 class="text-lg font-bold text-white">{pal_app_name}</h1>
                 <p class="text-xs text-slate-400">{current_user.full_name}</p>
             </div>
-            <nav class="flex-1 overflow-y-auto p-2 space-y-1" x-data="{ sections: { overview: true, project: true, sales: true, inventory: true, ops: true, oversight: true, admin: true } }">
+            <nav class="flex-1 overflow-y-auto p-2 space-y-1" x-data="{ sections: { overview: false, project: false, sales: false, inventory: false, ops: false, oversight: false, admin: false } }" x-init="
+                var active = $el.querySelector('.bg-slate-700');
+                if (active) {
+                    var section = active.closest('[x-show]');
+                    if (section) {
+                        var sectionName = section.getAttribute('x-show');
+                        var match = sectionName.match(/sections\.(\w+)/);
+                        if (match) sections[match[1]] = true;
+                    }
+                }
+            ">
+                {set pc = page_content|default:''}
                 <!-- Overview -->
                 <div @click="sections.overview = !sections.overview" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-2 pb-1 hover:text-slate-300 select-none">
                     <span>Overview</span>
-                    <span x-text="sections.overview ? '−' : '+'">−</span>
+                    <span x-text="sections.overview ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.overview" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='dashboard'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📊 Dashboard
                     </a>
-                    <a href="/admin/project-audit-ledger/projects/create" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/projects/create" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='project-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         ➕ New Job Order
                     </a>
                 </div>
@@ -53,16 +54,16 @@
                 <!-- Project Management -->
                 <div @click="sections.project = !sections.project" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
                     <span>Job Orders</span>
-                    <span x-text="sections.project ? '−' : '+'">−</span>
+                    <span x-text="sections.project ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.project" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/projects" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/projects" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='project-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📋 All Job Orders
                     </a>
-                    <a href="/admin/project-audit-ledger/clients" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/clients" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='client-list'||pc=='client-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         👤 Clients
                     </a>
-                    <a href="/admin/project-audit-ledger/suppliers" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/suppliers" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='supplier-list'||pc=='supplier-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         🏭 Suppliers
                     </a>
                 </div>
@@ -70,42 +71,42 @@
                 <!-- Sales & Billing -->
                 <div @click="sections.sales = !sections.sales" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
                     <span>Sales &amp; Billing</span>
-                    <span x-text="sections.sales ? '−' : '+'">−</span>
+                    <span x-text="sections.sales ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.sales" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/sales" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='sales-list'||pc=='sales-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         💰 Sales Invoices
                     </a>
-                    <a href="/admin/project-audit-ledger/collections" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/collections" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='collection-list'||pc=='collection-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         💵 Collections
                     </a>
-                    <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                        📋 BOM
+                    <a href="/admin/project-audit-ledger/bom" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='bom-list'||pc=='bom-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
+                        📋 Bill of Materials
                     </a>
                 </div>
 
                 <!-- Inventory & Procurement -->
                 <div @click="sections.inventory = !sections.inventory" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
                     <span>Inventory &amp; Procurement</span>
-                    <span x-text="sections.inventory ? '−' : '+'">−</span>
+                    <span x-text="sections.inventory ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.inventory" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/inventory" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/inventory" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='inventory-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📦 Inventory
                     </a>
-                    <a href="/admin/project-audit-ledger/inventory/movements" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/inventory/movements" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='movement-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📤 Stock Movements
                     </a>
-                    <a href="/admin/project-audit-ledger/purchases" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/purchases" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='purchase-list'||pc=='purchase-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         🛒 Purchases
                     </a>
-                    <a href="/admin/project-audit-ledger/material-issuance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/material-issuance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='issuance-list'||pc=='issuance-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📋 Issuance
                     </a>
-                    <a href="/admin/project-audit-ledger/material-returns" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/material-returns" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='return-list'||pc=='return-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         🔄 Returns
                     </a>
-                    <a href="/admin/project-audit-ledger/expenses" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/expenses" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='expense-list'||pc=='expense-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         💳 Expenses
                     </a>
                 </div>
@@ -113,17 +114,17 @@
                 <!-- Operations -->
                 <div @click="sections.ops = !sections.ops" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
                     <span>Operations</span>
-                    <span x-text="sections.ops ? '−' : '+'">−</span>
+                    <span x-text="sections.ops ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.ops" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='fabrication-list'||pc=='fabrication-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         🔧 Fabrication
                     </a>
-                    <a href="/admin/project-audit-ledger/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='mobilization-list'||pc=='mobilization-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         🚛 Mobilization
                     </a>
                     {if current_user.role == 'admin'}
-                    <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='cash-advance-list'||pc=='cash-advance-form'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         💵 Cash Advances
                     </a>
                     {/if}
@@ -132,13 +133,13 @@
                 <!-- Oversight -->
                 <div @click="sections.oversight = !sections.oversight" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
                     <span>Oversight</span>
-                    <span x-text="sections.oversight ? '−' : '+'">−</span>
+                    <span x-text="sections.oversight ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.oversight" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/approvals" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/approvals" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='approval-queue'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         ✅ Approvals
                     </a>
-                    <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/reports" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='reports-center'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📈 Reports
                     </a>
                 </div>
@@ -147,16 +148,16 @@
                 {if current_user.role == 'admin'}
                 <div @click="sections.admin = !sections.admin" class="flex items-center justify-between cursor-pointer text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 pt-3 pb-1 hover:text-slate-300 select-none">
                     <span>Administration</span>
-                    <span x-text="sections.admin ? '−' : '+'">−</span>
+                    <span x-text="sections.admin ? '−' : '+'">+</span>
                 </div>
                 <div x-show="sections.admin" x-transition.duration.200ms>
-                    <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/audit" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='audit-trail'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         📜 Audit Trail
                     </a>
-                    <a href="/admin/project-audit-ledger/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='settings-categories'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         ⚙️ Settings
                     </a>
-                    <a href="/admin/project-audit-ledger/users" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+                    <a href="/admin/project-audit-ledger/users" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm {if pc=='users-list'}bg-slate-700 text-white{else}text-slate-300{/if} hover:bg-slate-700 hover:text-white transition-colors">
                         👥 Users
                     </a>
                 </div>
@@ -185,382 +186,8 @@
     <img id="lightbox-img" src="" alt="">
     <div id="lightbox-caption" class="lightbox-caption"></div>
 </div>
-<script>
-// ── Mobile sidebar ──
-function toggleMobileSidebar() {
-    var sidebar = document.getElementById('sidebar');
-    var overlay = document.getElementById('sidebar-overlay');
-    var isOpen = sidebar.classList.contains('-translate-x-full');
-    if (isOpen) {
-        sidebar.classList.remove('-translate-x-full');
-        overlay.classList.remove('hidden');
-    } else {
-        closeMobileSidebar();
-    }
-}
-function closeMobileSidebar() {
-    document.getElementById('sidebar').classList.add('-translate-x-full');
-    document.getElementById('sidebar-overlay').classList.add('hidden');
-}
-
-function showToast(msg, type) {
-    type = type || 'success';
-    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-500 text-yellow-900' };
-    var el = document.createElement('div');
-    el.className = (colors[type] || 'bg-gray-700') + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm transition-opacity duration-300';
-    el.textContent = msg;
-    el.setAttribute('role', 'alert');
-    document.getElementById('toast-container').appendChild(el);
-    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 4000);
-}
-function autocomplete(input, type, opts) {
-    opts = opts || {};
-    var container = document.createElement('div');
-    container.className = 'relative';
-    input.parentNode.insertBefore(container, input);
-    container.appendChild(input);
-    var dropdown = document.createElement('div');
-    dropdown.className = 'absolute z-50 w-full bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-y-auto hidden text-sm';
-    container.appendChild(dropdown);
-    var hidden = document.createElement('input');
-    hidden.type = 'hidden';
-    hidden.name = input.name.replace('_autocomplete', '_id');
-    container.appendChild(hidden);
-    var selectedId = null;
-    input.addEventListener('input', function() {
-        var q = input.value.trim();
-        if (q.length < 1) { dropdown.classList.add('hidden'); dropdown.innerHTML = ''; return; }
-        fetch('/api/v1/project-audit-ledger/autocomplete?type=' + encodeURIComponent(type) + '&q=' + encodeURIComponent(q))
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-            dropdown.innerHTML = '';
-            if (data.length === 0) {
-                var d = document.createElement('div');
-                d.className = 'px-3 py-2 text-xs text-gray-600';
-                d.textContent = opts.noResults || 'No results. Type to create new.';
-                dropdown.appendChild(d);
-            } else {
-                data.forEach(function(item){
-                    var d = document.createElement('div');
-                    d.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0';
-                    d.innerHTML = '<div class="font-medium text-sm">' + item.label + '</div>' + (item.sublabel ? '<div class="text-xs text-gray-600">' + item.sublabel + '</div>' : '');
-                    d.addEventListener('click', function(){
-                        input.value = item.label;
-                        hidden.value = item.id;
-                        selectedId = item.id;
-                        dropdown.classList.add('hidden');
-                        if (opts.onSelect) opts.onSelect(item);
-                    });
-                    dropdown.appendChild(d);
-                });
-            }
-            dropdown.classList.remove('hidden');
-        })
-        .catch(function(){});
-    });
-    input.addEventListener('blur', function(){ setTimeout(function(){ dropdown.classList.add('hidden'); }, 200); });
-    input.addEventListener('focus', function(){ if (dropdown.children.length > 0) dropdown.classList.remove('hidden'); });
-    input.dataset.autocomplete = 'true';
-    input.name = input.name + '_autocomplete';
-}
-function makeCreatable(select) {
-    var opt = document.createElement('option');
-    opt.value = '__other__';
-    opt.textContent = '✦ Other: type new...';
-    select.appendChild(opt);
-    select.addEventListener('change', function() {
-        if (select.value === '__other__') {
-            showQuickCreateModal(select);
-            select.value = '';
-        }
-    });
-}
-
-var _quickCreateModal = null;
-function showQuickCreateModal(select) {
-    var type = select.getAttribute('data-creatable') || '';
-    if (!type) return;
-    if (!_quickCreateModal) {
-        var overlay = document.createElement('div');
-        overlay.id = 'qc-modal';
-        overlay.style.cssText = 'position:fixed;z-index:9999;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;';
-        overlay.addEventListener('click', function(e) { if (e.target === overlay) closeQuickCreateModal(); });
-        var box = document.createElement('div');
-        box.style.cssText = 'background:#fff;border-radius:8px;padding:24px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
-        box.innerHTML = '<h3 class="text-sm font-semibold text-gray-900 mb-3" id="qc-title">Add New</h3>'
-            + '<input type="text" id="qc-input" placeholder="Enter name" class="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-3" style="box-sizing:border-box;">'
-            + '<div class="flex gap-2 justify-end">'
-            + '<button onclick="closeQuickCreateModal()" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button>'
-            + '<button id="qc-btn" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Add</button>'
-            + '</div>';
-        overlay.appendChild(box);
-        document.body.appendChild(overlay);
-        _quickCreateModal = { overlay: overlay, input: document.getElementById('qc-input'), btn: document.getElementById('qc-btn'), title: document.getElementById('qc-title') };
-    }
-    var m = _quickCreateModal;
-    m.btn.disabled = false;
-    m.btn.textContent = 'Add';
-    m.title.textContent = 'Add New ' + type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
-    m.input.value = '';
-    m.input.focus();
-    m.input.onkeydown = function(e) { if (e.key === 'Enter') { e.preventDefault(); doQuickCreate(select, type); } };
-    m.btn.onclick = function() { doQuickCreate(select, type); };
-    m.overlay.style.display = 'flex';
-}
-
-function closeQuickCreateModal() {
-    if (_quickCreateModal) _quickCreateModal.overlay.style.display = 'none';
-}
-
-function qcResetBtn() {
-    if (_quickCreateModal && _quickCreateModal.btn) {
-        _quickCreateModal.btn.disabled = false;
-        _quickCreateModal.btn.textContent = 'Add';
-    }
-}
-
-function doQuickCreate(select, type) {
-    if (!_quickCreateModal || !_quickCreateModal.input) { showToast('Modal not ready', 'error'); return; }
-    var name = _quickCreateModal.input.value.trim();
-    if (!name) { showToast('Enter a name', 'error'); return; }
-    _quickCreateModal.btn.disabled = true;
-    _quickCreateModal.btn.textContent = 'Adding...';
-    var csrf = document.querySelector('input[name="_token"]');
-    var fd = new FormData();
-    fd.append('type', type);
-    fd.append('name', name);
-    if (csrf) fd.append('_token', csrf.value);
-    var timedOut = false;
-    var timer = setTimeout(function() { timedOut = true; showToast('Request timed out', 'error'); qcResetBtn(); }, 10000);
-    fetch('/api/v1/project-audit-ledger/quick-create', { method: 'POST', body: fd })
-    .then(function(r){ if (timedOut) return; clearTimeout(timer); return r.json(); })
-    .then(function(d){
-        if (timedOut) return;
-        if (d.ok) {
-            var o = document.createElement('option');
-            o.value = d.id; o.textContent = d.label; o.selected = true;
-            select.add(o);
-            select.value = d.id;
-            closeQuickCreateModal();
-            showToast('Added: ' + d.label);
-        } else { showToast(d.error || 'Failed', 'error'); qcResetBtn(); }
-    })
-    .catch(function(){ if (!timedOut) { clearTimeout(timer); showToast('Failed to create', 'error'); } qcResetBtn(); });
-}
-function ajaxSubmit(form, successMsg) {
-    if (form.dataset.submitting === '1') return false;
-    form.dataset.submitting = '1';
-    // Clear previous errors
-    form.querySelectorAll('.field-error').forEach(function(e){ e.remove(); });
-    form.querySelectorAll('.border-red-500').forEach(function(e){ e.classList.remove('border-red-500'); });
-    var btn = form.querySelector('button[type="submit"]');
-    var orig = btn ? btn.textContent : 'Submit';
-    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
-    var data = new FormData(form);
-    fetch(form.action, { method: 'POST', body: data })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-        if (d.ok) {
-            if (d.redirect) { window.location.href = d.redirect; return; }
-            showToast(successMsg || 'Saved');
-            setTimeout(function(){ location.reload(); }, 600);
-        } else {
-            var errMsg = d.error || 'Request failed';
-            showToast(errMsg, 'error');
-            // Field-level errors
-            if (d.errors && typeof d.errors === 'object') {
-                var firstField = null;
-                Object.keys(d.errors).forEach(function(fieldName){
-                    var field = form.querySelector('[name="' + fieldName + '"]');
-                    if (field) {
-                        field.classList.add('border-red-500');
-                        var errEl = document.createElement('p');
-                        errEl.className = 'field-error text-red-600 text-xs mt-1';
-                        errEl.textContent = d.errors[fieldName];
-                        field.parentNode.appendChild(errEl);
-                        if (!firstField) firstField = field;
-                    }
-                });
-                if (firstField) firstField.focus();
-            }
-            if (btn) { btn.disabled = false; btn.textContent = orig; }
-        }
-    })
-    .catch(function(){
-        showToast('Network error', 'error');
-        if (btn) { btn.disabled = false; btn.textContent = orig; }
-    });
-    return false;
-}
-function toggleEdit(id) {
-    var el = document.getElementById('edit-user-' + id);
-    if (el) el.classList.toggle('hidden');
-}
-function switchTab(tab) {
-    document.getElementById('table-active').classList.toggle('hidden', tab !== 'active');
-    document.getElementById('table-inactive').classList.toggle('hidden', tab !== 'inactive');
-    document.getElementById('tab-active').className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-700');
-    document.getElementById('tab-inactive').className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'inactive' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-700');
-}
-function toggleUser(id) {
-    if (!confirm('Toggle this user\'s active status?')) return;
-    var csrfInput = document.querySelector('input[name="_token"]');
-    var body = '';
-    if (csrfInput) body = csrfInput.name + '=' + encodeURIComponent(csrfInput.value);
-    fetch('/api/v1/project-audit-ledger/users/' + id + '/delete', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-        if (d.ok) { showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function(){ location.reload(); }, 600); }
-        else { showToast(d.error || 'Failed', 'error'); }
-    })
-    .catch(function(){ showToast('Request failed', 'error'); });
-}
-function approve(id) {
-    if (!confirm('Approve this request? This action cannot be undone.')) return;
-    decide(id, 'approved');
-}
-function reject(id) {
-    var remarks = prompt('Rejection reason (required):');
-    if (remarks === null) return; // Cancelled
-    if (!remarks.trim()) {
-        showToast('A rejection reason is required.', 'error');
-        return;
-    }
-    decide(id, 'rejected', remarks);
-}
-function decide(id, decision, remarks) {
-    var csrfInput = document.querySelector('input[name="_token"]');
-    var body = 'decision=' + encodeURIComponent(decision) + '&remarks=' + encodeURIComponent(remarks || '');
-    if (csrfInput) body += '&' + csrfInput.name + '=' + encodeURIComponent(csrfInput.value);
-    fetch('/api/v1/project-audit-ledger/approvals/' + id + '/decide', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-        if (d.ok) { showToast(decision === 'approved' ? 'Approved' : 'Rejected'); setTimeout(function(){ location.reload(); }, 600); }
-        else { showToast(d.error || 'Failed', 'error'); }
-    })
-    .catch(function(){ showToast('Request failed', 'error'); });
-}
-function addPoRow() {
-    var row = document.querySelector('.po-row');
-    if (!row) return;
-    var clone = row.cloneNode(true);
-    clone.querySelectorAll('input').forEach(function(i){ i.value = ''; });
-    clone.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; if (s.dataset && s.dataset.creatable) { makeCreatable(s); } });
-    clone.querySelector('.line-total').textContent = '₱0.00';
-    document.getElementById('po-items').appendChild(clone);
-}
-function addCategory(type, inputId) {
-    var name = document.getElementById(inputId).value.trim();
-    if (!name) { showToast('Enter a name', 'error'); return; }
-    ajaxPost('/api/v1/project-audit-ledger/settings/categories', 'type='+encodeURIComponent(type)+'&name='+encodeURIComponent(name), 'Added');
-}
-function addUnit() {
-    var name = document.getElementById('new-unit-name').value.trim();
-    if (!name) { showToast('Enter a name', 'error'); return; }
-    var abbr = document.getElementById('new-unit-abbr').value.trim();
-    ajaxPost('/api/v1/project-audit-ledger/settings/categories', 'type=unit&name='+encodeURIComponent(name)+'&abbreviation='+encodeURIComponent(abbr), 'Added');
-}
-function addTeamLead() {
-    var name = document.getElementById('new-tl-name').value.trim();
-    if (!name) { showToast('Enter a name', 'error'); return; }
-    var contact = document.getElementById('new-tl-contact').value.trim();
-    var email = document.getElementById('new-tl-email').value.trim();
-    ajaxPost('/api/v1/project-audit-ledger/settings/categories', 'type=team_lead&name='+encodeURIComponent(name)+'&contact_number='+encodeURIComponent(contact)+'&email='+encodeURIComponent(email), 'Added');
-}
-function addInvLocation() {
-    var name = document.getElementById('new-loc-name').value.trim();
-    if (!name) { showToast('Enter a name', 'error'); return; }
-    var desc = document.getElementById('new-loc-desc').value.trim();
-    ajaxPost('/api/v1/project-audit-ledger/settings/categories', 'type=inventory_location&name='+encodeURIComponent(name)+'&description='+encodeURIComponent(desc), 'Added');
-}
-function addSupplier() {
-    var name = document.getElementById('new-sup-name').value.trim();
-    if (!name) { showToast('Enter a name', 'error'); return; }
-    var cp = document.getElementById('new-sup-cp').value.trim();
-    var email = document.getElementById('new-sup-email').value.trim();
-    ajaxPost('/api/v1/project-audit-ledger/settings/suppliers', 'name='+encodeURIComponent(name)+'&contact_person='+encodeURIComponent(cp)+'&email='+encodeURIComponent(email), 'Added');
-}
-function toggleStatus(type, id) {
-    var csrfInput = document.querySelector('input[name="_token"]');
-    var body = 'type='+encodeURIComponent(type)+(csrfInput?'&'+csrfInput.name+'='+encodeURIComponent(csrfInput.value):'');
-    fetch('/api/v1/project-audit-ledger/settings/toggle/'+id, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ if (d.ok) { showToast('Updated'); setTimeout(function(){ location.reload(); }, 400); } else { showToast(d.error||'Failed','error'); } })
-    .catch(function(){ showToast('Request failed','error'); });
-}
-function ajaxPost(url, body, msg) {
-    var csrfInput = document.querySelector('input[name="_token"]');
-    if (csrfInput) body += '&' + csrfInput.name + '=' + encodeURIComponent(csrfInput.value);
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ if (d.ok) { showToast(msg||'Saved'); setTimeout(function(){ location.reload(); }, 400); } else { showToast(d.error||'Failed','error'); } })
-    .catch(function(){ showToast('Request failed','error'); });
-}
-function deletePoImage(id) {
-    if (!confirm('Delete this PO image?')) return;
-    var csrfInput = document.querySelector('input[name="_token"]');
-    var body = csrfInput ? csrfInput.name + '=' + encodeURIComponent(csrfInput.value) : '';
-    fetch('/api/v1/project-audit-ledger/attachments/' + id + '/delete', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body })
-    .then(function(r){ return r.json(); })
-    .then(function(d){ if (d.ok) { showToast('Deleted'); setTimeout(function(){ location.reload(); }, 400); } else { showToast(d.error||'Failed','error'); } })
-    .catch(function(){ showToast('Request failed','error'); });
-}
-function uploadAttachment(form, entityType, entityId) {
-    var btn = form.querySelector('button[type="submit"]');
-    var orig = btn.textContent;
-    btn.disabled = true; btn.textContent = 'Uploading...';
-    var data = new FormData(form);
-    data.append('entity_type', entityType);
-    data.append('entity_id', entityId);
-    fetch('/api/v1/project-audit-ledger/attachments', { method: 'POST', body: data })
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-        if (d.ok) { showToast('File uploaded'); setTimeout(function(){ location.reload(); }, 600); }
-        else { showToast(d.error || 'Upload failed', 'error'); btn.disabled = false; btn.textContent = orig; }
-    })
-    .catch(function(){ showToast('Upload failed', 'error'); btn.disabled = false; btn.textContent = orig; });
-    return false;
-}
-function exportCSV(tableId, filename) {
-    var table = document.getElementById(tableId);
-    if (!table) { showToast('Table not found', 'error'); return; }
-    var rows = table.querySelectorAll('tr');
-    var csv = '';
-    rows.forEach(function(r){
-        var cols = r.querySelectorAll('th, td');
-        var row = [];
-        cols.forEach(function(c){ row.push('"' + (c.textContent||'').trim().replace(/"/g,'""') + '"'); });
-        csv += row.join(',') + '\n';
-    });
-    var blob = new Blob([csv], { type: 'text/csv' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename + '.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
-}
-function openLightbox(url, caption) {
-    var lb = document.getElementById('lightbox');
-    var img = document.getElementById('lightbox-img');
-    var cap = document.getElementById('lightbox-caption');
-    img.src = url;
-    cap.textContent = caption || '';
-    lb.classList.add('active');
-    // Focus trap: move focus to close button
-    var closeBtn = lb.querySelector('.lightbox-close');
-    if (closeBtn) closeBtn.focus();
-    // Close on Escape
-    lb._escHandler = function(e) { if (e.key === 'Escape') closeLightbox(); };
-    document.addEventListener('keydown', lb._escHandler);
-}
-function closeLightbox() {
-    var lb = document.getElementById('lightbox');
-    lb.classList.remove('active');
-    if (lb._escHandler) {
-        document.removeEventListener('keydown', lb._escHandler);
-        lb._escHandler = null;
-    }
-}
-</script>
+<script src="/assets/pal/pal-core.js"></script>
+<script src="/assets/pal/pal-forms.js"></script>
+<script src="/assets/pal/pal-settings.js"></script>
 </body>
 </html>

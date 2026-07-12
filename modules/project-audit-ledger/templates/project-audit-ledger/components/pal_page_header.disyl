@@ -1,0 +1,9 @@
+{* pal_page_header — Standard page header with title, subtitle, and action slot.
+   Pass: _ph_title, _ph_subtitle (optional), _ph_actions (optional, raw HTML) *}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">{_ph_title}</h1>
+        {if _ph_subtitle|default:''}<p class="text-sm text-gray-600 mt-1">{_ph_subtitle}</p>{/if}
+    </div>
+    {if _ph_actions|default:''}<div class="flex items-center gap-2">{_ph_actions|raw}</div>{/if}
+</div>
