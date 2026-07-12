@@ -213,7 +213,7 @@
         var bodyHtml = '<div class="space-y-2 text-sm">';
         if (entityLabel) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Type</span><span class="font-medium">' + entityLabel + '</span></div>';
         if (projectTitle) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Project</span><span class="font-medium">' + projectTitle + '</span></div>';
-        if (amount > 0) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-semibold text-gray-900">\u20B1' + Number(amount).toLocaleString('en-PH', {minimumFractionDigits:2}) + '</span></div>';
+        if (amount > 0) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-semibold text-gray-900">\u20B1' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }) + '</span></div>';
         if (submitter) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Submitted by</span><span>' + submitter + '</span></div>';
         if (notes) bodyHtml += '<div class="text-xs text-gray-500 italic mt-2 border-t pt-2">"' + notes + '"</div>';
         bodyHtml += '</div>';
@@ -231,7 +231,7 @@
         var bodyHtml = '<div class="space-y-2 text-sm mb-3">';
         if (entityLabel) bodyHtml += '<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">' + entityLabel + '</span>';
         if (projectTitle) bodyHtml += '<span class="text-xs text-gray-500">' + projectTitle + '</span>';
-        if (amount > 0) bodyHtml += '<div class="mt-2 font-semibold">\u20B1' + Number(amount).toLocaleString('en-PH', {minimumFractionDigits:2}) + '</div>';
+        if (amount > 0) bodyHtml += '<div class="mt-2 font-semibold">\u20B1' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }) + '</div>';
         bodyHtml += '</div><p class="text-sm text-gray-700 mb-3">Please provide a reason for rejection.</p>';
         palDialog({
             title: 'Reject Request',

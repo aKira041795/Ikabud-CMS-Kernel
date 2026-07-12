@@ -2,14 +2,11 @@
 {set _dh_subtitle = collection.project_title|default:''}
 {set _dh_status = collection.status|default:'pending'}
 {set _dh_amount = collection.amount|default:0}
-{set _dh_actions = '<a href=\"/admin/project-audit-ledger/collections\" class=\"px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300\">← Back</a>'}
-{include \"pal_detail_header\"}
+{set _dh_actions = '<a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a>'}
+{include "pal_detail_header"}
 
-<div class=\"max-w-2xl\">
-<div class=\"bg-white rounded-xl shadow-sm border border-gray-200 p-6\">
-
-</div>
-</div>
+<div class="max-w-2xl">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
 
     <!-- Amount Collected Callout -->
     <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
