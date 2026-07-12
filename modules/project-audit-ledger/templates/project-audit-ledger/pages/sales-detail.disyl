@@ -11,7 +11,7 @@
         <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Down Payment Due</p>
         <p class="text-2xl font-bold text-gray-900">₱{sale.down_payment|number_format:2}</p>
         {if sale.due_date}<p class="text-xs text-gray-500 mt-1">Due: {sale.due_date}</p>{/if}
-        <p class="text-xs text-gray-500 mt-1">Partial — ₱{(sale.invoice_total|default:sale.net_amount - sale.down_payment)|number_format:2} remaining</p>
+        <p class="text-xs text-gray-500 mt-1">Partial — ₱{((sale.invoice_total|default:sale.net_amount) - (sale.down_payment|default:0))|number_format:2} remaining</p>
     </div>
     {elseif sale.outstanding|default:0 > 0}
     <div class="mb-4 p-4 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
