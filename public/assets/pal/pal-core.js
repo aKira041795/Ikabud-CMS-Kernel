@@ -209,10 +209,17 @@
     }
 
     // ── Approvals ──
-    window.approve = function (id) {
+    window.approve = function (id, entityLabel, amount, projectTitle, submitter, notes) {
+        var bodyHtml = '<div class="space-y-2 text-sm">';
+        if (entityLabel) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Type</span><span class="font-medium">' + entityLabel + '</span></div>';
+        if (projectTitle) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Project</span><span class="font-medium">' + projectTitle + '</span></div>';
+        if (amount > 0) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-semibold text-gray-900">\u20B1' + Number(amount).toLocaleString('en-PH', {minimumFractionDigits:2}) + '</span></div>';
+        if (submitter) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Submitted by</span><span>' + submitter + '</span></div>';
+        if (notes) bodyHtml += '<div class="text-xs text-gray-500 italic mt-2 border-t pt-2">"' + notes + '"</div>';
+        bodyHtml += '</div>';
         palDialog({
-            title: 'Approve Request',
-            body: 'This action cannot be undone. The entity will be marked as approved and any side effects (stock movements, cost updates) will execute.',
+            title: 'Approve ' + (entityLabel || 'Request'),
+            body: bodyHtml,
             confirmLabel: 'Approve',
             confirmClass: 'bg-green-600 hover:bg-green-700',
             onClose: function (result) {
@@ -220,10 +227,15 @@
             }
         });
     };
-    window.reject = function (id) {
+    window.reject = function (id, entityLabel, amount, projectTitle) {
+        var bodyHtml = '<div class="space-y-2 text-sm mb-3">';
+        if (entityLabel) bodyHtml += '<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">' + entityLabel + '</span>';
+        if (projectTitle) bodyHtml += '<span class="text-xs text-gray-500">' + projectTitle + '</span>';
+        if (amount > 0) bodyHtml += '<div class="mt-2 font-semibold">\u20B1' + Number(amount).toLocaleString('en-PH', {minimumFractionDigits:2}) + '</div>';
+        bodyHtml += '</div><p class="text-sm text-gray-700 mb-3">Please provide a reason for rejection.</p>';
         palDialog({
             title: 'Reject Request',
-            body: 'Please provide a reason for rejection.',
+            body: bodyHtml,
             input: true,
             placeholder: 'Rejection reason (required)',
             confirmLabel: 'Reject',
@@ -232,7 +244,7 @@
                 if (result.cancelled) return;
                 if (!result.value) {
                     window.showToast('A rejection reason is required.', 'error');
-                    window.reject(id); // Re-open
+                    window.reject(id, entityLabel, amount, projectTitle);
                     return;
                 }
                 decide(id, 'rejected', result.value);

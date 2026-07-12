@@ -22,6 +22,34 @@
 
   <!-- Tab: Overview -->
   <div x-show="tab==='overview'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-4">
+        {if mockup_url}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h4 class="font-semibold text-gray-900 text-sm mb-3">🖼 Mockup / Reference Image</h4>
+            <img src="{mockup_url}" alt="Mockup" class="rounded-lg border border-gray-200 cursor-zoom-in" style="max-width:300px;max-height:200px;object-fit:cover;" onclick="openLightbox(this.src, 'Mockup Image')">
+        </div>
+        {/if}
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 class="font-semibold text-gray-900 mb-3">Financial Summary</h3>
+        <div class="space-y-2 text-sm">
+            <div class="flex justify-between"><span class="text-gray-700 font-semibold">Budget</span><span class="font-semibold text-gray-900">₱{budget.contract_amount|default:0|number_format:2}</span></div>
+            {if remaining_collectible > 0}
+            <div class="flex justify-between text-xs"><span class="text-gray-600">Remaining Collectible</span><span class="text-orange-500">₱{remaining_collectible|number_format:2}</span></div>
+            {/if}
+            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Collected</span><span class="font-medium text-green-600">{if profitability.total_collected|default:0 > 0}+₱{profitability.total_collected|number_format:2}{else}₱0.00{/if}</span></div>
+            {if project.fabrication_alloc_pct && project.fabrication_alloc_pct > 0}
+            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Fabrication</span><span class="font-medium text-indigo-600">−₱{fabrication_amount|number_format:2} ({project.fabrication_alloc_pct}%)</span></div>
+            {/if}
+            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Spent</span><span class="font-medium text-yellow-600">−₱{costs.total_cost|default:0|number_format:2}</span></div>
+            <div class="border-t pt-2 flex justify-between"><span class="text-gray-700 font-medium">Net Profit</span><span class="font-medium {if net_profit >= 0}text-green-600{else}text-red-600{/if}">₱{net_profit|number_format:2}</span></div>
+            <div class="flex justify-between text-xs"><span class="text-gray-600">Amount Collectible</span><span class="{if remaining_collectible > 0}text-orange-500{else}text-green-600{/if}">₱{remaining_collectible|number_format:2}</span></div>
+        </div>
+    </div>
+  </div>
+
+  <!-- Tab: Items -->
+  <div x-show="tab==='items'" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         {if project.items && project.items|count > 0}
         <div class="mt-6 border-t pt-4">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">📋 Line Items</h4>
@@ -39,42 +67,14 @@
         {else}
         <div class="mt-6 border-t pt-4"><p class="text-sm text-gray-500">No line items recorded.</p></div>
         {/if}
-        {if mockup_url}
-        <div class="mt-4 border-t pt-4">
-            <h4 class="font-semibold text-gray-900 text-sm mb-3">🖼 Mockup / Reference Image</h4>
-            <img src="{mockup_url}" alt="Mockup" class="rounded-lg border border-gray-200 cursor-zoom-in" style="max-width:300px;max-height:200px;object-fit:cover;" onclick="openLightbox(this.src, 'Mockup Image')">
-        </div>
-        {/if}
-        <div class="mt-6 border-t pt-4">
-            <h4 class="font-semibold text-gray-900 text-sm mb-2">📄 Project Documents</h4>
-            <p class="text-xs text-gray-600 mb-2">Upload contracts, permits, plans, and other project files.</p>
-            <form onsubmit="return uploadAttachment(this, 'project', {project.id})" class="flex gap-2 items-end">
-                {csrf_field | raw}
-                <div class="flex-1"><input type="file" name="file" required class="w-full text-sm"></div>
-                <div><input type="text" name="description" placeholder="Description" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Upload</button>
-            </form>
-            <div id="project-attachments" class="mt-2">{attachments_html|raw}</div>
-        </div>
-        <div class="mt-4 border-t pt-4">
-            <h4 class="font-semibold text-gray-900 text-sm mb-2">🖼 PO Receipts & Invoices</h4>
-            <p class="text-xs text-gray-600 mb-2">Upload supplier invoices, receipts, and delivery documents.</p>
-            <form onsubmit="return uploadAttachment(this, 'po', {project.id})" class="flex gap-2 items-end mb-3">
-                {csrf_field | raw}
-                <div class="flex-1"><input type="file" name="file" accept="image/*" required class="w-full text-sm"></div>
-                <div><input type="text" name="description" placeholder="PO ref / notes" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Upload PO</button>
-            </form>
-            <div id="po-images" class="grid grid-cols-2 md:grid-cols-3 gap-3">{po_images_html|raw}</div>
-        </div>
-        <div class="mt-6 border-t pt-4 no-print">
-            <h4 class="font-semibold text-gray-900 text-sm mb-3">Expenses</h4>
-            {ikb_entity_list source="pal_expense" view="table" use="tailwind" filter="project_id={project.id}" empty="No expenses recorded." /}
-        </div>
-        <div class="mt-4 border-t pt-4 no-print">
+  </div>
+
+  <!-- Tab: Financials -->
+  <div x-show="tab==='financials'" class="space-y-4 no-print">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Collections ({collection_history|count})</h4>
             <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm pal-responsive-table">
                 <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Sale #</th><th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Amount</th><th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th></tr></thead>
                 <tbody>
                     {for c in collection_history}
@@ -87,10 +87,14 @@
             </table>
             </div>
         </div>
-        <div class="mt-4 border-t pt-4 no-print">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h4 class="font-semibold text-gray-900 text-sm mb-3">Expenses</h4>
+            {ikb_entity_list source="pal_expense" view="table" use="tailwind" filter="project_id={project.id}" empty="No expenses recorded." /}
+        </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Purchase Orders ({purchase_history|count})</h4>
             <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm pal-responsive-table">
                 <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">PO #</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Supplier</th><th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Total</th><th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th></tr></thead>
                 <tbody>
                     {for po in purchase_history}
@@ -103,24 +107,32 @@
             </table>
             </div>
         </div>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h3 class="font-semibold text-gray-900 mb-3">Financial Summary</h3>
-        <div class="space-y-2 text-sm">
-            <div class="flex justify-between"><span class="text-gray-700 font-semibold">Budget</span><span class="font-semibold text-gray-900">₱{budget.contract_amount|default:0|number_format:2}</span></div>
-            {if remaining_collectible > 0}
-            <div class="flex justify-between text-xs"><span class="text-gray-600">Remaining Collectible</span><span class="text-orange-500">₱{remaining_collectible|number_format:2}</span></div>
-            {/if}
-            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Collected</span><span class="font-medium text-green-600">{if profitability.total_collected|default:0 > 0}+₱{profitability.total_collected|number_format:2}{else}₱0.00{/if}</span></div>
-            {if project.fabrication_alloc_pct && project.fabrication_alloc_pct > 0}
-            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Fabrication</span><span class="font-medium text-indigo-600">−₱{fabrication_amount|number_format:2} ({project.fabrication_alloc_pct}%)</span></div>
-            {/if}
-            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Spent</span><span class="font-medium text-yellow-600">−₱{costs.total_cost|default:0|number_format:2}</span></div>
-            <div class="border-t pt-2 flex justify-between"><span class="text-gray-700 font-medium">Net Profit</span><span class="font-medium {if net_profit >= 0}text-green-600{else}text-red-600{/if}">₱{net_profit|number_format:2}</span></div>
-            <div class="flex justify-between text-xs"><span class="text-gray-600">Amount Collectible</span><span class="{if remaining_collectible > 0}text-orange-500{else}text-green-600{/if}">₱{remaining_collectible|number_format:2}</span></div>
-            <div class="text-xs text-gray-600">{if profitability.total_collected|default:0 > 0}Collected − Fab − Spent | Contract − Collected{else}Contract − Fab − Spent | Full contract collectible{/if}</div>
+  </div>
+
+  <!-- Tab: Docs -->
+  <div x-show="tab==='docs'" class="space-y-4">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h4 class="font-semibold text-gray-900 text-sm mb-2">📄 Project Documents</h4>
+            <p class="text-xs text-gray-600 mb-2">Upload contracts, permits, plans, and other project files.</p>
+            <form onsubmit="return uploadAttachment(this, 'project', {project.id})" class="flex gap-2 items-end">
+                {csrf_field | raw}
+                <div class="flex-1"><input type="file" name="file" required class="w-full text-sm"></div>
+                <div><input type="text" name="description" placeholder="Description" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Upload</button>
+            </form>
+            <div id="project-attachments" class="mt-2">{attachments_html|raw}</div>
         </div>
-    </div>
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h4 class="font-semibold text-gray-900 text-sm mb-2">🖼 PO Receipts &amp; Invoices</h4>
+            <p class="text-xs text-gray-600 mb-2">Upload supplier invoices, receipts, and delivery documents.</p>
+            <form onsubmit="return uploadAttachment(this, 'po', {project.id})" class="flex gap-2 items-end mb-3">
+                {csrf_field | raw}
+                <div class="flex-1"><input type="file" name="file" accept="image/*" required class="w-full text-sm"></div>
+                <div><input type="text" name="description" placeholder="PO ref / notes" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Upload PO</button>
+            </form>
+            <div id="po-images" class="grid grid-cols-2 md:grid-cols-3 gap-3">{po_images_html|raw}</div>
+        </div>
   </div>
 </div>
 

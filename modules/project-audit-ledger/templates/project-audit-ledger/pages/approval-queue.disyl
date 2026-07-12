@@ -16,8 +16,8 @@
                     {if a.notes}<p class="text-xs text-gray-500 mt-1 italic">"{a.notes}"</p>{/if}
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="approve({a.id})" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button>
-                    <button onclick="reject({a.id})" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>
+                    <button onclick="approve({a.id}, '{palEntityLabel(a.entity_type)}', {a.amount|default:0}, '{a.project_title|default:''|escape:'html'}', '{a.submitter_name|default:'—'|escape:'html'}', '{a.notes|default:''|escape:'html'}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button>
+                    <button onclick="reject({a.id}, '{palEntityLabel(a.entity_type)}', {a.amount|default:0}, '{a.project_title|default:''|escape:'html'}')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>
                 </div>
             </div>
         </div>
