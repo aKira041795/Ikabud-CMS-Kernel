@@ -167,59 +167,132 @@
             .catch(function () { window.showToast('Request failed', 'error'); });
     };
 
-    // ── Accessible dialog (reusable) ──
+    // ── Accessible dialog (reusable, DOM-based, focus-trapped) ──
     function palDialog(options) {
+        var opener = document.activeElement;
         var overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-label', options.title || 'Confirm');
+
         var box = document.createElement('div');
         box.className = 'bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4';
-        box.innerHTML = '<h3 class="text-lg font-semibold text-gray-900 mb-2">' + (options.title || '') + '</h3>'
-            + (options.body ? '<div class="text-sm text-gray-700 mb-4">' + options.body + '</div>' : '')
-            + (options.input ? '<input type="text" id="pal-dialog-input" class="w-full px-3 py-2 border border-gray-300 rounded text-sm mb-4" placeholder="' + (options.placeholder || '') + '">' : '')
-            + '<div class="flex gap-2 justify-end">'
-            + '<button id="pal-dialog-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">' + (options.cancelLabel || 'Cancel') + '</button>'
-            + '<button id="pal-dialog-confirm" class="px-4 py-2 text-white text-sm rounded-lg hover:opacity-90 ' + (options.confirmClass || 'bg-blue-600 hover:bg-blue-700') + '">' + (options.confirmLabel || 'OK') + '</button>'
-            + '</div>';
+
+        // Title
+        var titleEl = document.createElement('h3');
+        titleEl.className = 'text-lg font-semibold text-gray-900 mb-3';
+        titleEl.textContent = options.title || '';
+        box.appendChild(titleEl);
+
+        // Fields (structured data — no innerHTML)
+        if (options.fields && options.fields.length) {
+            var fieldsDiv = document.createElement('div');
+            fieldsDiv.className = 'space-y-2 text-sm mb-3';
+            options.fields.forEach(function (f) {
+                var row = document.createElement('div');
+                row.className = 'flex justify-between';
+                var label = document.createElement('span');
+                label.className = 'text-gray-600';
+                label.textContent = f.label || '';
+                var value = document.createElement('span');
+                value.className = f.valueClass || 'font-medium';
+                value.textContent = f.value || '';
+                row.appendChild(label);
+                row.appendChild(value);
+                fieldsDiv.appendChild(row);
+            });
+            box.appendChild(fieldsDiv);
+        }
+
+        // Body text (for non-field content)
+        if (options.bodyText) {
+            var bodyP = document.createElement('p');
+            bodyP.className = 'text-sm text-gray-700 mb-3';
+            bodyP.textContent = options.bodyText;
+            box.appendChild(bodyP);
+        }
+
+        // Notes (italic)
+        if (options.notes) {
+            var notesDiv = document.createElement('div');
+            notesDiv.className = 'text-xs text-gray-500 italic mt-2 border-t pt-2';
+            notesDiv.textContent = '"' + options.notes + '"';
+            box.appendChild(notesDiv);
+        }
+
+        // Input (for prompts)
+        var inputEl = null;
+        if (options.input) {
+            inputEl = document.createElement('input');
+            inputEl.type = 'text';
+            inputEl.id = 'pal-dialog-input';
+            inputEl.className = 'w-full px-3 py-2 border border-gray-300 rounded text-sm mb-3';
+            inputEl.placeholder = options.placeholder || '';
+            box.appendChild(inputEl);
+        }
+
+        // Buttons
+        var btnRow = document.createElement('div');
+        btnRow.className = 'flex gap-2 justify-end';
+        var cancelBtn = document.createElement('button');
+        cancelBtn.className = 'px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300';
+        cancelBtn.textContent = options.cancelLabel || 'Cancel';
+        var confirmBtn = document.createElement('button');
+        confirmBtn.className = 'px-4 py-2 text-white text-sm rounded-lg hover:opacity-90 ' + (options.confirmClass || 'bg-blue-600 hover:bg-blue-700');
+        confirmBtn.textContent = options.confirmLabel || 'OK';
+        btnRow.appendChild(cancelBtn);
+        btnRow.appendChild(confirmBtn);
+        box.appendChild(btnRow);
+
         overlay.appendChild(box);
         document.body.appendChild(overlay);
 
-        var inputEl = document.getElementById('pal-dialog-input');
         var result = { value: null, cancelled: true };
+        var focusable = function () {
+            return Array.from(box.querySelectorAll('button, input, [tabindex]:not([tabindex="-1"])'));
+        };
 
         function cleanup() {
             document.body.removeChild(overlay);
+            if (opener && typeof opener.focus === 'function') opener.focus();
             if (options.onClose) options.onClose(result);
         }
 
-        document.getElementById('pal-dialog-confirm').addEventListener('click', function () {
+        // Focus trap
+        overlay.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { cleanup(); return; }
+            if (e.key !== 'Tab') return;
+            var els = focusable();
+            if (els.length === 0) return;
+            var first = els[0], last = els[els.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        });
+
+        confirmBtn.addEventListener('click', function () {
             result.cancelled = false;
             result.value = inputEl ? inputEl.value.trim() : true;
             cleanup();
         });
-        document.getElementById('pal-dialog-cancel').addEventListener('click', cleanup);
+        cancelBtn.addEventListener('click', cleanup);
         overlay.addEventListener('click', function (e) { if (e.target === overlay) cleanup(); });
-        overlay.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') cleanup();
-        });
+
         if (inputEl) inputEl.focus();
-        else document.getElementById('pal-dialog-confirm').focus();
+        else confirmBtn.focus();
     }
 
     // ── Approvals ──
     window.approve = function (id, entityLabel, amount, projectTitle, submitter, notes) {
-        var bodyHtml = '<div class="space-y-2 text-sm">';
-        if (entityLabel) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Type</span><span class="font-medium">' + entityLabel + '</span></div>';
-        if (projectTitle) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Project</span><span class="font-medium">' + projectTitle + '</span></div>';
-        if (amount > 0) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Amount</span><span class="font-semibold text-gray-900">\u20B1' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }) + '</span></div>';
-        if (submitter) bodyHtml += '<div class="flex justify-between"><span class="text-gray-600">Submitted by</span><span>' + submitter + '</span></div>';
-        if (notes) bodyHtml += '<div class="text-xs text-gray-500 italic mt-2 border-t pt-2">"' + notes + '"</div>';
-        bodyHtml += '</div>';
+        var fields = [];
+        if (entityLabel) fields.push({ label: 'Type', value: entityLabel });
+        if (projectTitle) fields.push({ label: 'Project', value: projectTitle });
+        if (amount > 0) fields.push({ label: 'Amount', value: '\u20B1' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }), valueClass: 'font-semibold text-gray-900' });
+        if (submitter) fields.push({ label: 'Submitted by', value: submitter });
         palDialog({
             title: 'Approve ' + (entityLabel || 'Request'),
-            body: bodyHtml,
+            fields: fields,
+            notes: notes || null,
             confirmLabel: 'Approve',
             confirmClass: 'bg-green-600 hover:bg-green-700',
             onClose: function (result) {
@@ -228,14 +301,14 @@
         });
     };
     window.reject = function (id, entityLabel, amount, projectTitle) {
-        var bodyHtml = '<div class="space-y-2 text-sm mb-3">';
-        if (entityLabel) bodyHtml += '<span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">' + entityLabel + '</span>';
-        if (projectTitle) bodyHtml += '<span class="text-xs text-gray-500">' + projectTitle + '</span>';
-        if (amount > 0) bodyHtml += '<div class="mt-2 font-semibold">\u20B1' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }) + '</div>';
-        bodyHtml += '</div><p class="text-sm text-gray-700 mb-3">Please provide a reason for rejection.</p>';
+        var fields = [];
+        if (entityLabel) fields.push({ label: 'Type', value: entityLabel });
+        if (projectTitle) fields.push({ label: 'Project', value: projectTitle });
+        if (amount > 0) fields.push({ label: 'Amount', value: '\u20B1' + Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2 }), valueClass: 'font-semibold' });
         palDialog({
             title: 'Reject Request',
-            body: bodyHtml,
+            fields: fields,
+            bodyText: 'Please provide a reason for rejection.',
             input: true,
             placeholder: 'Rejection reason (required)',
             confirmLabel: 'Reject',
@@ -282,17 +355,25 @@
         if (tabInactive) tabInactive.className = 'px-4 py-2 text-sm font-medium border-b-2 ' + (tab === 'inactive' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-700');
     };
     window.toggleUser = function (id) {
-        if (!confirm('Toggle this user\'s active status?')) return;
-        var body = csrfBody();
-        fetch(window.PalRoutes.action('user.toggle', id), {
-            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-                if (d.ok) { window.showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function () { location.reload(); }, 600); }
-                else { window.showToast(d.error || 'Failed', 'error'); }
-            })
-            .catch(function () { window.showToast('Request failed', 'error'); });
+        palDialog({
+            title: 'Toggle User Status',
+            bodyText: 'Toggle this user\'s active status?',
+            confirmLabel: 'Toggle',
+            confirmClass: 'bg-yellow-600 hover:bg-yellow-700',
+            onClose: function (result) {
+                if (result.cancelled) return;
+                var body = csrfBody();
+                fetch(window.PalRoutes.action('user.toggle', id), {
+                    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.ok) { window.showToast(d.action === 'restored' ? 'User reactivated' : 'User deactivated'); setTimeout(function () { location.reload(); }, 600); }
+                    else { window.showToast(d.error || 'Failed', 'error'); }
+                })
+                .catch(function () { window.showToast('Request failed', 'error'); });
+            }
+        });
     };
 
     // ── CSV export ──
@@ -317,17 +398,25 @@
 
     // ── Attachment helpers ──
     window.deletePoImage = function (id) {
-        if (!confirm('Delete this PO image?')) return;
-        var body = csrfBody();
-        fetch(window.PalRoutes.action('attachment.delete', id), {
-            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-                if (d.ok) { window.showToast('Deleted'); setTimeout(function () { location.reload(); }, 400); }
-                else { window.showToast(d.error || 'Failed', 'error'); }
-            })
-            .catch(function () { window.showToast('Request failed', 'error'); });
+        palDialog({
+            title: 'Delete PO Image',
+            bodyText: 'Delete this PO receipt image? This cannot be undone.',
+            confirmLabel: 'Delete',
+            confirmClass: 'bg-red-600 hover:bg-red-700',
+            onClose: function (result) {
+                if (result.cancelled) return;
+                var body = csrfBody();
+                fetch(window.PalRoutes.action('attachment.delete', id), {
+                    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body
+                })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    if (d.ok) { window.showToast('Deleted'); setTimeout(function () { location.reload(); }, 400); }
+                    else { window.showToast(d.error || 'Failed', 'error'); }
+                })
+                .catch(function () { window.showToast('Request failed', 'error'); });
+            }
+        });
     };
     window.uploadAttachment = function (form, entityType, entityId) {
         var btn = form.querySelector('button[type="submit"]');

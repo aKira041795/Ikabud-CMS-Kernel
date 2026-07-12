@@ -7,10 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <style>
-        * { border-radius: 3px !important; }
-        @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } .no-print { display: none !important; } }
-    </style>
+    <link rel="stylesheet" href="/assets/pal/pal-ui.css">
 </head>
 <body class="bg-gray-50 min-h-screen">
     {csrf_field | raw}
@@ -83,45 +80,8 @@
     </nav>
 <!-- Toast (accessible) -->
 <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
-<script>
-// ── Mobile sidebar ──
-function toggleMobileSidebar() {
-    var sidebar = document.getElementById('sidebar');
-    var overlay = document.getElementById('sidebar-overlay');
-    var isOpen = sidebar.classList.contains('-translate-x-full');
-    if (isOpen) {
-        sidebar.classList.remove('-translate-x-full');
-        overlay.classList.remove('hidden');
-    } else {
-        closeMobileSidebar();
-    }
-}
-function closeMobileSidebar() {
-    document.getElementById('sidebar').classList.add('-translate-x-full');
-    document.getElementById('sidebar-overlay').classList.add('hidden');
-}
-
-function showToast(msg, type) {
-    type = type || 'success';
-    var colors = { success: 'bg-green-600', error: 'bg-red-600', info: 'bg-blue-600', warning: 'bg-yellow-500 text-yellow-900' };
-    var el = document.createElement('div');
-    el.className = (colors[type] || 'bg-gray-700') + ' text-white px-4 py-2 rounded-lg shadow-lg text-sm transition-opacity duration-300';
-    el.textContent = msg;
-    el.setAttribute('role', 'alert');
-    document.getElementById('toast-container').appendChild(el);
-    setTimeout(function(){ el.style.opacity = '0'; setTimeout(function(){ el.remove(); }, 300); }, 4000);
-}
-function ajaxSubmit(form, successMsg) {
-    var formData = new FormData(form);
-    fetch(form.action, { method: 'POST', body: formData })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-        if (d.ok) { showToast(successMsg || 'Saved.', 'success'); }
-        else { showToast(d.error || 'Error.', 'error'); }
-    })
-    .catch(function(){ showToast('Request failed.', 'error'); });
-    return false;
-}
-</script>
+<script src="/assets/pal/pal-core.js"></script>
+<script src="/assets/pal/pal-forms.js"></script>
+<script src="/assets/pal/pal-routes.js"></script>
 </body>
 </html>
