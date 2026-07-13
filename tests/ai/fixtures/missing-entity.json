@@ -1,1 +1,45 @@
-{"run_id":"20260713-test002","commit":"test","suites":{"workbench-wb-inspect":{"suite":"workbench-wb-inspect","summary":{"passed":4,"failed":1,"skipped":0,"total":5},"results":[{"test":"project form","status":"passed","detail":""},{"test":"project detail","status":"passed","detail":""},{"test":"approvals","status":"passed","detail":""},{"test":"sidebar nav","status":"passed","detail":""},{"test":"entity list detected","status":"failed","detail":"Error: expect(received).toBeGreaterThan(expected)\\nExpected: > 0\\nReceived: 0\\n\\nLocation: wb-inspect.spec.js:93\\n\\nEntity list not found on page"}],"gaps":[],"fingerprints":{},"issues":[]}}}
+{
+    "run_id": "20260713-test002",
+    "commit": "test",
+    "suites": {
+        "workbench-wb-inspect": {
+            "suite": "workbench-wb-inspect",
+            "summary": {
+                "passed": 4,
+                "failed": 1,
+                "skipped": 0,
+                "total": 5
+            },
+            "results": [
+                {
+                    "test": "project form",
+                    "status": "passed",
+                    "detail": ""
+                },
+                {
+                    "test": "project detail",
+                    "status": "passed",
+                    "detail": ""
+                },
+                {
+                    "test": "approvals",
+                    "status": "passed",
+                    "detail": ""
+                },
+                {
+                    "test": "sidebar nav",
+                    "status": "passed",
+                    "detail": ""
+                },
+                {
+                    "test": "entity list detected",
+                    "status": "failed",
+                    "detail": "Error: expect(received).toBeGreaterThan(expected)\\nExpected: > 0\\nReceived: 0\\n\\nLocation: wb-inspect.spec.js:93\\n\\nEntity list not found on page"
+                }
+            ],
+            "gaps": [],
+            "fingerprints": {},
+            "issues": []
+        }
+    }
+}
