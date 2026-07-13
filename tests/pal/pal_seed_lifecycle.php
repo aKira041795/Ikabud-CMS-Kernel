@@ -53,7 +53,7 @@ $ownsTables = [
     'pal_settings', 'pal_project_types',
 ];
 $db = app()->dbForTenant($tenantId);
-$palDb = new \Ikabud\Kernel\Contracts\ModuleDB($db, 'project-audit-ledger', $ownsTables, []);
+$palDb = new \Ikabud\Kernel\Contracts\ModuleDB($db, 'project-audit-ledger', $ownsTables, ['pal_users']);
 
 // ── Cleanup ──────────────────────────────────────────────────
 $cleanupErrors = [];
@@ -126,20 +126,36 @@ try {
     $uid  = sUser($db, $tenantId, $ts);  // submitter
     $uid2 = sUser($db, $tenantId, $ts);  // approver (separate user to avoid self-approval block)
     $client = sClient($db, $tenantId);
-    $project = sProject($db, $tenantId, $client['id'], 'ongoing', 150000, 25);
 
-    // Approve the project (actioned by uid, approved by uid2)
+    // Create project as draft, then run through workflow to ongoing
+    $project = sProject($db, $tenantId, $client['id'], 'draft', 150000, 25);
     $wf = new palJobOrderWorkflow($palDb, $tenantId, $uid);
-    $wf->transition($project['id'], 'completed', ['status' => 'ongoing', 'client_id' => $client['id']]);
-    $wf->apply($project['id'], 'completed');
+
+    // draft → pending
+    $wf->apply($project['id'], 'pending');
+
+    // pending → approved (approved by uid2)
+    $approvalSvc = new palApprovalService($palDb, $tenantId, $uid2);
+    $pendingApprovals = $approvalSvc->pendingList();
+    foreach ($pendingApprovals as $pa) {
+        if ((int)$pa['entity_id'] === $project['id'] && $pa['entity_type'] === 'project') {
+            $approvalSvc->decide((int)$pa['id'], 'approved', 'Seed approval');
+            break;
+        }
+    }
+
+    // approved → started → ongoing
+    $wf->apply($project['id'], 'started');
+    $wf->apply($project['id'], 'ongoing');
+    $project['status'] = 'ongoing';
 
     // Create expense + approve it (submitted by uid, approved by uid2)
     $expense = sExpense($db, $tenantId, $project['id'], 25000);
     $apprId = sApproval($db, $tenantId, 'expense', $expense['id'], $uid);
-    $approvalSvc = new palApprovalService($palDb, $tenantId, $uid2);
-    $approvalSvc->decide($apprId, 'approved', 'Seed approval');
+    $approvalSvc2 = new palApprovalService($palDb, $tenantId, $uid2);
+    $approvalSvc2->decide($apprId, 'approved', 'Seed approval');
 
-    // Create fabrication allocation + weekly dues
+    // Create fabrication allocation + weekly dues + payment
     $fab = new palFabricationService($palDb, $tenantId, $uid);
     $fabAllocId = $fab->createAllocation([
         'project_id' => $project['id'],
