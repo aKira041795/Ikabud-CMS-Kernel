@@ -39,13 +39,65 @@ function createWorkbenchTest(config) {
         appUrl: [appUrl, { option: true }],
 
         page: async function ({ page }, use, testInfo) {
-            // Auto-capture browser console errors
-            var consoleErrors = [];
+            // ── Diagnostic capture ───────────────────────────
+            var captured = [];
+            var startTime = Date.now();
+
+            // Browser console errors
             page.on('console', function (msg) {
-                if (msg.type() === 'error') consoleErrors.push(msg.text());
+                if (msg.type() === 'error') {
+                    captured.push({
+                        kind: 'console-error',
+                        severity: 'major',
+                        detail: msg.text(),
+                        url: page.url(),
+                        browser: testInfo.project?.name || 'chromium',
+                        timestamp: new Date().toISOString(),
+                    });
+                }
             });
+
+            // Uncaught JS exceptions
             page.on('pageerror', function (err) {
-                consoleErrors.push('[uncaught] ' + err.message);
+                captured.push({
+                    kind: 'pageerror',
+                    severity: 'major',
+                    detail: err.message,
+                    stack: (err.stack || '').substring(0, 500),
+                    url: page.url(),
+                    browser: testInfo.project?.name || 'chromium',
+                    timestamp: new Date().toISOString(),
+                });
+            });
+
+            // Failed network requests (4xx, 5xx, connection failures)
+            page.on('requestfailed', function (request) {
+                var failure = request.failure();
+                if (failure) {
+                    captured.push({
+                        kind: 'network-error',
+                        severity: 'major',
+                        where: request.method() + ' ' + request.url(),
+                        detail: failure.errorText || 'Request failed',
+                        timestamp: new Date().toISOString(),
+                    });
+                }
+            });
+
+            // HTTP error responses (500, 404 on app routes, etc.)
+            page.on('response', function (response) {
+                var status = response.status();
+                var url = response.url();
+                // Only flag 5xx and app-level 404s (not CDN/external)
+                if (status >= 500 || (status === 404 && url.indexOf(appUrl) === 0)) {
+                    captured.push({
+                        kind: 'http-error',
+                        severity: status >= 500 ? 'critical' : 'minor',
+                        where: response.request().method() + ' ' + url,
+                        detail: 'HTTP ' + status + ' ' + response.statusText(),
+                        timestamp: new Date().toISOString(),
+                    });
+                }
             });
 
             await page.goto('' + appUrl + loginPath);
@@ -56,15 +108,11 @@ function createWorkbenchTest(config) {
             await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
             await use(page);
 
-            // Flush captured console errors as issues
-            for (var i = 0; i < consoleErrors.length; i++) {
+            // Flush captured diagnostics as structured issues
+            for (var i = 0; i < captured.length; i++) {
                 testInfo.annotations.push({
                     type: 'wb-issue',
-                    description: JSON.stringify({
-                        kind: 'console-error',
-                        severity: 'major',
-                        detail: consoleErrors[i],
-                    }),
+                    description: JSON.stringify(captured[i]),
                 });
             }
         },

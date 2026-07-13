@@ -165,8 +165,13 @@ class WorkbenchReporter {
         }
         // Sort by severity: critical > major > minor > note
         var sevOrder = { critical: 0, major: 1, minor: 2, note: 3 };
+        function severityRank(sev) {
+            return Object.prototype.hasOwnProperty.call(sevOrder, sev)
+                ? sevOrder[sev]
+                : 99;
+        }
         allIssues.sort(function (a, b) {
-            return (sevOrder[a.severity] || 99) - (sevOrder[b.severity] || 99);
+            return severityRank(a.severity) - severityRank(b.severity);
         });
 
         var issueReport = {
@@ -198,6 +203,27 @@ class WorkbenchReporter {
             console.log('  📄 test_results/browser/issue-report.json');
         } else {
             console.log('  ✅ No issues found');
+        }
+
+        // ── Quality Gate ──────────────────────────────────────
+        // WB_ISSUE_GATE=off     — issues are informational only (default)
+        // WB_ISSUE_GATE=critical — fail when ≥1 critical issue exists
+        // WB_ISSUE_GATE=major    — fail when any critical or major issue exists
+        var GATE = (process.env.WB_ISSUE_GATE || 'off').toLowerCase();
+        if (GATE !== 'off') {
+            var blockers = 0;
+            for (var i = 0; i < allIssues.length; i++) {
+                var s = allIssues[i].severity;
+                if (s === 'critical' || (GATE === 'major' && s === 'major')) {
+                    blockers++;
+                }
+            }
+            if (blockers > 0) {
+                console.error('  🚫 Quality gate [' + GATE + ']: ' + blockers + ' blocking issues');
+                process.exitCode = 1;
+            } else {
+                console.log('  ✅ Quality gate [' + GATE + ']: passed');
+            }
         }
 
         // Fingerprint baseline
