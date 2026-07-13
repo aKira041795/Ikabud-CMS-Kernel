@@ -159,10 +159,11 @@
 .wb-sidebar-section__items {
     overflow: hidden;
     transition: max-height 200ms ease;
-    max-height: none; /* expanded by default */
+    max-height: none;
+    /* expanded by default */
 }
 
-.wb-sidebar-section--collapsed > .wb-sidebar-section__items {
+.wb-sidebar-section--collapsed>.wb-sidebar-section__items {
     max-height: 0 !important;
     padding-top: 0;
     padding-bottom: 0;
