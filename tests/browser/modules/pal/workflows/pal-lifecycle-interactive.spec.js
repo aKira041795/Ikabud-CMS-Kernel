@@ -19,25 +19,41 @@ var PREFIX = 'E2E-' + new Date().toISOString().slice(0, 10).replace(/-/g, '');
 var CLIENT_NAME = PREFIX + '-Client';
 var PROJECT_TITLE = PREFIX + '-Project';
 
+/**
+ * Helper: navigate via URL and wait for app-shell to be ready.
+ */
+async function goTo(page, path) {
+    await page.goto(path);
+    await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 15000 });
+    await page.waitForTimeout(300); // let Alpine/htmx settle
+}
+
 test.describe('pal:instruction-based-lifecycle', function () {
 
-    test('Full JO lifecycle through browser UI', async function (/** @type {{page: import('@playwright/test').Page, shell: any}} */ { page, shell }) {
+    test('Full JO lifecycle through browser UI', async function (/** @type {{page: import('@playwright/test').Page}} */ { page }) {
         var base = '/admin/project-audit-ledger';
 
-        // ── Step 1: Create a client ──
+        // ── Step 1: Create client via UI ──
         var clientId;
         await test.step('create client', async function () {
-            await shell.navigateViaSidebar('Clients');
-            await page.click('a:has-text("New Client"), button:has-text("New Client"), [data-wb-action="new-client"]');
-            await page.waitForSelector('input[name="name"], #client-name', { timeout: 5000 }).catch(() => {});
-            // If there's no "New Client" button, client was already created via JO form
+            await goTo(page, base + '/clients/create');
+            var nameInput = page.locator('input[name="name"]').first();
+            if (await nameInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+                await nameInput.fill(CLIENT_NAME);
+                var saveBtn = page.locator('button:has-text("Save"), button[type="submit"]').first();
+                await saveBtn.click();
+                await page.waitForTimeout(1500);
+            }
+            // Extract client ID from redirect URL
+            var m = page.url().match(/\/clients\/(\d+)/);
+            clientId = m ? parseInt(m[1]) : null;
+            console.log('  Client: ' + (clientId || 'created'));
         });
 
         // ── Step 2: Create Job Order from UI ──
         var projectId;
         await test.step('create job order', async function () {
-            await shell.navigateViaSidebar('New Job Order');
-            await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
+            await goTo(page, base + '/projects/create');
 
             // Fill JO form
             var titleInput = page.locator('input[name="title"], #jo-title, [name="jo_title"]').first();
@@ -151,8 +167,7 @@ test.describe('pal:instruction-based-lifecycle', function () {
 
         // ── Step 7: Create an expense ──
         await test.step('create expense', async function () {
-            await shell.navigateViaSidebar('Expenses');
-            await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
+            await goTo(page, base + '/expenses/create');
 
             var newExpBtn = page.locator('a:has-text("New"), button:has-text("New Expense"), a:has-text("Create")').first();
             if (await newExpBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -178,8 +193,7 @@ test.describe('pal:instruction-based-lifecycle', function () {
 
         // ── Step 8: Verify dashboard ──
         await test.step('verify dashboard', async function () {
-            await shell.navigateViaSidebar('Dashboard');
-            await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
+            await goTo(page, base);
 
             var body = await page.locator('#wb-main').textContent();
             // Dashboard should have at least the KPI cards
