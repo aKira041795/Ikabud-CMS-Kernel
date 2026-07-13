@@ -221,18 +221,20 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $sourceDataAttr = 'data-ikb-source="' . htmlspecialchars(str_replace('.', '-', $source), ENT_QUOTES, 'UTF-8') . '"';
         $viewDataAttr = 'data-ikb-view="' . htmlspecialchars($viewMode, ENT_QUOTES, 'UTF-8') . '"';
         $listDataAttr = $listId !== '' ? ' data-ikb-list="' . htmlspecialchars($listId, ENT_QUOTES, 'UTF-8') . '"' : '';
+        $wbComponentAttr = 'data-wb-component="entity-list"';
+        $wbEntityAttr = 'data-wb-entity="' . htmlspecialchars($this->entityTypeFromSource($source), ENT_QUOTES, 'UTF-8') . '"';
 
         if ($viewMode === 'table' && !$hasCustomSlot) {
             $tableHeader = $this->renderTableHeader($fields, $actions, $use, $hasBulk, $sortable, $sortableFields, $queryState, $listId);
             $bulkCol = $hasBulk ? '<colgroup><col style="width:40px"></colgroup>' : '';
             $alpine = $search ? ' x-data="{ q:\'\' }"' : '';
-            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $alpine . '>'
+            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $alpine . '>'
                 . $searchHtml . $bulkHtml
                 . '<table class="w-full text-sm">' . $bulkCol . $tableHeader . '<tbody>' . $out . '</tbody></table>'
                 . ($paginated ? $this->renderPagination($total, $queryState) : '')
                 . '</div>';
         } else {
-            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . '>'
+            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . '>'
                 . $searchHtml . $out . '</div>';
         }
 

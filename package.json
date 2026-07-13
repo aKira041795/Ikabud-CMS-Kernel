@@ -5,6 +5,8 @@
         "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch"
     },
     "devDependencies": {
+        "@axe-core/playwright": "^4.12.1",
+        "@playwright/test": "^1.61.1",
         "tailwindcss": "^3.4.0"
     }
 }

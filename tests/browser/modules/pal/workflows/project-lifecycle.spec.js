@@ -9,7 +9,7 @@
  */
 
 // @ts-check
-const { test, expect } = require('../../WorkbenchFixture');
+const { test, expect } = require('../../../WorkbenchFixture');
 
 const APP_URL = process.env.APP_URL || 'http://palsystem.test';
 

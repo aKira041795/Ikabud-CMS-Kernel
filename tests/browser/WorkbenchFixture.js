@@ -17,9 +17,9 @@
 
 // @ts-check
 const { test: base } = require('@playwright/test');
-const { ShellHarness } = require('../../../storage/application-profiles/ark-workbench/testing/harnesses/ShellHarness');
-const { DialogHarness } = require('../../../storage/application-profiles/ark-workbench/testing/harnesses/DialogHarness');
-const { TableHarness } = require('../../../storage/application-profiles/ark-workbench/testing/harnesses/TableHarness');
+const { ShellHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/ShellHarness');
+const { DialogHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/DialogHarness');
+const { TableHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/TableHarness');
 
 const APP_URL = process.env.APP_URL || 'http://palsystem.test';
 const ADMIN_USER = process.env.ADMIN_USER || 'paladmin';

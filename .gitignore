@@ -1,81 +1,65 @@
-# Environment
-.env
 
-# Reference standalone app (do not track)
-/guidance/
-
-# Dependencies
-vendor/
-node_modules/
-
-# Storage runtime artifacts
-storage/logs/
-storage/cache/
-storage/locks/
-storage/backups/
-storage/module-exports/
-storage/.installed
-storage/modules.json
-storage/cms-installed-modules.json
-
-# Compiled builder assets (rebuild with npm run build)
-modules/cms/builder-ui/dist/
-
-# Archives
-*.zip
-
-# OS / editor
-.DS_Store
-Thumbs.db
-.vscode/
-.windsurf/
-
-# Legacy
-/contact-form/
-contact-form.bak*
 android/
-
+# Archives
 # Backup files
 *.bak
 *.bak_*
-
+/bakeshopapp/
+# CMS installer ownership markers are runtime artifacts, not source
+# Compiled builder assets (rebuild with npm run build)
+/config/vhosts/juliesbakeshop.test.conf
+/contact-form/
+contact-form.bak*
+/database/*.sqlite
+# Debug artifacts
+debug_cap_test.php
+# Debugging and temporary manual testing files
 # Debugging artifacts (temporary patches, debug dumps)
 /debugging-files/
-
-# Debug artifacts
-public/debug-opcache.php
-debug_cap_test.php
-
-# Local-only development artifacts
-/bakeshopapp/
-/config/vhosts/juliesbakeshop.test.conf
-/database/*.sqlite
-/tests/daily_ledger_android_api_test.php
-/tests/debug_cashier.php
-
-# Test/validation upload artifacts (runtime-generated, not source)
-modules/cms/assets/uploads/test/
-
-# Debugging and temporary manual testing files
-/debugging-files/
 /debug*.php
-/test_*.php
+# Dependencies
+.DS_Store
 /dump.php
-/out*.txt
-/out*.html
-/log.txt
-*.orig
-*.rej
-*.patch
-
-# CMS installer ownership markers are runtime artifacts, not source
-modules/**/.cms-owned
-
-# Local agent/tool state
+.env
+# Environment
+/guidance/
 .lean-ctx/
-
-# Runtime upload directories (per-tenant generated content)
+# Legacy
+# Local agent/tool state
+# Local-only development artifacts
+/log.txt
+modules/cms/assets/uploads/test/
+modules/cms/builder-ui/dist/
+modules/**/.cms-owned
+node_modules/
+*.orig
+# OS / editor
+/out*.html
+/out*.txt
+*.patch
+public/debug-opcache.php
 public/uploads/bakeshop/
 public/uploads/daily-ledger/
 __pycache__/
-node_modules/
+# Reference standalone app (do not track)
+*.rej
+# Runtime upload directories (per-tenant generated content)
+storage/backups/
+storage/cache/
+storage/cms-installed-modules.json
+storage/.installed
+storage/locks/
+storage/logs/
+storage/module-exports/
+storage/modules.json
+# Storage runtime artifacts
+/test_*.php
+test-results/
+/tests/daily_ledger_android_api_test.php
+/tests/debug_cashier.php
+# Test/validation upload artifacts (runtime-generated, not source)
+Thumbs.db
+vendor/
+.vscode/
+.windsurf/
+*.zip

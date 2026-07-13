@@ -67,7 +67,9 @@ class ShellHarness {
 
     /** Assert the expected nav item is active */
     async expectActiveNav(label) {
-        await expect(this.activeNavItem.first()).toContainText(label);
+        // Use filter to find the active item containing the label text
+        // (nav items include emoji icons as text content)
+        await expect(this.sidebar.locator('.wb-nav-item.is-active').filter({ hasText: label })).toHaveCount(1);
     }
 
     /** Navigate by clicking a sidebar nav item */

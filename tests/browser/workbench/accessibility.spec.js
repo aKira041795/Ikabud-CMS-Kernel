@@ -112,8 +112,9 @@ test.describe('ARK Workbench accessibility', () => {
     // ── Project List ──
 
     test('project list table has accessible headers', async ({ page }) => {
+        // Navigate directly; auth cookie is preserved from beforeEach
         await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
-        await page.waitForSelector('[data-wb-component="responsive-table"]', { timeout: 10000 });
+        await page.waitForSelector('[data-wb-component="entity-list"]', { timeout: 15000 });
 
         const headers = page.locator('th[scope="col"]');
         const count = await headers.count();

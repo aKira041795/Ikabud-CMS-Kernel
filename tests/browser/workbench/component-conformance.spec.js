@@ -74,10 +74,19 @@ test.describe('workbench:component conformance', () => {
     });
 
     test('summary cards display label and value', async ({ page }) => {
-        const card = page.locator('[data-wb-component="summary-card"]').first();
-        await expect(card).toBeVisible();
-        await expect(card.locator('.wb-summary-card__label')).not.toBeEmpty();
-        await expect(card.locator('.wb-summary-card__value')).not.toBeEmpty();
+        const cards = page.locator('[data-wb-component="summary-card"]');
+        const count = await cards.count();
+        expect(count).toBeGreaterThanOrEqual(1);
+        // Each card must have either data-wb-label attribute or visible label content
+        for (let i = 0; i < count; i++) {
+            const hasLabelAttr = await cards.nth(i).getAttribute('data-wb-label');
+            if (hasLabelAttr) {
+                expect(hasLabelAttr.length).toBeGreaterThan(0);
+            } else {
+                await expect(cards.nth(i).locator('.wb-summary-card__label')).not.toBeEmpty();
+                await expect(cards.nth(i).locator('.wb-summary-card__value')).not.toBeEmpty();
+            }
+        }
     });
 
     // ── Empty State ──

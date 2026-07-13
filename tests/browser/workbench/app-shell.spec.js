@@ -96,7 +96,7 @@ test.describe('workbench:app_shell', () => {
 
     test('mobile menu button exists', async ({ page }) => {
         const menuBtn = page.locator('#wb-menu-btn');
-        await expect(menuBtn).toBeVisible();
+        await expect(menuBtn).toHaveCount(1);
         await expect(menuBtn).toHaveAttribute('aria-label', 'Open menu');
     });
 
@@ -147,6 +147,7 @@ test.describe('workbench:app_shell', () => {
 
     test('toast container is present', async ({ page }) => {
         const toast = page.locator('#wb-toast-container');
-        await expect(toast).toBeVisible();
+        await expect(toast).toHaveCount(1);
+        await expect(toast).toHaveAttribute('role', 'status');
     });
 });

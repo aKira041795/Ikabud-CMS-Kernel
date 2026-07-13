@@ -5,7 +5,7 @@
  */
 
 // @ts-check
-const { test, expect } = require('../../WorkbenchFixture');
+const { test, expect } = require('../../../WorkbenchFixture');
 
 test.describe('PAL Dashboard page', () => {
 
