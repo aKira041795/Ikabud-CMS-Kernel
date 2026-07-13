@@ -1,5 +1,5 @@
 /**
- * ARK Test Steward 0.1 — Failure Analyst
+ * ARK Test Steward 0.2 — Failure Analyst + AI fallback
  *
  * Reads Workbench test artifacts and produces structured failure diagnoses.
  * Does NOT modify code. Provides evidence for developer or AI triage.
@@ -379,8 +379,8 @@ function diagnose(evidence) {
 function findSuspectedFiles(failure, contracts) {
     var files = [];
     var suite = failure.suiteName || failure.suite || '';
+    var sourceFile = failure.sourceFile || '';
 
-    // Map test suites to likely handler files
     var suiteMap = {
         'project': 'modules/' + MODULE + '/handlers/30-projects.php',
         'expense': 'modules/' + MODULE + '/handlers/25-expenses.php',
@@ -392,7 +392,7 @@ function findSuspectedFiles(failure, contracts) {
     };
 
     for (var key in suiteMap) {
-        if (suiteMap.hasOwnProperty(key) && (testFile.includes(key) || suite.includes(key))) {
+        if (suiteMap.hasOwnProperty(key) && (sourceFile.includes(key) || suite.includes(key))) {
             var handler = suiteMap[key];
             if (fs.existsSync(path.resolve(__dirname, '../../', handler))) {
                 files.push(handler);
@@ -502,8 +502,7 @@ async function aiDiagnose(evidence, diagnosis) {
     console.log('  🤖 AI fallback: ' + cfg.provider + '/' + cfg.model);
 
     try {
-        var fetch = (await import('node-fetch')).default || globalThis.fetch;
-        var response = await fetch(cfg.endpoint, {
+        var res = await globalThis.fetch(cfg.endpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -521,12 +520,12 @@ async function aiDiagnose(evidence, diagnosis) {
             signal: AbortSignal.timeout(cfg.timeout_ms || 30000),
         });
 
-        if (!response.ok) {
-            console.warn('  ⚠ AI API returned ' + response.status);
+        if (!res.ok) {
+            console.warn('  ⚠ AI API returned ' + res.status);
             return null;
         }
 
-        var data = await response.json();
+        var data = await res.json();
         var content = data?.choices?.[0]?.message?.content || '';
         // Extract JSON from markdown code block if present
         var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
