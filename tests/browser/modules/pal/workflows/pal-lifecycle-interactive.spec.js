@@ -104,35 +104,19 @@ test.describe('pal:jo-operational-setup', function () {
             var saveBtn = page.locator('[data-wb-action="save-as-draft"], button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Submit")').first();
             await expect(saveBtn, 'Save button required').toBeVisible({ timeout: 5000 });
             await saveBtn.click();
-            // ajaxSubmit reloads page after 800ms — wait for reload + list load
+            // ajaxSubmit reloads page after 800ms
             await page.waitForTimeout(3000);
-
-            // Extract project ID — navigate to list and find by unique title
+            // After reload, navigate to project list
             await goTo(page, base + '/projects');
-            // Wait for entity list to render (htmx/Alpine may need time)
+            await page.waitForTimeout(2000);
+            // Find our project by unique title — click into it for ID
+            var row = page.locator('tr').filter({ hasText: PROJECT_TITLE }).first();
+            await expect(row, 'Project row must be in list').toBeVisible({ timeout: 15000 });
+            await row.locator('a').first().click();
             await page.waitForTimeout(1000);
-
-            // Try multiple row selectors
-            var row = page.locator('tr, [data-ikb-row]').filter({ hasText: PROJECT_TITLE }).first();
-            var found = await row.isVisible({ timeout: 10000 }).catch(function () { return false; });
-            if (found) {
-                // Click into the row to get the detail URL
-                var link = row.locator('a').first();
-                if (await link.isVisible().catch(function () { return false; })) {
-                    await link.click();
-                    await page.waitForTimeout(1000);
-                }
-                var detailUrl = page.url();
-                var urlMatch = detailUrl.match(/\/projects\/(\d+)/);
-                if (urlMatch) projectId = parseInt(urlMatch[1]);
-                if (!projectId) {
-                    // Fallback: try to find ID in row text: #123 or PJ-xxx
-                    var text = await row.textContent();
-                    var idMatch = text.match(/#(\d+)/) || text.match(/PJ-[^\s]*[-](\d+)/);
-                    if (idMatch) projectId = parseInt(idMatch[1]);
-                }
-            }
-            // Required entity — fail if not found
+            var detailUrl = page.url();
+            var urlMatch = detailUrl.match(/\/projects\/(\d+)/);
+            projectId = urlMatch ? parseInt(urlMatch[1]) : null;
             expect(projectId, 'Project ID must be extractable after JO save').not.toBeNull();
             console.log('  ✅ JO #' + projectId + ': ' + PROJECT_TITLE);
             integrity.perf('JO create', Date.now() - startTime);

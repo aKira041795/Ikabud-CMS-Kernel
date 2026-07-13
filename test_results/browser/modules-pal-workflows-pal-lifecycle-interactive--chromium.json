@@ -1,7 +1,7 @@
 {
   "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-  "started": "2026-07-13T15:22:36.094Z",
-  "finished": "2026-07-13T15:22:36.157Z",
+  "started": "2026-07-13T15:24:03.094Z",
+  "finished": "2026-07-13T15:24:03.167Z",
   "summary": {
     "passed": 0,
     "failed": 1,
@@ -15,19 +15,26 @@
     {
       "test": "JO operational setup: draft → ongoing",
       "status": "failed",
-      "duration": 12792,
-      "detail": "Error: Project ID must be extractable after JO save\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoBeNull\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m"
+      "duration": 26936,
+      "detail": "Error: Approval row for E2E-1783956215286-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783956215286-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Approval row for E2E-1783956215286-Project must exist with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783956215286-Project' }).first()\u001b[22m\n"
     }
   ],
   "gaps": [],
   "issues": [
     {
-      "kind": "console-error",
+      "kind": "perf",
       "severity": "major",
-      "detail": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
-      "url": "http://palsystem.test/admin/project-audit-ledger/projects/create",
-      "browser": "chromium",
-      "timestamp": "2026-07-13T15:22:30.958Z",
+      "where": "JO create",
+      "detail": "10937ms",
+      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+      "test": "JO operational setup: draft → ongoing"
+    },
+    {
+      "kind": "bug",
+      "severity": "major",
+      "where": "JO submit",
+      "detail": "Submit button clicked but status not Pending on detail page",
+      "recommendation": "Check workflow transition logic and button action handler",
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
     }
