@@ -37,8 +37,8 @@ test.describe('pal:seeded-lifecycle', function () {
     test('project list contains seeded project', async function ({ page, palLifecycleSeed }) {
         var seed = palLifecycleSeed;
         await page.goto('/admin/project-audit-ledger/projects');
-        await page.waitForSelector('[data-ikb-list="pal-project"]', { timeout: 10000 });
-        await expect(page.locator('[data-ikb-list="pal-project"]')).toContainText(seed.project.title);
+        await page.waitForSelector('[data-ikb-list="pal_project"]', { timeout: 10000 });
+        await expect(page.locator('[data-ikb-list="pal_project"]')).toContainText(seed.project.title);
     });
 
     test('expense detail shows approved seeded expense', async function ({ page, palLifecycleSeed }) {
@@ -64,7 +64,7 @@ test.describe('pal:seeded-lifecycle', function () {
     test('navigate to project list via sidebar', async function ({ page, shell }) {
         await shell.navigateViaSidebar('All Job Orders');
         await expect(page).toHaveURL(/\/admin\/project-audit-ledger\/projects/);
-        await expect(page.locator('[data-ikb-list="pal-project"]')).toBeVisible();
+        await expect(page.locator('[data-ikb-list="pal_project"]')).toBeVisible();
     });
 
     test('navigate back to dashboard via sidebar', async function ({ page, shell }) {
