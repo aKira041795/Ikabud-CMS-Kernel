@@ -248,7 +248,7 @@ function diagnose(evidence) {
     // ── Pattern-based classification ──
 
     // Timeout → timing or missing element
-    if (detail.includes('Timeout') || detail.includes('timeout')) {
+    if (detail.includes('Timeout') || detail.includes('timeout') || detail.includes('timedOut')) {
         if (detail.includes('waitForSelector') || detail.includes('waitForURL')) {
             if (detail.includes('data-wb-component')) {
                 diagnosis.classification = 'environment-issue';

@@ -1,78 +1,107 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ARK Steward Diagnosis Result",
-  "type": "object",
-  "required": ["classification", "confidence", "summary", "evidence"],
-  "properties": {
-    "classification": {
-      "type": "string",
-      "enum": [
-        "application-defect",
-        "test-defect",
-        "locator-stale",
-        "environment-issue",
-        "timing-race",
-        "missing-test-metadata",
-        "data-state-corruption",
-        "undetermined"
-      ],
-      "description": "Root cause classification of the failure"
-    },
-    "confidence": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1,
-      "description": "Confidence in the classification (0-1)"
-    },
-    "summary": {
-      "type": "string",
-      "description": "One-sentence summary of the diagnosis"
-    },
-    "evidence": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Supporting evidence bullets"
-    },
-    "suspected_files": {
-      "type": "array",
-      "items": { "type": "string" },
-      "description": "Files most likely to contain the root cause"
-    },
-    "recommended_action": {
-      "type": "string",
-      "description": "Suggested next step for the developer"
-    },
-    "safe_to_auto_heal": {
-      "type": "boolean",
-      "description": "Whether this failure is in the auto-heal allowlist"
-    },
-    "auto_heal_patch": {
-      "type": "string",
-      "description": "Suggested patch if safe_to_auto_heal is true (review required)"
-    },
-    "module": {
-      "type": "string",
-      "description": "Module under test"
-    },
-    "failed_test": {
-      "type": "object",
-      "properties": {
-        "file": { "type": "string" },
-        "test": { "type": "string" },
-        "step": { "type": "string" },
-        "error": { "type": "string" }
-      }
-    },
-    "run_context": {
-      "type": "object",
-      "properties": {
-        "commit": { "type": "string" },
-        "suite": { "type": "string" },
-        "total_tests": { "type": "number" },
-        "passed": { "type": "number" },
-        "failed": { "type": "number" },
-        "issues": { "type": "number" }
-      }
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ARK Steward Diagnosis Result",
+    "type": "object",
+    "required": [
+        "classification",
+        "confidence",
+        "summary",
+        "evidence"
+    ],
+    "properties": {
+        "classification": {
+            "type": "string",
+            "enum": [
+                "application-defect",
+                "test-defect",
+                "locator-stale",
+                "environment-issue",
+                "timing-race",
+                "missing-test-metadata",
+                "data-state-corruption",
+                "undetermined"
+            ],
+            "description": "Root cause classification of the failure"
+        },
+        "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence in the classification (0-1)"
+        },
+        "summary": {
+            "type": "string",
+            "description": "One-sentence summary of the diagnosis"
+        },
+        "evidence": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Supporting evidence bullets"
+        },
+        "suspected_files": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "description": "Files most likely to contain the root cause"
+        },
+        "recommended_action": {
+            "type": "string",
+            "description": "Suggested next step for the developer"
+        },
+        "safe_to_auto_heal": {
+            "type": "boolean",
+            "description": "Whether this failure is in the auto-heal allowlist"
+        },
+        "auto_heal_patch": {
+            "type": "string",
+            "description": "Suggested patch if safe_to_auto_heal is true (review required)"
+        },
+        "module": {
+            "type": "string",
+            "description": "Module under test"
+        },
+        "failed_test": {
+            "type": "object",
+            "properties": {
+                "file": {
+                    "type": "string"
+                },
+                "test": {
+                    "type": "string"
+                },
+                "step": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "run_context": {
+            "type": "object",
+            "properties": {
+                "commit": {
+                    "type": "string"
+                },
+                "suite": {
+                    "type": "string"
+                },
+                "total_tests": {
+                    "type": "number"
+                },
+                "passed": {
+                    "type": "number"
+                },
+                "failed": {
+                    "type": "number"
+                },
+                "issues": {
+                    "type": "number"
+                }
+            }
+        }
     }
-  }
 }

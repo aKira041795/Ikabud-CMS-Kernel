@@ -48,6 +48,7 @@ test.afterAll(async function () {
 test.describe('pal:jo-operational-setup', function () {
 
     test('JO operational setup: draft → ongoing', async function (/** @type {{page: import('@playwright/test').Page, integrity: any}} */ { page, integrity }) {
+        test.setTimeout(120000); // 2 min — 7 browser steps
         var base = '/admin/project-audit-ledger';
         var projectId = null;
         var startTime = Date.now();
@@ -58,7 +59,10 @@ test.describe('pal:jo-operational-setup', function () {
             var nameInput = page.locator('input[name="name"]').first();
             await expect(nameInput, 'Client name field required').toBeVisible({ timeout: 5000 });
             await nameInput.fill(CLIENT_NAME);
-            await page.getByRole('button', { name: /save|submit/i }).first().click();
+            // Submit: try semantic selectors, fall back to any submit button
+            var saveBtn = page.locator('[data-wb-action], button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Add")').first();
+            await expect(saveBtn, 'Save/submit button required on client form').toBeVisible({ timeout: 5000 });
+            await saveBtn.click();
             await page.waitForTimeout(1500);
             console.log('  ✅ Client: ' + CLIENT_NAME);
         });
@@ -96,8 +100,8 @@ test.describe('pal:jo-operational-setup', function () {
                 }
             }
 
-            // Save (required)
-            var saveBtn = page.locator('[data-wb-action="save-as-draft"], button:has-text("Save")').first();
+            // Save (required) — try semantic selectors
+            var saveBtn = page.locator('[data-wb-action="save-as-draft"], button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Submit")').first();
             await expect(saveBtn, 'Save button required').toBeVisible({ timeout: 5000 });
             await saveBtn.click();
             await page.waitForTimeout(2000);

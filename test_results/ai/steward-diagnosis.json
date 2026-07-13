@@ -3,7 +3,7 @@
   "confidence": 0.3,
   "summary": "Could not classify the failure from error text alone. Manual triage needed.",
   "evidence": [
-    "Error: Error: Command failed: php /var/www/html/applicationostest/tests/pal/pal_seed_interactive.php --tenant=999922\n{\n    \"ok\": false,\n    \"action\": \"cleanup\",\n    \"tenant_id\": 999922,\n    \"errors\": [\n        {\n            \"table\": \"pal_projects\",\n            \"error\": \"Call to a member function prepare() ",
+    "Error: \u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
     "Module has 71 GET routes, 70 POST routes",
     "Module exposes 58 capabilities"
   ],
@@ -18,8 +18,8 @@
     "issues": 0
   },
   "failed_test": {
-    "file": "workbench-wb-inspect",
-    "test": "project form: buttons annotated with data-wb-action",
-    "error": "Error: Command failed: php /var/www/html/applicationostest/tests/pal/pal_seed_interactive.php --tenant=999922\n{\n    \"ok\": false,\n    \"action\": \"cleanup\",\n    \"tenant_id\": 999922,\n    \"errors\": [\n     "
+    "file": "modules-pal-workflows-pal-lifecycle-interactive",
+    "test": "JO operational setup: draft → ongoing",
+    "error": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
   }
 }

@@ -1,15 +1,15 @@
 {
   "suites": {
-    "workbench-wb-inspect--chromium": {
+    "modules-pal-workflows-pal-lifecycle-interactive--chromium": {
       "passed": 0,
-      "failed": 1,
-      "skipped": 4,
-      "total": 5,
+      "failed": 0,
+      "skipped": 0,
+      "total": 1,
       "gaps": 0,
       "fingerprints": 0,
-      "finished": "2026-07-13T09:06:14.685Z"
+      "finished": "2026-07-13T09:17:16.043Z"
     }
   },
-  "updated": "2026-07-13T09:06:14.685Z",
+  "updated": "2026-07-13T09:17:16.043Z",
   "fingerprint_mode": "check"
 }

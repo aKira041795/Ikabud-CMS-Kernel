@@ -1,11 +1,11 @@
 {
   "suite": "workbench-wb-inspect--chromium",
-  "started": "2026-07-13T09:06:14.625Z",
-  "finished": "2026-07-13T09:06:14.685Z",
+  "started": "2026-07-13T09:13:08.130Z",
+  "finished": "2026-07-13T09:13:35.572Z",
   "summary": {
-    "passed": 0,
-    "failed": 1,
-    "skipped": 4,
+    "passed": 2,
+    "failed": 3,
+    "skipped": 0,
     "timedOut": 0,
     "interrupted": 0,
     "total": 5
@@ -14,33 +14,33 @@
   "results": [
     {
       "test": "project form: buttons annotated with data-wb-action",
-      "status": "failed",
-      "duration": 2,
-      "detail": "Error: Command failed: php /var/www/html/applicationostest/tests/pal/pal_seed_interactive.php --tenant=999922\n{\n    \"ok\": false,\n    \"action\": \"cleanup\",\n    \"tenant_id\": 999922,\n    \"errors\": [\n        {\n            \"table\": \"pal_projects\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_project_items\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_clients\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_sales\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_sale_items\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_receivables\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_receivable_payments\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_collections\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_approvals\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_users\",\n            \"error\": \"Call to a member function prepare() on null\"\n        }\n    ]\n}\n"
-    },
-    {
-      "test": "project detail: status badge annotated",
-      "status": "skipped",
-      "duration": 0,
+      "status": "passed",
+      "duration": 4158,
       "detail": ""
     },
     {
+      "test": "project detail: status badge annotated",
+      "status": "failed",
+      "duration": 3807,
+      "detail": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"draft\"\u001b[39m\nReceived: \u001b[31mnull\u001b[39m"
+    },
+    {
       "test": "approvals: approve/reject buttons annotated",
-      "status": "skipped",
-      "duration": 0,
+      "status": "passed",
+      "duration": 3998,
       "detail": ""
     },
     {
       "test": "sidebar nav annotated with data-wb-nav",
-      "status": "skipped",
-      "duration": 0,
-      "detail": ""
+      "status": "failed",
+      "duration": 4131,
+      "detail": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoContain\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // indexOf\u001b[22m\n\nExpected value: \u001b[32m\"Dashboard\"\u001b[39m\nReceived array: \u001b[31m[\"📊\u001b[39m\n\u001b[31m                                Dashboard\", \"➕\u001b[39m\n\u001b[31m                                New Job Order\", \"📋\u001b[39m\n\u001b[31m                                All Job Orders\", \"👤\u001b[39m\n\u001b[31m                                Clients\", \"🏭\u001b[39m\n\u001b[31m                                Suppliers\", \"💰\u001b[39m\n\u001b[31m                                Sales Invoices\", \"💵\u001b[39m\n\u001b[31m                                Collections\", \"📝\u001b[39m\n\u001b[31m                                Quotations\", \"📋\u001b[39m\n\u001b[31m                                BOM\", \"📦\u001b[39m\n\u001b[31m                                Inventory\", …]\u001b[39m"
     },
     {
       "test": "entity list detected via data-wb-list",
-      "status": "skipped",
-      "duration": 0,
-      "detail": ""
+      "status": "failed",
+      "duration": 4461,
+      "detail": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m"
     }
   ],
   "gaps": [],
