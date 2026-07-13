@@ -121,6 +121,41 @@ function createWorkbenchTest(config) {
                 }
             }
         }, { scope: 'worker' }],
+
+        // Worker-scoped PAL interactive seed: creates minimal draft project for
+        // browser-driven workflow tests. Same isolation as palLifecycleSeed.
+        palInteractiveSeed: [async function ({ }, use, workerInfo) {
+            var seedPath = path.resolve(__dirname, '../pal/pal_seed_interactive.php');
+            var tenant = process.env.PAL_TEST_TENANT || String(991000 + (workerInfo.parallelIndex || 0));
+
+            console.log('  🌱 Seeding PAL interactive (tenant=' + tenant + ')...');
+            var output = execSync(
+                'php ' + seedPath + ' --tenant=' + tenant,
+                { encoding: 'utf-8', timeout: 15000 }
+            );
+            var data = JSON.parse(output);
+
+            if (!data.ok) {
+                throw new Error('PAL interactive seed failed: ' + (data.error || 'unknown'));
+            }
+
+            console.log('  🌱 Seeded: project #' + data.project_id + ' (status: ' + data.project_status + ')');
+
+            try {
+                await use(data);
+            } finally {
+                try {
+                    execSync(
+                        'php ' + seedPath + ' --cleanup --tenant=' + tenant,
+                        { encoding: 'utf-8', timeout: 10000 }
+                    );
+                    console.log('  🧹 Cleaned up interactive tenant ' + tenant);
+                } catch (e) {
+                    console.error('  ❌ PAL interactive cleanup FAILED: ' + e.message);
+                    throw e;
+                }
+            }
+        }, { scope: 'worker' }],
     });
 
     return { test: fixture, expect: base.expect };

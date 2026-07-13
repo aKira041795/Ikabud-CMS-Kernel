@@ -31,7 +31,7 @@ foreach ($argv ?? [] as $arg) {
 if ($tenantId === 502 && getenv('PAL_TEST_TENANT')) $tenantId = (int) getenv('PAL_TEST_TENANT');
 
 $db = app()->dbForTenant($tenantId);
-$cleanupTables = ['pal_projects', 'pal_clients', 'pal_sales', 'pal_sale_items',
+$cleanupTables = ['pal_projects', 'pal_project_items', 'pal_clients', 'pal_sales', 'pal_sale_items',
     'pal_receivables', 'pal_receivable_payments', 'pal_collections', 'pal_approvals'];
 
 $cleanupErrors = [];

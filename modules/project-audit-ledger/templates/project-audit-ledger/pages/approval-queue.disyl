@@ -3,7 +3,7 @@
         <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Pending ({pending|count})</h2></div>
         {for a in pending}
         {set eurl = palEntityUrl(a.entity_type, a.entity_id)}
-        <div class="p-4 border-b border-gray-100">
+        <div class="p-4 border-b border-gray-100" data-wb-entity-type="{a.entity_type}" data-wb-entity-id="{a.entity_id}">
             <div class="flex justify-between items-start">
                 <div>
                     <div class="flex items-center gap-2 mb-1">
