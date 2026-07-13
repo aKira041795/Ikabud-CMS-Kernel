@@ -21,6 +21,6 @@
   "failed_test": {
     "file": "/var/www/html/applicationostest/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
     "test": "JO operational setup: draft → ongoing",
-    "error": "Error: Approval row for E2E-1783953643672-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783953643672-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: elem"
+    "error": "Error: Approval row for E2E-1783954604127-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783954604127-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: elem"
   }
 }

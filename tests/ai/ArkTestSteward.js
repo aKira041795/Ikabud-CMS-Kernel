@@ -501,6 +501,7 @@ async function aiDiagnose(evidence, diagnosis) {
 
     console.log('  🤖 AI fallback: ' + cfg.provider + '/' + cfg.model);
 
+    var data, content;
     try {
         var res = await globalThis.fetch(cfg.endpoint, {
             method: 'POST',
@@ -527,11 +528,22 @@ async function aiDiagnose(evidence, diagnosis) {
             return null;
         }
 
-        var data = await res.json();
-        var content = data?.choices?.[0]?.message?.content || '';
-        // Extract JSON from markdown code block if present
-        var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
-        var aiResult = JSON.parse(jsonMatch[1].trim());
+        data = await res.json();
+        content = data?.choices?.[0]?.message?.content || '';
+        // DeepSeek V4 Pro may return reasoning_content separately
+        if (!content && data?.choices?.[0]?.message?.reasoning_content) {
+            content = data.choices[0].message.reasoning_content;
+        }
+        // Extract JSON from markdown code block or raw content
+        var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        var jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
+        // Remove any leading/trailing non-JSON text
+        var braceStart = jsonStr.indexOf('{');
+        var braceEnd = jsonStr.lastIndexOf('}');
+        if (braceStart >= 0 && braceEnd > braceStart) {
+            jsonStr = jsonStr.substring(braceStart, braceEnd + 1);
+        }
+        var aiResult = JSON.parse(jsonStr);
 
         // Validate against schema
         var schema = readJson(path.resolve(__dirname, 'schemas/steward-result.schema.json'));
@@ -543,7 +555,11 @@ async function aiDiagnose(evidence, diagnosis) {
         console.log('  ✅ AI: ' + aiResult.classification + ' (' + Math.round((aiResult.confidence || 0) * 100) + '%)');
         return aiResult;
     } catch (e) {
-        console.warn('  ⚠ AI fallback failed: ' + e.message);
+        console.warn('  ⚠ AI fallback failed: ' + (e.message || 'unknown'));
+        // Log a snippet of the raw response for debugging
+        if (data && content) {
+            console.warn('  ⚠ Raw response (first 200 chars): ' + content.substring(0, 200));
+        }
         return null;
     }
 }

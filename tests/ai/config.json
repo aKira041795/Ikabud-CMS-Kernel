@@ -1,7 +1,7 @@
 {
     "_description": "ARK Test Steward — AI provider configuration. API key via ARK_AI_API_KEY env var. NEVER commit the key.",
     "ai": {
-        "enabled": false,
+        "enabled": true,
         "provider": "deepseek",
         "model": "deepseek-v4-pro",
         "endpoint": "https://api.deepseek.com/chat/completions",
