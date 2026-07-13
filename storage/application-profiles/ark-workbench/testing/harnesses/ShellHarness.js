@@ -15,6 +15,8 @@
 
 // @ts-check
 
+const { expect } = require('@playwright/test');
+
 class ShellHarness {
     /**
      * @param {import('@playwright/test').Page} page
@@ -55,7 +57,10 @@ class ShellHarness {
         await expect(userEl).not.toBeEmpty();
     }
 
-    /** Assert an application name is shown */
+    /**
+     * Assert an application name is shown.
+     * @param {string} [expected] Optional expected app name text
+     */
     async expectAppName(expected) {
         const nameEl = this.sidebar.locator('h1');
         if (expected) {
@@ -65,14 +70,20 @@ class ShellHarness {
         }
     }
 
-    /** Assert the expected nav item is active */
+    /**
+     * Assert the expected nav item is active.
+     * @param {string} label Nav item text to match
+     */
     async expectActiveNav(label) {
         // Use filter to find the active item containing the label text
         // (nav items include emoji icons as text content)
         await expect(this.sidebar.locator('.wb-nav-item.is-active').filter({ hasText: label })).toHaveCount(1);
     }
 
-    /** Navigate by clicking a sidebar nav item */
+    /**
+     * Navigate by clicking a sidebar nav item.
+     * @param {string} label Nav item text to click
+     */
     async navigateViaSidebar(label) {
         await this.navItems.filter({ hasText: label }).first().click();
         await this.locator.waitFor({ state: 'visible', timeout: 10000 });
@@ -83,7 +94,10 @@ class ShellHarness {
         return await this.sidebar.locator('.wb-sidebar-section').count();
     }
 
-    /** Toggle a sidebar section */
+    /**
+     * Toggle a sidebar section.
+     * @param {string} label Section label to toggle
+     */
     async toggleSection(label) {
         const trigger = this.sidebar
             .locator('.wb-sidebar-section__trigger')
@@ -92,7 +106,10 @@ class ShellHarness {
         await trigger.click();
     }
 
-    /** Assert a section is collapsed */
+    /**
+     * Assert a section is collapsed.
+     * @param {string} label Section label
+     */
     async expectSectionCollapsed(label) {
         const section = this.sidebar
             .locator('.wb-sidebar-section')
@@ -101,12 +118,18 @@ class ShellHarness {
         await expect(section).toHaveClass(/wb-sidebar-section--collapsed/);
     }
 
-    /** Assert the current page title */
+    /**
+     * Assert the current page title.
+     * @param {string} expected Expected page title text
+     */
     async expectPageTitle(expected) {
         await expect(this.page.locator('#wb-main h1')).toContainText(expected);
     }
 
-    /** Assert the page family attribute */
+    /**
+     * Assert the page family attribute.
+     * @param {string} expected Expected page family value
+     */
     async expectPageFamily(expected) {
         await expect(this.locator).toHaveAttribute('data-wb-page-family', expected);
     }

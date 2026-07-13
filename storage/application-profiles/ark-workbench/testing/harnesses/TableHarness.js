@@ -16,6 +16,8 @@
 
 // @ts-check
 
+const { expect } = require('@playwright/test');
+
 /**
  * @typedef {import('@playwright/test').Page} Page
  * @typedef {import('@playwright/test').Locator} Locator

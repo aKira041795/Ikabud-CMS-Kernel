@@ -15,6 +15,8 @@
 
 // @ts-check
 
+const { expect } = require('@playwright/test');
+
 class DialogHarness {
     /**
      * @param {import('@playwright/test').Page} page
