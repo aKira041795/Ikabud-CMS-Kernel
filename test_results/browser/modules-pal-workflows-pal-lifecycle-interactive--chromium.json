@@ -1,7 +1,7 @@
 {
   "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-  "started": "2026-07-13T15:26:22.336Z",
-  "finished": "2026-07-13T15:26:22.398Z",
+  "started": "2026-07-13T15:27:58.998Z",
+  "finished": "2026-07-13T15:27:59.067Z",
   "summary": {
     "passed": 0,
     "failed": 1,
@@ -15,28 +15,10 @@
     {
       "test": "JO operational setup: draft → ongoing",
       "status": "failed",
-      "duration": 27721,
-      "detail": "Error: Approval row for E2E-1783956353735-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783956353735-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Approval row for E2E-1783956353735-Project must exist with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783956353735-Project' }).first()\u001b[22m\n"
+      "duration": 9452,
+      "detail": "Error: Project ID must be extractable from redirect URL\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoBeNull\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m"
     }
   ],
   "gaps": [],
-  "issues": [
-    {
-      "kind": "perf",
-      "severity": "major",
-      "where": "JO create",
-      "detail": "11947ms",
-      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-      "test": "JO operational setup: draft → ongoing"
-    },
-    {
-      "kind": "bug",
-      "severity": "major",
-      "where": "JO submit",
-      "detail": "Submit button clicked but status not Pending on detail page",
-      "recommendation": "Check workflow transition logic and button action handler",
-      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-      "test": "JO operational setup: draft → ongoing"
-    }
-  ]
+  "issues": []
 }
