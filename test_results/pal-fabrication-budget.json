@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-budget",
-    "started": "2026-07-13 05:29:33",
-    "finished": "2026-07-13 05:29:33",
-    "elapsed_ms": 569.7,
+    "started": "2026-07-13 05:36:33",
+    "finished": "2026-07-13 05:36:33",
+    "elapsed_ms": 720.9,
     "summary": {
         "passed": 40,
         "failed": 0,
@@ -29,49 +29,49 @@
             "label": "500k contract @ 15% = 75,000",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0 contract @ 50% = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0% allocation = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "100% allocation = full contract",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "12.5% partial = 12,500",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "Rounding: 100000 @ 33.33% = 33330.00",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "Large: 5M @ 40% = 2,000,000",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
@@ -85,84 +85,84 @@
             "label": "First alloc: 30k within 50k remaining — allowed",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "First alloc: 60k exceeds 50k remaining — rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 50k budget, 30k dispensed = 20k remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 20k exactly remaining — allowed",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 20001 exceeds budget — rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: 0 remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: any amount > 0 rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: 0 dispense still allowed",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Over-dispensed: negative remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Over-dispensed: even 0 dispense exceeds",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: zero/negative dispense validation",
             "label": "Zero dispense is invalid (guarded by service)",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: zero/negative dispense validation",
             "label": "Negative dispense is invalid (guarded by service)",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Weekly due splitting",
@@ -176,35 +176,35 @@
             "label": "20k / 8 weeks = 2,500 each",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Weekly due splitting",
             "label": "0 / 4 weeks = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Weekly due splitting",
             "label": "20k / 0 weeks = 0 (guard)",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Weekly due splitting",
             "label": "Uneven: 10000 / 3 = 3,333.33",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Weekly due splitting",
             "label": "3 x 3,333.33 = 9,999.99 (rounding loss)",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0
         },
         {
             "section": "Cash advance: lifecycle math",
@@ -225,49 +225,49 @@
             "label": "Settled is valid from approved (not from pending)",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Cash advance: lifecycle math",
             "label": "Voided is valid from pending (not from approved)",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Cash advance: team lead balance aggregation",
             "label": "Single advance = balance",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Cash advance: team lead balance aggregation",
             "label": "Multiple advances sum correctly",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0
         },
         {
             "section": "Cash advance: team lead balance aggregation",
             "label": "No advances = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0
         },
         {
             "section": "Cash advance: team lead balance aggregation",
             "label": "Large values: 500k + 300k = 800k",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0
         },
         {
             "section": "Cash advance: team lead balance aggregation",
             "label": "Mixed decimals sum",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0
         },
         {
             "section": "Approval service: enriched pending list",
@@ -281,21 +281,21 @@
             "label": "Purchases grouped: 1 item",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Approval service: enriched pending list",
             "label": "Cash advances grouped: 1 item",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Approval service: enriched pending list",
             "label": "Empty approvals returns empty groups",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         }
     ],
     "gaps": {

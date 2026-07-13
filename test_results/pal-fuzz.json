@@ -1,0 +1,212 @@
+{
+    "suite": "pal-fuzz",
+    "started": "2026-07-13 05:36:34",
+    "finished": "2026-07-13 13:36:34",
+    "elapsed_ms": 28800464.9,
+    "summary": {
+        "passed": 27,
+        "failed": 0,
+        "skipped": 0,
+        "total": 27,
+        "assertions": 27,
+        "exit_code": 0
+    },
+    "source_fingerprints": {
+        "modules/project-audit-ledger/services/CashAdvanceService.php": "d69e429aafd30d087cd49dafb34f45c8",
+        "modules/project-audit-ledger/services/FabricationService.php": "0ee221092fff2012001c18ccfaea6630",
+        "modules/project-audit-ledger/services/ProjectService.php": "704081b42c4a2d22600903a8e1b50a05",
+        "modules/project-audit-ledger/services/ProjectCostService.php": "26ef194c40f73107be32ae7cc72c43ff"
+    },
+    "results": [
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "zero amount throws",
+            "status": "pass",
+            "detail": "Cash advance amount must be greater than zero.",
+            "time": 0.1
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "negative amount throws",
+            "status": "pass",
+            "detail": "Cash advance amount must be greater than zero.",
+            "time": 0.1
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "null amount (coerced to 0) throws",
+            "status": "pass",
+            "detail": "Cash advance amount must be greater than zero.",
+            "time": 0.1
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "approve non-existent ID throws",
+            "status": "pass",
+            "detail": "Cash advance not found.",
+            "time": 1.7
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "approve voided advance throws",
+            "status": "pass",
+            "detail": "Only pending cash advances can be approved.",
+            "time": 28.7
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "double approve throws",
+            "status": "pass",
+            "detail": "Only pending cash advances can be approved.",
+            "time": 45.8
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "settle pending (not approved) throws",
+            "status": "pass",
+            "detail": "Only approved cash advances can be settled.",
+            "time": 56.1
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "settle non-existent throws",
+            "status": "pass",
+            "detail": "Cash advance not found.",
+            "time": 56.6
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "void non-existent throws",
+            "status": "pass",
+            "detail": "Cash advance not found.",
+            "time": 57.3
+        },
+        {
+            "section": "1. CashAdvance: boundary values",
+            "label": "double void throws",
+            "status": "pass",
+            "detail": "Only pending cash advances can be voided.",
+            "time": 75.7
+        },
+        {
+            "section": "2. ProjectCostService: division by zero boundary",
+            "label": "profitability for non-existent project returns zeros",
+            "status": "pass",
+            "detail": "",
+            "time": 1.2
+        },
+        {
+            "section": "2. ProjectCostService: division by zero boundary",
+            "label": "profitability for 0-contract project returns safe values",
+            "status": "pass",
+            "detail": "",
+            "time": 12.5
+        },
+        {
+            "section": "2. ProjectCostService: division by zero boundary",
+            "label": "budget status for 0-contract returns normal/0",
+            "status": "pass",
+            "detail": "",
+            "time": 13.4
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "zero dispense amount throws",
+            "status": "pass",
+            "detail": "CA dispense amount must be greater than zero.",
+            "time": 8
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "negative dispense throws",
+            "status": "pass",
+            "detail": "CA dispense amount must be greater than zero.",
+            "time": 9
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "missing project_id throws (coerced to 0, not found)",
+            "status": "pass",
+            "detail": "Project not found.",
+            "time": 10
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "non-existent project throws",
+            "status": "pass",
+            "detail": "Project not found.",
+            "time": 10.7
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "empty weeks array produces 0 rows",
+            "status": "pass",
+            "detail": "",
+            "time": 17.8
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "weekly dues rounding sums to total (1000 = 1,000.00)",
+            "status": "pass",
+            "detail": "",
+            "time": 31.4
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "zero payment amount throws",
+            "status": "pass",
+            "detail": "Payment amount must be greater than zero.",
+            "time": 31.5
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "negative payment amount throws",
+            "status": "pass",
+            "detail": "Payment amount must be greater than zero.",
+            "time": 31.5
+        },
+        {
+            "section": "3. FabricationService: boundary values",
+            "label": "submit non-existent payment throws",
+            "status": "pass",
+            "detail": "Payment not found.",
+            "time": 32.9
+        },
+        {
+            "section": "4. Type confusion: string→float coercion",
+            "label": "string amount coerced to float and accepted",
+            "status": "pass",
+            "detail": "",
+            "time": 9.3
+        },
+        {
+            "section": "4. Type confusion: string→float coercion",
+            "label": "non-numeric string project_id throws (coerced to 0)",
+            "status": "pass",
+            "detail": "Project not found.",
+            "time": 10
+        },
+        {
+            "section": "5. Large values: overflow boundaries",
+            "label": "very large advance amount accepted",
+            "status": "pass",
+            "detail": "",
+            "time": 7
+        },
+        {
+            "section": "6. Empty/null state handling",
+            "label": "zero team_lead_id accepted (nullable FK)",
+            "status": "pass",
+            "detail": "",
+            "time": 8.4
+        },
+        {
+            "section": "Cleanup",
+            "label": "test data cleaned up",
+            "status": "pass",
+            "detail": "",
+            "time": 29.3
+        }
+    ],
+    "gaps": []
+}
