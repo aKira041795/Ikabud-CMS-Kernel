@@ -1,25 +1,24 @@
 {
-  "classification": "undetermined",
-  "confidence": 0.3,
-  "summary": "Could not classify the failure from error text alone. Manual triage needed.",
+  "classification": "locator-stale",
+  "confidence": 0.7,
+  "summary": "Expected element to be visible but it was not found. Selector may be stale.",
   "evidence": [
-    "Error: \u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
-    "Module has 71 GET routes, 70 POST routes",
-    "Module exposes 58 capabilities"
+    "toBeVisible assertion failed",
+    "Button/link locator may have changed — check with ?wb_inspect=1"
   ],
   "suspected_files": [],
-  "recommended_action": "Review the Playwright trace and error context file.",
+  "recommended_action": "Run the page with ?wb_inspect=1 and update data-wb-action selectors.",
   "safe_to_auto_heal": false,
   "module": "project-audit-ledger",
   "run_context": {
     "total_tests": 0,
     "passed": 0,
     "failed": 0,
-    "issues": 0
+    "issues": 2
   },
   "failed_test": {
     "file": "modules-pal-workflows-pal-lifecycle-interactive",
     "test": "JO operational setup: draft → ongoing",
-    "error": "\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m"
+    "error": "Error: Approval row for E2E-1783934407538-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').fi"
   }
 }
