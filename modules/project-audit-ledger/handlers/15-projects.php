@@ -194,6 +194,22 @@ function palApiProjectStore(): void
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
         $id = $svc->create($_POST);
 
+        // If submitted with status, run workflow + create approval
+        $newStatus = $_POST['status'] ?? null;
+        if ($newStatus && $newStatus !== 'draft') {
+            try {
+                $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+                $wf->apply($id, $newStatus);
+                if ($newStatus === 'pending') {
+                    palCreateApproval('project', $id, (int)$user['id'], 'draft', 'pending_approval');
+                }
+            } catch (\Throwable $e) {
+                write_log('pal.project.store.workflow_failed', 'warning', [
+                    'project_id' => $id, 'to' => $newStatus, 'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // Relink mockup attachment if uploaded
         $mockupId = !empty($_POST['mockup_attachment_id']) ? (int)$_POST['mockup_attachment_id'] : 0;
         if ($mockupId > 0) {
@@ -211,7 +227,7 @@ function palApiProjectStore(): void
         palAudit('pal.project.created', (int)$user['id'], 'pal_projects', (string)$id, null, ['title' => $_POST['title'] ?? '']);
 
         header('Content-Type: application/json');
-        echo json_encode(['ok' => true, 'id' => $id]);
+        echo json_encode(['ok' => true, 'id' => $id, 'redirect' => '/admin/project-audit-ledger/projects/' . $id]);
     });
 }
 

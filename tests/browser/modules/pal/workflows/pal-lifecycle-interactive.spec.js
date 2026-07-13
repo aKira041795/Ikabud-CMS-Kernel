@@ -104,20 +104,13 @@ test.describe('pal:jo-operational-setup', function () {
             var saveBtn = page.locator('[data-wb-action="save-as-draft"], button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Submit")').first();
             await expect(saveBtn, 'Save button required').toBeVisible({ timeout: 5000 });
             await saveBtn.click();
-            // ajaxSubmit reloads page after 800ms
-            await page.waitForTimeout(3000);
-            // After reload, navigate to project list
-            await goTo(page, base + '/projects');
-            await page.waitForTimeout(2000);
-            // Find our project by unique title — click into it for ID
-            var row = page.locator('tr').filter({ hasText: PROJECT_TITLE }).first();
-            await expect(row, 'Project row must be in list').toBeVisible({ timeout: 15000 });
-            await row.locator('a').first().click();
-            await page.waitForTimeout(1000);
-            var detailUrl = page.url();
-            var urlMatch = detailUrl.match(/\/projects\/(\d+)/);
+            // ajaxSubmit redirects to project detail on success
+            await page.waitForURL('**/admin/project-audit-ledger/projects/*', { timeout: 15000 });
+            await page.waitForTimeout(500);
+            // Extract ID from URL
+            var urlMatch = page.url().match(/\/projects\/(\d+)/);
             projectId = urlMatch ? parseInt(urlMatch[1]) : null;
-            expect(projectId, 'Project ID must be extractable after JO save').not.toBeNull();
+            expect(projectId, 'Project ID must be extractable from redirect URL').not.toBeNull();
             console.log('  ✅ JO #' + projectId + ': ' + PROJECT_TITLE);
             integrity.perf('JO create', Date.now() - startTime);
         });
