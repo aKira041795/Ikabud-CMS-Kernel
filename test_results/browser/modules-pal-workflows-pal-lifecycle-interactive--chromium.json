@@ -1,7 +1,7 @@
 {
   "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-  "started": "2026-07-13T15:20:49.512Z",
-  "finished": "2026-07-13T15:20:49.577Z",
+  "started": "2026-07-13T15:22:36.094Z",
+  "finished": "2026-07-13T15:22:36.157Z",
   "summary": {
     "passed": 0,
     "failed": 1,
@@ -15,7 +15,7 @@
     {
       "test": "JO operational setup: draft → ongoing",
       "status": "failed",
-      "duration": 10427,
+      "duration": 12792,
       "detail": "Error: Project ID must be extractable after JO save\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoBeNull\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m"
     }
   ],
@@ -27,7 +27,7 @@
       "detail": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
       "url": "http://palsystem.test/admin/project-audit-ledger/projects/create",
       "browser": "chromium",
-      "timestamp": "2026-07-13T15:20:45.994Z",
+      "timestamp": "2026-07-13T15:22:30.958Z",
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
     }

@@ -87,13 +87,11 @@
        Used by project-form, expense-detail, issuance-detail, etc.
        Attach via: onsubmit="return ajaxSubmit(this, 'Success message')" */
     function ajaxSubmit(form, successMsg) {
-        var data = {};
         var fd = new FormData(form);
-        fd.forEach(function(v, k) { data[k] = v; });
         fetch(form.action, {
             method: form.method || 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-            body: JSON.stringify(data),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd,
         }).then(function(r) { return r.json(); })
           .then(function(res) {
               if (res.ok) {

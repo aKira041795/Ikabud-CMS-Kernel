@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-13T15:20:49.577Z",
+  "generated": "2026-07-13T15:22:36.157Z",
   "total_issues": 1,
   "by_severity": {
     "major": 1
@@ -14,7 +14,7 @@
       "detail": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
       "url": "http://palsystem.test/admin/project-audit-ledger/projects/create",
       "browser": "chromium",
-      "timestamp": "2026-07-13T15:20:45.994Z",
+      "timestamp": "2026-07-13T15:22:30.958Z",
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
     }
