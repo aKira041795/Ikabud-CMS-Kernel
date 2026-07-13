@@ -228,8 +228,14 @@ if (!function_exists('kernelHandleApiTenantCreate')) {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
+            write_log('apiTenantCreate failed: ' . $e->getMessage(), 'error', [
+                'tenant_key' => $tenantKey,
+                'domain' => $domain,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to create tenant']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to create tenant', 'request_id' => request_id()]);
         }
     }
 }
@@ -291,8 +297,14 @@ if (!function_exists('kernelHandleApiTenantEntryModuleSet')) {
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform', 'admin:view:modules']);
             echo json_encode(['ok' => true, 'tenant_id' => $tenantId, 'entry_module_id' => $entryModuleId, 'migration_sync' => $sync, 'request_id' => request_id()]);
         } catch (Throwable $e) {
+            write_log('apiTenantEntryModuleSet failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'entry_module_id' => $entryModuleId,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to update tenant entry module']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update tenant entry module', 'request_id' => request_id()]);
         }
     }
 }
@@ -317,10 +329,23 @@ if (!function_exists('kernelHandleApiTenantDomainAdd')) {
             $stmt = app()->controlDb()->prepare('INSERT INTO kernel_tenant_domains (tenant_id, domain) VALUES (:tid, :d)');
             $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
-            echo json_encode(['ok' => true]);
+            echo json_encode(['ok' => true, 'request_id' => request_id()]);
         } catch (Throwable $e) {
-            http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to add domain']);
+            $msg = $e->getMessage();
+            $isDuplicate = stripos($msg, 'Duplicate entry') !== false || strpos($msg, '1062') !== false;
+            write_log('apiTenantDomainAdd failed: ' . $msg, 'error', [
+                'tenant_id' => $tenantId,
+                'domain' => $domain,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
+            if ($isDuplicate) {
+                http_response_code(409);
+                echo json_encode(['ok' => false, 'error' => 'Domain already registered', 'request_id' => request_id()]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'Failed to add domain', 'request_id' => request_id()]);
+            }
         }
     }
 }
@@ -345,10 +370,16 @@ if (!function_exists('kernelHandleApiTenantDomainRemove')) {
             $stmt = app()->controlDb()->prepare('DELETE FROM kernel_tenant_domains WHERE tenant_id = :tid AND domain = :d');
             $stmt->execute([':tid' => $tenantId, ':d' => $domain]);
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
-            echo json_encode(['ok' => true]);
+            echo json_encode(['ok' => true, 'request_id' => request_id()]);
         } catch (Throwable $e) {
+            write_log('apiTenantDomainRemove failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'domain' => $domain,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to remove domain']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to remove domain', 'request_id' => request_id()]);
         }
     }
 }
@@ -395,8 +426,14 @@ if (!function_exists('kernelHandleApiTenantCanonicalDomainSet')) {
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
             echo json_encode(['ok' => true]);
         } catch (Throwable $e) {
+            write_log('apiTenantCanonicalDomainSet failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'domain' => $domain,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to set canonical domain']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to set canonical domain', 'request_id' => request_id()]);
         }
     }
 }
@@ -548,8 +585,14 @@ if (!function_exists('kernelHandleApiTenantStatusSet')) {
             adminViewCacheInvalidate(['admin:view:tenants', 'admin:view:platform']);
             echo json_encode(['ok' => true]);
         } catch (Throwable $e) {
+            write_log('apiTenantStatusSet failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'status' => $status,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to update tenant status']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update tenant status', 'request_id' => request_id()]);
         }
     }
 }
@@ -899,8 +942,14 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
                 'skipped' => $skipped,
             ]);
         } catch (Throwable $e) {
+            write_log('apiTenantAdminEmailPush outer failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'admin_email' => $adminEmail,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to update admin email']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update admin email', 'request_id' => request_id()]);
         }
     }
 }
@@ -1061,8 +1110,13 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                 'skipped' => array_values(array_unique($skipped)),
             ]);
         } catch (Throwable $e) {
+            write_log('apiTenantAdminPasswordPush outer failed: ' . $e->getMessage(), 'error', [
+                'tenant_id' => $tenantId,
+                'exception' => get_class($e),
+                'request_id' => request_id(),
+            ]);
             http_response_code(500);
-            echo json_encode(['ok' => false, 'error' => 'Failed to update admin password']);
+            echo json_encode(['ok' => false, 'error' => 'Failed to update admin password', 'request_id' => request_id()]);
         }
     }
 }

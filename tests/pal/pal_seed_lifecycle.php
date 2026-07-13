@@ -32,8 +32,7 @@ require_once __DIR__ . '/../../modules/project-audit-ledger/handlers.php';
 $isCleanup = in_array('--cleanup', $argv ?? [], true);
 
 // ── Config ───────────────────────────────────────────────────
-$isCleanup = in_array('--cleanup', $argv ?? [], true);
-$tenantId = 999908;
+$tenantId = 502;
 
 // Support --tenant=N or PAL_TEST_TENANT env var for isolation
 foreach ($argv ?? [] as $arg) {
@@ -41,19 +40,19 @@ foreach ($argv ?? [] as $arg) {
         $tenantId = (int) substr($arg, 9);
     }
 }
-if ($tenantId === 999908 && getenv('PAL_TEST_TENANT')) {
+if ($tenantId === 502 && getenv('PAL_TEST_TENANT')) {
     $tenantId = (int) getenv('PAL_TEST_TENANT');
 }
 
 $ownsTables = [
-    'pal_projects', 'pal_clients', 'pal_users', 'pal_expenses',
+    'pal_projects', 'pal_clients', 'pal_expenses',
     'pal_approvals', 'pal_audit_logs', 'pal_sales', 'pal_sale_items',
     'pal_receivables', 'pal_receivable_payments', 'pal_project_items',
     'pal_fabrication_allocations', 'pal_fabrication_weekly_dues',
     'pal_fabrication_payments', 'pal_team_leads', 'pal_collections',
     'pal_settings', 'pal_project_types',
 ];
-$db = app()->db();
+$db = app()->dbForTenant($tenantId);
 $palDb = new \Ikabud\Kernel\Contracts\ModuleDB($db, 'project-audit-ledger', $ownsTables, []);
 
 // ── Cleanup ──────────────────────────────────────────────────
@@ -86,7 +85,7 @@ $prefix = 'LS-' . date('Ymd');
 function sUser(PDO $db, int $tid): int {
     global $sc; $sc++;
     $s = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)");
-    $s->execute([$tid, "lsc{$sc}", "ls{$sc}@seed.com", 'hash', "Lifecycle Seed $sc"]);
+    $s->execute([$tid, "lsc{$sc}", "ls{$sc}@seed.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Lifecycle Seed $sc"]);
     return (int)$db->lastInsertId();
 }
 function sClient(PDO $db, int $tid): array {

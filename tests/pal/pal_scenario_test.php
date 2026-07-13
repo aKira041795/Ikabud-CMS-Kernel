@@ -31,8 +31,8 @@ $h->fingerprint('modules/project-audit-ledger/services/SalesService.php');
 $h->loadModule('modules/project-audit-ledger/helpers.php');
 $h->loadModule('modules/project-audit-ledger/handlers.php');
 
-$db = app()->db();
-$testTenantId = 999906;
+$db = app()->dbForTenant(502);
+$testTenantId = 502;
 $sc = 0;
 
 $owns = [
@@ -58,7 +58,7 @@ foreach ($owns as $t) {
 function sUser(PDO $db, int $tid): int {
     global $sc; $sc++;
     $s = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)");
-    $s->execute([$tid, "scen{$sc}", "s{$sc}@t.com", 'hash', "Scenario $sc"]);
+    $s->execute([$tid, "scen{$sc}", "s{$sc}@t.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Scenario $sc"]);
     return (int)$db->lastInsertId();
 }
 function sClient(PDO $db, int $tid): int {

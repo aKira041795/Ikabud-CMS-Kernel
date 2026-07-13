@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS branches (
 -- -----------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     role ENUM('admin','superadmin','manager','viewer') NOT NULL DEFAULT 'viewer',
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS dl_branches (
 
 CREATE TABLE IF NOT EXISTS dl_cashiers (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     branch_id INT UNSIGNED NOT NULL,
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS dl_cashiers (
 
 CREATE TABLE IF NOT EXISTS dl_supervisors (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
+    username VARCHAR(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,

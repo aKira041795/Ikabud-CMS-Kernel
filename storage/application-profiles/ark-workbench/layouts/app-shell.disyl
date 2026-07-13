@@ -22,7 +22,7 @@
     <link rel="stylesheet" href="/assets/workbench/workbench.css">
     {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="{style}">{/for}{/if}
 </head>
-<body class="wb-app-shell">
+<body class="wb-app-shell" data-wb-component="app-shell">
     {* Skip to content *}
     <a href="#wb-main" class="wb-skip-link">Skip to content</a>
 
@@ -44,13 +44,13 @@
         <nav class="wb-sidebar__nav" aria-label="Main navigation">
             {for section in s.navigation_sections|default:[]}
                 <div class="wb-sidebar-section">
-                    <button class="wb-sidebar-section__trigger" aria-expanded="{if section.collapsed_default|default:false}false{else}true{/if}">
+                    <button class="wb-sidebar-section__trigger" aria-expanded="{if section.collapsed_default|default:false}false{else}true{/if}" {if s.inspect_mode|default:false}data-wb-section="{section.label}"{/if}>
                         <span>{section.label}</span>
                         <span aria-hidden="true">{if section.collapsed_default|default:false}+{else}−{/if}</span>
                     </button>
                     <div class="wb-sidebar-section__items" style="max-height:{if section.collapsed_default|default:false}0{else}none{/if}">
                         {for item in section.items|default:[]}
-                            <a href="{item.url}" class="wb-nav-item {if item.is_active}is-active{/if}">
+                            <a href="{item.url}" class="wb-nav-item {if item.is_active}is-active{/if}" {if s.inspect_mode|default:false}data-wb-nav="{item.label|lower|replace:' ': '-'}"{/if}>
                                 <span aria-hidden="true">{item.icon_key|default:'•'}</span>
                                 {item.label}
                                 {if item.badge_count|default:0 > 0}<span class="wb-nav-badge">{item.badge_count}</span>{/if}
@@ -89,5 +89,87 @@
     <div id="wb-toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
     <script src="/assets/workbench/workbench-core.js"></script>
     {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
+    {if s.inspect_mode|default:false}
+    <script id="wb-inspect-runtime">
+    (function() {
+        /* Workbench Inspect Runtime — annotates DOM with data-wb-* attributes for test automation.
+           Activated when shell context has inspect_mode=true (?wb_inspect=1). */
+        var main = document.getElementById('wb-main');
+        if (!main) return;
+
+        /* ---- Buttons: data-wb-action ---- */
+        var btns = main.querySelectorAll('button:not([data-wb-action])');
+        btns.forEach(function(b) {
+            var text = (b.textContent || '').trim().replace(/\s+/g, ' ').substring(0, 50);
+            if (!text) return;
+            b.setAttribute('data-wb-action', text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+        });
+
+        /* ---- Action links: data-wb-action ---- */
+        var links = main.querySelectorAll('a:not([data-wb-nav]):not([data-wb-action])');
+        links.forEach(function(a) {
+            var text = (a.textContent || '').trim().replace(/\s+/g, ' ').substring(0, 50);
+            var cls = a.className || '';
+            if (!text) return;
+            /* Only annotate links that look like action buttons (not tab nav or breadcrumbs) */
+            if (/btn|button|action/i.test(cls) || a.getAttribute('onclick') || /create|edit|delete|new|add/i.test(text)) {
+                a.setAttribute('data-wb-action', text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+            }
+        });
+
+        /* ---- Forms: data-wb-form ---- */
+        var forms = main.querySelectorAll('form:not([data-wb-form])');
+        forms.forEach(function(f) {
+            var method = (f.method || 'get').toLowerCase();
+            var action = f.getAttribute('action') || '';
+            f.setAttribute('data-wb-form', method + ':' + action.replace(/^.*\/\/[^\/]+/, ''));
+            /* Annotate named inputs */
+            f.querySelectorAll('input[name], select[name], textarea[name]').forEach(function(el) {
+                el.setAttribute('data-wb-field', el.name);
+            });
+        });
+
+        /* ---- Entity lists: data-wb-list ---- */
+        var lists = main.querySelectorAll('[data-ikb-list]:not([data-wb-list])');
+        lists.forEach(function(l) {
+            l.setAttribute('data-wb-list', l.getAttribute('data-ikb-list'));
+        });
+
+        /* ---- Status badges: data-wb-status ---- */
+        var badges = main.querySelectorAll('.wb-badge, [class*="badge"], [class*="status"]');
+        badges.forEach(function(b) {
+            if (b.hasAttribute('data-wb-status')) return;
+            var text = (b.textContent || '').trim();
+            if (/draft|pending|approved|started|ongoing|completed|cancelled|closed|paid|overdue|rejected|voided/i.test(text)) {
+                b.setAttribute('data-wb-status', text.toLowerCase());
+            }
+        });
+
+        /* ---- Emit manifest ---- */
+        var manifest = {
+            module: document.title.split(' — ')[0] || '',
+            page: (main.querySelector('h1') || {}).textContent || '',
+            actions: [].map.call(main.querySelectorAll('[data-wb-action]'), function(el) {
+                return { key: el.getAttribute('data-wb-action'), text: (el.textContent||'').trim().substring(0,50), tag: el.tagName };
+            }),
+            forms: [].map.call(main.querySelectorAll('[data-wb-form]'), function(el) {
+                return { key: el.getAttribute('data-wb-form'), fields: [].map.call(el.querySelectorAll('[data-wb-field]'), function(f) { return f.getAttribute('data-wb-field'); }) };
+            }),
+            lists: [].map.call(main.querySelectorAll('[data-wb-list]'), function(el) {
+                return { source: el.getAttribute('data-wb-list') };
+            }),
+            nav: [].map.call(document.querySelectorAll('[data-wb-nav]'), function(el) {
+                return { key: el.getAttribute('data-wb-nav'), label: (el.textContent||'').trim(), url: el.getAttribute('href') };
+            }),
+            status: (function() {
+                var s = main.querySelector('[data-wb-status]');
+                return s ? s.getAttribute('data-wb-status') : null;
+            })(),
+        };
+        window.__wbManifest = manifest;
+        console.log('[wb-inspect] manifest ready:', Object.keys(manifest.actions).length + ' actions, ' + manifest.nav.length + ' nav items');
+    })();
+    </script>
+    {/if}
 </body>
 </html>

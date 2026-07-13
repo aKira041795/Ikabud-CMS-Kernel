@@ -34,8 +34,8 @@ $h->fingerprint('modules/project-audit-ledger/services/ProjectCostService.php');
 $h->loadModule('modules/project-audit-ledger/helpers.php');
 $h->loadModule('modules/project-audit-ledger/handlers.php');
 
-$db = app()->db();
-$testTenantId = 999905;
+$db = app()->dbForTenant(502);
+$testTenantId = 502;
 $seedCounter = 0;
 
 // ── ModuleDB ───────────────────────────────────────────────────
@@ -66,7 +66,7 @@ foreach ($ownsTables as $t) {
 function fuzzUser(PDO $db, int $tid): int {
     global $seedCounter; $seedCounter++;
     $s = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)");
-    $s->execute([$tid, "fuzz{$seedCounter}", "f{$seedCounter}@t.com", 'hash', "Fuzz $seedCounter"]);
+    $s->execute([$tid, "fuzz{$seedCounter}", "f{$seedCounter}@t.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Fuzz $seedCounter"]);
     return (int)$db->lastInsertId();
 }
 function fuzzClient(PDO $db, int $tid): int {

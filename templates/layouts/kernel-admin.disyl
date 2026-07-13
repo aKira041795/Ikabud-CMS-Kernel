@@ -309,14 +309,19 @@
   </div>
 
   <!-- Toast container -->
-  <div id="cms-toast-container" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
-    <template x-teleport="body">
-      <div x-data="cmsToast()" x-init="init()" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+  <div id="cms-toast-container" x-data="cmsToast()" x-init="init()" class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
+    <template x-for="toast in toasts" :key="toast.id">
+      <div class="pointer-events-auto px-4 py-3 rounded-lg shadow-lg text-white text-sm transition-all duration-300"
+           :class="toast.type === 'error' ? 'bg-red-600' : toast.type === 'warning' ? 'bg-amber-600' : 'bg-green-600'"
+           x-text="toast.message"></div>
     </template>
   </div>
   <script>
     function toast(message, type) {
       window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: message || '', type: type || 'success' } }));
+    }
+    function showToast(msg, type) {
+      toast(msg, type || 'success');
     }
     function cmsToast() {
       return {

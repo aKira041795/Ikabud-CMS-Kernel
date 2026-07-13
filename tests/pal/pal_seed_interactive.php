@@ -22,16 +22,16 @@ require_once __DIR__ . '/../../bootstrap.php';
 require_once __DIR__ . '/../../modules/project-audit-ledger/helpers.php';
 require_once __DIR__ . '/../../modules/project-audit-ledger/handlers.php';
 
-$tenantId = 999911;
+$tenantId = 502;
 $isCleanup = in_array('--cleanup', $argv ?? [], true);
 
 foreach ($argv ?? [] as $arg) {
     if (str_starts_with($arg, '--tenant=')) $tenantId = (int) substr($arg, 9);
 }
-if ($tenantId === 999911 && getenv('PAL_TEST_TENANT')) $tenantId = (int) getenv('PAL_TEST_TENANT');
+if ($tenantId === 502 && getenv('PAL_TEST_TENANT')) $tenantId = (int) getenv('PAL_TEST_TENANT');
 
-$db = app()->db();
-$cleanupTables = ['pal_projects', 'pal_clients', 'pal_users', 'pal_sales', 'pal_sale_items',
+$db = app()->dbForTenant($tenantId);
+$cleanupTables = ['pal_projects', 'pal_clients', 'pal_sales', 'pal_sale_items',
     'pal_receivables', 'pal_receivable_payments', 'pal_collections', 'pal_approvals'];
 
 $cleanupErrors = [];
@@ -62,7 +62,7 @@ $prefix = 'INT-' . date('Ymd');
 
 // User
 $sc++; $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)")
-    ->execute([$tenantId, "intu{$sc}", "int{$sc}@seed.com", 'hash', "Interactive $sc"]);
+    ->execute([$tenantId, "intu{$sc}", "int{$sc}@seed.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Interactive $sc"]);
 
 // Client
 $sc++; $db->prepare("INSERT INTO pal_clients (tenant_id, name, contact_person, email, phone, address, is_active) VALUES (?,?,?,?,?,?,1)")

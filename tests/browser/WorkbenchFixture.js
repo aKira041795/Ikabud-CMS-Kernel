@@ -131,8 +131,8 @@ var pal = createWorkbenchTest({
     appUrl: process.env.APP_URL || 'http://palsystem.test',
     loginPath: '/project-audit-ledger/login',
     landingPath: '/admin/project-audit-ledger',
-    adminUser: process.env.ADMIN_USER || 'paladmin',
-    adminPass: process.env.ADMIN_PASS || 'pAl123456',
+    adminUser: process.env.ADMIN_USER || 'pAladmin',
+    adminPass: process.env.ADMIN_PASS || 'pal123456',
 });
 
 module.exports = { test: pal.test, expect: pal.expect, createWorkbenchTest: createWorkbenchTest };

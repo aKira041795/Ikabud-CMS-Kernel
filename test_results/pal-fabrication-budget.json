@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-budget",
-    "started": "2026-07-13 06:23:25",
-    "finished": "2026-07-13 06:23:25",
-    "elapsed_ms": 683.1,
+    "started": "2026-07-13 06:26:52",
+    "finished": "2026-07-13 06:26:52",
+    "elapsed_ms": 346.8,
     "summary": {
         "passed": 40,
         "failed": 0,
@@ -36,21 +36,21 @@
             "label": "0 contract @ 50% = 0",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0% allocation = 0",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "100% allocation = full contract",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
@@ -113,14 +113,14 @@
             "label": "Second alloc: 20001 exceeds budget — rejected",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: 0 remaining",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
@@ -204,7 +204,7 @@
             "label": "3 x 3,333.33 = 9,999.99 (rounding loss)",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Cash advance: lifecycle math",

@@ -35,6 +35,7 @@ final class ApplicationShellViewModel
     private string $userDisplay = '';
     private string $pageTitle = '';
     private string $currentRoute = '';
+    private bool $inspectMode = false;
     /** @var array<int, array{label: string, collapsed_default: bool, items: array}> */
     private array $navSections = [];
     /** @var array<int, array{label: string, url: string}> */
@@ -92,6 +93,16 @@ final class ApplicationShellViewModel
     public function withPageTitle(string $title): self
     {
         $this->pageTitle = $title;
+        return $this;
+    }
+
+    /**
+     * Enable workbench inspect mode — annotates the DOM with data-wb-* attributes
+     * for test automation. Activated by ?wb_inspect=1 in the URL.
+     */
+    public function withInspectMode(bool $enabled = true): self
+    {
+        $this->inspectMode = $enabled;
         return $this;
     }
 
@@ -187,6 +198,7 @@ final class ApplicationShellViewModel
             'mobile_navigation'   => $this->mobileNav,
             'extra_styles'        => $this->extraStyles,
             'extra_scripts'       => $this->extraScripts,
+            'inspect_mode'        => $this->inspectMode,
         ];
     }
 

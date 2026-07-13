@@ -40,12 +40,12 @@ $h->fingerprint('modules/project-audit-ledger/services/ProjectService.php');
 $h->loadModule('modules/project-audit-ledger/helpers.php');
 $h->loadModule('modules/project-audit-ledger/handlers.php');
 
-$db = app()->db();
-$testTenantId = 999903;
+$db = app()->dbForTenant(502);
+$testTenantId = 502;
 
 // ── ModuleDB ───────────────────────────────────────────────────
 $ownsTables = [
-    'pal_projects', 'pal_clients', 'pal_users', 'pal_fabrication_allocations',
+    'pal_projects', 'pal_clients', 'pal_fabrication_allocations',
     'pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_cash_advances',
     'pal_approvals', 'pal_audit_logs', 'pal_expenses', 'pal_purchases',
     'pal_material_issuances', 'pal_collections', 'pal_mobilization_requests',
@@ -57,7 +57,7 @@ $palDb = new \Ikabud\Kernel\Contracts\ModuleDB($db, 'project-audit-ledger', $own
 $cleanup = [
     'pal_fabrication_payments', 'pal_fabrication_weekly_dues', 'pal_fabrication_allocations',
     'pal_cash_advances', 'pal_approvals', 'pal_audit_logs',
-    'pal_projects', 'pal_clients', 'pal_users',
+    'pal_projects', 'pal_clients',
 ];
 foreach ($cleanup as $t) {
     $db->exec("DELETE FROM {$t} WHERE tenant_id = {$testTenantId}");
@@ -69,7 +69,7 @@ $seedCounter = 0;
 function sUser(PDO $db, int $tid): int {
     global $seedCounter; $seedCounter++;
     $s = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?, 'admin', 1)");
-    $s->execute([$tid, "intuser{$seedCounter}", "u{$seedCounter}@test.com", 'hash', "User {$seedCounter}"]);
+    $s->execute([$tid, "intuser{$seedCounter}", "u{$seedCounter}@test.com", password_hash('seedtest123', PASSWORD_BCRYPT), "User {$seedCounter}"]);
     return (int)$db->lastInsertId();
 }
 

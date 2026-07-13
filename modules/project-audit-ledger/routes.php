@@ -9,6 +9,8 @@ return [
         '/project-audit-ledger/team-lead/verify' => 'project-audit-ledger:palPageTeamLeadOtpVerify',
         '/project-audit-ledger/forgot-password' => 'project-audit-ledger:palPageForgotPassword',
         '/project-audit-ledger/reset-password' => 'project-audit-ledger:palPageResetPassword',
+        '/api/v1/project-audit-ledger/auth/logout' => 'project-audit-ledger:palAuthLogout',
+        '/project-audit-ledger/logout' => 'project-audit-ledger:palAuthLogout',
         '/admin/project-audit-ledger' => 'project-audit-ledger:palPageDashboard',
         '/admin/project-audit-ledger/projects' => 'project-audit-ledger:palPageProjectList',
         '/admin/project-audit-ledger/projects/create' => 'project-audit-ledger:palPageProjectForm',

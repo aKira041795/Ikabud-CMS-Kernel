@@ -28,8 +28,8 @@ $h->fingerprint('modules/project-audit-ledger/services/JobOrderWorkflow.php');
 $h->loadModule('modules/project-audit-ledger/helpers.php');
 $h->loadModule('modules/project-audit-ledger/handlers.php');
 
-$db = app()->db();
-$testTenantId = 999902; // Unique tenant ID for this test suite
+$db = app()->dbForTenant(502);
+$testTenantId = 502; // Unique tenant ID for this test suite
 
 // ── ModuleDB ───────────────────────────────────────────────────
 $ownsTables = [
@@ -40,7 +40,7 @@ $readsTables = [];
 $palDb = new \Ikabud\Kernel\Contracts\ModuleDB($db, 'project-audit-ledger', $ownsTables, $readsTables);
 
 // ── Cleanup before run ─────────────────────────────────────────
-$cleanup = ['pal_sale_items', 'pal_collections', 'pal_sales', 'pal_projects', 'pal_clients', 'pal_users'];
+$cleanup = ['pal_sale_items', 'pal_collections', 'pal_sales', 'pal_projects', 'pal_clients'];
 foreach ($cleanup as $t) {
     $db->exec("DELETE FROM {$t} WHERE tenant_id = {$testTenantId}");
 }
@@ -48,7 +48,7 @@ foreach ($cleanup as $t) {
 // ── Helper: create test user ───────────────────────────────────
 function seedUser(PDO $db, int $tid): int {
     $s = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?, ?, ?, ?, ?, ?, 1)");
-    $s->execute([$tid, 'testadmin', 'admin@test.com', 'hash', 'Test Admin', 'admin']);
+    $s->execute([$tid, 'testadmin', 'admin@test.com', password_hash('seedtest123', PASSWORD_BCRYPT), 'Test Admin', 'admin']);
     return (int)$db->lastInsertId();
 }
 

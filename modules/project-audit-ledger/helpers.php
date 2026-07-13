@@ -793,7 +793,8 @@ function palBuildShellContext(array $ctx): array
         ->withLogoUrl(!empty($ctx['pal_logo_path']) ? '/' . $ctx['pal_logo_path'] : '')
         ->withUser($user)
         ->withPageTitle($ctx['page_title'] ?? '')
-        ->withCurrentRoute($pc);
+        ->withCurrentRoute($pc)
+        ->withInspectMode(!empty($_GET['wb_inspect']));
 
     // Overview
     $shell->addNavSection('Overview', [
