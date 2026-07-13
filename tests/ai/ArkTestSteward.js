@@ -21,6 +21,11 @@ var MODULE = argVal('--module') || 'project-audit-ledger';
 var RUN_SELECTOR = argVal('--run') || 'latest';
 var MODE = argVal('--mode') || 'triage';
 
+// Load AI config
+var CONFIG = readJson(path.resolve(__dirname, 'config.json')) || {};
+var AI_ENABLED = CONFIG.ai?.enabled && process.env.ARK_AI_API_KEY;
+var AI_API_KEY = process.env.ARK_AI_API_KEY || '';
+
 function argVal(flag) {
     var idx = process.argv.indexOf(flag);
     return idx >= 0 ? process.argv[idx + 1] : null;
@@ -420,15 +425,169 @@ function summarizeManifest(manifest) {
     return summary;
 }
 
+// ── AI Fallback (Stage B) ─────────────────────────────────────
+
+/**
+ * Build a redacted evidence bundle for AI analysis.
+ * Strips sensitive data, truncates long fields.
+ */
+function buildAiBundle(evidence, diagnosis) {
+    var redact = CONFIG.redaction || {};
+    var maxBytes = redact.max_evidence_bytes || 4096;
+
+    var bundle = {
+        preliminary_diagnosis: {
+            classification: diagnosis.classification,
+            confidence: diagnosis.confidence,
+            summary: diagnosis.summary,
+        },
+        failed_test: diagnosis.failed_test || {},
+        run_context: diagnosis.run_context || {},
+        module: MODULE,
+        workflow: evidence.contracts?.workflow || null,
+        capabilities: evidence.contracts?.capabilities || null,
+        issues: evidence.issueReport ? {
+            total: evidence.issueReport.total_issues,
+            by_kind: evidence.issueReport.by_kind,
+            by_severity: evidence.issueReport.by_severity,
+        } : null,
+        root_failures: (evidence.rootFailures || []).map(function (f) {
+            return {
+                test: f.test,
+                status: f.status,
+                detail: redactText(f.detail || '', redact),
+            };
+        }),
+        consequential_skips: (evidence.consequentialSkips || []).length,
+    };
+
+    // Truncate to max bytes
+    var json = JSON.stringify(bundle);
+    if (json.length > maxBytes) {
+        bundle.root_failures = bundle.root_failures.slice(0, 3);
+        for (var i = 0; i < bundle.root_failures.length; i++) {
+            bundle.root_failures[i].detail = bundle.root_failures[i].detail.substring(0, 150);
+        }
+        json = JSON.stringify(bundle);
+        if (json.length > maxBytes) {
+            bundle.root_failures = bundle.root_failures.slice(0, 1);
+            json = JSON.stringify(bundle);
+        }
+    }
+
+    return bundle;
+}
+
+function redactText(text, redact) {
+    var patterns = redact.strip_patterns || ['password', 'token', 'secret', 'cookie'];
+    var out = text.substring(0, redact.max_stack_chars || 200);
+    for (var i = 0; i < patterns.length; i++) {
+        var re = new RegExp(patterns[i] + '[=:]["\']?[^\\s,;"\'}]+', 'gi');
+        out = out.replace(re, patterns[i] + '=[REDACTED]');
+    }
+    return out;
+}
+
+/**
+ * Call AI provider for diagnosis when deterministic classifier is uncertain.
+ * Returns null if AI is disabled, fails, or returns invalid JSON.
+ */
+async function aiDiagnose(evidence, diagnosis) {
+    if (!AI_ENABLED) return null;
+
+    var cfg = CONFIG.ai;
+    var bundle = buildAiBundle(evidence, diagnosis);
+    var prompt = readTextFile(path.resolve(__dirname, 'prompts/triage.md')) || '';
+
+    console.log('  🤖 AI fallback: ' + cfg.provider + '/' + cfg.model);
+
+    try {
+        var fetch = (await import('node-fetch')).default || globalThis.fetch;
+        var response = await fetch(cfg.endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + AI_API_KEY,
+            },
+            body: JSON.stringify({
+                model: cfg.model,
+                messages: [
+                    { role: 'system', content: prompt },
+                    { role: 'user', content: JSON.stringify(bundle, null, 2) },
+                ],
+                max_tokens: cfg.max_tokens || 1000,
+                temperature: cfg.temperature || 0.1,
+            }),
+            signal: AbortSignal.timeout(cfg.timeout_ms || 30000),
+        });
+
+        if (!response.ok) {
+            console.warn('  ⚠ AI API returned ' + response.status);
+            return null;
+        }
+
+        var data = await response.json();
+        var content = data?.choices?.[0]?.message?.content || '';
+        // Extract JSON from markdown code block if present
+        var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, content];
+        var aiResult = JSON.parse(jsonMatch[1].trim());
+
+        // Validate against schema
+        var schema = readJson(path.resolve(__dirname, 'schemas/steward-result.schema.json'));
+        if (schema && !validateAgainstSchema(aiResult, schema)) {
+            console.warn('  ⚠ AI response failed schema validation, using deterministic result');
+            return null;
+        }
+
+        console.log('  ✅ AI: ' + aiResult.classification + ' (' + Math.round((aiResult.confidence || 0) * 100) + '%)');
+        return aiResult;
+    } catch (e) {
+        console.warn('  ⚠ AI fallback failed: ' + e.message);
+        return null;
+    }
+}
+
+function readTextFile(filePath) {
+    try { return fs.readFileSync(filePath, 'utf-8'); }
+    catch (e) { return null; }
+}
+
+function validateAgainstSchema(result, schema) {
+    if (!schema || !schema.required) return true;
+    for (var i = 0; i < schema.required.length; i++) {
+        if (!(schema.required[i] in result)) return false;
+    }
+    if (schema.properties?.classification?.enum) {
+        if (schema.properties.classification.enum.indexOf(result.classification) === -1) return false;
+    }
+    return true;
+}
+
 // ── Main ───────────────────────────────────────────────────────
 
-function main() {
-    console.log('🔍 ARK Test Steward 0.1 — Failure Analyst');
+async function main() {
+    console.log('🔍 ARK Test Steward 0.2 — Failure Analyst');
+    if (AI_ENABLED) console.log('   AI: ' + CONFIG.ai.provider + '/' + CONFIG.ai.model + ' (fallback enabled)');
     console.log('   Module: ' + MODULE);
     console.log('');
 
     var evidence = collectEvidence();
     var diagnosis = diagnose(evidence);
+
+    // AI fallback for low-confidence or undetermined classifications
+    if (AI_ENABLED && (diagnosis.classification === 'undetermined' || diagnosis.confidence < 0.75)) {
+        var aiResult = await aiDiagnose(evidence, diagnosis);
+        if (aiResult) {
+            // Merge: AI provides classification + evidence, deterministic provides run_context + contracts
+            diagnosis.classification = aiResult.classification || diagnosis.classification;
+            diagnosis.confidence = aiResult.confidence || diagnosis.confidence;
+            diagnosis.summary = aiResult.summary || diagnosis.summary;
+            if (aiResult.evidence) diagnosis.evidence = aiResult.evidence;
+            if (aiResult.suspected_files) diagnosis.suspected_files = aiResult.suspected_files;
+            if (aiResult.recommended_action) diagnosis.recommended_action = aiResult.recommended_action;
+            diagnosis.ai_assisted = true;
+        }
+    }
 
     // Output
     if (!fs.existsSync(AI_DIR)) fs.mkdirSync(AI_DIR, { recursive: true });

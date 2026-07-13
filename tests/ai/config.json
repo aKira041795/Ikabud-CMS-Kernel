@@ -1,0 +1,17 @@
+{
+  "_description": "ARK Test Steward — AI provider configuration. API key via ARK_AI_API_KEY env var.",
+  "ai": {
+    "enabled": false,
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "endpoint": "https://api.deepseek.com/v1/chat/completions",
+    "max_tokens": 1000,
+    "temperature": 0.1,
+    "timeout_ms": 30000
+  },
+  "redaction": {
+    "max_evidence_bytes": 4096,
+    "max_stack_chars": 200,
+    "strip_patterns": ["password", "token", "secret", "cookie", "authorization", "bearer"]
+  }
+}
