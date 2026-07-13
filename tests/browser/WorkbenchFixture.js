@@ -161,13 +161,15 @@ function createWorkbenchTest(config) {
     return { test: fixture, expect: base.expect };
 }
 
-// Default PAL adapter
+// Default PAL adapter — credentials MUST come from environment.
+// Never hardcode real passwords. Set in CI or .env.local:
+//   ADMIN_USER=xxx ADMIN_PASS=xxx
 var pal = createWorkbenchTest({
     appUrl: process.env.APP_URL || 'http://palsystem.test',
     loginPath: '/project-audit-ledger/login',
     landingPath: '/admin/project-audit-ledger',
-    adminUser: process.env.ADMIN_USER || 'pAladmin',
-    adminPass: process.env.ADMIN_PASS || 'pal123456',
+    adminUser: process.env.ADMIN_USER,
+    adminPass: process.env.ADMIN_PASS,
 });
 
 module.exports = { test: pal.test, expect: pal.expect, createWorkbenchTest: createWorkbenchTest };
