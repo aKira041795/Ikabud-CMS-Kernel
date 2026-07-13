@@ -1,0 +1,41 @@
+{
+    "component": "workbench:validation_summary",
+    "description": "Named scenarios for validation-summary component states",
+    "scenarios": {
+        "single-error": {
+            "description": "A single validation error",
+            "props": {
+                "errors": [{ "field_id": "amount", "message": "Amount is required" }]
+            },
+            "expected": {
+                "role": "alert",
+                "error_count": 1,
+                "error_links_have_href": true
+            }
+        },
+        "multiple-errors": {
+            "description": "Multiple validation errors across fields",
+            "props": {
+                "errors": [
+                    { "field_id": "title", "message": "Title is required" },
+                    { "field_id": "amount", "message": "Amount must be a positive number" },
+                    { "field_id": "date", "message": "Date is required" }
+                ]
+            },
+            "expected": {
+                "error_count": 3,
+                "heading_contains_count": true
+            }
+        },
+        "custom-heading": {
+            "description": "Error summary with custom heading text",
+            "props": {
+                "errors": [{ "field_id": "name", "message": "Name is required" }],
+                "heading": "Please correct the following:"
+            },
+            "expected": {
+                "heading": "Please correct the following:"
+            }
+        }
+    }
+}

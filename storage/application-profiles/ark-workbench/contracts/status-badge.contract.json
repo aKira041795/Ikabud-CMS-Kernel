@@ -1,0 +1,20 @@
+{
+    "component": "workbench:status_badge",
+    "contract": "1.0",
+    "description": "Semantic tone badge for status display",
+    "requirements": {
+        "visible_text_label": true,
+        "tone_never_communicated_by_color_alone": true,
+        "valid_tones": ["neutral", "informational", "warning", "success", "danger"]
+    },
+    "inputs": {
+        "label": { "type": "string", "required": true },
+        "tone": { "type": "enum", "values": ["neutral", "informational", "warning", "success", "danger"], "required": true },
+        "variant": { "type": "enum", "values": ["pill", "dot"], "default": "pill" },
+        "size": { "type": "enum", "values": ["sm", "md", "lg"], "default": "md" }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "status-badge" },
+        "data-wb-tone": { "source": "tone" }
+    }
+}

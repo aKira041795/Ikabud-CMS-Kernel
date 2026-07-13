@@ -1,0 +1,26 @@
+{
+    "component": "workbench:dialog",
+    "contract": "1.0",
+    "description": "Accessible modal dialog with focus trap",
+    "requirements": {
+        "role": "dialog",
+        "aria_modal": true,
+        "aria_labelledby": true,
+        "escape_closes": true,
+        "focus_trap": true,
+        "restores_focus": true,
+        "close_on_backdrop": true
+    },
+    "inputs": {
+        "id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "body": { "type": "html", "required": true },
+        "footer": { "type": "html", "required": true },
+        "variant": { "type": "enum", "values": ["default", "alert", "confirm"], "default": "default" },
+        "close_on_backdrop": { "type": "bool", "default": true }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "dialog" },
+        "data-wb-dialog-variant": { "source": "variant" }
+    }
+}

@@ -1,0 +1,21 @@
+{
+    "component": "workbench:page_header",
+    "contract": "1.0",
+    "description": "Standard page header with title, subtitle, breadcrumb, and actions",
+    "requirements": {
+        "has_exactly_one_h1": true,
+        "actions_have_data_wb_action": true,
+        "post_actions_have_data_wb_method": true,
+        "breadcrumb_has_nav_landmark": true
+    },
+    "inputs": {
+        "title": { "type": "string", "required": true },
+        "subtitle": { "type": "string" },
+        "breadcrumb": { "type": "array", "items": { "type": "object", "properties": { "label": "string", "url": "string" } } },
+        "back_url": { "type": "string" },
+        "actions": { "type": "array", "items": { "type": "object", "properties": { "key": "string", "label": "string", "url": "string", "method": "string", "variant": "string" } } }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "page-header" }
+    }
+}

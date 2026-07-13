@@ -1,0 +1,23 @@
+{
+    "component": "workbench:summary_card",
+    "contract": "1.0",
+    "description": "Metric card displaying a single KPI value",
+    "requirements": {
+        "displays_label": true,
+        "displays_value": true,
+        "has_data_wb_tone": true,
+        "clickable_when_href_present": true
+    },
+    "inputs": {
+        "label": { "type": "string", "required": true },
+        "value": { "type": "string", "required": true },
+        "icon_key": { "type": "string" },
+        "tone": { "type": "enum", "values": ["neutral", "informational", "warning", "success", "danger"], "default": "neutral" },
+        "trend": { "type": "enum", "values": ["up", "down", "neutral"] },
+        "href": { "type": "string" }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "summary-card" },
+        "data-wb-tone": { "source": "tone" }
+    }
+}

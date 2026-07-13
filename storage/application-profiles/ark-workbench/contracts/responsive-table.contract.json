@@ -1,0 +1,25 @@
+{
+    "component": "workbench:responsive_table",
+    "contract": "1.0",
+    "description": "Semantic HTML table with mobile card-stack mode",
+    "requirements": {
+        "table_has_scope_col": true,
+        "cells_have_data_label": true,
+        "mobile_breakpoint": "768px",
+        "clickable_rows_have_data_wb_href": true,
+        "entity_rows_have_data_wb_entity_id": true
+    },
+    "inputs": {
+        "columns": { "type": "array", "required": true, "items": { "type": "object", "properties": { "key": "string", "label": "string", "align": "string", "width": "string" } } },
+        "rows": { "type": "array", "required": true, "items": { "type": "object", "properties": { "id": "string", "cells": "object", "href": "string" } } },
+        "empty_message": { "type": "string", "default": "No items found" },
+        "row_actions": { "type": "array" },
+        "pagination": { "type": "html" },
+        "caption": { "type": "string" }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "responsive-table" },
+        "data-wb-entity": { "source": "entity_type" },
+        "data-wb-state": { "source": "state" }
+    }
+}

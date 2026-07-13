@@ -1,0 +1,21 @@
+{
+    "component": "workbench:validation_summary",
+    "contract": "1.0",
+    "description": "Accessible error summary with focus management",
+    "requirements": {
+        "role": "alert",
+        "aria_live": "assertive",
+        "tabindex": -1,
+        "receives_focus_on_error": true,
+        "error_links_point_to_fields": true,
+        "error_links_have_data_wb_error_for": true
+    },
+    "inputs": {
+        "errors": { "type": "array", "required": true, "items": { "type": "object", "properties": { "field_id": "string", "message": "string" } } },
+        "heading": { "type": "string" }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "validation-summary" },
+        "data-wb-error-count": { "source": "errors|count" }
+    }
+}

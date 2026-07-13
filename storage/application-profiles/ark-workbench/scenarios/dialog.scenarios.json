@@ -1,0 +1,51 @@
+{
+    "component": "workbench:dialog",
+    "description": "Named scenarios for dialog component states",
+    "scenarios": {
+        "default": {
+            "description": "Standard confirmation dialog",
+            "props": {
+                "id": "test-dialog",
+                "title": "Confirm action",
+                "body": "<p>Are you sure you want to proceed?</p>",
+                "footer": "<button type=\"submit\" class=\"px-4 py-2 text-sm text-white bg-blue-600 rounded-lg\">Yes</button>",
+                "variant": "default"
+            },
+            "expected": {
+                "role": "dialog",
+                "aria_modal": true,
+                "aria_labelledby": true,
+                "data_wb_dialog_variant": "default",
+                "has_close_button": true
+            }
+        },
+        "alert": {
+            "description": "Destructive action alert dialog",
+            "props": {
+                "id": "alert-dialog",
+                "title": "Delete record",
+                "body": "<p>This action cannot be undone. All associated data will be permanently removed.</p>",
+                "footer": "<button type=\"submit\" class=\"px-4 py-2 text-sm text-white bg-red-600 rounded-lg\">Delete</button>",
+                "variant": "alert"
+            },
+            "expected": {
+                "data_wb_dialog_variant": "alert",
+                "title_contains_warning": true
+            }
+        },
+        "no-backdrop-close": {
+            "description": "Dialog that cannot be closed by clicking backdrop",
+            "props": {
+                "id": "mandatory-dialog",
+                "title": "Required action",
+                "body": "<p>You must complete this action before continuing.</p>",
+                "footer": "<button type=\"submit\" class=\"px-4 py-2 text-sm text-white bg-blue-600 rounded-lg\">Continue</button>",
+                "variant": "default",
+                "close_on_backdrop": false
+            },
+            "expected": {
+                "data_wb_close_on_backdrop": false
+            }
+        }
+    }
+}

@@ -19,7 +19,15 @@ ARK Workbench test infrastructure.**
 7. [PAL Reference Implementation](#7-pal-reference-implementation)
 8. [Adding Tests to a New Module](#8-adding-tests-to-a-new-module)
 9. [Troubleshooting](#9-troubleshooting)
-10. [Appendix: Component Attribute Reference](#10-appendix-component-attribute-reference)
+10. [Component Contracts](#10-component-contracts)
+11. [Component Scenarios](#11-component-scenarios)
+12. [Component Harnesses (TypeScript)](#12-component-harnesses-typescript)
+13. [Playwright Test Fixture](#13-playwright-test-fixture)
+14. [Contract Validation (PHP)](#14-contract-validation-php)
+15. [Accessibility Testing](#15-accessibility-testing)
+16. [Page/Workflow/Relationship Specs](#16-pageworkflowrelationship-specs)
+17. [Directory Structure Reference](#17-directory-structure-reference)
+18. [Appendix: Component Attribute Reference](#18-appendix-component-attribute-reference)
 
 ---
 
@@ -605,4 +613,430 @@ Selectors:
 
 ```
 <div data-wb-component="activity-timeline" data-wb-variant="default">
+```
+
+---
+
+## 10. Component Contracts
+
+Each Workbench component has a **contract JSON file** at
+`storage/application-profiles/ark-workbench/contracts/` declaring its
+requirements, inputs, and attributes. Contracts serve as the source of
+truth for conformance testing.
+
+### Location
+
+```
+storage/application-profiles/ark-workbench/contracts/
+├── dialog.contract.json
+├── combobox.contract.json
+├── responsive-table.contract.json
+├── page-header.contract.json
+├── status-badge.contract.json
+├── summary-card.contract.json
+└── validation-summary.contract.json
+```
+
+### Contract Structure
+
+```json
+{
+    "component": "workbench:dialog",
+    "contract": "1.0",
+    "requirements": {
+        "role": "dialog",
+        "aria_modal": true,
+        "aria_labelledby": true,
+        "escape_closes": true,
+        "focus_trap": true
+    },
+    "inputs": {
+        "id": { "type": "string", "required": true },
+        "title": { "type": "string", "required": true },
+        "variant": { "type": "enum", "values": ["default", "alert", "confirm"] }
+    },
+    "attributes": {
+        "data-wb-component": { "value": "dialog" },
+        "data-wb-dialog-variant": { "source": "variant" }
+    }
+}
+```
+
+### Using Contracts
+
+Contracts are consumed by the `WorkbenchContractValidator` (PHP) to
+generate conformance assertions. They can also be read by tooling to
+generate test boilerplate.
+
+---
+
+## 11. Component Scenarios
+
+Component scenarios define reusable states that a component can be in.
+Each scenario provides concrete props and expected outcomes.
+
+### Location
+
+```
+storage/application-profiles/ark-workbench/scenarios/
+├── dialog.scenarios.json
+├── table.scenarios.json
+└── validation-summary.scenarios.json
+```
+
+### Scenario Structure
+
+```json
+{
+    "component": "workbench:validation_summary",
+    "scenarios": {
+        "single-error": {
+            "description": "A single validation error",
+            "props": {
+                "errors": [{ "field_id": "amount", "message": "Amount is required" }]
+            },
+            "expected": {
+                "role": "alert",
+                "error_count": 1
+            }
+        },
+        "multiple-errors": {
+            "description": "Multiple validation errors",
+            "props": {
+                "errors": [
+                    { "field_id": "title", "message": "Title is required" },
+                    { "field_id": "date", "message": "Date is required" }
+                ]
+            },
+            "expected": {
+                "error_count": 3
+            }
+        }
+    }
+}
+```
+
+### Available Scenarios
+
+| Component | Scenarios |
+|---|---|
+| `validation-summary` | `single-error`, `multiple-errors`, `custom-heading` |
+| `dialog` | `default`, `alert`, `no-backdrop-close` |
+| `responsive-table` | `populated`, `empty`, `with-actions` |
+
+Scenarios can be rendered through the **ARK Workbench Lab** for visual
+review, or validated via `WorkbenchContractValidator::validateScenario()`.
+
+---
+
+## 12. Component Harnesses (TypeScript)
+
+Component harnesses provide a **stable testing API** around each
+Workbench component. Tests interact with the harness rather than knowing
+the component's internal DOM structure.
+
+### Location
+
+```
+storage/application-profiles/ark-workbench/testing/harnesses/
+├── DialogHarness.ts
+├── TableHarness.ts
+└── ShellHarness.ts
+```
+
+### DialogHarness
+
+```typescript
+const dialog = new DialogHarness(page);
+
+await dialog.expectVisible();
+await dialog.expectTitle('Confirm action');
+await dialog.expectVariant('alert');
+await dialog.expectModal();
+await dialog.confirm();
+await dialog.cancel();
+await dialog.expectClosed();
+await dialog.expectFocusTrapped();
+```
+
+### TableHarness
+
+```typescript
+const table = new TableHarness(page);
+
+await table.expectMinColumns(4);
+await table.expectRowCount(10);
+await table.expectMinRows(1);
+await table.expectEmpty();
+await table.expectEntityPresent('JO-123');
+await table.expectEntityMetadata('pal.job-order', 'populated');
+await table.expectCellValue('JO-123', 'Status', 'Active');
+
+const row = table.rowByEntityId('JO-123');
+await row.click();
+```
+
+### ShellHarness
+
+```typescript
+const shell = new ShellHarness(page);
+
+await shell.expectVisible();
+await shell.expectUserDisplayed();
+await shell.expectAppName('Project Audit Ledger');
+await shell.expectActiveNav('Dashboard');
+await shell.expectPageTitle('Dashboard');
+await shell.expectPageFamily('default');
+
+await shell.navigateViaSidebar('All Job Orders');
+await shell.expectActiveNav('All Job Orders');
+
+const sectionCount = await shell.sectionCount();
+await shell.toggleSection('Overview');
+await shell.expectSectionCollapsed('Overview');
+```
+
+### Writing a New Harness
+
+1. Create `*Harness.ts` in `testing/harnesses/`
+2. Constructor receives `Page` object
+3. Expose behavioral methods (`open()`, `close()`, `select()`, etc.)
+4. Expose assertion methods (`expectVisible()`, `expectTitle()`, etc.)
+5. Never expose internal CSS class names or DOM structure
+
+---
+
+## 13. Playwright Test Fixture
+
+`tests/browser/WorkbenchFixture.js` provides a reusable Playwright
+fixture that handles authentication, tenant setup, and harness
+injection.
+
+### Usage
+
+```javascript
+// tests/browser/modules/pal/pages/dashboard.spec.js
+const { test, expect } = require('../../WorkbenchFixture');
+
+test('dashboard loads', async ({ page, shell, table }) => {
+    await shell.expectVisible();
+    await shell.expectPageTitle('Dashboard');
+    await table.expectMinColumns(3);
+});
+```
+
+### What the Fixture Provides
+
+| Context | Type | Description |
+|---|---|---|
+| `page` | `Page` | Pre-authenticated Playwright page (PAL admin) |
+| `shell` | `ShellHarness` | App-shell component harness |
+| `dialog` | `DialogHarness` | Dialog component harness |
+| `table` | `TableHarness` | Responsive table component harness |
+| `loginAs` | `Function` | `await loginAs(username, password)` |
+| `appUrl` | `string` | Base URL (from `APP_URL` env) |
+
+### Custom Login
+
+```javascript
+test('encoder sees limited actions', async ({ loginAs, page }) => {
+    await loginAs('encoder', 'password123');
+    await page.goto(`${process.env.APP_URL}/admin/project-audit-ledger`);
+    // Assert limited actions visible
+});
+```
+
+---
+
+## 14. Contract Validation (PHP)
+
+`WorkbenchContractValidator` reads component contracts and validates
+rendered HTML against them.
+
+### Location
+
+```
+kernel/Testing/WorkbenchContractValidator.php
+```
+
+### Usage
+
+```php
+use Ikabud\Kernel\Testing\WorkbenchContractValidator;
+
+$validator = new WorkbenchContractValidator();
+
+// Validate rendered HTML against contract
+$html = '<div role="dialog" aria-modal="true" ...>';
+$violations = $validator->validate('dialog', $html, [
+    'variant' => 'alert',
+]);
+
+assertEmpty($violations);
+```
+
+### Validate a Specific Scenario
+
+```php
+$violations = $validator->validateScenario(
+    'validation_summary',
+    'multiple-errors',
+    $html,
+    $props
+);
+```
+
+### How It Works
+
+1. Loads the component contract from `contracts/<component>.contract.json`
+2. Checks each `requirements` key by calling a matching `check*()` method
+3. Validates `data-wb-component` attribute presence
+4. Validates attribute values match props
+5. For scenarios: validates `expected` values from the scenario JSON
+
+### Adding a New Requirement Check
+
+```php
+private function checkAriaExpanded(string $html, bool $expected): ?string
+{
+    if ($expected && !str_contains($html, 'aria-expanded=')) {
+        return 'Missing aria-expanded attribute';
+    }
+    return null;
+}
+```
+
+---
+
+## 15. Accessibility Testing
+
+`tests/browser/workbench/accessibility.spec.js` provides WCAG 2.1 AA
+conformance tests using Playwright + axe-core.
+
+### Prerequisites
+
+```bash
+npm install @axe-core/playwright
+```
+
+### Run
+
+```bash
+npx playwright test tests/browser/workbench/accessibility.spec.js
+```
+
+### What It Tests
+
+| Category | Assertions |
+|---|---|
+| **Critical violations** | axe-core scan — zero critical violations |
+| **Heading hierarchy** | Correct h1/h2/h3 structure |
+| **Skip link** | Skip-to-content link present and functional |
+| **Navigation landmarks** | Sidebar has `aria-label="Main navigation"` |
+| **Section triggers** | All have `aria-expanded` |
+| **Images** | All have `alt` text |
+| **Status badges** | Visible text label (tone never color-only) |
+| **Form fields** | Associated `<label>` elements |
+| **Table headers** | `scope="col"` on all `<th>` |
+| **Focus management** | Menu button is focusable |
+
+---
+
+## 16. Page/Workflow/Relationship Specs
+
+Organized test spec hierarchy following the blueprint:
+
+```
+tests/browser/modules/pal/
+├── pages/
+│   ├── dashboard.spec.js      ← Single page: stat cards, financial health
+│   └── project-list.spec.js   ← Single page: table, detail, form
+├── workflows/
+│   └── project-lifecycle.spec.js  ← Cross-page: list→detail→edit
+└── relationships/
+    └── context-preservation.spec.js  ← Cross-context: IDs, amounts, nav
+```
+
+### Page Spec Pattern
+
+Page specs verify a single page renders correctly:
+
+```javascript
+test('project list renders', async ({ shell, table }) => {
+    await shell.expectPageTitle('Job Orders');
+    await table.expectMinColumns(4);
+});
+```
+
+### Workflow Spec Pattern
+
+Workflow specs verify navigation between pages:
+
+```javascript
+test('dashboard → project list preserves sidebar', async ({ shell }) => {
+    await shell.expectActiveNav('Dashboard');
+    await shell.navigateViaSidebar('All Job Orders');
+    await shell.expectActiveNav('All Job Orders');
+});
+```
+
+### Relationship Spec Pattern
+
+Relationship specs verify context preservation across pages:
+
+```javascript
+test('entity ID preserved from list to detail', async ({ page }) => {
+    await page.goto('/projects');
+    const id = await getFirstEntityId(page);
+    await openDetail(page);
+    expect(page.url()).toContain(id);
+});
+```
+
+---
+
+## 17. Directory Structure Reference
+
+```
+storage/application-profiles/ark-workbench/
+├── contracts/
+│   ├── dialog.contract.json
+│   ├── combobox.contract.json
+│   ├── responsive-table.contract.json
+│   ├── page-header.contract.json
+│   ├── status-badge.contract.json
+│   ├── summary-card.contract.json
+│   └── validation-summary.contract.json
+├── scenarios/
+│   ├── dialog.scenarios.json
+│   ├── table.scenarios.json
+│   └── validation-summary.scenarios.json
+└── testing/
+    └── harnesses/
+        ├── DialogHarness.ts
+        ├── TableHarness.ts
+        └── ShellHarness.ts
+
+tests/browser/
+├── WorkbenchFixture.js              ← Reusable Playwright fixture
+├── entity-list-sort-pagination.spec.js
+├── workbench/
+│   ├── app-shell.spec.js            ← Shell conformance (17 tests)
+│   ├── responsive-table.spec.js     ← Table conformance (6 tests)
+│   ├── component-conformance.spec.js ← All component attrs (20 tests)
+│   └── accessibility.spec.js        ← WCAG 2.1 AA audit
+└── modules/
+    └── pal/
+        ├── pal-workflow.spec.js     ← Legacy e2e spec
+        ├── pages/
+        │   ├── dashboard.spec.js    ← Dashboard page (5 tests)
+        │   └── project-list.spec.js ← Project pages (6 tests)
+        ├── workflows/
+        │   └── project-lifecycle.spec.js  ← Cross-page (6 tests)
+        └── relationships/
+            └── context-preservation.spec.js  ← Context (8 tests)
+
+kernel/Testing/
+├── WorkbenchTestHarness.php         ← PHP integration test utility
+└── WorkbenchContractValidator.php   ← Contract-based HTML validator
 ```
