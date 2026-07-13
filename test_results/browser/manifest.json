@@ -2,14 +2,14 @@
   "suites": {
     "modules-pal-workflows-pal-lifecycle-interactive--chromium": {
       "passed": 0,
-      "failed": 0,
+      "failed": 1,
       "skipped": 0,
       "total": 1,
       "gaps": 0,
       "fingerprints": 0,
-      "finished": "2026-07-13T09:17:16.043Z"
+      "finished": "2026-07-13T09:18:26.174Z"
     }
   },
-  "updated": "2026-07-13T09:17:16.043Z",
+  "updated": "2026-07-13T09:18:26.174Z",
   "fingerprint_mode": "check"
 }

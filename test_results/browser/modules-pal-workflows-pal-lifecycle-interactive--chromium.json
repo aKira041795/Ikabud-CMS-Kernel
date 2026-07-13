@@ -1,12 +1,12 @@
 {
   "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-  "started": "2026-07-13T09:17:15.950Z",
-  "finished": "2026-07-13T09:17:16.043Z",
+  "started": "2026-07-13T09:18:26.112Z",
+  "finished": "2026-07-13T09:18:26.174Z",
   "summary": {
     "passed": 0,
-    "failed": 0,
+    "failed": 1,
     "skipped": 0,
-    "timedOut": 1,
+    "timedOut": 0,
     "interrupted": 0,
     "total": 1
   },
@@ -14,9 +14,9 @@
   "results": [
     {
       "test": "JO operational setup: draft → ongoing",
-      "status": "timedOut",
-      "duration": 120304,
-      "detail": "\u001b[31mTest timeout of 120000ms exceeded.\u001b[39m"
+      "status": "failed",
+      "duration": 10057,
+      "detail": "Error: Project ID must be extracted after save\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoBeNull\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m"
     }
   ],
   "gaps": [],

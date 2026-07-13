@@ -106,22 +106,29 @@ test.describe('pal:jo-operational-setup', function () {
             await saveBtn.click();
             await page.waitForTimeout(2000);
 
-            // Extract project ID from URL or project list
-            var url = page.url();
-            var match = url.match(/\/projects\/(\d+)/);
-            if (match) {
-                projectId = parseInt(match[1]);
-            } else {
-                await goTo(page, base + '/projects');
-                var row = page.locator('[data-ikb-list="pal_project"]').locator('tr, [data-ikb-row]').filter({ hasText: PROJECT_TITLE }).first();
-                if (await row.isVisible({ timeout: 5000 }).catch(() => false)) {
-                    var text = await row.textContent();
-                    var idMatch = text.match(/PJ-[^]+\s+#?(\d+)/) || text.match(/#(\d+)/);
-                    if (idMatch) projectId = parseInt(idMatch[1]);
-                }
+            // Extract project ID — the form may not redirect to detail.
+            // Navigate to project list and find our project by unique title.
+            await goTo(page, base + '/projects');
+            await page.waitForTimeout(500);
+
+            var row = page.locator('tr, [data-ikb-row], .list-row, [class*="row"]').filter({ hasText: PROJECT_TITLE }).first();
+            var found = await row.isVisible({ timeout: 8000 }).catch(() => false);
+            if (found) {
+                var text = await row.textContent();
+                // Try various ID patterns: #123, PJ-xxx-123, id=123
+                var idMatch = text.match(/#(\d+)/) || text.match(/PJ-[^\s]*[-](\d+)/) || text.match(/id[=:]\s*(\d+)/i);
+                if (idMatch) projectId = parseInt(idMatch[1]);
+            }
+            // If still not found, try clicking into the first matching row
+            if (!projectId && found) {
+                await row.locator('a').first().click();
+                await page.waitForTimeout(1000);
+                var detailUrl = page.url();
+                var urlMatch = detailUrl.match(/\/projects\/(\d+)/);
+                if (urlMatch) projectId = parseInt(urlMatch[1]);
             }
             // Required entity — fail if not found
-            expect(projectId, 'Project ID must be extracted after save').not.toBeNull();
+            expect(projectId, 'Project ID must be extractable after JO save').not.toBeNull();
             console.log('  ✅ JO #' + projectId + ': ' + PROJECT_TITLE);
             integrity.perf('JO create', Date.now() - startTime);
         });
