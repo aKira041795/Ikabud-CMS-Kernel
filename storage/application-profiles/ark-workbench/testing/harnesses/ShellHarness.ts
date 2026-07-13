@@ -15,10 +15,13 @@
 
 // @ts-check
 
-class ShellHarness {
-    /**
-     * @param {import('@playwright/test').Page} page
-     */
+/**
+ * @typedef {import('@playwright/test').Page} Page
+ * @typedef {import('@playwright/test').Locator} Locator
+ */
+
+export class ShellHarness {
+    /** @param {Page} page */
     constructor(page) {
         this.page = page;
     }
@@ -114,5 +117,3 @@ class ShellHarness {
         await expect(this.page.locator('#wb-toast-container')).toBeVisible();
     }
 }
-
-module.exports = { ShellHarness };

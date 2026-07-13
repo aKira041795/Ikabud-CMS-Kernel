@@ -6,14 +6,47 @@
             "description": "Table with multiple rows of data",
             "props": {
                 "columns": [
-                    { "key": "id", "label": "ID" },
-                    { "key": "name", "label": "Name" },
-                    { "key": "status", "label": "Status" }
+                    {
+                        "key": "id",
+                        "label": "ID"
+                    },
+                    {
+                        "key": "name",
+                        "label": "Name"
+                    },
+                    {
+                        "key": "status",
+                        "label": "Status"
+                    }
                 ],
                 "rows": [
-                    { "id": "1", "cells": { "id": "001", "name": "Item A", "status": "Active" }, "href": "/items/1" },
-                    { "id": "2", "cells": { "id": "002", "name": "Item B", "status": "Pending" }, "href": "/items/2" },
-                    { "id": "3", "cells": { "id": "003", "name": "Item C", "status": "Inactive" }, "href": "/items/3" }
+                    {
+                        "id": "1",
+                        "cells": {
+                            "id": "001",
+                            "name": "Item A",
+                            "status": "Active"
+                        },
+                        "href": "/items/1"
+                    },
+                    {
+                        "id": "2",
+                        "cells": {
+                            "id": "002",
+                            "name": "Item B",
+                            "status": "Pending"
+                        },
+                        "href": "/items/2"
+                    },
+                    {
+                        "id": "3",
+                        "cells": {
+                            "id": "003",
+                            "name": "Item C",
+                            "status": "Inactive"
+                        },
+                        "href": "/items/3"
+                    }
                 ],
                 "entity_type": "test.item",
                 "state": "populated"
@@ -29,7 +62,16 @@
         "empty": {
             "description": "Table with no data rows",
             "props": {
-                "columns": [{ "key": "id", "label": "ID" }, { "key": "name", "label": "Name" }],
+                "columns": [
+                    {
+                        "key": "id",
+                        "label": "ID"
+                    },
+                    {
+                        "key": "name",
+                        "label": "Name"
+                    }
+                ],
                 "rows": [],
                 "entity_type": "test.item",
                 "state": "empty",
@@ -44,11 +86,37 @@
         "with-actions": {
             "description": "Table with row action buttons",
             "props": {
-                "columns": [{ "key": "id", "label": "ID" }, { "key": "name", "label": "Name" }],
-                "rows": [{ "id": "1", "cells": { "id": "001", "name": "Item A" }, "href": "/items/1" }],
+                "columns": [
+                    {
+                        "key": "id",
+                        "label": "ID"
+                    },
+                    {
+                        "key": "name",
+                        "label": "Name"
+                    }
+                ],
+                "rows": [
+                    {
+                        "id": "1",
+                        "cells": {
+                            "id": "001",
+                            "name": "Item A"
+                        },
+                        "href": "/items/1"
+                    }
+                ],
                 "row_actions": [
-                    { "label": "View", "url": "/items/1", "variant": "ghost" },
-                    { "label": "Edit", "url": "/items/1/edit", "variant": "ghost" }
+                    {
+                        "label": "View",
+                        "url": "/items/1",
+                        "variant": "ghost"
+                    },
+                    {
+                        "label": "Edit",
+                        "url": "/items/1/edit",
+                        "variant": "ghost"
+                    }
                 ],
                 "entity_type": "test.item",
                 "state": "populated"

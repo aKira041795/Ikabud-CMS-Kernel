@@ -6,18 +6,54 @@
         "role": "combobox",
         "aria_expanded": true,
         "aria_owns": true,
-        "keyboard_navigation": ["ArrowDown", "ArrowUp", "Enter", "Escape"],
+        "keyboard_navigation": [
+            "ArrowDown",
+            "ArrowUp",
+            "Enter",
+            "Escape"
+        ],
         "focus_traps_within_listbox": false
     },
     "inputs": {
-        "name": { "type": "string", "required": true },
-        "options": { "type": "array", "required": true, "items": { "type": "object", "properties": { "value": "string", "label": "string" } } },
-        "selected_value": { "type": "string" },
-        "placeholder": { "type": "string" },
-        "multiple": { "type": "bool", "default": false },
-        "required": { "type": "bool", "default": false },
-        "disabled": { "type": "bool", "default": false },
-        "empty_message": { "type": "string", "default": "No results found" }
+        "name": {
+            "type": "string",
+            "required": true
+        },
+        "options": {
+            "type": "array",
+            "required": true,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "value": "string",
+                    "label": "string"
+                }
+            }
+        },
+        "selected_value": {
+            "type": "string"
+        },
+        "placeholder": {
+            "type": "string"
+        },
+        "multiple": {
+            "type": "bool",
+            "default": false
+        },
+        "required": {
+            "type": "bool",
+            "default": false
+        },
+        "disabled": {
+            "type": "bool",
+            "default": false
+        },
+        "empty_message": {
+            "type": "string",
+            "default": "No results found"
+        }
     },
-    "assets": ["workbench-combobox.js"]
+    "assets": [
+        "workbench-combobox.js"
+    ]
 }

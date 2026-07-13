@@ -5,7 +5,12 @@
         "single-error": {
             "description": "A single validation error",
             "props": {
-                "errors": [{ "field_id": "amount", "message": "Amount is required" }]
+                "errors": [
+                    {
+                        "field_id": "amount",
+                        "message": "Amount is required"
+                    }
+                ]
             },
             "expected": {
                 "role": "alert",
@@ -17,9 +22,18 @@
             "description": "Multiple validation errors across fields",
             "props": {
                 "errors": [
-                    { "field_id": "title", "message": "Title is required" },
-                    { "field_id": "amount", "message": "Amount must be a positive number" },
-                    { "field_id": "date", "message": "Date is required" }
+                    {
+                        "field_id": "title",
+                        "message": "Title is required"
+                    },
+                    {
+                        "field_id": "amount",
+                        "message": "Amount must be a positive number"
+                    },
+                    {
+                        "field_id": "date",
+                        "message": "Date is required"
+                    }
                 ]
             },
             "expected": {
@@ -30,7 +44,12 @@
         "custom-heading": {
             "description": "Error summary with custom heading text",
             "props": {
-                "errors": [{ "field_id": "name", "message": "Name is required" }],
+                "errors": [
+                    {
+                        "field_id": "name",
+                        "message": "Name is required"
+                    }
+                ],
                 "heading": "Please correct the following:"
             },
             "expected": {

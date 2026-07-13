@@ -10,16 +10,54 @@
         "entity_rows_have_data_wb_entity_id": true
     },
     "inputs": {
-        "columns": { "type": "array", "required": true, "items": { "type": "object", "properties": { "key": "string", "label": "string", "align": "string", "width": "string" } } },
-        "rows": { "type": "array", "required": true, "items": { "type": "object", "properties": { "id": "string", "cells": "object", "href": "string" } } },
-        "empty_message": { "type": "string", "default": "No items found" },
-        "row_actions": { "type": "array" },
-        "pagination": { "type": "html" },
-        "caption": { "type": "string" }
+        "columns": {
+            "type": "array",
+            "required": true,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "key": "string",
+                    "label": "string",
+                    "align": "string",
+                    "width": "string"
+                }
+            }
+        },
+        "rows": {
+            "type": "array",
+            "required": true,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": "string",
+                    "cells": "object",
+                    "href": "string"
+                }
+            }
+        },
+        "empty_message": {
+            "type": "string",
+            "default": "No items found"
+        },
+        "row_actions": {
+            "type": "array"
+        },
+        "pagination": {
+            "type": "html"
+        },
+        "caption": {
+            "type": "string"
+        }
     },
     "attributes": {
-        "data-wb-component": { "value": "responsive-table" },
-        "data-wb-entity": { "source": "entity_type" },
-        "data-wb-state": { "source": "state" }
+        "data-wb-component": {
+            "value": "responsive-table"
+        },
+        "data-wb-entity": {
+            "source": "entity_type"
+        },
+        "data-wb-state": {
+            "source": "state"
+        }
     }
 }

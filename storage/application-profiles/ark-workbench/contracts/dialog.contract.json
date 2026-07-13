@@ -12,15 +12,42 @@
         "close_on_backdrop": true
     },
     "inputs": {
-        "id": { "type": "string", "required": true },
-        "title": { "type": "string", "required": true },
-        "body": { "type": "html", "required": true },
-        "footer": { "type": "html", "required": true },
-        "variant": { "type": "enum", "values": ["default", "alert", "confirm"], "default": "default" },
-        "close_on_backdrop": { "type": "bool", "default": true }
+        "id": {
+            "type": "string",
+            "required": true
+        },
+        "title": {
+            "type": "string",
+            "required": true
+        },
+        "body": {
+            "type": "html",
+            "required": true
+        },
+        "footer": {
+            "type": "html",
+            "required": true
+        },
+        "variant": {
+            "type": "enum",
+            "values": [
+                "default",
+                "alert",
+                "confirm"
+            ],
+            "default": "default"
+        },
+        "close_on_backdrop": {
+            "type": "bool",
+            "default": true
+        }
     },
     "attributes": {
-        "data-wb-component": { "value": "dialog" },
-        "data-wb-dialog-variant": { "source": "variant" }
+        "data-wb-component": {
+            "value": "dialog"
+        },
+        "data-wb-dialog-variant": {
+            "source": "variant"
+        }
     }
 }
