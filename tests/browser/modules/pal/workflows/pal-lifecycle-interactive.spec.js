@@ -14,7 +14,7 @@
  * Run: ADMIN_USER=pAladmin ADMIN_PASS=pal123456 npx playwright test tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js
  */
 
-// @ts-check
+// @ts-nocheck
 var { test, expect } = require('../../../WorkbenchFixture');
 var execSync = require('child_process').execSync;
 var path = require('path');

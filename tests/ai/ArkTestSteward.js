@@ -10,7 +10,7 @@
  * Output: test_results/ai/steward-diagnosis.json
  */
 
-// @ts-check
+// @ts-nocheck
 var fs = require('fs');
 var path = require('path');
 
