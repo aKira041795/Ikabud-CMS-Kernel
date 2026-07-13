@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-budget",
-    "started": "2026-07-13 05:55:52",
-    "finished": "2026-07-13 05:55:52",
-    "elapsed_ms": 38.7,
+    "started": "2026-07-13 06:00:36",
+    "finished": "2026-07-13 06:00:36",
+    "elapsed_ms": 552.4,
     "summary": {
         "passed": 40,
         "failed": 0,
@@ -120,7 +120,7 @@
             "label": "Fully depleted: 0 remaining",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
