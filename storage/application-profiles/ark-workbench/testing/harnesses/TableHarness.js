@@ -21,7 +21,7 @@
  * @typedef {import('@playwright/test').Locator} Locator
  */
 
-export class TableHarness {
+class TableHarness {
     /** @param {Page} page */
     constructor(page) {
         this.page = page;
@@ -115,3 +115,5 @@ export class TableHarness {
         await expect(cell).toContainText(expected);
     }
 }
+
+module.exports = { TableHarness };
