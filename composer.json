@@ -10,7 +10,8 @@
         "analyse": "phpstan analyse --memory-limit=512M",
         "lint": "php-cs-fixer fix --dry-run --diff",
         "lint:fix": "php-cs-fixer fix",
-        "coverage": "bash scripts/collect-coverage.sh"
+        "coverage": "bash scripts/collect-coverage.sh",
+        "build:tailwind": "php scripts/build-tailwind.php"
     },
     "require": {
         "php": "^8.2",

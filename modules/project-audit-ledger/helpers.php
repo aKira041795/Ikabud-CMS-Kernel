@@ -849,7 +849,6 @@ function palBuildShellContext(array $ctx): array
     $shell->addMobileNav('Approvals', '/admin/project-audit-ledger/approvals', '✅');
 
     $shell->addExtraStyle('/assets/pal/pal-ui.css');
-    $shell->addExtraScript('https://cdn.tailwindcss.com');
     $shell->addExtraScript('https://unpkg.com/htmx.org@1.9.12');
     $shell->addExtraScript('https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js');
     $shell->addExtraScript('/assets/pal/pal-routes.js');

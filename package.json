@@ -1,0 +1,10 @@
+{
+    "private": true,
+    "scripts": {
+        "build:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --minify",
+        "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch"
+    },
+    "devDependencies": {
+        "tailwindcss": "^3.4.0"
+    }
+}
