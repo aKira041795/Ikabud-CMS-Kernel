@@ -5,10 +5,9 @@
         "provider": "deepseek",
         "model": "deepseek-v4-pro",
         "endpoint": "https://api.deepseek.com/chat/completions",
-        "max_tokens": 1000,
-        "temperature": 0.1,
-        "timeout_ms": 30000,
-        "reasoning_effort": "medium"
+        "max_tokens": 2000,
+        "temperature": 0.0,
+        "timeout_ms": 60000
     },
     "redaction": {
         "max_evidence_bytes": 4096,

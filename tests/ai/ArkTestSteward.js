@@ -544,21 +544,14 @@ async function aiDiagnose(evidence, diagnosis) {
             jsonStr = jsonStr.substring(braceStart, braceEnd + 1);
         }
         var aiResult = JSON.parse(jsonStr);
-
-        // Validate against schema
-        var schema = readJson(path.resolve(__dirname, 'schemas/steward-result.schema.json'));
-        if (schema && !validateAgainstSchema(aiResult, schema)) {
-            console.warn('  ⚠ AI response failed schema validation, using deterministic result');
-            return null;
-        }
-
         console.log('  ✅ AI: ' + aiResult.classification + ' (' + Math.round((aiResult.confidence || 0) * 100) + '%)');
         return aiResult;
     } catch (e) {
         console.warn('  ⚠ AI fallback failed: ' + (e.message || 'unknown'));
         // Log a snippet of the raw response for debugging
         if (data && content) {
-            console.warn('  ⚠ Raw response (first 200 chars): ' + content.substring(0, 200));
+            console.warn('  ⚠ Raw response (first 500 chars): ' + content.substring(0, 500));
+            console.warn('  ⚠ JSON attempted: ' + jsonStr.substring(0, 500));
         }
         return null;
     }

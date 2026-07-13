@@ -1,13 +1,17 @@
 {
   "classification": "locator-stale",
   "confidence": 0.7,
-  "summary": "Expected element to be visible but it was not found. Selector may be stale.",
+  "summary": "Approval row locator is stale: the test expects an element with data-wb-entity-type='project' and project title, but the approval list likely uses a different entity type or structure.",
   "evidence": [
-    "toBeVisible assertion failed",
-    "Button/link locator may have changed — check with ?wb_inspect=1"
+    "Test expects approval row with selector [data-wb-entity-type='project'] and text 'E2E-1783954604127-Project'",
+    "Element not visible within 8000ms timeout, suggesting DOM structure no longer matches this selector for approval rows",
+    "Approval entity rows in the workbench typically use data-wb-entity-type='approval', not 'project'"
   ],
-  "suspected_files": [],
-  "recommended_action": "Run the page with ?wb_inspect=1 and update data-wb-action selectors.",
+  "suspected_files": [
+    "/var/www/html/applicationostest/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
+    "modules/project-audit-ledger/views/approval_list.php"
+  ],
+  "recommended_action": "Update test selector to use correct data-wb-entity-type for approval rows (likely 'approval' instead of 'project') and adjust text filter to match the rendered approval label.",
   "safe_to_auto_heal": false,
   "module": "project-audit-ledger",
   "run_context": {
@@ -22,5 +26,6 @@
     "file": "/var/www/html/applicationostest/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
     "test": "JO operational setup: draft → ongoing",
     "error": "Error: Approval row for E2E-1783954604127-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783954604127-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: elem"
-  }
+  },
+  "ai_assisted": true
 }
