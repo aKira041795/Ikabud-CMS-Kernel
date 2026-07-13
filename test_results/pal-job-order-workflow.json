@@ -1,8 +1,8 @@
 {
     "suite": "pal-job-order-workflow",
-    "started": "2026-07-13 05:36:34",
-    "finished": "2026-07-13 05:36:34",
-    "elapsed_ms": 772.7,
+    "started": "2026-07-13 05:41:17",
+    "finished": "2026-07-13 05:41:17",
+    "elapsed_ms": 874.5,
     "summary": {
         "passed": 133,
         "failed": 0,
@@ -41,21 +41,21 @@
             "label": "draft → started = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "draft → ongoing = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "draft → completed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
@@ -237,35 +237,35 @@
             "label": "started → closed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.3
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "ongoing → draft = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.3
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "ongoing → pending = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.3
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "ongoing → approved = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.3
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "ongoing → started = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.3
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
@@ -314,56 +314,56 @@
             "label": "completed → approved = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "completed → started = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "completed → ongoing = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "completed → completed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "completed → cancelled = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "completed → closed = ALLOWED",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "cancelled → draft = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "cancelled → pending = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
@@ -398,84 +398,84 @@
             "label": "cancelled → cancelled = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "cancelled → closed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → draft = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → pending = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → approved = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → started = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → ongoing = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → completed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → cancelled = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "closed → closed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "draft → (empty) = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "(empty) → draft = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Label mapping — every status",
@@ -594,21 +594,21 @@
             "label": "closed (final)",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Final status detection — every status",
             "label": "bogus (unknown) is not final",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Final status detection — every status",
             "label": "123 (numeric) is not final",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
@@ -664,14 +664,14 @@
             "label": "pending allowed: cancelled",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "pending → approved is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
@@ -818,28 +818,28 @@
             "label": "ongoing → completed is valid",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         },
         {
             "section": "allowedTransitions — every status",
             "label": "ongoing → cancelled is valid",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         },
         {
             "section": "allowedTransitions — every status",
             "label": "completed → 1 next states",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         },
         {
             "section": "allowedTransitions — every status",
             "label": "completed allowed: closed",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         },
         {
             "section": "allowedTransitions — every status",
@@ -916,7 +916,7 @@
             "label": "completed is in allStatuses",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allStatuses — complete enumeration",

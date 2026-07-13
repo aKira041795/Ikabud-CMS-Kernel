@@ -263,7 +263,7 @@ foreach (\$statuses as \$from) {
         // Replace this logic with actual isAllowed() call to the service
         \$expected = in_array(\$to, \$allowed[\$from] ?? [], true);
         \$label = "{\$from} → {\$to} = " . (\$expected ? 'ALLOWED' : 'FORBIDDEN');
-        \$h->test(\$label, true); // Placeholder — replace with actual assertion
+        \$h->skip(\$label, 'Generated scaffold: implement actual transition assertion');
         \$asserted++;
     }
 }
@@ -271,7 +271,7 @@ foreach (\$statuses as \$from) {
 \$h->section('Label mapping');
 foreach (\$statuses as \$s) {
     \$label = ucfirst(str_replace('_', ' ', \$s));
-    \$h->test("{\$s} → '{\$label}'", true); // Placeholder
+    \$h->skip("{\$s} → '{\$label}'", 'Generated scaffold: implement label mapping');
 }
 
 \$h->section('Gap analysis — integration tests needed');
