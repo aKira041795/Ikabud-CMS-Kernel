@@ -45,6 +45,11 @@ class palFabricationService
 
         $basis = $project['fabrication_alloc_basis'] ?? 'expenses';
 
+        // Validate allocation percentage range
+        if ($allocPct < 0 || $allocPct > 100) {
+            throw new InvalidArgumentException('Fabrication allocation percentage must be between 0 and 100.');
+        }
+
         // Each dispense is a separate row — no UNIQUE constraint issue
         $stmt = $this->db->prepare("
             INSERT INTO pal_fabrication_allocations (tenant_id, project_id, alloc_basis, alloc_percentage, base_amount, calculated_amount, approved_amount, approval_reason, approved_by, status, created_by)
@@ -76,14 +81,29 @@ class palFabricationService
         $weekCount = count($weeks);
         $perWeek = $weekCount > 0 ? round($totalAmount / $weekCount, 2) : 0;
 
-        $ins = $this->db->prepare("INSERT INTO pal_fabrication_weekly_dues (tenant_id, project_id, allocation_id, week_number, week_start, week_end, due_amount, due_date, status) VALUES (:t, :pj, :aid, :wn, :ws, :we, :da, :dd, 'pending')");
-        foreach ($weeks as $i => $week) {
-            $ins->execute([':t' => $this->tenantId, ':pj' => $alloc['project_id'], ':aid' => $allocationId, ':wn' => $i + 1, ':ws' => $week['start'], ':we' => $week['end'], ':da' => $perWeek, ':dd' => $week['due_date'] ?? $week['end']]);
+        $this->db->beginTransaction();
+        try {
+            $ins = $this->db->prepare("INSERT INTO pal_fabrication_weekly_dues (tenant_id, project_id, allocation_id, week_number, week_start, week_end, due_amount, due_date, status) VALUES (:t, :pj, :aid, :wn, :ws, :we, :da, :dd, 'pending')");
+            foreach ($weeks as $i => $week) {
+                // Last week absorbs rounding remainder so totals reconcile
+                $isLast = ($i === $weekCount - 1);
+                $amount = $isLast ? round($totalAmount - ($perWeek * ($weekCount - 1)), 2) : $perWeek;
+                $ins->execute([':t' => $this->tenantId, ':pj' => $alloc['project_id'], ':aid' => $allocationId, ':wn' => $i + 1, ':ws' => $week['start'], ':we' => $week['end'], ':da' => $amount, ':dd' => $week['due_date'] ?? $week['end']]);
+            }
+            $this->db->commit();
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
         }
     }
 
     public function recordPayment(array $data): int
     {
+        // Validate amount
+        if ((float)($data['amount'] ?? 0) <= 0) {
+            throw new InvalidArgumentException('Payment amount must be greater than zero.');
+        }
+
         $this->db->beginTransaction();
         try {
             $cStmt = $this->db->prepare("SELECT COUNT(*) FROM pal_fabrication_payments WHERE tenant_id = :tid");
@@ -129,7 +149,8 @@ class palFabricationService
         foreach ($mappings as $f) {
             if (array_key_exists($f, $data)) {
                 $fields[] = "`{$f}` = :{$f}";
-                $params[":{$f}"] = $data[$f] ?: null;
+                // Use strict check so zero values (e.g. alloc_percentage=0) are preserved
+                $params[":{$f}"] = ($data[$f] !== '' && $data[$f] !== null) ? $data[$f] : null;
             }
         }
         if (empty($fields)) return;

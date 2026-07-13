@@ -56,6 +56,12 @@ class palCashAdvanceService
 
     public function create(array $data): int
     {
+        // Validate amount
+        $amount = (float)($data['amount'] ?? 0);
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('Cash advance amount must be greater than zero.');
+        }
+
         $stmt = $this->db->prepare("INSERT INTO pal_cash_advances 
             (tenant_id, team_lead_id, project_id, amount, advance_date, description, status, created_by) 
             VALUES (:t, :tl, :pj, :amt, :ad, :desc, 'pending', :cb)");
@@ -63,7 +69,7 @@ class palCashAdvanceService
             ':t' => $this->tenantId,
             ':tl' => (int)$data['team_lead_id'],
             ':pj' => !empty($data['project_id']) ? (int)$data['project_id'] : null,
-            ':amt' => (float)($data['amount'] ?? 0),
+            ':amt' => $amount,
             ':ad' => $data['advance_date'] ?? date('Y-m-d'),
             ':desc' => $data['description'] ?? null,
             ':cb' => $this->userId,
@@ -82,6 +88,17 @@ class palCashAdvanceService
 
     public function approve(int $id): void
     {
+        // Guard: only pending advances can be approved
+        $check = $this->db->prepare("SELECT status FROM pal_cash_advances WHERE id = :id AND tenant_id = :tid");
+        $check->execute([':id' => $id, ':tid' => $this->tenantId]);
+        $row = $check->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new InvalidArgumentException('Cash advance not found.');
+        }
+        if ($row['status'] !== 'pending') {
+            throw new InvalidArgumentException('Only pending cash advances can be approved.');
+        }
+
         $stmt = $this->db->prepare("UPDATE pal_cash_advances SET status = 'approved' WHERE id = :id AND tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
 
@@ -91,6 +108,17 @@ class palCashAdvanceService
 
     public function settle(int $id): void
     {
+        // Guard: only approved advances can be settled
+        $check = $this->db->prepare("SELECT status FROM pal_cash_advances WHERE id = :id AND tenant_id = :tid");
+        $check->execute([':id' => $id, ':tid' => $this->tenantId]);
+        $row = $check->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new InvalidArgumentException('Cash advance not found.');
+        }
+        if ($row['status'] !== 'approved') {
+            throw new InvalidArgumentException('Only approved cash advances can be settled.');
+        }
+
         $stmt = $this->db->prepare("UPDATE pal_cash_advances SET status = 'settled', settled_at = NOW() WHERE id = :id AND tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
 
