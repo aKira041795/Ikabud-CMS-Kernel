@@ -1,0 +1,15 @@
+{
+  "suites": {
+    "workbench-wb-inspect--chromium": {
+      "passed": 0,
+      "failed": 1,
+      "skipped": 4,
+      "total": 5,
+      "gaps": 0,
+      "fingerprints": 0,
+      "finished": "2026-07-13T09:06:14.685Z"
+    }
+  },
+  "updated": "2026-07-13T09:06:14.685Z",
+  "fingerprint_mode": "check"
+}

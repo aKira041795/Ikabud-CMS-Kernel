@@ -1,0 +1,25 @@
+{
+  "classification": "undetermined",
+  "confidence": 0.3,
+  "summary": "Could not classify the failure from error text alone. Manual triage needed.",
+  "evidence": [
+    "Error: Error: Command failed: php /var/www/html/applicationostest/tests/pal/pal_seed_interactive.php --tenant=999922\n{\n    \"ok\": false,\n    \"action\": \"cleanup\",\n    \"tenant_id\": 999922,\n    \"errors\": [\n        {\n            \"table\": \"pal_projects\",\n            \"error\": \"Call to a member function prepare() ",
+    "Module has 71 GET routes, 70 POST routes",
+    "Module exposes 58 capabilities"
+  ],
+  "suspected_files": [],
+  "recommended_action": "Review the Playwright trace and error context file.",
+  "safe_to_auto_heal": false,
+  "module": "project-audit-ledger",
+  "run_context": {
+    "total_tests": 0,
+    "passed": 0,
+    "failed": 0,
+    "issues": 0
+  },
+  "failed_test": {
+    "file": "workbench-wb-inspect",
+    "test": "project form: buttons annotated with data-wb-action",
+    "error": "Error: Command failed: php /var/www/html/applicationostest/tests/pal/pal_seed_interactive.php --tenant=999922\n{\n    \"ok\": false,\n    \"action\": \"cleanup\",\n    \"tenant_id\": 999922,\n    \"errors\": [\n     "
+  }
+}

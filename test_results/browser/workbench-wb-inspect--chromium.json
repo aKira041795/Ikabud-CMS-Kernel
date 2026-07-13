@@ -1,0 +1,48 @@
+{
+  "suite": "workbench-wb-inspect--chromium",
+  "started": "2026-07-13T09:06:14.625Z",
+  "finished": "2026-07-13T09:06:14.685Z",
+  "summary": {
+    "passed": 0,
+    "failed": 1,
+    "skipped": 4,
+    "timedOut": 0,
+    "interrupted": 0,
+    "total": 5
+  },
+  "source_fingerprints": {},
+  "results": [
+    {
+      "test": "project form: buttons annotated with data-wb-action",
+      "status": "failed",
+      "duration": 2,
+      "detail": "Error: Command failed: php /var/www/html/applicationostest/tests/pal/pal_seed_interactive.php --tenant=999922\n{\n    \"ok\": false,\n    \"action\": \"cleanup\",\n    \"tenant_id\": 999922,\n    \"errors\": [\n        {\n            \"table\": \"pal_projects\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_project_items\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_clients\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_sales\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_sale_items\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_receivables\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_receivable_payments\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_collections\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_approvals\",\n            \"error\": \"Call to a member function prepare() on null\"\n        },\n        {\n            \"table\": \"pal_users\",\n            \"error\": \"Call to a member function prepare() on null\"\n        }\n    ]\n}\n"
+    },
+    {
+      "test": "project detail: status badge annotated",
+      "status": "skipped",
+      "duration": 0,
+      "detail": ""
+    },
+    {
+      "test": "approvals: approve/reject buttons annotated",
+      "status": "skipped",
+      "duration": 0,
+      "detail": ""
+    },
+    {
+      "test": "sidebar nav annotated with data-wb-nav",
+      "status": "skipped",
+      "duration": 0,
+      "detail": ""
+    },
+    {
+      "test": "entity list detected via data-wb-list",
+      "status": "skipped",
+      "duration": 0,
+      "detail": ""
+    }
+  ],
+  "gaps": [],
+  "issues": []
+}

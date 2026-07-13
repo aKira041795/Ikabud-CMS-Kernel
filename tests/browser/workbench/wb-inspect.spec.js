@@ -14,7 +14,7 @@ var execSync = require('child_process').execSync;
 var path = require('path');
 
 var SEED = path.resolve(__dirname, '../../../tests/pal/pal_seed_interactive.php');
-var PAL_TEST_TENANT = process.env.PAL_TEST_TENANT || '999922';
+var PAL_TEST_TENANT = process.env.PAL_TEST_TENANT || '502';
 
 test.describe('workbench:inspect-mode', function () {
 
