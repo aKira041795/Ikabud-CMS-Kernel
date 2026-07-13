@@ -46,6 +46,7 @@ class WorkbenchReporter {
             };
         }
         var suite = this.suites[suiteName];
+        if (!suite.issues) suite.issues = [];
 
         // Record native status — preserve skipped, timedOut, interrupted
         suite.results.push({
@@ -66,6 +67,13 @@ class WorkbenchReporter {
                     try {
                         var fp = JSON.parse(a.description);
                         suite.fingerprints[fp.file] = fp.hash;
+                    } catch (e) { /* ignore parse errors */ }
+                } else if (a.type === 'wb-issue') {
+                    try {
+                        var issue = JSON.parse(a.description);
+                        issue.suite = suiteName;
+                        issue.test = test.title;
+                        suite.issues.push(issue);
                     } catch (e) { /* ignore parse errors */ }
                 }
             }
@@ -116,6 +124,7 @@ class WorkbenchReporter {
                 source_fingerprints: Object.assign({}, suite.fingerprints),
                 results: suite.results.slice(),
                 gaps: gapList,
+                issues: (suite.issues || []).slice(),
             };
 
             writeJsonAtomic(path.join(RESULTS_DIR, suiteName + '.json'), data);
@@ -144,6 +153,52 @@ class WorkbenchReporter {
         }
         writeJsonAtomic(path.join(RESULTS_DIR, 'manifest.json'), manifest);
         console.log('  📄 test_results/browser/manifest.json');
+
+        // ── Issue Report ───────────────────────────────────────
+        var allIssues = [];
+        for (var suiteName in this.suites) {
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            if (suite.issues && suite.issues.length > 0) {
+                allIssues = allIssues.concat(suite.issues);
+            }
+        }
+        // Sort by severity: critical > major > minor > note
+        var sevOrder = { critical: 0, major: 1, minor: 2, note: 3 };
+        allIssues.sort(function (a, b) {
+            return (sevOrder[a.severity] || 99) - (sevOrder[b.severity] || 99);
+        });
+
+        var issueReport = {
+            generated: finishedAt,
+            total_issues: allIssues.length,
+            by_severity: {},
+            by_kind: {},
+            issues: allIssues,
+        };
+        for (var i = 0; i < allIssues.length; i++) {
+            var iss = allIssues[i];
+            issueReport.by_severity[iss.severity] = (issueReport.by_severity[iss.severity] || 0) + 1;
+            issueReport.by_kind[iss.kind] = (issueReport.by_kind[iss.kind] || 0) + 1;
+        }
+        writeJsonAtomic(path.join(RESULTS_DIR, 'issue-report.json'), issueReport);
+
+        // Console summary
+        if (allIssues.length > 0) {
+            console.log('');
+            console.log('  📋 Issue Report — ' + allIssues.length + ' issues found');
+            for (var kind in issueReport.by_kind) {
+                if (!issueReport.by_kind.hasOwnProperty(kind)) continue;
+                console.log('     ' + kind + ': ' + issueReport.by_kind[kind]);
+            }
+            for (var sev in issueReport.by_severity) {
+                if (!issueReport.by_severity.hasOwnProperty(sev)) continue;
+                console.log('     [' + sev + ']: ' + issueReport.by_severity[sev]);
+            }
+            console.log('  📄 test_results/browser/issue-report.json');
+        } else {
+            console.log('  ✅ No issues found');
+        }
 
         // Fingerprint baseline
         var baselineFile = path.join(RESULTS_DIR, 'fingerprint-baseline.json');

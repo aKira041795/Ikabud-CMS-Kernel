@@ -39,7 +39,16 @@ function createWorkbenchTest(config) {
     var fixture = base.test.extend({
         appUrl: [appUrl, { option: true }],
 
-        page: async function ({ page }, use) {
+        page: async function ({ page }, use, testInfo) {
+            // Auto-capture browser console errors
+            var consoleErrors = [];
+            page.on('console', function (msg) {
+                if (msg.type() === 'error') consoleErrors.push(msg.text());
+            });
+            page.on('pageerror', function (err) {
+                consoleErrors.push('[uncaught] ' + err.message);
+            });
+
             await page.goto('' + appUrl + loginPath);
             await page.fill('input[name="username"]', adminUser);
             await page.fill('input[name="password"]', adminPass);
@@ -47,6 +56,18 @@ function createWorkbenchTest(config) {
             await page.waitForURL('**' + landingPath);
             await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
             await use(page);
+
+            // Flush captured console errors as issues
+            for (var i = 0; i < consoleErrors.length; i++) {
+                testInfo.annotations.push({
+                    type: 'wb-issue',
+                    description: JSON.stringify({
+                        kind: 'console-error',
+                        severity: 'major',
+                        detail: consoleErrors[i],
+                    }),
+                });
+            }
         },
 
         shell: async function ({ page }, use) { await use(new ShellHarness(page)); },
@@ -82,6 +103,37 @@ function createWorkbenchTest(config) {
                     testInfo.annotations.push({
                         type: 'wb-fingerprint',
                         description: JSON.stringify({ file: relativePath, hash: hash }),
+                    });
+                },
+                // Structured issue reporting
+                issue: function (opts) {
+                    testInfo.annotations.push({
+                        type: 'wb-issue',
+                        description: JSON.stringify({
+                            kind: opts.kind || 'bug',
+                            severity: opts.severity || 'major',
+                            where: opts.where || '',
+                            detail: opts.detail || '',
+                            recommendation: opts.recommendation || '',
+                        }),
+                    });
+                },
+                friction: function (detail) {
+                    testInfo.annotations.push({
+                        type: 'wb-issue',
+                        description: JSON.stringify({ kind: 'friction', severity: 'minor', detail: detail }),
+                    });
+                },
+                perf: function (label, ms) {
+                    testInfo.annotations.push({
+                        type: 'wb-issue',
+                        description: JSON.stringify({ kind: 'perf', severity: ms > 3000 ? 'major' : 'minor', where: label, detail: ms + 'ms' }),
+                    });
+                },
+                a11y: function (detail) {
+                    testInfo.annotations.push({
+                        type: 'wb-issue',
+                        description: JSON.stringify({ kind: 'a11y', severity: 'major', detail: detail }),
                     });
                 },
             });
