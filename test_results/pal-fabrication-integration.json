@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-integration",
-    "started": "2026-07-13 05:49:35",
-    "finished": "2026-07-13 13:49:35",
-    "elapsed_ms": 28800744.7,
+    "started": "2026-07-13 05:55:52",
+    "finished": "2026-07-13 13:55:52",
+    "elapsed_ms": 28800661,
     "summary": {
         "passed": 24,
         "failed": 0,
@@ -23,168 +23,168 @@
             "label": "non-existent project throws InvalidArgumentException",
             "status": "pass",
             "detail": "Project not found.",
-            "time": 11.4
+            "time": 13.1
         },
         {
             "section": "2. Fabrication: createAllocation — budget exceeded",
             "label": "dispense amount exceeding remaining budget throws",
             "status": "pass",
             "detail": "CA dispense amount (999999) exceeds remaining fabrication budget (25000). Budget: 25000, already dispensed: 0.",
-            "time": 8.5
+            "time": 6.5
         },
         {
             "section": "2. Fabrication: createAllocation — budget exceeded",
             "label": "first allocation created within budget",
             "status": "pass",
             "detail": "",
-            "time": 14.7
+            "time": 12.5
         },
         {
             "section": "3. Fabrication: createAllocation — existing SUM tracked",
             "label": "second allocation exceeding remaining budget throws",
             "status": "pass",
             "detail": "CA dispense amount (16000) exceeds remaining fabrication budget (15000). Budget: 25000, already dispensed: 10000.",
-            "time": 1.2
+            "time": 1.6
         },
         {
             "section": "3. Fabrication: createAllocation — existing SUM tracked",
             "label": "second allocation exactly fills remaining budget",
             "status": "pass",
             "detail": "",
-            "time": 7.3
+            "time": 6.4
         },
         {
             "section": "3. Fabrication: createAllocation — existing SUM tracked",
             "label": "third allocation after budget depleted throws",
             "status": "pass",
             "detail": "CA dispense amount (1) exceeds remaining fabrication budget (0). Budget: 25000, already dispensed: 25000.",
-            "time": 8.6
+            "time": 8.9
         },
         {
             "section": "4. Fabrication: generateWeeklyDues — allocation not found",
             "label": "non-existent allocation throws",
             "status": "pass",
             "detail": "Allocation not found.",
-            "time": 0.8
+            "time": 0.7
         },
         {
             "section": "4. Fabrication: generateWeeklyDues — allocation not found",
             "label": "weekly dues generated for allocation",
             "status": "pass",
             "detail": "",
-            "time": 7.4
+            "time": 6.4
         },
         {
             "section": "5. Fabrication: recordPayment — transaction rollback",
             "label": "payment recorded successfully",
             "status": "pass",
             "detail": "",
-            "time": 6
+            "time": 5.2
         },
         {
             "section": "5. Fabrication: recordPayment — transaction rollback",
             "label": "payment submitted for approval",
             "status": "pass",
             "detail": "",
-            "time": 23.9
+            "time": 19.8
         },
         {
             "section": "6. CashAdvance: approve() updates status + audit",
             "label": "cash advance created as pending",
             "status": "pass",
             "detail": "",
-            "time": 10.2
+            "time": 11
         },
         {
             "section": "6. CashAdvance: approve() updates status + audit",
             "label": "cash advance status changed to approved",
             "status": "pass",
             "detail": "",
-            "time": 22.8
+            "time": 23.9
         },
         {
             "section": "6. CashAdvance: approve() updates status + audit",
             "label": "approve() writes audit log",
             "status": "pass",
             "detail": "",
-            "time": 25.3
+            "time": 24.8
         },
         {
             "section": "7. CashAdvance: settle() sets settled_at",
             "label": "cash advance status changed to settled",
             "status": "pass",
             "detail": "",
-            "time": 12.5
+            "time": 11.1
         },
         {
             "section": "7. CashAdvance: settle() sets settled_at",
             "label": "settled_at timestamp is set",
             "status": "pass",
             "detail": "",
-            "time": 12.5
+            "time": 11.1
         },
         {
             "section": "8. CashAdvance: getTeamLeadBalance() filters correctly",
             "label": "team lead balance includes pending advance",
             "status": "pass",
             "detail": "",
-            "time": 16.7
+            "time": 9.9
         },
         {
             "section": "8. CashAdvance: getTeamLeadBalance() filters correctly",
             "label": "team lead balance includes approved advance",
             "status": "pass",
             "detail": "",
-            "time": 32.9
+            "time": 23.7
         },
         {
             "section": "8. CashAdvance: getTeamLeadBalance() filters correctly",
             "label": "settled advance excluded from balance",
             "status": "pass",
             "detail": "",
-            "time": 47.2
+            "time": 33.8
         },
         {
             "section": "9. Approval: pendingListEnriched()",
             "label": "pendingListEnriched returns array",
             "status": "pass",
             "detail": "",
-            "time": 14.8
+            "time": 11.1
         },
         {
             "section": "9. Approval: pendingListEnriched()",
             "label": "pendingListEnriched has items",
             "status": "pass",
             "detail": "",
-            "time": 14.8
+            "time": 11.2
         },
         {
             "section": "10. Approval: decide() updates approval + entity",
             "label": "approval decision updated to approved",
             "status": "pass",
             "detail": "",
-            "time": 37.3
+            "time": 21.5
         },
         {
             "section": "10. Approval: decide() updates approval + entity",
             "label": "expense status updated to approved",
             "status": "pass",
             "detail": "",
-            "time": 37.8
+            "time": 21.9
         },
         {
             "section": "11. Approval: decide() fires audit + event",
             "label": "decide() writes audit log",
             "status": "pass",
             "detail": "",
-            "time": 0.8
+            "time": 0.6
         },
         {
             "section": "Cleanup",
             "label": "test data cleaned up",
             "status": "pass",
             "detail": "",
-            "time": 34.2
+            "time": 51.7
         }
     ],
     "gaps": []

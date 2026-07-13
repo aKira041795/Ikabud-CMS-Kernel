@@ -1,16 +1,23 @@
 /**
  * WorkbenchFixture — Reusable Playwright test fixture for ARK Workbench tests.
  *
- * Provides pre-configured page, component harnesses, and integrity tracking.
- * Pass/fail recording is handled by WorkbenchReporter (not this fixture).
+ * Provides pre-configured page, component harnesses, and annotation-based
+ * metadata collection (gaps, fingerprints) for WorkbenchReporter.
+ *
+ * Tests do NOT need afterEach/afterAll hooks — the reporter collects
+ * pass/fail automatically.
  *
  * USAGE (module adapter):
- *   const { createWorkbenchTest } = require('./WorkbenchFixture');
+ *   // tests/browser/MyAdapter.js
+ *   var { createWorkbenchTest } = require('./WorkbenchFixture');
  *   module.exports = createWorkbenchTest({ appUrl, loginPath, landingPath, ... });
  *
  * USAGE (spec file):
- *   const { test, expect } = require('../MyAdapter');
- *   test('works', async ({ page, shell }) => { ... });
+ *   var { test, expect } = require('../MyAdapter');
+ *   test('works', async function({ page, shell, integrity }) {
+ *       integrity.gap('Some known limitation');
+ *       integrity.fingerprint('modules/foo/bar.php');
+ *   });
  */
 
 // @ts-check
@@ -47,7 +54,6 @@ function createWorkbenchTest(config) {
         dialog: async function(_a, use) { await use(new DialogHarness(_a.page)); },
         table: async function(_a, use) { await use(new TableHarness(_a.page)); },
 
-        // Integrity: gaps and fingerprints only (results by reporter)
         loginAs: [async function(_a, use) {
             var page = _a.page;
             await use(async function(username, password) {
@@ -60,41 +66,32 @@ function createWorkbenchTest(config) {
             });
         }, { auto: false }],
 
-        integrity: [async function(_a, use, workerInfo) {
-            var file = workerInfo.file || 'unknown';
-            var project = workerInfo.project.name || 'chromium';
-            var suiteName = file
-                .replace(/^.*tests\/browser\//, '')
-                .replace(/\.spec\.js$/, '')
-                .replace(/[/\\]/g, '-') + '--' + project;
-            var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
+        // integrity: pushes gaps and fingerprints as test annotations
+        // WorkbenchReporter.onTestEnd reads annotations automatically
+        integrity: async function(_a, use, testInfo) {
             var gaps = [];
             var fingerprints = {};
 
             await use({
-                gap: function(desc) { gaps.push(desc); },
+                gap: function(desc) {
+                    gaps.push(desc);
+                    testInfo.annotations.push({ type: 'wb-gap', description: desc });
+                },
                 fingerprint: function(fp) {
                     var fullPath = path.resolve(__dirname, '../../', fp);
+                    var hash = 'FILE_NOT_FOUND';
                     try {
                         var content = fs.readFileSync(fullPath, 'utf-8');
-                        fingerprints[fp] = crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
-                    } catch (e) { fingerprints[fp] = 'FILE_NOT_FOUND'; }
-                },
-                writeResults: async function() {
-                    // Reporter handles pass/fail. We write gaps + fingerprints.
-                    if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
-                    var existing = {};
-                    try {
-                        var suiteFile = path.join(RESULTS_DIR, suiteName + '.json');
-                        if (fs.existsSync(suiteFile)) existing = JSON.parse(fs.readFileSync(suiteFile, 'utf-8'));
-                    } catch (e) { /* skip */ }
-                    existing.gaps = gaps;
-                    existing.source_fingerprints = Object.assign(existing.source_fingerprints || {}, fingerprints);
-                    fs.writeFileSync(path.join(RESULTS_DIR, suiteName + '.json'), JSON.stringify(existing, null, 2));
-                    console.log('  📄 Gaps+fingerprints: test_results/browser/' + suiteName + '.json');
+                        hash = crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
+                    } catch (e) { /* keep FILE_NOT_FOUND */ }
+                    fingerprints[fp] = hash;
+                    testInfo.annotations.push({
+                        type: 'wb-fingerprint',
+                        description: JSON.stringify({ file: fp, hash: hash }),
+                    });
                 },
             });
-        }, { scope: 'worker' }],
+        },
     });
 
     return { test: fixture, expect: base.expect };

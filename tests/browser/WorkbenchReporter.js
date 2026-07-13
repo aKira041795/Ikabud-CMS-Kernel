@@ -1,164 +1,197 @@
 /**
  * WorkbenchReporter — Custom Playwright reporter for ARK Workbench tests.
  *
- * Solves:
- *   - Unique suite filenames from test.location.file
- *   - Automatic pass/fail recording (no afterEach needed)
- *   - Manifest with concurrency-safe single-writer
- *   - Fingerprint baseline comparison
+ * RECEIVES from tests:
+ *   - Pass/fail results via onTestEnd (automatic)
+ *   - Gaps and fingerprints via test.annotations (set by fixture)
  *
- * Usage: add to playwright.config.js:
+ * PRODUCES:
+ *   - Per-suite JSON: test_results/browser/<suite>--<project>.json
+ *   - Aggregate manifest: test_results/browser/manifest.json
+ *   - Fingerprint baseline: test_results/browser/fingerprint-baseline.json
+ *
+ * ENV:
+ *   WB_FINGERPRINT_MODE=check  — fail on mismatch (default, fails if no baseline)
+ *   WB_FINGERPRINT_MODE=update — rewrite baseline
+ *   WB_FINGERPRINT_MODE=off    — skip fingerprint check
+ *
+ * Usage: playwright.config.js
  *   reporter: [['list'], ['./tests/browser/WorkbenchReporter.js']]
- *
- * Environment variables:
- *   WB_FINGERPRINT_MODE=check   — fail on fingerprint mismatch (default)
- *   WB_FINGERPRINT_MODE=update  — rewrite fingerprint-baseline.json
- *   WB_FINGERPRINT_MODE=off     — skip fingerprint check
  */
 
 // @ts-check
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+var fs = require('fs');
+var path = require('path');
 
-const RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
-const FINGERPRINT_BASELINE = path.join(RESULTS_DIR, 'fingerprint-baseline.json');
-const FINGERPRINT_MODE = process.env.WB_FINGERPRINT_MODE || 'check';
+var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
+var FINGERPRINT_MODE = process.env.WB_FINGERPRINT_MODE || 'check';
+
+function writeJsonAtomic(target, data) {
+    var tmp = target + '.' + process.pid + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+    fs.renameSync(tmp, target);
+}
 
 class WorkbenchReporter {
     constructor() {
-        /** @type {Map<string, {results: Array, gaps: Set<string>, fingerprints: Object, started: string}>} */
-        this.suites = new Map();
+        this.suites = {};
         this.startTime = new Date().toISOString();
     }
 
     onTestEnd(test, result) {
-        const file = test.location.file;
-        const projectName = test.parent?.project()?.name || 'chromium';
-        const suiteName = this._suiteName(file, projectName);
-
-        if (!this.suites.has(suiteName)) {
-            this.suites.set(suiteName, {
-                results: [],
-                gaps: new Set(),
-                fingerprints: {},
-                started: new Date().toISOString(),
-            });
+        var suiteName = this._suiteName(test.location.file, test.parent.project().name);
+        if (!this.suites[suiteName]) {
+            this.suites[suiteName] = {
+                results: [], gaps: [], fingerprints: {}, started: new Date().toISOString(),
+            };
         }
+        var suite = this.suites[suiteName];
 
-        const suite = this.suites.get(suiteName);
+        // Record native status — preserve skipped, timedOut, interrupted
         suite.results.push({
             test: test.title,
-            status: result.status === 'passed' ? 'pass' : 'fail',
-            detail: result.error ? result.error.message || result.error.stack || '' : '',
+            status: result.status, // 'passed' | 'failed' | 'skipped' | 'timedOut' | 'interrupted'
+            duration: result.duration,
+            detail: result.error ? (result.error.message || result.error.stack || '') : '',
         });
+
+        // Collect gaps and fingerprints from test annotations
+        // Set by test via: test.info().annotations.push({ type, description })
+        if (test.annotations && test.annotations.length > 0) {
+            for (var i = 0; i < test.annotations.length; i++) {
+                var a = test.annotations[i];
+                if (a.type === 'wb-gap') {
+                    suite.gaps.push(a.description);
+                } else if (a.type === 'wb-fingerprint') {
+                    try {
+                        var fp = JSON.parse(a.description);
+                        suite.fingerprints[fp.file] = fp.hash;
+                    } catch (e) { /* ignore parse errors */ }
+                }
+            }
+        }
     }
 
-    onEnd() {
-        const finishedAt = new Date().toISOString();
+    onEnd(result) {
+        var finishedAt = new Date().toISOString();
+        if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
 
-        if (!fs.existsSync(RESULTS_DIR)) {
-            fs.mkdirSync(RESULTS_DIR, { recursive: true });
+        var allFingerprints = {};
+        var exitCode = 0;
+
+        // Respect Playwright's own exit code
+        if (result && result.status !== 'passed') {
+            process.exitCode = 1;
         }
 
-        let allFingerprints = {};
-        let exitCode = 0;
-
         // Write per-suite JSON
-        for (const [suiteName, suite] of this.suites.entries()) {
-            const passed = suite.results.filter(r => r.status === 'pass').length;
-            const failed = suite.results.filter(r => r.status === 'fail').length;
-            const gapList = Array.from(suite.gaps).sort();
+        for (var suiteName in this.suites) {
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            var passed = 0, failed = 0, skipped = 0, timedOut = 0, interrupted = 0;
+            for (var j = 0; j < suite.results.length; j++) {
+                var r = suite.results[j];
+                if (r.status === 'passed') passed++;
+                else if (r.status === 'failed') failed++;
+                else if (r.status === 'skipped') skipped++;
+                else if (r.status === 'timedOut') timedOut++;
+                else if (r.status === 'interrupted') interrupted++;
+            }
 
-            const data = {
+            var gapSet = {};
+            for (var k = 0; k < suite.gaps.length; k++) gapSet[suite.gaps[k]] = true;
+            var gapList = [];
+            for (var g in gapSet) { if (gapSet.hasOwnProperty(g)) gapList.push(g); }
+            gapList.sort();
+
+            var data = {
                 suite: suiteName,
                 started: suite.started,
                 finished: finishedAt,
-                summary: { passed, failed, total: suite.results.length },
+                summary: {
+                    passed: passed, failed: failed, skipped: skipped,
+                    timedOut: timedOut, interrupted: interrupted,
+                    total: suite.results.length,
+                },
                 source_fingerprints: Object.assign({}, suite.fingerprints),
                 results: suite.results.slice(),
                 gaps: gapList,
             };
 
-            fs.writeFileSync(
-                path.join(RESULTS_DIR, suiteName + '.json'),
-                JSON.stringify(data, null, 2)
-            );
-
+            writeJsonAtomic(path.join(RESULTS_DIR, suiteName + '.json'), data);
             Object.assign(allFingerprints, suite.fingerprints);
-            console.log(`  📄 test_results/browser/${suiteName}.json`);
+            console.log('  📄 test_results/browser/' + suiteName + '.json');
         }
 
         // Aggregate manifest
-        const manifestFile = path.join(RESULTS_DIR, 'manifest.json');
-        const manifest = { suites: {}, updated: finishedAt, fingerprint_mode: FINGERPRINT_MODE };
-        for (const [suiteName, suite] of this.suites.entries()) {
-            const passed = suite.results.filter(r => r.status === 'pass').length;
-            const failed = suite.results.filter(r => r.status === 'fail').length;
+        var manifest = { suites: {}, updated: finishedAt, fingerprint_mode: FINGERPRINT_MODE };
+        for (var suiteName in this.suites) {
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            var p = 0, f = 0, s = 0;
+            for (var j = 0; j < suite.results.length; j++) {
+                var r = suite.results[j];
+                if (r.status === 'passed') p++;
+                else if (r.status === 'failed') f++;
+                else if (r.status === 'skipped') s++;
+            }
             manifest.suites[suiteName] = {
-                passed, failed, total: suite.results.length,
-                gaps: Array.from(suite.gaps).length,
+                passed: p, failed: f, skipped: s, total: suite.results.length,
+                gaps: suite.gaps.length,
                 fingerprints: Object.keys(suite.fingerprints).length,
                 finished: finishedAt,
             };
         }
-        fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2));
-        console.log(`  📄 test_results/browser/manifest.json`);
+        writeJsonAtomic(path.join(RESULTS_DIR, 'manifest.json'), manifest);
+        console.log('  📄 test_results/browser/manifest.json');
 
         // Fingerprint baseline
+        var baselineFile = path.join(RESULTS_DIR, 'fingerprint-baseline.json');
+
         if (FINGERPRINT_MODE === 'update') {
-            fs.writeFileSync(FINGERPRINT_BASELINE, JSON.stringify(allFingerprints, null, 2));
-            console.log(`  📄 Fingerprint baseline updated: ${FINGERPRINT_BASELINE}`);
-        } else if (FINGERPRINT_MODE === 'check' && fs.existsSync(FINGERPRINT_BASELINE)) {
-            const baseline = JSON.parse(fs.readFileSync(FINGERPRINT_BASELINE, 'utf-8'));
-            let mismatches = 0;
-            for (const [fp, hash] of Object.entries(allFingerprints)) {
-                const expected = baseline[fp];
-                if (expected && expected !== hash) {
-                    console.error(`  ❌ FINGERPRINT MISMATCH: ${fp}`);
-                    console.error(`     was: ${expected}`);
-                    console.error(`     now: ${hash}`);
-                    console.error(`     Source changed — test coverage review required.`);
-                    mismatches++;
-                }
-            }
-            // Also warn about new files not in baseline
-            for (const fp of Object.keys(allFingerprints)) {
-                if (!baseline[fp]) {
-                    console.warn(`  ⚠ New fingerprint: ${fp} (not in baseline)`);
-                }
-            }
-            if (mismatches > 0) {
-                console.error(`\n  ❌ ${mismatches} fingerprint mismatch(es) — failing run.`);
-                exitCode = 1;
-            }
+            writeJsonAtomic(baselineFile, allFingerprints);
+            console.log('  📄 Fingerprint baseline updated: ' + baselineFile);
         } else if (FINGERPRINT_MODE === 'check') {
-            console.warn(`  ⚠ No fingerprint baseline found at ${FINGERPRINT_BASELINE}`);
-            console.warn(`  ⚠ Run with WB_FINGERPRINT_MODE=update to create one.`);
+            if (!fs.existsSync(baselineFile)) {
+                console.error('  ❌ No fingerprint baseline found at ' + baselineFile);
+                console.error('  ❌ Run with WB_FINGERPRINT_MODE=update to create one.');
+                console.error('  ❌ Fingerprint check mode requires a committed baseline.');
+                process.exitCode = 1;
+            } else {
+                var baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf-8'));
+                var mismatches = 0;
+                for (var fp in allFingerprints) {
+                    if (!allFingerprints.hasOwnProperty(fp)) continue;
+                    var expected = baseline[fp];
+                    if (expected && expected !== allFingerprints[fp]) {
+                        console.error('  ❌ FINGERPRINT MISMATCH: ' + fp);
+                        console.error('     was: ' + expected);
+                        console.error('     now: ' + allFingerprints[fp]);
+                        mismatches++;
+                    }
+                }
+                // New files not in baseline
+                for (var fp in allFingerprints) {
+                    if (!allFingerprints.hasOwnProperty(fp)) continue;
+                    if (!baseline[fp]) {
+                        console.warn('  ⚠ New fingerprint (not in baseline): ' + fp);
+                    }
+                }
+                // Baseline files no longer tested
+                for (var fp in baseline) {
+                    if (!baseline.hasOwnProperty(fp)) continue;
+                    if (!allFingerprints[fp]) {
+                        console.warn('  ⚠ Baselines file no longer fingerprinted: ' + fp);
+                    }
+                }
+                if (mismatches > 0) {
+                    process.exitCode = 1;
+                }
+            }
         }
-
-        process.exit(exitCode);
+        // FINGERPRINT_MODE=off does nothing — pass through
     }
 
-    /** @param {string} file */
-    fingerprint(filePath) {
-        // Called from tests via integrity.fingerprint() — but reporter can also
-        // compute hashes on the server. We accept both.
-        const fullPath = path.resolve(__dirname, '../../', filePath);
-        try {
-            const content = fs.readFileSync(fullPath, 'utf-8');
-            return crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
-        } catch (e) {
-            return 'FILE_NOT_FOUND';
-        }
-    }
-
-    /**
-     * Derive a unique suite name from file path + project.
-     * @param {string} filePath
-     * @param {string} projectName
-     * @returns {string}
-     */
     _suiteName(filePath, projectName) {
         return filePath
             .replace(/^.*tests\/browser\//, '')

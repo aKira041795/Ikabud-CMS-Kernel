@@ -1,8 +1,8 @@
 /**
  * Browser tests for ARK Workbench app-shell component.
  *
- * INTEGRITY: fingerprints the app_shell.disyl source template.
- * Gaps documented once (not duplicated). Auto-recorded pass/fail.
+ * Gaps and fingerprints are collected via integrity annotations
+ * and read by WorkbenchReporter. No afterEach/afterAll needed.
  *
  * Run: npx playwright test tests/browser/workbench/app-shell.spec.js
  */
@@ -36,24 +36,14 @@ test.describe('workbench:app_shell', function() {
         GAPS.forEach(function(g) { integrity.gap(g); });
     });
 
-    test.afterEach(async function({ integrity }, testInfo) {
-        integrity.record(testInfo.title, testInfo.status === 'passed', testInfo.error ? testInfo.error.message : '');
-    });
-
-    test.afterAll(async function({ integrity }) {
-        await integrity.writeResults();
-    });
-
     test('renders app shell with data-wb-component attribute', async function({ page }) {
-        var shell = page.locator('[data-wb-component="app-shell"]');
-        await expect(shell).toBeVisible();
-        await expect(shell).toHaveAttribute('data-wb-component', 'app-shell');
+        await expect(page.locator('[data-wb-component="app-shell"]')).toBeVisible();
     });
 
     test('has skip-to-content link', async function({ page }) {
-        var skipLink = page.locator('[data-wb-role="skip-link"]');
-        await expect(skipLink).toBeVisible();
-        await expect(skipLink).toHaveAttribute('href', '#wb-main');
+        var link = page.locator('[data-wb-role="skip-link"]');
+        await expect(link).toBeVisible();
+        await expect(link).toHaveAttribute('href', '#wb-main');
     });
 
     test('sidebar has navigation landmarks', async function({ page }) {
@@ -73,8 +63,7 @@ test.describe('workbench:app_shell', function() {
     });
 
     test('active nav item highlighted', async function({ page }) {
-        var active = page.locator('[data-wb-role="nav-item"].is-active').first();
-        await expect(active).toBeVisible();
+        await expect(page.locator('[data-wb-role="nav-item"].is-active').first()).toBeVisible();
     });
 
     test('navigation sections exist', async function({ page }) {
@@ -90,9 +79,8 @@ test.describe('workbench:app_shell', function() {
     });
 
     test('displays app name', async function({ page }) {
-        var h1 = page.locator('#wb-sidebar h1');
-        await expect(h1).toBeVisible();
-        await expect(h1).not.toBeEmpty();
+        await expect(page.locator('#wb-sidebar h1')).toBeVisible();
+        await expect(page.locator('#wb-sidebar h1')).not.toBeEmpty();
     });
 
     test('displays current user name', async function({ page }) {

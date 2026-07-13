@@ -1,13 +1,12 @@
 /**
  * Browser tests for Guidance Monitoring Dashboard
  *
- * Uses GuidanceAdapter for tenant-specific auth.
- *
- * Run: npx playwright test tests/browser/modules/guidance/
+ * Gaps/fingerprints via integrity annotations.
+ * Pass/fail via WorkbenchReporter — no afterEach needed.
  */
 
 // @ts-check
-const { test, expect } = require('../../../GuidanceAdapter');
+var { test, expect } = require('../../../GuidanceAdapter');
 
 var GAPS = [
     'Sidebar navigation items reflect guidance routes',
@@ -22,14 +21,6 @@ test.describe('guidance:dashboard', function() {
     test.beforeAll(async function({ integrity }) {
         integrity.fingerprint('modules/guidance/helpers.php');
         GAPS.forEach(function(g) { integrity.gap(g); });
-    });
-
-    test.afterEach(async function({ integrity }, testInfo) {
-        integrity.record(testInfo.title, testInfo.status === 'passed', testInfo.error ? testInfo.error.message : '');
-    });
-
-    test.afterAll(async function({ integrity }) {
-        await integrity.writeResults();
     });
 
     test('renders with app shell', async function({ page, shell }) {

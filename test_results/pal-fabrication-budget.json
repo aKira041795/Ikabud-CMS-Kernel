@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-budget",
-    "started": "2026-07-13 05:49:35",
-    "finished": "2026-07-13 05:49:35",
-    "elapsed_ms": 323.6,
+    "started": "2026-07-13 05:55:52",
+    "finished": "2026-07-13 05:55:52",
+    "elapsed_ms": 38.7,
     "summary": {
         "passed": 40,
         "failed": 0,
@@ -50,14 +50,14 @@
             "label": "100% allocation = full contract",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "12.5% partial = 12,500",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
@@ -106,21 +106,21 @@
             "label": "Second alloc: 20k exactly remaining — allowed",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 20001 exceeds budget — rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: 0 remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
