@@ -239,6 +239,11 @@ function palApiProjectUpdate(array $rp = []): void
             try {
                 $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
                 $wf->apply($id, $newStatus);
+
+                // Create approval record for status transitions that need review
+                if ($newStatus === 'pending') {
+                    palCreateApproval('project', $id, (int)$user['id'], $oldStatus, 'pending_approval');
+                }
             } catch (\Throwable $e) {
                 // Workflow transition may be invalid — status already updated above,
                 // but workflow side-effects (approval, events) won't fire.

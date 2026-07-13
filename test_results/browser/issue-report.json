@@ -1,0 +1,30 @@
+{
+  "generated": "2026-07-13T09:36:12.890Z",
+  "total_issues": 2,
+  "by_severity": {
+    "major": 2
+  },
+  "by_kind": {
+    "perf": 1,
+    "bug": 1
+  },
+  "issues": [
+    {
+      "kind": "perf",
+      "severity": "major",
+      "where": "JO create",
+      "detail": "9794ms",
+      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+      "test": "JO operational setup: draft → ongoing"
+    },
+    {
+      "kind": "bug",
+      "severity": "major",
+      "where": "JO submit",
+      "detail": "Submit button clicked but status not Pending on detail page",
+      "recommendation": "Check workflow transition logic and button action handler",
+      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+      "test": "JO operational setup: draft → ongoing"
+    }
+  ]
+}
