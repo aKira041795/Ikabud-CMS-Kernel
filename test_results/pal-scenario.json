@@ -1,8 +1,8 @@
 {
     "suite": "pal-scenario",
-    "started": "2026-07-13 06:14:34",
-    "finished": "2026-07-13 14:14:34",
-    "elapsed_ms": 28800398.4,
+    "started": "2026-07-13 06:23:26",
+    "finished": "2026-07-13 14:23:27",
+    "elapsed_ms": 28801192,
     "summary": {
         "passed": 26,
         "failed": 0,
@@ -23,182 +23,182 @@
             "label": "project created",
             "status": "pass",
             "detail": "",
-            "time": 3.4
+            "time": 3.3
         },
         {
             "section": "Scenario 1: project → expense → approve → cost updated",
             "label": "expense created",
             "status": "pass",
             "detail": "",
-            "time": 8.4
+            "time": 6.5
         },
         {
             "section": "Scenario 1: project → expense → approve → cost updated",
             "label": "expense approved after decision",
             "status": "pass",
             "detail": "",
-            "time": 27.3
+            "time": 25.1
         },
         {
             "section": "Scenario 1: project → expense → approve → cost updated",
             "label": "approval decision recorded",
             "status": "pass",
             "detail": "",
-            "time": 27.9
+            "time": 25.5
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "project 2 created",
             "status": "pass",
             "detail": "",
-            "time": 4.4
+            "time": 5
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "project 2 completed successfully",
             "status": "pass",
             "detail": "",
-            "time": 19.5
+            "time": 26.1
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "project status = completed",
             "status": "pass",
             "detail": "",
-            "time": 19.9
+            "time": 27.2
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "completion date set",
             "status": "pass",
             "detail": "",
-            "time": 19.9
+            "time": 27.2
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "invoice auto-created on complete",
             "status": "pass",
             "detail": "",
-            "time": 20.6
+            "time": 28.1
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "receivable auto-created on complete",
             "status": "pass",
             "detail": "",
-            "time": 21.2
+            "time": 28.8
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "second complete returns true (idempotent)",
             "status": "pass",
             "detail": "",
-            "time": 22.7
+            "time": 30.7
         },
         {
             "section": "Scenario 2: complete project → verify invoice+receivable",
             "label": "no duplicate invoice on second complete",
             "status": "pass",
             "detail": "",
-            "time": 23.6
+            "time": 31.6
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "project 3 created",
             "status": "pass",
             "detail": "",
-            "time": 4.1
+            "time": 5.2
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "fabrication allocation created",
             "status": "pass",
             "detail": "",
-            "time": 9.7
+            "time": 14.9
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "3 weekly dues generated",
             "status": "pass",
             "detail": "",
-            "time": 17.1
+            "time": 22.6
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "weekly dues sum equals allocation (12000)",
             "status": "pass",
             "detail": "",
-            "time": 17.1
+            "time": 22.7
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "payment recorded",
             "status": "pass",
             "detail": "",
-            "time": 23.3
+            "time": 28.8
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "payment submitted for approval",
             "status": "pass",
             "detail": "",
-            "time": 40
+            "time": 43.9
         },
         {
             "section": "Scenario 3: fabrication → weekly dues → payment → balance",
             "label": "payment status = pending_approval",
             "status": "pass",
             "detail": "",
-            "time": 40.4
+            "time": 44.5
         },
         {
             "section": "Scenario 4: full project lifecycle → audit trail",
             "label": "draft→pending",
             "status": "pass",
             "detail": "",
-            "time": 3.6
+            "time": 4.2
         },
         {
             "section": "Scenario 4: full project lifecycle → audit trail",
             "label": "pending→approved",
             "status": "pass",
             "detail": "",
-            "time": 8.6
+            "time": 9.1
         },
         {
             "section": "Scenario 4: full project lifecycle → audit trail",
             "label": "approved→started",
             "status": "pass",
             "detail": "",
-            "time": 14.5
+            "time": 15
         },
         {
             "section": "Scenario 4: full project lifecycle → audit trail",
             "label": "started→ongoing",
             "status": "pass",
             "detail": "",
-            "time": 19.7
+            "time": 20.6
         },
         {
             "section": "Scenario 4: full project lifecycle → audit trail",
             "label": "full lifecycle ends at completed",
             "status": "pass",
             "detail": "",
-            "time": 37.1
+            "time": 41.4
         },
         {
             "section": "Scenario 4: full project lifecycle → audit trail",
             "label": "project completion generates audit entries",
             "status": "pass",
             "detail": "",
-            "time": 38.1
+            "time": 42.8
         },
         {
             "section": "Cleanup",
             "label": "test data cleaned up",
             "status": "pass",
             "detail": "",
-            "time": 52
+            "time": 41.3
         }
     ],
     "gaps": []

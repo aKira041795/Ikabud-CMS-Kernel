@@ -1,8 +1,8 @@
 {
     "suite": "pal-fuzz",
-    "started": "2026-07-13 06:14:33",
-    "finished": "2026-07-13 14:14:33",
-    "elapsed_ms": 28800743.8,
+    "started": "2026-07-13 06:23:26",
+    "finished": "2026-07-13 14:23:26",
+    "elapsed_ms": 28800392.5,
     "summary": {
         "passed": 27,
         "failed": 0,
@@ -44,49 +44,49 @@
             "label": "approve non-existent ID throws",
             "status": "pass",
             "detail": "Cash advance not found.",
-            "time": 1.6
+            "time": 1.7
         },
         {
             "section": "1. CashAdvance: boundary values",
             "label": "approve voided advance throws",
             "status": "pass",
             "detail": "Only pending cash advances can be approved.",
-            "time": 25.9
+            "time": 31.5
         },
         {
             "section": "1. CashAdvance: boundary values",
             "label": "double approve throws",
             "status": "pass",
             "detail": "Only pending cash advances can be approved.",
-            "time": 42.5
+            "time": 55.9
         },
         {
             "section": "1. CashAdvance: boundary values",
             "label": "settle pending (not approved) throws",
             "status": "pass",
             "detail": "Only approved cash advances can be settled.",
-            "time": 51.7
+            "time": 65.1
         },
         {
             "section": "1. CashAdvance: boundary values",
             "label": "settle non-existent throws",
             "status": "pass",
             "detail": "Cash advance not found.",
-            "time": 52.2
+            "time": 65.5
         },
         {
             "section": "1. CashAdvance: boundary values",
             "label": "void non-existent throws",
             "status": "pass",
             "detail": "Cash advance not found.",
-            "time": 52.8
+            "time": 65.9
         },
         {
             "section": "1. CashAdvance: boundary values",
             "label": "double void throws",
             "status": "pass",
             "detail": "Only pending cash advances can be voided.",
-            "time": 70.8
+            "time": 86
         },
         {
             "section": "2. ProjectCostService: division by zero boundary",
@@ -100,112 +100,112 @@
             "label": "profitability for 0-contract project returns safe values",
             "status": "pass",
             "detail": "",
-            "time": 9.5
+            "time": 9.9
         },
         {
             "section": "2. ProjectCostService: division by zero boundary",
             "label": "budget status for 0-contract returns normal/0",
             "status": "pass",
             "detail": "",
-            "time": 10.7
+            "time": 10.9
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "zero dispense amount throws",
             "status": "pass",
             "detail": "CA dispense amount must be greater than zero.",
-            "time": 6.7
+            "time": 6.5
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "negative dispense throws",
             "status": "pass",
             "detail": "CA dispense amount must be greater than zero.",
-            "time": 8.6
+            "time": 7.3
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "missing project_id throws (coerced to 0, not found)",
             "status": "pass",
             "detail": "Project not found.",
-            "time": 10.1
+            "time": 8.1
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "non-existent project throws",
             "status": "pass",
             "detail": "Project not found.",
-            "time": 11.1
+            "time": 8.7
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "empty weeks array produces 0 rows",
             "status": "pass",
             "detail": "",
-            "time": 19.9
+            "time": 15
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "weekly dues rounding sums to total (1000 = 1,000.00)",
             "status": "pass",
             "detail": "",
-            "time": 31.2
+            "time": 29.1
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "zero payment amount throws",
             "status": "pass",
             "detail": "Payment amount must be greater than zero.",
-            "time": 31.3
+            "time": 29.1
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "negative payment amount throws",
             "status": "pass",
             "detail": "Payment amount must be greater than zero.",
-            "time": 31.3
+            "time": 29.1
         },
         {
             "section": "3. FabricationService: boundary values",
             "label": "submit non-existent payment throws",
             "status": "pass",
             "detail": "Payment not found.",
-            "time": 32.1
+            "time": 29.7
         },
         {
             "section": "4. Type confusion: string→float coercion",
             "label": "string amount coerced to float and accepted",
             "status": "pass",
             "detail": "",
-            "time": 8.4
+            "time": 9
         },
         {
             "section": "4. Type confusion: string→float coercion",
             "label": "non-numeric string project_id throws (coerced to 0)",
             "status": "pass",
             "detail": "Project not found.",
-            "time": 9
+            "time": 9.6
         },
         {
             "section": "5. Large values: overflow boundaries",
             "label": "very large advance amount accepted",
             "status": "pass",
             "detail": "",
-            "time": 7.9
+            "time": 8.3
         },
         {
             "section": "6. Empty/null state handling",
             "label": "zero team_lead_id accepted (nullable FK)",
             "status": "pass",
             "detail": "",
-            "time": 8.3
+            "time": 8.6
         },
         {
             "section": "Cleanup",
             "label": "test data cleaned up",
             "status": "pass",
             "detail": "",
-            "time": 32
+            "time": 32.1
         }
     ],
     "gaps": []

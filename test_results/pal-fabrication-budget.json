@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-budget",
-    "started": "2026-07-13 06:14:32",
-    "finished": "2026-07-13 06:14:32",
-    "elapsed_ms": 980.9,
+    "started": "2026-07-13 06:23:25",
+    "finished": "2026-07-13 06:23:25",
+    "elapsed_ms": 683.1,
     "summary": {
         "passed": 40,
         "failed": 0,
@@ -29,28 +29,28 @@
             "label": "500k contract @ 15% = 75,000",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0 contract @ 50% = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0% allocation = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "100% allocation = full contract",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
@@ -64,14 +64,14 @@
             "label": "Rounding: 100000 @ 33.33% = 33330.00",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "Large: 5M @ 40% = 2,000,000",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
@@ -92,63 +92,63 @@
             "label": "First alloc: 60k exceeds 50k remaining — rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 50k budget, 30k dispensed = 20k remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 20k exactly remaining — allowed",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Second alloc: 20001 exceeds budget — rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: 0 remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: any amount > 0 rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Fully depleted: 0 dispense still allowed",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Over-dispensed: negative remaining",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: remaining budget tracking",
             "label": "Over-dispensed: even 0 dispense exceeds",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.1
         },
         {
             "section": "Fabrication budget: zero/negative dispense validation",
@@ -204,7 +204,7 @@
             "label": "3 x 3,333.33 = 9,999.99 (rounding loss)",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Cash advance: lifecycle math",
