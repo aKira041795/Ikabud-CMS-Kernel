@@ -27,7 +27,6 @@ var { TableHarness } = require('../../storage/application-profiles/ark-workbench
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
-var execSync = require('child_process').execSync;
 
 function createWorkbenchTest(config) {
     var appUrl = config.appUrl;
@@ -139,75 +138,10 @@ function createWorkbenchTest(config) {
             });
         },
 
-        // Worker-scoped PAL lifecycle seed: creates test data, fatal on failure.
-        // Tenant defaults to PAL_TEST_TENANT or 990000+workerIndex for concurrency safety.
-        palLifecycleSeed: [async function ({ }, use, workerInfo) {
-            var seedPath = path.resolve(__dirname, '../pal/pal_seed_lifecycle.php');
-            var tenant = process.env.PAL_TEST_TENANT || String(990000 + (workerInfo.parallelIndex || 0));
+        // ── DEPRECATED: seed fixtures removed in favor of instruction-based E2E.
+        // Use pal-lifecycle-interactive.spec.js which creates data through the real browser UI.
+        // To quickly populate dev DB: php tests/pal/pal_seed_lifecycle.php --tenant=502
 
-            console.log('  🌱 Seeding PAL lifecycle (tenant=' + tenant + ')...');
-            var output = execSync(
-                'php ' + seedPath + ' --tenant=' + tenant,
-                { encoding: 'utf-8', timeout: 15000 }
-            );
-            var data = JSON.parse(output);
-
-            if (!data.ok) {
-                throw new Error('PAL lifecycle seed failed: ' + (data.error || 'unknown'));
-            }
-
-            console.log('  🌱 Seeded: project #' + data.project.id + ' (' + data.project.title + ')');
-
-            try {
-                await use(data);
-            } finally {
-                try {
-                    execSync(
-                        'php ' + seedPath + ' --cleanup --tenant=' + tenant,
-                        { encoding: 'utf-8', timeout: 10000 }
-                    );
-                    console.log('  🧹 Cleaned up tenant ' + tenant);
-                } catch (e) {
-                    console.error('  ❌ PAL lifecycle cleanup FAILED: ' + e.message);
-                    throw e; // Fatal — leftover state corrupts future runs
-                }
-            }
-        }, { scope: 'worker' }],
-
-        // Worker-scoped PAL interactive seed: creates minimal draft project for
-        // browser-driven workflow tests. Same isolation as palLifecycleSeed.
-        palInteractiveSeed: [async function ({ }, use, workerInfo) {
-            var seedPath = path.resolve(__dirname, '../pal/pal_seed_interactive.php');
-            var tenant = process.env.PAL_TEST_TENANT || String(991000 + (workerInfo.parallelIndex || 0));
-
-            console.log('  🌱 Seeding PAL interactive (tenant=' + tenant + ')...');
-            var output = execSync(
-                'php ' + seedPath + ' --tenant=' + tenant,
-                { encoding: 'utf-8', timeout: 15000 }
-            );
-            var data = JSON.parse(output);
-
-            if (!data.ok) {
-                throw new Error('PAL interactive seed failed: ' + (data.error || 'unknown'));
-            }
-
-            console.log('  🌱 Seeded: project #' + data.project_id + ' (status: ' + data.project_status + ')');
-
-            try {
-                await use(data);
-            } finally {
-                try {
-                    execSync(
-                        'php ' + seedPath + ' --cleanup --tenant=' + tenant,
-                        { encoding: 'utf-8', timeout: 10000 }
-                    );
-                    console.log('  🧹 Cleaned up interactive tenant ' + tenant);
-                } catch (e) {
-                    console.error('  ❌ PAL interactive cleanup FAILED: ' + e.message);
-                    throw e;
-                }
-            }
-        }, { scope: 'worker' }],
     });
 
     return { test: fixture, expect: base.expect };
