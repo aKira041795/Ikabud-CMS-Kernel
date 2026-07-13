@@ -133,7 +133,14 @@ class WorkbenchReporter {
         }
 
         // Aggregate manifest
-        var manifest = { suites: {}, updated: finishedAt, fingerprint_mode: FINGERPRINT_MODE };
+        var manifest = {
+            run_id: new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15),
+            commit: process.env.GIT_COMMIT || '',
+            started: this.startTime,
+            finished: finishedAt,
+            suites: {},
+            fingerprint_mode: FINGERPRINT_MODE,
+        };
         for (var suiteName in this.suites) {
             if (!this.suites.hasOwnProperty(suiteName)) continue;
             var suite = this.suites[suiteName];

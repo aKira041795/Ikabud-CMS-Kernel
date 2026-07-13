@@ -16,9 +16,15 @@ var path = require('path');
 
 var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
 var AI_DIR = path.resolve(__dirname, '../../test_results/ai');
-var MODULE = process.argv.includes('--module')
-    ? process.argv[process.argv.indexOf('--module') + 1]
-    : 'project-audit-ledger';
+var BROWSER_TEST_DIR = path.resolve(__dirname, '../../tests/browser');
+var MODULE = argVal('--module') || 'project-audit-ledger';
+var RUN_SELECTOR = argVal('--run') || 'latest';
+var MODE = argVal('--mode') || 'triage';
+
+function argVal(flag) {
+    var idx = process.argv.indexOf(flag);
+    return idx >= 0 ? process.argv[idx + 1] : null;
+}
 
 // ── Evidence Collector ─────────────────────────────────────────
 
@@ -39,7 +45,8 @@ function collectEvidence() {
 
     // Collect all suite results
     var suites = {};
-    var failures = [];
+    var allFailures = [];
+    var allSkipped = [];
     for (var i = 0; i < suiteFiles.length; i++) {
         var suite = readJson(path.join(RESULTS_DIR, suiteFiles[i]));
         if (suite) {
@@ -48,26 +55,28 @@ function collectEvidence() {
                 for (var j = 0; j < suite.results.length; j++) {
                     var r = suite.results[j];
                     if (r.status === 'failed' || r.status === 'timedOut') {
-                        failures.push({
+                        allFailures.push({
                             suite: suiteFiles[i],
+                            suiteName: suite.suite || suiteFiles[i],
                             test: r.test,
                             status: r.status,
                             detail: r.detail || '',
-                            file: suite.suite ? suite.suite.replace(/--.*/, '') : suiteFiles[i],
                         });
+                    } else if (r.status === 'skipped') {
+                        allSkipped.push({ suite: suiteFiles[i], test: r.test });
                     }
                 }
             }
         }
     }
 
-    // Try to locate failing test files
-    var testFiles = [];
-    for (var k = 0; k < failures.length; k++) {
-        var f = failures[k];
-        var testDir = path.resolve(__dirname, '../../tests/browser');
-        var possible = findTestFile(testDir, f.file || f.suite);
-        if (possible) testFiles.push(possible);
+    // ── Failure clustering ──────────────────────────────────
+    var rootFailures = allFailures.slice();
+    var consequentialSkips = allSkipped.slice();
+
+    // Resolve exact test source files from suite names
+    for (var m = 0; m < rootFailures.length; m++) {
+        rootFailures[m].sourceFile = findTestFile(rootFailures[m].suiteName);
     }
 
     // Read module contracts
@@ -77,20 +86,31 @@ function collectEvidence() {
         manifest: manifest,
         issueReport: issueReport,
         suites: suites,
-        failures: failures,
-        testFiles: testFiles,
+        rootFailures: rootFailures,
+        consequentialSkips: consequentialSkips,
+        allFailures: allFailures,
         contracts: contracts,
         timestamp: new Date().toISOString(),
     };
 }
 
-function findTestFile(dir, pattern) {
-    if (!fs.existsSync(dir)) return null;
+/**
+ * Resolve a suite name to its exact test source file.
+ * Suite names follow pattern: '<path>--<project>'
+ * e.g. 'workbench-wb-inspect--chromium' → tests/browser/workbench/wb-inspect.spec.js
+ */
+function findTestFile(suiteName) {
+    if (!suiteName) return null;
+    var fileHint = suiteName.replace(/--.*/, '').replace(/-/g, '/');
+    var direct = path.resolve(BROWSER_TEST_DIR, fileHint + '.spec.js');
+    if (fs.existsSync(direct)) return direct;
+    if (!fs.existsSync(BROWSER_TEST_DIR)) return null;
     try {
-        var entries = fs.readdirSync(dir, { recursive: true });
+        var entries = fs.readdirSync(BROWSER_TEST_DIR, { recursive: true });
+        var short = fileHint.split('/').pop();
         for (var i = 0; i < entries.length; i++) {
-            if (entries[i].endsWith('.spec.js') && entries[i].includes('pal')) {
-                return path.resolve(dir, entries[i]);
+            if (entries[i].endsWith('.spec.js') && entries[i].includes(short)) {
+                return path.resolve(BROWSER_TEST_DIR, entries[i]);
             }
         }
     } catch (e) { /* skip */ }
@@ -195,6 +215,8 @@ function extractTransitions(content) {
 // ── Diagnosis Engine ───────────────────────────────────────────
 
 function diagnose(evidence) {
+    // ── Always calculate run summary ──────────────────────
+    var summary = summarizeManifest(evidence.manifest);
     var diagnosis = {
         classification: 'undetermined',
         confidence: 0.5,
@@ -205,52 +227,63 @@ function diagnose(evidence) {
         safe_to_auto_heal: false,
         module: MODULE,
         run_context: {
-            total_tests: 0,
-            passed: 0,
-            failed: 0,
+            total_tests: summary.total,
+            passed: summary.passed,
+            failed: summary.failed,
+            skipped: summary.skipped,
+            timedOut: summary.timedOut,
             issues: evidence.issueReport ? evidence.issueReport.total_issues : 0,
         },
     };
 
-    if (!evidence.failures || evidence.failures.length === 0) {
-        if (evidence.manifest) {
-            var total = 0, passed = 0;
-            for (var s in evidence.manifest.suites) {
-                if (!evidence.manifest.suites.hasOwnProperty(s)) continue;
-                total += evidence.manifest.suites[s].total || 0;
-                passed += evidence.manifest.suites[s].passed || 0;
-            }
-            diagnosis.run_context.total_tests = total;
-            diagnosis.run_context.passed = passed;
-            diagnosis.run_context.failed = total - passed;
-            diagnosis.summary = total + ' tests, ' + passed + ' passed, ' + (total - passed) + ' failed.';
-        }
+    var rootFailures = evidence.rootFailures || [];
+    var consequentialSkips = evidence.consequentialSkips || [];
+
+    if (rootFailures.length === 0) {
+        diagnosis.summary = summary.total + ' tests, ' + summary.passed + ' passed, ' + summary.failed + ' failed, ' + summary.skipped + ' skipped.';
         return diagnosis;
     }
 
-    // Analyze each failure
-    var primary = evidence.failures[0];
+    // ── Analyze primary (root) failure ────────────────────
+    var primary = rootFailures[0];
     diagnosis.failed_test = {
-        file: primary.file || primary.suite,
+        file: primary.sourceFile || primary.suiteName || primary.suite,
         test: primary.test,
-        error: primary.detail ? primary.detail.substring(0, 200) : 'No error detail',
+        error: (primary.detail || '').substring(0, 300),
     };
 
-    var detail = primary.detail || '';
-    var testContent = '';
-    for (var t = 0; t < (evidence.testFiles || []).length; t++) {
-        try {
-            testContent = fs.readFileSync(evidence.testFiles[t], 'utf-8');
-            break;
-        } catch (e) { /* skip */ }
+    // Cluster info
+    if (rootFailures.length > 1) {
+        diagnosis.evidence.push(rootFailures.length + ' root failures detected');
     }
+    if (consequentialSkips.length > 0) {
+        diagnosis.evidence.push(consequentialSkips.length + ' tests skipped (likely consequential)');
+    }
+
+    var detail = primary.detail || '';
+    // Strip ANSI escape codes from error text for cleaner matching
+    var cleanDetail = detail.replace(/\u001b\[\d+m/g, '').replace(/\u001b\[\d+;\d+m/g, '');
 
     // ── Pattern-based classification ──
 
+    // Seed/DB command failures
+    if (cleanDetail.includes('Command failed') || cleanDetail.includes('SQLSTATE') || cleanDetail.includes('prepare()') || cleanDetail.includes('on null')) {
+        diagnosis.classification = 'environment-issue';
+        diagnosis.confidence = 0.9;
+        diagnosis.summary = 'Seed script or database command failed — tenant DB may not be configured.';
+        diagnosis.evidence.push('Seed script exited with error — database connection or tenant configuration issue');
+        diagnosis.evidence.push('The test tenant ID may not have a DB connection in kernel_tenant_db_connections');
+        if (consequentialSkips.length > 0) {
+            diagnosis.evidence.push(consequentialSkips.length + ' subsequent tests skipped (consequential)');
+        }
+        diagnosis.recommended_action = 'Verify test tenant has a database connection. Set PAL_TEST_TENANT=502 for local dev.';
+        return diagnosis;
+    }
+
     // Timeout → timing or missing element
-    if (detail.includes('Timeout') || detail.includes('timeout') || detail.includes('timedOut')) {
-        if (detail.includes('waitForSelector') || detail.includes('waitForURL')) {
-            if (detail.includes('data-wb-component')) {
+    if (cleanDetail.includes('Timeout') || cleanDetail.includes('timeout') || cleanDetail.includes('timedOut')) {
+        if (cleanDetail.includes('waitForSelector') || cleanDetail.includes('waitForURL')) {
+            if (cleanDetail.includes('data-wb-component')) {
                 diagnosis.classification = 'environment-issue';
                 diagnosis.confidence = 0.85;
                 diagnosis.summary = 'App shell did not render — server may not be running or login failed.';
@@ -259,7 +292,7 @@ function diagnose(evidence) {
                 diagnosis.recommended_action = 'Verify app server is running and ADMIN_USER/ADMIN_PASS env vars are set.';
                 return diagnosis;
             }
-            if (detail.includes('data-wb-entity') || detail.includes('data-ikb')) {
+            if (cleanDetail.includes('data-wb-entity') || cleanDetail.includes('data-ikb')) {
                 diagnosis.classification = 'application-defect';
                 diagnosis.confidence = 0.8;
                 diagnosis.summary = 'Expected entity or list not rendered on the page.';
@@ -275,8 +308,8 @@ function diagnose(evidence) {
     }
 
     // Assertion failure → wrong text, missing element
-    if (detail.includes('expect') || detail.includes('Expected')) {
-        if (detail.includes('toContainText') || detail.includes('toHaveText')) {
+    if (cleanDetail.includes('expect') || cleanDetail.includes('Expected')) {
+        if (cleanDetail.includes('toContainText') || cleanDetail.includes('toHaveText')) {
             diagnosis.classification = 'application-defect';
             diagnosis.confidence = 0.75;
             diagnosis.summary = 'Expected text not found on page — status or label mismatch.';
@@ -285,7 +318,7 @@ function diagnose(evidence) {
             diagnosis.recommended_action = 'Check the entity status in the database, then verify the detail page renders it correctly.';
             return diagnosis;
         }
-        if (detail.includes('toBeVisible')) {
+        if (cleanDetail.includes('toBeVisible')) {
             diagnosis.classification = 'locator-stale';
             diagnosis.confidence = 0.7;
             diagnosis.summary = 'Expected element to be visible but it was not found. Selector may be stale.';
@@ -297,7 +330,7 @@ function diagnose(evidence) {
     }
 
     // Network or HTTP errors
-    if (detail.includes('net::') || detail.includes('NS_ERROR')) {
+    if (cleanDetail.includes('net::') || cleanDetail.includes('NS_ERROR')) {
         diagnosis.classification = 'environment-issue';
         diagnosis.confidence = 0.9;
         diagnosis.summary = 'Network request failed — server or network issue.';
@@ -306,19 +339,8 @@ function diagnose(evidence) {
         return diagnosis;
     }
 
-    // Seed/DB command failures
-    if (detail.includes('Command failed') || detail.includes('SQLSTATE') || detail.includes('prepare()')) {
-        diagnosis.classification = 'environment-issue';
-        diagnosis.confidence = 0.9;
-        diagnosis.summary = 'Seed script or database command failed — tenant DB may not be configured.';
-        diagnosis.evidence.push('Seed script exited with error — database connection or tenant configuration issue');
-        diagnosis.evidence.push('The test tenant ID may not have a DB connection in kernel_tenant_db_connections');
-        diagnosis.recommended_action = 'Verify the test tenant has a database connection, or set PAL_TEST_TENANT to a valid tenant.';
-        return diagnosis;
-    }
-
     // 404 / 500 from the app
-    if (detail.includes('404') || detail.includes('500')) {
+    if (cleanDetail.includes('404') || cleanDetail.includes('500')) {
         diagnosis.classification = 'application-defect';
         diagnosis.confidence = 0.8;
         diagnosis.summary = 'HTTP error response from application.';
@@ -351,8 +373,7 @@ function diagnose(evidence) {
 
 function findSuspectedFiles(failure, contracts) {
     var files = [];
-    var testFile = failure.file || '';
-    var suite = failure.suite || '';
+    var suite = failure.suiteName || failure.suite || '';
 
     // Map test suites to likely handler files
     var suiteMap = {
@@ -381,6 +402,22 @@ function findSuspectedFiles(failure, contracts) {
     }
 
     return files.length > 0 ? files : ['Unable to determine — check test file for related routes'];
+}
+
+// ── Manifest summary ──────────────────────────────────────────
+
+function summarizeManifest(manifest) {
+    var summary = { total: 0, passed: 0, failed: 0, skipped: 0, timedOut: 0 };
+    if (!manifest || !manifest.suites) return summary;
+    for (var s in manifest.suites) {
+        if (!manifest.suites.hasOwnProperty(s)) continue;
+        var suite = manifest.suites[s];
+        summary.total += suite.total || 0;
+        summary.passed += suite.passed || 0;
+        summary.failed += suite.failed || 0;
+        summary.skipped += suite.skipped || 0;
+    }
+    return summary;
 }
 
 // ── Main ───────────────────────────────────────────────────────
