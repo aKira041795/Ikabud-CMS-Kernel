@@ -1,26 +1,52 @@
 /**
  * Browser tests for ARK Workbench app-shell component.
  *
+ * INTEGRITY: fingerprints the app_shell.disyl source template.
+ * Gaps document known coverage holes.
+ *
  * Prerequisites:
  *   - Application running at APP_URL (default http://palsystem.test)
  *   - PAL module installed with test tenant
  *   - Playwright installed: npm init playwright@latest
  *
- * Run: npx playwright test tests/browser/workbench/
+ * Run: npx playwright test tests/browser/workbench/app-shell.spec.js
  *
  * @see storage/application-profiles/ark-workbench/components/shell/app_shell.disyl
  */
 
 // @ts-check
-const { test, expect } = require('@playwright/test');
+const { test, expect } = require('../WorkbenchFixture');
 
-const APP_URL = process.env.APP_URL || 'http://palsystem.test';
+// We have the full set of PLANNED tests (28) but some are deferred.
+// Track them so the gap count in the manifest reflects reality.
+const GAPS = [
+    'Mobile: sidebar collapse at <768px wide viewport',
+    'Mobile: bottom-nav items accessible via tap targets',
+    'Keyboard: Tab cycles through nav items in order',
+    'Keyboard: Enter activates sidebar section toggle',
+    'Keyboard: Escape closes mobile drawer',
+    'Keyboard: Skip-to-content is first tab stop',
+    'Focus: focus-visible ring on nav items',
+    'Focus: no focus trap when sidebar is closed',
+    'A11y: sidebar nav has aria-current="page" on active item',
+    'A11y: sidebar sections use aria-expanded',
+    'A11y: mobile menu button has aria-controls pointing to sidebar',
+    'A11y: overlay has aria-label="Close menu"',
+    'A11y: color contrast meets WCAG AA (4.5:1)',
+    'Performance: shell renders in <2s on 3G throttled',
+    'Performance: sidebar nav with 30+ items scrolls without frame drop',
+    'Responsive: tablet (768px) shows collapsed sidebar with hamburger',
+];
 
 test.describe('workbench:app_shell', () => {
 
+    // ── Source Integrity ───────────────────────────────────────
+    test.beforeAll(async ({ integrity }) => {
+        integrity.fingerprint('storage/application-profiles/ark-workbench/components/shell/app_shell.disyl');
+    });
+
     test.beforeEach(async ({ page }) => {
-        // Log in via PAL login page
-        await page.goto(`${APP_URL}/project-audit-ledger/login`);
+        await page.goto(`${process.env.APP_URL || 'http://palsystem.test'}/project-audit-ledger/login`);
         await page.fill('input[name="username"]', 'paladmin');
         await page.fill('input[name="password"]', 'pAl123456');
         await page.click('button[type="submit"]');
@@ -149,5 +175,26 @@ test.describe('workbench:app_shell', () => {
         const toast = page.locator('#wb-toast-container');
         await expect(toast).toHaveCount(1);
         await expect(toast).toHaveAttribute('role', 'status');
+    });
+
+    // ── Coverage Gaps ──
+
+    test('known coverage gaps', async ({ integrity }) => {
+        for (const g of GAPS) {
+            integrity.gap(g);
+        }
+        // This test always passes — it documents what's NOT tested
+        expect(GAPS.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // ── Write Results ──
+
+    test.afterAll(async ({ integrity }) => {
+        // Record each test's result
+        // (Playwright tracks this internally; we just write the file)
+        for (const g of GAPS) {
+            integrity.gap(g);
+        }
+        await integrity.writeResults();
     });
 });

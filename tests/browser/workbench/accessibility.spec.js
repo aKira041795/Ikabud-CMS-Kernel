@@ -130,7 +130,9 @@ test.describe('ARK Workbench accessibility', () => {
 
     // ── Focus management ──
 
-    test('mobile menu button is focusable', async ({ page }) => {
+    test('mobile menu button is focusable on mobile viewport', async ({ page }) => {
+        // Resize to mobile viewport; button is hidden on desktop via md:hidden
+        await page.setViewportSize({ width: 375, height: 667 });
         const menuBtn = page.locator('#wb-menu-btn');
         await expect(menuBtn).toBeVisible();
         await menuBtn.focus();

@@ -875,49 +875,206 @@ final class ArkWorkbenchProvider implements ThemeCustomizerProvider
 
 ## 9. Testing
 
-### 9.1 What to Test Where
+### 9.1 Test Pyramid
 
-| Layer | Test Type | Tool |
+```
+Layer 6: Relationship graph      → PHP integration (cross-page context preservation)
+Layer 5: Module pages/workflows  → PHP integration (ProjectCompletionTest pattern)
+Layer 4: Browser fixture system   → Playwright (WorkbenchFixture + page harnesses)
+Layer 3: Component harnesses     → Playwright (ShellHarness, DialogHarness, TableHarness)
+Layer 2: Component scenarios     → PHP (TemplateEngine render tests)
+Layer 1: Contract tests          → PHP (TestHarness — pure logic + fingerprints)
+```
+
+### 9.2 Shared Test Harness (`tests/harness/TestHarness.php`)
+
+Module-agnostic base class. Provides:
+
+| Feature | Method | Purpose |
 |---|---|---|
-| View models | Unit | PHP |
-| Presenters | Unit | PHP |
-| Component rendering output | Integration | PHP |
-| Design policy validation | Integration | PHP |
-| Manifest/contract validation | Integration | PHP |
-| Focus trap, keyboard nav | Browser | Playwright |
-| Mobile drawer behavior | Browser | Playwright |
-| Responsive table at 375/768/1440 | Browser | Playwright |
-| Dialog escape/backdrop close | Browser | Playwright |
-| Combobox keyboard selection | Browser | Playwright |
-| Form error → validation summary link | Browser | Playwright |
-| Accessibility (axe-core) | Browser | Playwright + axe-core |
-| Screenshot baselines | Browser | Playwright |
+| Sections | `section()` | Group assertions by domain |
+| Assertions | `test()`, `assertSame()`, `assertThrows()` | Boolean + comparison assertions |
+| Skip | `skip()` | Document intentionally deferred tests |
+| Gaps | `gap()` | Document known missing coverage (included in JSON output) |
+| Fingerprints | `fingerprint(path)` | Records md5 of source file — detects unnoticed changes |
+| Results | `done()` | Writes `test_results/<suite>.json` + aggregated `manifest.json` |
+| Integration | `MODE_INTEGRATION` | Loads `bootstrap.php` with tenant host resolution |
 
-### 9.2 Component Test Template (PHP)
+**Usage:**
 
 ```php
-final class StatusBadgeTest extends TestCase
+require_once __DIR__ . '/../harness/TestHarness.php';
+
+$h = new TestHarness('my-module-state-machine');
+$h->fingerprint('modules/my-module/services/Workflow.php');
+
+$h->section('Allowed transitions');
+$h->test('draft → pending', $workflow::isAllowed('draft', 'pending'));
+$h->test('pending → approved', $workflow::isAllowed('pending', 'approved'));
+
+$h->section('Gap analysis');
+$h->gap('DB: transition persistence');
+$h->gap('DB: audit trail');
+
+$h->done();
+```
+
+**Integration mode** (requires tenant host):
+
+```php
+$h = new TestHarness('my-module-integration', TestHarness::MODE_INTEGRATION, 'mytenant.test');
+// app()->db() now connects to the tenant's database
+```
+
+### 9.3 Test Results Output
+
+Every test writes two artifacts:
+- **stdout**: Human-readable pass/fail/skip/gap with ✅❌⏭🔍 markers
+- **JSON**: Structured `test_results/<suite>.json` with per-assertion detail
+
+**JSON structure:**
+
+```json
 {
-    public function testRendersLabel(): void
-    {
-        $output = $this->renderComponent('workbench:status_badge', [
-            'label' => 'Approved',
-            'tone'  => 'success',
-        ]);
-
-        $this->assertStringContainsString('Approved', $output);
-        $this->assertStringContainsString('success', $output);
+    "suite": "pal-job-order-workflow",
+    "summary": { "passed": 133, "failed": 0, "assertions": 133 },
+    "source_fingerprints": {
+        "modules/project-audit-ledger/services/JobOrderWorkflow.php": "308285383c5eb5bc"
+    },
+    "results": [
+        { "section": "Exhaustive 8×8 matrix", "label": "draft → pending = ALLOWED",
+          "status": "pass", "detail": "", "time": 0.5 }
+    ],
+    "gaps": {
+        "Gap analysis": ["DB: transition persistence"]
     }
+}
+```
 
-    public function testAlwaysIncludesTextLabel(): void
-    {
-        // Color alone must never communicate status
-        $output = $this->renderComponent('workbench:status_badge', [
-            'label' => 'Overdue',
-            'tone'  => 'danger',
-        ]);
+**Aggregated manifest:** `test_results/manifest.json` — combines all suites with pass/fail/assertion/gap totals.
 
-        $this->assertStringContainsString('Overdue', $output);
+### 9.4 Source Fingerprints
+
+Each test records the md5 hash of every source file it tests. This detects when source code changes without a corresponding test update:
+
+```
+🧬 modules/.../JobOrderWorkflow.php — 308285383c5eb5bc...
+```
+
+If the hash differs between test runs, the source changed — the test may need updating.
+
+### 9.5 Pure-Logic Test Pattern (highest ROI)
+
+Tests static methods and pure calculations — zero bootstrap, zero DB, zero mocking.
+
+**When:** Service has `static` methods, state machine transitions, or math.
+**Where:** `tests/<module>/<feature>_test.php`
+**Template:** `tests/pal/pal_job_order_workflow_test.php` (133 assertions, exhaustive 8×8 matrix)
+
+**Key rules:**
+1. Cover **every** from→to combination in state machines (N×N matrix)
+2. Use `gap()` to document DB-backed guards not covered
+3. Fingerprint the source file
+
+### 9.6 Integration Test Pattern
+
+Tests DB-backed business logic through actual service methods.
+
+**Prerequisites:** Tenant host must resolve to a database with module tables.
+**Where:** `tests/<module>/<feature>_integration_test.php`
+**Template:** `tests/pal/pal_job_order_workflow_integration_test.php` (10 assertions)
+
+**Seed data pattern:**
+
+```php
+$testTenantId = 999901; // High ID to avoid conflicts
+$cleanup = ['pal_projects', 'pal_clients'];
+foreach ($cleanup as $t) { $db->exec("DELETE FROM {$t} WHERE tenant_id = {$testTenantId}"); }
+
+function seedProject(...): int { /* INSERT with unique IDs */ }
+```
+
+**Always:** Clean up seed data at the end of the test.
+
+### 9.7 Manifest Contract Test Pattern
+
+Validates `module.json` structure, file existence, and PHP syntax against the filesystem — no DB needed.
+
+**Template:** `tests/project-audit-ledger/pal_manifest_test.php` (60 assertions)
+
+### 9.8 Scaffold Generator
+
+```bash
+php scripts/generate-module-test.php <module-id> [--playwright]
+```
+
+Auto-generates stub files for any module:
+- `tests/<module>/manifest_test.php` — module.json contract
+- `tests/<module>/state_machine_test.php` — if state machine detected
+- `tests/<module>/integration_test.php` — DB-backed stub
+- `tests/browser/modules/<module>/` — Playwright specs (with `--playwright`)
+
+Detects state machines by scanning for status arrays and `forbiddenTransitions` in source code.
+
+### 9.9 Playwright Browser Tests
+
+**Fixture:** `tests/browser/WorkbenchFixture.js`
+
+Provides pre-authenticated page, component harnesses, and integrity tracking:
+
+| Feature | Usage |
+|---|---|
+| Auto-login | Every test logs in as `paladmin` automatically |
+| ShellHarness | `shell.expectVisible()`, `shell.navigateViaSidebar()` |
+| DialogHarness | `dialog.open()`, `dialog.confirm()`, `dialog.expectClosed()` |
+| TableHarness | `table.rows()`, `table.cellValue()`, `table.expectEmpty()` |
+| `integrity.gap()` | Document missing browser coverage |
+| `integrity.fingerprint()` | Record template source hashes |
+| `integrity.writeResults()` | Write `test_results/browser/<suite>.json` |
+
+**Existing spec files (13, ~77 tests):**
+
+| Suite | Tests | Location |
+|---|---|---|
+| App shell | 12 | `tests/browser/workbench/app-shell.spec.js` |
+| Component conformance | 12 | `tests/browser/workbench/component-conformance.spec.js` |
+| Accessibility | 9 | `tests/browser/workbench/accessibility.spec.js` |
+| Responsive table | 4 | `tests/browser/workbench/responsive-table.spec.js` |
+| PAL Dashboard | 5 | `tests/browser/modules/pal/pages/dashboard.spec.js` |
+| PAL Project list | 8 | `tests/browser/modules/pal/pages/project-list.spec.js` |
+| PAL Workflow | 12 | `tests/browser/modules/pal/pal-workflow.spec.js` |
+| Context preservation | 9 | `tests/browser/modules/pal/relationships/context-preservation.spec.js` |
+| Project lifecycle | 6 | `tests/browser/modules/pal/workflows/project-lifecycle.spec.js` |
+
+**Run:**
+
+```bash
+npx playwright test tests/browser/workbench/
+npx playwright test tests/browser/modules/pal/
+```
+
+### 9.10 Component Harnesses
+
+Located in `storage/application-profiles/ark-workbench/testing/harnesses/`:
+
+| Harness | File | Coverage |
+|---|---|---|
+| `ShellHarness` | `ShellHarness.js` | Sidebar nav, user display, page titles, toast |
+| `DialogHarness` | `DialogHarness.js` | Open/close/confirm/cancel, focus trap, backdrop |
+| `TableHarness` | `TableHarness.js` | Row counts, cell values, empty state |
+
+Each harness uses `data-wb-component` selectors as stable locators — tests never depend on CSS class names.
+
+### 9.11 Integrity Contract
+
+Every test run produces a machine-readable record of:
+
+1. **What passed and failed** (per-assertion detail)
+2. **What was skipped** (intentionally deferred tests)
+3. **What gaps remain** (documented missing coverage)
+4. **Source file fingerprints** (hashes of tested code)
+
+This means: if source changes but tests don't update, the fingerprint mismatch is visible in the JSON output. No silent regressions.
     }
 
     public function testRejectsUnknownTone(): void

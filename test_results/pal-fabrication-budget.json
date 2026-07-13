@@ -1,0 +1,316 @@
+{
+    "suite": "pal-fabrication-budget",
+    "started": "2026-07-13 05:15:30",
+    "finished": "2026-07-13 05:15:30",
+    "elapsed_ms": 768.9,
+    "summary": {
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "total": 40,
+        "assertions": 40,
+        "exit_code": 0
+    },
+    "source_fingerprints": {
+        "modules/project-audit-ledger/services/FabricationService.php": "58b7450f4b119b0b4e7a569e83d9a3a4",
+        "modules/project-audit-ledger/services/CashAdvanceService.php": "c82f5d51de687526cfd6de21f454609f",
+        "modules/project-audit-ledger/services/ApprovalService.php": "84f503a85921a50adced3abff3cc025d"
+    },
+    "results": [
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "100k contract @ 25% = 25,000",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "500k contract @ 15% = 75,000",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "0 contract @ 50% = 0",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "0% allocation = 0",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "100% allocation = full contract",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "12.5% partial = 12,500",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "Rounding: 100000 @ 33.33% = 33330.00",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: allocation calculation",
+            "label": "Large: 5M @ 40% = 2,000,000",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "First alloc: 50k budget, 0 dispensed = 50k remaining",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "First alloc: 30k within 50k remaining — allowed",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "First alloc: 60k exceeds 50k remaining — rejected",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Second alloc: 50k budget, 30k dispensed = 20k remaining",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Second alloc: 20k exactly remaining — allowed",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Second alloc: 20001 exceeds budget — rejected",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Fully depleted: 0 remaining",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Fully depleted: any amount > 0 rejected",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Fully depleted: 0 dispense still allowed",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Over-dispensed: negative remaining",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: remaining budget tracking",
+            "label": "Over-dispensed: even 0 dispense exceeds",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: zero/negative dispense validation",
+            "label": "Zero dispense is invalid (guarded by service)",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Fabrication budget: zero/negative dispense validation",
+            "label": "Negative dispense is invalid (guarded by service)",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Weekly due splitting",
+            "label": "20k / 4 weeks = 5,000 each",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Weekly due splitting",
+            "label": "20k / 8 weeks = 2,500 each",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Weekly due splitting",
+            "label": "0 / 4 weeks = 0",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Weekly due splitting",
+            "label": "20k / 0 weeks = 0 (guard)",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Weekly due splitting",
+            "label": "Uneven: 10000 / 3 = 3,333.33",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Weekly due splitting",
+            "label": "3 x 3,333.33 = 9,999.99 (rounding loss)",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: lifecycle math",
+            "label": "Cash advance starts as pending",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: lifecycle math",
+            "label": "Approved status is valid transition from pending",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: lifecycle math",
+            "label": "Settled is valid from approved (not from pending)",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: lifecycle math",
+            "label": "Voided is valid from pending (not from approved)",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: team lead balance aggregation",
+            "label": "Single advance = balance",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: team lead balance aggregation",
+            "label": "Multiple advances sum correctly",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: team lead balance aggregation",
+            "label": "No advances = 0",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: team lead balance aggregation",
+            "label": "Large values: 500k + 300k = 800k",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Cash advance: team lead balance aggregation",
+            "label": "Mixed decimals sum",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Approval service: enriched pending list",
+            "label": "Expenses grouped: 3 items",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Approval service: enriched pending list",
+            "label": "Purchases grouped: 1 item",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Approval service: enriched pending list",
+            "label": "Cash advances grouped: 1 item",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Approval service: enriched pending list",
+            "label": "Empty approvals returns empty groups",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        }
+    ],
+    "gaps": {
+        "Gap analysis — DB-backed guards (integration tests needed)": [
+            "createAllocation(): project not found throws exception",
+            "createAllocation(): dispense amount > remaining budget throws exception with detail message",
+            "createAllocation(): existing SUM from pal_fabrication_allocations correctly calculated",
+            "generateWeeklyDues(): allocation not found throws exception",
+            "recordPayment(): transaction rollback on failure",
+            "CashAdvanceService::approve() updates status and emits audit/event",
+            "CashAdvanceService::settle() sets settled_at timestamp",
+            "getTeamLeadBalance() filters only pending + approved statuses",
+            "ApprovalService::pendingListEnriched() enriches each entity type correctly",
+            "ApprovalService::decide() updates both pal_approvals and entity status",
+            "ApprovalService::decide() fires domain event and audit trail"
+        ]
+    }
+}

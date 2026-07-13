@@ -1,0 +1,90 @@
+{
+    "suite": "pal-job-order-workflow-integration",
+    "started": "2026-07-13 05:15:30",
+    "finished": "2026-07-13 13:15:31",
+    "elapsed_ms": 28801032.1,
+    "summary": {
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "total": 10,
+        "assertions": 10,
+        "exit_code": 0
+    },
+    "source_fingerprints": {
+        "modules/project-audit-ledger/services/JobOrderWorkflow.php": "308285383c5eb5bc93dd7ee2c841f0ca"
+    },
+    "results": [
+        {
+            "section": "1. transition() — client guard",
+            "label": "completed with client_id > 0 passes guard",
+            "status": "pass",
+            "detail": "",
+            "time": 23.5
+        },
+        {
+            "section": "1. transition() — client guard",
+            "label": "completed without client throws InvalidArgumentException",
+            "status": "pass",
+            "detail": "Cannot complete a project without a client.",
+            "time": 31.5
+        },
+        {
+            "section": "2. transition() — paid invoice guard",
+            "label": "completed→ongoing blocked by transition matrix (guard unreachable)",
+            "status": "pass",
+            "detail": "Cannot transition from 'Completed' to 'Ongoing'.",
+            "time": 7
+        },
+        {
+            "section": "2. transition() — paid invoice guard",
+            "label": "completed→closed is the only allowed transition from completed",
+            "status": "pass",
+            "detail": "",
+            "time": 9.5
+        },
+        {
+            "section": "3. apply() — actual_completion_date set",
+            "label": "status changed to completed",
+            "status": "pass",
+            "detail": "",
+            "time": 15.2
+        },
+        {
+            "section": "3. apply() — actual_completion_date set",
+            "label": "actual_completion_date is set",
+            "status": "pass",
+            "detail": "",
+            "time": 15.2
+        },
+        {
+            "section": "4. transition() — pre-loaded context avoids SELECT",
+            "label": "pre-loaded context returns true (transition allowed)",
+            "status": "pass",
+            "detail": "",
+            "time": 6.4
+        },
+        {
+            "section": "4. transition() — pre-loaded context avoids SELECT",
+            "label": "pre-loaded context: cannot transition from completed back to draft",
+            "status": "pass",
+            "detail": "Cannot transition from 'Completed' to 'Draft'.",
+            "time": 6.8
+        },
+        {
+            "section": "5. transition() — project not found",
+            "label": "non-existent project ID throws InvalidArgumentException",
+            "status": "pass",
+            "detail": "Project not found.",
+            "time": 1.9
+        },
+        {
+            "section": "Cleanup",
+            "label": "test data cleaned up",
+            "status": "pass",
+            "detail": "",
+            "time": 14.9
+        }
+    ],
+    "gaps": []
+}

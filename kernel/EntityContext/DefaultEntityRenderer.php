@@ -519,7 +519,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $theadClass = $this->style('thead', 'table', $use);
         $cells = '';
         if ($hasBulk) {
-            $cells .= '<th class="' . $thClass . '" style="width:40px"><input type="checkbox" class="ikb-bulk-select-all" onclick="document.querySelectorAll(\'.ikb-bulk-row\').forEach(cb => cb.checked = this.checked); document.getElementById(\'ikb-bulk-bar\').classList.toggle(\'hidden\', !this.checked)"></th>';
+            $cells .= '<th scope="col" class="' . $thClass . '" style="width:40px"><input type="checkbox" class="ikb-bulk-select-all" onclick="document.querySelectorAll(\'.ikb-bulk-row\').forEach(cb => cb.checked = this.checked); document.getElementById(\'ikb-bulk-bar\').classList.toggle(\'hidden\', !this.checked)"></th>';
         }
         foreach ($fields as $field) {
             if ($field === '*') continue;
@@ -532,16 +532,16 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                 $ariaSort = $isActive ? ' aria-sort="' . ($currentDir === 'asc' ? 'ascending' : 'descending') . '"' : '';
                 $arrow = $isActive ? ($currentDir === 'asc' ? ' ▲' : ' ▼') : '';
                 $sortUrl = $this->sortUrl($field, $queryState, $listId);
-                $cells .= '<th class="' . $thClass . '"' . $ariaSort . '>'
+                $cells .= '<th scope="col" class="' . $thClass . '"' . $ariaSort . '>'
                     . '<a href="' . htmlspecialchars($sortUrl, ENT_QUOTES, 'UTF-8') . '" class="flex items-center gap-1 hover:text-brand-700 no-underline">'
                     . $label . $arrow
                     . '</a></th>';
             } else {
-                $cells .= '<th class="' . $thClass . '">' . $label . '</th>';
+                $cells .= '<th scope="col" class="' . $thClass . '">' . $label . '</th>';
             }
         }
         if (!empty($actions)) {
-            $cells .= '<th class="' . $thClass . ' text-right">Actions</th>';
+            $cells .= '<th scope="col" class="' . $thClass . ' text-right">Actions</th>';
         }
         return '<thead><tr class="' . $theadClass . '">' . $cells . '</tr></thead>';
     }

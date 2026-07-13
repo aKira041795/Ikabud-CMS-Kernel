@@ -1,0 +1,63 @@
+{
+  "generated": "2026-07-13 13:03:40",
+  "message": "All documented gaps are covered by integration tests or confirmed design",
+  "suites": {
+    "pal-fabrication-budget": {
+      "passed": 40,
+      "failed": 0,
+      "total": 40,
+      "assertions": 40,
+      "skipped": 0,
+      "source_files": [
+        "modules/project-audit-ledger/services/FabricationService.php",
+        "modules/project-audit-ledger/services/CashAdvanceService.php",
+        "modules/project-audit-ledger/services/ApprovalService.php"
+      ]
+    },
+    "pal-fabrication-integration": {
+      "passed": 24,
+      "failed": 0,
+      "total": 24,
+      "assertions": 24,
+      "skipped": 0,
+      "source_files": [
+        "modules/project-audit-ledger/services/FabricationService.php",
+        "modules/project-audit-ledger/services/CashAdvanceService.php",
+        "modules/project-audit-ledger/services/ApprovalService.php",
+        "modules/project-audit-ledger/services/ProjectService.php"
+      ]
+    },
+    "pal-job-order-workflow-integration": {
+      "passed": 10,
+      "failed": 0,
+      "total": 10,
+      "assertions": 10,
+      "skipped": 0,
+      "source_files": [
+        "modules/project-audit-ledger/services/JobOrderWorkflow.php"
+      ]
+    },
+    "pal-job-order-workflow": {
+      "passed": 133,
+      "failed": 0,
+      "total": 133,
+      "assertions": 133,
+      "skipped": 5,
+      "source_files": [
+        "modules/project-audit-ledger/services/JobOrderWorkflow.php"
+      ]
+    }
+  },
+  "global_summary": {
+    "passed": 207,
+    "failed": 0,
+    "assertions": 207,
+    "source_files": [
+      "modules/project-audit-ledger/services/ApprovalService.php",
+      "modules/project-audit-ledger/services/CashAdvanceService.php",
+      "modules/project-audit-ledger/services/FabricationService.php",
+      "modules/project-audit-ledger/services/JobOrderWorkflow.php",
+      "modules/project-audit-ledger/services/ProjectService.php"
+    ]
+  }
+}

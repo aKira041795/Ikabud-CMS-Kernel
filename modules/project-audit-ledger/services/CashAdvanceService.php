@@ -100,6 +100,17 @@ class palCashAdvanceService
 
     public function void(int $id): void
     {
+        // Guard: only pending advances can be voided
+        $check = $this->db->prepare("SELECT status FROM pal_cash_advances WHERE id = :id AND tenant_id = :tid");
+        $check->execute([':id' => $id, ':tid' => $this->tenantId]);
+        $row = $check->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new InvalidArgumentException('Cash advance not found.');
+        }
+        if ($row['status'] !== 'pending') {
+            throw new InvalidArgumentException('Only pending cash advances can be voided.');
+        }
+
         $stmt = $this->db->prepare("UPDATE pal_cash_advances SET status = 'voided' WHERE id = :id AND tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
 
