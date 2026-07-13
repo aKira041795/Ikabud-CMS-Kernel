@@ -57,8 +57,21 @@ $db = app()->db();
 $palDb = new \Ikabud\Kernel\Contracts\ModuleDB($db, 'project-audit-ledger', $ownsTables, []);
 
 // ── Cleanup ──────────────────────────────────────────────────
+$cleanupErrors = [];
 foreach ($ownsTables as $t) {
-    try { $db->exec("DELETE FROM {$t} WHERE tenant_id = {$tenantId}"); } catch (\Throwable $e) {}
+    try {
+        $db->prepare("DELETE FROM {$t} WHERE tenant_id = ?")->execute([$tenantId]);
+    } catch (\Throwable $e) {
+        $cleanupErrors[] = ['table' => $t, 'error' => $e->getMessage()];
+    }
+}
+
+if ($cleanupErrors !== []) {
+    fwrite(STDERR, json_encode([
+        'ok' => false, 'action' => 'cleanup', 'tenant_id' => $tenantId,
+        'errors' => $cleanupErrors,
+    ], JSON_PRETTY_PRINT) . PHP_EOL);
+    exit(1);
 }
 
 if ($isCleanup) {

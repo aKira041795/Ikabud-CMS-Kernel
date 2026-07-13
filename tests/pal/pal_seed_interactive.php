@@ -34,8 +34,21 @@ $db = app()->db();
 $cleanupTables = ['pal_projects', 'pal_clients', 'pal_users', 'pal_sales', 'pal_sale_items',
     'pal_receivables', 'pal_receivable_payments', 'pal_collections', 'pal_approvals'];
 
+$cleanupErrors = [];
 foreach ($cleanupTables as $t) {
-    try { $db->exec("DELETE FROM {$t} WHERE tenant_id = {$tenantId}"); } catch (\Throwable) {}
+    try {
+        $db->prepare("DELETE FROM {$t} WHERE tenant_id = ?")->execute([$tenantId]);
+    } catch (\Throwable $e) {
+        $cleanupErrors[] = ['table' => $t, 'error' => $e->getMessage()];
+    }
+}
+
+if ($cleanupErrors !== []) {
+    fwrite(STDERR, json_encode([
+        'ok' => false, 'action' => 'cleanup', 'tenant_id' => $tenantId,
+        'errors' => $cleanupErrors,
+    ], JSON_PRETTY_PRINT) . PHP_EOL);
+    exit(1);
 }
 
 if ($isCleanup) {

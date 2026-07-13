@@ -5,7 +5,7 @@
  * metadata collection (gaps, fingerprints) for WorkbenchReporter.
  *
  * Tests do NOT need afterEach/afterAll hooks — the reporter collects
- * pass/fail automatically.
+ * pass/fail automatically via onTestEnd reading testInfo.annotations.
  *
  * USAGE (module adapter):
  *   var { createWorkbenchTest } = require('./WorkbenchFixture');
@@ -39,8 +39,7 @@ function createWorkbenchTest(config) {
     var fixture = base.test.extend({
         appUrl: [appUrl, { option: true }],
 
-        page: async function(_a, use) {
-            var page = _a.page;
+        page: async function ({ page }, use) {
             await page.goto('' + appUrl + loginPath);
             await page.fill('input[name="username"]', adminUser);
             await page.fill('input[name="password"]', adminPass);
@@ -50,13 +49,12 @@ function createWorkbenchTest(config) {
             await use(page);
         },
 
-        shell: async function(_a, use) { await use(new ShellHarness(_a.page)); },
-        dialog: async function(_a, use) { await use(new DialogHarness(_a.page)); },
-        table: async function(_a, use) { await use(new TableHarness(_a.page)); },
+        shell: async function ({ page }, use) { await use(new ShellHarness(page)); },
+        dialog: async function ({ page }, use) { await use(new DialogHarness(page)); },
+        table: async function ({ page }, use) { await use(new TableHarness(page)); },
 
-        loginAs: [async function(_a, use) {
-            var page = _a.page;
-            await use(async function(username, password) {
+        loginAs: [async function ({ page }, use) {
+            await use(async function (username, password) {
                 await page.goto('' + appUrl + loginPath);
                 await page.fill('input[name="username"]', username);
                 await page.fill('input[name="password"]', password);
@@ -66,40 +64,38 @@ function createWorkbenchTest(config) {
             });
         }, { auto: false }],
 
-        // Worker-scoped integrity: gaps and fingerprints for the full worker lifecycle.
-        // Call integrity.gap() and integrity.fingerprint() from ANY test or hook.
-        integrity: [async function(_a, use, workerInfo) {
-            var file = workerInfo.file || 'unknown';
-            var project = workerInfo.project.name || 'chromium';
-            var suiteName = file
-                .replace(/^.*tests\/browser\//, '')
-                .replace(/\.spec\.js$/, '')
-                .replace(/[/\\]/g, '-') + '--' + project;
-
-            // Store gaps/fingerprints at worker level, not per-test.
-            // They're pushed as annotations on worker start and collected on reporter's onEnd.
-            // For simplicity, we just provide the API and rely on the worker lifecycle.
+        // Test-scoped integrity: pushes gaps and fingerprints as Playwright annotations.
+        // WorkbenchReporter.onTestEnd reads testInfo.annotations for every test.
+        // Works in any test or test.beforeEach hook.
+        integrity: async function ({ }, use, testInfo) {
             await use({
-                gap: function(desc) { /* reporter reads annotations from any test */ },
-                fingerprint: function(fp) {
-                    var fullPath = path.resolve(__dirname, '../../', fp);
+                gap: function (description) {
+                    testInfo.annotations.push({ type: 'wb-gap', description: description });
+                },
+                fingerprint: function (relativePath) {
+                    var fullPath = path.resolve(__dirname, '../../', relativePath);
+                    var hash = 'FILE_NOT_FOUND';
                     try {
                         var content = fs.readFileSync(fullPath, 'utf-8');
-                        var hash = crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
-                        // Store for reporter via global (simplified — reporter has its own scanner)
-                    } catch (e) { /* skip */ }
+                        hash = crypto.createHash('sha256').update(content).digest('hex').substring(0, 16);
+                    } catch (e) { /* keep FILE_NOT_FOUND */ }
+                    testInfo.annotations.push({
+                        type: 'wb-fingerprint',
+                        description: JSON.stringify({ file: relativePath, hash: hash }),
+                    });
                 },
             });
-        }, { scope: 'worker' }],
+        },
 
-        // PAL lifecycle seed fixture — worker-scoped, creates test data before all tests
-        palLifecycleSeed: [async function(_a, use) {
+        // Worker-scoped PAL lifecycle seed: creates test data, fatal on failure.
+        // Tenant defaults to PAL_TEST_TENANT or 990000+workerIndex for concurrency safety.
+        palLifecycleSeed: [async function ({ }, use, workerInfo) {
             var seedPath = path.resolve(__dirname, '../pal/pal_seed_lifecycle.php');
-            var PAL_TEST_TENANT = process.env.PAL_TEST_TENANT || '999908';
+            var tenant = process.env.PAL_TEST_TENANT || String(990000 + (workerInfo.parallelIndex || 0));
 
-            console.log('  🌱 Seeding PAL lifecycle (tenant=' + PAL_TEST_TENANT + ')...');
+            console.log('  🌱 Seeding PAL lifecycle (tenant=' + tenant + ')...');
             var output = execSync(
-                'php ' + seedPath + ' --tenant=' + PAL_TEST_TENANT,
+                'php ' + seedPath + ' --tenant=' + tenant,
                 { encoding: 'utf-8', timeout: 15000 }
             );
             var data = JSON.parse(output);
@@ -113,17 +109,15 @@ function createWorkbenchTest(config) {
             try {
                 await use(data);
             } finally {
-                // Cleanup on worker teardown
                 try {
                     execSync(
-                        'php ' + seedPath + ' --cleanup --tenant=' + PAL_TEST_TENANT,
+                        'php ' + seedPath + ' --cleanup --tenant=' + tenant,
                         { encoding: 'utf-8', timeout: 10000 }
                     );
-                    console.log('  🧹 Cleaned up tenant ' + PAL_TEST_TENANT);
+                    console.log('  🧹 Cleaned up tenant ' + tenant);
                 } catch (e) {
                     console.error('  ❌ PAL lifecycle cleanup FAILED: ' + e.message);
-                    // Fatal — leftover state corrupts future runs
-                    throw e;
+                    throw e; // Fatal — leftover state corrupts future runs
                 }
             }
         }, { scope: 'worker' }],
