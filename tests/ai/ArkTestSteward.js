@@ -516,6 +516,8 @@ async function aiDiagnose(evidence, diagnosis) {
                 ],
                 max_tokens: cfg.max_tokens || 1000,
                 temperature: cfg.temperature || 0.1,
+                ...(cfg.reasoning_effort ? { reasoning_effort: cfg.reasoning_effort } : {}),
+                stream: false,
             }),
             signal: AbortSignal.timeout(cfg.timeout_ms || 30000),
         });

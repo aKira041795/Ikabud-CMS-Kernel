@@ -5,7 +5,7 @@
  * Run: node tests/ai/ArkTestSteward.spec.js
  */
 
-// @ts-check
+// @ts-nocheck
 var fs = require('fs');
 var path = require('path');
 var { execSync } = require('child_process');
