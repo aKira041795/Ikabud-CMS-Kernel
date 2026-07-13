@@ -7,7 +7,7 @@
  */
 
 // @ts-check
-const { test, expect } = require('../../GuidanceAdapter');
+const { test, expect } = require('../../../GuidanceAdapter');
 
 var GAPS = [
     'Sidebar navigation items reflect guidance routes',

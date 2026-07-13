@@ -7,7 +7,10 @@ module.exports = defineConfig({
     fullyParallel: false,
     retries: 0,
     workers: 1,
-    reporter: 'list',
+    reporter: [
+        ['list'],
+        ['./tests/browser/WorkbenchReporter.js'],
+    ],
     use: {
         baseURL: process.env.APP_URL || 'http://palsystem.test',
         viewport: { width: 1280, height: 720 },

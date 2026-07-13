@@ -7,7 +7,7 @@
  *       await shell.expectVisible();
  *   });
  */
-const { createWorkbenchTest } = require('../WorkbenchFixture');
+const { createWorkbenchTest } = require('./WorkbenchFixture');
 
 module.exports = createWorkbenchTest({
     appUrl: process.env.GUIDANCE_URL || process.env.APP_URL || 'http://guidance.test',

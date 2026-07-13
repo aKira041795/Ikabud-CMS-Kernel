@@ -13,7 +13,7 @@
  */
 
 // @ts-check
-var { test, expect } = require('../WorkbenchFixture');
+var { test, expect } = require('../../../WorkbenchFixture');
 
 var SEED = {
     clientName: 'E2E Test Client ' + Date.now(),

@@ -76,9 +76,16 @@ class TableHarness {
         expect(body?.trim().length).toBeGreaterThan(0);
     }
 
-    /** Find a row by its data-wb-entity-id attribute */
+    /**
+     * Find a row by its data-wb-entity-id attribute.
+     * Queries directly from the table root, not from existing rows,
+     * so it works regardless of whether data-wb-entity-id is on <tr>
+     * or a descendant.
+     */
     rowByEntityId(entityId) {
-        return this.rows.locator(`[data-wb-entity-id="${entityId}"]`).first();
+        return this.table.locator(
+            `tbody tr[data-wb-entity-id="${entityId}"]`
+        ).first();
     }
 
     /** Assert a row exists with the given entity ID */
@@ -87,7 +94,7 @@ class TableHarness {
         await expect(row).toBeVisible();
     }
 
-    /** Click a row by entity ID (navigates via data-wb-href) */
+    /** Click a row by entity ID */
     async openRow(entityId) {
         const row = this.rowByEntityId(entityId);
         await row.click();
@@ -103,14 +110,17 @@ class TableHarness {
         }
     }
 
-    /** Get cell content for a specific entity by column key */
+    /**
+     * Get cell content for a specific entity by column key.
+     * Uses data-wb-column attribute on <td> for stable lookup.
+     */
     async cellValue(entityId, columnKey) {
         const row = this.rowByEntityId(entityId);
-        const cell = row.locator(`td[data-label]`).nth(0); // rough — needs column mapping
+        const cell = row.locator(`td[data-wb-column="${columnKey}"]`);
         return await cell.textContent();
     }
 
-    /** Assert a specific cell value */
+    /** Assert a specific cell value by column label */
     async expectCellValue(entityId, columnLabel, expected) {
         const row = this.rowByEntityId(entityId);
         const cell = row.locator(`td[data-label="${columnLabel}"]`);
