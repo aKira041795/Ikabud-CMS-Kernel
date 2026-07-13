@@ -1,6 +1,6 @@
 {* workbench:page_header — Standard page header with title, subtitle, and structured actions.
    Pass: title, subtitle?, breadcrumb? ({label,url}[]), back_url?, actions (ActionValue[]) *}
-<div class="wb-page-header">
+<div class="wb-page-header" data-wb-component="page-header">
     <div>
         {if back_url|default:''}
             <a href="{back_url}" class="text-sm text-gray-600 hover:text-gray-900 mb-1 inline-block lg:hidden">← Back</a>
@@ -25,10 +25,10 @@
         {for action in actions}
             {if action.method == 'POST'}
                 <form method="POST" action="{action.url}" class="inline">
-                    <button type="submit" class="btn btn--{action.variant|default:'primary'}">{action.label}</button>
+                    <button type="submit" class="btn btn--{action.variant|default:'primary'}"{if action.key|default:''} data-wb-action="{action.key}"{/if}{if action.method|default:''} data-wb-method="{action.method}"{/if}>{action.label}</button>
                 </form>
             {else}
-                <a href="{action.url}" class="btn btn--{action.variant|default:'primary'}">{action.label}</a>
+                <a href="{action.url}" class="btn btn--{action.variant|default:'primary'}"{if action.key|default:''} data-wb-action="{action.key}"{/if}>{action.label}</a>
             {/if}
         {/for}
     </div>

@@ -2,8 +2,8 @@
    Pass: columns ({key,label,align?,width?}[]), rows ({id,cells:{key:value},href?}[]),
          empty_message?, row_actions? (ActionValue[]), pagination? (raw HTML),
          caption? *}
-<div class="overflow-x-auto">
-    <table class="wb-table">
+<div class="overflow-x-auto" data-wb-component="responsive-table">
+    <table class="wb-table"{if entity_type|default:''} data-wb-entity="{entity_type}"{/if}{if state|default:''} data-wb-state="{state}"{/if}>
         {if caption|default:''}<caption class="sr-only">{caption}</caption>{/if}
         <thead>
             <tr>
@@ -16,7 +16,7 @@
         <tbody>
             {if rows|default:[]}
                 {for row in rows}
-                    <tr {if row.href|default:''}class="wb-table__row--clickable" data-wb-href="{row.href}" tabindex="0" role="link"{/if}>
+                    <tr {if row.href|default:''}class="wb-table__row--clickable" data-wb-href="{row.href}" tabindex="0" role="link"{/if}{if row.id|default:''} data-wb-entity-id="{row.id}"{/if}{if row.state|default:''} data-wb-row-state="{row.state}"{/if}>
                         {for col in columns}
                             <td data-label="{col.label}" style="text-align:{col.align|default:'left'}">{row.cells[col.key]|default:'—'}</td>
                         {/for}

@@ -3,7 +3,11 @@
    Trigger: <button data-wb-dialog="{id}">
    Pass: id, title, body (raw HTML), footer (raw HTML), variant? (default|alert|confirm),
          close_on_backdrop? (bool, default true) *}
-<div id="{id}" class="wb-dialog fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" aria-labelledby="{id}-title" data-wb-close-on-backdrop="{if close_on_backdrop|default:true}true{else}false{/if}" hidden>
+<div id="{id}" class="wb-dialog fixed inset-0 z-50 flex items-center justify-center"
+     role="dialog" aria-modal="true" aria-labelledby="{id}-title"
+     data-wb-close-on-backdrop="{if close_on_backdrop|default:true}true{else}false{/if}"
+     data-wb-component="dialog"
+     data-wb-dialog-variant="{variant|default:'default'}" hidden>
     <div class="fixed inset-0 bg-black/50" aria-hidden="true"></div>
     <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6 max-h-[90vh] overflow-y-auto">
         <h2 id="{id}-title" class="text-lg font-semibold text-gray-900 mb-4">

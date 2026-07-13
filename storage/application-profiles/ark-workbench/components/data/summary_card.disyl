@@ -3,7 +3,9 @@
          trend? (up|down|neutral), href? *}
 {set t = tone|default:'neutral'}
 <div class="wb-summary-card {if href|default:''}wb-summary-card--clickable{/if}"
-     {if href|default:''}data-wb-href="{href}" tabindex="0" role="link"{/if}>
+     {if href|default:''}data-wb-href="{href}" tabindex="0" role="link"{/if}
+     data-wb-component="summary-card"
+     data-wb-tone="{t}">
     <div class="flex items-center gap-3">
         {if icon_key|default:''}
         <div class="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-lg" style="background: var(--wb-tone-{t}-bg); color: var(--wb-tone-{t})">

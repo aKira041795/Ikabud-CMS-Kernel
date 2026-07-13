@@ -58,7 +58,9 @@
     </aside>
 
     {* Main Content *}
-    <main id="wb-main" class="wb-app-shell__main pb-16 md:pb-0">
+    <main id="wb-main" class="wb-app-shell__main pb-16 md:pb-0"
+          data-wb-component="app-shell"
+          data-wb-page-family="{s.page_family|default:'default'}">
         {page_body|raw}
     </main>
 

@@ -3,7 +3,9 @@
          impact_sections? ({title,body}[]), evidence? ({label,url}[]),
          decision_history? (ActivityItem[]), actions (ActionValue[]),
          rejection_reason_required? (bool), audit_context? *}
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6"
+     data-wb-component="approval-panel"
+     data-wb-subject="{subject}">
     <div class="mb-4">
         <h2 class="text-lg font-semibold text-gray-900">{subject}</h2>
         <p class="text-sm text-gray-600">Submitted by {requester} on {submitted_at}</p>

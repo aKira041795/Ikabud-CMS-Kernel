@@ -1,7 +1,9 @@
 {* workbench:form_section — Grouped form fields with header.
    Pass: title, description?, collapsible? (bool), collapsed? (bool),
          has_errors? (bool), body (raw HTML) *}
-<fieldset class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+<fieldset class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-4"
+          data-wb-component="form-section"
+          data-wb-has-errors="{if has_errors|default:false}true{else}false{/if}">
     <div class="flex items-center justify-between mb-3">
         <legend class="text-base font-semibold text-gray-900 flex items-center gap-2">
             {title}
