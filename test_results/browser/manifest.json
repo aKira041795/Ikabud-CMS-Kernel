@@ -1,8 +1,8 @@
 {
-  "run_id": "20260713145710.",
+  "run_id": "20260713151852.",
   "commit": "",
-  "started": "2026-07-13T14:56:40.610Z",
-  "finished": "2026-07-13T14:57:10.441Z",
+  "started": "2026-07-13T15:17:53.869Z",
+  "finished": "2026-07-13T15:18:52.599Z",
   "suites": {
     "modules-pal-workflows-pal-lifecycle-interactive--chromium": {
       "passed": 0,
@@ -11,7 +11,16 @@
       "total": 1,
       "gaps": 0,
       "fingerprints": 0,
-      "finished": "2026-07-13T14:57:10.441Z"
+      "finished": "2026-07-13T15:18:52.599Z"
+    },
+    "workbench-wb-inspect--chromium": {
+      "passed": 2,
+      "failed": 3,
+      "skipped": 0,
+      "total": 5,
+      "gaps": 0,
+      "fingerprints": 0,
+      "finished": "2026-07-13T15:18:52.599Z"
     }
   },
   "fingerprint_mode": "check"

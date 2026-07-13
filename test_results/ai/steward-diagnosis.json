@@ -1,19 +1,23 @@
 {
   "classification": "locator-stale",
   "confidence": 0.7,
-  "summary": "Expected element to be visible but it was not found. Selector may be stale.",
+  "summary": "Expected element to be visible but it was not found, suggesting a stale locator",
   "evidence": [
-    "toBeVisible assertion failed",
-    "Button/link locator may have changed — check with ?wb_inspect=1"
+    "Test 'JO operational setup: draft → ongoing' failed with error 'Approval row for E2E-1783955876785-Project must exist'",
+    "Locator '[data-wb-entity-type=\"project\"]' may be stale",
+    "Multiple tests failed with similar errors, indicating a potential issue with locators"
   ],
-  "suspected_files": [],
-  "recommended_action": "Run the page with ?wb_inspect=1 and update data-wb-action selectors.",
+  "suspected_files": [
+    "/var/www/html/application/modules/pal/workflows/pal-lifecycle-interactive.js",
+    "/var/www/html/application/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js"
+  ],
+  "recommended_action": "Review and update locators to ensure they are up-to-date and accurate",
   "safe_to_auto_heal": false,
   "module": "project-audit-ledger",
   "run_context": {
-    "total_tests": 1,
-    "passed": 0,
-    "failed": 1,
+    "total_tests": 6,
+    "passed": 2,
+    "failed": 4,
     "skipped": 0,
     "timedOut": 0,
     "issues": 2
@@ -21,6 +25,7 @@
   "failed_test": {
     "file": "/var/www/html/applicationostest/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
     "test": "JO operational setup: draft → ongoing",
-    "error": "Error: Approval row for E2E-1783954604127-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783954604127-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: elem"
-  }
+    "error": "Error: Approval row for E2E-1783955876785-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783955876785-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: elem"
+  },
+  "ai_assisted": true
 }

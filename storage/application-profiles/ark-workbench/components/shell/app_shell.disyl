@@ -82,6 +82,33 @@
 
     <script src="/assets/workbench/workbench-core.js"></script>
     {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
+    <script>
+    /* ajaxSubmit — handles form submission via fetch with toast feedback.
+       Used by project-form, expense-detail, issuance-detail, etc.
+       Attach via: onsubmit="return ajaxSubmit(this, 'Success message')" */
+    function ajaxSubmit(form, successMsg) {
+        var data = {};
+        var fd = new FormData(form);
+        fd.forEach(function(v, k) { data[k] = v; });
+        fetch(form.action, {
+            method: form.method || 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(data),
+        }).then(function(r) { return r.json(); })
+          .then(function(res) {
+              if (res.ok) {
+                  window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: successMsg || 'Saved', type: 'success' } }));
+                  if (res.redirect) { window.location.href = res.redirect; }
+                  else { setTimeout(function() { window.location.reload(); }, 800); }
+              } else {
+                  window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: res.error || 'Failed', type: 'error' } }));
+              }
+          }).catch(function() {
+              window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: 'Network error', type: 'error' } }));
+          });
+        return false; // prevent default form submission
+    }
+    </script>
     {if s.inspect_mode|default:false}
     <script id="wb-inspect-runtime">
     (function() {

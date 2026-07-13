@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-13T14:57:10.441Z",
+  "generated": "2026-07-13T15:18:52.599Z",
   "total_issues": 2,
   "by_severity": {
     "major": 2
@@ -13,7 +13,7 @@
       "kind": "perf",
       "severity": "major",
       "where": "JO create",
-      "detail": "9470ms",
+      "detail": "9537ms",
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
     },

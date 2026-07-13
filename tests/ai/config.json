@@ -1,7 +1,7 @@
 {
     "_description": "ARK Test Steward — AI provider configuration. API key via ARK_AI_API_KEY env var. NEVER commit keys.",
     "ai": {
-        "enabled": false,
+        "enabled": true,
         "provider": "groq",
         "model": "llama-3.3-70b-versatile",
         "endpoint": "https://api.groq.com/openai/v1/chat/completions",
