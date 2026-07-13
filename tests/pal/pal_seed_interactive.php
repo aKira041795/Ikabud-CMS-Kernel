@@ -42,6 +42,12 @@ foreach ($cleanupTables as $t) {
         $cleanupErrors[] = ['table' => $t, 'error' => $e->getMessage()];
     }
 }
+// Clean up only seed-created users (username pattern), never real users
+try {
+    $db->prepare("DELETE FROM pal_users WHERE tenant_id = ? AND username LIKE 'intu%'")->execute([$tenantId]);
+} catch (\Throwable $e) {
+    $cleanupErrors[] = ['table' => 'pal_users', 'error' => $e->getMessage()];
+}
 
 if ($cleanupErrors !== []) {
     fwrite(STDERR, json_encode([
@@ -58,11 +64,12 @@ if ($isCleanup) {
 
 // Seed: user + client + draft project only
 $sc = 0;
+$ts  = date('His');
 $prefix = 'INT-' . date('Ymd');
 
-// User
+// User — timestamp suffix for re-run safety
 $sc++; $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)")
-    ->execute([$tenantId, "intu{$sc}", "int{$sc}@seed.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Interactive $sc"]);
+    ->execute([$tenantId, "intu{$sc}-{$ts}", "int{$sc}-{$ts}@seed.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Interactive $sc"]);
 
 // Client
 $sc++; $db->prepare("INSERT INTO pal_clients (tenant_id, name, contact_person, email, phone, address, is_active) VALUES (?,?,?,?,?,?,1)")

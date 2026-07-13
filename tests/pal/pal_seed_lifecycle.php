@@ -64,6 +64,12 @@ foreach ($ownsTables as $t) {
         $cleanupErrors[] = ['table' => $t, 'error' => $e->getMessage()];
     }
 }
+// Clean up only seed-created users (username pattern), never real users
+try {
+    $db->prepare("DELETE FROM pal_users WHERE tenant_id = ? AND username LIKE 'lsc%'")->execute([$tenantId]);
+} catch (\Throwable $e) {
+    $cleanupErrors[] = ['table' => 'pal_users', 'error' => $e->getMessage()];
+}
 
 if ($cleanupErrors !== []) {
     fwrite(STDERR, json_encode([
@@ -80,12 +86,13 @@ if ($isCleanup) {
 
 // ── Seed counter for unique identifiers ──────────────────────
 $sc = 0;
+$ts  = date('His'); // timestamp suffix for re-run safety
 $prefix = 'LS-' . date('Ymd');
 
-function sUser(PDO $db, int $tid): int {
+function sUser(PDO $db, int $tid, string $ts): int {
     global $sc; $sc++;
     $s = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)");
-    $s->execute([$tid, "lsc{$sc}", "ls{$sc}@seed.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Lifecycle Seed $sc"]);
+    $s->execute([$tid, "lsc{$sc}-{$ts}", "ls{$sc}-{$ts}@seed.com", password_hash('seedtest123', PASSWORD_BCRYPT), "Lifecycle Seed {$sc}"]);
     return (int)$db->lastInsertId();
 }
 function sClient(PDO $db, int $tid): array {
@@ -116,19 +123,20 @@ function sApproval(PDO $db, int $tid, string $entityType, int $entityId, int $ui
 
 try {
     // ── Seed data ─────────────────────────────────────────────
-    $uid = sUser($db, $tenantId);
+    $uid  = sUser($db, $tenantId, $ts);  // submitter
+    $uid2 = sUser($db, $tenantId, $ts);  // approver (separate user to avoid self-approval block)
     $client = sClient($db, $tenantId);
     $project = sProject($db, $tenantId, $client['id'], 'ongoing', 150000, 25);
 
-    // Approve the project
+    // Approve the project (actioned by uid, approved by uid2)
     $wf = new palJobOrderWorkflow($palDb, $tenantId, $uid);
     $wf->transition($project['id'], 'completed', ['status' => 'ongoing', 'client_id' => $client['id']]);
     $wf->apply($project['id'], 'completed');
 
-    // Create expense + approve it
+    // Create expense + approve it (submitted by uid, approved by uid2)
     $expense = sExpense($db, $tenantId, $project['id'], 25000);
     $apprId = sApproval($db, $tenantId, 'expense', $expense['id'], $uid);
-    $approvalSvc = new palApprovalService($palDb, $tenantId, $uid);
+    $approvalSvc = new palApprovalService($palDb, $tenantId, $uid2);
     $approvalSvc->decide($apprId, 'approved', 'Seed approval');
 
     // Create fabrication allocation + weekly dues
