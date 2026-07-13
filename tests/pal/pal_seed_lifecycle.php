@@ -32,7 +32,19 @@ require_once __DIR__ . '/../../modules/project-audit-ledger/handlers.php';
 $isCleanup = in_array('--cleanup', $argv ?? [], true);
 
 // ── Config ───────────────────────────────────────────────────
+$isCleanup = in_array('--cleanup', $argv ?? [], true);
 $tenantId = 999908;
+
+// Support --tenant=N or PAL_TEST_TENANT env var for isolation
+foreach ($argv ?? [] as $arg) {
+    if (str_starts_with($arg, '--tenant=')) {
+        $tenantId = (int) substr($arg, 9);
+    }
+}
+if ($tenantId === 999908 && getenv('PAL_TEST_TENANT')) {
+    $tenantId = (int) getenv('PAL_TEST_TENANT');
+}
+
 $ownsTables = [
     'pal_projects', 'pal_clients', 'pal_users', 'pal_expenses',
     'pal_approvals', 'pal_audit_logs', 'pal_sales', 'pal_sale_items',

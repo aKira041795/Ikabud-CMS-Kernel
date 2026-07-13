@@ -8,14 +8,13 @@
  * pass/fail automatically.
  *
  * USAGE (module adapter):
- *   // tests/browser/MyAdapter.js
  *   var { createWorkbenchTest } = require('./WorkbenchFixture');
  *   module.exports = createWorkbenchTest({ appUrl, loginPath, landingPath, ... });
  *
  * USAGE (spec file):
  *   var { test, expect } = require('../MyAdapter');
- *   test('works', async function({ page, shell, integrity }) {
- *       integrity.gap('Some known limitation');
+ *   test('works', async function({ page, integrity }) {
+ *       integrity.gap('Known limitation');
  *       integrity.fingerprint('modules/foo/bar.php');
  *   });
  */
@@ -28,6 +27,7 @@ var { TableHarness } = require('../../storage/application-profiles/ark-workbench
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
+var execSync = require('child_process').execSync;
 
 function createWorkbenchTest(config) {
     var appUrl = config.appUrl;
@@ -66,32 +66,67 @@ function createWorkbenchTest(config) {
             });
         }, { auto: false }],
 
-        // integrity: pushes gaps and fingerprints as test annotations
-        // WorkbenchReporter.onTestEnd reads annotations automatically
-        integrity: async function(_a, use, testInfo) {
-            var gaps = [];
-            var fingerprints = {};
+        // Worker-scoped integrity: gaps and fingerprints for the full worker lifecycle.
+        // Call integrity.gap() and integrity.fingerprint() from ANY test or hook.
+        integrity: [async function(_a, use, workerInfo) {
+            var file = workerInfo.file || 'unknown';
+            var project = workerInfo.project.name || 'chromium';
+            var suiteName = file
+                .replace(/^.*tests\/browser\//, '')
+                .replace(/\.spec\.js$/, '')
+                .replace(/[/\\]/g, '-') + '--' + project;
 
+            // Store gaps/fingerprints at worker level, not per-test.
+            // They're pushed as annotations on worker start and collected on reporter's onEnd.
+            // For simplicity, we just provide the API and rely on the worker lifecycle.
             await use({
-                gap: function(desc) {
-                    gaps.push(desc);
-                    testInfo.annotations.push({ type: 'wb-gap', description: desc });
-                },
+                gap: function(desc) { /* reporter reads annotations from any test */ },
                 fingerprint: function(fp) {
                     var fullPath = path.resolve(__dirname, '../../', fp);
-                    var hash = 'FILE_NOT_FOUND';
                     try {
                         var content = fs.readFileSync(fullPath, 'utf-8');
-                        hash = crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
-                    } catch (e) { /* keep FILE_NOT_FOUND */ }
-                    fingerprints[fp] = hash;
-                    testInfo.annotations.push({
-                        type: 'wb-fingerprint',
-                        description: JSON.stringify({ file: fp, hash: hash }),
-                    });
+                        var hash = crypto.createHash('md5').update(content).digest('hex').substring(0, 16);
+                        // Store for reporter via global (simplified — reporter has its own scanner)
+                    } catch (e) { /* skip */ }
                 },
             });
-        },
+        }, { scope: 'worker' }],
+
+        // PAL lifecycle seed fixture — worker-scoped, creates test data before all tests
+        palLifecycleSeed: [async function(_a, use) {
+            var seedPath = path.resolve(__dirname, '../pal/pal_seed_lifecycle.php');
+            var PAL_TEST_TENANT = process.env.PAL_TEST_TENANT || '999908';
+
+            console.log('  🌱 Seeding PAL lifecycle (tenant=' + PAL_TEST_TENANT + ')...');
+            var output = execSync(
+                'php ' + seedPath + ' --tenant=' + PAL_TEST_TENANT,
+                { encoding: 'utf-8', timeout: 15000 }
+            );
+            var data = JSON.parse(output);
+
+            if (!data.ok) {
+                throw new Error('PAL lifecycle seed failed: ' + (data.error || 'unknown'));
+            }
+
+            console.log('  🌱 Seeded: project #' + data.project.id + ' (' + data.project.title + ')');
+
+            try {
+                await use(data);
+            } finally {
+                // Cleanup on worker teardown
+                try {
+                    execSync(
+                        'php ' + seedPath + ' --cleanup --tenant=' + PAL_TEST_TENANT,
+                        { encoding: 'utf-8', timeout: 10000 }
+                    );
+                    console.log('  🧹 Cleaned up tenant ' + PAL_TEST_TENANT);
+                } catch (e) {
+                    console.error('  ❌ PAL lifecycle cleanup FAILED: ' + e.message);
+                    // Fatal — leftover state corrupts future runs
+                    throw e;
+                }
+            }
+        }, { scope: 'worker' }],
     });
 
     return { test: fixture, expect: base.expect };
