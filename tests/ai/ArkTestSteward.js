@@ -572,13 +572,105 @@ function validateAgainstSchema(result, schema) {
     return true;
 }
 
+// ── Coverage Review Mode ──────────────────────────────────────
+
+async function runCoverageReview() {
+    var contracts = collectModuleContracts(MODULE);
+
+    // Find all test files for this module
+    var testFiles = [];
+    if (fs.existsSync(BROWSER_TEST_DIR)) {
+        try {
+            var entries = fs.readdirSync(BROWSER_TEST_DIR, { recursive: true });
+            for (var i = 0; i < entries.length; i++) {
+                if (entries[i].endsWith('.spec.js') && (entries[i].includes('pal') || entries[i].includes(MODULE))) {
+                    testFiles.push(entries[i]);
+                }
+            }
+        } catch (e) { /* skip */ }
+    }
+
+    var bundle = {
+        module: MODULE,
+        contracts: contracts,
+        test_files: testFiles,
+        timestamp: new Date().toISOString(),
+    };
+
+    if (!AI_ENABLED) {
+        console.log('  ⚠ AI not enabled — set config.json ai.enabled=true and ARK_AI_API_KEY');
+        console.log('  📋 Module contracts collected:');
+        console.log('     Routes: ' + (contracts.routes?.GET?.length || 0) + ' GET, ' + (contracts.routes?.POST?.length || 0) + ' POST');
+        console.log('     Workflow: ' + (contracts.workflow?.transitions?.length || 0) + ' transitions');
+        console.log('     Capabilities: ' + (contracts.capabilities?.exposes?.length || 0) + ' exposed');
+        console.log('     Pages: ' + (contracts.pages?.length || 0) + ' templates');
+        console.log('     Test files: ' + testFiles.length);
+        return;
+    }
+
+    console.log('  🤖 AI coverage review...');
+    var cfg = CONFIG.ai;
+    var prompt = readTextFile(path.resolve(__dirname, 'prompts/coverage-review.md')) || '';
+
+    try {
+        var res = await globalThis.fetch(cfg.endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + AI_API_KEY,
+            },
+            body: JSON.stringify({
+                model: cfg.model,
+                messages: [
+                    { role: 'system', content: prompt },
+                    { role: 'user', content: JSON.stringify(bundle, null, 2) },
+                ],
+                max_tokens: cfg.max_tokens || 2000,
+                temperature: cfg.temperature ?? 0.0,
+                stream: false,
+            }),
+            signal: AbortSignal.timeout(cfg.timeout_ms || 30000),
+        });
+
+        if (!res.ok) { console.warn('  ⚠ API returned ' + res.status); return; }
+        var data = await res.json();
+        var content = data?.choices?.[0]?.message?.content || '';
+        var jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        var jsonStr = jsonMatch ? jsonMatch[1].trim() : content.trim();
+        var braceStart = jsonStr.indexOf('{');
+        var braceEnd = jsonStr.lastIndexOf('}');
+        if (braceStart >= 0 && braceEnd > braceStart) jsonStr = jsonStr.substring(braceStart, braceEnd + 1);
+        var report = JSON.parse(jsonStr);
+
+        if (!fs.existsSync(AI_DIR)) fs.mkdirSync(AI_DIR, { recursive: true });
+        var outputPath = path.join(AI_DIR, 'coverage-report.json');
+        fs.writeFileSync(outputPath, JSON.stringify(report, null, 2));
+        console.log('  📄 ' + outputPath);
+        console.log('');
+        console.log('  Coverage score: ' + Math.round((report.coverage_score || 0) * 100) + '%');
+        console.log('  Untested transitions: ' + (report.untested_transitions || []).length);
+        console.log('  Untested routes: ' + (report.untested_routes || []).length);
+        console.log('  Recommended new tests: ' + (report.recommended_new_tests || []).length);
+        console.log('  Summary: ' + (report.summary || 'N/A'));
+    } catch (e) {
+        console.warn('  ⚠ Coverage review failed: ' + (e.message || 'unknown'));
+    }
+}
+
 // ── Main ───────────────────────────────────────────────────────
 
 async function main() {
     console.log('🔍 ARK Test Steward 0.2 — Failure Analyst');
     if (AI_ENABLED) console.log('   AI: ' + CONFIG.ai.provider + '/' + CONFIG.ai.model + ' (fallback enabled)');
     console.log('   Module: ' + MODULE);
+    console.log('   Mode:   ' + MODE);
     console.log('');
+
+    // ── Coverage Review Mode ──────────────────────────────
+    if (MODE === 'coverage') {
+        await runCoverageReview();
+        return;
+    }
 
     var evidence = collectEvidence();
     var diagnosis = diagnose(evidence);

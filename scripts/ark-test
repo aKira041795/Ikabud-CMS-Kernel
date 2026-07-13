@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# =============================================================================
+# ARK Workbench Test Pipeline
+#
+# Runs Playwright browser tests, then the ARK Test Steward for AI-assisted
+# failure diagnosis and coverage analysis.
+#
+# Usage:
+#   ./scripts/ark-test [module] [--mode coverage|triage]
+#
+# Examples:
+#   ./scripts/ark-test project-audit-ledger                    # Full pipeline
+#   ./scripts/ark-test project-audit-ledger --mode coverage    # Coverage only
+#   ./scripts/ark-test project-audit-ledger --mode triage      # Failure analysis only
+#   ./scripts/ark-test --mode coverage                         # Coverage for PAL (default)
+#
+# Env vars:
+#   ADMIN_USER, ADMIN_PASS  — PAL login credentials
+#   ARK_AI_API_KEY          — AI provider API key (Groq/DeepSeek)
+#   PAL_TEST_TENANT         — Tenant ID for test data (default: 502)
+# =============================================================================
+
+set -euo pipefail
+
+MODULE="${1:-project-audit-ledger}"
+MODE="${2:-}"
+if [ "$MODE" = "--mode" ]; then MODE="${3:-triage}"; fi
+if [ -z "$MODE" ]; then MODE="pipeline"; fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$ROOT_DIR"
+
+echo ""
+echo "============================================"
+echo " ARK Workbench Test Pipeline"
+echo " Module: $MODULE"
+echo " Mode:   $MODE"
+echo "============================================"
+echo ""
+
+# ── Step 1: Clear logs ──────────────────────────────────────
+: > storage/logs/error.log
+: > storage/logs/app.log
+
+# ── Step 2: Run Playwright tests ─────────────────────────────
+if [ "$MODE" = "pipeline" ] || [ "$MODE" = "triage" ]; then
+    echo "📋 Running browser tests..."
+    
+    ADMIN_USER="${ADMIN_USER:-pAladmin}"
+    ADMIN_PASS="${ADMIN_PASS:-pal123456}"
+    PAL_TEST_TENANT="${PAL_TEST_TENANT:-502}"
+    
+    ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" PAL_TEST_TENANT="$PAL_TEST_TENANT" \
+    npx playwright test \
+        tests/browser/workbench/wb-inspect.spec.js \
+        tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js \
+        2>&1 | tail -8
+    
+    echo ""
+fi
+
+# ── Step 3: Run ARK Test Steward ────────────────────────────
+if [ "$MODE" = "pipeline" ] || [ "$MODE" = "triage" ] || [ "$MODE" = "coverage" ]; then
+    echo "🔍 ARK Test Steward — ${MODE}..."
+    
+    if [ "$MODE" = "pipeline" ]; then STEWARD_MODE="triage"; else STEWARD_MODE="$MODE"; fi
+    
+    node tests/ai/ArkTestSteward.js \
+        --module "$MODULE" \
+        --mode "$STEWARD_MODE"
+    
+    echo ""
+fi
+
+# ── Step 4: Summary ─────────────────────────────────────────
+if [ -f test_results/ai/steward-diagnosis.json ]; then
+    echo "📊 Results:"
+    node -e "
+        var d = require('$(pwd)/test_results/ai/steward-diagnosis.json');
+        console.log('   Tests:  ' + d.run_context.total_tests + ' total, ' + d.run_context.passed + ' passed, ' + d.run_context.failed + ' failed');
+        console.log('   Issues: ' + d.run_context.issues + ' reported');
+        console.log('   Classification: ' + d.classification + ' (' + Math.round(d.confidence*100) + '%)');
+        if (d.ai_assisted) console.log('   AI-assisted: yes');
+    " 2>/dev/null || true
+fi
+
+if [ -f test_results/ai/coverage-report.json ]; then
+    node -e "
+        var r = require('$(pwd)/test_results/ai/coverage-report.json');
+        console.log('   Coverage: ' + Math.round((r.coverage_score||0)*100) + '%');
+    " 2>/dev/null || true
+fi
+
+echo ""
+echo "============================================"
+echo " Pipeline complete"
+echo "============================================"

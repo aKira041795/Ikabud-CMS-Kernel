@@ -2,7 +2,13 @@
     "private": true,
     "scripts": {
         "build:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --minify",
-        "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch"
+        "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch",
+        "test": "npx playwright test",
+        "test:ark": "./scripts/ark-test",
+        "test:ark:coverage": "./scripts/ark-test --mode coverage",
+        "test:ark:triage": "./scripts/ark-test --mode triage",
+        "test:steward": "node tests/ai/ArkTestSteward.js --module project-audit-ledger --mode triage",
+        "test:steward:coverage": "node tests/ai/ArkTestSteward.js --module project-audit-ledger --mode coverage"
     },
     "devDependencies": {
         "@axe-core/playwright": "^4.12.1",

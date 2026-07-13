@@ -1,16 +1,13 @@
 {
   "classification": "locator-stale",
   "confidence": 0.7,
-  "summary": "Expected element to be visible but it was not found, suggesting a stale locator",
+  "summary": "Expected element to be visible but it was not found. Selector may be stale.",
   "evidence": [
-    "Test 'JO operational setup: draft → ongoing' failed with error 'Approval row for E2E-1783954604127-Project must exist'",
-    "Locator '[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783954604127-Project' }).first()' did not find the expected element",
-    "Timeout of 8000ms was exceeded"
+    "toBeVisible assertion failed",
+    "Button/link locator may have changed — check with ?wb_inspect=1"
   ],
-  "suspected_files": [
-    "/var/www/html/applicationostest/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js"
-  ],
-  "recommended_action": "Verify the locator '[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783954604127-Project' }).first()' is correct and update it if necessary",
+  "suspected_files": [],
+  "recommended_action": "Run the page with ?wb_inspect=1 and update data-wb-action selectors.",
   "safe_to_auto_heal": false,
   "module": "project-audit-ledger",
   "run_context": {
@@ -25,6 +22,5 @@
     "file": "/var/www/html/applicationostest/tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
     "test": "JO operational setup: draft → ongoing",
     "error": "Error: Approval row for E2E-1783954604127-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783954604127-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: elem"
-  },
-  "ai_assisted": true
+  }
 }

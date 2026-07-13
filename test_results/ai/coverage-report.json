@@ -1,0 +1,70 @@
+{
+  "untested_transitions": [
+    {
+      "from": "ongoing",
+      "to": "completed",
+      "risk": "high",
+      "reason": "No test covers the completion workflow including invoice generation"
+    },
+    {
+      "from": "pending",
+      "to": "approved",
+      "risk": "medium",
+      "reason": "No test covers the approval workflow"
+    }
+  ],
+  "untested_routes": [
+    {
+      "method": "POST",
+      "path": "/api/v1/project-audit-ledger/quotations/{id}/convert-project",
+      "risk": "high",
+      "reason": "No test navigates to this route"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/project-audit-ledger/reports",
+      "risk": "low",
+      "reason": "No test verifies the rendering of this page"
+    }
+  ],
+  "untested_pages": [
+    {
+      "page": "quotation-list",
+      "risk": "medium",
+      "reason": "No test verifies the rendering of this page"
+    },
+    {
+      "page": "project-detail",
+      "risk": "low",
+      "reason": "No test verifies the rendering of this page"
+    }
+  ],
+  "weak_assertions": [
+    {
+      "test": "modules/pal/pal-workflow.spec.js",
+      "issue": "Only checks container visibility, not content or state change"
+    }
+  ],
+  "recommended_new_tests": [
+    {
+      "title": "Completed JO generates invoice",
+      "priority": "high",
+      "steps": [
+        "Create a new project",
+        "Complete the project",
+        "Verify that an invoice is generated"
+      ]
+    },
+    {
+      "title": "Approval workflow",
+      "priority": "medium",
+      "steps": [
+        "Create a new project",
+        "Submit the project for approval",
+        "Verify that the project is approved"
+      ]
+    }
+  ],
+  "coverage_score": 0.6,
+  "summary": "The test coverage for the project-audit-ledger module is 60%. There are several untested routes, pages, and transitions that need to be addressed. Additionally, some tests have weak assertions that only check container visibility, not content or state change. New tests are recommended to cover the completion workflow, approval workflow, and other critical functionality."
+}
