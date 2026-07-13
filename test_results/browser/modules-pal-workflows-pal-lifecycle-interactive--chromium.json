@@ -1,7 +1,7 @@
 {
   "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-  "started": "2026-07-13T15:18:23.068Z",
-  "finished": "2026-07-13T15:18:52.599Z",
+  "started": "2026-07-13T15:20:49.512Z",
+  "finished": "2026-07-13T15:20:49.577Z",
   "summary": {
     "passed": 0,
     "failed": 1,
@@ -15,26 +15,19 @@
     {
       "test": "JO operational setup: draft → ongoing",
       "status": "failed",
-      "duration": 25419,
-      "detail": "Error: Approval row for E2E-1783955876785-Project must exist\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783955876785-Project' }).first()\nExpected: visible\nTimeout: 8000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Approval row for E2E-1783955876785-Project must exist with timeout 8000ms\u001b[22m\n\u001b[2m  - waiting for locator('[data-wb-entity-type=\"project\"]').filter({ hasText: 'E2E-1783955876785-Project' }).first()\u001b[22m\n"
+      "duration": 10427,
+      "detail": "Error: Project ID must be extractable after JO save\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mnot\u001b[2m.\u001b[22mtoBeNull\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mnull\u001b[39m"
     }
   ],
   "gaps": [],
   "issues": [
     {
-      "kind": "perf",
+      "kind": "console-error",
       "severity": "major",
-      "where": "JO create",
-      "detail": "9537ms",
-      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-      "test": "JO operational setup: draft → ongoing"
-    },
-    {
-      "kind": "bug",
-      "severity": "major",
-      "where": "JO submit",
-      "detail": "Submit button clicked but status not Pending on detail page",
-      "recommendation": "Check workflow transition logic and button action handler",
+      "detail": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/projects/create",
+      "browser": "chromium",
+      "timestamp": "2026-07-13T15:20:45.994Z",
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
     }

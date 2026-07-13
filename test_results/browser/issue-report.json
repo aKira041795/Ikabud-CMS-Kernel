@@ -1,28 +1,20 @@
 {
-  "generated": "2026-07-13T15:18:52.599Z",
-  "total_issues": 2,
+  "generated": "2026-07-13T15:20:49.577Z",
+  "total_issues": 1,
   "by_severity": {
-    "major": 2
+    "major": 1
   },
   "by_kind": {
-    "perf": 1,
-    "bug": 1
+    "console-error": 1
   },
   "issues": [
     {
-      "kind": "perf",
+      "kind": "console-error",
       "severity": "major",
-      "where": "JO create",
-      "detail": "9537ms",
-      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-      "test": "JO operational setup: draft → ongoing"
-    },
-    {
-      "kind": "bug",
-      "severity": "major",
-      "where": "JO submit",
-      "detail": "Submit button clicked but status not Pending on detail page",
-      "recommendation": "Check workflow transition logic and button action handler",
+      "detail": "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/projects/create",
+      "browser": "chromium",
+      "timestamp": "2026-07-13T15:20:45.994Z",
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
     }
