@@ -225,8 +225,29 @@ function palApiProjectUpdate(array $rp = []): void
         palEnforceCsrf();
 
         $id = (int)($rp['id'] ?? $_GET['id'] ?? $_POST['id'] ?? 0);
+        $newStatus = $_POST['status'] ?? null;
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+
+        // Get current status before update for workflow detection
+        $project = $svc->get($id);
+        $oldStatus = $project ? ($project['status'] ?? '') : '';
+
         $svc->update($id, $_POST);
+
+        // If status changed, run through workflow engine to create approvals, fire events
+        if ($newStatus && $newStatus !== $oldStatus) {
+            try {
+                $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+                $wf->apply($id, $newStatus);
+            } catch (\Throwable $e) {
+                // Workflow transition may be invalid — status already updated above,
+                // but workflow side-effects (approval, events) won't fire.
+                write_log('pal.project.update.workflow_failed', 'warning', [
+                    'project_id' => $id, 'from' => $oldStatus, 'to' => $newStatus,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         // Relink mockup attachment if uploaded (entity_id=0 → real project id)
         $mockupId = !empty($_POST['mockup_attachment_id']) ? (int)$_POST['mockup_attachment_id'] : 0;
