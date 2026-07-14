@@ -244,12 +244,12 @@
     },
     "analysis": {
         "module": "project-audit-ledger",
-        "action": "pal.approval.approve",
+        "action": "all",
         "breakpoint": null,
         "break_category": null,
         "deterministic": {
-            "action": "pal.approval.approve",
-            "error": "Action 'pal.approval.approve' not declared by module"
+            "action": "all",
+            "error": "Action 'all' not declared by module"
         },
         "semantic": {
             "per_link_scores": []
@@ -271,39 +271,13 @@
                 "confidence": "none"
             },
             "full_classification": {
-                "categories": [
-                    {
-                        "evidence_key": "_entity_type",
-                        "category": "unknown",
-                        "score": 0,
-                        "confidence": "none"
-                    },
-                    {
-                        "evidence_key": "_run_id",
-                        "category": "unknown",
-                        "score": 0,
-                        "confidence": "none"
-                    }
-                ],
+                "categories": [],
                 "dominant": "unknown",
                 "diagnosis": "Unrecognized error pattern \u2014 manual inspection required."
             }
         },
         "anomalies": {
-            "unexpected_evidence": [
-                {
-                    "evidence_key": "http.response_ok",
-                    "evidence_value": "true",
-                    "reason": "Evidence key 'http.response_ok' does not match any declared chain step or category",
-                    "severity": "info"
-                },
-                {
-                    "evidence_key": "db.project_exists",
-                    "evidence_value": "false",
-                    "reason": "Evidence key 'db.project_exists' does not match any declared chain step or category",
-                    "severity": "info"
-                }
-            ],
+            "unexpected_evidence": [],
             "missing_links": []
         },
         "cross_module": {
@@ -371,16 +345,9 @@
             "label": "low"
         }
     },
-    "runtime": {
-        "http.response_ok": true,
-        "_tenant_id": 502,
-        "_entity_id": 365,
-        "_entity_type": "pal.project",
-        "_run_id": "lifecycle-1784020934802",
-        "db.project_exists": false
-    },
+    "runtime": [],
     "timestamps": [],
     "bayesian_history": [],
-    "generated_at": "2026-07-14T17:22:38+08:00",
+    "generated_at": "2026-07-14T23:50:45+08:00",
     "engine_version": "2.0-semantic"
 }
