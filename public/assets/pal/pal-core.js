@@ -168,7 +168,7 @@
     };
 
     // ── Accessible dialog (reusable, DOM-based, focus-trapped) ──
-    function palDialog(options) {
+    window.palDialog = function (options) {
         var opener = document.activeElement;
         var overlay = document.createElement('div');
         overlay.className = 'fixed inset-0 z-[10000] bg-black/50 flex items-center justify-center';
