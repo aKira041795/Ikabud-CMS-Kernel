@@ -185,6 +185,85 @@ function createWorkbenchTest(config) {
                         description: JSON.stringify({ kind: 'a11y', severity: 'major', detail: detail }),
                     });
                 },
+
+                // ── Self-healing locator: tries fallback chain until element found ──
+                // Order: data-wb-* attributes → getByRole → getByText → CSS selector
+                // Returns null if nothing matches.
+                locate: async function (page, opts) {
+                    var strategies = [];
+
+                    // 1. data-wb-action
+                    if (opts.action) {
+                        strategies.push({ type: 'data-wb-action', sel: '[data-wb-action="' + opts.action + '"]' });
+                    }
+                    // 2. data-wb-entity-type + optional entity-id
+                    if (opts.entityType) {
+                        var sel = '[data-wb-entity-type="' + opts.entityType + '"]';
+                        if (opts.entityId) sel += '[data-wb-entity-id="' + opts.entityId + '"]';
+                        strategies.push({ type: 'data-wb-entity', sel: sel });
+                    }
+                    // 3. data-wb-component
+                    if (opts.component) {
+                        strategies.push({ type: 'data-wb-component', sel: '[data-wb-component="' + opts.component + '"]' });
+                    }
+                    // 4. getByRole + name
+                    if (opts.role) {
+                        var roleOpts = {};
+                        if (opts.name) roleOpts.name = opts.name;
+                        strategies.push({ type: 'role', role: opts.role, name: opts.name || '' });
+                    }
+                    // 5. getByText (exact or substring)
+                    if (opts.text) {
+                        strategies.push({ type: 'text', text: opts.text });
+                    }
+                    // 6. getByTestId
+                    if (opts.testId) {
+                        strategies.push({ type: 'testid', sel: '[data-testid="' + opts.testId + '"]' });
+                    }
+                    // 7. Raw CSS fallback
+                    if (opts.css) {
+                        strategies.push({ type: 'css', sel: opts.css });
+                    }
+
+                    for (var i = 0; i < strategies.length; i++) {
+                        var s = strategies[i];
+                        try {
+                            var el = null;
+                            if (s.type === 'role') {
+                                el = page.getByRole(s.role, s.name ? { name: s.name } : {});
+                            } else if (s.type === 'text') {
+                                el = page.getByText(s.text, { exact: false });
+                            } else {
+                                el = page.locator(s.sel);
+                            }
+                            var visible = await el.isVisible({ timeout: 2000 }).catch(function () { return false; });
+                            if (visible) {
+                                // Report which strategy succeeded (for debugging)
+                                var via = '';
+                                if (s.type === 'data-wb-action') via = 'data-wb-action';
+                                else if (s.type === 'data-wb-entity') via = 'data-wb-entity';
+                                else if (s.type === 'data-wb-component') via = 'data-wb-component';
+                                else if (s.type === 'role') via = 'role=' + s.role;
+                                else if (s.type === 'text') via = 'text';
+                                else if (s.type === 'testid') via = 'testid';
+                                else via = 'css';
+                                testInfo.annotations.push({
+                                    type: 'wb-debug',
+                                    description: JSON.stringify({ located_by: via, target: (opts.action || opts.name || opts.text || opts.css || ''), strategies_tried: i + 1 }),
+                                });
+                                return el;
+                            }
+                        } catch (e) { /* try next strategy */ }
+                    }
+
+                    // None matched — report which strategies were attempted
+                    var tried = strategies.map(function (s) { return s.type; }).join(', ');
+                    testInfo.annotations.push({
+                        type: 'wb-debug',
+                        description: JSON.stringify({ locator_miss: true, target: (opts.action || opts.name || opts.text || opts.css || ''), strategies_tried: tried }),
+                    });
+                    return null;
+                },
             });
         },
 

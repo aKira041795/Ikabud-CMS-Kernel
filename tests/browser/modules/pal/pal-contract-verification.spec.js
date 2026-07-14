@@ -140,7 +140,17 @@ test.describe('pal:contract-verification', function () {
     // ── B. Workbench components ────────────────────────────────
     test.describe('B. Workbench components', function () {
 
-        test('dashboard has summary-card', async function ({ page, integrity }) {
+        test('dashboard matches visual baseline', async function ({ page }) {
+            await page.goto(APP_URL + BASE, { waitUntil: 'networkidle', timeout: 30000 });
+            await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
+            // Visual baseline: captures screenshot, compares on subsequent runs.
+            // Update baseline with: npx playwright test --update-snapshots
+            await expect(page).toHaveScreenshot('pal-dashboard.png', {
+                maxDiffPixelRatio: 0.02,  // allow 2% diff for anti-aliasing
+            });
+        });
+
+        test('project-list has entity-list', async function ({ page, integrity }) {
             await page.goto(APP_URL + BASE, { waitUntil: 'networkidle', timeout: 30000 });
             var n = await page.locator('[data-wb-component="summary-card"]').count();
             if (n === 0) {

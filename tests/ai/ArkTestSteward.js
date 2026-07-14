@@ -675,6 +675,53 @@ async function main() {
     var evidence = collectEvidence();
     var diagnosis = diagnose(evidence);
 
+    // ── Git-aware change analysis ───────────────────────────
+    // Correlate changed files with failing tests to identify root cause
+    var childProcess = require('child_process');
+    var projectRoot = path.resolve(__dirname, '../..');
+    var changedFiles = [];
+    try {
+        var gitOutput = childProcess.execSync('git diff HEAD~1 --name-only', { cwd: projectRoot, encoding: 'utf-8', timeout: 5000 });
+        changedFiles = gitOutput.split('\n').filter(Boolean).map(function (f) { return f.trim(); });
+    } catch (e) { /* not a git repo or no previous commit */ }
+
+    if (changedFiles.length > 0) {
+        diagnosis.git_changes = {
+            files_changed: changedFiles.length,
+            files: changedFiles.slice(0, 30),  // limit to 30 for readability
+        };
+
+        // Cross-reference with suspected files
+        var suspected = diagnosis.suspected_files || [];
+        var overlap = [];
+        for (var cf = 0; cf < changedFiles.length; cf++) {
+            for (var sf = 0; sf < suspected.length; sf++) {
+                if (changedFiles[cf].indexOf(suspected[sf].replace('modules/' + MODULE + '/', '')) >= 0) {
+                    overlap.push(changedFiles[cf]);
+                }
+            }
+        }
+        if (overlap.length > 0) {
+            diagnosis.evidence.push('Git change overlap: ' + overlap.length + ' changed file(s) match suspected files');
+            diagnosis.evidence.push('Likely root cause: uncommitted or recently committed changes to ' + overlap[0]);
+            diagnosis.confidence = Math.min(1, diagnosis.confidence + 0.1);
+        }
+
+        // Check if test files changed
+        var testChanges = changedFiles.filter(function (f) { return f.indexOf('/tests/') >= 0; });
+        var appChanges = changedFiles.filter(function (f) { return f.indexOf('/tests/') < 0; });
+        if (testChanges.length > 0 && appChanges.length === 0) {
+            diagnosis.evidence.push('Only test files changed — likely a test regression, not application bug');
+            if (diagnosis.classification === 'application-defect') {
+                diagnosis.classification = 'test-defect';
+                diagnosis.confidence = Math.min(1, diagnosis.confidence + 0.05);
+            }
+        }
+        if (appChanges.length > 0 && testChanges.length === 0) {
+            diagnosis.evidence.push('Application files changed but tests did not — coverage gap');
+        }
+    }
+
     // AI fallback for low-confidence or undetermined classifications
     if (AI_ENABLED && (diagnosis.classification === 'undetermined' || diagnosis.confidence < 0.75)) {
         var aiResult = await aiDiagnose(evidence, diagnosis);
