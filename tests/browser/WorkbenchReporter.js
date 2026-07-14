@@ -98,11 +98,22 @@ class WorkbenchReporter {
             process.exitCode = 1;
         }
 
-      // Write per-suite JSON
-      for (var suiteName in this.suites) {
-        if (!this.suites.hasOwnProperty(suiteName)) continue;
-        var suite = this.suites[suiteName];
-        var passed = 0, failed = 0, skipped = 0, timedOut = 0, interrupted = 0;
+        // ── Run directory ────────────────────────────────
+        var runId = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+        var runDir = path.join(RESULTS_DIR, 'runs', runId);
+        if (!fs.existsSync(runDir)) fs.mkdirSync(runDir, { recursive: true });
+
+        // Helper: write to both run dir and legacy top-level (for backward compat)
+        function writeRunResult(name, data) {
+            writeJsonAtomic(path.join(runDir, name), data);
+            writeJsonAtomic(path.join(RESULTS_DIR, name), data);
+        }
+
+        // Write per-suite JSON
+        for (var suiteName in this.suites) {
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            var passed = 0, failed = 0, skipped = 0, timedOut = 0, interrupted = 0;
             for (var j = 0; j < suite.results.length; j++) {
                 var r = suite.results[j];
                 if (r.status === 'passed') passed++;
@@ -133,9 +144,9 @@ class WorkbenchReporter {
                 issues: (suite.issues || []).slice(),
             };
 
-          writeRunResult(suiteName + '.json', data);
-          Object.assign(allFingerprints, suite.fingerprints);
-          console.log('  📄 ' + path.join(runDir, suiteName + '.json'));
+            writeRunResult(suiteName + '.json', data);
+            Object.assign(allFingerprints, suite.fingerprints);
+            console.log('  📄 ' + path.join(runDir, suiteName + '.json'));
         }
 
         // Aggregate manifest
@@ -205,35 +216,35 @@ class WorkbenchReporter {
         // For every evidence annotation on failed tests, auto-launch Comprehension Engine.
         var comprehended = 0;
         for (var suiteName in this.suites) {
-          if (!this.suites.hasOwnProperty(suiteName)) continue;
-          var suite = this.suites[suiteName];
-          if (suite.failed === 0 && suite.timedOut === 0) continue;
-          if (!suite.evidence || suite.evidence.length === 0) continue;
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            if (suite.failed === 0 && suite.timedOut === 0) continue;
+            if (!suite.evidence || suite.evidence.length === 0) continue;
 
-          for (var k = 0; k < suite.evidence.length; k++) {
-            var ev = suite.evidence[k];
-            if (!ev.file || !fs.existsSync(ev.file)) continue;
+            for (var k = 0; k < suite.evidence.length; k++) {
+                var ev = suite.evidence[k];
+                if (!ev.file || !fs.existsSync(ev.file)) continue;
 
-            var execSync = require('child_process').execSync;
-            try {
-              var args = 'php ' + __dirname + '/../../kernel/Workbench/Comprehension/run.php';
-              args += ' ' + (ev.module || 'project-audit-ledger');
-              args += ' ' + (ev.action || '');
-              args += ' --evidence=' + ev.file;
-              args += ' --run-id=' + (ev.run_id || runId);
-              if (ev.entity_id) args += ' --entity-id=' + ev.entity_id;
-              if (ev.tenant_id) args += ' --tenant=' + ev.tenant_id;
+                var execSync = require('child_process').execSync;
+                try {
+                    var args = 'php ' + __dirname + '/../../kernel/Workbench/Comprehension/run.php';
+                    args += ' ' + (ev.module || 'project-audit-ledger');
+                    args += ' ' + (ev.action || '');
+                    args += ' --evidence=' + ev.file;
+                    args += ' --run-id=' + (ev.run_id || runId);
+                    if (ev.entity_id) args += ' --entity-id=' + ev.entity_id;
+                    if (ev.tenant_id) args += ' --tenant=' + ev.tenant_id;
 
-              var out = execSync(args, { encoding: 'utf-8', timeout: 30000 });
-              comprehended++;
-              console.log('  🧠 Comprehension [' + ev.action + ']:\n' + out.trim().split('\n').slice(0, 8).join('\n'));
-            } catch (e) {
-              console.log('  ⚠ Comprehension [' + (ev.action || '?') + ']: ' + (e.message || 'failed'));
+                    var out = execSync(args, { encoding: 'utf-8', timeout: 30000 });
+                    comprehended++;
+                    console.log('  🧠 Comprehension [' + ev.action + ']:\n' + out.trim().split('\n').slice(0, 8).join('\n'));
+                } catch (e) {
+                    console.log('  ⚠ Comprehension [' + (ev.action || '?') + ']: ' + (e.message || 'failed'));
+                }
             }
-          }
         }
         if (comprehended > 0) {
-          console.log('  🧠 Comprehension ran for ' + comprehended + ' action(s)');
+            console.log('  🧠 Comprehension ran for ' + comprehended + ' action(s)');
         }
 
         // Console summary

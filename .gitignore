@@ -64,3 +64,4 @@ vendor/
 .windsurf/
 *.zip
 test_results/evidence/*
+test_results/browser/runs/
