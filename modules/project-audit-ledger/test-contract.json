@@ -65,7 +65,8 @@
             ],
             "browser": [
                 "tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
-                "tests/browser/modules/pal/pal-workflow.spec.js"
+                "tests/browser/modules/pal/pal-workflow.spec.js",
+                "tests/browser/modules/pal/pal-contract-verification.spec.js"
             ]
         },
         "routes_claimed": {
@@ -78,17 +79,28 @@
                 "/admin/project-audit-ledger/clients",
                 "/admin/project-audit-ledger/clients/{id}",
                 "/admin/project-audit-ledger/clients/create",
+                "/admin/project-audit-ledger/clients/{id}/edit",
                 "/admin/project-audit-ledger/approvals",
                 "/admin/project-audit-ledger/expenses",
-                "/admin/project-audit-ledger/quotations",
-                "/admin/project-audit-ledger/quotations/{id}/print",
-                "/admin/project-audit-ledger/reports",
-                "/admin/project-audit-ledger/materials",
+                "/admin/project-audit-ledger/expenses/{id}",
+                "/admin/project-audit-ledger/expenses/create",
+                "/admin/project-audit-ledger/expenses/{id}/edit",
+                "/admin/project-audit-ledger/purchases",
+                "/admin/project-audit-ledger/purchases/{id}",
+                "/admin/project-audit-ledger/purchases/create",
+                "/admin/project-audit-ledger/purchases/{id}/edit",
+                "/admin/project-audit-ledger/inventory",
+                "/admin/project-audit-ledger/inventory/{id}",
+                "/admin/project-audit-ledger/inventory/movements",
                 "/admin/project-audit-ledger/suppliers",
-                "/admin/project-audit-ledger/fabrication",
-                "/admin/project-audit-ledger/sales",
-                "/admin/project-audit-ledger/team-leads",
-                "/api/v1/project-audit-ledger/dashboard/stats"
+                "/admin/project-audit-ledger/suppliers/create",
+                "/admin/project-audit-ledger/suppliers/{id}/edit",
+                "/admin/project-audit-ledger/team-lead",
+                "/admin/project-audit-ledger/team-lead/fabrication",
+                "/admin/project-audit-ledger/team-lead/cash-advances",
+                "/admin/project-audit-ledger/team-lead/mobilization",
+                "/admin/project-audit-ledger/team-lead/mobilization/create",
+                "/admin/project-audit-ledger/team-lead/attendance"
             ],
             "POST": [
                 "/api/v1/project-audit-ledger/projects/{id}/status",
@@ -97,7 +109,8 @@
                 "/api/v1/project-audit-ledger/approvals/{id}/decide",
                 "/api/v1/project-audit-ledger/expenses/save",
                 "/api/v1/project-audit-ledger/fabrication/allocate",
-                "/api/v1/project-audit-ledger/fabrication/payment"
+                "/api/v1/project-audit-ledger/fabrication/payment",
+                "/api/v1/project-audit-ledger/attachments/list"
             ]
         },
         "capabilities_claimed": [

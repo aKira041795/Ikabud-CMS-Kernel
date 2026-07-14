@@ -1,0 +1,445 @@
+{
+  "suite": "modules-pal-pal-contract-verification--chromium",
+  "started": "2026-07-14T04:23:16.196Z",
+  "finished": "2026-07-14T04:24:56.709Z",
+  "summary": {
+    "passed": 33,
+    "failed": 1,
+    "skipped": 0,
+    "timedOut": 0,
+    "interrupted": 0,
+    "total": 34
+  },
+  "source_fingerprints": {},
+  "results": [
+    {
+      "test": "GET /admin/project-audit-ledger",
+      "status": "passed",
+      "duration": 3619,
+      "detail": ""
+    },
+    {
+      "test": "GET projects",
+      "status": "passed",
+      "duration": 2927,
+      "detail": ""
+    },
+    {
+      "test": "GET projects/{id}",
+      "status": "passed",
+      "duration": 2848,
+      "detail": ""
+    },
+    {
+      "test": "GET projects/create",
+      "status": "passed",
+      "duration": 2599,
+      "detail": ""
+    },
+    {
+      "test": "GET projects/{id}/edit",
+      "status": "passed",
+      "duration": 2733,
+      "detail": ""
+    },
+    {
+      "test": "GET clients",
+      "status": "passed",
+      "duration": 2748,
+      "detail": ""
+    },
+    {
+      "test": "GET clients/{id}",
+      "status": "passed",
+      "duration": 2689,
+      "detail": ""
+    },
+    {
+      "test": "GET clients/create",
+      "status": "passed",
+      "duration": 2674,
+      "detail": ""
+    },
+    {
+      "test": "GET clients/{id}/edit",
+      "status": "passed",
+      "duration": 2728,
+      "detail": ""
+    },
+    {
+      "test": "GET approvals",
+      "status": "passed",
+      "duration": 3138,
+      "detail": ""
+    },
+    {
+      "test": "GET expenses",
+      "status": "passed",
+      "duration": 2909,
+      "detail": ""
+    },
+    {
+      "test": "GET expenses/{id}",
+      "status": "passed",
+      "duration": 2863,
+      "detail": ""
+    },
+    {
+      "test": "GET expenses/create",
+      "status": "passed",
+      "duration": 2891,
+      "detail": ""
+    },
+    {
+      "test": "GET expenses/{id}/edit",
+      "status": "passed",
+      "duration": 2798,
+      "detail": ""
+    },
+    {
+      "test": "GET purchases",
+      "status": "passed",
+      "duration": 2784,
+      "detail": ""
+    },
+    {
+      "test": "GET purchases/{id}",
+      "status": "passed",
+      "duration": 2583,
+      "detail": ""
+    },
+    {
+      "test": "GET purchases/create",
+      "status": "passed",
+      "duration": 2802,
+      "detail": ""
+    },
+    {
+      "test": "GET purchases/{id}/edit",
+      "status": "passed",
+      "duration": 2666,
+      "detail": ""
+    },
+    {
+      "test": "GET inventory",
+      "status": "passed",
+      "duration": 2778,
+      "detail": ""
+    },
+    {
+      "test": "GET inventory/{id}",
+      "status": "passed",
+      "duration": 2470,
+      "detail": ""
+    },
+    {
+      "test": "GET inventory/movements",
+      "status": "passed",
+      "duration": 2812,
+      "detail": ""
+    },
+    {
+      "test": "GET suppliers",
+      "status": "passed",
+      "duration": 2573,
+      "detail": ""
+    },
+    {
+      "test": "GET suppliers/create",
+      "status": "passed",
+      "duration": 2715,
+      "detail": ""
+    },
+    {
+      "test": "GET suppliers/{id}/edit",
+      "status": "passed",
+      "duration": 3019,
+      "detail": ""
+    },
+    {
+      "test": "GET team-lead",
+      "status": "passed",
+      "duration": 3042,
+      "detail": ""
+    },
+    {
+      "test": "GET team-lead/fabrication",
+      "status": "passed",
+      "duration": 3325,
+      "detail": ""
+    },
+    {
+      "test": "GET team-lead/cash-advances",
+      "status": "passed",
+      "duration": 3386,
+      "detail": ""
+    },
+    {
+      "test": "GET team-lead/mobilization",
+      "status": "passed",
+      "duration": 3189,
+      "detail": ""
+    },
+    {
+      "test": "GET team-lead/mobilization/create",
+      "status": "passed",
+      "duration": 3490,
+      "detail": ""
+    },
+    {
+      "test": "GET team-lead/attendance",
+      "status": "passed",
+      "duration": 3060,
+      "detail": ""
+    },
+    {
+      "test": "GET /api/v1/project-audit-ledger/attachments/list",
+      "status": "failed",
+      "duration": 3262,
+      "detail": "Error: CRITICAL: /api/v1/project-audit-ledger/attachments/list — HTTP 404 — route claimed in contract but no handler registered\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m\"\"\u001b[39m\nReceived: \u001b[31m\"HTTP 404 — route claimed in contract but no handler registered\"\u001b[39m"
+    },
+    {
+      "test": "dashboard has summary-card",
+      "status": "passed",
+      "duration": 3254,
+      "detail": ""
+    },
+    {
+      "test": "project-list has entity-list",
+      "status": "passed",
+      "duration": 3317,
+      "detail": ""
+    },
+    {
+      "test": "status badge has visible text",
+      "status": "passed",
+      "duration": 2674,
+      "detail": ""
+    }
+  ],
+  "gaps": [],
+  "issues": [
+    {
+      "kind": "entity-not-found",
+      "severity": "minor",
+      "where": "projects/{id}",
+      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
+      "recommendation": "",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET projects/{id}"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/projects/1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-14T04:23:21.502Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET projects/{id}"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/projects/1",
+      "browser": "chromium",
+      "timestamp": "2026-07-14T04:23:21.519Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET projects/{id}"
+    },
+    {
+      "kind": "entity-not-found",
+      "severity": "minor",
+      "where": "clients/{id}",
+      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
+      "recommendation": "",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET clients/{id}"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/clients/1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-14T04:23:32.541Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET clients/{id}"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/clients/1",
+      "browser": "chromium",
+      "timestamp": "2026-07-14T04:23:32.545Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET clients/{id}"
+    },
+    {
+      "kind": "entity-not-found",
+      "severity": "minor",
+      "where": "expenses/{id}",
+      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
+      "recommendation": "",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET expenses/{id}"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/expenses/1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-14T04:23:47.145Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET expenses/{id}"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/expenses/1",
+      "browser": "chromium",
+      "timestamp": "2026-07-14T04:23:47.154Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET expenses/{id}"
+    },
+    {
+      "kind": "entity-not-found",
+      "severity": "minor",
+      "where": "purchases/{id}",
+      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
+      "recommendation": "",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET purchases/{id}"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/purchases/1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-14T04:23:58.445Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET purchases/{id}"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/purchases/1",
+      "browser": "chromium",
+      "timestamp": "2026-07-14T04:23:58.449Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET purchases/{id}"
+    },
+    {
+      "kind": "entity-not-found",
+      "severity": "minor",
+      "where": "inventory/{id}",
+      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
+      "recommendation": "",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET inventory/{id}"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/inventory/1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-14T04:24:09.349Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET inventory/{id}"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/inventory/1",
+      "browser": "chromium",
+      "timestamp": "2026-07-14T04:24:09.355Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET inventory/{id}"
+    },
+    {
+      "kind": "broken-page",
+      "severity": "major",
+      "where": "team-lead",
+      "detail": "App shell did not render — wrong template or missing layout",
+      "recommendation": "Check template extends admin layout with app-shell",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET team-lead"
+    },
+    {
+      "kind": "broken-page",
+      "severity": "major",
+      "where": "team-lead/fabrication",
+      "detail": "App shell did not render — wrong template or missing layout",
+      "recommendation": "Check template extends admin layout with app-shell",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET team-lead/fabrication"
+    },
+    {
+      "kind": "broken-page",
+      "severity": "major",
+      "where": "team-lead/cash-advances",
+      "detail": "App shell did not render — wrong template or missing layout",
+      "recommendation": "Check template extends admin layout with app-shell",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET team-lead/cash-advances"
+    },
+    {
+      "kind": "broken-page",
+      "severity": "major",
+      "where": "team-lead/mobilization",
+      "detail": "App shell did not render — wrong template or missing layout",
+      "recommendation": "Check template extends admin layout with app-shell",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET team-lead/mobilization"
+    },
+    {
+      "kind": "broken-page",
+      "severity": "major",
+      "where": "team-lead/mobilization/create",
+      "detail": "App shell did not render — wrong template or missing layout",
+      "recommendation": "Check template extends admin layout with app-shell",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET team-lead/mobilization/create"
+    },
+    {
+      "kind": "broken-page",
+      "severity": "major",
+      "where": "team-lead/attendance",
+      "detail": "App shell did not render — wrong template or missing layout",
+      "recommendation": "Check template extends admin layout with app-shell",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET team-lead/attendance"
+    },
+    {
+      "kind": "missing-route",
+      "severity": "critical",
+      "where": "/api/v1/project-audit-ledger/attachments/list",
+      "detail": "HTTP 404 — route claimed in contract but no handler registered",
+      "recommendation": "Register route in routes.php or remove from test-contract.json",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET /api/v1/project-audit-ledger/attachments/list"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/api/v1/project-audit-ledger/attachments/list",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-14T04:24:43.402Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET /api/v1/project-audit-ledger/attachments/list"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/api/v1/project-audit-ledger/attachments/list",
+      "browser": "chromium",
+      "timestamp": "2026-07-14T04:24:43.411Z",
+      "suite": "modules-pal-pal-contract-verification--chromium",
+      "test": "GET /api/v1/project-audit-ledger/attachments/list"
+    }
+  ]
+}
