@@ -5,11 +5,14 @@ declare(strict_types=1);
 /**
  * PAL Basic Fixture — seeds minimal data for Workbench contract tests.
  *
+ * SAFE by default: checks for existing admin user, skips if present.
+ * Use --force to destroy and recreate all data (WARNING: deletes existing records).
+ *
  * Usage:
- *   php tests/pal/fixtures/basic.php [--tenant=ID]
+ *   php tests/pal/fixtures/basic.php --tenant=ID [--force]
  *
  * Creates:
- *   1 admin user
+ *   1 admin user (paladmin / pAl123456)
  *   1 client
  *   1 project (draft)
  *
@@ -17,14 +20,18 @@ declare(strict_types=1);
  */
 
 $tenantId = 0;
+$force = false;
 foreach ($argv as $arg) {
     if (str_starts_with($arg, '--tenant=')) {
         $tenantId = (int) substr($arg, 9);
     }
+    if ($arg === '--force') {
+        $force = true;
+    }
 }
 
 if ($tenantId <= 0) {
-    fwrite(STDERR, "Usage: php tests/pal/fixtures/basic.php --tenant=ID\n");
+    fwrite(STDERR, "Usage: php tests/pal/fixtures/basic.php --tenant=ID [--force]\n");
     exit(1);
 }
 
@@ -35,6 +42,16 @@ $db = app()->dbForTenant($tenantId);
 if ($db === null) {
     fwrite(STDERR, "Tenant {$tenantId} not found.\n");
     exit(1);
+}
+
+// Check if admin already exists — safe default: skip if present
+$check = $db->prepare("SELECT id FROM pal_users WHERE tenant_id = ? AND username = 'paladmin' LIMIT 1");
+$check->execute([$tenantId]);
+$existingAdmin = $check->fetchColumn();
+
+if ($existingAdmin !== false && $existingAdmin > 0) {
+    echo "Admin user 'paladmin' already exists (id={$existingAdmin}). Use --force to reset.\n";
+    exit(0);
 }
 
 $owns = [
@@ -50,24 +67,42 @@ $owns = [
     'pal_units', 'pal_inventory_locations', 'pal_attachments', 'pal_report_exports',
 ];
 
-// Clean slate
-foreach ($owns as $t) {
-    try { $db->exec("DELETE FROM {$t} WHERE tenant_id = {$tenantId}"); } catch (\Throwable $e) {}
+// Clean slate — only with --force
+if ($force) {
+    echo "WARNING: --force mode — deleting all PAL data for tenant {$tenantId}\n";
+    foreach ($owns as $t) {
+        try { $db->exec("DELETE FROM {$t} WHERE tenant_id = {$tenantId}"); } catch (\Throwable $e) {}
+    }
 }
 
-// Admin user
-$stmt = $db->prepare("INSERT INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)");
+// Admin user (INSERT IGNORE in case of race)
+$stmt = $db->prepare("INSERT IGNORE INTO pal_users (tenant_id, username, email, password_hash, full_name, role, is_active) VALUES (?,?,?,?,?,'admin',1)");
 $stmt->execute([$tenantId, 'paladmin', 'paladmin@test.local', password_hash('pAl123456', PASSWORD_BCRYPT), 'PAL Admin']);
 $adminId = (int) $db->lastInsertId();
+if ($adminId === 0) {
+    // Already exists — fetch existing
+    $check->execute([$tenantId]);
+    $adminId = (int) $check->fetchColumn();
+}
 
-// Client
-$stmt = $db->prepare("INSERT INTO pal_clients (tenant_id, name, contact_person, email, phone, address, is_active) VALUES (?,?,?,?,?,?,1)");
+// Client (INSERT IGNORE)
+$stmt = $db->prepare("INSERT IGNORE INTO pal_clients (tenant_id, name, contact_person, email, phone, address, is_active) VALUES (?,?,?,?,?,?,1)");
 $stmt->execute([$tenantId, 'Test Client', 'Contact Person', 'client@test.local', '1234567890', 'Test Address']);
 $clientId = (int) $db->lastInsertId();
+if ($clientId === 0) {
+    $c = $db->prepare("SELECT id FROM pal_clients WHERE tenant_id = ? AND name = 'Test Client' LIMIT 1");
+    $c->execute([$tenantId]);
+    $clientId = (int) $c->fetchColumn();
+}
 
-// Project (draft)
-$stmt = $db->prepare("INSERT INTO pal_projects (tenant_id, project_id, job_order_number, jo_type, title, client_id, contract_amount, estimated_cost, status, created_by) VALUES (?,?,?,'contract',?,?,?,?,'draft',?)");
+// Project (draft) — INSERT IGNORE
+$stmt = $db->prepare("INSERT IGNORE INTO pal_projects (tenant_id, project_id, job_order_number, jo_type, title, client_id, contract_amount, estimated_cost, status, created_by) VALUES (?,?,?,'contract',?,?,?,?,'draft',?)");
 $stmt->execute([$tenantId, 'BASIC-FIXTURE-001', 'JO-BASIC-001', 'Basic Fixture Project', $clientId, 100000, 60000, $adminId]);
 $projectId = (int) $db->lastInsertId();
+if ($projectId === 0) {
+    $p = $db->prepare("SELECT id FROM pal_projects WHERE tenant_id = ? AND project_id = 'BASIC-FIXTURE-001' LIMIT 1");
+    $p->execute([$tenantId]);
+    $projectId = (int) $p->fetchColumn();
+}
 
-echo "Fixtures created for tenant {$tenantId}: user={$adminId}, client={$clientId}, project={$projectId}\n";
+echo "Fixtures ready for tenant {$tenantId}: user={$adminId}, client={$clientId}, project={$projectId}\n";
