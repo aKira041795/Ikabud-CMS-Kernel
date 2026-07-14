@@ -1,0 +1,15 @@
+{
+    "button.visible": true,
+    "button.clicked": true,
+    "http.request": true,
+    "http.response_ok": false,
+    "http.response_status": 419,
+    "http.response_body_snippet": "CSRF token mismatch: the provided token has expired.",
+    "workflow.transition": false,
+    "db.status_change": "draft",
+    "approval.created": false,
+    "audit.created": "pal.project.status.workflow_failed: CSRF validation error",
+    "ui.status_updated": "draft",
+    "approval_queue.updated": false,
+    "error.message": "The page expired. CSRF token mismatch."
+}

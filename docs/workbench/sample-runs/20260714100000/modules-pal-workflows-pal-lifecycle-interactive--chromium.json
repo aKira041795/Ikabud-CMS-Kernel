@@ -1,0 +1,78 @@
+{
+    "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+    "started": "2026-07-14T10:00:05.123Z",
+    "finished": "2026-07-14T10:01:23.456Z",
+    "summary": {
+        "passed": 1,
+        "failed": 1,
+        "skipped": 0,
+        "timedOut": 0,
+        "interrupted": 0,
+        "total": 2
+    },
+    "source_fingerprints": {
+        "modules/pal/module.json": "a1b2c3d4e5f6a7b8",
+        "modules/pal/helpers/01-entities.php": "b2c3d4e5f6a7b8c9",
+        "modules/pal/services/ProjectService.php": "c3d4e5f6a7b8c9d0"
+    },
+    "results": [
+        {
+            "test": "JO operational setup: draft → ongoing",
+            "status": "passed",
+            "duration": 24387,
+            "detail": ""
+        },
+        {
+            "test": "JO status transition: unexpected status code",
+            "status": "failed",
+            "duration": 5123,
+            "detail": "Expected HTTP 200 but got 419"
+        }
+    ],
+    "gaps": [
+        "JO status transition does not validate CSRF token refresh before state change"
+    ],
+    "issues": [
+        {
+            "kind": "http-error",
+            "severity": "critical",
+            "where": "POST /modules/pal/api/project/status",
+            "detail": "HTTP 419 CSRF token mismatch",
+            "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+            "test": "JO status transition: unexpected status code"
+        },
+        {
+            "kind": "perf",
+            "severity": "major",
+            "where": "JO create",
+            "detail": "7578ms",
+            "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+            "test": "JO operational setup: draft → ongoing"
+        },
+        {
+            "kind": "perf",
+            "severity": "major",
+            "where": "full setup journey",
+            "detail": "20623ms",
+            "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+            "test": "JO operational setup: draft → ongoing"
+        }
+    ],
+    "expectedHttp": [
+        {
+            "route": "/modules/pal/api/project/status",
+            "status": 419,
+            "reason": "Known CSRF issue under investigation — see TD-CSRF-003"
+        }
+    ],
+    "evidence": [
+        {
+            "file": "test_results/evidence/20260714100015--jo-status-transition.json",
+            "module": "pal",
+            "action": "workflow.transition",
+            "run_id": "20260714100000",
+            "entity_id": "JO-2026-0042",
+            "tenant_id": "demo-acme"
+        }
+    ]
+}

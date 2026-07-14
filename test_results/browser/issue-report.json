@@ -1,165 +1,28 @@
 {
-  "generated": "2026-07-14T05:33:04.211Z",
-  "total_issues": 16,
+  "generated": "2026-07-14T09:56:04.299Z",
+  "total_issues": 2,
   "by_severity": {
-    "major": 6,
-    "minor": 10
+    "major": 2
   },
   "by_kind": {
-    "console-error": 5,
-    "missing-component": 1,
-    "entity-not-found": 5,
-    "http-error": 5
+    "perf": 2
   },
   "issues": [
     {
-      "kind": "console-error",
+      "kind": "perf",
       "severity": "major",
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "url": "http://palsystem.test/admin/project-audit-ledger/projects/1",
-      "browser": "chromium",
-      "timestamp": "2026-07-14T05:31:07.802Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET projects/{id}"
+      "where": "JO create",
+      "detail": "7578ms",
+      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+      "test": "JO operational setup: draft → ongoing"
     },
     {
-      "kind": "console-error",
+      "kind": "perf",
       "severity": "major",
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "url": "http://palsystem.test/admin/project-audit-ledger/clients/1",
-      "browser": "chromium",
-      "timestamp": "2026-07-14T05:31:22.095Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET clients/{id}"
-    },
-    {
-      "kind": "console-error",
-      "severity": "major",
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "url": "http://palsystem.test/admin/project-audit-ledger/expenses/1",
-      "browser": "chromium",
-      "timestamp": "2026-07-14T05:31:39.551Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET expenses/{id}"
-    },
-    {
-      "kind": "console-error",
-      "severity": "major",
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "url": "http://palsystem.test/admin/project-audit-ledger/purchases/1",
-      "browser": "chromium",
-      "timestamp": "2026-07-14T05:31:53.075Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET purchases/{id}"
-    },
-    {
-      "kind": "console-error",
-      "severity": "major",
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
-      "url": "http://palsystem.test/admin/project-audit-ledger/inventory/1",
-      "browser": "chromium",
-      "timestamp": "2026-07-14T05:32:07.710Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET inventory/{id}"
-    },
-    {
-      "kind": "missing-component",
-      "severity": "major",
-      "where": "/projects",
-      "detail": "entity-list not found — table may be plain HTML",
-      "recommendation": "Convert project list to {ikb_entity_list}",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "project-list has entity-list"
-    },
-    {
-      "kind": "entity-not-found",
-      "severity": "minor",
-      "where": "projects/{id}",
-      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
-      "recommendation": "",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET projects/{id}"
-    },
-    {
-      "kind": "http-error",
-      "severity": "minor",
-      "where": "GET http://palsystem.test/admin/project-audit-ledger/projects/1",
-      "detail": "HTTP 404 Not Found",
-      "timestamp": "2026-07-14T05:31:07.792Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET projects/{id}"
-    },
-    {
-      "kind": "entity-not-found",
-      "severity": "minor",
-      "where": "clients/{id}",
-      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
-      "recommendation": "",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET clients/{id}"
-    },
-    {
-      "kind": "http-error",
-      "severity": "minor",
-      "where": "GET http://palsystem.test/admin/project-audit-ledger/clients/1",
-      "detail": "HTTP 404 Not Found",
-      "timestamp": "2026-07-14T05:31:22.089Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET clients/{id}"
-    },
-    {
-      "kind": "entity-not-found",
-      "severity": "minor",
-      "where": "expenses/{id}",
-      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
-      "recommendation": "",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET expenses/{id}"
-    },
-    {
-      "kind": "http-error",
-      "severity": "minor",
-      "where": "GET http://palsystem.test/admin/project-audit-ledger/expenses/1",
-      "detail": "HTTP 404 Not Found",
-      "timestamp": "2026-07-14T05:31:39.546Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET expenses/{id}"
-    },
-    {
-      "kind": "entity-not-found",
-      "severity": "minor",
-      "where": "purchases/{id}",
-      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
-      "recommendation": "",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET purchases/{id}"
-    },
-    {
-      "kind": "http-error",
-      "severity": "minor",
-      "where": "GET http://palsystem.test/admin/project-audit-ledger/purchases/1",
-      "detail": "HTTP 404 Not Found",
-      "timestamp": "2026-07-14T05:31:53.065Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET purchases/{id}"
-    },
-    {
-      "kind": "entity-not-found",
-      "severity": "minor",
-      "where": "inventory/{id}",
-      "detail": "HTTP 404 — entity not found (expected — no record with that ID exists)",
-      "recommendation": "",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET inventory/{id}"
-    },
-    {
-      "kind": "http-error",
-      "severity": "minor",
-      "where": "GET http://palsystem.test/admin/project-audit-ledger/inventory/1",
-      "detail": "HTTP 404 Not Found",
-      "timestamp": "2026-07-14T05:32:07.698Z",
-      "suite": "modules-pal-pal-contract-verification--chromium",
-      "test": "GET inventory/{id}"
+      "where": "full setup journey",
+      "detail": "20623ms",
+      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+      "test": "JO operational setup: draft → ongoing"
     }
   ]
 }

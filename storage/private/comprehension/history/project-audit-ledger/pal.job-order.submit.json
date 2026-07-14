@@ -1,0 +1,1202 @@
+{
+    "button.visible": {
+        "successes": 18,
+        "failures": 3,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "button.clicked": {
+        "successes": 12,
+        "failures": 9,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "http.request": {
+        "successes": 12,
+        "failures": 9,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "http.response_ok": {
+        "successes": 18,
+        "failures": 3,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "workflow.transition": {
+        "successes": 11,
+        "failures": 10,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "db.status_change": {
+        "successes": 12,
+        "failures": 9,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "approval.created": {
+        "successes": 5,
+        "failures": 16,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "audit.created": {
+        "successes": 12,
+        "failures": 9,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "ui.status_updated": {
+        "successes": 12,
+        "failures": 9,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    },
+    "approval_queue.updated": {
+        "successes": 5,
+        "failures": 16,
+        "last_seen": "2026-07-14T17:22:38+08:00",
+        "total": 21,
+        "runs": [
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": "lifecycle-1784019955457",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:06:49+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:07:39+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:07:51+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:08:04+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": true,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-success",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:08:13+08:00",
+                "run_id": "proof-csrf",
+                "commit": null,
+                "tenant": null,
+                "source": "proof"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": "final-proof",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:21:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": "lifecycle-1784020934802",
+                "commit": null,
+                "tenant": 502,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            }
+        ]
+    }
+}

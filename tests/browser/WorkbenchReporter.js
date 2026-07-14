@@ -200,10 +200,29 @@ class WorkbenchReporter {
                 allIssues = allIssues.concat(suite.issues);
             }
         }
+        // Collect expected HTTP annotations from all suites
+        var allExpectedHttp = [];
+        for (var suiteName in this.suites) {
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            if (suite.expectedHttp && suite.expectedHttp.length > 0) {
+                allExpectedHttp = allExpectedHttp.concat(suite.expectedHttp);
+            }
+        }
+
         // Suppress expected HTTP issues (entity-not-found 404s for placeholder IDs)
-        // Any issue with kind 'entity-not-found' is expected by design
+        // Any issue with kind 'entity-not-found' is expected by design.
+        // Expected HTTP annotations also suppress matching route/status issues.
         var filteredIssues = allIssues.filter(function (iss) {
             if (iss.kind === 'entity-not-found') return false;
+            if (iss.kind === 'http-error' && iss.where && iss.detail) {
+                for (var e = 0; e < allExpectedHttp.length; e++) {
+                    var exp = allExpectedHttp[e];
+                    if (iss.where.indexOf(exp.route) !== -1 && iss.detail.indexOf('HTTP ' + exp.status) !== -1) {
+                        return false;
+                    }
+                }
+            }
             return true;
         });
         var suppressedCount = allIssues.length - filteredIssues.length;
@@ -215,7 +234,7 @@ class WorkbenchReporter {
                 ? sevOrder[sev]
                 : 99;
         }
-        allIssues.sort(function (a, b) {
+        filteredIssues.sort(function (a, b) {
             return severityRank(a.severity) - severityRank(b.severity);
         });
 
@@ -281,9 +300,9 @@ class WorkbenchReporter {
         }
 
         // Console summary
-        if (allIssues.length > 0) {
+        if (filteredIssues.length > 0) {
             console.log('');
-            console.log('  📋 Issue Report — ' + allIssues.length + ' issues found');
+            console.log('  📋 Issue Report — ' + filteredIssues.length + ' issues found');
             for (var kind in issueReport.by_kind) {
                 if (!issueReport.by_kind.hasOwnProperty(kind)) continue;
                 console.log('     ' + kind + ': ' + issueReport.by_kind[kind]);
@@ -304,8 +323,8 @@ class WorkbenchReporter {
         var GATE = (process.env.WB_ISSUE_GATE || 'off').toLowerCase();
         if (GATE !== 'off') {
             var blockers = 0;
-            for (var i = 0; i < allIssues.length; i++) {
-                var s = allIssues[i].severity;
+            for (var i = 0; i < filteredIssues.length; i++) {
+                var s = filteredIssues[i].severity;
                 if (s === 'critical' || (GATE === 'major' && s === 'major')) {
                     blockers++;
                 }

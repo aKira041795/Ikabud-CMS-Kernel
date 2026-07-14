@@ -1,0 +1,29 @@
+{
+    "generated": "2026-07-14T10:01:23.456Z",
+    "total_issues": 2,
+    "total_suppressed": 1,
+    "by_severity": {
+        "major": 2
+    },
+    "by_kind": {
+        "perf": 2
+    },
+    "issues": [
+        {
+            "kind": "perf",
+            "severity": "major",
+            "where": "JO create",
+            "detail": "7578ms",
+            "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+            "test": "JO operational setup: draft → ongoing"
+        },
+        {
+            "kind": "perf",
+            "severity": "major",
+            "where": "full setup journey",
+            "detail": "20623ms",
+            "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
+            "test": "JO operational setup: draft → ongoing"
+        }
+    ]
+}

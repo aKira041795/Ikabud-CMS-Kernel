@@ -1,0 +1,52 @@
+{
+    "run_id": "20260714100000",
+    "generated": "2026-07-14T10:01:25.000Z",
+    "module": "pal",
+    "action": "workflow.transition",
+    "entity_id": "JO-2026-0042",
+    "tenant": "demo-acme",
+    "evidence": "test_results/evidence/20260714100015--jo-status-transition.json",
+    "diagnosis": {
+        "summary": "CSRF token validation failure during JO status transition",
+        "root_cause": "Session token not refreshed between page navigation and AJAX POST",
+        "affected_components": [
+            "modules/pal/handlers/10-workflow.php",
+            "kernel/Http/Middleware/CsrfMiddleware.php"
+        ],
+        "status": "investigating",
+        "recommendation": "Add CSRF token refresh call before workflow state-change POST requests",
+        "severity": "critical"
+    },
+    "entity_context": {
+        "id": "pal.project",
+        "label": "Project / Job Order",
+        "table": "pal_projects",
+        "fields": [
+            "id",
+            "project_id",
+            "title",
+            "client_id",
+            "contract_amount",
+            "status",
+            "start_date",
+            "target_completion_date",
+            "job_order_number",
+            "jo_type"
+        ],
+        "relationships": {
+            "client": "pal.client",
+            "expenses": "pal.expense",
+            "approvals": "pal.approval"
+        },
+        "statuses": [
+            "draft",
+            "pending",
+            "approved",
+            "started",
+            "ongoing",
+            "completed",
+            "cancelled",
+            "closed"
+        ]
+    }
+}
