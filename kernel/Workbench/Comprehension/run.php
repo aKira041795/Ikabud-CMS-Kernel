@@ -293,6 +293,13 @@ echo "\n";
 $packet = $engine->buildEvidencePacket($actionId ?: 'all');
 
 $outDir = $base . '/test_results/ai';
+
+// Use run-scoped output when a run_id is available
+$runId = $evidence['_run_id'] ?? $runId ?? null;
+if ($runId) {
+    $outDir = $outDir . '/runs/' . preg_replace('/[^a-zA-Z0-9._-]/', '', $runId);
+}
+
 if (!is_dir($outDir)) {
     mkdir($outDir, 0777, true);
 }

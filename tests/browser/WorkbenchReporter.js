@@ -26,6 +26,13 @@ var path = require('path');
 var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
 var FINGERPRINT_MODE = process.env.WB_FINGERPRINT_MODE || 'check';
 
+function makeRunId() {
+    return new Date()
+        .toISOString()
+        .replace(/\D/g, '')
+        .slice(0, 14);
+}
+
 function writeJsonAtomic(target, data) {
     var tmp = target + '.' + process.pid + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
@@ -48,6 +55,7 @@ class WorkbenchReporter {
         var suite = this.suites[suiteName];
         if (!suite.evidence) suite.evidence = [];
         if (!suite.issues) suite.issues = [];
+        if (!suite.expectedHttp) suite.expectedHttp = [];
 
         // Record native status — preserve skipped, timedOut, interrupted
         suite.results.push({
@@ -81,6 +89,11 @@ class WorkbenchReporter {
                     try {
                         suite.evidence.push(JSON.parse(a.description));
                     } catch (e) { /* ignore parse errors */ }
+                } else if (a.type === 'wb-expected-http') {
+                    suite.expectedHttp = suite.expectedHttp || [];
+                    try {
+                        suite.expectedHttp.push(JSON.parse(a.description));
+                    } catch (e) { /* ignore parse errors */ }
                 }
             }
         }
@@ -99,7 +112,7 @@ class WorkbenchReporter {
         }
 
         // ── Run directory ────────────────────────────────
-        var runId = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+        var runId = process.env.WB_RUN_ID || makeRunId();
         var runDir = path.join(RESULTS_DIR, 'runs', runId);
         if (!fs.existsSync(runDir)) fs.mkdirSync(runDir, { recursive: true });
 
@@ -151,7 +164,7 @@ class WorkbenchReporter {
 
         // Aggregate manifest
         var manifest = {
-            run_id: new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15),
+            run_id: runId,
             commit: process.env.GIT_COMMIT || '',
             started: this.startTime,
             finished: finishedAt,
@@ -187,6 +200,14 @@ class WorkbenchReporter {
                 allIssues = allIssues.concat(suite.issues);
             }
         }
+        // Suppress expected HTTP issues (entity-not-found 404s for placeholder IDs)
+        // Any issue with kind 'entity-not-found' is expected by design
+        var filteredIssues = allIssues.filter(function (iss) {
+            if (iss.kind === 'entity-not-found') return false;
+            return true;
+        });
+        var suppressedCount = allIssues.length - filteredIssues.length;
+
         // Sort by severity: critical > major > minor > note
         var sevOrder = { critical: 0, major: 1, minor: 2, note: 3 };
         function severityRank(sev) {
@@ -200,13 +221,14 @@ class WorkbenchReporter {
 
         var issueReport = {
             generated: finishedAt,
-            total_issues: allIssues.length,
+            total_issues: filteredIssues.length,
+            total_suppressed: suppressedCount,
             by_severity: {},
             by_kind: {},
-            issues: allIssues,
+            issues: filteredIssues,
         };
-        for (var i = 0; i < allIssues.length; i++) {
-            var iss = allIssues[i];
+        for (var i = 0; i < filteredIssues.length; i++) {
+            var iss = filteredIssues[i];
             issueReport.by_severity[iss.severity] = (issueReport.by_severity[iss.severity] || 0) + 1;
             issueReport.by_kind[iss.kind] = (issueReport.by_kind[iss.kind] || 0) + 1;
         }
@@ -234,17 +256,19 @@ class WorkbenchReporter {
                 var ev = suite.evidence[k];
                 if (!ev.file || !fs.existsSync(ev.file)) continue;
 
-                var execSync = require('child_process').execSync;
+                var { execFileSync } = require('child_process');
                 try {
-                    var args = 'php ' + __dirname + '/../../kernel/Workbench/Comprehension/run.php';
-                    args += ' ' + (ev.module || 'project-audit-ledger');
-                    args += ' ' + (ev.action || '');
-                    args += ' --evidence=' + ev.file;
-                    args += ' --run-id=' + (ev.run_id || runId);
-                    if (ev.entity_id) args += ' --entity-id=' + ev.entity_id;
-                    if (ev.tenant_id) args += ' --tenant=' + ev.tenant_id;
+                    var phpArgs = [
+                        path.resolve(__dirname, '../../kernel/Workbench/Comprehension/run.php'),
+                        ev.module || 'project-audit-ledger',
+                        ev.action || '',
+                        '--evidence=' + ev.file,
+                        '--run-id=' + (ev.run_id || runId),
+                    ];
+                    if (ev.entity_id) phpArgs.push('--entity-id=' + ev.entity_id);
+                    if (ev.tenant_id) phpArgs.push('--tenant=' + ev.tenant_id);
 
-                    var out = execSync(args, { encoding: 'utf-8', timeout: 30000 });
+                    var out = execFileSync('php', phpArgs.filter(Boolean), { encoding: 'utf-8', timeout: 30000 });
                     comprehended++;
                     console.log('  🧠 Comprehension [' + ev.action + ']:\n' + out.trim().split('\n').slice(0, 8).join('\n'));
                 } catch (e) {

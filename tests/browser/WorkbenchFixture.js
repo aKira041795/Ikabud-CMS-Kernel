@@ -172,6 +172,18 @@ function createWorkbenchTest(config) {
                         }),
                     });
                 },
+
+                // Mark an expected HTTP status to suppress noise in the issue report
+                expectedHttp: function (opts) {
+                    testInfo.annotations.push({
+                        type: 'wb-expected-http',
+                        description: JSON.stringify({
+                            route: opts.route,
+                            status: opts.status,
+                            reason: opts.reason || '',
+                        }),
+                    });
+                },
                 friction: function (detail) {
                     testInfo.annotations.push({
                         type: 'wb-issue',
