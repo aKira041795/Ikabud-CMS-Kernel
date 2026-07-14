@@ -101,8 +101,8 @@ class PalComprehensionProvider implements ModuleComprehensionProvider
                     new ChainLink('approval.created', 'Approval request record created in pal_approvals', 'db',
                         probe: "SELECT COUNT(*) FROM pal_approvals WHERE entity_type='project' AND entity_id=:id"),
                     new ChainLink('audit.created', 'Audit log entry created for status change', 'audit'),
-                    new ChainLink('ui.status_updated', 'Detail page renders Pending status badge', 'ui'),
-                    new ChainLink('approval_queue.updated', 'Approval queue page shows the project', 'ui'),
+                    new ChainLink('ui.status_updated', 'Detail page renders Pending status badge', 'verify'),
+                    new ChainLink('approval_queue.updated', 'Approval queue page shows the project', 'verify'),
                 ],
             ),
             new ActionContract(

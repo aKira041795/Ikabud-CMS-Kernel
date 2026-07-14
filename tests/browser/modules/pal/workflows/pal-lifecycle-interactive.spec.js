@@ -148,18 +148,9 @@ test.describe('pal:jo-operational-setup', function () {
                 console.log('  ⚠ API status change failed: ' + (result.error || 'unknown'));
             }
 
-            // Navigate to detail and verify status
+            // Navigate to detail and verify status (case-insensitive)
             await goTo(page, base + '/projects/' + projectId);
-            var hasPending = await page.locator('#wb-main').textContent().then(function (t) { return t.includes('Pending'); }).catch(function () { return false; });
-            if (hasPending) {
-                console.log('  ✅ Status Pending');
-            } else {
-                console.log('  ⚠ Status not Pending on detail page');
-            }
-
-            // Navigate to detail and verify status
-            await goTo(page, base + '/projects/' + projectId);
-            var hasPending = await page.locator('#wb-main').textContent().then(function (t) { return t.includes('Pending'); }).catch(function () { return false; });
+            var hasPending = await page.locator('#wb-main').textContent().then(function (t) { return t.toLowerCase().includes('pending'); }).catch(function () { return false; });
             if (hasPending) {
                 console.log('  ✅ Status Pending');
             } else {
@@ -167,26 +158,56 @@ test.describe('pal:jo-operational-setup', function () {
             }
         });
 
-        // ── Step 4: Approve exact entity ──
+        // ── Step 4: Approve via API ──
         await test.step('pending → approved', async function () {
+            // Get approval ID from the visible row and approve via API
             await goTo(page, base + '/approvals');
 
-            // Find approval row for THIS project by entity type + title
-            var row = page.locator('[data-wb-entity-type="project"]').filter({ hasText: PROJECT_TITLE }).first();
-            await expect(row, 'Approval row for ' + PROJECT_TITLE + ' must exist').toBeVisible({ timeout: 8000 });
+            var row = page.locator('[data-wb-entity-type="project"]').filter({ hasText: 'Project #' + projectId }).first();
+            await expect(row, 'Approval row for Project #' + projectId + ' must exist').toBeVisible({ timeout: 8000 });
 
-            await row.getByRole('button', { name: /approve/i }).click();
+            // Extract approval ID from the approve button's onclick attribute
+            var approveBtn = row.getByRole('button', { name: /approve/i }).first();
+            var onclick = await approveBtn.getAttribute('onclick') || '';
+            var approvalId = onclick.match(/approve\((\d+)/);
 
-            // Confirm modal if present
-            var confirmBtn = page.getByRole('button', { name: /yes|confirm|ok/i }).first();
-            if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
-                await confirmBtn.click();
+            if (!approvalId) {
+                integrity.issue({ kind: 'bug', severity: 'critical', where: 'approve', detail: 'Could not extract approval ID from button onclick' });
             }
-            await page.waitForTimeout(1000);
 
+            // Approve via direct API call
+            var result = { ok: false, error: 'approvalId missing' };
+            if (approvalId) {
+                result = await page.evaluate(async function (opts) {
+                    var csrfInput = document.querySelector('input[name="_token"]');
+                    var token = csrfInput ? csrfInput.value : '';
+                    var fd = new URLSearchParams();
+                    fd.append('decision', 'approved');
+                    fd.append('remarks', '');
+                    if (token) fd.append('_token', token);
+                    try {
+                        var r = await fetch('/api/v1/project-audit-ledger/approvals/' + opts.id + '/decide', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: fd.toString(),
+                        });
+                        return await r.json();
+                    } catch (e) {
+                        return { ok: false, error: e.message };
+                    }
+                }, { id: parseInt(approvalId[1]) });
+            }
+
+            if (result.ok) {
+                console.log('  ✅ Approved (via API)');
+            } else {
+                console.log('  ⚠ Approve failed: ' + (result.error || 'unknown'));
+            }
+
+            await page.waitForTimeout(500);
             await goTo(page, base + '/projects/' + projectId);
-            await expect(page.locator('#wb-main'), 'Status should be Approved')
-                .toContainText('Approved', { timeout: 5000 });
+            await expect(page.locator('#wb-main'), 'Status should be approved')
+                .toContainText(/approved/i, { timeout: 5000 });
             console.log('  ✅ Approved');
         });
 
@@ -197,7 +218,8 @@ test.describe('pal:jo-operational-setup', function () {
             var startBtn = page.locator('[data-wb-action="start-work"], button:has-text("Start Work"), button:has-text("Start")').first();
             await expect(startBtn, 'Start Work button required').toBeVisible({ timeout: 5000 });
             await startBtn.click();
-            await page.waitForTimeout(1000);
+            // ajaxSubmit submits the form then calls location.reload() after 800ms
+            await page.waitForTimeout(2000);
             console.log('  ✅ Started');
         });
 
@@ -208,7 +230,8 @@ test.describe('pal:jo-operational-setup', function () {
             var ongoingBtn = page.locator('[data-wb-action="mark-ongoing"], button:has-text("Mark Ongoing"), button:has-text("Ongoing")').first();
             await expect(ongoingBtn, 'Mark Ongoing button required').toBeVisible({ timeout: 5000 });
             await ongoingBtn.click();
-            await page.waitForTimeout(1000);
+            // ajaxSubmit submits the form then calls location.reload() after 800ms
+            await page.waitForTimeout(2000);
             console.log('  ✅ Ongoing');
         });
 

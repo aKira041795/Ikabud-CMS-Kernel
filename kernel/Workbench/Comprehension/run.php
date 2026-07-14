@@ -5,13 +5,14 @@ declare(strict_types=1);
 /**
  * Workbench Comprehension Runner — CLI entry point.
  *
- * Runs the deterministic comprehension engine against a module,
- * collects runtime evidence (database state, audit logs),
- * identifies breakpoints, and outputs an evidence packet.
+ * Runs the hybrid semantic comprehension engine against a module,
+ * collecting runtime evidence, applying all 6 reasoning layers,
+ * and outputting a comprehensive report.
  *
- * Usage: php kernel/Workbench/Comprehension/run.php <module-id> [action-id]
+ * Usage: php kernel/Workbench/Comprehension/run.php <module-id> [action-id] [--evidence=file.json]
  *
  *   php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit
+ *   php kernel/Workbench/Comprehension/run.php project-audit-ledger --evidence=test-results/evidence.json
  *
  * Output: test_results/ai/comprehension-report.json
  */
@@ -23,8 +24,13 @@ if (php_sapi_name() !== 'cli') {
 $moduleId = $argv[1] ?? '';
 $actionId = $argv[2] ?? '';
 
+// Check if second arg is --evidence flag
+if (str_starts_with($actionId, '--')) {
+    $actionId = '';
+}
+
 if ($moduleId === '') {
-    fwrite(STDERR, "Usage: php kernel/Workbench/Comprehension/run.php <module-id> [action-id]\n");
+    fwrite(STDERR, "Usage: php kernel/Workbench/Comprehension/run.php <module-id> [action-id] [--evidence=file.json]\n");
     exit(1);
 }
 
@@ -41,11 +47,19 @@ require_once __DIR__ . '/Contracts/EffectContract.php';
 require_once __DIR__ . '/Contracts/SupportContracts.php';
 require_once __DIR__ . '/ModuleComprehensionEngine.php';
 require_once __DIR__ . '/PalComprehensionProvider.php';
+require_once __DIR__ . '/Analyzers/SemanticScorer.php';
+require_once __DIR__ . '/Analyzers/BayesianReasoner.php';
+require_once __DIR__ . '/Analyzers/TemporalValidator.php';
+require_once __DIR__ . '/Analyzers/PatternClassifier.php';
+require_once __DIR__ . '/Analyzers/AnomalyDetector.php';
+require_once __DIR__ . '/Analyzers/CrossModuleAnalyzer.php';
+require_once __DIR__ . '/SemanticComprehensionEngine.php';
 
-use Ikabud\Kernel\Workbench\Comprehension\ModuleComprehensionEngine;
+use Ikabud\Kernel\Workbench\Comprehension\SemanticComprehensionEngine;
 use Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider;
 
-echo "═══ Workbench Comprehension Engine ═══\n\n";
+echo "═══ Hybrid Semantic Comprehension Engine ═══\n";
+echo "Engine version: 2.0 (Deterministic + Bayesian + Semantic + Temporal + Pattern + Cross-Module)\n\n";
 
 // ── 1. Load provider ──────────────────────────────────────────
 $provider = match ($moduleId) {
@@ -53,15 +67,20 @@ $provider = match ($moduleId) {
     default => throw new RuntimeException("No comprehension provider for '{$moduleId}'"),
 };
 
-$engine = new ModuleComprehensionEngine($provider);
+$engine = new SemanticComprehensionEngine($moduleId, $provider);
 
 // ── 2. Build knowledge graph ──────────────────────────────────
-$graph = $engine->buildGraph();
+$graph = $engine->analyzeAll();
+if (!empty($graph)) {
+    $firstAction = reset($graph);
+    $kg = $firstAction['deterministic'] ?? [];
+} else {
+    $kg = [];
+}
+
 echo "Module knowledge graph:\n";
-echo "  Entities: " . count($graph['entities']) . "\n";
-echo "  Workflows: " . count($graph['workflows']) . "\n";
-echo "  Actions: " . count($graph['actions']) . "\n";
-echo "  Capabilities: " . count($graph['capabilities']) . "\n";
+$actions = $graph;
+echo "  Actions: " . count($actions) . "\n";
 echo "\n";
 
 // ── 3. Collect runtime evidence ─────────────────────────────
@@ -78,19 +97,22 @@ foreach ($argv as $arg) {
 if ($evidenceFile && is_file($evidenceFile)) {
     $fileEvidence = json_decode((string) file_get_contents($evidenceFile), true);
     if (is_array($fileEvidence)) {
-        // Flatten ActionObserver steps into evidence keys
+        // Detect format: flat (keys = step names) or structured (has steps/summary keys)
         if (isset($fileEvidence['steps']) && is_array($fileEvidence['steps'])) {
+            // Structured ActionObserver format
             foreach ($fileEvidence['steps'] as $step) {
                 $evidence[$step['step']] = $step['value'] ?? true;
             }
-        }
-        // Also include summary values
-        if (isset($fileEvidence['summary']) && is_array($fileEvidence['summary'])) {
-            foreach ($fileEvidence['summary'] as $step => $info) {
-                if (is_array($info) && isset($info['ok'])) {
-                    $evidence[$step] = $info['ok'];
+            if (isset($fileEvidence['summary']) && is_array($fileEvidence['summary'])) {
+                foreach ($fileEvidence['summary'] as $step => $info) {
+                    if (is_array($info) && isset($info['ok'])) {
+                        $evidence[$step] = $info['ok'];
+                    }
                 }
             }
+        } else {
+            // Flat format — keys directly map to step names
+            $evidence = $fileEvidence;
         }
         echo "Loaded evidence from: {$evidenceFile}\n";
     }
@@ -143,34 +165,78 @@ echo "\n";
 $engine->feedEvidence($evidence);
 
 if ($actionId !== '') {
-    $result = $engine->analyzeAction($actionId);
+    $result = $engine->analyze($actionId);
     echo "Action analysis: {$actionId}\n";
-    if (isset($result['error'])) {
-        echo "  ERROR: {$result['error']}\n";
+    if (isset($result['deterministic']['error'])) {
+        echo "  ERROR: {$result['deterministic']['error']}\n";
     } else {
-        echo "  Breakpoint: " . ($result['breakpoint'] ?? 'none — chain intact') . "\n";
-        echo "  Likely area: {$result['likely_area']}\n";
-        echo "  Confidence: " . ($result['confidence'] * 100) . "%\n";
-        echo "  Chain:\n";
-        foreach ($result['chain'] as $link) {
+        $bp = $result['breakpoint'] ?? null;
+        echo "  Breakpoint: " . ($bp ?: 'none — chain intact') . "\n";
+        echo "  Break category: {$result['break_category']}\n";
+        echo "  Root cause: {$result['root_cause_hypothesis']['summary']}\n";
+        echo "  Confidence: {$result['confidence']['score']} ({$result['confidence']['label']})\n";
+        echo "  Diagnosis: {$result['diagnosis']['primary_classification']['category']} ({$result['diagnosis']['primary_classification']['confidence']})\n";
+
+        echo "\n  Deterministic chain:\n";
+        foreach ($result['deterministic']['chain'] as $link) {
             $icon = $link['ok'] ? '✅' : '❌';
             echo "    {$icon} [{$link['category']}] {$link['step']}: {$link['description']}\n";
+        }
+
+        echo "\n  Semantic scores:\n";
+        foreach ($result['semantic']['per_link_scores'] as $step => $score) {
+            echo "    {$step}: score={$score['score']} pattern={$score['matched_pattern']}\n";
+        }
+
+        echo "\n  Bayesian priors:\n";
+        foreach ($result['bayesian']['per_link'] as $step => $stats) {
+            echo "    {$step}: prior_failure={$stats['prior_failure_probability']} prior_success={$stats['prior_success_probability']}\n";
+        }
+
+        $orderScore = $result['temporal']['order_score'] ?? 1.0;
+        echo "\n  Temporal order score: {$orderScore}\n";
+        if (!empty($result['temporal']['violations'])) {
+            echo "  Temporal violations:\n";
+            foreach ($result['temporal']['violations'] as $v) {
+                echo "    ⚠ [{$v['severity']}] {$v['description']}\n";
+            }
+        }
+
+        if (!empty($result['anomalies']['unexpected_evidence'])) {
+            echo "\n  Anomalies:\n";
+            foreach ($result['anomalies']['unexpected_evidence'] as $a) {
+                echo "    ⚡ [{$a['severity']}] {$a['reason']}\n";
+            }
+        }
+
+        if (!empty($result['anomalies']['missing_links'])) {
+            echo "\n  Missing link suggestions:\n";
+            foreach ($result['anomalies']['missing_links'] as $ml) {
+                echo "    💡 Suggested step: '{$ml['step_suggestion']}' — {$ml['reason']}\n";
+            }
+        }
+
+        if ($result['cross_module']['cross_module']) {
+            echo "\n  Cross-module cascade:\n";
+            foreach ($result['cross_module']['cascade'] as $c) {
+                echo "    🔗 [{$c['severity']}] {$c['description']}\n";
+            }
         }
     }
 } else {
     $results = $engine->analyzeAll();
     foreach ($results as $aid => $r) {
         $bp = $r['breakpoint'] ?? 'none';
-        echo "  {$aid}: breakpoint={$bp}, area={$r['likely_area']}, confidence={$r['confidence']}\n";
+        $conf = $r['confidence']['score'] ?? 0;
+        $diag = $r['diagnosis']['primary_classification']['category'] ?? '?';
+        echo "  {$aid}: breakpoint={$bp}, diagnosis={$diag}, confidence={$conf}\n";
     }
 }
 
 echo "\n";
 
 // ── 5. Output evidence packet ─────────────────────────────────
-$packet = $engine->buildEvidencePacket(
-    $actionId !== '' ? $engine->analyzeAction($actionId) : ['actions_analyzed' => array_keys($engine->analyzeAll())]
-);
+$packet = $engine->buildEvidencePacket($actionId ?: 'all');
 
 $outDir = $base . '/test_results/ai';
 if (!is_dir($outDir)) {

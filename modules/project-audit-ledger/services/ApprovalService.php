@@ -24,6 +24,7 @@ class palApprovalService
         'fabrication_payment' => 'pal_fabrication_payments',
         'cash_advance'       => 'pal_cash_advances',
         'mobilization'       => 'pal_mobilization_requests',
+        'project'            => 'pal_projects',
     ];
 
     private const STATUS_MAP = [

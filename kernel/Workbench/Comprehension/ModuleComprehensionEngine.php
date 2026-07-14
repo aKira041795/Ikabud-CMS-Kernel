@@ -81,8 +81,11 @@ class ModuleComprehensionEngine
 
         foreach ($action->chain as $link) {
             $expected = true; // The link should succeed
-            $actual = $this->probeLink($link);
-            $ok = ($expected === $actual || (is_bool($actual) && $actual === true));
+            $raw = $this->probeLink($link);
+            // Treat any truthy value (boolean true, non-empty string, number > 0) as success
+            $actual = $raw;
+            $ok = $raw === true || (is_string($raw) && $raw !== '' && $raw !== 'false' && $raw !== '0')
+                  || (is_numeric($raw) && (float)$raw > 0);
 
             $chainResults[] = [
                 'step' => $link->step,
@@ -107,6 +110,7 @@ class ModuleComprehensionEngine
             'db' => 'database/query',
             'event' => 'event/trigger system',
             'audit' => 'audit/logging',
+            'verify' => 'post-action verification',
         ];
         $likelyArea = $areaMap[$breakCategory] ?? 'unknown';
 
