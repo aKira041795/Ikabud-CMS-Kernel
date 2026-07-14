@@ -218,7 +218,16 @@ class WorkbenchReporter {
         for (var suiteName in this.suites) {
             if (!this.suites.hasOwnProperty(suiteName)) continue;
             var suite = this.suites[suiteName];
-            if (suite.failed === 0 && suite.timedOut === 0) continue;
+            // Compute summary from results (not stored on suite)
+            var sPassed = 0, sFailed = 0, sTimedOut = 0, sInterrupted = 0;
+            for (var ri = 0; ri < suite.results.length; ri++) {
+                var st = suite.results[ri].status;
+                if (st === 'failed') sFailed++;
+                else if (st === 'timedOut') sTimedOut++;
+                else if (st === 'interrupted') sInterrupted++;
+                else if (st === 'passed') sPassed++;
+            }
+            if (sFailed === 0 && sTimedOut === 0 && sInterrupted === 0) continue;
             if (!suite.evidence || suite.evidence.length === 0) continue;
 
             for (var k = 0; k < suite.evidence.length; k++) {

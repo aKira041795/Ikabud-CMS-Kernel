@@ -198,49 +198,6 @@ if (!empty($evidence['_tenant_id']) && !empty($evidence['_entity_id'])) {
 
 echo "\n";
 
-// Collect DB evidence
-try {
-    $_SERVER['HTTP_HOST'] = 'palsystem.test';
-    $tenantId = 502;
-    $db = app()->dbForTenant($tenantId);
-
-    if ($db) {
-        // Find the latest project
-        $projStmt = $db->query("SELECT id, status, project_id, title FROM pal_projects WHERE tenant_id = {$tenantId} ORDER BY id DESC LIMIT 1");
-        $project = $projStmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($project) {
-            $pid = (int)$project['id'];
-            $evidence['db.project_exists'] = true;
-            $evidence['db.project_status'] = $project['status'];
-            $evidence['db.project_id'] = $pid;
-
-            // Check approvals for this project
-            $apprStmt = $db->prepare("SELECT COUNT(*) FROM pal_approvals WHERE entity_type = 'project' AND entity_id = ? AND tenant_id = ?");
-            $apprStmt->execute([$pid, $tenantId]);
-            $evidence['db.approval_exists'] = ((int)$apprStmt->fetchColumn()) > 0;
-
-            // Check audit logs
-            $auditStmt = $db->prepare("SELECT COUNT(*) FROM pal_audit_logs WHERE tenant_id = ? AND entity_id = ? AND action LIKE 'pal.project%'");
-            $auditStmt->execute([$tenantId, (string)$pid]);
-            $evidence['db.audit_exists'] = ((int)$auditStmt->fetchColumn()) > 0;
-
-            echo "Runtime evidence from DB:\n";
-            echo "  Project #{$pid}: status={$project['status']}\n";
-            echo "  Approval exists: " . ($evidence['db.approval_exists'] ? 'YES' : 'NO') . "\n";
-            echo "  Audit log exists: " . ($evidence['db.audit_exists'] ? 'YES' : 'NO') . "\n";
-        } else {
-            echo "No projects found for tenant {$tenantId}.\n";
-            $evidence['db.project_exists'] = false;
-        }
-    }
-} catch (\Throwable $e) {
-    echo "  ⚠ DB evidence collection failed: " . $e->getMessage() . "\n";
-    $evidence['db.error'] = $e->getMessage();
-}
-
-echo "\n";
-
 // ── 4. Feed evidence and analyze ──────────────────────────────
 $hasEvidence = !empty(array_diff_key($evidence, ['_tenant_id' => true, '_entity_id' => true, '_entity_type' => true, '_run_id' => true]));
 

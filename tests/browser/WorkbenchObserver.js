@@ -78,28 +78,24 @@ class WorkbenchObserver {
         return t[0] + t[1] / 1e9;
     }
 
-    /** @returns {string} ISO timestamp */
-    _iso() { return new Date().toISOString(); }
+            /** Redact sensitive headers from captured evidence */
+            _redactHeaders(headers) {
+                var clone = Object.assign({}, headers);
+                for (var key of Object.keys(clone)) {
+                    if (/cookie|authorization|token|csrf|session|set-cookie|connect.sid/i.test(key)) {
+                        clone[key] = '[redacted]';
+                    }
+                }
+                return clone;
+            }
 
-    /** Listen to all network requests/responses */
-    _setupNetworkCapture() {
-        if (!this.page) return;
         var self = this;
 
         this.page.on('request', function (req) {
             self.httpRequests.push({
                 url: req.url(),
                 method: req.method(),
-                headers: req.headers(),
-                timestamp: self._now(),
-            });
-        });
-
-        this.page.on('response', function (res) {
-            self.httpResponses.push({
-                url: res.url(),
-                status: res.status(),
-                statusText: res.statusText(),
+                        headers: self._redactHeaders(req.headers()),
                 timestamp: self._now(),
             });
         });
@@ -281,7 +277,11 @@ class WorkbenchObserver {
         }
 
         var safeAction = this.action.replace(/[^a-zA-Z0-9.-]/g, '_');
-        var filePath = path.join(this.evidenceDir, safeAction + '.json');
+        var fileDir = path.join(this.evidenceDir, this.runId);
+        if (!fs.existsSync(fileDir)) {
+            fs.mkdirSync(fileDir, { recursive: true });
+        }
+        var filePath = path.join(fileDir, safeAction + '--' + this.entityId + '.json');
         fs.writeFileSync(filePath, JSON.stringify(evidence, null, 2));
 
         return filePath;
