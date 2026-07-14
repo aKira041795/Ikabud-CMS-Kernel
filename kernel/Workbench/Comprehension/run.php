@@ -243,11 +243,26 @@ echo "\n";
 
 // ── 4. Feed evidence and analyze ──────────────────────────────
 $hasEvidence = !empty(array_diff_key($evidence, ['_tenant_id' => true, '_entity_id' => true, '_entity_type' => true, '_run_id' => true]));
+
+// Build metadata for Bayesian history
+$meta = [
+    'run_id' => $evidence['_run_id'] ?? null,
+    'tenant' => $evidence['_tenant_id'] ?? null,
+    'source' => 'cli',
+];
+if ($hasEvidence) {
+    // Try to get commit hash
+    $commitFile = __DIR__ . '/../../.git/HEAD';
+    if (file_exists($commitFile)) {
+        $meta['commit'] = trim(file_get_contents($commitFile));
+    }
+}
+
 $engine->feedEvidence($evidence);
 
 if ($actionId !== '') {
     // Only record history when analyzing a real test run with evidence
-    $result = $engine->analyze($actionId, recordHistory: $hasEvidence);
+    $result = $engine->analyze($actionId, recordHistory: $hasEvidence, metadata: $meta);
     echo "Action analysis: {$actionId}\n";
     if (isset($result['deterministic']['error'])) {
         echo "  ERROR: {$result['deterministic']['error']}\n";

@@ -269,10 +269,24 @@ function createWorkbenchTest(config) {
                     });
                     return null;
                 },
+
+                // Evidence metadata for comprehension engine (set after observer.done())
+                evidence: function (opts) {
+                    testInfo.annotations.push({
+                        type: 'wb-evidence',
+                        description: JSON.stringify({
+                            file: opts.file,
+                            module: opts.module || 'project-audit-ledger',
+                            action: opts.action,
+                            entity_type: opts.entity_type,
+                            entity_id: opts.entity_id,
+                            tenant_id: opts.tenant_id,
+                            run_id: opts.run_id,
+                        }),
+                    });
+                },
             };
             await use(integrityObj);
-            // Store for WorkbenchReporter to auto-launch comprehension on failure
-            globalThis.__wb_last_integrity = integrityObj;
         },
 
         // ── DEPRECATED: seed fixtures removed in favor of instruction-based E2E.

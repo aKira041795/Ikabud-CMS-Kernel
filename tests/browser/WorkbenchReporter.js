@@ -46,6 +46,7 @@ class WorkbenchReporter {
             };
         }
         var suite = this.suites[suiteName];
+        if (!suite.evidence) suite.evidence = [];
         if (!suite.issues) suite.issues = [];
 
         // Record native status — preserve skipped, timedOut, interrupted
@@ -56,7 +57,7 @@ class WorkbenchReporter {
             detail: result.error ? (result.error.message || result.error.stack || '') : '',
         });
 
-        // Collect gaps and fingerprints from test annotations
+        // Collect gaps, fingerprints, issues, and evidence from test annotations
         // Set by test via: test.info().annotations.push({ type, description })
         if (test.annotations && test.annotations.length > 0) {
             for (var i = 0; i < test.annotations.length; i++) {
@@ -75,6 +76,11 @@ class WorkbenchReporter {
                         issue.test = test.title;
                         suite.issues.push(issue);
                     } catch (e) { /* ignore parse errors */ }
+                } else if (a.type === 'wb-evidence') {
+                    suite.evidence = suite.evidence || [];
+                    try {
+                        suite.evidence.push(JSON.parse(a.description));
+                    } catch (e) { /* ignore parse errors */ }
                 }
             }
         }
@@ -92,11 +98,11 @@ class WorkbenchReporter {
             process.exitCode = 1;
         }
 
-        // Write per-suite JSON
-        for (var suiteName in this.suites) {
-            if (!this.suites.hasOwnProperty(suiteName)) continue;
-            var suite = this.suites[suiteName];
-            var passed = 0, failed = 0, skipped = 0, timedOut = 0, interrupted = 0;
+      // Write per-suite JSON
+      for (var suiteName in this.suites) {
+        if (!this.suites.hasOwnProperty(suiteName)) continue;
+        var suite = this.suites[suiteName];
+        var passed = 0, failed = 0, skipped = 0, timedOut = 0, interrupted = 0;
             for (var j = 0; j < suite.results.length; j++) {
                 var r = suite.results[j];
                 if (r.status === 'passed') passed++;
@@ -127,9 +133,9 @@ class WorkbenchReporter {
                 issues: (suite.issues || []).slice(),
             };
 
-            writeJsonAtomic(path.join(RESULTS_DIR, suiteName + '.json'), data);
-            Object.assign(allFingerprints, suite.fingerprints);
-            console.log('  📄 test_results/browser/' + suiteName + '.json');
+          writeRunResult(suiteName + '.json', data);
+          Object.assign(allFingerprints, suite.fingerprints);
+          console.log('  📄 ' + path.join(runDir, suiteName + '.json'));
         }
 
         // Aggregate manifest
@@ -196,49 +202,38 @@ class WorkbenchReporter {
         writeJsonAtomic(path.join(RESULTS_DIR, 'issue-report.json'), issueReport);
 
         // ── Comprehension Auto-Launch ──────────────────────────
-        // When a test failed and stored evidence via integrity.evidenceFile,
-        // auto-launch the Comprehension Engine for each failed suite.
+        // For every evidence annotation on failed tests, auto-launch Comprehension Engine.
+        var comprehended = 0;
         for (var suiteName in this.suites) {
-            if (!this.suites.hasOwnProperty(suiteName)) continue;
-            var suite = this.suites[suiteName];
-            if (suite.failed === 0) continue;
+          if (!this.suites.hasOwnProperty(suiteName)) continue;
+          var suite = this.suites[suiteName];
+          if (suite.failed === 0 && suite.timedOut === 0) continue;
+          if (!suite.evidence || suite.evidence.length === 0) continue;
 
-            // Check if any test result has evidence annotations
-            for (var j = 0; j < suite.results.length; j++) {
-                var r = suite.results[j];
-                if (r.status !== 'failed') continue;
+          for (var k = 0; k < suite.evidence.length; k++) {
+            var ev = suite.evidence[k];
+            if (!ev.file || !fs.existsSync(ev.file)) continue;
 
-                // Evidence path is stored by the test via integrity object
-                // which sets global ThisTestIntegrity.evidenceFile
-                // We look for wb-evidence annotation
-                for (var k = 0; k < (r.annotations || []).length; k++) {
-                    // Annotations are on test.info(), not on result
-                }
+            var execSync = require('child_process').execSync;
+            try {
+              var args = 'php ' + __dirname + '/../../kernel/Workbench/Comprehension/run.php';
+              args += ' ' + (ev.module || 'project-audit-ledger');
+              args += ' ' + (ev.action || '');
+              args += ' --evidence=' + ev.file;
+              args += ' --run-id=' + (ev.run_id || runId);
+              if (ev.entity_id) args += ' --entity-id=' + ev.entity_id;
+              if (ev.tenant_id) args += ' --tenant=' + ev.tenant_id;
+
+              var out = execSync(args, { encoding: 'utf-8', timeout: 30000 });
+              comprehended++;
+              console.log('  🧠 Comprehension [' + ev.action + ']:\n' + out.trim().split('\n').slice(0, 8).join('\n'));
+            } catch (e) {
+              console.log('  ⚠ Comprehension [' + (ev.action || '?') + ']: ' + (e.message || 'failed'));
             }
+          }
         }
-
-        // Also check the integrity object from the last test
-        // (set by fixture as globalThis.__wb_last_integrity)
-        if (globalThis.__wb_last_integrity && globalThis.__wb_last_integrity.evidenceFile) {
-            var ef = globalThis.__wb_last_integrity.evidenceFile;
-            var actId = globalThis.__wb_last_integrity.actionId;
-            var modId = globalThis.__wb_last_integrity.moduleId || 'project-audit-ledger';
-            var runId = 'run-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
-            if (fs.existsSync(ef)) {
-                var execSync = require('child_process').execSync;
-                try {
-                    var out = execSync(
-                        'php ' + __dirname + '/../../kernel/Workbench/Comprehension/run.php ' +
-                        modId + ' ' + (actId || '') +
-                        ' --evidence=' + ef +
-                        ' --run-id=' + runId,
-                        { encoding: 'utf-8', timeout: 30000 }
-                    );
-                    console.log('  🧠 Comprehension:\n' + out.trim().split('\n').slice(0, 10).join('\n'));
-                } catch (e) {
-                    console.log('  ⚠ Comprehension: ' + (e.message || 'failed'));
-                }
-            }
+        if (comprehended > 0) {
+          console.log('  🧠 Comprehension ran for ' + comprehended + ' action(s)');
         }
 
         // Console summary

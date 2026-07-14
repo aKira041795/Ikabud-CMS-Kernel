@@ -116,7 +116,7 @@ class SemanticComprehensionEngine
      * Full semantic analysis of an action.
      *
      * @param bool $recordHistory When false, does NOT update Bayesian history
-     *        (use false for CLI discovery, true for real test analysis)
+     * @param array $metadata Context for Bayesian history (run_id, commit, tenant, source)
      *
      * Returns:
      *   - breakpoint: where it broke (or null)
@@ -129,7 +129,7 @@ class SemanticComprehensionEngine
      *   - confidence: overall confidence in the analysis
      *   - root_cause_hypothesis: synthesized root cause
      */
-    public function analyze(string $actionId, bool $recordHistory = true): array
+    public function analyze(string $actionId, bool $recordHistory = true, array $metadata = []): array
     {
         // Layer 1: Deterministic chain probe
         $deterministicResult = $this->deterministic->analyzeAction($actionId);
@@ -162,7 +162,8 @@ class SemanticComprehensionEngine
                     $this->bayesian->recordOutcome(
                         $this->moduleId, $actionId,
                         $result['step'] ?? '?',
-                        $result['ok'] ?? false
+                        $result['ok'] ?? false,
+                        $metadata
                     );
                 }
             }
@@ -244,12 +245,13 @@ class SemanticComprehensionEngine
      * Analyze all actions in the module.
      *
      * @param bool $recordHistory When false, does NOT update Bayesian history
+     * @param array $metadata Context for Bayesian history
      */
-    public function analyzeAll(bool $recordHistory = true): array
+    public function analyzeAll(bool $recordHistory = true, array $metadata = []): array
     {
         $results = [];
         foreach ($this->actionIds() as $actionId) {
-            $results[$actionId] = $this->analyze($actionId, $recordHistory);
+            $results[$actionId] = $this->analyze($actionId, $recordHistory, $metadata);
         }
         return $results;
     }

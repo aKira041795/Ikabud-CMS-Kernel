@@ -167,9 +167,16 @@ test.describe('pal:jo-operational-setup', function () {
             var evidenceFile = await observer.done();
             console.log('  📋 Evidence: ' + evidenceFile);
 
-            // Store evidence path on integrity for auto-comprehension
-            integrity.evidenceFile = evidenceFile;
-            integrity.actionId = 'pal.job-order.submit';
+            // Store evidence for auto-comprehension via annotations
+            integrity.evidence({
+                file: evidenceFile,
+                module: 'project-audit-ledger',
+                action: 'pal.job-order.submit',
+                entity_type: 'pal.project',
+                entity_id: projectId,
+                tenant_id: parseInt(PAL_TEST_TENANT),
+                run_id: 'lifecycle-' + RUN_ID,
+            });
 
             if (result.ok && result.body && result.body.ok) {
                 console.log('  ✅ Pending (via API)');
@@ -243,7 +250,15 @@ test.describe('pal:jo-operational-setup', function () {
 
             observer.recordHttp('http.response_ok', result.status || (result.ok ? 200 : 500), result);
             var evidenceFile = await observer.done();
-            integrity.evidenceFile = evidenceFile;
+            integrity.evidence({
+                file: evidenceFile,
+                module: 'project-audit-ledger',
+                action: 'pal.approval.approve',
+                entity_type: 'pal.project',
+                entity_id: projectId,
+                tenant_id: parseInt(PAL_TEST_TENANT),
+                run_id: 'lifecycle-' + RUN_ID,
+            });
 
             if (result.ok && result.body && result.body.ok) {
                 console.log('  ✅ Approved (via API)');
