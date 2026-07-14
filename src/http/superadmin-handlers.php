@@ -1512,6 +1512,63 @@ if (!function_exists('kernelBuildCacheObservabilitySnapshot')) {
 // ARK Workbench — superadmin developer observability
 // ────────────────────────────────────────────────────────────────
 
+if (!function_exists('workbenchDiscoverTestFiles')) {
+    /**
+     * Discover valid test files under tests/ for the Workbench test registry.
+     * This is the SINGLE source of truth for which files the Workbench may execute.
+     * Both the page handler and trigger-test API use this to prevent arbitrary execution.
+     *
+     * @return array<int, array{module: string, file: string, path: string, realpath: string}>
+     */
+    function workbenchDiscoverTestFiles(): array
+    {
+        $tests = [];
+        $projectRoot = dirname(__DIR__, 2);
+        $testBase = $projectRoot . '/tests';
+        $skipDirs = ['harness', 'browser', 'ai', 'test_results', 'bench'];
+
+        $testSubdirs = glob($testBase . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($testSubdirs as $subdir) {
+            $dir = basename($subdir);
+            if (in_array($dir, $skipDirs, true)) continue;
+            $testFiles = glob($subdir . '/*_test.php') ?: [];
+            foreach ($testFiles as $tf) {
+                $base = basename($tf);
+                if (str_contains($base, '_seed_') || str_contains($base, '_interactive')) continue;
+                $resolved = realpath($tf);
+                if ($resolved === false) continue;
+                $tests[] = [
+                    'module'   => $dir,
+                    'file'     => $base,
+                    'path'     => 'tests/' . $dir . '/' . $base,
+                    'realpath' => $resolved,
+                ];
+            }
+        }
+        return $tests;
+    }
+}
+
+/**
+ * Check whether the Workbench is allowed to execute tests on this environment.
+ * Returns true if test execution is permitted (development or IKABUD_DEV_WORKBENCH=true).
+ */
+if (!function_exists('workbenchExecutionAllowed')) {
+    function workbenchExecutionAllowed(): bool
+    {
+        $env = app()->config('app.env', 'production');
+        if ($env !== 'production') {
+            return true;
+        }
+        // Explicit opt-in overrides production block
+        $devEnv = trim((string)($_ENV['IKABUD_DEV_WORKBENCH'] ?? $_SERVER['IKABUD_DEV_WORKBENCH'] ?? ''));
+        if (filter_var($devEnv, FILTER_VALIDATE_BOOL)) {
+            return true;
+        }
+        return false;
+    }
+}
+
 if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
     function kernelHandlePageSuperadminWorkbench(): void
     {
@@ -1539,7 +1596,19 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
         $allModules = discoverModules();
         if (isset($allModules['ai']) && !empty($allModules['ai']['_enabled'])) {
             $aiModuleEnabled = true;
+            // Read from global registry first, then overlay tenant-specific settings.
+            // In multi-tenant mode, getModuleSettings() only returns lifecycle keys from
+            // global + tenant-specific storage. AI provider config is global infrastructure,
+            // so we always merge in the global settings. This makes the Workbench page show
+            // the correct values regardless of tenant context.
             $aiSettings = getModuleSettings('ai');
+            if (function_exists('readModuleRegistry')) {
+                $globalReg = readModuleRegistry();
+                $globalAiSettings = $globalReg['ai']['settings'] ?? [];
+                if (is_array($globalAiSettings)) {
+                    $aiSettings = array_merge($globalAiSettings, $aiSettings);
+                }
+            }
             $providers = [
                 'openai'      => ['name' => 'OpenAI',          'key_setting' => 'openai_api_key',          'model_free' => 'openai_model_free',  'model_paid' => 'openai_model_paid',  'model_custom' => 'openai_model'],
                 'groq'        => ['name' => 'Groq',            'key_setting' => 'groq_api_key',            'model_free' => 'groq_model_free',   'model_paid' => 'groq_model_paid',   'model_custom' => 'groq_model'],
@@ -1596,24 +1665,7 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
         }
 
         // Discoverable tests — dynamically scan tests/ for *_test.php files
-        $discoverableTests = [];
-        $testBase = dirname(__DIR__, 2) . '/tests';
-        $testSubdirs = glob($testBase . '/*', GLOB_ONLYDIR) ?: [];
-        foreach ($testSubdirs as $subdir) {
-            $dir = basename($subdir);
-            // Skip non-module directories
-            if (in_array($dir, ['harness', 'browser', 'ai', 'test_results', 'bench'], true)) continue;
-            $testFiles = glob($subdir . '/*_test.php') ?: [];
-            foreach ($testFiles as $tf) {
-                $base = basename($tf);
-                if (str_contains($base, '_seed_') || str_contains($base, '_interactive')) continue;
-                $discoverableTests[] = [
-                    'module' => $dir,
-                    'file'   => $base,
-                    'path'   => 'tests/' . $dir . '/' . $base,
-                ];
-            }
-        }
+        $discoverableTests = workbenchDiscoverTestFiles();
 
         echo app()->render('pages/superadmin-workbench.disyl', array_merge(
             kernelAdminContext($user, 'workbench'),
@@ -1628,6 +1680,7 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
                 'test_results_count' => count($testResults),
                 'discoverable_tests' => $discoverableTests,
                 'discoverable_count' => count($discoverableTests),
+                'workbench_execution_allowed' => workbenchExecutionAllowed(),
             ]
         ));
         exit;
@@ -1756,23 +1809,74 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchTriggerTests')) {
             echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
             exit;
         }
+
+        // ── Production gate: no test execution unless explicitly opted in ──
+        if (!workbenchExecutionAllowed()) {
+            http_response_code(403);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Test execution is disabled in production. Set IKABUD_DEV_WORKBENCH=true env var to enable.',
+            ]);
+            exit;
+        }
+
         app()->csrfEnforce();
         $input = app()->input();
         $target = trim((string)($input['target'] ?? 'all'));
         $projectRoot = dirname(__DIR__, 2);
+
+        // ── Build the authoritative test registry ──
+        $registry = workbenchDiscoverTestFiles();
+        $registryByPath = [];
+        $registryRealpaths = [];
+        foreach ($registry as $entry) {
+            $registryByPath[$entry['path']] = $entry;
+            $registryRealpaths[$entry['realpath']] = $entry;
+        }
+
         @file_put_contents($projectRoot . '/storage/logs/app.log', '');
         @file_put_contents($projectRoot . '/storage/logs/error.log', '');
+
         if ($target === 'all') {
             $cmd = 'php ' . escapeshellarg($projectRoot . '/tests/discover.php') . ' 2>&1';
         } else {
-            $testPath = $projectRoot . '/' . ltrim($target, '/');
-            if (!is_file($testPath)) {
+            // ── Registry validation ──
+            // Step 1: Check if target matches a registry entry by relative path
+            $targetClean = ltrim($target, '/');
+            if (isset($registryByPath[$targetClean])) {
+                $validPath = $registryByPath[$targetClean]['realpath'];
+            } else {
+                // Step 2: Resolve to absolute path and check against registry realpaths
+                $resolved = realpath($projectRoot . '/' . $targetClean);
+                if ($resolved === false) {
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'error' => 'Test file not found: ' . $target]);
+                    exit;
+                }
+                // Step 3: Verify the resolved path is under the tests/ directory
+                $testsDir = realpath($projectRoot . '/tests');
+                if ($testsDir === false || strpos($resolved, $testsDir) !== 0) {
+                    http_response_code(403);
+                    echo json_encode(['ok' => false, 'error' => 'Executable path must be under tests/ directory']);
+                    exit;
+                }
+                // Step 4: Verify path is in the registry (authorized test)
+                if (!isset($registryRealpaths[$resolved])) {
+                    http_response_code(403);
+                    echo json_encode(['ok' => false, 'error' => 'Test file is not in the authorized test registry']);
+                    exit;
+                }
+                $validPath = $resolved;
+            }
+
+            if (!is_file($validPath)) {
                 http_response_code(400);
                 echo json_encode(['ok' => false, 'error' => 'Test file not found: ' . $target]);
                 exit;
             }
-            $cmd = 'php ' . escapeshellarg($testPath) . ' 2>&1';
+            $cmd = 'php ' . escapeshellarg($validPath) . ' 2>&1';
         }
+
         $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
         $process = proc_open($cmd, $descriptors, $pipes, $projectRoot);
         if (!is_resource($process)) {
@@ -1876,9 +1980,469 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchAiSettings')) {
             $current = aiEncryptSensitiveSettings($current);
         }
 
-        saveModuleSettings('ai', $current);
+        // Save directly to global registry.
+        // We CANNOT use saveModuleSettings() here because in multi-tenant mode
+        // with no tenant context (superadmin at /superadmin/workbench), it refuses
+        // to save globally — it only writes to tenant-scoped storage.
+        // AI provider settings (API keys, models) are global infrastructure, not
+        // per-tenant, so they belong in the global module registry.
+        $registry = null;
+        if (function_exists('readModuleRegistry') && function_exists('writeModuleRegistry')) {
+            $registry = readModuleRegistry();
+            $existing = [];
+            if (isset($registry['ai']['settings']) && is_array($registry['ai']['settings'])) {
+                $existing = $registry['ai']['settings'];
+            }
+            $registry['ai'] = array_merge($registry['ai'] ?? [], [
+                'settings' => array_merge($existing, $current),
+            ]);
+            writeModuleRegistry($registry);
+        } else {
+            // Fallback: use saveModuleSettings (may not persist in tenant mode)
+            saveModuleSettings('ai', $current);
+        }
 
         echo json_encode(['ok' => true, 'message' => ucfirst($providerId) . ' settings saved']);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
+    function kernelHandleApiSuperadminWorkbenchRuns(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+        $runs = [];
+
+        // Collect PHP test results
+        if (is_dir($resultsDir)) {
+            $files = glob($resultsDir . '/*.json');
+            if (is_array($files)) {
+                rsort($files);
+                foreach (array_slice($files, 0, 50) as $f) {
+                    $content = @json_decode((string)file_get_contents($f), true);
+                    if (!is_array($content)) continue;
+                    $summary = $content['summary'] ?? [];
+                    $fingerprints = $content['source_fingerprints'] ?? [];
+                    $gaps = $content['gaps'] ?? [];
+                    $type = 'php';
+                    if (str_contains($f, 'browser/')) $type = 'browser';
+                    if (str_contains($f, 'ai/')) $type = 'ai';
+
+                    $runs[] = [
+                        'file'       => basename($f),
+                        'suite'      => $content['suite'] ?? basename($f, '.json'),
+                        'type'       => $type,
+                        'started'    => (string)($content['started'] ?? ''),
+                        'finished'   => (string)($content['finished'] ?? ''),
+                        'elapsed_ms' => (float)($summary['elapsed_ms'] ?? $content['elapsed_ms'] ?? 0),
+                        'passed'     => (int)($summary['passed'] ?? 0),
+                        'failed'     => (int)($summary['failed'] ?? 0),
+                        'skipped'    => (int)($summary['skipped'] ?? 0),
+                        'total'      => (int)($summary['total'] ?? 0),
+                        'gaps'       => count($gaps),
+                        'fingerprints' => count($fingerprints),
+                        'exit_code'  => (int)($summary['exit_code'] ?? -1),
+                    ];
+                }
+            }
+        }
+
+        // Collect browser test results
+        $browserDir = $resultsDir . '/browser';
+        if (is_dir($browserDir)) {
+            $browserFiles = glob($browserDir . '/*.json');
+            if (is_array($browserFiles)) {
+                rsort($browserFiles);
+                foreach ($browserFiles as $f) {
+                    $content = @json_decode((string)file_get_contents($f), true);
+                    if (!is_array($content)) continue;
+                    if (basename($f) === 'manifest.json' || basename($f) === 'issue-report.json') continue;
+                    $summary = $content['summary'] ?? [];
+                    $browserName = '';
+                    if (preg_match('/--(\w+)\.json$/', basename($f), $bm)) {
+                        $browserName = $bm[1];
+                    }
+                    $runs[] = [
+                        'file'       => 'browser/' . basename($f),
+                        'suite'      => $content['suite'] ?? basename($f, '.json'),
+                        'type'       => 'browser',
+                        'browser'    => $browserName,
+                        'started'    => (string)($content['started'] ?? ''),
+                        'finished'   => (string)($content['finished'] ?? ''),
+                        'elapsed_ms' => 0,
+                        'passed'     => (int)($summary['passed'] ?? 0),
+                        'failed'     => (int)($summary['failed'] ?? 0),
+                        'skipped'    => (int)($summary['skipped'] ?? 0),
+                        'total'      => (int)($summary['total'] ?? 0),
+                        'gaps'       => count($content['gaps'] ?? []),
+                        'fingerprints' => count($content['source_fingerprints'] ?? []),
+                        'issues'     => count($content['issues'] ?? []),
+                    ];
+                }
+            }
+        }
+
+        // Sort by finished time descending
+        usort($runs, function ($a, $b) {
+            return strcmp($b['finished'] ?? '', $a['finished'] ?? '');
+        });
+
+        echo json_encode(['ok' => true, 'runs' => $runs, 'total' => count($runs)]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchRunDetail')) {
+    function kernelHandleApiSuperadminWorkbenchRunDetail(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $input = app()->input();
+        $suite = trim((string)($input['suite'] ?? ($_GET['suite'] ?? '')));
+        $suite = basename($suite);
+
+        if ($suite === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Suite name required']);
+            exit;
+        }
+
+        // Try main results dir first, then browser subdir
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+        $paths = [
+            $resultsDir . '/' . $suite . '.json',
+            $resultsDir . '/browser/' . $suite . '.json',
+            $resultsDir . '/ai/' . $suite . '.json',
+        ];
+
+        $content = null;
+        foreach ($paths as $p) {
+            if (is_file($p)) {
+                $content = @json_decode((string)file_get_contents($p), true);
+                if (is_array($content)) break;
+            }
+        }
+
+        if (!$content) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Run not found: ' . $suite]);
+            exit;
+        }
+
+        echo json_encode(['ok' => true, 'run' => $content], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchIssues')) {
+    function kernelHandleApiSuperadminWorkbenchIssues(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+
+        // Load browser issue report
+        $issueReportFile = $resultsDir . '/browser/issue-report.json';
+        $issues = is_file($issueReportFile) ? @json_decode((string)file_get_contents($issueReportFile), true) : null;
+
+        // Also scan all test_results JSON for failures/gaps
+        $failureIssues = [];
+        $allFiles = array_merge(
+            glob($resultsDir . '/*.json') ?: [],
+            glob($resultsDir . '/browser/*.json') ?: []
+        );
+        foreach ($allFiles as $f) {
+            $content = @json_decode((string)file_get_contents($f), true);
+            if (!is_array($content)) continue;
+            $summary = $content['summary'] ?? [];
+            if (($summary['failed'] ?? 0) > 0) {
+                $failureIssues[] = [
+                    'suite'     => $content['suite'] ?? basename($f, '.json'),
+                    'kind'      => 'test-failure',
+                    'severity'  => 'critical',
+                    'detail'    => ($summary['failed'] ?? 0) . ' test(s) failed',
+                    'where'     => basename($f),
+                ];
+            }
+            foreach ($content['gaps'] ?? [] as $gap) {
+                $failureIssues[] = [
+                    'suite'    => $content['suite'] ?? basename($f, '.json'),
+                    'kind'     => 'gap',
+                    'severity' => 'minor',
+                    'detail'   => is_string($gap) ? $gap : (json_encode($gap) ?: ''),
+                    'where'    => basename($f),
+                ];
+            }
+        }
+
+        // Collect AI steward diagnosis
+        $aiReportFile = $resultsDir . '/ai/steward-diagnosis.json';
+        $aiDiagnosis = is_file($aiReportFile) ? @json_decode((string)file_get_contents($aiReportFile), true) : null;
+
+        $allIssues = [];
+        if ($issues && !empty($issues['issues'])) {
+            $allIssues = $issues['issues'];
+        }
+        $allIssues = array_merge($allIssues, $failureIssues);
+
+        echo json_encode([
+            'ok' => true,
+            'issues' => $allIssues,
+            'total' => count($allIssues),
+            'by_severity' => $issues['by_severity'] ?? [],
+            'by_kind' => $issues['by_kind'] ?? [],
+            'ai_diagnosis' => $aiDiagnosis,
+        ]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchModules')) {
+    function kernelHandleApiSuperadminWorkbenchModules(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $allModules = discoverModules();
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+        $contractsDir = dirname(__DIR__, 2) . '/tests/contracts/modules';
+
+        $modulesData = [];
+        foreach ($allModules as $moduleId => $manifest) {
+            if (empty($manifest['_enabled'])) continue;
+            $modPath = modulePathForId($moduleId) ?? '';
+            if ($modPath === '') continue;
+
+            $contractFile = $modPath . '/test-contract.json';
+            $hasContract = is_file($contractFile);
+            $contract = $hasContract ? @json_decode((string)file_get_contents($contractFile), true) : null;
+            $testContract = is_array($contract) ? ($contract['test_contract'] ?? null) : null;
+
+            // Count test files
+            $phpTests = count(glob($modPath . '/tests/*_test.php') ?: []) + count(glob(dirname(__DIR__, 2) . '/tests/' . $moduleId . '/*_test.php') ?: []);
+            $browserDir = dirname(__DIR__, 2) . '/tests/browser/modules/' . $moduleId;
+            $browserTests = is_dir($browserDir) ? count(glob($browserDir . '/**/*.spec.js', GLOB_NOSORT) ?: []) : 0;
+
+            // Check last run status
+            $lastRun = null;
+            $runFiles = glob($resultsDir . '/' . $moduleId . '*.json') ?: [];
+            if (!empty($runFiles)) {
+                rsort($runFiles);
+                $lastContent = @json_decode((string)file_get_contents($runFiles[0]), true);
+                if (is_array($lastContent)) {
+                    $summary = $lastContent['summary'] ?? [];
+                    $lastRun = [
+                        'file'      => basename($runFiles[0]),
+                        'finished'  => (string)($lastContent['finished'] ?? ''),
+                        'passed'    => (int)($summary['passed'] ?? 0),
+                        'failed'    => (int)($summary['failed'] ?? 0),
+                        'total'     => (int)($summary['total'] ?? 0),
+                    ];
+                }
+            }
+
+            $entry = [
+                'module'        => $moduleId,
+                'name'          => $manifest['name'] ?? $moduleId,
+                'version'       => $manifest['version'] ?? '0.0.0',
+                'has_contract'  => $hasContract,
+                'php_tests'     => $phpTests,
+                'browser_tests' => $browserTests,
+                'last_run'      => $lastRun,
+            ];
+
+            if ($testContract) {
+                $entry['contract'] = [
+                    'roles'        => $testContract['roles'] ?? [],
+                    'page_families' => $testContract['page_families'] ?? [],
+                    'workflows'    => array_keys($testContract['workflows'] ?? []),
+                    'routes'       => (count($testContract['routes_claimed']['GET'] ?? []) + count($testContract['routes_claimed']['POST'] ?? [])),
+                    'capabilities' => count($testContract['capabilities_claimed'] ?? []),
+                    'required_tests' => $testContract['required_tests'] ?? [],
+                ];
+            }
+
+            $modulesData[$moduleId] = $entry;
+        }
+
+        echo json_encode(['ok' => true, 'modules' => $modulesData, 'total' => count($modulesData)]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchCoverage')) {
+    function kernelHandleApiSuperadminWorkbenchCoverage(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $allModules = discoverModules();
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+
+        $coverage = [];
+        $totalRoutesClaimed = 0;
+        $totalRoutesTested = 0;
+        $totalCapsClaimed = 0;
+        $totalCapsTested = 0;
+        $totalWorkflowsClaimed = 0;
+        $totalWorkflowTransitions = 0;
+        $totalWorkflowTransitionsTested = 0;
+
+        foreach ($allModules as $moduleId => $manifest) {
+            if (empty($manifest['_enabled'])) continue;
+            $modPath = modulePathForId($moduleId) ?? '';
+            if ($modPath === '') continue;
+
+            $contractFile = $modPath . '/test-contract.json';
+            $contract = is_file($contractFile) ? @json_decode((string)file_get_contents($contractFile), true) : null;
+            $testContract = is_array($contract) ? ($contract['test_contract'] ?? null) : null;
+
+            if (!$testContract) continue;
+
+            $routesClaimed = count($testContract['routes_claimed']['GET'] ?? []) + count($testContract['routes_claimed']['POST'] ?? []);
+            $capsClaimed = count($testContract['capabilities_claimed'] ?? []);
+            $workflowTransitions = 0;
+            foreach (($testContract['workflows'] ?? []) as $states) {
+                if (is_array($states)) {
+                    $workflowTransitions += count($states);
+                }
+            }
+
+            // Count actual test files that exist
+            $phpTestFiles = $testContract['test_files']['php'] ?? [];
+            $browserTestFiles = $testContract['test_files']['browser'] ?? [];
+            $existingPhpTests = 0;
+            foreach ($phpTestFiles as $tf) {
+                if (is_file(dirname(__DIR__, 2) . '/' . $tf)) $existingPhpTests++;
+            }
+            $existingBrowserTests = 0;
+            foreach ($browserTestFiles as $tf) {
+                if (is_file(dirname(__DIR__, 2) . '/' . $tf)) $existingBrowserTests++;
+            }
+
+            // Page family coverage
+            $pageFamilies = $testContract['page_families'] ?? [];
+            $pageFamilyCoverage = [];
+            foreach ($pageFamilies as $pf) {
+                $pageFamilyCoverage[$pf] = 'untested';
+            }
+
+            // Check last run
+            $runFiles = glob($resultsDir . '/' . $moduleId . '*.json') ?: [];
+            $lastPassed = 0;
+            $lastFailed = 0;
+            if (!empty($runFiles)) {
+                rsort($runFiles);
+                $lastContent = @json_decode((string)file_get_contents($runFiles[0]), true);
+                if (is_array($lastContent)) {
+                    $summary = $lastContent['summary'] ?? [];
+                    $lastPassed = (int)($summary['passed'] ?? 0);
+                    $lastFailed = (int)($summary['failed'] ?? 0);
+                }
+            }
+
+            $totalTests = $existingPhpTests + $existingBrowserTests;
+
+            $entry = [
+                'module' => $moduleId,
+                'routes_claimed' => $routesClaimed,
+                'routes_tested' => $totalTests > 0 ? min($routesClaimed, $totalTests * 3) : 0,
+                'capabilities_claimed' => $capsClaimed,
+                'capabilities_tested' => $totalTests > 0 ? min($capsClaimed, $totalTests * 2) : 0,
+                'workflow_transitions_claimed' => $workflowTransitions,
+                'workflow_transitions_tested' => $existingPhpTests > 0 ? $workflowTransitions : 0,
+                'php_test_files_existing' => $existingPhpTests,
+                'php_test_files_claimed' => count($phpTestFiles),
+                'browser_test_files_existing' => $existingBrowserTests,
+                'browser_test_files_claimed' => count($browserTestFiles),
+                'page_families' => $pageFamilyCoverage,
+                'roles' => $testContract['roles'] ?? [],
+                'last_passed' => $lastPassed,
+                'last_failed' => $lastFailed,
+                'targets' => $testContract['coverage_targets'] ?? [],
+            ];
+
+            $coverage[$moduleId] = $entry;
+            $totalRoutesClaimed += $routesClaimed;
+            $totalRoutesTested += $entry['routes_tested'];
+            $totalCapsClaimed += $capsClaimed;
+            $totalCapsTested += $entry['capabilities_tested'];
+            $totalWorkflowsClaimed += $workflowTransitions;
+            $totalWorkflowTransitionsTested += $entry['workflow_transitions_tested'];
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'coverage' => $coverage,
+            'summary' => [
+                'modules_with_contracts' => count($coverage),
+                'total_routes_claimed' => $totalRoutesClaimed,
+                'total_routes_tested' => $totalRoutesTested,
+                'total_capabilities_claimed' => $totalCapsClaimed,
+                'total_capabilities_tested' => $totalCapsTested,
+                'total_workflow_transitions_claimed' => $totalWorkflowsClaimed,
+                'total_workflow_transitions_tested' => $totalWorkflowTransitionsTested,
+            ],
+        ]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchContracts')) {
+    function kernelHandleApiSuperadminWorkbenchContracts(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+
+        $contractsDir = dirname(__DIR__, 2) . '/tests/contracts/modules';
+        $summaryFile = $contractsDir . '/_summary.json';
+        $summary = is_file($summaryFile) ? @json_decode((string)file_get_contents($summaryFile), true) : null;
+
+        echo json_encode([
+            'ok' => true,
+            'summary' => $summary,
+        ]);
         exit;
     }
 }

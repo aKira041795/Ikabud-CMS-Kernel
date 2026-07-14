@@ -1,0 +1,561 @@
+{
+    "generated": "2026-07-14T11:41:46+08:00",
+    "total_modules_scanned": 45,
+    "with_contract": 1,
+    "with_fixtures": 1,
+    "with_browser_tests": 1,
+    "modules": {
+        "ai-orchestrator": {
+            "module": "ai-orchestrator",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "ai": {
+            "module": "ai",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": true,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "anti-spam": {
+            "module": "anti-spam",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "attendance-wage": {
+            "module": "attendance-wage",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "bakeshop": {
+            "module": "bakeshop",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "cms": {
+            "module": "cms",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "contact-form": {
+            "module": "contact-form",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "content-ingestion": {
+            "module": "content-ingestion",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "daily-ledger": {
+            "module": "daily-ledger",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "ecommerce": {
+            "module": "ecommerce",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "example-notes": {
+            "module": "example-notes",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "gui-settings": {
+            "module": "gui-settings",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "guidance-sms": {
+            "module": "guidance-sms",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "guidance": {
+            "module": "guidance",
+            "has_contract": false,
+            "has_php_tests": true,
+            "has_browser_tests": true,
+            "has_fixtures": false,
+            "php_test_count": 3,
+            "browser_test_count": 2
+        },
+        "analytics-cds": {
+            "module": "analytics-cds",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "audit": {
+            "module": "audit",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "billing-bridge": {
+            "module": "billing-bridge",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "clinical-notes": {
+            "module": "clinical-notes",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "documents": {
+            "module": "documents",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "ehr-core": {
+            "module": "ehr-core",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "ehr": {
+            "module": "ehr",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "encounters": {
+            "module": "encounters",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "hospital-adt": {
+            "module": "hospital-adt",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "interoperability-bridge": {
+            "module": "interoperability-bridge",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "orders": {
+            "module": "orders",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "patient-portal": {
+            "module": "patient-portal",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "patient-registry": {
+            "module": "patient-registry",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "prescriptions": {
+            "module": "prescriptions",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "privacy-consent": {
+            "module": "privacy-consent",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "reporting": {
+            "module": "reporting",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "results": {
+            "module": "results",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "scheduling": {
+            "module": "scheduling",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "inventory-scanner": {
+            "module": "inventory-scanner",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "media": {
+            "module": "media",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "moodle-integration": {
+            "module": "moodle-integration",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "project-audit-ledger": {
+            "module": "project-audit-ledger",
+            "has_contract": true,
+            "has_php_tests": true,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 2,
+            "browser_test_count": 0,
+            "contract": {
+                "module": "project-audit-ledger",
+                "label": "Project Audit Ledger",
+                "application_profile": "ark.workbench",
+                "version": "1.0.0",
+                "page_families": [
+                    "dashboard",
+                    "operational-list",
+                    "detail-workspace",
+                    "transaction-form",
+                    "approval-review"
+                ],
+                "fixtures": {
+                    "basic": "tests/pal/fixtures/basic.php",
+                    "workflow": "tests/pal/fixtures/workflow.php"
+                },
+                "workflows": {
+                    "job_order": [
+                        "draft",
+                        "pending",
+                        "approved",
+                        "started",
+                        "ongoing",
+                        "completed",
+                        "cancelled",
+                        "closed"
+                    ],
+                    "expense_approval": [
+                        "draft",
+                        "pending_approval",
+                        "approved",
+                        "rejected"
+                    ],
+                    "payment_approval": [
+                        "draft",
+                        "pending_approval",
+                        "approved",
+                        "paid"
+                    ]
+                },
+                "roles": [
+                    "admin",
+                    "encoder",
+                    "team_lead"
+                ],
+                "required_tests": [
+                    "contract",
+                    "routes",
+                    "capabilities",
+                    "tenant-isolation",
+                    "workflow",
+                    "ui-smoke",
+                    "accessibility",
+                    "responsive"
+                ],
+                "test_files": {
+                    "php": [
+                        "tests/pal/pal_job_order_workflow_test.php",
+                        "tests/pal/pal_job_order_workflow_integration_test.php",
+                        "tests/pal/pal_scenario_test.php",
+                        "tests/pal/pal_fabrication_budget_test.php",
+                        "tests/pal/pal_fabrication_integration_test.php",
+                        "tests/pal/pal_fuzz_test.php"
+                    ],
+                    "browser": [
+                        "tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
+                        "tests/browser/modules/pal/pal-workflow.spec.js"
+                    ]
+                },
+                "routes_claimed": {
+                    "GET": [
+                        "/admin/project-audit-ledger",
+                        "/admin/project-audit-ledger/projects",
+                        "/admin/project-audit-ledger/projects/{id}",
+                        "/admin/project-audit-ledger/projects/create",
+                        "/admin/project-audit-ledger/projects/{id}/edit",
+                        "/admin/project-audit-ledger/clients",
+                        "/admin/project-audit-ledger/clients/{id}",
+                        "/admin/project-audit-ledger/clients/create",
+                        "/admin/project-audit-ledger/approvals",
+                        "/admin/project-audit-ledger/expenses",
+                        "/admin/project-audit-ledger/quotations",
+                        "/admin/project-audit-ledger/quotations/{id}/print",
+                        "/admin/project-audit-ledger/reports",
+                        "/admin/project-audit-ledger/materials",
+                        "/admin/project-audit-ledger/suppliers",
+                        "/admin/project-audit-ledger/fabrication",
+                        "/admin/project-audit-ledger/sales",
+                        "/admin/project-audit-ledger/team-leads",
+                        "/api/v1/project-audit-ledger/dashboard/stats"
+                    ],
+                    "POST": [
+                        "/api/v1/project-audit-ledger/projects/{id}/status",
+                        "/api/v1/project-audit-ledger/projects/save",
+                        "/api/v1/project-audit-ledger/clients/save",
+                        "/api/v1/project-audit-ledger/approvals/{id}/decide",
+                        "/api/v1/project-audit-ledger/expenses/save",
+                        "/api/v1/project-audit-ledger/fabrication/allocate",
+                        "/api/v1/project-audit-ledger/fabrication/payment"
+                    ]
+                },
+                "capabilities_claimed": [
+                    "pal.project.create",
+                    "pal.project.view",
+                    "pal.project.edit",
+                    "pal.project.delete",
+                    "pal.project.approve",
+                    "pal.project.submit",
+                    "pal.client.create",
+                    "pal.client.view",
+                    "pal.client.edit",
+                    "pal.expense.create",
+                    "pal.expense.approve",
+                    "pal.approval.decide",
+                    "pal.approval.view",
+                    "pal.fabrication.allocate",
+                    "pal.fabrication.pay",
+                    "pal.reports.view",
+                    "pal.materials.view",
+                    "pal.suppliers.view",
+                    "pal.sales.view",
+                    "pal.team-leads.view",
+                    "pal.quotations.view",
+                    "pal.quotations.print"
+                ],
+                "views_claimed": [
+                    "workbench:app_shell",
+                    "workbench:page_header",
+                    "workbench:status_badge",
+                    "workbench:summary_card",
+                    "workbench:responsive_table",
+                    "workbench:detail_header",
+                    "workbench:empty_state",
+                    "workbench:money",
+                    "workbench:dialog"
+                ],
+                "excluded_from_coverage": [
+                    "tests/pal/pal_seed_interactive.php",
+                    "tests/pal/pal_seed_lifecycle.php"
+                ],
+                "coverage_targets": {
+                    "route_coverage_pct": 70,
+                    "capability_coverage_pct": 60,
+                    "workflow_transition_coverage_pct": 80,
+                    "page_family_coverage_pct": 80
+                }
+            }
+        },
+        "search": {
+            "module": "search",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "security": {
+            "module": "security",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "sms": {
+            "module": "sms",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "theme-studio": {
+            "module": "theme-studio",
+            "has_contract": false,
+            "has_php_tests": true,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 1,
+            "browser_test_count": 0
+        },
+        "tinymce": {
+            "module": "tinymce",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "users": {
+            "module": "users",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "weather-service": {
+            "module": "weather-service",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "wms": {
+            "module": "wms",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        },
+        "workflow": {
+            "module": "workflow",
+            "has_contract": false,
+            "has_php_tests": false,
+            "has_browser_tests": false,
+            "has_fixtures": false,
+            "php_test_count": 0,
+            "browser_test_count": 0
+        }
+    }
+}

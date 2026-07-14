@@ -635,6 +635,30 @@ switch ($handler) {
         kernelHandleApiSuperadminWorkbenchAiSettings();
         exit;
 
+    case 'apiSuperadminWorkbenchRuns':
+        kernelHandleApiSuperadminWorkbenchRuns();
+        exit;
+
+    case 'apiSuperadminWorkbenchIssues':
+        kernelHandleApiSuperadminWorkbenchIssues();
+        exit;
+
+    case 'apiSuperadminWorkbenchModules':
+        kernelHandleApiSuperadminWorkbenchModules();
+        exit;
+
+    case 'apiSuperadminWorkbenchCoverage':
+        kernelHandleApiSuperadminWorkbenchCoverage();
+        exit;
+
+    case 'apiSuperadminWorkbenchContracts':
+        kernelHandleApiSuperadminWorkbenchContracts();
+        exit;
+
+    case 'apiSuperadminWorkbenchRunDetail':
+        kernelHandleApiSuperadminWorkbenchRunDetail();
+        exit;
+
     case 'pageKernelIntegrations':
         kernelHandlePageKernelIntegrations();
         exit;

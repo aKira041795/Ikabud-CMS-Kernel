@@ -1,0 +1,149 @@
+{
+    "test_contract": {
+        "module": "project-audit-ledger",
+        "label": "Project Audit Ledger",
+        "application_profile": "ark.workbench",
+        "version": "1.0.0",
+        "page_families": [
+            "dashboard",
+            "operational-list",
+            "detail-workspace",
+            "transaction-form",
+            "approval-review"
+        ],
+        "fixtures": {
+            "basic": "tests/pal/fixtures/basic.php",
+            "workflow": "tests/pal/fixtures/workflow.php"
+        },
+        "workflows": {
+            "job_order": [
+                "draft",
+                "pending",
+                "approved",
+                "started",
+                "ongoing",
+                "completed",
+                "cancelled",
+                "closed"
+            ],
+            "expense_approval": [
+                "draft",
+                "pending_approval",
+                "approved",
+                "rejected"
+            ],
+            "payment_approval": [
+                "draft",
+                "pending_approval",
+                "approved",
+                "paid"
+            ]
+        },
+        "roles": [
+            "admin",
+            "encoder",
+            "team_lead"
+        ],
+        "required_tests": [
+            "contract",
+            "routes",
+            "capabilities",
+            "tenant-isolation",
+            "workflow",
+            "ui-smoke",
+            "accessibility",
+            "responsive"
+        ],
+        "test_files": {
+            "php": [
+                "tests/pal/pal_job_order_workflow_test.php",
+                "tests/pal/pal_job_order_workflow_integration_test.php",
+                "tests/pal/pal_scenario_test.php",
+                "tests/pal/pal_fabrication_budget_test.php",
+                "tests/pal/pal_fabrication_integration_test.php",
+                "tests/pal/pal_fuzz_test.php"
+            ],
+            "browser": [
+                "tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
+                "tests/browser/modules/pal/pal-workflow.spec.js"
+            ]
+        },
+        "routes_claimed": {
+            "GET": [
+                "/admin/project-audit-ledger",
+                "/admin/project-audit-ledger/projects",
+                "/admin/project-audit-ledger/projects/{id}",
+                "/admin/project-audit-ledger/projects/create",
+                "/admin/project-audit-ledger/projects/{id}/edit",
+                "/admin/project-audit-ledger/clients",
+                "/admin/project-audit-ledger/clients/{id}",
+                "/admin/project-audit-ledger/clients/create",
+                "/admin/project-audit-ledger/approvals",
+                "/admin/project-audit-ledger/expenses",
+                "/admin/project-audit-ledger/quotations",
+                "/admin/project-audit-ledger/quotations/{id}/print",
+                "/admin/project-audit-ledger/reports",
+                "/admin/project-audit-ledger/materials",
+                "/admin/project-audit-ledger/suppliers",
+                "/admin/project-audit-ledger/fabrication",
+                "/admin/project-audit-ledger/sales",
+                "/admin/project-audit-ledger/team-leads",
+                "/api/v1/project-audit-ledger/dashboard/stats"
+            ],
+            "POST": [
+                "/api/v1/project-audit-ledger/projects/{id}/status",
+                "/api/v1/project-audit-ledger/projects/save",
+                "/api/v1/project-audit-ledger/clients/save",
+                "/api/v1/project-audit-ledger/approvals/{id}/decide",
+                "/api/v1/project-audit-ledger/expenses/save",
+                "/api/v1/project-audit-ledger/fabrication/allocate",
+                "/api/v1/project-audit-ledger/fabrication/payment"
+            ]
+        },
+        "capabilities_claimed": [
+            "pal.project.create",
+            "pal.project.view",
+            "pal.project.edit",
+            "pal.project.delete",
+            "pal.project.approve",
+            "pal.project.submit",
+            "pal.client.create",
+            "pal.client.view",
+            "pal.client.edit",
+            "pal.expense.create",
+            "pal.expense.approve",
+            "pal.approval.decide",
+            "pal.approval.view",
+            "pal.fabrication.allocate",
+            "pal.fabrication.pay",
+            "pal.reports.view",
+            "pal.materials.view",
+            "pal.suppliers.view",
+            "pal.sales.view",
+            "pal.team-leads.view",
+            "pal.quotations.view",
+            "pal.quotations.print"
+        ],
+        "views_claimed": [
+            "workbench:app_shell",
+            "workbench:page_header",
+            "workbench:status_badge",
+            "workbench:summary_card",
+            "workbench:responsive_table",
+            "workbench:detail_header",
+            "workbench:empty_state",
+            "workbench:money",
+            "workbench:dialog"
+        ],
+        "excluded_from_coverage": [
+            "tests/pal/pal_seed_interactive.php",
+            "tests/pal/pal_seed_lifecycle.php"
+        ],
+        "coverage_targets": {
+            "route_coverage_pct": 70,
+            "capability_coverage_pct": 60,
+            "workflow_transition_coverage_pct": 80,
+            "page_family_coverage_pct": 80
+        }
+    }
+}

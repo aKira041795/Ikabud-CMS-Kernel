@@ -1,15 +1,501 @@
 {extends "layouts/kernel-admin.disyl"}
 
 {block head}
+<style>
+.wb-panel { @apply border border-slate-200 rounded-lg bg-white; }
+.wb-panel-header { @apply flex items-center justify-between px-4 py-3 border-b border-slate-100; }
+.wb-panel-body { @apply p-4; }
+.wb-stat { @apply text-2xl font-bold; }
+.wb-stat-label { @apply text-xs text-gray-500 uppercase tracking-wide; }
+.wb-severity-critical { @apply text-red-700 bg-red-50 border-red-200; }
+.wb-severity-major { @apply text-orange-700 bg-orange-50 border-orange-200; }
+.wb-severity-minor { @apply text-yellow-700 bg-yellow-50 border-yellow-200; }
+.wb-severity-note { @apply text-blue-700 bg-blue-50 border-blue-200; }
+.wb-pass { @apply text-green-700; }
+.wb-fail { @apply text-red-700; }
+.wb-skip { @apply text-yellow-600; }
+.coverage-bar { @apply h-2 rounded-full bg-slate-100 overflow-hidden; }
+.coverage-fill { @apply h-full rounded-full transition-all duration-500; }
+/* Tab active state — JS toggles .wb-tab-active, CSS moves the visual indicator */
+.wb-tab-active { border-bottom-color: rgb(37 99 235) !important; color: rgb(29 78 216) !important; }
+.wb-tab:not(.wb-tab-active) { border-bottom-color: transparent !important; color: rgb(107 114 128) !important; }
+</style>
 <script>
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-// Set by DiSyL — used inside verbatim blocks where { } is safe
 var wbBaseUrl = '{base_url}';
 var wbCsrfToken = '{csrf_token}';
+var wbPollInterval = null;
+var wbCurrentTab = 'runs';
 
 {verbatim}
-// ── API Keys ──────────────────────────────────────────────────
+
+// ── Tab Switching ────────────────────────────────────────────
+function wbSwitchTab(tab) {
+    wbCurrentTab = tab;
+    document.querySelectorAll('.wb-tab').forEach(function(el) { el.classList.remove('wb-tab-active'); });
+    document.querySelectorAll('.wb-tab-panel').forEach(function(el) { el.classList.add('hidden'); });
+    var tabEl = document.querySelector('.wb-tab[data-tab="' + tab + '"]');
+    if (tabEl) tabEl.classList.add('wb-tab-active');
+    var panelEl = document.getElementById('wb-panel-' + tab);
+    if (panelEl) panelEl.classList.remove('hidden');
+    if (tab === 'runs' && !window._wbRunsLoaded) { wbLoadRuns(); }
+    if (tab === 'failures' && !window._wbFailuresLoaded) { wbLoadFailures(); }
+    if (tab === 'issues' && !window._wbIssuesLoaded) { wbLoadIssues(); }
+    if (tab === 'coverage' && !window._wbCoverageLoaded) { wbLoadCoverage(); }
+    if (tab === 'steward' && !window._wbStewardLoaded) { wbLoadSteward(); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// A. RUN OVERVIEW
+// ════════════════════════════════════════════════════════════════
+async function wbLoadRuns() {
+    window._wbRunsLoaded = true;
+    var el = document.getElementById('wb-runs-body');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Loading runs...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/runs');
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'API error') + '</div>'; return; }
+        var runs = data.runs || [];
+        if (runs.length === 0) { el.innerHTML = '<div class="empty-state"><h3>No Runs</h3><p>Run tests to see results here.</p></div>'; return; }
+
+        var totalPassed = 0, totalFailed = 0, totalSkipped = 0;
+        runs.forEach(function(r) { totalPassed += r.passed || 0; totalFailed += r.failed || 0; totalSkipped += r.skipped || 0; });
+
+        var html = '';
+
+        // Summary bar
+        html += '<div class="grid grid-cols-4 gap-4 mb-4">';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat wb-pass">' + totalPassed + '</div><div class="wb-stat-label">Passed</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat ' + (totalFailed > 0 ? 'wb-fail' : 'text-gray-500') + '">' + totalFailed + '</div><div class="wb-stat-label">Failed</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat wb-skip">' + totalSkipped + '</div><div class="wb-stat-label">Skipped</div></div>';
+        var issueGate = totalFailed > 0 ? '<span class="text-red-600 text-sm font-bold">FAIL</span>' : '<span class="text-green-600 text-sm font-bold">PASS</span>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + runs.length + '</div><div class="wb-stat-label">Suites \u00b7 ' + issueGate + '</div></div>';
+        html += '</div>';
+
+        // Runs table
+        html += '<div class="overflow-x-auto"><table class="data w-full text-xs">';
+        html += '<thead><tr><th>Suite</th><th>Type</th><th>Passed</th><th>Failed</th><th>Skipped</th><th>Gaps</th><th>Time</th><th>Finished</th><th></th></tr></thead><tbody>';
+        for (var i = 0; i < Math.min(runs.length, 50); i++) {
+            var r = runs[i];
+            var isBrowser = r.type === 'browser';
+            var typeLabel = isBrowser ? (r.browser || 'browser') : r.type || 'php';
+            var rowClass = r.failed > 0 ? 'bg-red-50' : '';
+            html += '<tr class="' + rowClass + '">';
+            html += '<td class="font-medium">' + escHtml(r.suite || '?') + '</td>';
+            html += '<td><span class="badge text-xs">' + escHtml(typeLabel) + '</span></td>';
+            html += '<td class="wb-pass font-semibold">' + (r.passed || 0) + '</td>';
+            html += '<td class="' + (r.failed > 0 ? 'wb-fail font-semibold' : 'text-gray-500') + '">' + (r.failed || 0) + '</td>';
+            html += '<td class="text-gray-500">' + (r.skipped || 0) + '</td>';
+            html += '<td class="text-gray-500">' + (r.gaps || 0) + '</td>';
+            html += '<td class="text-gray-500">' + (r.elapsed_ms ? Math.round(r.elapsed_ms / 1000) + 's' : '-') + '</td>';
+            html += '<td class="text-gray-500">' + escHtml((r.finished || '').substring(0, 19)) + '</td>';
+            html += '<td><button onclick="wbViewRunDetail(\'' + escHtml(r.file) + '\')" class="kernel-btn kernel-btn-outline text-xs">View</button></td>';
+            html += '</tr>';
+        }
+        html += '</tbody></table></div>';
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+async function wbViewRunDetail(file) {
+    var el = document.getElementById('wb-run-detail');
+    el.classList.remove('hidden');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Loading...</div>';
+    try {
+        var suite = file.replace(/\.json$/, '').replace(/^browser\//, '');
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/run', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': wbCsrfToken},
+            body: JSON.stringify({suite: suite}),
+        });
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
+        var run = data.run || {};
+        var summary = run.summary || {};
+        var results = run.results || [];
+
+        var fps = run.source_fingerprints || {};
+        var fpHtml = '';
+        for (var f in fps) {
+            if (fps.hasOwnProperty(f)) {
+                fpHtml += '<div class="text-xs text-gray-500"><span class="font-mono">' + escHtml(f) + '</span> <span class="text-gray-400">' + escHtml(fps[f].substring(0, 12)) + '...</span></div>';
+            }
+        }
+
+        var html = '<div class="bg-white border border-slate-200 rounded-lg p-4">';
+        html += '<div class="flex justify-between items-start mb-3">';
+        html += '<div><h3 class="font-semibold">' + escHtml(run.suite || suite) + '</h3>';
+        html += '<div class="text-xs text-gray-500">Started: ' + escHtml(run.started || '') + ' \u00b7 Finished: ' + escHtml(run.finished || '') + ' \u00b7 ' + Math.round((run.elapsed_ms || 0) / 1000) + 's</div></div>';
+        html += '<button onclick="document.getElementById(\'wb-run-detail\').classList.add(\'hidden\')" class="kernel-btn kernel-btn-outline text-xs">Close</button></div>';
+
+        html += '<div class="grid grid-cols-4 gap-2 mb-3">';
+        html += '<div class="text-center"><div class="text-sm font-bold wb-pass">' + (summary.passed || 0) + '</div><div class="text-xs text-gray-500">Passed</div></div>';
+        html += '<div class="text-center"><div class="text-sm font-bold ' + ((summary.failed || 0) > 0 ? 'wb-fail' : 'text-gray-500') + '">' + (summary.failed || 0) + '</div><div class="text-xs text-gray-500">Failed</div></div>';
+        html += '<div class="text-center"><div class="text-sm font-bold text-yellow-600">' + (summary.skipped || 0) + '</div><div class="text-xs text-gray-500">Skipped</div></div>';
+        html += '<div class="text-center"><div class="text-sm font-bold">' + (run.gaps ? run.gaps.length : 0) + '</div><div class="text-xs text-gray-500">Gaps</div></div>';
+        html += '</div>';
+
+        if (fpHtml) {
+            html += '<div class="mb-3 p-2 bg-gray-50 rounded"><div class="text-xs font-semibold text-gray-600 mb-1">Source Fingerprints</div>' + fpHtml + '</div>';
+        }
+
+        var failures = results.filter(function(r) { return r.status === 'fail'; });
+        if (failures.length > 0) {
+            html += '<div class="mb-2"><div class="text-xs font-semibold text-red-700 mb-1">Failures (' + failures.length + ')</div>';
+            failures.forEach(function(f) {
+                html += '<div class="text-xs p-2 mb-1 bg-red-50 border border-red-100 rounded">';
+                html += '<span class="font-medium">' + escHtml(f.section || '') + ': ' + escHtml(f.label || '') + '</span>';
+                if (f.detail) html += '<div class="text-red-600 mt-1">' + escHtml(f.detail) + '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+
+        html += '<div class="max-h-64 overflow-y-auto"><table class="data w-full text-xs">';
+        html += '<thead><tr><th>Section</th><th>Test</th><th>Status</th><th>Detail</th></tr></thead><tbody>';
+        results.forEach(function(r) {
+            var st = r.status === 'pass' ? '<span class="text-green-600">\u2713</span>' : (r.status === 'fail' ? '<span class="text-red-600">\u2717</span>' : '<span class="text-yellow-500">\u23ED</span>');
+            html += '<tr><td class="text-gray-500">' + escHtml(r.section || '') + '</td><td>' + escHtml(r.label || '') + '</td><td>' + st + '</td><td class="text-gray-500">' + escHtml((r.detail || '').substring(0, 80)) + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        html += '</div>';
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// B. FAILURE COCKPIT
+// ════════════════════════════════════════════════════════════════
+async function wbLoadFailures() {
+    window._wbFailuresLoaded = true;
+    var el = document.getElementById('wb-failures-body');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Scanning failures...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/runs');
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'API error') + '</div>'; return; }
+        var runs = data.runs || [];
+        var failedRuns = runs.filter(function(r) { return r.failed > 0; });
+
+        if (failedRuns.length === 0) {
+            el.innerHTML = '<div class="empty-state"><h3>No Failures</h3><p>All test suites are passing.</p></div>';
+            return;
+        }
+
+        var html = '<div class="text-sm font-semibold text-red-700 mb-3">' + failedRuns.length + ' suite(s) with failures</div>';
+
+        for (var i = 0; i < failedRuns.length; i++) {
+            var r = failedRuns[i];
+            html += '<div class="border border-red-200 rounded-lg p-3 mb-3 bg-red-50">';
+            html += '<div class="flex justify-between items-start">';
+            html += '<div><span class="font-semibold text-sm">' + escHtml(r.suite) + '</span>';
+            html += '<span class="text-xs text-gray-500 ml-2">' + r.failed + ' failed / ' + r.total + ' total</span></div>';
+            html += '<button onclick="wbViewRunDetail(\'' + escHtml(r.file) + '\')" class="kernel-btn kernel-btn-outline text-xs">Details</button>';
+            html += '</div>';
+            var module = (r.suite || '').split('-')[0];
+            var pageFamily = '';
+            if (r.suite.indexOf('workflow') >= 0) { pageFamily = 'Workflow'; }
+            else if (r.suite.indexOf('scenario') >= 0) { pageFamily = 'Scenario'; }
+            else if (r.suite.indexOf('fabrication') >= 0) { pageFamily = 'Fabrication'; }
+            else if (r.suite.indexOf('fuzz') >= 0) { pageFamily = 'Fuzz'; }
+            else if (r.suite.indexOf('budget') >= 0) { pageFamily = 'Budget'; }
+            else { pageFamily = 'General'; }
+
+            html += '<div class="mt-2 grid grid-cols-2 gap-2 text-xs">';
+            html += '<div><span class="text-gray-500">Module:</span> <span class="font-medium">' + escHtml(module) + '</span></div>';
+            html += '<div><span class="text-gray-500">Page family:</span> <span class="font-medium">' + escHtml(pageFamily) + '</span></div>';
+            html += '</div>';
+            html += '<div class="mt-2 flex gap-2">';
+            html += '<button onclick="wbRunTests(\'tests/' + escHtml(module) + '/' + escHtml(r.file.replace('.json', '_test.php')) + '\')" class="kernel-btn kernel-btn-primary text-xs">Rerun</button>';
+            html += '</div>';
+            html += '</div>';
+        }
+
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// C. ISSUE REPORT
+// ════════════════════════════════════════════════════════════════
+var wbIssueFilters = { severity: 'all', kind: 'all' };
+
+async function wbLoadIssues() {
+    window._wbIssuesLoaded = true;
+    var el = document.getElementById('wb-issues-body');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Loading issues...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/issues');
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'API error') + '</div>'; return; }
+        var issues = data.issues || [];
+        var bySeverity = data.by_severity || {};
+        var byKind = data.by_kind || {};
+
+        wbRenderIssues(issues, bySeverity, byKind);
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+function wbRenderIssues(issues, bySeverity, byKind) {
+    var el = document.getElementById('wb-issues-body');
+
+    var filtered = issues;
+    if (wbIssueFilters.severity !== 'all') {
+        filtered = filtered.filter(function(i) { return i.severity === wbIssueFilters.severity; });
+    }
+    if (wbIssueFilters.kind !== 'all') {
+        filtered = filtered.filter(function(i) { return i.kind === wbIssueFilters.kind; });
+    }
+
+    var html = '';
+
+    // Severity counts
+    var sevOrder = ['critical', 'major', 'minor', 'note'];
+    var sevCounts = {};
+    sevOrder.forEach(function(s) { sevCounts[s] = 0; });
+    issues.forEach(function(i) { sevCounts[i.severity] = (sevCounts[i.severity] || 0) + 1; });
+
+    html += '<div class="flex flex-wrap gap-2 mb-4">';
+    sevOrder.forEach(function(s) {
+        var c = sevCounts[s] || 0;
+        var active = wbIssueFilters.severity === s ? 'ring-2 ring-offset-1' : '';
+        var cls = 'wb-severity-' + s;
+        html += '<button onclick="wbIssueFilters.severity=\'' + s + '\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border ' + cls + ' ' + active + '">' + s.charAt(0).toUpperCase() + s.slice(1) + ' (' + c + ')</button>';
+    });
+    if (wbIssueFilters.severity !== 'all') {
+        html += '<button onclick="wbIssueFilters.severity=\'all\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600">Clear</button>';
+    }
+    html += '</div>';
+
+    // Kind filter
+    var kinds = {};
+    issues.forEach(function(i) { kinds[i.kind] = (kinds[i.kind] || 0) + 1; });
+    html += '<div class="flex flex-wrap gap-2 mb-4">';
+    for (var k in kinds) {
+        if (!kinds.hasOwnProperty(k)) continue;
+        var active = wbIssueFilters.kind === k ? 'ring-2 ring-offset-1' : '';
+        html += '<button onclick="wbIssueFilters.kind=\'' + k + '\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600 ' + active + '">' + escHtml(k) + ' (' + kinds[k] + ')</button>';
+    }
+    if (wbIssueFilters.kind !== 'all') {
+        html += '<button onclick="wbIssueFilters.kind=\'all\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600">Clear</button>';
+    }
+    html += '</div>';
+
+    if (filtered.length === 0) {
+        html += '<div class="empty-state"><h3>No Issues</h3><p>No issues match the current filters.</p></div>';
+        el.innerHTML = html;
+        return;
+    }
+
+    // Group by module
+    var byModule = {};
+    filtered.forEach(function(i) {
+        var mod = i.module || i.where || 'unknown';
+        if (!byModule[mod]) byModule[mod] = [];
+        byModule[mod].push(i);
+    });
+
+    html += '<div class="text-xs text-gray-500 mb-2">' + filtered.length + ' issue(s)';
+    if (filtered.length !== issues.length) html += ' (filtered from ' + issues.length + ')';
+    html += '</div>';
+
+    for (var mod in byModule) {
+        if (!byModule.hasOwnProperty(mod)) continue;
+        html += '<div class="mb-3">';
+        html += '<div class="text-xs font-semibold text-gray-700 mb-1 uppercase">' + escHtml(mod) + '</div>';
+        byModule[mod].forEach(function(i) {
+            var sevClass = 'wb-severity-' + (i.severity || 'note');
+            html += '<div class="text-xs p-2 mb-1 border rounded ' + sevClass + '">';
+            html += '<div class="flex justify-between"><span class="font-medium">[' + escHtml(i.kind || 'issue') + ']</span><span class="text-gray-500">' + escHtml(i.severity || '') + '</span></div>';
+            html += '<div class="mt-1">' + escHtml(i.detail || '') + '</div>';
+            if (i.where) html += '<div class="text-gray-400 mt-0.5">' + escHtml(i.where) + '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+
+    el.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════
+// D. CONTRACT COVERAGE
+// ════════════════════════════════════════════════════════════════
+async function wbLoadCoverage() {
+    window._wbCoverageLoaded = true;
+    var el = document.getElementById('wb-coverage-body');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Loading coverage data...</div>';
+    try {
+        var [modRes, covRes] = await Promise.all([
+            fetch(wbBaseUrl + '/api/v1/superadmin/workbench/modules'),
+            fetch(wbBaseUrl + '/api/v1/superadmin/workbench/coverage'),
+        ]);
+        var modData = await modRes.json();
+        var covData = await covRes.json();
+        if (!modData.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(modData.error || 'API error') + '</div>'; return; }
+
+        var modules = modData.modules || {};
+        var coverage = covData.ok ? (covData.coverage || {}) : {};
+        var covSummary = covData.ok ? (covData.summary || {}) : {};
+
+        var moduleIds = Object.keys(modules).sort();
+        if (moduleIds.length === 0) {
+            el.innerHTML = '<div class="empty-state"><h3>No Modules</h3><p>No enabled modules with test contracts found.</p></div>';
+            return;
+        }
+
+        var html = '';
+
+        // Summary stats
+        html += '<div class="grid grid-cols-4 gap-4 mb-4">';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + (covSummary.modules_with_contracts || 0) + '</div><div class="wb-stat-label">Modules with Contracts</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + (covSummary.total_routes_claimed || 0) + '</div><div class="wb-stat-label">Routes Claimed</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + (covSummary.total_capabilities_claimed || 0) + '</div><div class="wb-stat-label">Capabilities Claimed</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + (covSummary.total_workflow_transitions_claimed || 0) + '</div><div class="wb-stat-label">Workflow Transitions</div></div>';
+        html += '</div>';
+
+        // Module table
+        html += '<div class="overflow-x-auto"><table class="data w-full text-xs">';
+        html += '<thead><tr><th>Module</th><th>Contract</th><th>Routes</th><th>Caps</th><th>Workflows</th><th>PHP Tests</th><th>Browser</th><th>Page Families</th><th>Last Run</th></tr></thead><tbody>';
+
+        moduleIds.forEach(function(mid) {
+            var m = modules[mid] || {};
+            var c = coverage[mid] || {};
+            var hasContract = m.has_contract;
+            var contractIcon = hasContract ? '<span class="text-green-600">\u2713</span>' : '<span class="text-gray-400">\u2014</span>';
+
+            var routePct = c.routes_claimed ? Math.round((c.routes_tested / c.routes_claimed) * 100) : 0;
+            var capPct = c.capabilities_claimed ? Math.round((c.capabilities_tested / c.capabilities_claimed) * 100) : 0;
+            var wfPct = c.workflow_transitions_claimed ? Math.round((c.workflow_transitions_tested / c.workflow_transitions_claimed) * 100) : 0;
+
+            var pageFams = Object.keys(c.page_families || {}).join(', ') || '-';
+            var lastRun = m.last_run ? (m.last_run.failed > 0 ? '<span class="wb-fail font-semibold">' + m.last_run.failed + ' failed</span>' : '<span class="wb-pass">' + m.last_run.passed + ' passed</span>') : '<span class="text-gray-400">Never</span>';
+
+            html += '<tr>';
+            html += '<td class="font-medium">' + escHtml(m.name || mid) + '</td>';
+            html += '<td class="text-center text-lg">' + contractIcon + '</td>';
+            html += '<td><div class="flex items-center gap-1">' + c.routes_tested + '/' + c.routes_claimed;
+            html += '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (routePct > 60 ? 'bg-green-500' : routePct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + routePct + '%"></div></div>';
+            html += '</div></td>';
+            html += '<td><div class="flex items-center gap-1">' + c.capabilities_tested + '/' + c.capabilities_claimed;
+            html += '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (capPct > 60 ? 'bg-green-500' : capPct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + capPct + '%"></div></div>';
+            html += '</div></td>';
+            html += '<td><div class="flex items-center gap-1">' + c.workflow_transitions_tested + '/' + c.workflow_transitions_claimed;
+            html += '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (wfPct > 60 ? 'bg-green-500' : wfPct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + wfPct + '%"></div></div>';
+            html += '</div></td>';
+            html += '<td>' + (c.php_test_files_existing || 0) + '/' + (c.php_test_files_claimed || 0) + '</td>';
+            html += '<td>' + (c.browser_test_files_existing || 0) + '/' + (c.browser_test_files_claimed || 0) + '</td>';
+            html += '<td class="text-gray-500">' + escHtml(pageFams) + '</td>';
+            html += '<td>' + lastRun + '</td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// E. AI STEWARD
+// ════════════════════════════════════════════════════════════════
+async function wbLoadSteward() {
+    window._wbStewardLoaded = true;
+    var el = document.getElementById('wb-steward-body');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse p-4">Loading AI diagnosis...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/issues');
+        var data = await res.json();
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'API error') + '</div>'; return; }
+
+        var aiDiag = data.ai_diagnosis;
+        var issues = data.issues || [];
+        var criticalIssues = issues.filter(function(i) { return i.severity === 'critical'; });
+        var majorIssues = issues.filter(function(i) { return i.severity === 'major'; });
+
+        var html = '';
+
+        if (aiDiag) {
+            var conf = aiDiag.confidence || 0;
+            var confColor = conf > 0.8 ? 'text-green-700' : (conf > 0.5 ? 'text-yellow-700' : 'text-gray-600');
+            html += '<div class="border border-blue-200 rounded-lg p-4 bg-blue-50 mb-4">';
+            html += '<div class="flex items-center gap-2 mb-3"><span class="text-lg">\u{1F916}</span><span class="font-semibold text-sm">AI Steward Diagnosis</span></div>';
+
+            html += '<div class="grid grid-cols-2 gap-3 mb-3">';
+            html += '<div><span class="text-xs text-gray-500">Classification:</span>';
+            html += '<div class="text-sm font-medium">' + escHtml(aiDiag.classification || 'Unknown') + '</div></div>';
+            html += '<div><span class="text-xs text-gray-500">Confidence:</span>';
+            html += '<div class="text-sm font-medium ' + confColor + '">' + Math.round(conf * 100) + '%</div></div>';
+            html += '</div>';
+
+            if (aiDiag.summary) {
+                html += '<div class="mb-2"><span class="text-xs text-gray-500">Summary:</span>';
+                html += '<div class="text-sm">' + escHtml(aiDiag.summary) + '</div></div>';
+            }
+
+            if (aiDiag.evidence && aiDiag.evidence.length > 0) {
+                html += '<div class="mb-2"><span class="text-xs text-gray-500">Evidence:</span><ul class="list-disc list-inside text-xs text-gray-700 mt-1">';
+                aiDiag.evidence.forEach(function(ev) {
+                    html += '<li>' + escHtml(ev) + '</li>';
+                });
+                html += '</ul></div>';
+            }
+
+            if (aiDiag.suspected_files && aiDiag.suspected_files.length > 0) {
+                html += '<div class="mb-2"><span class="text-xs text-gray-500">Likely Files:</span><ul class="list-disc list-inside text-xs font-mono text-gray-700 mt-1">';
+                aiDiag.suspected_files.forEach(function(f) {
+                    html += '<li>' + escHtml(f) + '</li>';
+                });
+                html += '</ul></div>';
+            }
+
+            if (aiDiag.recommended_action) {
+                html += '<div class="p-2 bg-white border border-blue-100 rounded mt-2">';
+                html += '<span class="text-xs text-gray-500">Recommended Action:</span>';
+                html += '<div class="text-sm font-medium text-blue-800">' + escHtml(aiDiag.recommended_action) + '</div></div>';
+            }
+
+            html += '</div>';
+        }
+
+        // Issue summary
+        html += '<div class="grid grid-cols-3 gap-4 mb-4">';
+        html += '<div class="bg-white border border-red-200 rounded-lg p-3 text-center"><div class="wb-stat wb-fail">' + criticalIssues.length + '</div><div class="wb-stat-label">Critical</div></div>';
+        html += '<div class="bg-white border border-orange-200 rounded-lg p-3 text-center"><div class="wb-stat text-orange-600">' + majorIssues.length + '</div><div class="wb-stat-label">Major</div></div>';
+        html += '<div class="bg-white border border-slate-200 rounded-lg p-3 text-center"><div class="wb-stat">' + issues.length + '</div><div class="wb-stat-label">Total Issues</div></div>';
+        html += '</div>';
+
+        // Issue table
+        html += '<div class="overflow-x-auto"><table class="data w-full text-xs">';
+        html += '<thead><tr><th>Issue</th><th>Severity</th><th>Kind</th><th>Module</th><th>Detail</th></tr></thead><tbody>';
+        if (issues.length === 0) {
+            html += '<tr><td colspan="5" class="text-center text-gray-400 py-4">No issues found</td></tr>';
+        } else {
+            issues.slice(0, 20).forEach(function(i) {
+                var sevClass = 'wb-severity-' + (i.severity || 'note');
+                html += '<tr><td class="max-w-[200px] truncate">' + escHtml(i.test || i.where || '-') + '</td>';
+                html += '<td><span class="text-xs px-2 py-0.5 rounded ' + sevClass + '">' + escHtml(i.severity || '') + '</span></td>';
+                html += '<td>' + escHtml(i.kind || '') + '</td>';
+                html += '<td>' + escHtml(i.module || i.suite || '-') + '</td>';
+                html += '<td class="max-w-[250px] truncate text-gray-500">' + escHtml((i.detail || '').substring(0, 100)) + '</td></tr>';
+            });
+        }
+        html += '</tbody></table></div>';
+
+        // Quick actions
+        html += '<div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">';
+        html += '<div class="text-xs font-semibold text-gray-600 mb-2">Quick Actions</div>';
+        html += '<div class="flex flex-wrap gap-2">';
+        html += '<button onclick="wbRunTests(\'all\')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test">Run All Tests</button>';
+        html += '<button onclick="location.reload()" class="kernel-btn kernel-btn-outline text-xs">Refresh Page</button>';
+        html += '<button onclick="window.open(wbBaseUrl + \'/superadmin/settings\', \'_blank\')" class="kernel-btn kernel-btn-outline text-xs">Settings</button>';
+        html += '</div></div>';
+
+        el.innerHTML = html;
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
+}
+
+// ── Legacy functions ─────────────────────────────────────────
 async function wbCreateKey() {
     var btn = document.querySelector('.wb-btn-create-key');
     if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
@@ -62,9 +548,9 @@ async function wbRevokeKey(id, row) {
         location.reload();
     } catch(e) { alert('Error: ' + e.message); if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; } }
 }
-
-// ── Test Runner ───────────────────────────────────────────────
 async function wbRunTests(target) {
+    var allowed = '{workbench_execution_allowed}' === '1' || '{workbench_execution_allowed}' === 'true';
+    if (!allowed) { alert('Test execution is disabled in production. Set IKABUD_DEV_WORKBENCH=true to enable.'); return; }
     var label = target === 'all' ? 'all test suites' : target;
     if (!confirm('Run ' + label + '? This executes PHP tests on the server.')) return;
     var outEl = document.getElementById('wb-test-output');
@@ -136,20 +622,6 @@ async function aiSaveProvider(providerId) {
         setTimeout(function(){ location.reload(); }, 1200);
     } catch(e) { alert('Error: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Save'; } }
 }
-async function wbViewResult(suite) {
-    var el = document.getElementById('wb-result-detail');
-    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Loading results...</div>';
-    try {
-        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/test-results?suite=' + encodeURIComponent(suite));
-        var data = await res.json();
-        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
-        var preEl = document.createElement('pre');
-        preEl.className = 'text-xs whitespace-pre-wrap overflow-auto max-h-96 bg-gray-900 text-green-400 p-4 rounded-lg';
-        preEl.textContent = JSON.stringify(data.results, null, 2);
-        el.innerHTML = '';
-        el.appendChild(preEl);
-    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error loading results: ' + escHtml(e.message) + '</div>'; }
-}
 {/verbatim}
 </script>
 {/block}
@@ -160,177 +632,259 @@ async function wbViewResult(suite) {
     <!-- Header -->
     <div class="flex items-start justify-between">
         <div>
-            <h1 class="text-xl font-bold text-slate-900">ARK Workbench</h1>
-            <p class="text-sm text-gray-500 mt-1">Developer observability — API keys, AI models, test runner, and test results.</p>
+            <h1 class="text-xl font-bold text-slate-900">Workbench Test Cockpit</h1>
+            <p class="text-sm text-gray-500 mt-1">Run observability, failure diagnosis, issue tracking, contract coverage, and AI steward analysis.</p>
+        </div>
+        <button onclick="location.reload()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+    </div>
+
+    <!-- ════════════ TAB NAVIGATION ════════════ -->
+    <div class="border-b border-slate-200">
+        <nav class="flex gap-1 -mb-px">
+            <button data-tab="runs" class="wb-tab wb-tab-active px-4 py-2 text-xs font-medium border-b-2 border-blue-600 text-blue-700" onclick="wbSwitchTab('runs')">
+                A. Run Overview
+            </button>
+            <button data-tab="failures" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('failures')">
+                B. Failure Cockpit
+            </button>
+            <button data-tab="issues" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('issues')">
+                C. Issue Report
+            </button>
+            <button data-tab="coverage" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('coverage')">
+                D. Contract Coverage
+            </button>
+            <button data-tab="steward" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('steward')">
+                E. AI Steward
+            </button>
+        </nav>
+    </div>
+
+    <!-- ════════════ PANEL A: RUN OVERVIEW ════════════ -->
+    <div id="wb-panel-runs" class="wb-tab-panel">
+        <div class="wb-panel">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">Run Overview</h2>
+                <div class="flex gap-2">
+                    <button onclick="wbLoadRuns()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+                    <button onclick="wbRunTests('all')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>Run All Tests</button>
+                </div>
+            </div>
+            <div class="wb-panel-body">
+                <div id="wb-runs-body">
+                    <div class="text-sm text-gray-500 animate-pulse p-4">Loading runs...</div>
+                </div>
+                <div id="wb-run-detail" class="hidden mt-4"></div>
+            </div>
+        </div>
+
+        <!-- Test Runner (gated by environment) -->
+        <div class="wb-panel mt-4">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">Test Runner</h2>
+                {if ! workbench_execution_allowed}
+                <span class="badge text-xs" style="color:#e03131;border-color:#e03131">Production — Disabled</span>
+                {/if}
+            </div>
+            <div class="wb-panel-body">
+                {if ! workbench_execution_allowed}
+                <div class="p-3 border border-red-200 rounded-lg bg-red-50 mb-3">
+                    <div class="text-xs font-semibold text-red-700">Test Execution Disabled</div>
+                    <p class="text-xs text-red-600 mt-1">Test execution is blocked in production environments. Set <code class="bg-red-100 px-1 rounded">IKABUD_DEV_WORKBENCH=true</code> to enable.</p>
+                </div>
+                {/if}
+                {if discoverable_tests | count > 0}
+                <div class="space-y-1 mb-3">
+                    <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Run Individual Test</div>
+                    {foreach discoverable_tests as dt}
+                    <button onclick="wbRunTests('{dt.path | esc_js}')" class="kernel-btn kernel-btn-outline text-xs mr-1 mb-1 wb-btn-test" title="Run {dt.path | esc_attr}"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>{dt.module}/{dt.file}</button>
+                    {/foreach}
+                </div>
+                {/if}
+                <div id="wb-test-output"></div>
+            </div>
         </div>
     </div>
 
-    <!-- ──────────── API KEYS (Platform Access) ──────────── -->
-    <div class="panel">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold text-slate-700">Platform Access Keys</h2>
-            <button onclick="wbCreateKey()" class="kernel-btn kernel-btn-primary text-xs wb-btn-create-key">+ New Key</button>
+    <!-- ════════════ PANEL B: FAILURE COCKPIT ════════════ -->
+    <div id="wb-panel-failures" class="wb-tab-panel hidden">
+        <div class="wb-panel">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">Failure Cockpit</h2>
+                <button onclick="wbLoadFailures()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+            </div>
+            <div class="wb-panel-body">
+                <div id="wb-failures-body">
+                    <div class="text-sm text-gray-500 p-4">Switch to this tab to scan for failures.</div>
+                </div>
+            </div>
         </div>
-        <p class="hint mb-3">These are kernel-level API keys for headless/external access (CI pipelines, dev tools, agent sites). For AI provider API keys, see the AI Models section below.</p>
-
-        <div id="wb-new-key"></div>
-
-        {if api_keys | count > 0}
-        <table class="data w-full">
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Prefix</th>
-                    <th>Scopes</th>
-                    <th>Last Used</th>
-                    <th>Status</th>
-                    <th class="text-right">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {foreach api_keys as key}
-                <tr>
-                    <td class="font-medium">{key.name}</td>
-                    <td class="mono text-xs">{key.key_prefix}</td>
-                    <td class="text-xs">
-                        {if (key.scopes | count) > 0}
-                            {foreach key.scopes as scope}<span class="badge">{scope}</span> {/foreach}
-                        {else}
-                            <span class="text-gray-400">—</span>
-                        {/if}
-                    </td>
-                    <td class="text-xs text-gray-500">{key.last_used_at|default:'Never'}</td>
-                    <td>
-                        {if key.is_active}
-                            <span class="badge" style="color:#059669;border-color:#059669">Active</span>
-                        {else}
-                            <span class="badge" style="color:#e03131;border-color:#e03131">Revoked</span>
-                        {/if}
-                    </td>
-                    <td class="text-right">
-                        {if key.is_active}
-                        <button onclick="wbRevokeKey({key.id}, this.closest('tr'))" class="kernel-btn kernel-btn-danger text-xs">Revoke</button>
-                        {/if}
-                    </td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
-        {else}
-        <div class="empty-state">
-            <h3>No API Keys</h3>
-            <p>Create a key for headless API access (CI, external services, dev tools).</p>
-        </div>
-        {/if}
     </div>
 
-    <!-- ──────────── AI MODELS ──────────── -->
-    <div class="panel">
-        <h2 class="text-sm font-semibold text-slate-700 mb-1">AI Provider Configuration</h2>
-        <p class="hint mb-4">Set API keys and models per provider. API keys are encrypted at rest. Changes are saved immediately per row.</p>
-        {if ai_module_enabled}
-        <table class="data w-full">
-            <thead>
-                <tr>
-                    <th>Provider</th>
-                    <th>API Key / Base URL</th>
-                    <th>Free Model</th>
-                    <th>Paid Model</th>
-                    <th>Custom Model</th>
-                    <th class="text-right">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                {foreach models as m}
-                <tr id="ai-row-{m.provider_id}">
-                    <td class="font-medium align-middle">{m.provider}</td>
-                    <td>
-                        <input type="text" class="form-input ai-api-key" style="width:180px;font-size:11px;font-family:monospace" placeholder="{if m.has_key}Key set ({m.key_masked}) — leave blank to keep{else}Enter API key or URL{/if}" value="">
-                    </td>
-                    <td>
-                        <input type="text" class="form-input ai-model-free" style="width:140px;font-size:11px" value="{m.model_free}" placeholder="Free model">
-                    </td>
-                    <td>
-                        <input type="text" class="form-input ai-model-paid" style="width:140px;font-size:11px" value="{m.model_paid}" placeholder="Paid model">
-                    </td>
-                    <td>
-                        <input type="text" class="form-input ai-model-custom" style="width:140px;font-size:11px" value="{m.model_custom}" placeholder="Custom model">
-                    </td>
-                    <td class="text-right">
-                        <button onclick="aiSaveProvider('{m.provider_id | esc_js}')" class="kernel-btn kernel-btn-primary text-xs ai-save-btn">{if m.has_key}Update{else}Save{/if}</button>
-                    </td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
-        {else}
-        <div class="empty-state">
-            <h3>AI Module Not Enabled</h3>
-            <p>Enable the AI module in <a href="{base_url}/superadmin/settings" class="text-blue-600 underline">Feature Settings</a> to configure API keys and models.</p>
+    <!-- ════════════ PANEL C: ISSUE REPORT ════════════ -->
+    <div id="wb-panel-issues" class="wb-tab-panel hidden">
+        <div class="wb-panel">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">Issue Report</h2>
+                <button onclick="wbLoadIssues()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+            </div>
+            <div class="wb-panel-body">
+                <div id="wb-issues-body">
+                    <div class="text-sm text-gray-500 p-4">Switch to this tab to load issues.</div>
+                </div>
+            </div>
         </div>
-        {/if}
     </div>
 
-    <!-- ──────────── TEST RUNNER ──────────── -->
-    <div class="panel">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-sm font-semibold text-slate-700">Test Runner</h2>
-            <button onclick="wbRunTests('all')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test">Run All Tests</button>
+    <!-- ════════════ PANEL D: CONTRACT COVERAGE ════════════ -->
+    <div id="wb-panel-coverage" class="wb-tab-panel hidden">
+        <div class="wb-panel">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">Contract Coverage</h2>
+                <button onclick="wbLoadCoverage()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+            </div>
+            <div class="wb-panel-body">
+                <div id="wb-coverage-body">
+                    <div class="text-sm text-gray-500 p-4">Switch to this tab to load coverage data.</div>
+                </div>
+            </div>
         </div>
-        <p class="hint mb-3">Run PHP test suites directly from the browser. Output appears below.</p>
-
-        {if discoverable_tests | count > 0}
-        <div class="space-y-1 mb-3">
-            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Run Individual Test</div>
-            {foreach discoverable_tests as dt}
-            <button onclick="wbRunTests('{dt.path | esc_js}')" class="kernel-btn kernel-btn-outline text-xs mr-1 mb-1 wb-btn-test" title="Run {dt.path | esc_attr}">{dt.module}/{dt.file}</button>
-            {/foreach}
-        </div>
-        {/if}
-
-        <div id="wb-test-output"></div>
     </div>
 
-    <!-- ──────────── TEST RESULTS ──────────── -->
-    <div class="panel">
-        <h2 class="text-sm font-semibold text-slate-700 mb-4">Test Results</h2>
-        {if test_results | count > 0}
-        <table class="data w-full">
-            <thead>
-                <tr>
-                    <th>Suite</th>
-                    <th>Passed</th>
-                    <th>Failed</th>
-                    <th>Gaps</th>
-                    <th>Time</th>
-                    <th>Finished</th>
-                    <th>View</th>
-                </tr>
-            </thead>
-            <tbody>
-                {foreach test_results as tr}
-                <tr>
-                    <td class="font-medium text-xs">{tr.suite}</td>
-                    <td class="text-green-700 font-semibold">{tr.passed}</td>
-                    <td class="{if tr.failed > 0}text-red-700 font-semibold{else}text-gray-500{/if}">{tr.failed}</td>
-                    <td class="text-gray-500">{tr.gaps}</td>
-                    <td class="text-xs text-gray-500">{tr.elapsed}ms</td>
-                    <td class="text-xs text-gray-500">{tr.finished}</td>
-                    <td>
-                        <button onclick="wbViewResult('{tr.suite}')" class="kernel-btn kernel-btn-outline text-xs">View</button>
-                    </td>
-                </tr>
-                {/foreach}
-            </tbody>
-        </table>
-        {else}
-        <div class="empty-state">
-            <h3>No Test Results</h3>
-            <p>Run tests using the Test Runner above to generate results.</p>
+    <!-- ════════════ PANEL E: AI STEWARD ════════════ -->
+    <div id="wb-panel-steward" class="wb-tab-panel hidden">
+        <div class="wb-panel">
+            <div class="wb-panel-header">
+                <h2 class="text-sm font-semibold text-slate-700">AI Steward</h2>
+                <button onclick="wbLoadSteward()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
+            </div>
+            <div class="wb-panel-body">
+                <div id="wb-steward-body">
+                    <div class="text-sm text-gray-500 p-4">Switch to this tab to load AI diagnosis.</div>
+                </div>
+            </div>
         </div>
-        {/if}
-        <div id="wb-result-detail" class="mt-3"></div>
+    </div>
+
+    <!-- ════════════ PLATFORM SETTINGS (API KEYS + AI MODELS) ════════════ -->
+    <div class="wb-panel">
+        <div class="wb-panel-header">
+            <h2 class="text-sm font-semibold text-slate-700">Platform Settings</h2>
+            <span class="text-xs text-gray-400">API keys, AI models, and platform configuration</span>
+        </div>
+        <div class="wb-panel-body space-y-6">
+
+            <!-- API Keys -->
+            <div>
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-xs font-semibold text-slate-600 uppercase">Platform Access Keys</h3>
+                    <button onclick="wbCreateKey()" class="kernel-btn kernel-btn-primary text-xs wb-btn-create-key">+ New Key</button>
+                </div>
+                <p class="hint mb-3 text-xs">Kernel-level API keys for headless/external access (CI pipelines, dev tools, agent sites).</p>
+                <div id="wb-new-key"></div>
+                {if api_keys | count > 0}
+                <table class="data w-full text-xs">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Prefix</th>
+                            <th>Scopes</th>
+                            <th>Last Used</th>
+                            <th>Status</th>
+                            <th class="text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach api_keys as key}
+                        <tr>
+                            <td class="font-medium">{key.name}</td>
+                            <td class="mono text-xs">{key.key_prefix}</td>
+                            <td class="text-xs">
+                                {if (key.scopes | count) > 0}
+                                    {foreach key.scopes as scope}<span class="badge text-xs">{scope}</span> {/foreach}
+                                {else}
+                                    <span class="text-gray-400">&mdash;</span>
+                                {/if}
+                            </td>
+                            <td class="text-xs text-gray-500">{key.last_used_at|default:'Never'}</td>
+                            <td>
+                                {if key.is_active}
+                                    <span class="badge text-xs" style="color:#059669;border-color:#059669">Active</span>
+                                {else}
+                                    <span class="badge text-xs" style="color:#e03131;border-color:#e03131">Revoked</span>
+                                {/if}
+                            </td>
+                            <td class="text-right">
+                                {if key.is_active}
+                                <button onclick="wbRevokeKey({key.id}, this.closest('tr'))" class="kernel-btn kernel-btn-danger text-xs">Revoke</button>
+                                {/if}
+                            </td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+                {else}
+                <div class="empty-state">
+                    <h3>No API Keys</h3>
+                    <p>Create a key for headless API access (CI, external services, dev tools).</p>
+                </div>
+                {/if}
+            </div>
+
+            <!-- AI Models -->
+            <div>
+                <h3 class="text-xs font-semibold text-slate-600 uppercase mb-3">AI Provider Configuration</h3>
+                <p class="hint mb-3 text-xs">Set API keys and models per provider. API keys are encrypted at rest. Changes are saved immediately per row.</p>
+                {if ai_module_enabled}
+                <table class="data w-full text-xs">
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th>API Key / Base URL</th>
+                            <th>Free Model</th>
+                            <th>Paid Model</th>
+                            <th>Custom Model</th>
+                            <th class="text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {foreach models as m}
+                        <tr id="ai-row-{m.provider_id}">
+                            <td class="font-medium align-middle">{m.provider}</td>
+                            <td>
+                                <input type="text" class="form-input ai-api-key" style="width:160px;font-size:11px;font-family:monospace" placeholder="{if m.has_key}Key set ({m.key_masked}) &mdash; leave blank to keep{else}Enter API key or URL{/if}" value="">
+                            </td>
+                            <td>
+                                <input type="text" class="form-input ai-model-free" style="width:120px;font-size:11px" value="{m.model_free}" placeholder="Free model">
+                            </td>
+                            <td>
+                                <input type="text" class="form-input ai-model-paid" style="width:120px;font-size:11px" value="{m.model_paid}" placeholder="Paid model">
+                            </td>
+                            <td>
+                                <input type="text" class="form-input ai-model-custom" style="width:120px;font-size:11px" value="{m.model_custom}" placeholder="Custom model">
+                            </td>
+                            <td class="text-right">
+                                <button onclick="aiSaveProvider('{m.provider_id | esc_js}')" class="kernel-btn kernel-btn-primary text-xs ai-save-btn">{if m.has_key}Update{else}Save{/if}</button>
+                            </td>
+                        </tr>
+                        {/foreach}
+                    </tbody>
+                </table>
+                {else}
+                <div class="empty-state">
+                    <h3>AI Module Not Enabled</h3>
+                    <p>Enable the AI module in <a href="{base_url}/superadmin/settings" class="text-blue-600 underline">Feature Settings</a> to configure API keys and models.</p>
+                </div>
+                {/if}
+            </div>
+
+        </div>
     </div>
 
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    wbLoadRuns();
+});
+</script>
 {/block}

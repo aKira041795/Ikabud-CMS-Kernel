@@ -847,6 +847,12 @@ switch ($command) {
         out('    ' . green('openapi:generate') . '            Generate OpenAPI 3.0 spec from routes');
         out('    ' . green('openapi:generate') . ' --format=json|yaml   Output format (default: json)');
         out('');
+        out('  ' . bold('Testing'));
+        out('    ' . green('test:discover') . '              Scan modules for test contracts, fixtures, and browser tests');
+        out('    ' . green('test:module') . ' <id>           Run all tests for a module (PHP + browser)');
+        out('    ' . green('test:module') . ' <id> --php-only      Run PHP tests only');
+        out('    ' . green('test:module') . ' <id> --browser-only  Run browser tests only');
+        out('');
         out('  ' . bold('Debug'));
         out('    ' . green('event:list') . '                  List registered event listeners');
         out('    ' . green('event:trace') . ' <name>          Show listeners, emitters, and flow for an event');
@@ -4754,6 +4760,227 @@ MD;
         } else {
             out('');
             out('  ' . green("Dispatched {$dispatched} task(s)."));
+        }
+        break;
+
+    // ── test:discover ─────────────────────────────────────────────
+    case 'test:discover':
+        banner();
+        out('  ' . bold('Test Discovery — Module Contract Scanner'));
+        out('');
+
+        $modules = discoverModules();
+        $resultsDir = BASE_PATH . '/test_results';
+        $contractsDir = BASE_PATH . '/tests/contracts/modules';
+        if (!is_dir($contractsDir)) {
+            @mkdir($contractsDir, 0777, true);
+        }
+
+        $summary = [];
+        $totalWithContract = 0;
+        $totalWithFixtures = 0;
+        $totalWithBrowser = 0;
+
+        foreach ($modules as $moduleId => $manifest) {
+            if (empty($manifest['_enabled'])) continue;
+
+            $modPath = modulePathForId($moduleId) ?? '';
+            if ($modPath === '') continue;
+
+            // Check for test-contract.json
+            $contractFile = $modPath . '/test-contract.json';
+            $hasContract = is_file($contractFile);
+            $contract = $hasContract ? json_decode((string)file_get_contents($contractFile), true) : null;
+            $testContract = is_array($contract) ? ($contract['test_contract'] ?? null) : null;
+
+            // Check for PHP test files
+            $phpTests = glob($modPath . '/tests/*_test.php') ?: [];
+            $globalPhpTests = glob(BASE_PATH . '/tests/' . $moduleId . '/*_test.php') ?: [];
+            $allPhpTests = array_merge($phpTests, $globalPhpTests);
+            $hasPhpTests = count($allPhpTests) > 0;
+
+            // Check for browser tests
+            $browserDir = BASE_PATH . '/tests/browser/modules/' . $moduleId;
+            $browserTests = is_dir($browserDir) ? (glob($browserDir . '/**/*.spec.js', GLOB_NOSORT) ?: []) : [];
+            $hasBrowserTests = count($browserTests) > 0;
+
+            // Check for fixtures
+            $fixtureBase = $modPath . '/tests/fixtures';
+            $globalFixtureBase = BASE_PATH . '/tests/' . $moduleId . '/fixtures';
+            $hasFixtures = is_dir($fixtureBase) || is_dir($globalFixtureBase);
+
+            $status = [];
+            if ($hasContract) $status[] = 'contract';
+            if ($hasPhpTests) $status[] = 'php-tests';
+            if ($hasBrowserTests) $status[] = 'browser';
+            if ($hasFixtures) $status[] = 'fixtures';
+            $statusStr = count($status) > 0 ? implode(', ', $status) : dim('none');
+
+            $icon = $hasContract ? green('✓') : yellow('○');
+            out("  {$icon} {$moduleId}: {$statusStr}");
+
+            $entry = [
+                'module' => $moduleId,
+                'has_contract' => $hasContract,
+                'has_php_tests' => $hasPhpTests,
+                'has_browser_tests' => $hasBrowserTests,
+                'has_fixtures' => $hasFixtures,
+                'php_test_count' => count($allPhpTests),
+                'browser_test_count' => count($browserTests),
+            ];
+
+            if ($testContract) {
+                $entry['contract'] = $testContract;
+            }
+
+            $summary[$moduleId] = $entry;
+
+            if ($hasContract) $totalWithContract++;
+            if ($hasFixtures) $totalWithFixtures++;
+            if ($hasBrowserTests || $hasPhpTests) {
+                if ($hasBrowserTests) $totalWithBrowser++;
+            }
+        }
+
+        // Write contract summary
+        $contractsSummary = [
+            'generated' => date('c'),
+            'total_modules_scanned' => count($summary),
+            'with_contract' => $totalWithContract,
+            'with_fixtures' => $totalWithFixtures,
+            'with_browser_tests' => $totalWithBrowser,
+            'modules' => $summary,
+        ];
+        file_put_contents($contractsDir . '/_summary.json', json_encode($contractsSummary, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        out('');
+        out('  ' . bold('Summary'));
+        out('  Modules scanned: ' . cyan((string)count($summary)));
+        out('  With contract:   ' . green((string)$totalWithContract));
+        out('  With fixtures:   ' . green((string)$totalWithFixtures));
+        out('  With browser:    ' . green((string)$totalWithBrowser));
+        out('');
+        out('  ' . dim('Full summary: tests/contracts/modules/_summary.json'));
+        break;
+
+    // ── test:module ────────────────────────────────────────────────
+    case 'test:module':
+        $moduleId = $params[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module ID required.'));
+            out('  Usage: php ikabud test:module <module-id> [--php-only] [--browser-only]');
+            out('  Example: php ikabud test:module project-audit-ledger');
+            exit(1);
+        }
+
+        $modPath = modulePathForId($moduleId) ?? '';
+        if ($modPath === '' || !is_dir($modPath)) {
+            out(red("  ✗ Module '{$moduleId}' not found."));
+            exit(1);
+        }
+
+        // Load contract if available
+        $contractFile = $modPath . '/test-contract.json';
+        $contract = is_file($contractFile) ? json_decode((string)file_get_contents($contractFile), true) : null;
+        $testContract = is_array($contract) ? ($contract['test_contract'] ?? null) : null;
+
+        $phpOnly = hasFlag('--php-only');
+        $browserOnly = hasFlag('--browser-only');
+
+        banner();
+        out('  ' . bold("Test Module: {$moduleId}"));
+        out('');
+
+        if ($testContract) {
+            $roles = implode(', ', $testContract['roles'] ?? []);
+            $pageFamilies = implode(', ', $testContract['page_families'] ?? []);
+            $workflows = implode(', ', array_keys($testContract['workflows'] ?? []));
+            $routeCount = count($testContract['routes_claimed']['GET'] ?? []) + count($testContract['routes_claimed']['POST'] ?? []);
+            $capCount = count($testContract['capabilities_claimed'] ?? []);
+
+            out('  Contract: ' . green('found'));
+            out('  Roles:          ' . cyan($roles));
+            out('  Page families:  ' . cyan($pageFamilies));
+            out('  Workflows:      ' . cyan($workflows));
+            out('  Routes claimed: ' . cyan((string)$routeCount));
+            out('  Capabilities:   ' . cyan((string)$capCount));
+            out('');
+        } else {
+            out('  Contract: ' . yellow('not found') . ' — running without contract validation');
+            out('');
+        }
+
+        // Run PHP tests
+        $phpResults = [];
+        if (!$browserOnly) {
+            $phpTestDir = $modPath . '/tests';
+            $globalTestDir = BASE_PATH . '/tests/' . $moduleId;
+
+            $testFiles = [];
+            if (is_dir($phpTestDir)) {
+                $testFiles = array_merge($testFiles, glob($phpTestDir . '/*_test.php') ?: []);
+            }
+            if (is_dir($globalTestDir)) {
+                foreach (glob($globalTestDir . '/*_test.php') as $f) {
+                    if (!in_array($f, $testFiles)) $testFiles[] = $f;
+                }
+            }
+            // Also scan tests/pal/ etc for module-specific tests
+            $legacyDir = BASE_PATH . '/tests/' . $moduleId;
+            if (is_dir($legacyDir)) {
+                foreach (glob($legacyDir . '/*_test.php') as $f) {
+                    if (!in_array($f, $testFiles)) $testFiles[] = $f;
+                }
+            }
+
+            if (count($testFiles) > 0) {
+                out('  ' . bold('Running PHP tests...'));
+                foreach ($testFiles as $tf) {
+                    $rel = str_replace(BASE_PATH . '/', '', $tf);
+                    out('    ' . dim($rel) . ' ... ', false);
+                    $cmd = 'php ' . escapeshellarg($tf) . ' 2>&1';
+                    $output = shell_exec($cmd);
+                    $exitCode = 0;
+                    // Parse exit from output
+                    if ($output !== null && str_contains($output, 'FAILURES')) {
+                        $exitCode = 1;
+                    }
+                    if ($exitCode === 0) {
+                        out(green('passed'));
+                    } else {
+                        out(red('failed'));
+                    }
+                    $phpResults[] = ['file' => $rel, 'exit_code' => $exitCode];
+                }
+            } else {
+                out('  ' . yellow('No PHP test files found.'));
+            }
+            out('');
+        }
+
+        // Run browser tests (if configured)
+        if (!$phpOnly) {
+            $browserTestDir = BASE_PATH . '/tests/browser/modules/' . $moduleId;
+            if (is_dir($browserTestDir)) {
+                out('  ' . bold('Browser tests: ') . dim('npx playwright test ' . $browserTestDir));
+                out('  ' . dim('  Run manually with the command above.'));
+                out('');
+            }
+        }
+
+        // Coverage summary
+        $phpPassed = 0;
+        $phpFailed = 0;
+        foreach ($phpResults as $r) {
+            if ($r['exit_code'] === 0) $phpPassed++; else $phpFailed++;
+        }
+        $totalPhp = count($phpResults);
+        out('  ' . bold('Results'));
+        out('  PHP:  ' . green("{$phpPassed} passed") . ($phpFailed > 0 ? ', ' . red("{$phpFailed} failed") : '') . " / {$totalPhp} total");
+        out('');
+
+        if ($phpFailed > 0) {
+            exit(1);
         }
         break;
 
