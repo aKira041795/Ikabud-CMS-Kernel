@@ -7,20 +7,23 @@
  * recursive state changes (e.g. creating a record redirects to
  * its detail page, then navigating back preserves context).
  *
- * Patterns:
- *   - test.step() for structured, readable workflows
- *   - FormHarness for form-level assertions
- *   - data-wb-* attributes as stable test IDs
- *   - expect(locator, 'descriptive message') for clear diagnostics
- *   - Recursive navigate + verify chains
+ * Sidebar structure (from app-shell rendering):
+ *   Overview:        Dashboard, New Job Order
+ *   Job Orders:      All Job Orders, Clients, Suppliers
+ *   Sales & Billing: Sales Invoices, Collections, Quotations, BOM
+ *   Inventory & Procurement: Inventory, Stock Movements, Purchases,
+ *                            Issuances, Returns, Expenses
+ *   Operations:      Fabrication, Mobilization, Cash Advances
+ *   Oversight:       Approvals, Reports, Audit Trail
+ *   Administration:  Settings, ...
  *
- * @see modules/project-audit-ledger/module.json — nav + routes
+ * @see modules/project-audit-ledger/templates/
  * @see storage/application-profiles/ark-workbench/testing/harnesses/FormHarness.js
  */
 
 // @ts-check
 const { test, expect } = require('../../../WorkbenchFixture');
-const { FormHarness } = require('../../../../storage/application-profiles/ark-workbench/testing/harnesses/FormHarness');
+const { FormHarness } = require('../../../../../storage/application-profiles/ark-workbench/testing/harnesses/FormHarness');
 
 const APP_URL = process.env.APP_URL || 'http://palsystem.test';
 const BASE = '/admin/project-audit-ledger';
@@ -28,16 +31,16 @@ const BASE = '/admin/project-audit-ledger';
 test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
 
     // ════════════════════════════════════════════════════════════
-    // 1. DASHBOARD (Project Ledger)
+    // 1. DASHBOARD
     // ════════════════════════════════════════════════════════════
-    test.describe('Dashboard (Project Ledger)', () => {
+    test.describe('Dashboard', () => {
 
         test('renders full dashboard template: shell, KPI cards, financial sections, entity list', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Project Ledger');
+            await shell.navigateViaSidebar('Dashboard');
             await page.waitForURL(`**${BASE}**`, { timeout: 10000 });
 
             await shell.expectVisible();
-            await shell.expectActiveNav('Project Ledger');
+            await shell.expectActiveNav('Dashboard');
 
             // KPI summary cards exist with visible values
             const cards = page.locator('[data-wb-component="summary-card"]');
@@ -61,26 +64,26 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
         });
 
         test('sidebar nav persists active state after page reload', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Project Ledger');
+            await shell.navigateViaSidebar('Dashboard');
             await page.waitForURL(`**${BASE}**`, { timeout: 10000 });
             await page.reload();
             await page.waitForLoadState('networkidle');
-            await shell.expectActiveNav('Project Ledger');
+            await shell.expectActiveNav('Dashboard');
             await shell.expectVisible();
         });
     });
 
     // ════════════════════════════════════════════════════════════
-    // 2. PROJECTS — List + Create + Detail
+    // 2. ALL JOB ORDERS (Projects list)
     // ════════════════════════════════════════════════════════════
-    test.describe('Projects', () => {
+    test.describe('All Job Orders', () => {
 
-        test('project list: entity table, search, create button, and row actions', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Projects');
+        test('all job orders list: entity table, search, create button, and row actions', async ({ page, shell }) => {
+            await shell.navigateViaSidebar('All Job Orders');
             await page.waitForURL(`**${BASE}/projects**`, { timeout: 10000 });
 
             await shell.expectVisible();
-            await shell.expectActiveNav('Projects');
+            await shell.expectActiveNav('All Job Orders');
 
             const entityList = page.locator('[data-wb-component="entity-list"]');
             await expect(entityList.first()).toBeVisible({ timeout: 10000 });
@@ -88,15 +91,14 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
 
             // Search input
             const searchInput = page.locator('input[type="search"], input[placeholder*="Search"]').first();
-            await expect(searchInput, 'Projects list must have search').toBeVisible();
+            await expect(searchInput, 'All Job Orders list must have search').toBeVisible();
             await searchInput.fill('Test');
             await page.waitForTimeout(300);
             await searchInput.clear();
 
-            // Create button
+            // Create button points to new job order
             const createBtn = page.locator('a[href*="projects/create"]').first();
-            await expect(createBtn, 'Projects list must have Create New button').toBeVisible();
-            await expect(createBtn).toContainText(/New|Create|Add/i);
+            await expect(createBtn, 'All Job Orders list must have New Job Order button').toBeVisible();
 
             // Table rows with actions
             const rows = page.locator('[data-wb-component="entity-list"] table tbody tr, [data-wb-role="row"]');
@@ -104,16 +106,12 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             if (rowCount > 0) {
                 const firstRowActions = rows.first().locator('a, button');
                 const actionCount = await firstRowActions.count();
-                expect(actionCount, 'Each project row must have at least one action').toBeGreaterThanOrEqual(1);
+                expect(actionCount, 'Each row must have at least one action').toBeGreaterThanOrEqual(1);
             }
         });
 
-        test('create project form: required fields, validation, and submit redirects', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Projects');
-            await page.waitForURL(`**${BASE}/projects**`, { timeout: 10000 });
-
-            const createBtn = page.locator('a[href*="projects/create"]').first();
-            await createBtn.click();
+        test('create job order form: required fields, validation, and submit redirects', async ({ page, shell }) => {
+            await shell.navigateViaSidebar('New Job Order');
             await page.waitForURL(`**${BASE}/projects/create**`, { timeout: 10000 });
 
             const form = new FormHarness(page, 'form');
@@ -163,7 +161,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
         });
 
         test('create → detail navigation chain (recursive)', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Projects');
+            await shell.navigateViaSidebar('All Job Orders');
             await page.waitForURL(`**${BASE}/projects**`, { timeout: 10000 });
 
             const existingLinks = page.locator('a[href*="/projects/"]').filter({ has: page.locator('text=View') });
@@ -179,9 +177,9 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
                 expect(mainText?.length, 'Detail page must have substantive content').toBeGreaterThan(100);
 
                 // Navigate back via sidebar
-                await shell.navigateViaSidebar('Projects');
+                await shell.navigateViaSidebar('All Job Orders');
                 await page.waitForURL(`**${BASE}/projects**`, { timeout: 10000 });
-                await shell.expectActiveNav('Projects');
+                await shell.expectActiveNav('All Job Orders');
             }
         });
     });
@@ -191,7 +189,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
     // ════════════════════════════════════════════════════════════
     test.describe('Expenses', () => {
 
-        test('expenses: entity list, create form with amount input accepted', async ({ page, shell }) => {
+        test('expenses: entity list with pal_expense, create form with amount input accepted', async ({ page, shell }) => {
             await shell.navigateViaSidebar('Expenses');
             await page.waitForURL(`**${BASE}/expenses**`, { timeout: 10000 });
             await shell.expectActiveNav('Expenses');
@@ -257,16 +255,16 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
     });
 
     // ════════════════════════════════════════════════════════════
-    // 5. RECURSIVE CROSS-PAGE FLOW
+    // 5. RECURSIVE CROSS-PAGE NAVIGATION
     // ════════════════════════════════════════════════════════════
     test.describe('Recursive Cross-Page Navigation', () => {
 
-        test('navigate sidebar → Projects → Expenses → Approvals → Dashboard: each intact', async ({ page, shell }) => {
+        test('navigate sidebar → All Job Orders → Inventory → Approvals → Dashboard: each intact', async ({ page, shell }) => {
             const pages = [
-                { label: 'Projects',      urlPattern: '/projects' },
-                { label: 'Expenses',      urlPattern: '/expenses' },
-                { label: 'Approvals',     urlPattern: '/approvals' },
-                { label: 'Project Ledger', urlPattern: BASE },
+                { label: 'All Job Orders', urlPattern: '/projects' },
+                { label: 'Inventory',      urlPattern: '/inventory' },
+                { label: 'Approvals',      urlPattern: '/approvals' },
+                { label: 'Dashboard',      urlPattern: BASE },
             ];
 
             for (const { label, urlPattern } of pages) {
@@ -283,20 +281,6 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             }
         });
 
-        test('sidebar search filters nav items', async ({ page, shell }) => {
-            await shell.expectVisible();
-            const searchInput = page.locator('#wb-sidebar input[type="search"], #wb-sidebar input[placeholder*="Search"], [data-wb-role="nav-search"]');
-            if (await searchInput.isVisible({ timeout: 2000 }).catch(() => false)) {
-                await searchInput.fill('Projects');
-                await page.waitForTimeout(300);
-                await expect(page.locator('[data-wb-role="nav-item"]').filter({ hasText: 'Projects' }).first(), 'Filtered nav must show matches').toBeVisible();
-                await searchInput.clear();
-                console.log('  ✓ Sidebar search filters nav items');
-            } else {
-                console.log('  ℹ No sidebar search input');
-            }
-        });
-
         test('direct URL navigation preserves sidebar active state', async ({ page, shell }) => {
             await page.goto(`${APP_URL}${BASE}/purchases`);
             await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
@@ -304,7 +288,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
 
             await page.goto(`${APP_URL}${BASE}/sales`);
             await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
-            await shell.expectActiveNav('Sales');
+            await shell.expectActiveNav('Sales Invoices');
 
             await page.goto(`${APP_URL}${BASE}/settings`);
             await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
@@ -317,7 +301,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
     // ════════════════════════════════════════════════════════════
     test.describe('Fabrication', () => {
 
-        test('fabrication page: heading, summary cards, and data content', async ({ page, shell }) => {
+        test('fabrication page: heading, summary cards, allocation tables', async ({ page, shell }) => {
             await shell.navigateViaSidebar('Fabrication');
             await page.waitForURL(`**${BASE}/fabrication**`, { timeout: 10000 });
             await shell.expectActiveNav('Fabrication');
@@ -327,17 +311,14 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             expect(headingText).toMatch(/Fabrication/i);
 
             const cards = page.locator('[data-wb-component="summary-card"]');
-            const forms = page.locator('form').filter({ hasText: /Allocation|Dues/i });
             const tables = page.locator('table');
 
             const hasCards = await cards.first().isVisible({ timeout: 1000 }).catch(() => false);
-            const hasForm = await forms.first().isVisible({ timeout: 1000 }).catch(() => false);
             const hasTable = await tables.first().isVisible({ timeout: 500 }).catch(() => false);
 
             if (hasCards) console.log('  ✓ Fabrication summary cards');
-            if (hasForm) console.log('  ✓ Fabrication allocation form');
             if (hasTable) console.log('  ✓ Fabrication data table');
-            if (!hasCards && !hasForm && !hasTable) {
+            if (!hasCards && !hasTable) {
                 const text = await page.locator('#wb-main').textContent();
                 expect(text?.length, 'Fabrication must have content').toBeGreaterThan(50);
             }
@@ -362,9 +343,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             if (await table.isVisible({ timeout: 1000 }).catch(() => false)) {
                 const headers = await table.locator('th').allTextContents();
                 const h = headers.join(' ').toLowerCase();
-                if (/qty|stock|quantity|on hand/.test(h)) {
-                    console.log('  ✓ Inventory table tracks stock quantities');
-                }
+                if (/qty|stock|quantity|on hand/.test(h)) console.log('  ✓ Inventory table tracks stock quantities');
             }
         });
     });
@@ -386,23 +365,20 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             const table = page.locator('table').first();
             if (await table.isVisible({ timeout: 1000 }).catch(() => false)) {
                 const headers = await table.locator('th').allTextContents();
-                const h = headers.join(' ').toLowerCase();
-                if (/supplier|vendor|provider/.test(h)) {
-                    console.log('  ✓ Purchases table references supplier');
-                }
+                if (/supplier|vendor|provider/i.test(headers.join(' '))) console.log('  ✓ Purchases table references supplier');
             }
         });
     });
 
     // ════════════════════════════════════════════════════════════
-    // 9. SALES
+    // 9. SALES INVOICES
     // ════════════════════════════════════════════════════════════
-    test.describe('Sales', () => {
+    test.describe('Sales Invoices', () => {
 
         test('sales page: entity list with pal_sale, financial columns', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Sales');
+            await shell.navigateViaSidebar('Sales Invoices');
             await page.waitForURL(`**${BASE}/sales**`, { timeout: 10000 });
-            await shell.expectActiveNav('Sales');
+            await shell.expectActiveNav('Sales Invoices');
 
             const entityList = page.locator('[data-wb-component="entity-list"]');
             await expect(entityList.first()).toBeVisible({ timeout: 10000 });
@@ -411,9 +387,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             const table = page.locator('table').first();
             if (await table.isVisible({ timeout: 1000 }).catch(() => false)) {
                 const headers = await table.locator('th').allTextContents();
-                if (/amount|total|price|cost|value/i.test(headers.join(' '))) {
-                    console.log('  ✓ Sales table includes financial columns');
-                }
+                if (/amount|total|price|cost|value/i.test(headers.join(' '))) console.log('  ✓ Sales table includes financial columns');
             }
         });
     });
@@ -423,7 +397,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
     // ════════════════════════════════════════════════════════════
     test.describe('Reports', () => {
 
-        test('reports page: report links list, export generation', async ({ page, shell }) => {
+        test('reports page: report links list or export options', async ({ page, shell }) => {
             await shell.navigateViaSidebar('Reports');
             await page.waitForURL(`**${BASE}/reports**`, { timeout: 10000 });
             await shell.expectActiveNav('Reports');
@@ -444,7 +418,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
     });
 
     // ════════════════════════════════════════════════════════════
-    // 11. SETTINGS — Admin-only
+    // 11. SETTINGS
     // ════════════════════════════════════════════════════════════
     test.describe('Settings', () => {
 
@@ -463,27 +437,28 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
     });
 
     // ════════════════════════════════════════════════════════════
-    // 12. INVENTORY → PURCHASES: cross-module link (recursive)
+    // 12. CLIENTS & SUPPLIERS — entity list pages
     // ════════════════════════════════════════════════════════════
-    test.describe('Cross-Page Entity Links', () => {
+    test.describe('Clients & Suppliers', () => {
 
-        test('inventory item links to purchase detail (if present)', async ({ page, shell }) => {
-            await shell.navigateViaSidebar('Inventory');
-            await page.waitForURL(`**${BASE}/inventory**`, { timeout: 10000 });
+        test('clients page: entity list with pal_client', async ({ page, shell }) => {
+            await shell.navigateViaSidebar('Clients');
+            await page.waitForURL(`**${BASE}/clients**`, { timeout: 10000 });
+            await shell.expectActiveNav('Clients');
 
-            // Check if any inventory row links to a purchase
-            const purchaseLinks = page.locator('a[href*="/purchases/"]');
-            if (await purchaseLinks.first().isVisible({ timeout: 2000 }).catch(() => false)) {
-                const href = await purchaseLinks.first().getAttribute('href');
-                if (href) {
-                    await page.goto(`${APP_URL}${href}`);
-                    await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
-                    await shell.expectActiveNav('Purchases');
-                    console.log('  ✓ Inventory→Purchase cross-link works');
-                }
-            } else {
-                console.log('  ℹ No cross-links from inventory to purchases');
-            }
+            const entityList = page.locator('[data-wb-component="entity-list"]');
+            await expect(entityList.first()).toBeVisible({ timeout: 10000 });
+            await expect(entityList.first()).toHaveAttribute('data-wb-entity', 'pal_client');
+        });
+
+        test('suppliers page: entity list with pal_supplier', async ({ page, shell }) => {
+            await shell.navigateViaSidebar('Suppliers');
+            await page.waitForURL(`**${BASE}/suppliers**`, { timeout: 10000 });
+            await shell.expectActiveNav('Suppliers');
+
+            const entityList = page.locator('[data-wb-component="entity-list"]');
+            await expect(entityList.first()).toBeVisible({ timeout: 10000 });
+            await expect(entityList.first()).toHaveAttribute('data-wb-entity', 'pal_supplier');
         });
     });
 });

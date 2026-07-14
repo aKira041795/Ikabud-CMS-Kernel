@@ -25,9 +25,9 @@ class ShellHarness {
         this.page = page;
     }
 
-    /** Get the app-shell main element */
+    /** Get the app-shell main element (body level, not main) */
     get locator() {
-        return this.page.locator('[data-wb-component="app-shell"]');
+        return this.page.locator('body[data-wb-component="app-shell"]');
     }
 
     /** Get the sidebar */
