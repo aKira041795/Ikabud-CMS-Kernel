@@ -1,0 +1,108 @@
+{
+    "module": {
+        "entities": [
+            "pal.project",
+            "pal.approval",
+            "pal.client"
+        ],
+        "workflows": [
+            "job_order_lifecycle"
+        ],
+        "actions": [
+            "pal.job-order.submit",
+            "pal.job-order.create"
+        ]
+    },
+    "analysis": {
+        "action": "pal.job-order.submit",
+        "chain": [
+            {
+                "step": "button.visible",
+                "description": "Submit for Approval button is visible on edit page",
+                "category": "ui",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "button.clicked",
+                "description": "User clicks the Submit button",
+                "category": "ui",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "http.request",
+                "description": "POST request sent to status API endpoint",
+                "category": "http",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "http.response_ok",
+                "description": "API returns HTTP 200 with {ok: true}",
+                "category": "http",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "workflow.transition",
+                "description": "JobOrderWorkflow::apply() executes transition",
+                "category": "service",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "db.status_change",
+                "description": "Project status changes from draft to pending",
+                "category": "db",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "approval.created",
+                "description": "Approval request record created in pal_approvals",
+                "category": "db",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "audit.created",
+                "description": "Audit log entry created for status change",
+                "category": "audit",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "ui.status_updated",
+                "description": "Detail page renders Pending status badge",
+                "category": "ui",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            },
+            {
+                "step": "approval_queue.updated",
+                "description": "Approval queue page shows the project",
+                "category": "ui",
+                "expected": true,
+                "actual": false,
+                "ok": false
+            }
+        ],
+        "breakpoint": "button.visible",
+        "likely_area": "template/javascript",
+        "confidence": 0
+    },
+    "runtime": {
+        "db.project_exists": false
+    },
+    "generated_at": "2026-07-14T15:21:09+08:00"
+}

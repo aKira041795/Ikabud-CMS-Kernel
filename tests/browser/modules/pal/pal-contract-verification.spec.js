@@ -42,12 +42,14 @@ async function diagnoseRoute(page, url, label) {
         resp = await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
         status = resp ? resp.status() : 0;
     } catch (e) {
-        issues.push({ kind: 'navigation-error', severity: 'critical', where: label,
-            detail: 'Navigation failed: ' + (e.message || '').substring(0, 200) });
+        issues.push({
+            kind: 'navigation-error', severity: 'critical', where: label,
+            detail: 'Navigation failed: ' + (e.message || '').substring(0, 200)
+        });
         return issues;
     }
 
-    try { bodyText = await page.locator('body').textContent(); } catch (e) {}
+    try { bodyText = await page.locator('body').textContent(); } catch (e) { }
 
     var isApi = url.indexOf('/api/v1/') >= 0;
     var isEntityRoute = /\{\w+\}/.test(label) || /\/\d+$/.test(url);
@@ -56,11 +58,15 @@ async function diagnoseRoute(page, url, label) {
     if (status === 302 || status === 301) {
         var loc = resp ? (resp.headers()['location'] || '') : '';
         if (loc.indexOf('/login') >= 0) {
-            issues.push({ kind: 'auth-redirect', severity: 'critical', where: label,
-                detail: 'Redirected to login — session expired or auth required' });
+            issues.push({
+                kind: 'auth-redirect', severity: 'critical', where: label,
+                detail: 'Redirected to login — session expired or auth required'
+            });
         } else {
-            issues.push({ kind: 'redirect', severity: 'info', where: label,
-                detail: 'HTTP ' + status + ' -> ' + loc });
+            issues.push({
+                kind: 'redirect', severity: 'info', where: label,
+                detail: 'HTTP ' + status + ' -> ' + loc
+            });
         }
         return issues;
     }
@@ -81,17 +87,21 @@ async function diagnoseRoute(page, url, label) {
     }
 
     if (status === 500) {
-        issues.push({ kind: 'server-error', severity: 'critical', where: label,
+        issues.push({
+            kind: 'server-error', severity: 'critical', where: label,
             detail: 'HTTP 500 — handler threw uncaught exception',
-            recommendation: 'Check PHP error log for stack trace' });
+            recommendation: 'Check PHP error log for stack trace'
+        });
         return issues;
     }
 
     // ── PHP error in body ──
     if (bodyText && (bodyText.indexOf('Internal Server Error') >= 0 ||
         bodyText.indexOf('Fatal error') >= 0)) {
-        issues.push({ kind: 'php-error-in-page', severity: 'critical', where: label,
-            detail: 'PHP error rendered in page body' });
+        issues.push({
+            kind: 'php-error-in-page', severity: 'critical', where: label,
+            detail: 'PHP error rendered in page body'
+        });
     }
 
     // ── Shell check (admin pages only, skip team-lead which has its own shell) ──
@@ -99,11 +109,13 @@ async function diagnoseRoute(page, url, label) {
         var hasShell = false;
         try {
             hasShell = (await page.locator('[data-wb-component="app-shell"]').count()) > 0;
-        } catch (e) {}
+        } catch (e) { }
         if (!hasShell) {
-            issues.push({ kind: 'broken-page', severity: 'major', where: label,
+            issues.push({
+                kind: 'broken-page', severity: 'major', where: label,
                 detail: 'App shell did not render — wrong template or missing layout',
-                recommendation: 'Check template extends admin layout with app-shell' });
+                recommendation: 'Check template extends admin layout with app-shell'
+            });
         }
     }
 
@@ -154,10 +166,12 @@ test.describe('pal:contract-verification', function () {
             await page.goto(APP_URL + BASE, { waitUntil: 'networkidle', timeout: 30000 });
             var n = await page.locator('[data-wb-component="summary-card"]').count();
             if (n === 0) {
-                integrity.issue({ kind: 'missing-component', severity: 'major',
+                integrity.issue({
+                    kind: 'missing-component', severity: 'major',
                     where: 'dashboard',
                     detail: 'summary-card not found — KPI row may be missing',
-                    recommendation: 'Add summary-card or {ikb_entity_list} to dashboard' });
+                    recommendation: 'Add summary-card or {ikb_entity_list} to dashboard'
+                });
             }
         });
 
@@ -165,10 +179,12 @@ test.describe('pal:contract-verification', function () {
             await page.goto(APP_URL + BASE + '/projects', { waitUntil: 'networkidle', timeout: 30000 });
             var n = await page.locator('[data-wb-component="entity-list"]').count();
             if (n === 0) {
-                integrity.issue({ kind: 'missing-component', severity: 'major',
+                integrity.issue({
+                    kind: 'missing-component', severity: 'major',
                     where: '/projects',
                     detail: 'entity-list not found — table may be plain HTML',
-                    recommendation: 'Convert project list to {ikb_entity_list}' });
+                    recommendation: 'Convert project list to {ikb_entity_list}'
+                });
             }
         });
 
@@ -178,9 +194,11 @@ test.describe('pal:contract-verification', function () {
             if ((await badges.count()) > 0) {
                 var txt = await badges.first().textContent();
                 if (!txt || txt.trim() === '') {
-                    integrity.issue({ kind: 'a11y', severity: 'major',
+                    integrity.issue({
+                        kind: 'a11y', severity: 'major',
                         where: 'status-badge',
-                        detail: 'No visible text — color-only indicator' });
+                        detail: 'No visible text — color-only indicator'
+                    });
                 }
             }
         });
