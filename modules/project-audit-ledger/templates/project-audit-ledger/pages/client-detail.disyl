@@ -1,7 +1,7 @@
 {set _dh_title = client.name}
 {set _dh_status = client.is_active==1 ? 'active' : 'inactive'}
 {set _dh_actions = '<a href="/admin/project-audit-ledger/clients/' ~ client.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a> <a href="/admin/project-audit-ledger/clients" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>'}
-{include "pal_detail_header"}
+{include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

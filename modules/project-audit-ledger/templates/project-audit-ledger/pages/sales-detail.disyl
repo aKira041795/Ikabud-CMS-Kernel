@@ -6,7 +6,7 @@
 {set _dh_outstanding = sale.outstanding|default:0}
 {set _dh_target_date = sale.due_date|default:''}
 {set _dh_actions = '<a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a> <a href="/admin/project-audit-ledger/sales/' ~ sale.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a> <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button>'}
-{include "pal_detail_header"}
+{include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
 <div class="max-w-4xl print-area">
     <!-- Amount Due Callout -->

@@ -150,7 +150,7 @@ test.describe('pal:contract-verification', function () {
             });
         });
 
-        test('project-list has entity-list', async function ({ page, integrity }) {
+        test('dashboard has summary-card', async function ({ page, integrity }) {
             await page.goto(APP_URL + BASE, { waitUntil: 'networkidle', timeout: 30000 });
             var n = await page.locator('[data-wb-component="summary-card"]').count();
             if (n === 0) {

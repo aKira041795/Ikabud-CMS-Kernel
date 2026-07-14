@@ -10,7 +10,20 @@
 {set _dh_actions = '<a href="/admin/project-audit-ledger/projects" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a> <a href="/admin/project-audit-ledger/projects/' ~ project.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>'}
 {if project.jo_type == 'items'}{set _dh_actions = _dh_actions ~ ' <button onclick="sendProjectEmail(' ~ project.id ~ ')" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">📧 Send Quotation</button>'}{/if}
 {set _dh_actions = _dh_actions ~ ' <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button>'}
-{include "pal_detail_header"}
+{include "workbench:detail_header"
+    title=_dh_title|default:''
+    subtitle=_dh_subtitle|default:''
+    status_badge=_dh_status|default:''
+    metrics=[
+        {if _dh_amount|default:0 > 0}
+            ['label' => 'Total', 'value' => '₱' ~ (_dh_amount|number_format:2)],
+            {if _dh_collected|default:null !== null}['label' => 'Collected', 'value' => '₱' ~ (_dh_collected|number_format:2)],{/if}
+            {if _dh_outstanding|default:null !== null}['label' => 'Outstanding', 'value' => '₱' ~ (_dh_outstanding|number_format:2)],{/if}
+            {if _dh_target_date|default:''}['label' => 'Target', 'value' => _dh_target_date]{/if}
+        {/if}
+    ]
+    actions=_dh_actions|default:''
+}
 
 <div x-data="{ tab: 'overview' }" class="print-area">
   <div class="flex gap-1 mb-4 border-b border-gray-200 no-print overflow-x-auto">

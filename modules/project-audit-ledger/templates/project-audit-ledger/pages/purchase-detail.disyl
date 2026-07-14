@@ -3,7 +3,7 @@
 {set _dh_status = purchase.status|default:'draft'}
 {set _dh_amount = purchase.total_amount|default:0}
 {set _dh_actions = '<a href="/admin/project-audit-ledger/purchases/' ~ purchase.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a> <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print PO</button> <a href="/admin/project-audit-ledger/purchases" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>'}
-{include "pal_detail_header"}
+{include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-lg print-area">
     <div class="space-y-2 text-sm"><div class="flex justify-between"><span class="text-gray-600">Supplier</span><span>{if purchase.supplier_name && purchase.supplier_id}<a href="/admin/project-audit-ledger/suppliers/{purchase.supplier_id}" class="text-blue-600 hover:text-blue-800">{purchase.supplier_name}</a>{else}{purchase.supplier_name|default:'—'}{/if}</span></div>

@@ -104,8 +104,9 @@ test.describe('pal:jo-operational-setup', function () {
             var saveBtn = page.locator('[data-wb-action="save-as-draft"], button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Submit")').first();
             await expect(saveBtn, 'Save button required').toBeVisible({ timeout: 5000 });
             await saveBtn.click();
-            // ajaxSubmit redirects to project detail on success
-            await page.waitForURL('**/admin/project-audit-ledger/projects/*', { timeout: 15000 });
+            // ajaxSubmit redirects to project detail on success.
+            // Use regex to avoid matching /projects/create (current page).
+            await page.waitForURL(/\/admin\/project-audit-ledger\/projects\/\d+/, { timeout: 15000 });
             await page.waitForTimeout(500);
             // Extract ID from URL
             var urlMatch = page.url().match(/\/projects\/(\d+)/);
