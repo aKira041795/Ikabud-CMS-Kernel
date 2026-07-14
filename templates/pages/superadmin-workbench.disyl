@@ -2,10 +2,14 @@
 
 {block head}
 <script>
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
 // ── API Keys ──────────────────────────────────────────────────
 async function wbCreateKey() {
+    var btn = document.querySelector('.wb-btn-create-key');
+    if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
     var name = prompt('Key name (e.g. "CI runner", "dev local"):');
-    if (!name) return;
+    if (!name) { if (btn) { btn.disabled = false; btn.textContent = '+ New Key'; } return; }
     try {
         var res = await fetch('{base_url}/api/v1/superadmin/workbench/keys', {
             method: 'POST', credentials: 'same-origin',
@@ -13,14 +17,20 @@ async function wbCreateKey() {
             body: JSON.stringify({action: 'create', name: name, scopes: ['*']}),
         });
         var data = await res.json();
-        if (!data.ok) { alert('Error: ' + (data.error || 'Unknown')); return; }
+        if (!data.ok) { alert('Error: ' + (data.error || 'Unknown')); if (btn) { btn.disabled = false; btn.textContent = '+ New Key'; } return; }
         var keyEl = document.getElementById('wb-new-key');
-        keyEl.innerHTML = '<div class="p-4 bg-green-50 border border-green-200 rounded-lg"><div class="text-sm font-bold text-green-800 mb-1">Key Created — Copy Now (shown once)</div><code class="text-xs text-green-900 break-all select-all">' + data.key + '</code><div class="text-xs text-green-600 mt-1">Prefix: ' + data.prefix + ' | Name: ' + data.name + '</div></div>';
-        setTimeout(function(){ location.reload(); }, 3000);
-    } catch(e) { alert('Error: ' + e.message); }
+        var codeEl = document.createElement('code');
+        codeEl.className = 'text-xs text-green-900 break-all select-all';
+        codeEl.textContent = data.key;
+        keyEl.innerHTML = '<div class="p-4 bg-green-50 border border-green-200 rounded-lg"><div class="text-sm font-bold text-green-800 mb-1">Key Created — Copy Now (shown once)</div>';
+        keyEl.firstChild.appendChild(codeEl);
+        keyEl.firstChild.innerHTML += '<div class="text-xs text-green-600 mt-1">Prefix: ' + escHtml(data.prefix) + ' | Name: ' + escHtml(data.name) + '</div></div>';
+        setTimeout(function(){ location.reload(); }, 5000);
+    } catch(e) { alert('Error: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = '+ New Key'; } }
 }
-async function wbRevokeKey(id) {
+async function wbRevokeKey(id, row) {
     if (!confirm('Revoke key #' + id + '? This cannot be undone.')) return;
+    if (row) { row.style.opacity = '0.5'; row.style.pointerEvents = 'none'; }
     try {
         var res = await fetch('{base_url}/api/v1/superadmin/workbench/keys', {
             method: 'POST', credentials: 'same-origin',
@@ -28,9 +38,9 @@ async function wbRevokeKey(id) {
             body: JSON.stringify({action: 'revoke', id: id}),
         });
         var data = await res.json();
-        if (!data.ok) { alert('Error: ' + (data.error || 'Unknown')); return; }
+        if (!data.ok) { alert('Error: ' + (data.error || 'Unknown')); if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; } return; }
         location.reload();
-    } catch(e) { alert('Error: ' + e.message); }
+    } catch(e) { alert('Error: ' + e.message); if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; } }
 }
 
 // ── Test Runner ───────────────────────────────────────────────
@@ -38,7 +48,9 @@ async function wbRunTests(target) {
     var label = target === 'all' ? 'all test suites' : target;
     if (!confirm('Run ' + label + '? This executes PHP tests on the server.')) return;
     var outEl = document.getElementById('wb-test-output');
-    outEl.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Running ' + label + '...</div>';
+    var btns = document.querySelectorAll('.wb-btn-test');
+    for (var i = 0; i < btns.length; i++) { btns[i].disabled = true; }
+    outEl.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Running ' + escHtml(label) + '...</div>';
     try {
         var res = await fetch('{base_url}/api/v1/superadmin/workbench/trigger-tests', {
             method: 'POST', credentials: 'same-origin',
@@ -51,19 +63,44 @@ async function wbRunTests(target) {
         var logs = '';
         if (data.app_log_bytes > 0) logs += '<div class="text-xs text-gray-600 mt-1">app.log: ' + data.app_log_bytes + ' bytes</div>';
         if (data.error_log_bytes > 0) logs += '<div class="text-xs text-red-600 mt-1">error.log: ' + data.error_log_bytes + ' bytes</div>';
-        outEl.innerHTML = '<div class="p-4 border rounded-lg ' + cls + '"><div class="text-sm font-bold mb-1">' + hdr + '</div><pre class="text-xs whitespace-pre-wrap overflow-auto max-h-96">' + (data.output || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>' + logs + '<div class="mt-2"><button onclick="location.reload()" class="text-xs px-3 py-1 rounded bg-gray-600 text-white hover:bg-gray-700">Refresh Page</button></div></div>';
+        var preEl = document.createElement('pre');
+        preEl.className = 'text-xs whitespace-pre-wrap overflow-auto max-h-96';
+        preEl.textContent = data.output || '';
+        var div = document.createElement('div');
+        div.className = 'p-4 border rounded-lg ' + cls;
+        var hdrEl = document.createElement('div');
+        hdrEl.className = 'text-sm font-bold mb-1';
+        hdrEl.textContent = hdr;
+        div.appendChild(hdrEl);
+        div.appendChild(preEl);
+        if (logs) { var logDiv = document.createElement('div'); logDiv.innerHTML = logs; div.appendChild(logDiv); }
+        var refreshDiv = document.createElement('div');
+        refreshDiv.className = 'mt-2';
+        refreshDiv.innerHTML = '<button onclick="location.reload()" class="text-xs px-3 py-1 rounded bg-gray-600 text-white hover:bg-gray-700">Refresh Page</button>';
+        div.appendChild(refreshDiv);
+        outEl.innerHTML = '';
+        outEl.appendChild(div);
+        // Auto-refresh results table
+        setTimeout(function(){ location.reload(); }, 2000);
     } catch(e) {
-        outEl.innerHTML = '<div class="p-4 border border-red-200 rounded-lg bg-red-50 text-sm text-red-800">Error: ' + e.message + '</div>';
+        outEl.innerHTML = '<div class="p-4 border border-red-200 rounded-lg bg-red-50 text-sm text-red-800">Error: ' + escHtml(e.message) + '</div>';
+    } finally {
+        for (var i = 0; i < btns.length; i++) { btns[i].disabled = false; }
     }
 }
 async function wbViewResult(suite) {
+    var el = document.getElementById('wb-result-detail');
+    el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Loading results...</div>';
     try {
         var res = await fetch('{base_url}/api/v1/superadmin/workbench/test-results?suite=' + encodeURIComponent(suite));
         var data = await res.json();
-        var el = document.getElementById('wb-result-detail');
-        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + (data.error || 'Not found') + '</div>'; return; }
-        el.innerHTML = '<pre class="text-xs whitespace-pre-wrap overflow-auto max-h-96 bg-gray-900 text-green-400 p-4 rounded-lg">' + JSON.stringify(data.results, null, 2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre>';
-    } catch(e) { }
+        if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
+        var preEl = document.createElement('pre');
+        preEl.className = 'text-xs whitespace-pre-wrap overflow-auto max-h-96 bg-gray-900 text-green-400 p-4 rounded-lg';
+        preEl.textContent = JSON.stringify(data.results, null, 2);
+        el.innerHTML = '';
+        el.appendChild(preEl);
+    } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error loading results: ' + escHtml(e.message) + '</div>'; }
 }
 </script>
 {/block}
@@ -83,7 +120,7 @@ async function wbViewResult(suite) {
     <div class="panel">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-semibold text-slate-700">API Keys</h2>
-            <button onclick="wbCreateKey()" class="kernel-btn kernel-btn-primary text-xs">+ New Key</button>
+            <button onclick="wbCreateKey()" class="kernel-btn kernel-btn-primary text-xs wb-btn-create-key">+ New Key</button>
         </div>
 
         <div id="wb-new-key"></div>
@@ -106,7 +143,7 @@ async function wbViewResult(suite) {
                     <td class="font-medium">{key.name}</td>
                     <td class="mono text-xs">{key.key_prefix}</td>
                     <td class="text-xs">
-                        {if key.scopes | count > 0}
+                        {if (key.scopes | count) > 0}
                             {foreach key.scopes as scope}<span class="badge">{scope}</span> {/foreach}
                         {else}
                             <span class="text-gray-400">—</span>
@@ -122,7 +159,7 @@ async function wbViewResult(suite) {
                     </td>
                     <td class="text-right">
                         {if key.is_active}
-                        <button onclick="wbRevokeKey({key.id})" class="kernel-btn kernel-btn-danger text-xs">Revoke</button>
+                        <button onclick="wbRevokeKey({key.id}, this.closest('tr'))" class="kernel-btn kernel-btn-danger text-xs">Revoke</button>
                         {/if}
                     </td>
                 </tr>
@@ -175,7 +212,7 @@ async function wbViewResult(suite) {
     <div class="panel">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-sm font-semibold text-slate-700">Test Runner</h2>
-            <button onclick="wbRunTests('all')" class="kernel-btn kernel-btn-primary text-xs">Run All Tests</button>
+            <button onclick="wbRunTests('all')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test">Run All Tests</button>
         </div>
         <p class="hint mb-3">Run PHP test suites directly from the browser. Output appears below.</p>
 
@@ -183,7 +220,7 @@ async function wbViewResult(suite) {
         <div class="space-y-1 mb-3">
             <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Run Individual Test</div>
             {foreach discoverable_tests as dt}
-            <button onclick="wbRunTests('{dt.path}')" class="kernel-btn kernel-btn-outline text-xs mr-1 mb-1" title="Run {dt.path}">{dt.module}/{dt.file}</button>
+            <button onclick="wbRunTests('{dt.path | esc_js}')" class="kernel-btn kernel-btn-outline text-xs mr-1 mb-1 wb-btn-test" title="Run {dt.path | esc_attr}">{dt.module}/{dt.file}</button>
             {/foreach}
         </div>
         {/if}

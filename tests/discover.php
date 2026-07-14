@@ -29,9 +29,13 @@ $discovered = [];
 $moduleFilter = $options['module'] ?? null;
 $failedOnly = isset($options['failed-only']);
 
-$scanDirs = ['pal', 'project-audit-ledger', 'bakeshop', 'guidance', 'wms'];
-foreach ($scanDirs as $dir) {
+// Dynamically scan tests/ subdirectories for *_test.php files
+$skipDirs = ['harness', 'browser', 'ai', 'test_results', 'bench'];
+$testSubdirs = glob($testDir . '/*', GLOB_ONLYDIR) ?: [];
+foreach ($testSubdirs as $subdir) {
+    $dir = basename($subdir);
     if ($moduleFilter && $dir !== $moduleFilter) continue;
+    if (in_array($dir, $skipDirs, true)) continue;
     $path = $testDir . '/' . $dir;
     if (!is_dir($path)) continue;
     $files = glob($path . '/*_test.php');

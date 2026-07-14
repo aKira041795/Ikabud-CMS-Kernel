@@ -1584,14 +1584,15 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
             }
         }
 
-        // Discoverable tests
+        // Discoverable tests — dynamically scan tests/ for *_test.php files
         $discoverableTests = [];
         $testBase = dirname(__DIR__, 2) . '/tests';
-        $scanDirs = ['pal', 'project-audit-ledger', 'guidance', 'bakeshop', 'wms'];
-        foreach ($scanDirs as $dir) {
-            $path = $testBase . '/' . $dir;
-            if (!is_dir($path)) continue;
-            $testFiles = glob($path . '/*_test.php') ?: [];
+        $testSubdirs = glob($testBase . '/*', GLOB_ONLYDIR) ?: [];
+        foreach ($testSubdirs as $subdir) {
+            $dir = basename($subdir);
+            // Skip non-module directories
+            if (in_array($dir, ['harness', 'browser', 'ai', 'test_results', 'bench'], true)) continue;
+            $testFiles = glob($subdir . '/*_test.php') ?: [];
             foreach ($testFiles as $tf) {
                 $base = basename($tf);
                 if (str_contains($base, '_seed_') || str_contains($base, '_interactive')) continue;
@@ -1712,6 +1713,13 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchTestResults')) {
             exit;
         }
         $suite = trim((string)($_GET['suite'] ?? ''));
+        // Sanitize suite name to prevent path traversal
+        $suite = basename($suite);
+        if ($suite !== '' && !preg_match('/^[a-zA-Z0-9_.-]+$/', $suite)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Invalid suite name']);
+            exit;
+        }
         $resultsDir = dirname(__DIR__, 2) . '/test_results';
         $file = $resultsDir . '/' . ($suite !== '' ? $suite . '.json' : 'discover-summary.json');
         if (!is_file($file)) {
