@@ -17,7 +17,10 @@ class palFabricationService
 
     public function createAllocation(array $data): int
     {
-        $projectId = (int)$data['project_id'];
+        $projectId = isset($data['project_id']) ? (int)$data['project_id'] : 0;
+        if ($projectId <= 0) {
+            throw new InvalidArgumentException('Project ID is required.');
+        }
         $pStmt = $this->db->prepare("SELECT contract_amount, fabrication_alloc_pct, fabrication_alloc_basis FROM pal_projects WHERE id = :id AND tenant_id = :tid");
         $pStmt->execute([':id' => $projectId, ':tid' => $this->tenantId]);
         $project = $pStmt->fetch(PDO::FETCH_ASSOC);
