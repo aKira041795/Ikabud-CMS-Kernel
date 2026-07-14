@@ -378,26 +378,60 @@ function kernelTriggerRecordExecution(array $execution): void
     try {
         \Ikabud\Kernel\Database\KernelPDO::kernelEscalationEnter();
         try {
-            app()->db()->prepare(
-                'INSERT INTO kernel_trigger_executions '
-                . '(trigger_id, module, event_key, capability_id, provider, status, request_id, correlation_id, external_reference, duration_ms, error_message, event_payload, capability_payload, result_payload, created_at) '
-                . 'VALUES (:trigger_id, :module, :event_key, :capability_id, :provider, :status, :request_id, :correlation_id, :external_reference, :duration_ms, :error_message, :event_payload, :capability_payload, :result_payload, NOW())'
-            )->execute([
-                ':trigger_id' => isset($execution['trigger_id']) ? (int)$execution['trigger_id'] : null,
-                ':module' => trim((string)($execution['module'] ?? '')),
-                ':event_key' => trim((string)($execution['event_key'] ?? '')),
-                ':capability_id' => trim((string)($execution['capability_id'] ?? '')),
-                ':provider' => ($execution['provider'] ?? null) !== null ? trim((string)$execution['provider']) : null,
-                ':status' => trim((string)($execution['status'] ?? 'unknown')) ?: 'unknown',
-                ':request_id' => ($execution['request_id'] ?? null) !== null ? trim((string)$execution['request_id']) : null,
-                ':correlation_id' => ($execution['correlation_id'] ?? null) !== null ? trim((string)$execution['correlation_id']) : null,
-                ':external_reference' => ($execution['external_reference'] ?? null) !== null ? trim((string)$execution['external_reference']) : null,
-                ':duration_ms' => isset($execution['duration_ms']) ? (int)$execution['duration_ms'] : null,
-                ':error_message' => ($execution['error_message'] ?? null) !== null ? (string)$execution['error_message'] : null,
-                ':event_payload' => json_encode($execution['event_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':capability_payload' => json_encode($execution['capability_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-                ':result_payload' => json_encode($execution['result_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
-            ]);
+            // Retry loop for "2014 Cannot execute queries" errors caused by
+            // EventBus listeners that leave unbuffered result sets open.
+            $maxAttempts = 3;
+            $attempt = 0;
+            $lastError = null;
+
+            while ($attempt < $maxAttempts) {
+                $attempt++;
+                try {
+                    app()->db()->prepare(
+                        'INSERT INTO kernel_trigger_executions '
+                        . '(trigger_id, module, event_key, capability_id, provider, status, request_id, correlation_id, external_reference, duration_ms, error_message, event_payload, capability_payload, result_payload, created_at) '
+                        . 'VALUES (:trigger_id, :module, :event_key, :capability_id, :provider, :status, :request_id, :correlation_id, :external_reference, :duration_ms, :error_message, :event_payload, :capability_payload, :result_payload, NOW())'
+                    )->execute([
+                        ':trigger_id' => isset($execution['trigger_id']) ? (int)$execution['trigger_id'] : null,
+                        ':module' => trim((string)($execution['module'] ?? '')),
+                        ':event_key' => trim((string)($execution['event_key'] ?? '')),
+                        ':capability_id' => trim((string)($execution['capability_id'] ?? '')),
+                        ':provider' => ($execution['provider'] ?? null) !== null ? trim((string)$execution['provider']) : null,
+                        ':status' => trim((string)($execution['status'] ?? 'unknown')) ?: 'unknown',
+                        ':request_id' => ($execution['request_id'] ?? null) !== null ? trim((string)$execution['request_id']) : null,
+                        ':correlation_id' => ($execution['correlation_id'] ?? null) !== null ? trim((string)$execution['correlation_id']) : null,
+                        ':external_reference' => ($execution['external_reference'] ?? null) !== null ? trim((string)$execution['external_reference']) : null,
+                        ':duration_ms' => isset($execution['duration_ms']) ? (int)$execution['duration_ms'] : null,
+                        ':error_message' => ($execution['error_message'] ?? null) !== null ? (string)$execution['error_message'] : null,
+                        ':event_payload' => json_encode($execution['event_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                        ':capability_payload' => json_encode($execution['capability_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                        ':result_payload' => json_encode($execution['result_payload'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                    ]);
+                    $lastError = null; // success
+                    break;
+                } catch (PDOException $pdoe) {
+                    $lastError = $pdoe;
+                    // Only retry on "2014 Cannot execute queries"
+                    if (str_contains($pdoe->getMessage(), '2014') || str_contains($pdoe->getMessage(), 'Cannot execute queries')) {
+                        // Consume any pending unbuffered result set
+                        try {
+                            app()->db()->query('SELECT 1')->fetchAll();
+                        } catch (Throwable) {
+                            // If this also fails, reconnect
+                            try {
+                                app()->reconnectDb();
+                            } catch (Throwable) {
+                            }
+                        }
+                        continue;
+                    }
+                    throw $pdoe; // non-2014: re-throw
+                }
+            }
+
+            if ($lastError !== null) {
+                throw $lastError;
+            }
         } finally {
             \Ikabud\Kernel\Database\KernelPDO::kernelEscalationLeave();
         }
@@ -493,10 +527,9 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
     $correlationId = kernelCorrelationId();
     $requestId = function_exists('request_id') ? request_id() : null;
 
-    // Always fire the kernel EventBus so module-to-module listeners work.
-    app()->events()->fire($eventKey, $payload, $module);
-
     // Dispatch capability triggers — use per-request cache to avoid DB query per fire.
+    // Do this BEFORE events()->fire() to avoid "2014 Cannot execute queries" errors
+    // caused by EventBus listeners that leave unbuffered result sets open.
     try {
         // Check per-request cache first.
         $svc = app()->triggers();
@@ -526,6 +559,10 @@ function kernelEmitEvent(string $eventKey, array $payload = [], string $module =
         ]);
         return;
     }
+
+    // Fire the kernel EventBus so module-to-module listeners work.
+    // Deliberately after trigger lookup to avoid unbuffered query conflicts.
+    app()->events()->fire($eventKey, $payload, $module);
 
     foreach ($triggers as $trigger) {
         if (!is_array($trigger)) {

@@ -136,6 +136,12 @@ class DatabaseManager
         $options[PDO::ATTR_STRINGIFY_FETCHES] = false;
         $options[PDO::ATTR_PERSISTENT] = $this->connectionPersistent($dbConfig);
 
+        // Always use buffered queries to prevent "2014 Cannot execute queries" errors
+        // when EventBus listeners or capability handlers leave result sets unconsumed.
+        if (defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY')) {
+            $options[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = true;
+        }
+
         $timeoutSeconds = $this->connectionTimeoutSeconds($dbConfig);
         if ($timeoutSeconds > 0) {
             $options[PDO::ATTR_TIMEOUT] = $timeoutSeconds;

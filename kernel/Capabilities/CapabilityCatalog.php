@@ -486,6 +486,31 @@ final class CapabilityCatalog
             return [];
         }
 
+        // Handle shorthand format: {"emits": ["event.key1", "event.key2", ...]}
+        if (!array_is_list($events)) {
+            $emits = $events['emits'] ?? [];
+            if (is_array($emits)) {
+                $events = $emits;
+            }
+        }
+
+        // If events is now a flat list of strings (shorthand), convert to object format
+        if (array_is_list($events) && !empty($events) && is_string($events[0] ?? null)) {
+            $out = [];
+            foreach ($events as $eventKey) {
+                $key = trim((string)$eventKey);
+                if ($key === '') {
+                    continue;
+                }
+                $out[] = [
+                    'key' => $key,
+                    'description' => '',
+                    'available_vars' => [],
+                ];
+            }
+            return $out;
+        }
+
         $out = [];
         foreach ($events as $event) {
             if (!is_array($event)) {
