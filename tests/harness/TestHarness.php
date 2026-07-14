@@ -221,6 +221,25 @@ class TestHarness
         $this->test($label, $expected === $actual, $expected !== $actual ? "got " . $this->export($actual) : '');
     }
 
+    public function assertNotSame(mixed $expected, mixed $actual, string $label = ''): void
+    {
+        $label = $label ?: "Expected not " . $this->export($expected) . ", got " . $this->export($actual);
+        $this->test($label, $expected !== $actual, $expected === $actual ? "unexpectedly equal to " . $this->export($expected) : '');
+    }
+
+    public function assertContains(mixed $needle, array $haystack, string $label = ''): void
+    {
+        $label = $label ?: "Expected array to contain " . $this->export($needle);
+        $this->test($label, in_array($needle, $haystack, true), "not found in array");
+    }
+
+    public function assertCount(int $expected, array|\Countable $actual, string $label = ''): void
+    {
+        $count = is_array($actual) ? count($actual) : $actual->count();
+        $label = $label ?: "Expected count {$expected}, got {$count}";
+        $this->test($label, $count === $expected, "got {$count}");
+    }
+
     public function assertPresent(mixed $value, string $label): void
     {
         $present = $value !== null && $value !== false && $value !== '';
@@ -357,7 +376,19 @@ class TestHarness
 
     private function export(mixed $value): string
     {
-        return var_export($value, true);
+        if ($value === null) return 'null';
+        if (is_bool($value)) return $value ? 'true' : 'false';
+        if (is_string($value)) return "'{$value}'";
+        if (is_int($value) || is_float($value)) return (string)$value;
+        if (is_array($value)) {
+            $keys = array_keys($value);
+            $trunc = count($keys) > 10 ? ', ...' : '';
+            return '[' . implode(', ', array_slice($keys, 0, 10)) . $trunc . ']';
+        }
+        if (is_object($value)) {
+            return 'object(' . get_class($value) . ')';
+        }
+        return gettype($value);
     }
 
     private function echoWarn(string $msg): void

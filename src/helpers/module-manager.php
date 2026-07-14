@@ -1954,6 +1954,7 @@ function getModuleNavItems(?string $role = null, ?array $user = null): array
             ['label' => 'Performance',       'url' => '/superadmin/perf',     'icon' => 'chart',    'module' => '_kernel', 'target' => '_self'],
             ['label' => 'Cache',             'url' => '/superadmin/cache',    'icon' => 'database', 'module' => '_kernel', 'target' => '_self'],
             ['label' => 'Integrations',      'url' => '/kernel/integrations', 'icon' => 'git-merge', 'module' => '_kernel', 'target' => '_self'],
+            ['label' => 'Workbench',         'url' => '/superadmin/workbench','icon' => 'terminal',  'module' => '_kernel', 'target' => null],
             ['label' => 'Profile',           'url' => '/admin/profile',       'icon' => 'user',     'module' => '_kernel', 'target' => null],
         ];
     }

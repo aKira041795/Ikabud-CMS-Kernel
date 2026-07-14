@@ -7,7 +7,7 @@
  */
 
 // @ts-check
-const { test, expect } = require('../WorkbenchFixture');
+const { test, expect } = require('../../../WorkbenchFixture');
 
 const NAV_URLS = ['/admin/guidance'];
 

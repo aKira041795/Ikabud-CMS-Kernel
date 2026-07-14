@@ -1507,3 +1507,276 @@ if (!function_exists('kernelBuildCacheObservabilitySnapshot')) {
         ];
     }
 }
+
+// ────────────────────────────────────────────────────────────────
+// ARK Workbench — superadmin developer observability
+// ────────────────────────────────────────────────────────────────
+
+if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
+    function kernelHandlePageSuperadminWorkbench(): void
+    {
+        $user = app()->requireAuth();
+        if (($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            app()->redirect('/');
+            exit;
+        }
+
+        // API Keys
+        $apiKeys = [];
+        try {
+            $akAuth = new \Ikabud\Kernel\Services\ApiKeyAuth(app()->db());
+            if ($akAuth->tableExists()) {
+                $apiKeys = $akAuth->listKeys(0);
+            }
+        } catch (\Throwable $e) {
+            $apiKeys = [];
+        }
+
+        // AI Models
+        $models = [];
+        $aiModuleEnabled = false;
+        $allModules = discoverModules();
+        if (isset($allModules['ai']) && !empty($allModules['ai']['_enabled'])) {
+            $aiModuleEnabled = true;
+            $aiSettings = getModuleSettings('ai');
+            $providers = [
+                'openai'      => ['name' => 'OpenAI',      'key_setting' => 'openai_api_key'],
+                'groq'        => ['name' => 'Groq',         'key_setting' => 'groq_api_key'],
+                'gemini'      => ['name' => 'Gemini',       'key_setting' => 'gemini_api_key'],
+                'mistral'     => ['name' => 'Mistral',      'key_setting' => 'mistral_api_key'],
+                'cerebras'    => ['name' => 'Cerebras',     'key_setting' => 'cerebras_api_key'],
+                'openrouter'  => ['name' => 'OpenRouter',   'key_setting' => 'openrouter_api_key'],
+            ];
+            foreach ($providers as $pid => $pinfo) {
+                $keySet = !empty($aiSettings[$pinfo['key_setting']]);
+                $models[] = [
+                    'provider'    => $pinfo['name'],
+                    'provider_id' => $pid,
+                    'configured'  => $keySet,
+                    'status'      => $keySet ? 'Ready' : 'No API key',
+                ];
+            }
+        }
+
+        // Test Results
+        $testResults = [];
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+        if (is_dir($resultsDir)) {
+            $files = glob($resultsDir . '/*.json');
+            if (is_array($files)) {
+                rsort($files);
+                foreach (array_slice($files, 0, 30) as $f) {
+                    $content = @json_decode((string)file_get_contents($f), true);
+                    if (is_array($content)) {
+                        $summary = $content['summary'] ?? [];
+                        $testResults[] = [
+                            'file'     => basename($f),
+                            'suite'    => $content['suite'] ?? basename($f, '.json'),
+                            'passed'   => (int)($summary['passed'] ?? 0),
+                            'failed'   => (int)($summary['failed'] ?? 0),
+                            'total'    => (int)($summary['total'] ?? 0),
+                            'gaps'     => count($content['gaps'] ?? []),
+                            'elapsed'  => (float)($summary['elapsed_ms'] ?? $content['elapsed_ms'] ?? 0),
+                            'finished' => (string)($content['finished'] ?? ''),
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Discoverable tests
+        $discoverableTests = [];
+        $testBase = dirname(__DIR__, 2) . '/tests';
+        $scanDirs = ['pal', 'project-audit-ledger', 'guidance', 'bakeshop', 'wms'];
+        foreach ($scanDirs as $dir) {
+            $path = $testBase . '/' . $dir;
+            if (!is_dir($path)) continue;
+            $testFiles = glob($path . '/*_test.php') ?: [];
+            foreach ($testFiles as $tf) {
+                $base = basename($tf);
+                if (str_contains($base, '_seed_') || str_contains($base, '_interactive')) continue;
+                $discoverableTests[] = [
+                    'module' => $dir,
+                    'file'   => $base,
+                    'path'   => 'tests/' . $dir . '/' . $base,
+                ];
+            }
+        }
+
+        echo app()->render('pages/superadmin-workbench.disyl', array_merge(
+            kernelAdminContext($user, 'workbench'),
+            [
+                'page_title'         => 'ARK Workbench',
+                'api_keys'           => $apiKeys,
+                'api_key_count'      => count($apiKeys),
+                'models'             => $models,
+                'ai_module_enabled'  => $aiModuleEnabled,
+                'test_results'       => $testResults,
+                'test_results_count' => count($testResults),
+                'discoverable_tests' => $discoverableTests,
+                'discoverable_count' => count($discoverableTests),
+            ]
+        ));
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchKeys')) {
+    function kernelHandleApiSuperadminWorkbenchKeys(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        if ($method === 'GET') {
+            try {
+                $akAuth = new \Ikabud\Kernel\Services\ApiKeyAuth(app()->db());
+                if (!$akAuth->tableExists()) {
+                    echo json_encode(['ok' => true, 'keys' => []]);
+                    exit;
+                }
+                $keys = $akAuth->listKeys(0);
+                echo json_encode(['ok' => true, 'keys' => $keys]);
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+        }
+        if ($method === 'POST') {
+            app()->csrfEnforce();
+            $input = app()->input();
+            $action = trim((string)($input['action'] ?? 'create'));
+            try {
+                $akAuth = new \Ikabud\Kernel\Services\ApiKeyAuth(app()->db());
+                if (!$akAuth->tableExists()) {
+                    http_response_code(500);
+                    echo json_encode(['ok' => false, 'error' => 'API keys table not found']);
+                    exit;
+                }
+                if ($action === 'revoke') {
+                    $keyId = (int)($input['id'] ?? 0);
+                    if ($keyId <= 0) {
+                        http_response_code(400);
+                        echo json_encode(['ok' => false, 'error' => 'Invalid key ID']);
+                        exit;
+                    }
+                    $ok = $akAuth->revokeKey($keyId, 0);
+                    echo json_encode(['ok' => $ok, 'revoked' => $ok]);
+                    exit;
+                }
+                $name = trim((string)($input['name'] ?? ''));
+                if ($name === '') {
+                    http_response_code(400);
+                    echo json_encode(['ok' => false, 'error' => 'Key name required']);
+                    exit;
+                }
+                $scopes = is_array($input['scopes'] ?? null) ? $input['scopes'] : [];
+                $scopes = array_values(array_filter(array_map('trim', array_map('strval', $scopes))));
+                $result = $akAuth->createKey(0, $name, $scopes, [
+                    'created_by' => (int)($user['id'] ?? 0),
+                ]);
+                echo json_encode([
+                    'ok'     => true,
+                    'key'    => $result['key'],
+                    'prefix' => $result['prefix'],
+                    'name'   => $result['name'],
+                    'id'     => $result['id'],
+                ]);
+            } catch (\Throwable $e) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+            }
+            exit;
+        }
+        http_response_code(405);
+        echo json_encode(['ok' => false, 'error' => 'Method not allowed']);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchTestResults')) {
+    function kernelHandleApiSuperadminWorkbenchTestResults(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+        $suite = trim((string)($_GET['suite'] ?? ''));
+        $resultsDir = dirname(__DIR__, 2) . '/test_results';
+        $file = $resultsDir . '/' . ($suite !== '' ? $suite . '.json' : 'discover-summary.json');
+        if (!is_file($file)) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Results not found']);
+            exit;
+        }
+        $content = json_decode((string)file_get_contents($file), true);
+        echo json_encode(['ok' => true, 'results' => $content], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchTriggerTests')) {
+    function kernelHandleApiSuperadminWorkbenchTriggerTests(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+        app()->csrfEnforce();
+        $input = app()->input();
+        $target = trim((string)($input['target'] ?? 'all'));
+        $projectRoot = dirname(__DIR__, 2);
+        @file_put_contents($projectRoot . '/storage/logs/app.log', '');
+        @file_put_contents($projectRoot . '/storage/logs/error.log', '');
+        if ($target === 'all') {
+            $cmd = 'php ' . escapeshellarg($projectRoot . '/tests/discover.php') . ' 2>&1';
+        } else {
+            $testPath = $projectRoot . '/' . ltrim($target, '/');
+            if (!is_file($testPath)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'Test file not found: ' . $target]);
+                exit;
+            }
+            $cmd = 'php ' . escapeshellarg($testPath) . ' 2>&1';
+        }
+        $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+        $process = proc_open($cmd, $descriptors, $pipes, $projectRoot);
+        if (!is_resource($process)) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to start test process']);
+            exit;
+        }
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
+        $output = $stdout . $stderr;
+        $appLog = $projectRoot . '/storage/logs/app.log';
+        $errorLog = $projectRoot . '/storage/logs/error.log';
+        $appLogSize = is_file($appLog) ? filesize($appLog) : 0;
+        $errorLogSize = is_file($errorLog) ? filesize($errorLog) : 0;
+        echo json_encode([
+            'ok'             => $exitCode === 0,
+            'exit_code'      => $exitCode,
+            'output'         => $output,
+            'app_log_bytes'  => $appLogSize,
+            'error_log_bytes'=> $errorLogSize,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}

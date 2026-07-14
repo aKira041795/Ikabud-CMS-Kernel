@@ -615,6 +615,22 @@ switch ($handler) {
         kernelHandlePageSuperadminCache();
         exit;
 
+    case 'pageSuperadminWorkbench':
+        kernelHandlePageSuperadminWorkbench();
+        exit;
+
+    case 'apiSuperadminWorkbenchKeys':
+        kernelHandleApiSuperadminWorkbenchKeys();
+        exit;
+
+    case 'apiSuperadminWorkbenchTestResults':
+        kernelHandleApiSuperadminWorkbenchTestResults();
+        exit;
+
+    case 'apiSuperadminWorkbenchTriggerTests':
+        kernelHandleApiSuperadminWorkbenchTriggerTests();
+        exit;
+
     case 'pageKernelIntegrations':
         kernelHandlePageKernelIntegrations();
         exit;

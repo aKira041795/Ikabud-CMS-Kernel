@@ -24,6 +24,7 @@ var base = require('@playwright/test');
 var { ShellHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/ShellHarness');
 var { DialogHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/DialogHarness');
 var { TableHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/TableHarness');
+var { FormHarness } = require('../../storage/application-profiles/ark-workbench/testing/harnesses/FormHarness');
 var crypto = require('crypto');
 var fs = require('fs');
 var path = require('path');
@@ -120,6 +121,7 @@ function createWorkbenchTest(config) {
         shell: async function ({ page }, use) { await use(new ShellHarness(page)); },
         dialog: async function ({ page }, use) { await use(new DialogHarness(page)); },
         table: async function ({ page }, use) { await use(new TableHarness(page)); },
+        form: async function ({ page }, use) { await use(new FormHarness(page)); },
 
         loginAs: [async function ({ page }, use) {
             await use(async function (username, password) {
