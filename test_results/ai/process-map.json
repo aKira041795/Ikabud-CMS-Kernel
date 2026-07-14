@@ -1,0 +1,2588 @@
+{
+    "module": "project-audit-ledger",
+    "generated": "2026-07-14T05:45:01+00:00",
+    "entry_points": [
+        {
+            "type": "login",
+            "path": "/project-audit-ledger/login"
+        },
+        {
+            "type": "login",
+            "path": "/project-audit-ledger/team-lead/login"
+        },
+        {
+            "type": "login",
+            "path": "/project-audit-ledger/auth/login"
+        },
+        {
+            "type": "dashboard",
+            "path": "/admin/project-audit-ledger"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/projects/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/clients/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/team-lead/cash-advances/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/team-lead/mobilization/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/suppliers/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/expenses/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/purchases/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/material-issuance/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/material-returns/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/fabrication/payments/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/sales/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/collections/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/cash-advances/create"
+        },
+        {
+            "type": "create-form",
+            "path": "/admin/project-audit-ledger/quotations/create"
+        }
+    ],
+    "forms": [
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/team-lead-otp-verify.disyl",
+            "type": "unknown",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "Verify & Sign In"
+                },
+                {
+                    "text": "Resend Code"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "resendOtp()"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "ticket",
+                    "code"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/shell.disyl",
+            "type": "unknown",
+            "forms": [],
+            "buttons": [],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "closeLightbox()"
+                }
+            ],
+            "includes": [
+                "workbench:app_shell"
+            ],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/client-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/clients{if is_edit}{if client.id}/{client.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "{is_edit ? 'Update' : 'Create'}"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "name",
+                    "contact_person",
+                    "email",
+                    "phone",
+                    "address"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/settings-overview.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/settings",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Save Settings"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": {
+                    "0": "app_name",
+                    "1": "logo",
+                    "2": "company_name",
+                    "3": "company_phone",
+                    "4": "company_email",
+                    "5": "sales_prefix",
+                    "6": "purchase_prefix",
+                    "7": "collection_prefix",
+                    "8": "expense_prefix",
+                    "9": "allow_self_approval",
+                    "11": "currency",
+                    "12": "payment_terms",
+                    "13": "timezone",
+                    "14": "date_format",
+                    "15": "company_address",
+                    "16": "receipt_footer"
+                },
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/supplier-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/suppliers{if is_edit}{if supplier.id}/{supplier.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "{is_edit ? 'Update' : 'Create'}"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "name",
+                    "contact_person",
+                    "email",
+                    "phone"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/settings-suppliers.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "{s.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addSupplier()"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-dues.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "+ Generate Weekly Dues"
+                },
+                {
+                    "text": "Cancel"
+                },
+                {
+                    "text": "Generate"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "showGenerateDues()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "if(event.target==this)closeGenDues()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "event.stopPropagation()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "closeGenDues()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "generateDues({project_id})"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/quotation-detail.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "Create Project"
+                },
+                {
+                    "text": "Convert to Invoice"
+                },
+                {
+                    "text": "{if quotation.status=='draft'}Mark Sent{elseif quotation.status=='sent'}Approve{else}—{/if}"
+                },
+                {
+                    "text": "🖨 Print"
+                },
+                {
+                    "text": "Upload"
+                },
+                {
+                    "text": "&times;"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "convertToProject({quotation.id})"
+                },
+                {
+                    "type": "onclick",
+                    "value": "convertToSale({quotation.id})"
+                },
+                {
+                    "type": "onclick",
+                    "value": "updateQuotationStatus({quotation.id}, "
+                },
+                {
+                    "type": "onclick",
+                    "value": "window.print()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "deleteQuotationAttachment("
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "file",
+                    "description"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/settings-materials.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/materials",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "+ New Material"
+                },
+                {
+                    "text": "Create"
+                },
+                {
+                    "text": "Cancel"
+                },
+                {
+                    "text": "{m.is_active?'active':'inactive'}"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "document.getElementById("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.getElementById("
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "name",
+                    "material_code",
+                    "reorder_level",
+                    "category_id",
+                    "unit_id",
+                    "preferred_supplier_id"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/material-return-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/materials/return",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Record Return"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "quantity",
+                    "return_date",
+                    "project_id",
+                    "material_id",
+                    "condition",
+                    "issuance_id",
+                    "reason"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/audit-trail.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "⤓ CSV"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "exportCSV("
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-payment-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/fabrication/payments",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Record & Submit"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "amount",
+                    "project_id",
+                    "team_lead_id",
+                    "notes"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/cash-advance-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/cash-advances",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Create"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "amount",
+                    "advance_date",
+                    "description",
+                    "team_lead_id",
+                    "project_id"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/expense-detail.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/expenses/",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Submit for Approval"
+                }
+            ],
+            "actions": [],
+            "includes": [
+                "workbench:detail_header"
+            ],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/movements-list.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "⤓ CSV"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "exportCSV("
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/inventory-detail.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/settings/materials/{material.id}",
+                    "method": "POST",
+                    "resolved_handler": null
+                },
+                {
+                    "action": "/api/v1/project-audit-ledger/inventory/adjust",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Save Changes"
+                },
+                {
+                    "text": "Adjust"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "name",
+                    "material_code",
+                    "conversion_factor",
+                    "current_avg_cost",
+                    "reorder_level",
+                    "description",
+                    "material_id",
+                    "quantity",
+                    "reason",
+                    "category_id",
+                    "unit_id",
+                    "conversion_unit_id",
+                    "preferred_supplier_id"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/issuance-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/issuances{if is_edit}{if issuance.id}/{issuance.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "{is_edit ? 'Update' : 'Create'}"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "quantity[]",
+                    "project_id",
+                    "material_id[]",
+                    "purpose"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-allocations.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/fabrication/allocations",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "+ Dispense CA"
+                },
+                {
+                    "text": "Dispense"
+                },
+                {
+                    "text": "Cancel"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "var r=document.getElementById("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.getElementById("
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "project_id",
+                    "approved_amount",
+                    "approval_reason"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/sales-detail.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "🖨 Print"
+                },
+                {
+                    "text": "📧 Email to Client"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "window.print()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "sendInvoiceEmail({sale.id})"
+                }
+            ],
+            "includes": [
+                "workbench:detail_header"
+            ],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/purchase-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/purchases{if is_edit}{if purchase.id}/{purchase.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "✕"
+                },
+                {
+                    "text": "✕"
+                },
+                {
+                    "text": "+ Add Item"
+                },
+                {
+                    "text": "{is_edit ? 'Update' : 'Create'}"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "this.closest("
+                },
+                {
+                    "type": "onclick",
+                    "value": "this.closest("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addPoRow()"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": {
+                    "0": "invoice_number",
+                    "1": "purchase_date",
+                    "2": "quantity[]",
+                    "3": "unit_cost[]",
+                    "6": "supplier_id",
+                    "7": "project_id",
+                    "8": "material_id[]"
+                },
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/inventory-list.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/materials",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "+ Add Material"
+                },
+                {
+                    "text": "Create"
+                },
+                {
+                    "text": "Cancel"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "document.getElementById("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.getElementById("
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "name",
+                    "description",
+                    "reorder_level",
+                    "category_id",
+                    "unit_id"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/project-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "✕"
+                },
+                {
+                    "text": "+ Add Item"
+                },
+                {
+                    "text": "✕ Remove"
+                },
+                {
+                    "text": "Save as Draft"
+                },
+                {
+                    "text": "Submit for Approval"
+                },
+                {
+                    "text": "Start Work"
+                },
+                {
+                    "text": "Mark Ongoing"
+                },
+                {
+                    "text": "Complete Job Order"
+                },
+                {
+                    "text": "{is_edit|default:false ? 'Update' : 'Create'} Job Order"
+                },
+                {
+                    "text": "✕"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "this.closest("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addItem()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "openLightbox(this.src, "
+                },
+                {
+                    "type": "onclick",
+                    "value": "removeMockup()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.querySelector("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.querySelector("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.querySelector("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.querySelector("
+                },
+                {
+                    "type": "onclick",
+                    "value": "document.querySelector("
+                },
+                {
+                    "type": "onclick",
+                    "value": "this.closest(\\"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": {
+                    "0": "_project_numeric_id",
+                    "1": "client_company",
+                    "2": "client_phone",
+                    "3": "client_email",
+                    "4": "title",
+                    "5": "job_order_number",
+                    "6": "start_date",
+                    "7": "prepared_by",
+                    "8": "status",
+                    "10": "target_completion_date",
+                    "11": "_jo_type",
+                    "13": "contract_amount",
+                    "14": "installation_charge",
+                    "15": "mobilization_charge",
+                    "16": "other_charges",
+                    "17": "down_payment",
+                    "18": "with_installation",
+                    "19": "fabrication_alloc_pct",
+                    "21": "items[{item.sort_order}][custom_material]",
+                    "22": "items[{item.sort_order}][particulars]",
+                    "23": "items[{item.sort_order}][width]",
+                    "24": "items[{item.sort_order}][height]",
+                    "25": "items[{item.sort_order}][uom]",
+                    "26": "items[{item.sort_order}][quantity]",
+                    "27": "items[{item.sort_order}][price_per_unit]",
+                    "28": "items[{item.sort_order}][price_per_sqft]",
+                    "29": "mockup_attachment_id",
+                    "30": "items[",
+                    "36": "client_id",
+                    "37": "scope_of_work",
+                    "38": "project_type_id",
+                    "39": "mode_of_payment",
+                    "40": "fabrication_team_lead_id",
+                    "41": "fabrication_alloc_basis",
+                    "42": "items[{item.sort_order}][material_id]",
+                    "46": "client_address",
+                    "47": "description"
+                },
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/collections-list.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "⚡ Generate"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "generateCollections()"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/project-detail.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "📧 Send Quotation"
+                },
+                {
+                    "text": "🖨 Print"
+                },
+                {
+                    "text": "📋 Overview"
+                },
+                {
+                    "text": "📦 Items"
+                },
+                {
+                    "text": "💰 Financials"
+                },
+                {
+                    "text": "📄 Docs"
+                },
+                {
+                    "text": "Upload"
+                },
+                {
+                    "text": "Upload PO"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "sendProjectEmail("
+                },
+                {
+                    "type": "onclick",
+                    "value": "window.print()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "openLightbox(this.src, "
+                },
+                {
+                    "type": "onclick",
+                    "value": "window.location="
+                },
+                {
+                    "type": "onclick",
+                    "value": "event.stopPropagation()"
+                }
+            ],
+            "includes": [
+                "workbench:detail_header"
+            ],
+            "fields": {
+                "all": [
+                    "file",
+                    "description"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/quotation-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/quotations{if is_edit}{if quotation.id}/{quotation.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "1\">✕"
+                },
+                {
+                    "text": "+ Add Item"
+                },
+                {
+                    "text": "{is_edit ? 'Update' : 'Create Quotation'}"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "quotation_date",
+                    "with_installation",
+                    "installation_charge",
+                    "mobilization_charge",
+                    "other_charges",
+                    "down_payment",
+                    "client_id",
+                    "project_id",
+                    "scope_of_work",
+                    "mode_of_payment",
+                    "down_payment_type",
+                    "notes"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/settings-categories.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "{c.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add"
+                },
+                {
+                    "text": "{c.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add"
+                },
+                {
+                    "text": "{t.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add"
+                },
+                {
+                    "text": "{u.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add Unit"
+                },
+                {
+                    "text": "{l.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add Team Lead"
+                },
+                {
+                    "text": "{l.is_active?'active':'inactive'}"
+                },
+                {
+                    "text": "Add"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addCategory("
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addCategory("
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addCategory("
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addUnit()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addTeamLead()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleStatus("
+                },
+                {
+                    "type": "onclick",
+                    "value": "addInvLocation()"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/purchase-detail.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "🖨 Print PO"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "window.print()"
+                }
+            ],
+            "includes": [
+                "workbench:detail_header"
+            ],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/sales-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/sales{if is_edit}{if sale.id}/{sale.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "1\">✕"
+                },
+                {
+                    "text": "+ Add Item"
+                },
+                {
+                    "text": "{is_edit ? 'Update' : 'Create Invoice'}"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "sales_date",
+                    "invoice_number",
+                    "due_date",
+                    "with_installation",
+                    "installation_charge",
+                    "mobilization_charge",
+                    "other_charges",
+                    "discount_amount",
+                    "tax_amount",
+                    "down_payment",
+                    "payment_terms",
+                    "project_id",
+                    "client_id",
+                    "scope_of_work",
+                    "mode_of_payment",
+                    "down_payment_type",
+                    "notes"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/users-list.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/users",
+                    "method": "POST",
+                    "resolved_handler": null
+                },
+                {
+                    "action": "/api/v1/project-audit-ledger/users/{u.id}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "+ Add User"
+                },
+                {
+                    "text": "Create"
+                },
+                {
+                    "text": "Active ({active_users|count})"
+                },
+                {
+                    "text": "Inactive ({inactive_users|count})"
+                },
+                {
+                    "text": "Edit"
+                },
+                {
+                    "text": "Deactivate"
+                },
+                {
+                    "text": "Save"
+                },
+                {
+                    "text": "Cancel"
+                },
+                {
+                    "text": "Reactivate"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "document.getElementById("
+                },
+                {
+                    "type": "onclick",
+                    "value": "switchTab("
+                },
+                {
+                    "type": "onclick",
+                    "value": "switchTab("
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleEdit({u.id})"
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleUser({u.id})"
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleEdit({u.id})"
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleUser({u.id})"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": {
+                    "0": "username",
+                    "1": "email",
+                    "2": "full_name",
+                    "3": "password",
+                    "7": "role"
+                },
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-mobilization-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/tl/mobilization",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Submit Request"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "amount",
+                    "purpose",
+                    "project_id",
+                    "description"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/expense-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/expenses{if is_edit}{if expense.id}/{expense.id}{/if}{/if}",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "{is_edit ? 'Update' : 'Create'}"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "amount",
+                    "expense_date",
+                    "category_id",
+                    "project_id",
+                    "supplier_id",
+                    "description"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/collection-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/collections",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Record Collection"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "amount",
+                    "payment_date",
+                    "reference_number",
+                    "sales_id",
+                    "payment_method",
+                    "notes"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/reports-center.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/reports/generate",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Generate"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "date_from",
+                    "date_to",
+                    "report_type",
+                    "format"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/issuance-detail.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/issuances/{issuance.id}/submit",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Submit for Approval"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/approval-queue.disyl",
+            "type": "page",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "Approve"
+                },
+                {
+                    "text": "Reject"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "approve({a.id}, "
+                },
+                {
+                    "type": "onclick",
+                    "value": "reject({a.id}, "
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-ca-form.disyl",
+            "type": "page",
+            "forms": [
+                {
+                    "action": "/api/v1/project-audit-ledger/tl/cash-advances",
+                    "method": "POST",
+                    "resolved_handler": null
+                }
+            ],
+            "buttons": [
+                {
+                    "text": "Submit Request"
+                }
+            ],
+            "actions": [],
+            "includes": [],
+            "fields": {
+                "all": [
+                    "amount",
+                    "project_id",
+                    "description"
+                ],
+                "required": []
+            }
+        },
+        {
+            "file": "modules/project-audit-ledger/templates/project-audit-ledger/team-lead-shell.disyl",
+            "type": "unknown",
+            "forms": [],
+            "buttons": [
+                {
+                    "text": "Sign Out"
+                }
+            ],
+            "actions": [
+                {
+                    "type": "onclick",
+                    "value": "toggleMobileSidebar()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "closeMobileSidebar()"
+                },
+                {
+                    "type": "onclick",
+                    "value": "toggleMobileSidebar()"
+                }
+            ],
+            "includes": [],
+            "fields": {
+                "all": [],
+                "required": []
+            }
+        }
+    ],
+    "api_endpoints": [
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/login",
+            "handler": "palPageLogin",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/team-lead/login",
+            "handler": "palPageTeamLeadLogin",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/team-lead/verify",
+            "handler": "palPageTeamLeadOtpVerify",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/forgot-password",
+            "handler": "palPageForgotPassword",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/reset-password",
+            "handler": "palPageResetPassword",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/auth/logout",
+            "handler": "palAuthLogout",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/logout",
+            "handler": "palAuthLogout",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger",
+            "handler": "palPageDashboard",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/projects",
+            "handler": "palPageProjectList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/projects/create",
+            "handler": "palPageProjectForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/projects/{id}/edit",
+            "handler": "palPageProjectForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/projects/{id}",
+            "handler": "palPageProjectDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects",
+            "handler": "palApiProjectList",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects/{id}/cost",
+            "handler": "palApiProjectCost",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects/{id}/items",
+            "handler": "palApiProjectItems",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/clients",
+            "handler": "palPageClientList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/clients/create",
+            "handler": "palPageClientForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/clients/{id}/edit",
+            "handler": "palPageClientForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/clients/{id}",
+            "handler": "palPageClientDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/suppliers",
+            "handler": "palPageSupplierList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead",
+            "handler": "palPageTeamLeadDashboard",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead/fabrication",
+            "handler": "palPageTeamLeadFabrication",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead/cash-advances",
+            "handler": "palPageTeamLeadCashAdvances",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead/cash-advances/create",
+            "handler": "palPageTeamLeadCashAdvanceForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead/mobilization",
+            "handler": "palPageTeamLeadMobilization",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead/mobilization/create",
+            "handler": "palPageTeamLeadMobilizationForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/team-lead/attendance",
+            "handler": "palPageTeamLeadAttendance",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/suppliers/create",
+            "handler": "palPageSupplierForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/suppliers/{id}/edit",
+            "handler": "palPageSupplierForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/expenses",
+            "handler": "palPageExpenseList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/expenses/create",
+            "handler": "palPageExpenseForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/expenses/{id}/edit",
+            "handler": "palPageExpenseForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/expenses/{id}",
+            "handler": "palPageExpenseDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/purchases",
+            "handler": "palPagePurchaseList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/purchases/create",
+            "handler": "palPagePurchaseForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/purchases/{id}/edit",
+            "handler": "palPagePurchaseForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/purchases/{id}",
+            "handler": "palPagePurchaseDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/inventory",
+            "handler": "palPageInventoryList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/inventory/{id}",
+            "handler": "palPageInventoryDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/inventory/movements",
+            "handler": "palPageMovementList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/material-issuance",
+            "handler": "palPageIssuanceList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/material-issuance/create",
+            "handler": "palPageIssuanceForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/material-issuance/{id}/edit",
+            "handler": "palPageIssuanceForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/material-issuance/{id}",
+            "handler": "palPageIssuanceDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/material-returns",
+            "handler": "palPageMaterialReturnList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/material-returns/create",
+            "handler": "palPageMaterialReturnForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/fabrication",
+            "handler": "palPageFabricationAllocation",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/fabrication/{projectId}/dues",
+            "handler": "palPageFabricationDues",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/fabrication/payments/create",
+            "handler": "palPageFabricationPaymentForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/sales",
+            "handler": "palPageSalesList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/sales/create",
+            "handler": "palPageSalesForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/sales/{id}/edit",
+            "handler": "palPageSalesForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/sales/{id}",
+            "handler": "palPageSalesDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/sales/{id}/print",
+            "handler": "palPageSalesPrint",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/collections",
+            "handler": "palPageCollectionList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/collections/create",
+            "handler": "palPageCollectionForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/collections/{id}",
+            "handler": "palPageCollectionDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/cash-advances",
+            "handler": "palPageCashAdvanceList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/cash-advances/create",
+            "handler": "palPageCashAdvanceForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/approvals",
+            "handler": "palPageApprovalQueue",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/quotations",
+            "handler": "palPageQuotationList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/quotations/create",
+            "handler": "palPageQuotationForm",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/quotations/{id}/edit",
+            "handler": "palPageQuotationForm",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/quotations/{id}",
+            "handler": "palPageQuotationDetail",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/mobilization",
+            "handler": "palPageMobilizationList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/reports",
+            "handler": "palPageReportsCenter",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/bom",
+            "handler": "palPageBillOfMaterials",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/audit",
+            "handler": "palPageAuditTrail",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/settings",
+            "handler": "palPageSettings",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/users",
+            "handler": "palPageUserList",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/admin/project-audit-ledger/attachments/{id}/download",
+            "handler": "palPageAttachmentDownload",
+            "is_api": false,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/tl/otp-request",
+            "handler": "palApiTeamLeadOtpRequest",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/tl/otp-verify",
+            "handler": "palApiTeamLeadOtpVerify",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/tl/otp-resend",
+            "handler": "palApiTeamLeadOtpResend",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/tl/logout",
+            "handler": "palApiTeamLeadLogout",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/tl/cash-advances",
+            "handler": "palApiTeamLeadCashAdvanceStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/tl/mobilization",
+            "handler": "palApiTeamLeadMobilizationStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/mobilization/{id}/approve",
+            "handler": "palApiMobilizationApprove",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/mobilization/{id}/reject",
+            "handler": "palApiMobilizationReject",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/mobilization/{id}/disburse",
+            "handler": "palApiMobilizationDisburse",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/auth/login",
+            "handler": "palAuthLogin",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/auth/login",
+            "handler": "palAuthLogin",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/auth/logout",
+            "handler": "palAuthLogout",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/project-audit-ledger/logout",
+            "handler": "palAuthLogout",
+            "is_api": false,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/auth/forgot-password",
+            "handler": "palAuthForgotPassword",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/auth/reset-password",
+            "handler": "palAuthResetPassword",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects",
+            "handler": "palApiProjectStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects/{id}/status",
+            "handler": "palApiProjectStatus",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects/{id}",
+            "handler": "palApiProjectUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/clients",
+            "handler": "palApiClientStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/clients/{id}",
+            "handler": "palApiClientUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/suppliers",
+            "handler": "palApiSupplierStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/suppliers/{id}",
+            "handler": "palApiSupplierUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/expenses",
+            "handler": "palApiExpenseStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/expenses/{id}/submit",
+            "handler": "palApiExpenseSubmit",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/expenses/{id}",
+            "handler": "palApiExpenseUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/purchases",
+            "handler": "palApiPurchaseStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/purchases/{id}/submit",
+            "handler": "palApiPurchaseSubmit",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/purchases/{id}",
+            "handler": "palApiPurchaseUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/materials",
+            "handler": "palApiMaterialStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/inventory/adjust",
+            "handler": "palApiInventoryAdjust",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/issuances",
+            "handler": "palApiIssuanceStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/issuances/{id}/submit",
+            "handler": "palApiIssuanceSubmit",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/issuances/{id}",
+            "handler": "palApiIssuanceUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/materials/return",
+            "handler": "palApiMaterialReturn",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/fabrication/allocations",
+            "handler": "palApiFabricationAllocationStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/fabrication/allocations/{id}",
+            "handler": "palApiFabricationAllocationUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/fabrication/dues",
+            "handler": "palApiFabricationDueStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/fabrication/payments",
+            "handler": "palApiFabricationPaymentStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/sales",
+            "handler": "palApiSalesStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/sales/{id}",
+            "handler": "palApiSalesUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/sales/{id}/email",
+            "handler": "palApiSalesSendEmail",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/collections",
+            "handler": "palApiCollectionStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/collections/generate",
+            "handler": "palApiCollectionsGenerate",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/collections/{id}/status",
+            "handler": "palApiCollectionStatus",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/cash-advances",
+            "handler": "palApiCashAdvanceStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/cash-advances/{id}/approve",
+            "handler": "palApiCashAdvanceApprove",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/cash-advances/{id}/settle",
+            "handler": "palApiCashAdvanceSettle",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/cash-advances/{id}/void",
+            "handler": "palApiCashAdvanceVoid",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/approvals/{id}/decide",
+            "handler": "palApiApprovalDecide",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/quotations",
+            "handler": "palApiQuotationStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/quotations/{id}/convert-project",
+            "handler": "palApiQuotationConvertToProject",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/quotations/{id}/convert",
+            "handler": "palApiQuotationConvert",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/quotations/{id}/status",
+            "handler": "palApiQuotationStatus",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/quotations/{id}",
+            "handler": "palApiQuotationUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/bom/export",
+            "handler": "palApiBomExport",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/reports/generate",
+            "handler": "palApiReportGenerate",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/settings",
+            "handler": "palApiSettingsSave",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/settings/categories",
+            "handler": "palApiSettingsCategoryStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/settings/suppliers",
+            "handler": "palApiSettingsSupplierStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/settings/toggle/{id}",
+            "handler": "palApiSettingsToggleStatus",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/settings/materials/{id}",
+            "handler": "palApiSettingsMaterialUpdate",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/autocomplete",
+            "handler": "palApiAutocomplete",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/quick-create",
+            "handler": "palApiQuickCreate",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/attachments",
+            "handler": "palApiAttachmentUpload",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/attachments/list",
+            "handler": "palApiAttachmentList",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/attachments/{id}/delete",
+            "handler": "palApiAttachmentDelete",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/users",
+            "handler": "palApiUserStore",
+            "is_api": true,
+            "requires_id": false
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/users/{id}/delete",
+            "handler": "palApiUserDelete",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/projects/{id}/email",
+            "handler": "palApiProjectSendEmail",
+            "is_api": true,
+            "requires_id": true
+        },
+        {
+            "method": "UNKNOWN",
+            "path": "/api/v1/project-audit-ledger/users/{id}",
+            "handler": "palApiUserUpdate",
+            "is_api": true,
+            "requires_id": true
+        }
+    ],
+    "workflows": [
+        {
+            "file": "modules/project-audit-ledger/services/ApprovalService.php",
+            "transitions": [
+                {
+                    "from": "approved",
+                    "to": "approved"
+                },
+                {
+                    "from": "rejected",
+                    "to": "rejected"
+                }
+            ],
+            "methods": []
+        },
+        {
+            "file": "modules/project-audit-ledger/services/ExpenseService.php",
+            "transitions": [
+                {
+                    "from": "status",
+                    "to": "pending_approval"
+                }
+            ],
+            "methods": []
+        },
+        {
+            "file": "modules/project-audit-ledger/services/FabricationService.php",
+            "transitions": [
+                {
+                    "from": "status",
+                    "to": "pending_approval"
+                }
+            ],
+            "methods": []
+        },
+        {
+            "file": "modules/project-audit-ledger/services/JobOrderWorkflow.php",
+            "transitions": [
+                {
+                    "from": "draft",
+                    "to": "Draft"
+                },
+                {
+                    "from": "pending",
+                    "to": "Pending"
+                },
+                {
+                    "from": "approved",
+                    "to": "Approved"
+                },
+                {
+                    "from": "started",
+                    "to": "Started"
+                },
+                {
+                    "from": "ongoing",
+                    "to": "Ongoing"
+                },
+                {
+                    "from": "completed",
+                    "to": "Completed"
+                },
+                {
+                    "from": "cancelled",
+                    "to": "Cancelled"
+                },
+                {
+                    "from": "closed",
+                    "to": "Closed"
+                }
+            ],
+            "methods": [
+                "function isAllowed(string $from, string $to): bool\n    {\n        return in_array($to, self::TRANSITI",
+                "function transition(int $projectId, string $newStatus, array $context = []): bool\n    {\n        // U",
+                "function apply(int $projectId, string $newStatus): bool\n    {\n        $stmt = $this->db->prepare(\n  "
+            ]
+        },
+        {
+            "file": "modules/project-audit-ledger/services/MaterialIssuanceService.php",
+            "transitions": [
+                {
+                    "from": "status",
+                    "to": "pending_approval"
+                }
+            ],
+            "methods": []
+        }
+    ],
+    "button_actions": [],
+    "capabilities": [],
+    "gaps": []
+}

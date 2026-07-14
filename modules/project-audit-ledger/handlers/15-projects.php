@@ -307,15 +307,34 @@ function palApiProjectStatus(array $rp = []): void
         $status = $_POST['status'] ?? '';
 
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+        $project = $svc->get($id);
+        $oldStatus = $project ? ($project['status'] ?? '') : '';
 
         if ($status === 'completed') {
-            // Smart completion: auto-creates invoice if none exists
             $svc->completeProject($id);
             palAudit('pal.project.completed', (int)$user['id'], 'pal_projects', (string)$id, null, [
                 'status' => $status, 'auto_invoiced' => true,
             ]);
         } else {
             $svc->updateStatus($id, $status);
+
+            // Run workflow and create approval record when status changes
+            if ($status && $status !== $oldStatus) {
+                try {
+                    $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+                    $wf->apply($id, $status);
+
+                    if ($status === 'pending') {
+                        palCreateApproval('project', $id, (int)$user['id'], $oldStatus, 'pending_approval');
+                    }
+                } catch (\Throwable $e) {
+                    write_log('pal.project.status.workflow_failed', 'warning', [
+                        'project_id' => $id, 'from' => $oldStatus, 'to' => $status,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             palAudit('pal.project.status_changed', (int)$user['id'], 'pal_projects', (string)$id, null, ['status' => $status]);
         }
 

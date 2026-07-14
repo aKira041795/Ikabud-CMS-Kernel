@@ -191,12 +191,12 @@
 
         <div class="flex gap-3">
             {if !is_edit|default:false || project.status=='draft'}
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='draft';dirty=false" class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Save as Draft</button>
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='pending';dirty=false" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit for Approval</button>
+            <button type="submit" data-wb-action="save-as-draft" onclick="document.querySelector('input[name=status]').value='draft';dirty=false" class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Save as Draft</button>
+            <button type="submit" data-wb-action="submit-for-approval" onclick="document.querySelector('input[name=status]').value='pending';dirty=false" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit for Approval</button>
             {elseif project.status=='approved'}
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='started'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Start Work</button>
+            <button type="submit" data-wb-action="start-work" onclick="document.querySelector('input[name=status]').value='started'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Start Work</button>
             {elseif project.status=='started'}
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='ongoing'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Mark Ongoing</button>
+            <button type="submit" data-wb-action="mark-ongoing" onclick="document.querySelector('input[name=status]').value='ongoing'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Mark Ongoing</button>
             {elseif project.status=='ongoing'}
             <button type="submit" onclick="document.querySelector('input[name=status]').value='completed'" class="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">Complete Job Order</button>
             {else}
