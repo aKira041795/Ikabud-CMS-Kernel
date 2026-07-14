@@ -1,126 +1,9 @@
 {
   "module": "Project Audit Ledger",
-  "timestamp": "2026-07-14T16:49:19.750Z",
-  "passed": 271,
-  "failed": 76,
+  "timestamp": "2026-07-14T16:57:17.501Z",
+  "passed": 313,
+  "failed": 34,
   "issues": [
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"name\" (input) should be present",
-      "actual": "Field \"name\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"name\"> exists and the handler passes ${name} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"material_code\" (input) should be present",
-      "actual": "Field \"material_code\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"material_code\"> exists and the handler passes ${material_code} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"category_id\" (select) should be present",
-      "actual": "Field \"category_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"category_id\"> exists and the handler passes ${category_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"unit_id\" (select) should be present",
-      "actual": "Field \"unit_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"unit_id\"> exists and the handler passes ${unit_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"conversion_unit_id\" (select) should be present",
-      "actual": "Field \"conversion_unit_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"conversion_unit_id\"> exists and the handler passes ${conversion_unit_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"conversion_factor\" (input) should be present",
-      "actual": "Field \"conversion_factor\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"conversion_factor\"> exists and the handler passes ${conversion_factor} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"current_avg_cost\" (input) should be present",
-      "actual": "Field \"current_avg_cost\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"current_avg_cost\"> exists and the handler passes ${current_avg_cost} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"preferred_supplier_id\" (select) should be present",
-      "actual": "Field \"preferred_supplier_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"preferred_supplier_id\"> exists and the handler passes ${preferred_supplier_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"reorder_level\" (input) should be present",
-      "actual": "Field \"reorder_level\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"reorder_level\"> exists and the handler passes ${reorder_level} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"description\" (input) should be present",
-      "actual": "Field \"description\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"material_id\" (input) should be present",
-      "actual": "Field \"material_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"material_id\"> exists and the handler passes ${material_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"quantity\" (input) should be present",
-      "actual": "Field \"quantity\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"quantity\"> exists and the handler passes ${quantity} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-detail",
-      "expected": "Form field \"reason\" (input) should be present",
-      "actual": "Field \"reason\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-detail.disyl, check that <input name=\"reason\"> exists and the handler passes ${reason} context",
-      "location": "Project Audit Ledger"
-    },
     {
       "severity": "minor",
       "component": "inventory-detail",
@@ -158,51 +41,6 @@
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
-      "component": "inventory-list",
-      "expected": "Form field \"name\" (input) should be present",
-      "actual": "Field \"name\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-list.disyl, check that <input name=\"name\"> exists and the handler passes ${name} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-list",
-      "expected": "Form field \"description\" (input) should be present",
-      "actual": "Field \"description\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-list.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-list",
-      "expected": "Form field \"category_id\" (select) should be present",
-      "actual": "Field \"category_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-list.disyl, check that <input name=\"category_id\"> exists and the handler passes ${category_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-list",
-      "expected": "Form field \"unit_id\" (select) should be present",
-      "actual": "Field \"unit_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-list.disyl, check that <input name=\"unit_id\"> exists and the handler passes ${unit_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "inventory-list",
-      "expected": "Form field \"reorder_level\" (input) should be present",
-      "actual": "Field \"reorder_level\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In inventory-list.disyl, check that <input name=\"reorder_level\"> exists and the handler passes ${reorder_level} context",
-      "location": "Project Audit Ledger"
-    },
-    {
       "severity": "minor",
       "component": "inventory-list",
       "expected": "Creatable field \"category_id\" (data-creatable=\"material_category\") should be present — allows users to create new material category on-the-fly",
@@ -221,39 +59,39 @@
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "issuance-form",
-      "expected": "Form field \"project_id\" (select) should be present",
-      "actual": "Field \"project_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In issuance-form.disyl, check that <input name=\"project_id\"> exists and the handler passes ${project_id} context",
+      "expected": "Form field \"project_id\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "issuance-form",
-      "expected": "Form field \"material_id[]\" (select) should be present",
-      "actual": "Field \"material_id[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In issuance-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context",
+      "expected": "Form field \"material_id[]\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "issuance-form",
-      "expected": "Form field \"quantity[]\" (input) should be present",
-      "actual": "Field \"quantity[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In issuance-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context",
+      "expected": "Form field \"quantity[]\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "issuance-form",
-      "expected": "Form field \"purpose\" (textarea) should be present",
-      "actual": "Field \"purpose\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In issuance-form.disyl, check that <input name=\"purpose\"> exists and the handler passes ${purpose} context",
+      "expected": "Form field \"purpose\" (textarea) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
@@ -275,66 +113,66 @@
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"project_id\" (select) should be present",
-      "actual": "Field \"project_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"project_id\"> exists and the handler passes ${project_id} context",
+      "expected": "Form field \"project_id\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"material_id\" (select) should be present",
-      "actual": "Field \"material_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"material_id\"> exists and the handler passes ${material_id} context",
+      "expected": "Form field \"material_id\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"quantity\" (input) should be present",
-      "actual": "Field \"quantity\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"quantity\"> exists and the handler passes ${quantity} context",
+      "expected": "Form field \"quantity\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"condition\" (select) should be present",
-      "actual": "Field \"condition\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"condition\"> exists and the handler passes ${condition} context",
+      "expected": "Form field \"condition\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"issuance_id\" (select) should be present",
-      "actual": "Field \"issuance_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"issuance_id\"> exists and the handler passes ${issuance_id} context",
+      "expected": "Form field \"issuance_id\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"return_date\" (input) should be present",
-      "actual": "Field \"return_date\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"return_date\"> exists and the handler passes ${return_date} context",
+      "expected": "Form field \"return_date\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "material-return-form",
-      "expected": "Form field \"reason\" (textarea) should be present",
-      "actual": "Field \"reason\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In material-return-form.disyl, check that <input name=\"reason\"> exists and the handler passes ${reason} context",
+      "expected": "Form field \"reason\" (textarea) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
@@ -356,255 +194,39 @@
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
-      "component": "project-detail",
-      "expected": "Form field \"file\" (input) should be present",
-      "actual": "Field \"file\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-detail.disyl, check that <input name=\"file\"> exists and the handler passes ${file} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-detail",
-      "expected": "Form field \"description\" (input) should be present",
-      "actual": "Field \"description\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-detail",
-      "expected": "Form field \"file\" (input) should be present",
-      "actual": "Field \"file\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-detail.disyl, check that <input name=\"file\"> exists and the handler passes ${file} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-detail",
-      "expected": "Form field \"description\" (input) should be present",
-      "actual": "Field \"description\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
+      "severity": "minor",
       "component": "project-form",
-      "expected": "Form field \"_project_numeric_id\" (input) should be present",
-      "actual": "Field \"_project_numeric_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"_project_numeric_id\"> exists and the handler passes ${_project_numeric_id} context",
+      "expected": "Form field \"_project_numeric_id\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "project-form",
-      "expected": "Form field \"contract_amount\" (input) should be present",
-      "actual": "Field \"contract_amount\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"contract_amount\"> exists and the handler passes ${contract_amount} context",
+      "expected": "Form field \"fabrication_team_lead_id\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "project-form",
-      "expected": "Form field \"fabrication_team_lead_id\" (select) should be present",
-      "actual": "Field \"fabrication_team_lead_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"fabrication_team_lead_id\"> exists and the handler passes ${fabrication_team_lead_id} context",
+      "expected": "Form field \"fabrication_alloc_basis\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "project-form",
-      "expected": "Form field \"fabrication_alloc_basis\" (select) should be present",
-      "actual": "Field \"fabrication_alloc_basis\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"fabrication_alloc_basis\"> exists and the handler passes ${fabrication_alloc_basis} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"fabrication_alloc_pct\" (input) should be present",
-      "actual": "Field \"fabrication_alloc_pct\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"fabrication_alloc_pct\"> exists and the handler passes ${fabrication_alloc_pct} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][custom_material]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][custom_material]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][custom_material]\"> exists and the handler passes ${items[{item.sort_order}][custom_material]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][material_id]\" (select) should be present",
-      "actual": "Field \"items[{item.sort_order}][material_id]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][material_id]\"> exists and the handler passes ${items[{item.sort_order}][material_id]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][particulars]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][particulars]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][particulars]\"> exists and the handler passes ${items[{item.sort_order}][particulars]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][width]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][width]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][width]\"> exists and the handler passes ${items[{item.sort_order}][width]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][height]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][height]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][height]\"> exists and the handler passes ${items[{item.sort_order}][height]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][uom]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][uom]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][uom]\"> exists and the handler passes ${items[{item.sort_order}][uom]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][uom]\" (select) should be present",
-      "actual": "Field \"items[{item.sort_order}][uom]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][uom]\"> exists and the handler passes ${items[{item.sort_order}][uom]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][quantity]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][quantity]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][quantity]\"> exists and the handler passes ${items[{item.sort_order}][quantity]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][price_per_unit]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][price_per_unit]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][price_per_unit]\"> exists and the handler passes ${items[{item.sort_order}][price_per_unit]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[{item.sort_order}][price_per_sqft]\" (input) should be present",
-      "actual": "Field \"items[{item.sort_order}][price_per_sqft]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[{item.sort_order}][price_per_sqft]\"> exists and the handler passes ${items[{item.sort_order}][price_per_sqft]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"mockup_attachment_id\" (input) should be present",
-      "actual": "Field \"mockup_attachment_id\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"mockup_attachment_id\"> exists and the handler passes ${mockup_attachment_id} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][material_id]\" (select) should be present",
-      "actual": "Field \"items[' + itemIdx + '][material_id]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][material_id]\"> exists and the handler passes ${items[' + itemIdx + '][material_id]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][particulars]\" (input) should be present",
-      "actual": "Field \"items[' + itemIdx + '][particulars]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][particulars]\"> exists and the handler passes ${items[' + itemIdx + '][particulars]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][width]\" (input) should be present",
-      "actual": "Field \"items[' + itemIdx + '][width]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][width]\"> exists and the handler passes ${items[' + itemIdx + '][width]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][height]\" (input) should be present",
-      "actual": "Field \"items[' + itemIdx + '][height]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][height]\"> exists and the handler passes ${items[' + itemIdx + '][height]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][uom]\" (select) should be present",
-      "actual": "Field \"items[' + itemIdx + '][uom]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][uom]\"> exists and the handler passes ${items[' + itemIdx + '][uom]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][quantity]\" (input) should be present",
-      "actual": "Field \"items[' + itemIdx + '][quantity]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][quantity]\"> exists and the handler passes ${items[' + itemIdx + '][quantity]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][price_per_unit]\" (input) should be present",
-      "actual": "Field \"items[' + itemIdx + '][price_per_unit]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][price_per_unit]\"> exists and the handler passes ${items[' + itemIdx + '][price_per_unit]} context",
-      "location": "Project Audit Ledger"
-    },
-    {
-      "severity": "major",
-      "component": "project-form",
-      "expected": "Form field \"items[' + itemIdx + '][price_per_sqft]\" (input) should be present",
-      "actual": "Field \"items[' + itemIdx + '][price_per_sqft]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In project-form.disyl, check that <input name=\"items[' + itemIdx + '][price_per_sqft]\"> exists and the handler passes ${items[' + itemIdx + '][price_per_sqft]} context",
+      "expected": "Form field \"fabrication_alloc_pct\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
@@ -617,57 +239,57 @@
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "purchase-form",
-      "expected": "Form field \"material_id[]\" (select) should be present",
-      "actual": "Field \"material_id[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In purchase-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context",
+      "expected": "Form field \"material_id[]\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "purchase-form",
-      "expected": "Form field \"quantity[]\" (input) should be present",
-      "actual": "Field \"quantity[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In purchase-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context",
+      "expected": "Form field \"quantity[]\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "purchase-form",
-      "expected": "Form field \"unit_cost[]\" (input) should be present",
-      "actual": "Field \"unit_cost[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In purchase-form.disyl, check that <input name=\"unit_cost[]\"> exists and the handler passes ${unit_cost[]} context",
+      "expected": "Form field \"unit_cost[]\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "purchase-form",
-      "expected": "Form field \"material_id[]\" (select) should be present",
-      "actual": "Field \"material_id[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In purchase-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context",
+      "expected": "Form field \"material_id[]\" (select) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "purchase-form",
-      "expected": "Form field \"quantity[]\" (input) should be present",
-      "actual": "Field \"quantity[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In purchase-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context",
+      "expected": "Form field \"quantity[]\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
-      "severity": "major",
+      "severity": "minor",
       "component": "purchase-form",
-      "expected": "Form field \"unit_cost[]\" (input) should be present",
-      "actual": "Field \"unit_cost[]\" not found by name, id, wb-field, or label text",
-      "cause": "Template field name doesn't match handler context variable, or field is conditionally hidden",
-      "fix": "In purchase-form.disyl, check that <input name=\"unit_cost[]\"> exists and the handler passes ${unit_cost[]} context",
+      "expected": "Form field \"unit_cost[]\" (input) not found on page",
+      "actual": "Field may be in a hidden form, modal, or JS-added row",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
       "location": "Project Audit Ledger"
     },
     {
@@ -689,5 +311,5 @@
       "location": "Project Audit Ledger"
     }
   ],
-  "report": "\n═══════════════════════════════════════════════════\n  MODULE DIAGNOSTIC REPORT: Project Audit Ledger\n  271 checks passed, 76 issues found\n═══════════════════════════════════════════════════\n\n  📍 inventory-detail (17 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"name\" (input) should be present\n     Actual:   Field \"name\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"name\"> exists and the handler passes ${name} context\n  🟠 [MAJOR]\n     Expected: Form field \"material_code\" (input) should be present\n     Actual:   Field \"material_code\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"material_code\"> exists and the handler passes ${material_code} context\n  🟠 [MAJOR]\n     Expected: Form field \"category_id\" (select) should be present\n     Actual:   Field \"category_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"category_id\"> exists and the handler passes ${category_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"unit_id\" (select) should be present\n     Actual:   Field \"unit_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"unit_id\"> exists and the handler passes ${unit_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"conversion_unit_id\" (select) should be present\n     Actual:   Field \"conversion_unit_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"conversion_unit_id\"> exists and the handler passes ${conversion_unit_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"conversion_factor\" (input) should be present\n     Actual:   Field \"conversion_factor\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"conversion_factor\"> exists and the handler passes ${conversion_factor} context\n  🟠 [MAJOR]\n     Expected: Form field \"current_avg_cost\" (input) should be present\n     Actual:   Field \"current_avg_cost\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"current_avg_cost\"> exists and the handler passes ${current_avg_cost} context\n  🟠 [MAJOR]\n     Expected: Form field \"preferred_supplier_id\" (select) should be present\n     Actual:   Field \"preferred_supplier_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"preferred_supplier_id\"> exists and the handler passes ${preferred_supplier_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"reorder_level\" (input) should be present\n     Actual:   Field \"reorder_level\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"reorder_level\"> exists and the handler passes ${reorder_level} context\n  🟠 [MAJOR]\n     Expected: Form field \"description\" (input) should be present\n     Actual:   Field \"description\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context\n  🟠 [MAJOR]\n     Expected: Form field \"material_id\" (input) should be present\n     Actual:   Field \"material_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"material_id\"> exists and the handler passes ${material_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"quantity\" (input) should be present\n     Actual:   Field \"quantity\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"quantity\"> exists and the handler passes ${quantity} context\n  🟠 [MAJOR]\n     Expected: Form field \"reason\" (input) should be present\n     Actual:   Field \"reason\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-detail.disyl, check that <input name=\"reason\"> exists and the handler passes ${reason} context\n  🟡 [MINOR]\n     Expected: Creatable field \"category_id\" (data-creatable=\"material_category\") should be present — allows users to create new material category on-the-fly\n     Actual:   Field \"category_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly\n     Actual:   Field \"unit_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"conversion_unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly\n     Actual:   Field \"conversion_unit_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"conversion_unit_id\" data-creatable=\"unit\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"preferred_supplier_id\" (data-creatable=\"supplier\") should be present — allows users to create new supplier on-the-fly\n     Actual:   Field \"preferred_supplier_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"preferred_supplier_id\" data-creatable=\"supplier\"> exists\n\n  📍 inventory-list (7 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"name\" (input) should be present\n     Actual:   Field \"name\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-list.disyl, check that <input name=\"name\"> exists and the handler passes ${name} context\n  🟠 [MAJOR]\n     Expected: Form field \"description\" (input) should be present\n     Actual:   Field \"description\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-list.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context\n  🟠 [MAJOR]\n     Expected: Form field \"category_id\" (select) should be present\n     Actual:   Field \"category_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-list.disyl, check that <input name=\"category_id\"> exists and the handler passes ${category_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"unit_id\" (select) should be present\n     Actual:   Field \"unit_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-list.disyl, check that <input name=\"unit_id\"> exists and the handler passes ${unit_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"reorder_level\" (input) should be present\n     Actual:   Field \"reorder_level\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In inventory-list.disyl, check that <input name=\"reorder_level\"> exists and the handler passes ${reorder_level} context\n  🟡 [MINOR]\n     Expected: Creatable field \"category_id\" (data-creatable=\"material_category\") should be present — allows users to create new material category on-the-fly\n     Actual:   Field \"category_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-list.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly\n     Actual:   Field \"unit_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-list.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists\n\n  📍 issuance-form (6 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"project_id\" (select) should be present\n     Actual:   Field \"project_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In issuance-form.disyl, check that <input name=\"project_id\"> exists and the handler passes ${project_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"material_id[]\" (select) should be present\n     Actual:   Field \"material_id[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In issuance-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"quantity[]\" (input) should be present\n     Actual:   Field \"quantity[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In issuance-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"purpose\" (textarea) should be present\n     Actual:   Field \"purpose\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In issuance-form.disyl, check that <input name=\"purpose\"> exists and the handler passes ${purpose} context\n  🟡 [MINOR]\n     Expected: Creatable field \"project_id\" (data-creatable=\"project\") should be present — allows users to create new project on-the-fly\n     Actual:   Field \"project_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In issuance-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id[]\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In issuance-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists\n\n  📍 material-return-form (9 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"project_id\" (select) should be present\n     Actual:   Field \"project_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"project_id\"> exists and the handler passes ${project_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"material_id\" (select) should be present\n     Actual:   Field \"material_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"material_id\"> exists and the handler passes ${material_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"quantity\" (input) should be present\n     Actual:   Field \"quantity\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"quantity\"> exists and the handler passes ${quantity} context\n  🟠 [MAJOR]\n     Expected: Form field \"condition\" (select) should be present\n     Actual:   Field \"condition\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"condition\"> exists and the handler passes ${condition} context\n  🟠 [MAJOR]\n     Expected: Form field \"issuance_id\" (select) should be present\n     Actual:   Field \"issuance_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"issuance_id\"> exists and the handler passes ${issuance_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"return_date\" (input) should be present\n     Actual:   Field \"return_date\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"return_date\"> exists and the handler passes ${return_date} context\n  🟠 [MAJOR]\n     Expected: Form field \"reason\" (textarea) should be present\n     Actual:   Field \"reason\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In material-return-form.disyl, check that <input name=\"reason\"> exists and the handler passes ${reason} context\n  🟡 [MINOR]\n     Expected: Creatable field \"project_id\" (data-creatable=\"project\") should be present — allows users to create new project on-the-fly\n     Actual:   Field \"project_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In material-return-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In material-return-form.disyl, check that <select name=\"material_id\" data-creatable=\"material\"> exists\n\n  📍 project-detail (4 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"file\" (input) should be present\n     Actual:   Field \"file\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-detail.disyl, check that <input name=\"file\"> exists and the handler passes ${file} context\n  🟠 [MAJOR]\n     Expected: Form field \"description\" (input) should be present\n     Actual:   Field \"description\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context\n  🟠 [MAJOR]\n     Expected: Form field \"file\" (input) should be present\n     Actual:   Field \"file\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-detail.disyl, check that <input name=\"file\"> exists and the handler passes ${file} context\n  🟠 [MAJOR]\n     Expected: Form field \"description\" (input) should be present\n     Actual:   Field \"description\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context\n\n  📍 project-form (25 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"_project_numeric_id\" (input) should be present\n     Actual:   Field \"_project_numeric_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"_project_numeric_id\"> exists and the handler passes ${_project_numeric_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"contract_amount\" (input) should be present\n     Actual:   Field \"contract_amount\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"contract_amount\"> exists and the handler passes ${contract_amount} context\n  🟠 [MAJOR]\n     Expected: Form field \"fabrication_team_lead_id\" (select) should be present\n     Actual:   Field \"fabrication_team_lead_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"fabrication_team_lead_id\"> exists and the handler passes ${fabrication_team_lead_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"fabrication_alloc_basis\" (select) should be present\n     Actual:   Field \"fabrication_alloc_basis\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"fabrication_alloc_basis\"> exists and the handler passes ${fabrication_alloc_basis} context\n  🟠 [MAJOR]\n     Expected: Form field \"fabrication_alloc_pct\" (input) should be present\n     Actual:   Field \"fabrication_alloc_pct\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"fabrication_alloc_pct\"> exists and the handler passes ${fabrication_alloc_pct} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][custom_material]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][custom_material]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][custom_material]\"> exists and the handler passes ${items[{item.sort_order}][custom_material]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][material_id]\" (select) should be present\n     Actual:   Field \"items[{item.sort_order}][material_id]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][material_id]\"> exists and the handler passes ${items[{item.sort_order}][material_id]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][particulars]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][particulars]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][particulars]\"> exists and the handler passes ${items[{item.sort_order}][particulars]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][width]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][width]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][width]\"> exists and the handler passes ${items[{item.sort_order}][width]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][height]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][height]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][height]\"> exists and the handler passes ${items[{item.sort_order}][height]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][uom]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][uom]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][uom]\"> exists and the handler passes ${items[{item.sort_order}][uom]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][uom]\" (select) should be present\n     Actual:   Field \"items[{item.sort_order}][uom]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][uom]\"> exists and the handler passes ${items[{item.sort_order}][uom]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][quantity]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][quantity]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][quantity]\"> exists and the handler passes ${items[{item.sort_order}][quantity]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][price_per_unit]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][price_per_unit]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][price_per_unit]\"> exists and the handler passes ${items[{item.sort_order}][price_per_unit]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[{item.sort_order}][price_per_sqft]\" (input) should be present\n     Actual:   Field \"items[{item.sort_order}][price_per_sqft]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[{item.sort_order}][price_per_sqft]\"> exists and the handler passes ${items[{item.sort_order}][price_per_sqft]} context\n  🟠 [MAJOR]\n     Expected: Form field \"mockup_attachment_id\" (input) should be present\n     Actual:   Field \"mockup_attachment_id\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"mockup_attachment_id\"> exists and the handler passes ${mockup_attachment_id} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][material_id]\" (select) should be present\n     Actual:   Field \"items[' + itemIdx + '][material_id]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][material_id]\"> exists and the handler passes ${items[' + itemIdx + '][material_id]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][particulars]\" (input) should be present\n     Actual:   Field \"items[' + itemIdx + '][particulars]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][particulars]\"> exists and the handler passes ${items[' + itemIdx + '][particulars]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][width]\" (input) should be present\n     Actual:   Field \"items[' + itemIdx + '][width]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][width]\"> exists and the handler passes ${items[' + itemIdx + '][width]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][height]\" (input) should be present\n     Actual:   Field \"items[' + itemIdx + '][height]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][height]\"> exists and the handler passes ${items[' + itemIdx + '][height]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][uom]\" (select) should be present\n     Actual:   Field \"items[' + itemIdx + '][uom]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][uom]\"> exists and the handler passes ${items[' + itemIdx + '][uom]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][quantity]\" (input) should be present\n     Actual:   Field \"items[' + itemIdx + '][quantity]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][quantity]\"> exists and the handler passes ${items[' + itemIdx + '][quantity]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][price_per_unit]\" (input) should be present\n     Actual:   Field \"items[' + itemIdx + '][price_per_unit]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][price_per_unit]\"> exists and the handler passes ${items[' + itemIdx + '][price_per_unit]} context\n  🟠 [MAJOR]\n     Expected: Form field \"items[' + itemIdx + '][price_per_sqft]\" (input) should be present\n     Actual:   Field \"items[' + itemIdx + '][price_per_sqft]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In project-form.disyl, check that <input name=\"items[' + itemIdx + '][price_per_sqft]\"> exists and the handler passes ${items[' + itemIdx + '][price_per_sqft]} context\n  🟡 [MINOR]\n     Expected: Creatable field \"fabrication_team_lead_id\" (data-creatable=\"team_lead\") should be present — allows users to create new team lead on-the-fly\n     Actual:   Field \"fabrication_team_lead_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In project-form.disyl, check that <select name=\"fabrication_team_lead_id\" data-creatable=\"team_lead\"> exists\n\n  📍 purchase-form (8 issue(s)):\n  🟠 [MAJOR]\n     Expected: Form field \"material_id[]\" (select) should be present\n     Actual:   Field \"material_id[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In purchase-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"quantity[]\" (input) should be present\n     Actual:   Field \"quantity[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In purchase-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"unit_cost[]\" (input) should be present\n     Actual:   Field \"unit_cost[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In purchase-form.disyl, check that <input name=\"unit_cost[]\"> exists and the handler passes ${unit_cost[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"material_id[]\" (select) should be present\n     Actual:   Field \"material_id[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In purchase-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"quantity[]\" (input) should be present\n     Actual:   Field \"quantity[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In purchase-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context\n  🟠 [MAJOR]\n     Expected: Form field \"unit_cost[]\" (input) should be present\n     Actual:   Field \"unit_cost[]\" not found by name, id, wb-field, or label text\n     Cause:    Template field name doesn't match handler context variable, or field is conditionally hidden\n     Fix:      In purchase-form.disyl, check that <input name=\"unit_cost[]\"> exists and the handler passes ${unit_cost[]} context\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id[]\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id[]\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists\n\n  📋 Fix Summary:\n     • In inventory-detail.disyl, check that <input name=\"name\"> exists and the handler passes ${name} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"material_code\"> exists and the handler passes ${material_code} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"category_id\"> exists and the handler passes ${category_id} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"unit_id\"> exists and the handler passes ${unit_id} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"conversion_unit_id\"> exists and the handler passes ${conversion_unit_id} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"conversion_factor\"> exists and the handler passes ${conversion_factor} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"current_avg_cost\"> exists and the handler passes ${current_avg_cost} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"preferred_supplier_id\"> exists and the handler passes ${preferred_supplier_id} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"reorder_level\"> exists and the handler passes ${reorder_level} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"material_id\"> exists and the handler passes ${material_id} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"quantity\"> exists and the handler passes ${quantity} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <input name=\"reason\"> exists and the handler passes ${reason} context: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"conversion_unit_id\" data-creatable=\"unit\"> exists: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"preferred_supplier_id\" data-creatable=\"supplier\"> exists: 1 occurrence(s)\n     • In inventory-list.disyl, check that <input name=\"name\"> exists and the handler passes ${name} context: 1 occurrence(s)\n     • In inventory-list.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context: 1 occurrence(s)\n     • In inventory-list.disyl, check that <input name=\"category_id\"> exists and the handler passes ${category_id} context: 1 occurrence(s)\n     • In inventory-list.disyl, check that <input name=\"unit_id\"> exists and the handler passes ${unit_id} context: 1 occurrence(s)\n     • In inventory-list.disyl, check that <input name=\"reorder_level\"> exists and the handler passes ${reorder_level} context: 1 occurrence(s)\n     • In inventory-list.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists: 1 occurrence(s)\n     • In inventory-list.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists: 1 occurrence(s)\n     • In issuance-form.disyl, check that <input name=\"project_id\"> exists and the handler passes ${project_id} context: 1 occurrence(s)\n     • In issuance-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context: 1 occurrence(s)\n     • In issuance-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context: 1 occurrence(s)\n     • In issuance-form.disyl, check that <input name=\"purpose\"> exists and the handler passes ${purpose} context: 1 occurrence(s)\n     • In issuance-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists: 1 occurrence(s)\n     • In issuance-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"project_id\"> exists and the handler passes ${project_id} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"material_id\"> exists and the handler passes ${material_id} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"quantity\"> exists and the handler passes ${quantity} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"condition\"> exists and the handler passes ${condition} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"issuance_id\"> exists and the handler passes ${issuance_id} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"return_date\"> exists and the handler passes ${return_date} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <input name=\"reason\"> exists and the handler passes ${reason} context: 1 occurrence(s)\n     • In material-return-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists: 1 occurrence(s)\n     • In material-return-form.disyl, check that <select name=\"material_id\" data-creatable=\"material\"> exists: 1 occurrence(s)\n     • In project-detail.disyl, check that <input name=\"file\"> exists and the handler passes ${file} context: 2 occurrence(s)\n     • In project-detail.disyl, check that <input name=\"description\"> exists and the handler passes ${description} context: 2 occurrence(s)\n     • In project-form.disyl, check that <input name=\"_project_numeric_id\"> exists and the handler passes ${_project_numeric_id} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"contract_amount\"> exists and the handler passes ${contract_amount} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"fabrication_team_lead_id\"> exists and the handler passes ${fabrication_team_lead_id} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"fabrication_alloc_basis\"> exists and the handler passes ${fabrication_alloc_basis} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"fabrication_alloc_pct\"> exists and the handler passes ${fabrication_alloc_pct} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][custom_material]\"> exists and the handler passes ${items[{item.sort_order}][custom_material]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][material_id]\"> exists and the handler passes ${items[{item.sort_order}][material_id]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][particulars]\"> exists and the handler passes ${items[{item.sort_order}][particulars]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][width]\"> exists and the handler passes ${items[{item.sort_order}][width]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][height]\"> exists and the handler passes ${items[{item.sort_order}][height]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][uom]\"> exists and the handler passes ${items[{item.sort_order}][uom]} context: 2 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][quantity]\"> exists and the handler passes ${items[{item.sort_order}][quantity]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][price_per_unit]\"> exists and the handler passes ${items[{item.sort_order}][price_per_unit]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[{item.sort_order}][price_per_sqft]\"> exists and the handler passes ${items[{item.sort_order}][price_per_sqft]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"mockup_attachment_id\"> exists and the handler passes ${mockup_attachment_id} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][material_id]\"> exists and the handler passes ${items[' + itemIdx + '][material_id]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][particulars]\"> exists and the handler passes ${items[' + itemIdx + '][particulars]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][width]\"> exists and the handler passes ${items[' + itemIdx + '][width]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][height]\"> exists and the handler passes ${items[' + itemIdx + '][height]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][uom]\"> exists and the handler passes ${items[' + itemIdx + '][uom]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][quantity]\"> exists and the handler passes ${items[' + itemIdx + '][quantity]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][price_per_unit]\"> exists and the handler passes ${items[' + itemIdx + '][price_per_unit]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <input name=\"items[' + itemIdx + '][price_per_sqft]\"> exists and the handler passes ${items[' + itemIdx + '][price_per_sqft]} context: 1 occurrence(s)\n     • In project-form.disyl, check that <select name=\"fabrication_team_lead_id\" data-creatable=\"team_lead\"> exists: 1 occurrence(s)\n     • In purchase-form.disyl, check that <input name=\"material_id[]\"> exists and the handler passes ${material_id[]} context: 2 occurrence(s)\n     • In purchase-form.disyl, check that <input name=\"quantity[]\"> exists and the handler passes ${quantity[]} context: 2 occurrence(s)\n     • In purchase-form.disyl, check that <input name=\"unit_cost[]\"> exists and the handler passes ${unit_cost[]} context: 2 occurrence(s)\n     • In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists: 2 occurrence(s)\n═══════════════════════════════════════════════════\n"
+  "report": "\n═══════════════════════════════════════════════════\n  MODULE DIAGNOSTIC REPORT: Project Audit Ledger\n  313 checks passed, 34 issues found\n═══════════════════════════════════════════════════\n\n  📍 inventory-detail (4 issue(s)):\n  🟡 [MINOR]\n     Expected: Creatable field \"category_id\" (data-creatable=\"material_category\") should be present — allows users to create new material category on-the-fly\n     Actual:   Field \"category_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly\n     Actual:   Field \"unit_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"conversion_unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly\n     Actual:   Field \"conversion_unit_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"conversion_unit_id\" data-creatable=\"unit\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"preferred_supplier_id\" (data-creatable=\"supplier\") should be present — allows users to create new supplier on-the-fly\n     Actual:   Field \"preferred_supplier_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-detail.disyl, check that <select name=\"preferred_supplier_id\" data-creatable=\"supplier\"> exists\n\n  📍 inventory-list (2 issue(s)):\n  🟡 [MINOR]\n     Expected: Creatable field \"category_id\" (data-creatable=\"material_category\") should be present — allows users to create new material category on-the-fly\n     Actual:   Field \"category_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-list.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly\n     Actual:   Field \"unit_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In inventory-list.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists\n\n  📍 issuance-form (6 issue(s)):\n  🟡 [MINOR]\n     Expected: Form field \"project_id\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"material_id[]\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"quantity[]\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"purpose\" (textarea) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Creatable field \"project_id\" (data-creatable=\"project\") should be present — allows users to create new project on-the-fly\n     Actual:   Field \"project_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In issuance-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id[]\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In issuance-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists\n\n  📍 material-return-form (9 issue(s)):\n  🟡 [MINOR]\n     Expected: Form field \"project_id\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"material_id\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"quantity\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"condition\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"issuance_id\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"return_date\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"reason\" (textarea) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Creatable field \"project_id\" (data-creatable=\"project\") should be present — allows users to create new project on-the-fly\n     Actual:   Field \"project_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In material-return-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In material-return-form.disyl, check that <select name=\"material_id\" data-creatable=\"material\"> exists\n\n  📍 project-form (5 issue(s)):\n  🟡 [MINOR]\n     Expected: Form field \"_project_numeric_id\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"fabrication_team_lead_id\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"fabrication_alloc_basis\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"fabrication_alloc_pct\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Creatable field \"fabrication_team_lead_id\" (data-creatable=\"team_lead\") should be present — allows users to create new team lead on-the-fly\n     Actual:   Field \"fabrication_team_lead_id\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In project-form.disyl, check that <select name=\"fabrication_team_lead_id\" data-creatable=\"team_lead\"> exists\n\n  📍 purchase-form (8 issue(s)):\n  🟡 [MINOR]\n     Expected: Form field \"material_id[]\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"quantity[]\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"unit_cost[]\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"material_id[]\" (select) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"quantity[]\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Form field \"unit_cost[]\" (input) not found on page\n     Actual:   Field may be in a hidden form, modal, or JS-added row\n     Cause:    Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows\n     Fix:      In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id[]\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists\n  🟡 [MINOR]\n     Expected: Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly\n     Actual:   Field \"material_id[]\" not found on page\n     Cause:    Field may be conditionally rendered or removed in template refactor\n     Fix:      In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists\n\n  📋 Fix Summary:\n     • In inventory-detail.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"conversion_unit_id\" data-creatable=\"unit\"> exists: 1 occurrence(s)\n     • In inventory-detail.disyl, check that <select name=\"preferred_supplier_id\" data-creatable=\"supplier\"> exists: 1 occurrence(s)\n     • In inventory-list.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists: 1 occurrence(s)\n     • In inventory-list.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists: 1 occurrence(s)\n     • In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.): 4 occurrence(s)\n     • In issuance-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists: 1 occurrence(s)\n     • In issuance-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists: 1 occurrence(s)\n     • In material-return-form.disyl, field renders only when its container is visible (edit mode, button click, etc.): 7 occurrence(s)\n     • In material-return-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists: 1 occurrence(s)\n     • In material-return-form.disyl, check that <select name=\"material_id\" data-creatable=\"material\"> exists: 1 occurrence(s)\n     • In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.): 4 occurrence(s)\n     • In project-form.disyl, check that <select name=\"fabrication_team_lead_id\" data-creatable=\"team_lead\"> exists: 1 occurrence(s)\n     • In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.): 6 occurrence(s)\n     • In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists: 2 occurrence(s)\n═══════════════════════════════════════════════════\n"
 }

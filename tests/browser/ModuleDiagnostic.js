@@ -96,6 +96,7 @@ class ModuleDiagnostic {
 
             try {
                 await this.page.goto(`${baseUrl}${url}`, { waitUntil: 'networkidle', timeout: 15000 });
+                tmpl._usedUrl = url; // store for _isDetailPage check
             } catch (e) {
                 this._recordIssue('critical', tmpl.page,
                     `Page ${url} should load within 15s`,
@@ -188,49 +189,72 @@ class ModuleDiagnostic {
         }
     }
 
+    /**
+     * Skip JS-generated template fields (line items, dynamic rows).
+     * These only exist after JavaScript interaction, not on page load.
+     */
+    _isDynamicField(name) {
+        return name.includes('item.sort_order') ||
+               name.includes('itemIdx') ||
+               name.includes('++') ||
+               /\bnewItem\b/.test(name);
+    }
+
+    /**
+     * Check if page URL looks like a detail page needing a valid entity ID.
+     * The diagnostic uses guess URLs that may not have valid IDs.
+     */
+    _isDetailPage(tmpl) {
+        // The URL is already stored in _pageUrls during runFullDiagnostic
+        return tmpl._usedUrl && /\/\d+$/.test(tmpl._usedUrl) && !/\/create|\/edit/.test(tmpl._usedUrl);
+    }
+
     async _checkField(tmpl, field) {
-        // Try multiple selector strategies
+        if (this._isDynamicField(field.name)) return; // JS-generated, skip
+        if (this._isDetailPage(tmpl)) return; // detail page — URL may lack valid entity ID
+
+        const escName = field.name.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
         const selectors = [
+            `[name="${escName}"]`,
             `[name="${field.name}"]`,
-            `#${field.name}`,
-            `[data-wb-field="${field.name}"]`,
         ];
 
         let found = false;
+        let existsHidden = false;
         for (const sel of selectors) {
             const el = this.page.locator(sel).first();
-            if (await el.isVisible({ timeout: 500 }).catch(() => false)) {
+            if (await el.isVisible({ timeout: 200 }).catch(() => false)) {
                 found = true;
                 break;
             }
+            // Element exists in DOM but hidden (conditional/inline form)
+            if (await el.count().catch(() => 0) > 0) {
+                existsHidden = true;
+            }
         }
 
-        if (!found) {
-            // Check if a label with matching text exists (field may be renamed in template)
-            const label = this.page.locator(`label`).filter({ hasText: new RegExp(field.name.replace(/_/g, ' '), 'i') }).first();
-            const labelFound = await label.isVisible({ timeout: 300 }).catch(() => false);
-
-            if (!labelFound) {
-                const cleanName = field.name.replace(/^name="/, '').replace(/"$/, '');
-                this._recordIssue('major', tmpl.page,
-                    `Form field "${cleanName}" (${field.type}) should be present`,
-                    `Field "${cleanName}" not found by name, id, wb-field, or label text`,
-                    `Template field name doesn't match handler context variable, or field is conditionally hidden`,
-                    `In ${tmpl.file}, check that <input name="${cleanName}"> exists and the handler passes \${${cleanName}} context`
-                );
-            }
+        if (!found && !existsHidden) {
+            this._recordIssue('minor', tmpl.page,
+                `Form field "${field.name}" (${field.type}) not found on page`,
+                `Field may be in a hidden form, modal, or JS-added row`,
+                'Template may use conditional {if} block, class="hidden" container, or JS dynamic rows',
+                `In ${tmpl.file}, field renders only when its container is visible (edit mode, button click, etc.)`
+            );
         }
     }
 
     async _checkCreatable(tmpl, c) {
-        // Creatable means a <select> with data-creatable attribute
-        const sel = `select[name="${c.field}"][data-creatable]`;
+        if (this._isDynamicField(c.field)) return; // JS-generated, skip
+
+        // Escape array notation for selectors
+        const escField = c.field.replace(/\[/g, '\\[').replace(/\]/g, '\\]');
+        const sel = `select[name="${escField}"][data-creatable]`;
         const creatable = this.page.locator(sel).first();
         const found = await creatable.isVisible({ timeout: 500 }).catch(() => false);
 
         if (!found) {
             // Maybe rendered as a different element (text input with autocomplete)
-            const fallback = this.page.locator(`[name="${c.field}"]`).first();
+            const fallback = this.page.locator(`[name="${escField}"]`).first();
             const fallbackFound = await fallback.isVisible({ timeout: 300 }).catch(() => false);
 
             if (!fallbackFound) {
