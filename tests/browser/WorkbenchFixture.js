@@ -191,14 +191,14 @@ function createWorkbenchTest(config) {
                     });
                 },
                 perf: function (label, ms, threshold) {
-                    var t = threshold || 3000;
+                    var t = typeof threshold === 'number' ? threshold : 3000;
                     testInfo.annotations.push({
                         type: 'wb-issue',
                         description: JSON.stringify({
                             kind: 'perf',
                             severity: ms > t ? 'major' : 'minor',
                             where: label,
-                            detail: ms + 'ms' + (t ? ' > ' + t + 'ms threshold' : ''),
+                            detail: ms + 'ms > ' + t + 'ms threshold',
                             threshold: t,
                         }),
                     });
