@@ -56,9 +56,11 @@ class BayesianReasoner
     }
 
     /**
-     * Record an outcome for a chain link.
+     * Record an outcome for a chain link with metadata.
+     *
+     * @param array $metadata Optional context (run_id, commit, tenant, test_source)
      */
-    public function recordOutcome(string $moduleId, string $actionId, string $step, bool $succeeded): void
+    public function recordOutcome(string $moduleId, string $actionId, string $step, bool $succeeded, array $metadata = []): void
     {
         $record = $this->getRecord($moduleId, $actionId, $step);
         $field = $succeeded ? 'successes' : 'failures';
@@ -66,7 +68,50 @@ class BayesianReasoner
         $record['last_seen'] = date('c');
         $record['total'] = ($record['successes'] ?? 0) + ($record['failures'] ?? 0);
 
+        // Preserve run history (last 20 runs)
+        $record['runs'] = $record['runs'] ?? [];
+        $record['runs'][] = [
+            'succeeded' => $succeeded,
+            'recorded_at' => date('c'),
+            'run_id' => $metadata['run_id'] ?? null,
+            'commit' => $metadata['commit'] ?? null,
+            'tenant' => $metadata['tenant'] ?? null,
+            'source' => $metadata['source'] ?? 'cli',
+        ];
+        if (count($record['runs']) > 20) {
+            array_shift($record['runs']);
+        }
+
         $this->storeRecord($moduleId, $actionId, $step, $record);
+    }
+
+    /**
+     * Reset history for a specific action (all its links).
+     */
+    public function resetAction(string $moduleId, string $actionId): void
+    {
+        $file = $this->actionFile($moduleId, $actionId);
+        if (file_exists($file)) {
+            unlink($file);
+        }
+        unset($this->cache[$file]);
+    }
+
+    /**
+     * List all actions that have history across all modules.
+     *
+     * @return array<string, array<string>> Module → action IDs
+     */
+    public function listModules(): array
+    {
+        $modules = [];
+        $glob = $this->storagePath . '/*';
+        foreach (glob($glob, GLOB_ONLYDIR) ?: [] as $dir) {
+            $moduleId = basename($dir);
+            $files = glob($dir . '/*.json') ?: [];
+            $modules[$moduleId] = array_map(fn($f) => pathinfo($f, PATHINFO_FILENAME), $files);
+        }
+        return $modules;
     }
 
     /**

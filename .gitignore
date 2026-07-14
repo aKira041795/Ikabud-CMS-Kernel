@@ -63,3 +63,4 @@ vendor/
 .vscode/
 .windsurf/
 *.zip
+test_results/evidence/*

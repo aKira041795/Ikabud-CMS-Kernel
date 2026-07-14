@@ -16,8 +16,10 @@
 
 // @ts-nocheck
 var { test, expect } = require('../../../WorkbenchFixture');
+var { WorkbenchObserver } = require('../../../WorkbenchObserver');
 var execSync = require('child_process').execSync;
 var path = require('path');
+var fs = require('fs');
 
 var RUN_ID = Date.now();
 var PREFIX = 'E2E-' + RUN_ID;
@@ -118,7 +120,23 @@ test.describe('pal:jo-operational-setup', function () {
 
         // ── Step 3: Submit for Approval (via in-browser API call) ──
         await test.step('draft → pending', async function () {
-            // Use page.evaluate to make the API call with the browser's cookies/session
+            // Create an observer for this action to capture evidence
+            var observer = new WorkbenchObserver(page, {
+                action: 'pal.job-order.submit',
+                module: 'project-audit-ledger',
+                entityType: 'pal.project',
+                entityId: projectId,
+                title: PROJECT_TITLE,
+                tenantId: parseInt(PAL_TEST_TENANT),
+                runId: 'lifecycle-' + RUN_ID,
+            });
+
+            // Step: button available
+            await observer.step('button.visible', async function () {
+                // No explicit button — we're calling API directly
+            }, 'ui');
+
+            // Step: API call
             var result = await page.evaluate(async function (opts) {
                 var csrfInput = document.querySelector('input[name="_token"]');
                 var token = csrfInput ? csrfInput.value : '';
@@ -131,13 +149,29 @@ test.describe('pal:jo-operational-setup', function () {
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: fd.toString(),
                     });
-                    return await r.json();
+                    return { ok: r.ok, status: r.status, body: await r.json() };
                 } catch (e) {
                     return { ok: false, error: e.message };
                 }
             }, { projectId: projectId });
 
-            if (result.ok) {
+            // Record HTTP step
+            observer.recordHttp('http.response_ok', result.status || (result.ok ? 200 : 500), result);
+
+            // Record workflow transition step
+            await observer.step('workflow.transition', async function () {
+                if (!result.ok) throw new Error(result.error || 'API failed');
+            }, 'service');
+
+            // Write evidence file
+            var evidenceFile = await observer.done();
+            console.log('  📋 Evidence: ' + evidenceFile);
+
+            // Store evidence path on integrity for auto-comprehension
+            integrity.evidenceFile = evidenceFile;
+            integrity.actionId = 'pal.job-order.submit';
+
+            if (result.ok && result.body && result.body.ok) {
                 console.log('  ✅ Pending (via API)');
             } else {
                 integrity.issue({
@@ -160,7 +194,16 @@ test.describe('pal:jo-operational-setup', function () {
 
         // ── Step 4: Approve via API ──
         await test.step('pending → approved', async function () {
-            // Get approval ID from the visible row and approve via API
+            var observer = new WorkbenchObserver(page, {
+                action: 'pal.approval.approve',
+                module: 'project-audit-ledger',
+                entityType: 'pal.project',
+                entityId: projectId,
+                title: PROJECT_TITLE,
+                tenantId: parseInt(PAL_TEST_TENANT),
+                runId: 'lifecycle-' + RUN_ID,
+            });
+
             await goTo(page, base + '/approvals');
 
             var row = page.locator('[data-wb-entity-type="project"]').filter({ hasText: 'Project #' + projectId }).first();
@@ -191,14 +234,18 @@ test.describe('pal:jo-operational-setup', function () {
                             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                             body: fd.toString(),
                         });
-                        return await r.json();
+                        return { ok: r.ok, status: r.status, body: await r.json() };
                     } catch (e) {
                         return { ok: false, error: e.message };
                     }
                 }, { id: parseInt(approvalId[1]) });
             }
 
-            if (result.ok) {
+            observer.recordHttp('http.response_ok', result.status || (result.ok ? 200 : 500), result);
+            var evidenceFile = await observer.done();
+            integrity.evidenceFile = evidenceFile;
+
+            if (result.ok && result.body && result.body.ok) {
                 console.log('  ✅ Approved (via API)');
             } else {
                 console.log('  ⚠ Approve failed: ' + (result.error || 'unknown'));

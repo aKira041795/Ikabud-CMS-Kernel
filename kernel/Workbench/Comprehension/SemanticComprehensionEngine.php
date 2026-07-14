@@ -86,7 +86,37 @@ class SemanticComprehensionEngine
     }
 
     /**
+     * Get action names without running analysis (no history recording).
+     */
+    public function actionIds(): array
+    {
+        $ref = new \ReflectionClass($this->deterministic);
+        $prop = $ref->getProperty('provider');
+        $prop->setAccessible(true);
+        $provider = $prop->getValue($this->deterministic);
+
+        return array_map(fn($a) => $a->id, $provider->actions());
+    }
+
+    /**
+     * Reset Bayesian history for an action.
+     */
+    public function resetHistory(?string $actionId = null): void
+    {
+        if ($actionId) {
+            $this->bayesian->resetAction($this->moduleId, $actionId);
+        } else {
+            foreach ($this->actionIds() as $aid) {
+                $this->bayesian->resetAction($this->moduleId, $aid);
+            }
+        }
+    }
+
+    /**
      * Full semantic analysis of an action.
+     *
+     * @param bool $recordHistory When false, does NOT update Bayesian history
+     *        (use false for CLI discovery, true for real test analysis)
      *
      * Returns:
      *   - breakpoint: where it broke (or null)
@@ -99,7 +129,7 @@ class SemanticComprehensionEngine
      *   - confidence: overall confidence in the analysis
      *   - root_cause_hypothesis: synthesized root cause
      */
-    public function analyze(string $actionId): array
+    public function analyze(string $actionId, bool $recordHistory = true): array
     {
         // Layer 1: Deterministic chain probe
         $deterministicResult = $this->deterministic->analyzeAction($actionId);
@@ -126,13 +156,15 @@ class SemanticComprehensionEngine
                     'prior_success_probability' => round(1.0 - $priorFail, 4),
                 ];
             }
-            // Record outcomes
-            foreach ($chainResults as $result) {
-                $this->bayesian->recordOutcome(
-                    $this->moduleId, $actionId,
-                    $result['step'] ?? '?',
-                    $result['ok'] ?? false
-                );
+            // Record outcomes (only when explicitly analyzing real data)
+            if ($recordHistory) {
+                foreach ($chainResults as $result) {
+                    $this->bayesian->recordOutcome(
+                        $this->moduleId, $actionId,
+                        $result['step'] ?? '?',
+                        $result['ok'] ?? false
+                    );
+                }
             }
         }
 
@@ -210,12 +242,14 @@ class SemanticComprehensionEngine
 
     /**
      * Analyze all actions in the module.
+     *
+     * @param bool $recordHistory When false, does NOT update Bayesian history
      */
-    public function analyzeAll(): array
+    public function analyzeAll(bool $recordHistory = true): array
     {
         $results = [];
-        foreach ($this->deterministic->analyzeAll() as $actionId => $detResult) {
-            $results[$actionId] = $this->analyze($actionId);
+        foreach ($this->actionIds() as $actionId) {
+            $results[$actionId] = $this->analyze($actionId, $recordHistory);
         }
         return $results;
     }

@@ -138,7 +138,12 @@ function createWorkbenchTest(config) {
         // WorkbenchReporter.onTestEnd reads testInfo.annotations for every test.
         // Works in any test or test.beforeEach hook.
         integrity: async function ({ }, use, testInfo) {
-            await use({
+            var integrityObj = {
+                // Properties (set by tests dynamically)
+                evidenceFile: null,
+                actionId: null,
+                moduleId: null,
+
                 gap: function (description) {
                     testInfo.annotations.push({ type: 'wb-gap', description: description });
                 },
@@ -264,7 +269,10 @@ function createWorkbenchTest(config) {
                     });
                     return null;
                 },
-            });
+            };
+            await use(integrityObj);
+            // Store for WorkbenchReporter to auto-launch comprehension on failure
+            globalThis.__wb_last_integrity = integrityObj;
         },
 
         // ── DEPRECATED: seed fixtures removed in favor of instruction-based E2E.

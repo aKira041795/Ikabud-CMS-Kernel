@@ -195,6 +195,52 @@ class WorkbenchReporter {
         }
         writeJsonAtomic(path.join(RESULTS_DIR, 'issue-report.json'), issueReport);
 
+        // ── Comprehension Auto-Launch ──────────────────────────
+        // When a test failed and stored evidence via integrity.evidenceFile,
+        // auto-launch the Comprehension Engine for each failed suite.
+        for (var suiteName in this.suites) {
+            if (!this.suites.hasOwnProperty(suiteName)) continue;
+            var suite = this.suites[suiteName];
+            if (suite.failed === 0) continue;
+
+            // Check if any test result has evidence annotations
+            for (var j = 0; j < suite.results.length; j++) {
+                var r = suite.results[j];
+                if (r.status !== 'failed') continue;
+
+                // Evidence path is stored by the test via integrity object
+                // which sets global ThisTestIntegrity.evidenceFile
+                // We look for wb-evidence annotation
+                for (var k = 0; k < (r.annotations || []).length; k++) {
+                    // Annotations are on test.info(), not on result
+                }
+            }
+        }
+
+        // Also check the integrity object from the last test
+        // (set by fixture as globalThis.__wb_last_integrity)
+        if (globalThis.__wb_last_integrity && globalThis.__wb_last_integrity.evidenceFile) {
+            var ef = globalThis.__wb_last_integrity.evidenceFile;
+            var actId = globalThis.__wb_last_integrity.actionId;
+            var modId = globalThis.__wb_last_integrity.moduleId || 'project-audit-ledger';
+            var runId = 'run-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15);
+            if (fs.existsSync(ef)) {
+                var execSync = require('child_process').execSync;
+                try {
+                    var out = execSync(
+                        'php ' + __dirname + '/../../kernel/Workbench/Comprehension/run.php ' +
+                        modId + ' ' + (actId || '') +
+                        ' --evidence=' + ef +
+                        ' --run-id=' + runId,
+                        { encoding: 'utf-8', timeout: 30000 }
+                    );
+                    console.log('  🧠 Comprehension:\n' + out.trim().split('\n').slice(0, 10).join('\n'));
+                } catch (e) {
+                    console.log('  ⚠ Comprehension: ' + (e.message || 'failed'));
+                }
+            }
+        }
+
         // Console summary
         if (allIssues.length > 0) {
             console.log('');

@@ -202,15 +202,17 @@ class ModuleComprehensionEngine
 
     /**
      * Probe a single chain link against runtime evidence.
+     * Falls back to executing the link's declared SQL probe if evidence
+     * is not found and the link has a probe defined.
      */
     private function probeLink(ChainLink $link): mixed
     {
-        // Check if we have direct evidence for this step
+        // 1. Check if we have direct evidence for this step
         if (isset($this->runtimeEvidence[$link->step])) {
             return $this->runtimeEvidence[$link->step];
         }
 
-        // Check category-level evidence
+        // 2. Check category-level evidence
         if (isset($this->runtimeEvidence[$link->category])) {
             $catEvidence = $this->runtimeEvidence[$link->category];
             if (is_array($catEvidence) && isset($catEvidence[$link->step])) {
@@ -218,7 +220,55 @@ class ModuleComprehensionEngine
             }
         }
 
+        // 3. Execute declared SQL probe if present and DB is available
+        if ($link->probe !== null && function_exists('app')) {
+            try {
+                $result = $this->executeProbe($link);
+                if ($result !== null) {
+                    return $result;
+                }
+            } catch (\Throwable $e) {
+                // Probe execution failed — evidence missing
+                return false;
+            }
+        }
+
         // Default: no evidence = step not observed = failed
         return false;
+    }
+
+    /**
+     * Execute a declared SQL probe.
+     * Resolves :id and :tenant_id tokens from evidence context.
+     */
+    private function executeProbe(ChainLink $link): mixed
+    {
+        $sql = $link->probe;
+        if ($sql === null || $sql === '') {
+            return null;
+        }
+
+        // Resolve parameters from evidence
+        $entityId = $this->runtimeEvidence['_entity_id'] ?? $this->runtimeEvidence['entity_id'] ?? null;
+        $tenantId = $this->runtimeEvidence['_tenant_id'] ?? $this->runtimeEvidence['tenant_id']
+                  ?? (function_exists('app') && app()->tenant() ? app()->tenant()->current() : null);
+
+        if ($entityId === null || $tenantId === null) {
+            return null; // Can't run probe without context
+        }
+
+        $app = app();
+        $db = method_exists($app, 'dbForTenant') ? $app->dbForTenant((int)$tenantId) : null;
+        if (!$db) {
+            return null;
+        }
+
+        // Replace :id and :tenant_id placeholders
+        $sql = str_replace([':id', ':tenant_id'], [(int)$entityId, (int)$tenantId], $sql);
+
+        $stmt = $db->query($sql);
+        $result = $stmt->fetch(\PDO::FETCH_COLUMN);
+
+        return $result;
     }
 }
