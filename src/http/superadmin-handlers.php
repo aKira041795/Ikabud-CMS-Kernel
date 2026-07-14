@@ -1535,27 +1535,38 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
         // AI Models
         $models = [];
         $aiModuleEnabled = false;
+        $aiProvidersSettings = [];
         $allModules = discoverModules();
         if (isset($allModules['ai']) && !empty($allModules['ai']['_enabled'])) {
             $aiModuleEnabled = true;
             $aiSettings = getModuleSettings('ai');
             $providers = [
-                'openai'      => ['name' => 'OpenAI',      'key_setting' => 'openai_api_key'],
-                'groq'        => ['name' => 'Groq',         'key_setting' => 'groq_api_key'],
-                'gemini'      => ['name' => 'Gemini',       'key_setting' => 'gemini_api_key'],
-                'mistral'     => ['name' => 'Mistral',      'key_setting' => 'mistral_api_key'],
-                'cerebras'    => ['name' => 'Cerebras',     'key_setting' => 'cerebras_api_key'],
-                'openrouter'  => ['name' => 'OpenRouter',   'key_setting' => 'openrouter_api_key'],
+                'openai'      => ['name' => 'OpenAI',          'key_setting' => 'openai_api_key',          'model_free' => 'openai_model_free',  'model_paid' => 'openai_model_paid',  'model_custom' => 'openai_model'],
+                'groq'        => ['name' => 'Groq',            'key_setting' => 'groq_api_key',            'model_free' => 'groq_model_free',   'model_paid' => 'groq_model_paid',   'model_custom' => 'groq_model'],
+                'gemini'      => ['name' => 'Gemini',          'key_setting' => 'gemini_api_key',          'model_free' => 'gemini_model_free',  'model_paid' => 'gemini_model_paid',  'model_custom' => 'gemini_model'],
+                'mistral'     => ['name' => 'Mistral',         'key_setting' => 'mistral_api_key',         'model_free' => 'mistral_model_free', 'model_paid' => 'mistral_model_paid', 'model_custom' => 'mistral_model'],
+                'cerebras'    => ['name' => 'Cerebras',        'key_setting' => 'cerebras_api_key',        'model_free' => 'cerebras_model_free','model_paid' => 'cerebras_model_paid','model_custom' => 'cerebras_model'],
+                'openrouter'  => ['name' => 'OpenRouter',      'key_setting' => 'openrouter_api_key',      'model_free' => 'openrouter_model_free','model_paid' => 'openrouter_model_paid','model_custom' => 'openrouter_model'],
+                'ollama'      => ['name' => 'Ollama (local)',  'key_setting' => 'ollama_base_url',         'model_free' => 'ollama_model_free', 'model_paid' => 'ollama_model_paid', 'model_custom' => 'ollama_model'],
             ];
             foreach ($providers as $pid => $pinfo) {
-                $keySet = !empty($aiSettings[$pinfo['key_setting']]);
+                $rawKey = trim((string)($aiSettings[$pinfo['key_setting']] ?? ''));
+                $hasKey = $rawKey !== '';
                 $models[] = [
-                    'provider'    => $pinfo['name'],
-                    'provider_id' => $pid,
-                    'configured'  => $keySet,
-                    'status'      => $keySet ? 'Ready' : 'No API key',
+                    'provider'       => $pinfo['name'],
+                    'provider_id'    => $pid,
+                    'has_key'        => $hasKey,
+                    'key_masked'     => $hasKey ? substr($rawKey, 0, 8) . '...' : '',
+                    'key_setting'    => $pinfo['key_setting'],
+                    'model_free'     => (string)($aiSettings[$pinfo['model_free']] ?? ''),
+                    'model_paid'     => (string)($aiSettings[$pinfo['model_paid']] ?? ''),
+                    'model_custom'   => (string)($aiSettings[$pinfo['model_custom']] ?? ''),
+                    'model_free_key' => $pinfo['model_free'],
+                    'model_paid_key' => $pinfo['model_paid'],
+                    'model_custom_key' => $pinfo['model_custom'],
                 ];
             }
+            $aiProvidersSettings = json_encode($models, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         }
 
         // Test Results
@@ -1612,6 +1623,7 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
                 'api_key_count'      => count($apiKeys),
                 'models'             => $models,
                 'ai_module_enabled'  => $aiModuleEnabled,
+                'ai_providers_json'  => $aiProvidersSettings,
                 'test_results'       => $testResults,
                 'test_results_count' => count($testResults),
                 'discoverable_tests' => $discoverableTests,
@@ -1785,6 +1797,88 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchTriggerTests')) {
             'app_log_bytes'  => $appLogSize,
             'error_log_bytes'=> $errorLogSize,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchAiSettings')) {
+    function kernelHandleApiSuperadminWorkbenchAiSettings(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Superadmin only']);
+            exit;
+        }
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['ok' => false, 'error' => 'POST required']);
+            exit;
+        }
+        app()->csrfEnforce();
+
+        $input = app()->input();
+        $providerId = trim((string)($input['provider'] ?? ''));
+        $apiKey = trim((string)($input['api_key'] ?? ''));
+        $modelFree = trim((string)($input['model_free'] ?? ''));
+        $modelPaid = trim((string)($input['model_paid'] ?? ''));
+        $modelCustom = trim((string)($input['model_custom'] ?? ''));
+
+        if ($providerId === '') {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Provider ID required']);
+            exit;
+        }
+
+        // Validate provider
+        $validProviders = ['openai', 'groq', 'gemini', 'mistral', 'cerebras', 'openrouter', 'ollama'];
+        if (!in_array($providerId, $validProviders, true)) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'Invalid provider']);
+            exit;
+        }
+
+        $allModules = discoverModules();
+        if (!isset($allModules['ai']) || empty($allModules['ai']['_enabled'])) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => 'AI module is not enabled']);
+            exit;
+        }
+
+        // Read current settings, merge with new values
+        $current = getModuleSettings('ai');
+        $sensitiveKeys = function_exists('aiSensitiveKeyNames') ? aiSensitiveKeyNames() : [];
+
+        // Determine the setting keys for this provider
+        $keySetting = $providerId === 'ollama' ? 'ollama_base_url' : $providerId . '_api_key';
+        $freeSetting = $providerId . '_model_free';
+        $paidSetting = $providerId . '_model_paid';
+        $customSetting = $providerId . '_model';
+
+        // Update fields — only overwrite if provided (API key can be left blank to keep)
+        if ($apiKey !== '') {
+            $current[$keySetting] = $apiKey;
+        }
+        if ($modelFree !== '') {
+            $current[$freeSetting] = $modelFree;
+        }
+        if ($modelPaid !== '') {
+            $current[$paidSetting] = $modelPaid;
+        }
+        if ($modelCustom !== '') {
+            $current[$customSetting] = $modelCustom;
+        }
+
+        // Encrypt sensitive keys before saving
+        if (function_exists('aiEncryptSensitiveSettings')) {
+            $current = aiEncryptSensitiveSettings($current);
+        }
+
+        saveModuleSettings('ai', $current);
+
+        echo json_encode(['ok' => true, 'message' => ucfirst($providerId) . ' settings saved']);
         exit;
     }
 }

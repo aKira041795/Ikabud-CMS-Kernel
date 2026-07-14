@@ -69,6 +69,7 @@ if (!function_exists('kernelCoreRoutes')) {
                 '/api/v1/superadmin/cache/flush' => 'apiSuperadminCacheFlush',
                 '/api/v1/superadmin/workbench/keys' => 'apiSuperadminWorkbenchKeys',
                 '/api/v1/superadmin/workbench/trigger-tests' => 'apiSuperadminWorkbenchTriggerTests',
+                '/api/v1/superadmin/workbench/ai-settings' => 'apiSuperadminWorkbenchAiSettings',
                 '/api/v1/superadmin/services/health' => 'apiSuperadminServiceHealth',
                 '/api/v1/superadmin/services/diagnostics' => 'apiSuperadminServiceProxyDiagnostics',
                 '/api/v1/superadmin/capabilities/trace' => 'apiSuperadminCapabilityTrace',

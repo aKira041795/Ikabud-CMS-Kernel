@@ -631,6 +631,10 @@ switch ($handler) {
         kernelHandleApiSuperadminWorkbenchTriggerTests();
         exit;
 
+    case 'apiSuperadminWorkbenchAiSettings':
+        kernelHandleApiSuperadminWorkbenchAiSettings();
+        exit;
+
     case 'pageKernelIntegrations':
         kernelHandlePageKernelIntegrations();
         exit;
