@@ -1,55 +1,3 @@
-{# Global defaults: keep ARK layout strict-safe even on routes that do not build full cmsPublicContext (e.g. 404/favicon). #}
-{set page_title = page_title|default:''}
-{set page_description = page_description|default:''}
-{set site_title = site_title|default:'ARK Theme'}
-{set site_tagline = site_tagline|default:'A governed application platform.'}
-{set base_url = base_url|default:''}
-{set cms_public_css_url = cms_public_css_url|default:'/assets/cms/cms-public.css'}
-{set theme_style_url = theme_style_url|default:''}
-{set colors_style = colors_style|default:''}
-{set theme_layout_style = theme_layout_style|default:''}
-{set custom_css = custom_css|default:''}
-{set head_code = head_code|default:''}
-{set body_end_code = body_end_code|default:''}
-
-{set header_layout = header_layout|default:'default'}
-{set header_show_topbar = header_show_topbar|default:true}
-{set header_show_tagline = header_show_tagline|default:true}
-{set header_show_search = header_show_search|default:false}
-{set header_show_cta_button = header_show_cta_button|default:false}
-{set header_cta_text = header_cta_text|default:'Get Started'}
-{set header_cta_url = header_cta_url|default:'#'}
-{set header_logo_image_url = header_logo_image_url|default:''}
-{set site_logo_url = site_logo_url|default:''}
-{set header_logo_max_height = header_logo_max_height|default:'40'}
-{set primary_menu = primary_menu|default:''}
-{set social_links = social_links|default:[]}
-{set cart_enabled = cart_enabled|default:false}
-{set cart_action_url = cart_action_url|default:'/ecommerce/cart'}
-{set cart_count = cart_count|default:0}
-
-{set footer_columns = footer_columns|default:3}
-{set footer_menu = footer_menu|default:''}
-{set footer_legal_menu = footer_legal_menu|default:''}
-{set footer_admin_link = footer_admin_link|default:false}
-{set footer_copyright_text = footer_copyright_text|default:''}
-{set current_year = current_year|default:'2026'}
-{set ecommerce_enabled = ecommerce_enabled|default:false}
-
-{# sidebar_region_present kept for show_customizer_sidebar computation below #}
-{set sidebar_region_present = sidebar_region_present_override|default:(sidebar_region.present|default:false)}
-{set sidebar_region_position = sidebar_region.position|default:sidebar_position|default:'right'}
-{set sidebar_region_width = sidebar_region.width|default:sidebar_width|default:'300'}
-{set force_customized_sidebar = force_customized_sidebar|default:false}
-{set force_hide_customized_sidebar = force_hide_customized_sidebar|default:false}
-{set cms_global_sidebar_force = cms_global_sidebar_force|default:false}
-{set sidebar_position = sidebar_position|default:'right'}
-{set sidebar_width = sidebar_width|default:'300'}
-{set show_header = show_header|default:true}
-{set show_footer = show_footer|default:true}
-{set builder_enabled = builder_enabled|default:false}
-{set builder_page_settings = builder_page_settings|default:[]}
-
 <!DOCTYPE html>
 <html lang="en" class="ark-theme">
 <head>
@@ -68,7 +16,6 @@
     #}
 
     {if theme_style_url}<link rel="stylesheet" href="{theme_style_url}">{/if}
-    <link rel="stylesheet" href="{cms_public_css_url}">
     {if colors_style}{colors_style|raw}{/if}
     {if theme_layout_style}{theme_layout_style|raw}{/if}
     {if custom_css}{custom_css|raw}{/if}
@@ -76,12 +23,7 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="{base_url}/assets/cms/builder-public.js"></script>
 
-    {# CSS fallback: only inject token defaults when theme style URL is unavailable.
-       When theme_style_url is set, style.css provides the authoritative token values
-       and this block is skipped to avoid precedence conflicts with customizer overrides. #}
-    {if !theme_style_url}
     <style>
         :root {
             --color-primary: #6366f1; --color-primary-dark: #4f46e5; --color-primary-light: #eef2ff;
@@ -98,65 +40,96 @@
             --spacing-sm: 0.75rem; --spacing-md: 1.25rem; --spacing-lg: 2rem; --spacing-xl: 3rem;
         }
     </style>
-    {/if}
+    {# ARK CSS served via theme_style_url above (cmsThemeAssetUrl resolves to public/assets/cms/themes/ark/style.css) #}
 </head>
 <body>
-
-     {# ── Runtime helpers ── #}
-    {set sidebar_requested = show_sidebar|default:(sidebar_region_present or force_customized_sidebar or cms_global_sidebar_force)}
-    {set show_customizer_sidebar = sidebar_requested and not force_hide_customized_sidebar and (sidebar_region_present or force_customized_sidebar or cms_global_sidebar_force)}
-    {set sidebar_diag = 'SCS='~show_customizer_sidebar}
 
     {# Skip-to-content link for accessibility #}
     <a href="#main-content" class="ark-skip">Skip to content</a>
 
     {# ── Governed theme slots (Phase 1) ── #}
     {ikb_slot name="site.before" /}
-    {ikb_slot name="header.before" /}
 
     {block header}
-    {# ── Header region — rendered by ThemeCustomizerOrchestrator via the canonical pipeline:
-       CMS persistence → ThemeCustomizerOrchestrator → ThemeRegionRenderer → region template → HTML
-       The {ikb_region} body is a no-op fallback; in production the orchestrator output replaces it. #}
-    {if show_header|default:true}
-        {ikb_region name="header"}{/ikb_region}
+    {# ARK is self-contained — always renders its own header #}
+    {# Top bar (above header, only when social_links have content) #}
+    {if social_links}
+    <div class="ark-topbar" aria-label="Site highlights">
+        <div class="ark-topbar__inner">
+            <div class="ark-topbar__left">
+                {if site_tagline}<span>{site_tagline}</span>{/if}
+            </div>
+            <div class="ark-topbar__right">
+                {if social_links}
+                    {for link in social_links}
+                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                    {/for}
+                {/if}
+            </div>
+        </div>
+    </div>
     {/if}
+    <header class="ark-header" role="banner">
+        <div class="ark-header__inner">
+            <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
+            <nav class="ark-header__nav" aria-label="Main navigation">
+                {if primary_menu}{primary_menu|raw}{/if}
+                {if cart_enabled}
+                <a href="{cart_action_url|default:'/ecommerce/cart'}" class="ark-header__cart" aria-label="Shopping cart">
+                    Cart{if cart_count > 0} ({cart_count}){/if}
+                </a>
+                {/if}
+            </nav>
+        </div>
+    </header>
     {/block}
-    {ikb_slot name="header.main" /}
-    {ikb_slot name="header.after" /}
 
     {ikb_slot name="hero" /}
     {ikb_slot name="breadcrumbs" /}
 
-    <div class="ark-content-area{if builder_enabled} ark-content-area--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-content-with-sidebar{if sidebar_region_position == 'left'} sidebar-left{/if}{/if}"{if show_customizer_sidebar and not builder_enabled} style="--sidebar-width:{sidebar_region_width|default:'300'}px;"{/if}>
-        {# Sidebar on left when position is 'left' #}
-        {if show_customizer_sidebar and not builder_enabled and sidebar_region_position == 'left'}
-        {ikb_region name="sidebar" position="left"}{/ikb_region}
-        {/if}
-
-        <main id="main-content" class="ark-main{if builder_enabled} ark-main--builder{/if}{if show_customizer_sidebar and not builder_enabled} cms-main-slot{/if}" tabindex="-1">
+    <div class="ark-content-area">
+        <main id="main-content" class="ark-main" tabindex="-1">
             {ikb_slot name="content.before" /}
             {block content}
-                {ikb_slot name="content"}
-                    {if body}{body|raw}{/if}
-                {/ikb_slot}
+                {if body}{body|raw}{/if}
             {/block}
             {ikb_slot name="content.after" /}
         </main>
-
-        {# Sidebar on right (default) — rendered by orchestrator, no fallback partial #}
-        {if show_customizer_sidebar and not builder_enabled and sidebar_region_position != 'left'}
-        {ikb_region name="sidebar"}{/ikb_region}
-        {/if}
+        <aside class="ark-sidebar-region" aria-label="Sidebar">
+            {ikb_slot name="sidebar.primary" /}
+            {ikb_slot name="sidebar.secondary" /}
+        </aside>
     </div>
 
-    {# ── Footer region — same canonical pipeline as header #}
-    {ikb_slot name="footer.before" /}
-    {if show_footer|default:true}
-        {ikb_region name="footer"}{/ikb_region}
-    {/if}
-    {ikb_slot name="footer.main" /}
-    {ikb_slot name="footer.after" /}
+    {# ARK is self-contained — always renders its own footer, no customizer override #}
+    <footer class="ark-footer" role="contentinfo">
+        {ikb_slot name="footer.before" /}
+        <div class="ark-footer__inner">
+            <div class="ark-footer__col">
+                <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
+                <p class="ark-footer__text">{site_tagline|default:'A governed application platform.'}</p>
+                {if social_links}
+                <div class="ark-footer__social">
+                    {for link in social_links}
+                    <a href="{link.url}" target="_blank" rel="noopener" title="{link.label}" aria-label="{link.label}">{link.icon|raw}</a>
+                    {/for}
+                </div>
+                {/if}
+            </div>
+            <div class="ark-footer__col">
+                <h4 class="ark-footer__heading">Navigate</h4>
+                {if footer_menu}{footer_menu|raw}{/if}
+            </div>
+            <div class="ark-footer__col">
+                <h4 class="ark-footer__heading">Info</h4>
+                <p class="ark-footer__text">&copy; {current_year|default:'2026'} {site_title|default:'ARK Theme'}</p>
+            </div>
+        </div>
+        <div class="ark-footer__bottom">
+            Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
+        </div>
+        {ikb_slot name="footer.after" /}
+    </footer>
 
     {ikb_slot name="site.after" /}
     {ikb_slot name="notifications" /}

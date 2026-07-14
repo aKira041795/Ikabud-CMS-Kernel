@@ -96,115 +96,6 @@ function cmsBuilderWidgetRenderers(): array
     return $map;
 }
 
-// ─── ARK CSS Class Integration ───────────────────────────────────────────
-
-/**
- * Map builder component types to ARK CSS classes.
- * Builder renderers call cmsBuilderArkClass($type) to include ARK styling
- * alongside existing cms-builder-* classes.
- *
- * This makes builder output ARK-aware without breaking existing rendering.
- */
-function cmsBuilderArkClassMap(): array
-{
-    static $map = null;
-    if ($map !== null) {
-        return $map;
-    }
-
-    $map = [
-        'document'        => '',
-        'section'         => 'ark-section',
-        'container'       => 'ark-container',
-        'layout_container'=> 'ark-layout-container',
-        'row'             => 'ark-row',
-        'column'          => 'ark-column',
-        'grid'            => 'ark-grid',
-        'heading'         => 'ark-heading',
-        'text'            => 'ark-content ark-content--text-block',
-        'image'           => 'ark-image',
-        'button'          => 'ark-btn',
-        'badge'           => 'ark-badge',
-        'spacer'          => 'ark-spacer',
-        'divider'         => 'ark-divider',
-        'video'           => 'ark-video',
-        'gallery'         => 'ark-gallery',
-        'stat_card'       => 'ark-card ark-card--stat',
-        'table'           => 'ark-table',
-        'icon'            => 'ark-icon',
-        'icon_box'        => 'ark-icon-box',
-        'blockquote'      => 'ark-blockquote',
-        'list'            => 'ark-list',
-        'form'            => 'ark-form',
-        'textarea'        => 'ark-input',
-        'entity_list'     => 'ark-entity-list',
-        'entity_view'     => 'ark-entity-detail',
-        'accordion'       => 'ark-accordion',
-        'tabs'            => 'ark-tabs',
-        'call_to_action'  => 'ark-cta',
-        'hero'            => 'ark-hero-block',
-        'testimonial'     => 'ark-testimonial',
-        'pricing_table'   => 'ark-pricing-table',
-        'progress'        => 'ark-progress',
-        'alert'           => 'ark-alert',
-        'card'            => 'ark-card',
-        'slideshow'       => 'ark-slideshow',
-        'toggle'          => 'ark-toggle',
-        'breadcrumbs'     => 'ark-breadcrumb',
-        'map'             => 'ark-map',
-        'code_block'      => 'ark-code-block',
-        'countdown'       => 'ark-countdown',
-        'counter'         => 'ark-counter',
-        'flip_box'        => 'ark-flip-box',
-        'image_box'       => 'ark-image-box',
-        'star_rating'     => 'ark-star-rating',
-        'team_grid'       => 'ark-team-grid',
-        'logo_grid'       => 'ark-logo-grid',
-        'social_icons'    => 'ark-social-icons',
-        'social_links'    => 'ark-social-links',
-        'opening_hours'   => 'ark-opening-hours',
-        'contact_card'    => 'ark-contact-card',
-        'contact_info'    => 'ark-contact-info',
-        'html_embed'      => 'ark-html-embed',
-        'audio'           => 'ark-audio',
-        'email'           => 'ark-email',
-        'posts_grid'      => 'ark-posts-grid',
-        'products_grid'   => 'ark-products-grid',
-        'recent_posts'    => 'ark-recent-posts',
-        'categories'      => 'ark-categories',
-        'tag_cloud'       => 'ark-tag-cloud',
-        'archives'        => 'ark-archives',
-        'search_box'      => 'ark-search-box',
-        'nav_menu'        => 'ark-nav-menu',
-        'ai_block'        => 'ark-ai-block',
-    ];
-
-    return $map;
-}
-
-/**
- * Get the ARK CSS class for a builder component type.
- */
-function cmsBuilderArkClass(string $type): string
-{
-    $map = cmsBuilderArkClassMap();
-    return $map[$type] ?? '';
-}
-
-/**
- * Merge ARK CSS class into an attributes array.
- * Appends the ARK class after existing classes so ARK styles layer on top.
- */
-function cmsBuilderMergeArkClass(string $type, array &$attrs): void
-{
-    $arkClass = cmsBuilderArkClass($type);
-    if ($arkClass === '') {
-        return;
-    }
-    $existing = trim((string)($attrs['class'] ?? ''));
-    $attrs['class'] = trim(($existing ? $existing . ' ' : '') . $arkClass);
-}
-
 // ─── Widget Render Functions ─────────────────────────────────────────────
 
 /**
@@ -213,11 +104,50 @@ function cmsBuilderMergeArkClass(string $type, array &$attrs): void
  */
 function cmsBuilderApplyFullWidth(array &$style): void
 {
+    // Preserve user-set margin from shorthand before unsetting it.
+    // The builder UI stores margin as a shorthand string (e.g. "-50px 0 0 0").
+    // Parse it to extract margin-top and margin-bottom for later restoration.
+    $userMarginTop = null;
+    $userMarginBottom = null;
+    if (isset($style['margin']) && is_string($style['margin']) && $style['margin'] !== '') {
+        $parts = preg_split('/\s+/', trim($style['margin']));
+        if (count($parts) === 1) {
+            // Single value applies to all sides
+            $userMarginTop = $userMarginBottom = $parts[0];
+        } elseif (count($parts) === 2) {
+            // Two values: top/bottom, right/left
+            $userMarginTop = $userMarginBottom = $parts[0];
+        } elseif (count($parts) === 3) {
+            // Three values: top, right/left, bottom
+            $userMarginTop = $parts[0];
+            $userMarginBottom = $parts[2];
+        } elseif (count($parts) >= 4) {
+            // Four values: top, right, bottom, left
+            $userMarginTop = $parts[0];
+            $userMarginBottom = $parts[2];
+        }
+    }
+    // Also check explicit marginTop/marginBottom (set programmatically or via custom code)
+    if (isset($style['marginTop']) && $style['marginTop'] !== '' && $style['marginTop'] !== null) {
+        $userMarginTop = $style['marginTop'];
+    }
+    if (isset($style['marginBottom']) && $style['marginBottom'] !== '' && $style['marginBottom'] !== null) {
+        $userMarginBottom = $style['marginBottom'];
+    }
+
     unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
     $style['width']      = '100vw';
     $style['marginLeft'] = 'calc(-50vw + 50%)';
     $style['alignSelf']  = 'flex-start';
     $style['overflow']   = 'hidden';
+
+    // Restore non-zero margins so negative values (pull-up effects) work
+    if ($userMarginTop !== null && ((float)$userMarginTop) !== 0.0) {
+        $style['marginTop'] = $userMarginTop;
+    }
+    if ($userMarginBottom !== null && ((float)$userMarginBottom) !== 0.0) {
+        $style['marginBottom'] = $userMarginBottom;
+    }
 }
 
 function cmsRenderWidget_document(array $props, array $style, array $attrs, string $children, array $node, array $context): string
@@ -228,7 +158,6 @@ function cmsRenderWidget_document(array $props, array $style, array $attrs, stri
 function cmsRenderWidget_layout(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
     $type = (string)($node['type'] ?? 'div');
-    cmsBuilderMergeArkClass($type, $attrs);
     $tag = $type === 'section' ? 'section' : 'div';
     $rawStyle = isset($node['style']) && is_array($node['style']) ? $node['style'] : [];
 
@@ -298,50 +227,47 @@ function cmsRenderWidget_layout(array $props, array $style, array $attrs, string
 
 function cmsRenderWidget_heading(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('heading', $attrs);
     $tag = cmsBuilderNormalizeHeadingTag($props['level'] ?? 'h2');
     return '<' . $tag . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderNodeContent($props) . '</' . $tag . '>';
 }
 
 function cmsRenderWidget_text(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('text', $attrs);
     return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . cmsBuilderNodeContent($props) . '</div>';
 }
 
 function cmsRenderWidget_image(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('image', $attrs);
     $src = (string)($props['src'] ?? $props['url'] ?? '');
     if ($src === '') {
         return '';
-    }
-    if (!array_key_exists('maxWidth', $style)) {
-        $style['maxWidth'] = '100%';
     }
     $alt = (string)($props['alt'] ?? '');
     $caption = (string)($props['caption'] ?? '');
     $linkUrl = (string)($props['linkUrl'] ?? '');
     $linkTarget = (string)($props['linkTarget'] ?? '');
 
-    $figureStyle = $style;
-    $imgStyle = [
-        'display' => 'block',
-        'width' => '100%',
-        'maxWidth' => '100%',
-        'height' => 'auto',
-    ];
-
-    foreach (['height', 'minHeight', 'maxHeight', 'borderRadius', 'objectFit', 'objectPosition'] as $ip) {
-        if (isset($figureStyle[$ip])) {
-            $imgStyle[$ip] = $figureStyle[$ip];
-            unset($figureStyle[$ip]);
+    // Extract image-specific CSS props that belong on <img>, not <figure>
+    $imgStyle = [];
+    $imgOnlyProps = ['objectFit', 'objectPosition'];
+    foreach ($imgOnlyProps as $ip) {
+        if (isset($style[$ip])) {
+            $imgStyle[$ip] = $style[$ip];
+            unset($style[$ip]);
         }
     }
+    // width/height go on the <img> too so the image itself sizes correctly,
+    // but keep them on <figure> as well for wrapper sizing
+    if (isset($style['width'])) {
+        $imgStyle['width'] = '100%';
+    }
+    if (isset($style['height']) && $style['height'] !== 'auto') {
+        $imgStyle['height'] = '100%';
+    }
 
-    // Full-width breakout belongs to the figure/layout wrapper; the image fills it.
+    // Full-width breakout: expand figure to 100vw and ensure img fills it
     if (!empty($props['fullWidth'])) {
-        cmsBuilderApplyFullWidth($figureStyle);
+        cmsBuilderApplyFullWidth($style);
         $imgStyle['width'] = '100%';
     }
 
@@ -368,7 +294,7 @@ function cmsRenderWidget_image(array $props, array $style, array $attrs, string 
             . '</div>';
     }
 
-    $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($figureStyle) . '>'
+    $html = '<figure' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>'
         . $imgTag;
     if ($caption !== '') {
         $html .= '<figcaption>' . cmsBuilderEsc($caption) . '</figcaption>';
@@ -386,7 +312,6 @@ function cmsRenderWidget_button(array $props, array $style, array $attrs, string
     $target = (string)($props['target'] ?? '');
     $variant = (string)($props['variant'] ?? 'primary');
     $size = (string)($props['size'] ?? 'medium');
-    cmsBuilderMergeArkClass('button', $attrs);
     $classes = trim(($attrs['class'] ?? '') . ' cms-builder-button cms-builder-button--' . $variant . ' cms-builder-button--' . $size);
     return '<a' . cmsBuilderAttrString(array_merge($attrs, [
         'href' => $href,
@@ -398,7 +323,6 @@ function cmsRenderWidget_button(array $props, array $style, array $attrs, string
 
 function cmsRenderWidget_spacer(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('spacer', $attrs);
     if (!isset($style['height']) && !empty($props['height'])) {
         $style['height'] = (string)$props['height'];
     }
@@ -407,7 +331,6 @@ function cmsRenderWidget_spacer(array $props, array $style, array $attrs, string
 
 function cmsRenderWidget_divider(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('divider', $attrs);
     $dividerStyle = (string)($props['dividerStyle'] ?? 'solid');
     $thickness = (string)($props['thickness'] ?? '');
     $color = (string)($props['color'] ?? '');
@@ -452,7 +375,6 @@ function cmsRenderWidget_divider(array $props, array $style, array $attrs, strin
 
 function cmsRenderWidget_video(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('video', $attrs);
     $src = (string)($props['src'] ?? $props['url'] ?? '');
     if ($src === '') {
         return '';
@@ -548,7 +470,6 @@ function cmsRenderWidget_icon_box(array $props, array $style, array $attrs, stri
 
 function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('tabs', $attrs);
     $tabs = cmsBuilderNormalizeItems($props['tabs'] ?? [], 'tabs');
     $activeTab = (string)($props['activeTab'] ?? ($tabs[0]['id'] ?? ''));
     $tabStyle = (string)($props['tabStyle'] ?? 'underline');
@@ -591,7 +512,6 @@ function cmsRenderWidget_tabs(array $props, array $style, array $attrs, string $
 
 function cmsRenderWidget_accordion(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('accordion', $attrs);
     $items = cmsBuilderNormalizeItems($props['items'] ?? [], 'accordion');
     $allowMultiple = ($props['allowMultiple'] ?? false) !== false;
     // When allowMultiple is false, use a shared name attribute on <details> (HTML native exclusive accordion)
@@ -666,7 +586,6 @@ function cmsRenderWidget_counter(array $props, array $style, array $attrs, strin
 
 function cmsRenderWidget_progress(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('progress', $attrs);
     $val = max(0, min(100, (int)($props['value'] ?? 75)));
     $max = max(1, (int)($props['max'] ?? 100));
     $pct = round($val / $max * 100);
@@ -681,7 +600,6 @@ function cmsRenderWidget_progress(array $props, array $style, array $attrs, stri
 
 function cmsRenderWidget_testimonial(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('testimonial', $attrs);
     $quote = cmsBuilderEsc((string)($props['quote'] ?? ''));
     $author = cmsBuilderEsc((string)($props['author'] ?? ''));
     $role = cmsBuilderEsc((string)($props['role'] ?? ''));
@@ -701,7 +619,6 @@ function cmsRenderWidget_testimonial(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('slideshow', $attrs);
     $slides        = cmsBuilderNormalizeItems($props['slides'] ?? [], 'slides');
     $height        = cmsBuilderEsc((string)($props['height'] ?? '500px'));
     $interval      = (int)($props['interval'] ?? 5000);
@@ -768,7 +685,7 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     }
 
     // Caption position CSS
-    $posStyle = 'position:absolute;left:0;right:0;--b-padding:24px;padding:var(--b-padding);z-index:2;';
+    $posStyle = 'position:absolute;left:0;right:0;padding:24px;z-index:2;';
     if ($captionPosition === 'top') {
         $posStyle .= 'top:0;';
     } elseif ($captionPosition === 'center') {
@@ -793,15 +710,13 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     }
     
     if ($fullWidth) {
-        unset($style['width'], $style['margin'], $style['marginLeft'], $style['marginRight']);
-        $wrapStyle['width']      = '100vw';
-        $wrapStyle['maxWidth']   = '100vw';
-        $wrapStyle['position']   = 'relative';
-        $wrapStyle['left']       = '50%';
-        $wrapStyle['right']      = '50%';
-        $wrapStyle['marginLeft'] = '-50vw';
-        $wrapStyle['marginRight']= '-50vw';
-        $wrapStyle['alignSelf']  = 'stretch';
+        // cmsBuilderApplyFullWidth handles margin shorthand preservation internally
+        cmsBuilderApplyFullWidth($style);
+        // Override fullWidth onto wrapStyle (slideshow needs position:relative wrapper)
+        $wrapStyle['width']      = $style['width'];
+        $wrapStyle['marginLeft'] = $style['marginLeft'];
+        $wrapStyle['alignSelf']  = $style['alignSelf'];
+        unset($style['width'], $style['marginLeft'], $style['alignSelf']);
     }
 
     // Data attributes
@@ -817,7 +732,7 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
     $html = '<div' . cmsBuilderAttrString($attrs) . $dataAttrs . cmsBuilderStyleAttr(array_merge($style, $wrapStyle)) . '>';
 
     if ($useSlideTrack) {
-        $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:' . $trackTransition . ';--b-height:' . $height . ';height:var(--b-height)">';
+        $html .= '<div class="cms-builder-slide-track" style="display:flex;transition:' . $trackTransition . ';height:' . $height . '">';
     }
 
     foreach ($slides as $idx => $slide) {
@@ -952,7 +867,6 @@ function cmsRenderWidget_slideshow(array $props, array $style, array $attrs, str
 
 function cmsRenderWidget_form(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('form', $attrs);
     $fields = isset($props['fields']) && is_array($props['fields']) ? $props['fields'] : [];
     $submitText = cmsBuilderEsc((string)($props['submitText'] ?? 'Submit'));
     $html = '<form' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr(array_merge(['width' => '100%', 'maxWidth' => '500px'], $style)) . ' method="post" onsubmit="return false">';
@@ -982,7 +896,6 @@ function cmsRenderWidget_form(array $props, array $style, array $attrs, string $
 
 function cmsRenderWidget_gallery(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('gallery', $attrs);
     $images = cmsBuilderNormalizeItems($props['images'] ?? [], 'images');
     $cols = max(1, (int)($props['columns'] ?? 3));
     $gapPx = (int)($props['gap'] ?? 16);
@@ -1062,7 +975,6 @@ function cmsRenderWidget_map(array $props, array $style, array $attrs, string $c
 
 function cmsRenderWidget_table(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('table', $attrs);
     $headers = isset($props['headers']) && is_array($props['headers']) ? $props['headers'] : [];
     $rows = isset($props['rows']) && is_array($props['rows']) ? $props['rows'] : [];
     $striped = ($props['striped'] ?? false) !== false;
@@ -1094,7 +1006,6 @@ function cmsRenderWidget_table(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_alert(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('alert', $attrs);
     $alertTitle = trim((string)($props['title'] ?? ''));
     $alertContent = cmsBuilderEsc((string)($props['content'] ?? 'This is an alert message.'));
     $alertType = (string)($props['alertType'] ?? 'info');
@@ -1126,10 +1037,8 @@ function cmsRenderWidget_alert(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_anchor(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    $anchorId = preg_replace('/[^a-zA-Z0-9_-]/', '', (string)($props['anchorId'] ?? 'anchor')) ?: 'anchor';
-    $attrs['id'] = $anchorId;
-    $style = array_merge($style, ['display' => 'block', 'height' => '0', 'visibility' => 'hidden']);
-    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '></div>';
+    $anchorId = cmsBuilderEsc((string)($props['anchorId'] ?? 'anchor'));
+    return '<div id="' . $anchorId . '"' . cmsBuilderAttrString($attrs) . ' style="display:block;height:0;visibility:hidden"></div>';
 }
 
 function cmsBuilderGridStyle(array $style, string $templateColumns, string $gap = '24px'): array
@@ -1712,7 +1621,6 @@ function cmsBuilderEntityViewContext(array $context): array
 
 function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('entity_view', $attrs);
     $rootContext = $context;
     $entity = cmsBuilderEntityViewContext($context);
     $showFeaturedImage = ($props['showFeaturedImage'] ?? true) !== false;
@@ -1874,7 +1782,6 @@ function cmsRenderWidget_entity_view(array $props, array $style, array $attrs, s
 
 function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('entity_list', $attrs);
     $entityType = trim((string)($props['entityType'] ?? 'post')) ?: 'post';
     $entityType = str_replace(' ', '_', $entityType);
     $entityType = preg_replace('/[^a-z0-9._-]/i', '', $entityType) ?: 'post';
@@ -1901,12 +1808,10 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
         $attrsStr .= ' empty="' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . '"';
     }
 
-    $html = $engine->renderString(
+    return $engine->renderString(
         '{ikb_entity_list source="' . $source . '" view="' . $view . '" limit="' . $limit . '"' . $attrsStr . ' /}',
         $context
     );
-
-    return '<div' . cmsBuilderAttrString($attrs) . cmsBuilderStyleAttr($style) . '>' . $html . '</div>';
 }
 
 /**
@@ -2248,7 +2153,6 @@ function cmsRenderWidget_logo_grid(array $props, array $style, array $attrs, str
 
 function cmsRenderWidget_blockquote(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('blockquote', $attrs);
     $bqContent = cmsBuilderEsc((string)($props['content'] ?? ''));
     $bqAuthor = cmsBuilderEsc((string)($props['author'] ?? ''));
     $bqAuthorTitle = cmsBuilderEsc((string)($props['authorTitle'] ?? ''));
@@ -2691,7 +2595,6 @@ function cmsRenderWidget_search_box(array $props, array $style, array $attrs, st
 
 function cmsRenderWidget_badge(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('badge', $attrs);
     $text = cmsBuilderEsc((string)($props['text'] ?? 'Featured'));
     $variant = (string)($props['variant'] ?? 'primary');
     $size = (string)($props['size'] ?? 'md');
@@ -2724,7 +2627,6 @@ function cmsRenderWidget_badge(array $props, array $style, array $attrs, string 
 
 function cmsRenderWidget_stat_card(array $props, array $style, array $attrs, string $children, array $node, array $context): string
 {
-    cmsBuilderMergeArkClass('stat_card', $attrs);
     $value = cmsBuilderEsc((string)($props['value'] ?? '128'));
     $label = cmsBuilderEsc((string)($props['label'] ?? 'Happy Customers'));
     $description = cmsBuilderEsc((string)($props['description'] ?? 'A quick metric you want visitors to notice immediately.'));
@@ -2894,13 +2796,10 @@ function cmsRenderWidget_html_embed(array $props, array $style, array $attrs, st
 
     // F9 Security: Only admin/superadmin users may render raw embedded HTML.
     // Any other caller gets a sanitized version with dangerous tags stripped.
-    // Per project convention: superadmin requires BOTH role === 'superadmin' AND source === 'kernel'.
     $user = function_exists('app') ? app()->user() : null;
     $role = is_array($user) ? (string)($user['role'] ?? '') : '';
-    $source = is_array($user) ? (string)($user['source'] ?? '') : '';
-    $isAdmin = ($role === 'admin');
-    $isSuperadmin = ($role === 'superadmin' && $source === 'kernel');
-    $isTrusted = $isAdmin || $isSuperadmin;
+    $trustedRoles = ['admin', 'superadmin'];
+    $isTrusted = in_array($role, $trustedRoles, true);
 
     if (!$isTrusted) {
         // Strip all script, style, and event-handler attributes; allow only safe structural tags.
