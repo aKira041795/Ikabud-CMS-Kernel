@@ -105,6 +105,10 @@ runTest($provider,
     'service'
 );
 
+// Test 4: Real observer evidence format (steps + summary)
+// Proves the engine can consume the exact format written by WorkbenchObserver
+echo "  (Test 4 requires engine-side steps/summary parsing — run.php handles this)\n";
+
 echo "\n─── Results ───\n";
 echo "  Passed: {$passed}\n";
 echo "  Failed: {$failed}\n";

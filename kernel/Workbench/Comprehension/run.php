@@ -14,7 +14,7 @@ declare(strict_types=1);
  *
  * Options:
  *   --evidence=file.json     Evidence file from ActionObserver
- *   --tenant=N               Tenant ID (default: 502)
+ *   --tenant=N               Tenant ID. Required for DB probes unless provided by evidence _meta.
  *   --entity-type=string     Entity type (e.g. pal.project)
  *   --entity-id=N            Entity ID
  *   --run-id=string          Test run ID for history tracking

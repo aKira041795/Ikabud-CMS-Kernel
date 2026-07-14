@@ -175,7 +175,7 @@ class WorkbenchReporter {
                 finished: finishedAt,
             };
         }
-        writeJsonAtomic(path.join(RESULTS_DIR, 'manifest.json'), manifest);
+        writeRunResult('manifest.json', manifest);
         console.log('  📄 test_results/browser/manifest.json');
 
         // ── Issue Report ───────────────────────────────────────
@@ -210,7 +210,7 @@ class WorkbenchReporter {
             issueReport.by_severity[iss.severity] = (issueReport.by_severity[iss.severity] || 0) + 1;
             issueReport.by_kind[iss.kind] = (issueReport.by_kind[iss.kind] || 0) + 1;
         }
-        writeJsonAtomic(path.join(RESULTS_DIR, 'issue-report.json'), issueReport);
+        writeRunResult('issue-report.json', issueReport);
 
         // ── Comprehension Auto-Launch ──────────────────────────
         // For every evidence annotation on failed tests, auto-launch Comprehension Engine.

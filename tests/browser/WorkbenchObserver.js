@@ -78,24 +78,39 @@ class WorkbenchObserver {
         return t[0] + t[1] / 1e9;
     }
 
-            /** Redact sensitive headers from captured evidence */
-            _redactHeaders(headers) {
-                var clone = Object.assign({}, headers);
-                for (var key of Object.keys(clone)) {
-                    if (/cookie|authorization|token|csrf|session|set-cookie|connect.sid/i.test(key)) {
-                        clone[key] = '[redacted]';
-                    }
-                }
-                return clone;
-            }
+    /** @returns {string} ISO timestamp */
+    _iso() { return new Date().toISOString(); }
 
+    /** Redact sensitive headers from captured evidence */
+    _redactHeaders(headers) {
+        var clone = Object.assign({}, headers);
+        for (var key of Object.keys(clone)) {
+            if (/cookie|authorization|token|csrf|session|set-cookie|connect.sid/i.test(key)) {
+                clone[key] = '[redacted]';
+            }
+        }
+        return clone;
+    }
+
+    /** Listen to all network requests/responses */
+    _setupNetworkCapture() {
+        if (!this.page) return;
         var self = this;
 
         this.page.on('request', function (req) {
             self.httpRequests.push({
                 url: req.url(),
                 method: req.method(),
-                        headers: self._redactHeaders(req.headers()),
+                headers: self._redactHeaders(req.headers()),
+                timestamp: self._now(),
+            });
+        });
+
+        this.page.on('response', function (res) {
+            self.httpResponses.push({
+                url: res.url(),
+                status: res.status(),
+                statusText: res.statusText(),
                 timestamp: self._now(),
             });
         });
