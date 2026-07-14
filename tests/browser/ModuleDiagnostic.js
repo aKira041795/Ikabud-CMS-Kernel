@@ -56,13 +56,30 @@ class ModuleDiagnostic {
     }
 
     /**
+     * Check if module uses shell wrapper pattern (shell.disyl includes fragments).
+     */
+    _usesShellWrapper() {
+        const fs = require('fs');
+        const path = require('path');
+        // shell.disyl is in the module template root, not in pages/
+        const shellPath = path.join(this.modulePath, 'templates', this.manifest.id || '', 'shell.disyl');
+        const altPath = path.join(this.modulePath, 'templates', 'shell.disyl');
+        return fs.existsSync(shellPath) || fs.existsSync(altPath);
+    }
+
+    /**
      * Run full diagnostic: check every discovered element against the live page.
      * @returns {Promise<{passed:number, failed:number, issues:Array, report:string}>}
      */
     async runFullDiagnostic() {
         this.issues = [];
         const templates = this.comprehension.analyzeTemplates();
+        const usesShell = this._usesShellWrapper();
         const baseUrl = process.env.APP_URL || 'http://palsystem.test';
+
+        if (usesShell) {
+            console.log('  ℹ Module uses shell wrapper pattern (shell.disyl → page fragments)');
+        }
 
         // Build URL map from nav items
         const navUrlMap = new Map();
@@ -126,20 +143,29 @@ class ModuleDiagnostic {
 
     // ─── Individual Checks ─────────────────────────────────
 
+    /**
+     * Check if a template is a fragment (included via shell.disyl page_content).
+     */
+    _isFragment(tmpl) {
+        return this._usesShellWrapper() && tmpl.file !== 'shell.disyl';
+    }
+
     async _checkShell(tmpl) {
+        if (this._isFragment(tmpl)) return; // shell provided by shell.disyl
         const shell = this.page.locator('body[data-wb-component="app-shell"]');
         const visible = await shell.isVisible().catch(() => false);
         if (!visible) {
             this._recordIssue('critical', tmpl.page,
-                'App shell (data-wb-component="app-shell") should be visible on every page',
+                'App shell should be visible on every page',
                 'App shell not found on page',
-                'Template extends wrong layout or layout file is missing',
-                `Check ${tmpl.file} extends the correct admin layout (e.g., layouts/admin.disyl)`
+                'Template extends wrong layout or shell.disyl missing include',
+                `Check ${tmpl.file} layout inheritance`
             );
         }
     }
 
     async _checkHeading(tmpl) {
+        if (this._isFragment(tmpl)) return; // heading from handler context, not template
         const heading = this.page.locator('#wb-main h1');
         const count = await heading.count().catch(() => 0);
         if (count === 0) {
@@ -185,11 +211,12 @@ class ModuleDiagnostic {
             const labelFound = await label.isVisible({ timeout: 300 }).catch(() => false);
 
             if (!labelFound) {
+                const cleanName = field.name.replace(/^name="/, '').replace(/"$/, '');
                 this._recordIssue('major', tmpl.page,
-                    `Form field "${field.name}" (${field.type}) should be present`,
-                    `Field "${field.name}" not found by name, id, wb-field, or label text`,
+                    `Form field "${cleanName}" (${field.type}) should be present`,
+                    `Field "${cleanName}" not found by name, id, wb-field, or label text`,
                     `Template field name doesn't match handler context variable, or field is conditionally hidden`,
-                    `In ${tmpl.file}, check that <input name="${field.name}"> exists and the handler passes \${${field.name}} context`
+                    `In ${tmpl.file}, check that <input name="${cleanName}"> exists and the handler passes \${${cleanName}} context`
                 );
             }
         }

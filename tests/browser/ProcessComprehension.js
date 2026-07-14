@@ -79,11 +79,11 @@ class ProcessComprehension {
     _extractFields(content) {
         const fields = [];
         // Match <input>, <select>, <textarea> elements
-        const inputRegex = /<(input|select|textarea)\s[^>]*?(name="([^"]+)")[^>]*?(required)?[^>]*?(type="([^"]*)")?[^>]*?(value="\{?([^}]+)\}?")?[^>]*?\/?>/gi;
+        const inputRegex = /<(input|select|textarea)\s[^>]*?name="([^"]+)"[^>]*?(required)?[^>]*?(type="([^"]*)")?[^>]*?(value="\{?([^}]+)\}?")?[^>]*?\/?>/gi;
         let match;
         while ((match = inputRegex.exec(content)) !== null) {
             const type = match[1];
-            const name = match[2];
+            const name = match[2]; // Just the field name, no name=" prefix
             const required = !!match[3];
             const inputType = match[5] || type;
             const valueBinding = match[7] || '';
