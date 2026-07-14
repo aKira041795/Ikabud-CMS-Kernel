@@ -4,6 +4,11 @@
 <script>
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
+// Set by DiSyL — used inside verbatim blocks where { } is safe
+var wbBaseUrl = '{base_url}';
+var wbCsrfToken = '{csrf_token}';
+
+{verbatim}
 // ── API Keys ──────────────────────────────────────────────────
 async function wbCreateKey() {
     var btn = document.querySelector('.wb-btn-create-key');
@@ -11,9 +16,9 @@ async function wbCreateKey() {
     var name = prompt('Key name (e.g. "CI runner", "dev local"):');
     if (!name) { if (btn) { btn.disabled = false; btn.textContent = '+ New Key'; } return; }
     try {
-        var res = await fetch('{base_url}/api/v1/superadmin/workbench/keys', {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/keys', {
             method: 'POST', credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': wbCsrfToken},
             body: JSON.stringify({action: 'create', name: name, scopes: ['*']}),
         });
         var data = await res.json();
@@ -32,9 +37,9 @@ async function wbRevokeKey(id, row) {
     if (!confirm('Revoke key #' + id + '? This cannot be undone.')) return;
     if (row) { row.style.opacity = '0.5'; row.style.pointerEvents = 'none'; }
     try {
-        var res = await fetch('{base_url}/api/v1/superadmin/workbench/keys', {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/keys', {
             method: 'POST', credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': wbCsrfToken},
             body: JSON.stringify({action: 'revoke', id: id}),
         });
         var data = await res.json();
@@ -52,9 +57,9 @@ async function wbRunTests(target) {
     for (var i = 0; i < btns.length; i++) { btns[i].disabled = true; }
     outEl.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Running ' + escHtml(label) + '...</div>';
     try {
-        var res = await fetch('{base_url}/api/v1/superadmin/workbench/trigger-tests', {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/trigger-tests', {
             method: 'POST', credentials: 'same-origin',
-            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': '{csrf_token}'},
+            headers: {'Content-Type': 'application/json', 'X-CSRF-Token': wbCsrfToken},
             body: JSON.stringify({target: target}),
         });
         var data = await res.json();
@@ -92,7 +97,7 @@ async function wbViewResult(suite) {
     var el = document.getElementById('wb-result-detail');
     el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Loading results...</div>';
     try {
-        var res = await fetch('{base_url}/api/v1/superadmin/workbench/test-results?suite=' + encodeURIComponent(suite));
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/test-results?suite=' + encodeURIComponent(suite));
         var data = await res.json();
         if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
         var preEl = document.createElement('pre');
@@ -102,6 +107,7 @@ async function wbViewResult(suite) {
         el.appendChild(preEl);
     } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error loading results: ' + escHtml(e.message) + '</div>'; }
 }
+{/verbatim}
 </script>
 {/block}
 
