@@ -1,13 +1,8 @@
 /**
- * BehaviorFlow — Runtime behavioral testing engine.
+ * BehaviorFlow — Runtime behavioral testing engine (module-agnostic).
  *
- * Unlike the static diagnostic (which checks if elements exist),
- * BehaviorFlow INTERACTS with the page like a real user:
- *   - Clicks buttons (Add Item, Save, Submit)
- *   - Fills form fields
- *   - Monitors toast messages and warnings
- *   - Detects unsaved-changes dialogs
- *   - Validates that interactions produce expected state changes
+ * Provides generic interaction primitives. Module-specific behaviors
+ * extend this class and call the primitives.
  *
  * This catches the issues a static analysis never can:
  *   - "You might lose data on reload" toasts with no save
@@ -25,10 +20,15 @@ class BehaviorFlow {
 
     /**
      * @param {import('@playwright/test').Page} page
+     * @param {object} [opts]
+     * @param {string} [opts.basePath] - Module admin base path (e.g. '/admin/project-audit-ledger')
+     * @param {string} [opts.appUrl] - Application base URL
      */
-    constructor(page) {
+    constructor(page, opts) {
         this.page = page;
-        /** @type {Array<{type:string, severity:string, message:string, url:string}>} */
+        this.basePath = opts?.basePath || '/admin';
+        this.appUrl = opts?.appUrl || process.env.APP_URL || 'http://palsystem.test';
+        /** @type {Array<{type:string, severity:string, message:string, url:string, step?:string}>} */
         this.observations = [];
         this._toastObserver = null;
     }
@@ -37,7 +37,6 @@ class BehaviorFlow {
      * Start monitoring for toast messages and browser dialogs.
      */
     async startMonitoring() {
-        // Monitor toast messages (common pattern: showToast(), toast container, alert banners)
         this._toastObserver = this.page.locator('#toast, #wb-toast-container, [data-wb-component="toast"], .toast, [class*="toast"]');
     }
 
@@ -68,18 +67,19 @@ class BehaviorFlow {
 
     /**
      * Detect unsaved-changes warnings (beforeunload, dirty flags).
-     * @returns {Promise<boolean>}
+     * @returns {Promise<{detected: boolean, method: string}>}
      */
     async hasUnsavedChangesWarning() {
         return await this.page.evaluate(() => {
-            // Check for beforeunload handler
-            const beforeUnload = window.onbeforeunload;
-            if (beforeUnload) return true;
-            // Check for common dirty-flag patterns
+            // Check for beforeunload handler (onbeforeunload property)
+            if (window.onbeforeunload) {
+                return { detected: true, method: 'onbeforeunload-property' };
+            }
+            // Check for dirty-flag patterns
             const dirty = document.querySelector('[data-dirty="true"], .is-dirty, .unsaved');
-            if (dirty) return true;
-            return false;
-        }).catch(() => false);
+            if (dirty) return { detected: true, method: 'dirty-flag' };
+            return { detected: false, method: 'none' };
+        }).catch(() => ({ detected: false, method: 'error' }));
     }
 
     /**
@@ -108,13 +108,23 @@ class BehaviorFlow {
     }
 
     /**
+     * Click a button identified by data-wb-action attribute.
+     * @param {string} actionKey
+     */
+    async clickAction(actionKey) {
+        const btn = this.page.locator(`[data-wb-action="${actionKey}"]`).first();
+        await btn.click();
+        await this.page.waitForTimeout(300);
+    }
+
+    /**
      * Fill a form field by its label text or name.
      * @param {string|RegExp} labelOrName
      * @param {string} value
      */
     async fillField(labelOrName, value) {
         // Try by label text first
-        const byLabel = this.page.locator(`label`).filter({ hasText: labelOrName }).first();
+        const byLabel = this.page.locator('label').filter({ hasText: labelOrName }).first();
         if (await byLabel.isVisible({ timeout: 500 }).catch(() => false)) {
             const forAttr = await byLabel.getAttribute('for').catch(() => null);
             if (forAttr) {
@@ -131,26 +141,136 @@ class BehaviorFlow {
                 return;
             }
         }
+        // Try by field key
+        const byField = this.page.locator(`[data-wb-field="${labelOrName}"]`).first();
+        if (await byField.isVisible({ timeout: 300 }).catch(() => false)) {
+            await byField.fill(value);
+            return;
+        }
         // Try by name
         const byName = this.page.locator(`[name="${labelOrName}"]`).first();
         if (await byName.isVisible({ timeout: 300 }).catch(() => false)) {
             await byName.fill(value);
             return;
         }
-        console.log(`  ℹ Could not find field: ${labelOrName}`);
+        this._observe('interaction', 'warning', `Could not find field: ${labelOrName}`);
+    }
+
+    /**
+     * Submit a form and check for redirect.
+     * @param {object} [opts]
+     * @param {string} [opts.formKey] - data-wb-form selector
+     * @param {RegExp} [opts.redirectPattern] - Expected redirect URL pattern after submit
+     * @returns {Promise<{redirected: boolean, url: string, toast: string|null}>}
+     */
+    async submitForm(opts) {
+        const formKey = opts?.formKey;
+        const redirectPattern = opts?.redirectPattern;
+
+        const submitBtn = formKey
+            ? this.page.locator(`[data-wb-form="${formKey}"] button[type="submit"], [data-wb-form="${formKey}"] [data-wb-action]`).first()
+            : this.page.locator('button[type="submit"], [data-wb-action="save"], [data-wb-action="create"]').first();
+
+        if (!(await submitBtn.isVisible({ timeout: 1000 }).catch(() => false))) {
+            this._observe('interaction', 'warning', 'No submit button found');
+            return { redirected: false, url: this.page.url(), toast: null };
+        }
+
+        await submitBtn.click();
+        console.log('  ✓ Clicked submit');
+
+        const toast = await this.waitForToast(3000);
+        if (toast) {
+            this._observe('toast', toast.includes('error') || toast.includes('Error') ? 'error' : 'info', toast);
+            console.log(`  📢 Toast: "${toast}"`);
+            if (/lose|unsaved|reload|discard/.test(toast)) {
+                this._observe('ux-warning', 'warning', `Confusing UX: "${toast}"`);
+            }
+        }
+
+        await this.page.waitForTimeout(1500);
+        const currentUrl = this.page.url();
+        const redirected = redirectPattern ? redirectPattern.test(currentUrl) : !currentUrl.includes('/create');
+
+        if (redirected) {
+            this._observe('navigation', 'info', `Form submitted → redirected to ${currentUrl}`);
+            console.log(`  ✓ Redirected to: ${currentUrl}`);
+        } else {
+            this._observe('navigation', 'warning', 'Form submitted but still on same page — may need JS reload');
+        }
+        return { redirected, url: currentUrl, toast };
+    }
+
+    /**
+     * Add a generic observation.
+     * @param {string} type
+     * @param {string} severity
+     * @param {string} message
+     * @param {string} [step]
+     */
+    _observe(type, severity, message, step) {
+        this.observations.push({ type, severity, message, url: this.page.url(), step: step || type });
+    }
+
+    /**
+     * Generate a behavioral flow report.
+     */
+    generateReport() {
+        const warnings = this.observations.filter(o => o.severity === 'warning');
+        const errors = this.observations.filter(o => o.severity === 'error' || o.severity === 'critical');
+        const info = this.observations.filter(o => o.severity === 'info');
+
+        let report = `\n═══════════════════════════════════════════════════\n`;
+        report += `  BEHAVIORAL FLOW REPORT\n`;
+        report += `  ${this.observations.length} observations (${errors.length} errors, ${warnings.length} warnings, ${info.length} info)\n`;
+        report += `═══════════════════════════════════════════════════\n`;
+
+        for (const obs of this.observations) {
+            const icon = obs.severity === 'error' || obs.severity === 'critical' ? '🔴' : obs.severity === 'warning' ? '🟠' : 'ℹ️';
+            report += `  ${icon} [${obs.type}] ${obs.message}\n`;
+        }
+
+        return report;
+    }
+
+    /**
+     * Default no-op scenario for modules without registered behavior flows.
+     * @returns {Promise<Array>} Empty observations array
+     */
+    async runDefaultScenario() {
+        console.log('  ℹ No behavior flow registered for this module — skipping');
+        return [];
+    }
+}
+
+
+/**
+ * PalBehaviorFlow — PAL (Project Audit Ledger) specific behavior flows.
+ * @extends BehaviorFlow
+ */
+class PalBehaviorFlow extends BehaviorFlow {
+
+    /**
+     * @param {import('@playwright/test').Page} page
+     */
+    constructor(page) {
+        super(page, { basePath: '/admin/project-audit-ledger' });
+        /** @type {Array<{entityType: string, entityId: number, title: string}>} */
+        this.createdEntities = [];
     }
 
     /**
      * Run the complete job order creation flow as a human would.
      * This catches runtime UX issues: missing toasts, unsaved warnings, broken interactions.
+     * @returns {Promise<Array>} Flow observations
      */
     async runJobOrderFlow() {
-        const base = '/admin/project-audit-ledger';
+        const base = this.basePath;
         const observations = [];
 
         // ── Step 1: Navigate to create form ──
         console.log('\n  🔄 Flow: Create Job Order');
-        await this.page.goto(`${process.env.APP_URL || 'http://palsystem.test'}${base}/projects/create`);
+        await this.page.goto(`${this.appUrl}${base}/projects/create`);
         await this.page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 10000 });
 
         // ── Step 2: Fill title ──
@@ -159,7 +279,7 @@ class BehaviorFlow {
         console.log(`  ✓ Filled title: ${title}`);
 
         // ── Step 3: Try to add a line item ──
-        const addItemBtn = this.page.locator('button:has-text("Add"), [data-wb-action="add-item"], button:has-text("Item")').first();
+        const addItemBtn = this.page.locator('button:has-text("Add"), [data-wb-action="add-item"], [data-wb-action="pal.job-order.add-item"], button:has-text("Item")').first();
         if (await addItemBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
             await addItemBtn.click();
             await this.page.waitForTimeout(500);
@@ -171,12 +291,7 @@ class BehaviorFlow {
             if (rowAppeared) {
                 console.log('  ✓ New line item row appeared');
             } else {
-                observations.push({
-                    type: 'interaction',
-                    severity: 'warning',
-                    message: 'Add Item button clicked but no new row appeared — JS may be broken',
-                    url: this.page.url(),
-                });
+                this._observe('interaction', 'warning', 'Add Item button clicked but no new row appeared — JS may be broken');
             }
 
             // Try to fill the new row
@@ -190,64 +305,19 @@ class BehaviorFlow {
         }
 
         // ── Step 4: Check for unsaved changes warning ──
-        const hasUnsaved = await this.hasUnsavedChangesWarning();
-        if (hasUnsaved) {
-            observations.push({
-                type: 'ux',
-                severity: 'info',
-                message: 'Page warns about unsaved changes — indicates form state tracking works',
-                url: this.page.url(),
-            });
+        const unsaved = await this.hasUnsavedChangesWarning();
+        if (unsaved.detected) {
+            this._observe('ux', 'info', `Page warns about unsaved changes (${unsaved.method}) — form state tracking works`);
             console.log('  ✓ Unsaved changes protection active');
         }
 
         // ── Step 5: Try submitting ──
-        const submitBtn = this.page.locator('button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Submit")').first();
-        if (await submitBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-            await submitBtn.click();
-            console.log('  ✓ Clicked submit');
-
-            // Check for toast/success message
-            const toast = await this.waitForToast(3000);
-            if (toast) {
-                observations.push({
-                    type: 'toast',
-                    severity: toast.includes('error') || toast.includes('Error') ? 'error' : 'info',
-                    message: toast,
-                    url: this.page.url(),
-                });
-                console.log(`  📢 Toast: "${toast}"`);
-
-                // Detect "you might lose data" pattern
-                if (/lose|unsaved|reload|discard/.test(toast)) {
-                    observations.push({
-                        type: 'ux-warning',
-                        severity: 'warning',
-                        message: `Confusing UX: "${toast}" — user may not know how to save properly`,
-                        url: this.page.url(),
-                    });
-                }
-            }
-
-            // Check if we redirected
-            await this.page.waitForTimeout(1500);
-            const currentUrl = this.page.url();
-            const redirected = !currentUrl.includes('/create');
-            if (redirected) {
-                observations.push({
-                    type: 'navigation',
-                    severity: 'info',
-                    message: `Form submitted successfully → redirected to ${currentUrl}`,
-                    url: currentUrl,
-                });
-                console.log(`  ✓ Redirected to: ${currentUrl}`);
-            } else {
-                observations.push({
-                    type: 'navigation',
-                    severity: currentUrl.includes('/create') ? 'warning' : 'info',
-                    message: 'Form submitted but still on same page — may need JS reload',
-                    url: currentUrl,
-                });
+        const submitResult = await this.submitForm({ redirectPattern: /\/projects\/\d+/ });
+        if (submitResult.redirected) {
+            // Track created entity for cleanup
+            const idMatch = submitResult.url.match(/\/projects\/(\d+)/);
+            if (idMatch) {
+                this.createdEntities.push({ entityType: 'pal.project', entityId: parseInt(idMatch[1]), title });
             }
         }
 
@@ -256,25 +326,43 @@ class BehaviorFlow {
     }
 
     /**
-     * Generate a behavioral flow report.
+     * Run the PAL-specific default scenario (job order flow).
+     * @returns {Promise<Array>}
      */
-    generateReport() {
-        const warnings = this.observations.filter(o => o.severity === 'warning');
-        const errors = this.observations.filter(o => o.severity === 'error');
-        const info = this.observations.filter(o => o.severity === 'info');
-
-        let report = `\n═══════════════════════════════════════════════════\n`;
-        report += `  BEHAVIORAL FLOW REPORT\n`;
-        report += `  ${this.observations.length} observations (${warnings.length} warnings, ${errors.length} errors, ${info.length} info)\n`;
-        report += `═══════════════════════════════════════════════════\n`;
-
-        for (const obs of this.observations) {
-            const icon = obs.severity === 'error' ? '🔴' : obs.severity === 'warning' ? '🟠' : 'ℹ️';
-            report += `  ${icon} [${obs.type}] ${obs.message}\n`;
-        }
-
-        return report;
+    async runDefaultScenario() {
+        return await this.runJobOrderFlow();
     }
 }
 
-module.exports = { BehaviorFlow };
+
+/**
+ * BehaviorRegistry — Maps module IDs to behavior flow classes.
+ *
+ * Usage:
+ *   const BehaviorClass = BehaviorRegistry.forModule('project-audit-ledger');
+ *   const flow = new BehaviorClass(page);
+ *   const observations = await flow.runDefaultScenario();
+ */
+class BehaviorRegistry {
+    constructor() {
+        throw new Error('BehaviorRegistry is static — do not instantiate');
+    }
+
+    /**
+     * Get the behavior flow class for a module.
+     * @param {string} moduleId
+     * @returns {typeof BehaviorFlow}
+     */
+    static forModule(moduleId) {
+        const registry = {
+            'project-audit-ledger': PalBehaviorFlow,
+            // Future registrations:
+            // 'guidance': GuidanceBehaviorFlow,
+            // 'bakeshop': BakeshopBehaviorFlow,
+        };
+        return registry[moduleId] || BehaviorFlow;
+    }
+}
+
+
+module.exports = { BehaviorFlow, PalBehaviorFlow, BehaviorRegistry };

@@ -20,6 +20,7 @@
  *   MODULE     - Module directory name (required)
  *   ADMIN_USER - Login username
  *   ADMIN_PASS - Login password
+ *   HYBRID_GATE - Gate severity for failures: 'off' | 'critical' | 'major' (default: 'critical')
  */
 
 // @ts-check
@@ -27,18 +28,45 @@ const { test, expect } = require('./WorkbenchFixture');
 const { ModulePageDiscovery } = require('./ModulePageDiscovery');
 const { ProcessComprehension } = require('./ProcessComprehension');
 const { ModuleDiagnostic } = require('./ModuleDiagnostic');
-const { BehaviorFlow } = require('./BehaviorFlow');
+const { BehaviorFlow, BehaviorRegistry } = require('./BehaviorFlow');
 const { EvidenceBridge } = require('./comprehension/EvidenceBridge');
 const fs = require('fs');
 const path = require('path');
-const execSync = require('child_process').execSync;
+const { execFileSync } = require('child_process');
 
 const MODULE = process.env.MODULE || '';
 const MODULE_PATH = process.env.MODULE_PATH || path.resolve(__dirname, '../../modules', MODULE);
+const HYBRID_GATE = process.env.HYBRID_GATE || 'critical';
 
 if (!MODULE) throw new Error('MODULE environment variable required.');
 
+/**
+ * Safely read a JSON file, returning fallback on any error.
+ * @param {string} file
+ * @param {any} fallback
+ */
+function readJsonIfExists(file, fallback = {}) {
+    try {
+        if (!fs.existsSync(file)) return fallback;
+        return JSON.parse(fs.readFileSync(file, 'utf-8'));
+    } catch (e) {
+        return fallback;
+    }
+}
+
 const manifest = JSON.parse(fs.readFileSync(path.join(MODULE_PATH, 'module.json'), 'utf-8'));
+
+/**
+ * Determine whether a gate level should fail the test.
+ * @param {string} gate
+ * @param {string} severity
+ */
+function isGateFailure(gate, severity) {
+    if (gate === 'off') return false;
+    if (gate === 'critical') return severity === 'critical';
+    if (gate === 'major') return severity === 'critical' || severity === 'major';
+    return severity === 'critical';
+}
 
 test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
 
@@ -52,9 +80,7 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         console.log('  LAYER 1: Process Comprehension (static)');
         console.log('═══════════════════════════════════════════');
 
-        const providerData = JSON.parse(
-            fs.readFileSync('/tmp/provider_data.json', 'utf-8').catch(() => '{}')
-        );
+        const providerData = readJsonIfExists('/tmp/provider_data.json');
         const pc = new ProcessComprehension(MODULE_PATH, manifest, providerData);
         const processReport = pc.generateReport();
 
@@ -81,8 +107,9 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         console.log('  LAYER 3: Behavioral Flow (runtime)');
         console.log('═══════════════════════════════════════════');
 
-        const flow = new BehaviorFlow(page);
-        const flowObservations = await flow.runJobOrderFlow();
+        const BehaviorClass = BehaviorRegistry.forModule(MODULE);
+        const flow = new BehaviorClass(page);
+        const flowObservations = await flow.runDefaultScenario();
         console.log(flow.generateReport());
 
         // ════════════════════════════════════════════════════════
@@ -101,7 +128,8 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         // Run the PHP Comprehension Engine with this evidence
         console.log('  Running Comprehension Engine...');
         try {
-            const output = execSync(`php ${path.resolve(__dirname, '../../kernel/Workbench/Comprehension/run.php')} ${MODULE} --evidence=${evidencePath}`, {
+            const engineScript = path.resolve(__dirname, '../../kernel/Workbench/Comprehension/run.php');
+            const output = execFileSync('php', [engineScript, MODULE, '--evidence=' + evidencePath], {
                 encoding: 'utf-8',
                 timeout: 30000,
             });
@@ -122,13 +150,33 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         console.log(`  Layer 3 (Behavioral): ${flowObservations.length} observations`);
         console.log(`  Layer 4 (Bayesian): ${evidencePath}`);
 
-        // Report critical issues
+        // Report all issues by severity
         const criticalIssues = diagnosticResult.issues.filter(i => i.severity === 'critical');
+        const majorIssues = diagnosticResult.issues.filter(i => i.severity === 'major');
         const warningIssues = diagnosticResult.issues.filter(i => i.severity === 'major');
 
-        console.log(`  Critical: ${criticalIssues.length}, Warnings: ${warningIssues.length}, Info: ${diagnosticResult.issues.filter(i => i.severity === 'minor').length}`);
+        const behavioralErrors = flowObservations.filter(
+            o => o.severity === 'error' || o.severity === 'critical'
+        );
 
-        // Fail only on truly broken pages
-        expect(criticalIssues.length, `Critical issues: ${criticalIssues.map(i => i.component).join(', ')}`).toBe(0);
+        console.log(`  Critical: ${criticalIssues.length}, Major: ${majorIssues.length}, Info: ${diagnosticResult.issues.filter(i => i.severity === 'minor').length}`);
+        console.log(`  Behavioral errors: ${behavioralErrors.length}`);
+
+        // ── Gate checks ──
+        // Static/dynamic gate
+        const gateFailures = diagnosticResult.issues.filter(i => isGateFailure(HYBRID_GATE, i.severity));
+        if (gateFailures.length > 0) {
+            console.log(`  ❌ Gate (${HYBRID_GATE}): ${gateFailures.length} diagnostic issues`);
+        }
+
+        // Behavioral gate — separate from diagnostic gate
+        const behavioralGateFailures = behavioralErrors.filter(i => isGateFailure(HYBRID_GATE, i.severity));
+        if (behavioralGateFailures.length > 0) {
+            console.log(`  ❌ Behavioral gate (${HYBRID_GATE}): ${behavioralGateFailures.length} behavioral errors`);
+        }
+
+        // Assert gates
+        expect(gateFailures.length, `Diagnostic gate failures (severity≥${HYBRID_GATE}): ${gateFailures.map(i => i.component).join(', ')}`).toBe(0);
+        expect(behavioralGateFailures.length, `Behavioral gate failures (severity≥${HYBRID_GATE}): ${behavioralGateFailures.map(i => i.message).join('; ')}`).toBe(0);
     });
 });

@@ -220,8 +220,8 @@ class ProcessComprehension {
                         listPage: c.listsPage,
                     },
                     process: `User enters new ${c.targetEntity.replace('_', ' ')} → ` +
-                             `POST to API → INSERT into ${c.createsRecordIn || c.targetEntity + 's'} → ` +
-                             `displayed on ${c.listsPage || tmpl.page} list`,
+                        `POST to API → INSERT into ${c.createsRecordIn || c.targetEntity + 's'} → ` +
+                        `displayed on ${c.listsPage || tmpl.page} list`,
                     routes: routes.filter(r =>
                         r.path.includes(c.targetEntity.replace('_', '-')) ||
                         r.path.includes(c.targetEntity.toLowerCase())

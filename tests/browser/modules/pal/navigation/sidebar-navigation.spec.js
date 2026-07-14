@@ -149,7 +149,7 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
             }
 
             await form.submit();
-            await page.waitForURL(/\/projects\/\d+/, { timeout: 15000 }).catch(() => {});
+            await page.waitForURL(/\/projects\/\d+/, { timeout: 15000 }).catch(() => { });
 
             const onDetail = /\/projects\/\d+/.test(page.url());
             const onList = page.url().includes('/projects') && !page.url().includes('/create');
@@ -262,9 +262,9 @@ test.describe('PAL Sidebar Navigation — Deep Semantic Tests', () => {
         test('navigate sidebar → All Job Orders → Inventory → Approvals → Dashboard: each intact', async ({ page, shell }) => {
             const pages = [
                 { label: 'All Job Orders', urlPattern: '/projects' },
-                { label: 'Inventory',      urlPattern: '/inventory' },
-                { label: 'Approvals',      urlPattern: '/approvals' },
-                { label: 'Dashboard',      urlPattern: BASE },
+                { label: 'Inventory', urlPattern: '/inventory' },
+                { label: 'Approvals', urlPattern: '/approvals' },
+                { label: 'Dashboard', urlPattern: BASE },
             ];
 
             for (const { label, urlPattern } of pages) {

@@ -195,9 +195,9 @@ class ModuleDiagnostic {
      */
     _isDynamicField(name) {
         return name.includes('item.sort_order') ||
-               name.includes('itemIdx') ||
-               name.includes('++') ||
-               /\bnewItem\b/.test(name);
+            name.includes('itemIdx') ||
+            name.includes('++') ||
+            /\bnewItem\b/.test(name);
     }
 
     /**

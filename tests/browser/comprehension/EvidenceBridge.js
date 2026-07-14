@@ -28,9 +28,11 @@ class EvidenceBridge {
     /**
      * @param {string} moduleId
      * @param {string} [outputDir] - Where to write evidence files
+     * @param {object} [runContext] - Run-scoped context (runId, tenantId, entityId, etc.)
      */
-    constructor(moduleId, outputDir) {
+    constructor(moduleId, outputDir, runContext) {
         this.moduleId = moduleId;
+        this.runContext = runContext || {};
         this.outputDir = outputDir || path.resolve(__dirname, '../../../test_results/evidence');
         /** @type {Array} */
         this.steps = [];
@@ -39,6 +41,10 @@ class EvidenceBridge {
             source: 'browser-test-harness',
             module: moduleId,
             tool_version: '2.0-hybrid',
+            run_id: runContext?.runId || process.env.WB_RUN_ID || '',
+            tenant_id: runContext?.tenantId || null,
+            entity_type: runContext?.entityType || null,
+            entity_id: runContext?.entityId || null,
         };
     }
 
@@ -158,24 +164,50 @@ class EvidenceBridge {
 
     /**
      * Write the evidence file and return the path.
+     * Uses run-scoped directory: test_results/evidence/<run_id>/<module>-bridge.json
+     * Falls back to flat output if no run_id is available.
      * @returns {string} Path to written file
      */
     write() {
-        fs.mkdirSync(this.outputDir, { recursive: true });
+        const runId = this.meta.run_id || process.env.WB_RUN_ID || new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+        const outputDir = path.join(this.outputDir, runId);
+        fs.mkdirSync(outputDir, { recursive: true });
 
         const evidence = {
             _meta: {
                 ...this.meta,
                 step_count: this.steps.length,
             },
+            summary: this._buildSummary(),
             steps: this.steps,
         };
 
         const filename = `${this.moduleId}-bridge.json`;
-        const filepath = path.join(this.outputDir, filename);
+        const filepath = path.join(outputDir, filename);
         fs.writeFileSync(filepath, JSON.stringify(evidence, null, 2));
         console.log(`  📄 Evidence written: ${filepath} (${this.steps.length} steps)`);
         return filepath;
+    }
+
+    /**
+     * Build a summary from the collected steps.
+     * @returns {object}
+     */
+    _buildSummary() {
+        const byStep = {};
+        for (const step of this.steps) {
+            const key = step.step || 'unknown';
+            if (!byStep[key]) {
+                byStep[key] = { ok: 0, fail: 0, total: 0 };
+            }
+            if (step.success) {
+                byStep[key].ok++;
+            } else {
+                byStep[key].fail++;
+            }
+            byStep[key].total++;
+        }
+        return byStep;
     }
 
     /**
