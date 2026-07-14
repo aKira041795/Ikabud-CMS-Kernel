@@ -190,10 +190,17 @@ function createWorkbenchTest(config) {
                         description: JSON.stringify({ kind: 'friction', severity: 'minor', detail: detail }),
                     });
                 },
-                perf: function (label, ms) {
+                perf: function (label, ms, threshold) {
+                    var t = threshold || 3000;
                     testInfo.annotations.push({
                         type: 'wb-issue',
-                        description: JSON.stringify({ kind: 'perf', severity: ms > 3000 ? 'major' : 'minor', where: label, detail: ms + 'ms' }),
+                        description: JSON.stringify({
+                            kind: 'perf',
+                            severity: ms > t ? 'major' : 'minor',
+                            where: label,
+                            detail: ms + 'ms' + (t ? ' > ' + t + 'ms threshold' : ''),
+                            threshold: t,
+                        }),
                     });
                 },
                 a11y: function (detail) {

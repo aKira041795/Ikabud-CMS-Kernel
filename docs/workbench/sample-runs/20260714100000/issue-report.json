@@ -13,7 +13,8 @@
             "kind": "perf",
             "severity": "major",
             "where": "JO create",
-            "detail": "7578ms",
+            "detail": "7578ms > 5000ms threshold",
+            "threshold": 5000,
             "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
             "test": "JO operational setup: draft → ongoing"
         },
@@ -21,7 +22,8 @@
             "kind": "perf",
             "severity": "major",
             "where": "full setup journey",
-            "detail": "20623ms",
+            "detail": "20623ms > 15000ms threshold",
+            "threshold": 15000,
             "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
             "test": "JO operational setup: draft → ongoing"
         }
