@@ -1,0 +1,68 @@
+{
+    "runner": "discover",
+    "started": "2026-07-14 02:07:14",
+    "finished": "2026-07-14 02:07:14",
+    "elapsed_ms": 5065,
+    "suites": {
+        "guidance/guidance_integration_test": {
+            "passed": 6,
+            "failed": 0,
+            "time": 0
+        },
+        "guidance/guidance_state_machine_test": {
+            "passed": 90,
+            "failed": 0,
+            "time": 0
+        },
+        "guidance/manifest_test": {
+            "passed": 10,
+            "failed": 0,
+            "time": 0
+        },
+        "pal/pal_fabrication_budget_test": {
+            "passed": 40,
+            "failed": 0,
+            "time": 0
+        },
+        "pal/pal_fabrication_integration_test": {
+            "passed": 0,
+            "failed": 0,
+            "time": 0
+        },
+        "pal/pal_fuzz_test": {
+            "passed": 27,
+            "failed": 0,
+            "time": 0
+        },
+        "pal/pal_job_order_workflow_integration_test": {
+            "passed": 10,
+            "failed": 0,
+            "time": 0
+        },
+        "pal/pal_job_order_workflow_test": {
+            "passed": 133,
+            "failed": 0,
+            "time": 0
+        },
+        "pal/pal_scenario_test": {
+            "passed": 0,
+            "failed": 0,
+            "time": 0
+        },
+        "project-audit-ledger/pal_cost_calculation_test": {
+            "passed": 0,
+            "failed": 0,
+            "time": 0
+        },
+        "project-audit-ledger/pal_manifest_test": {
+            "passed": 0,
+            "failed": 0,
+            "time": 0
+        }
+    },
+    "summary": {
+        "passed": 11,
+        "failed": 0,
+        "total": 11
+    }
+}

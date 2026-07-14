@@ -45,7 +45,7 @@ $testTenantId = 502;
 
 // ── ModuleDB ───────────────────────────────────────────────────
 $ownsTables = [
-    'pal_projects', 'pal_clients', 'pal_fabrication_allocations',
+    'pal_projects', 'pal_clients', 'pal_users', 'pal_fabrication_allocations',
     'pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_cash_advances',
     'pal_approvals', 'pal_audit_logs', 'pal_expenses', 'pal_purchases',
     'pal_material_issuances', 'pal_collections', 'pal_mobilization_requests',

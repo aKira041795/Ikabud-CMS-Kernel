@@ -1,0 +1,656 @@
+{
+    "suite": "guidance-state-machine",
+    "started": "2026-07-14 02:07:09",
+    "finished": "2026-07-14 02:07:09",
+    "elapsed_ms": 935,
+    "summary": {
+        "passed": 90,
+        "failed": 0,
+        "skipped": 0,
+        "total": 90,
+        "assertions": 90,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → scheduled_date = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_date → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → scheduled_time = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "scheduled_time → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → duration_minutes = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "duration_minutes → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → appointment_type = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → appointment_type_id = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "appointment_type_id → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → purpose = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "purpose → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → location = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "location → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → notes = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "notes → status = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → scheduled_date = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → scheduled_time = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → duration_minutes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → appointment_type = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → appointment_type_id = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → purpose = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → location = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → notes = ALLOWED",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Exhaustive 9×9 transition matrix",
+            "label": "status → status = FORBIDDEN",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Label mapping",
+            "label": "scheduled_date → 'Scheduled date'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "scheduled_time → 'Scheduled time'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "duration_minutes → 'Duration minutes'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "appointment_type → 'Appointment type'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "appointment_type_id → 'Appointment type id'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "purpose → 'Purpose'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "location → 'Location'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "notes → 'Notes'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Label mapping",
+            "label": "status → 'Status'",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        }
+    ],
+    "gaps": {
+        "Gap analysis — integration tests needed": [
+            "DB: actual status transitions persist correctly",
+            "DB: forbidden transitions throw/return error",
+            "DB: version conflict detection",
+            "DB: audit trail written on transition",
+            "DB: status history recorded"
+        ]
+    }
+}

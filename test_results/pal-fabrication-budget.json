@@ -1,8 +1,8 @@
 {
     "suite": "pal-fabrication-budget",
-    "started": "2026-07-14 00:35:36",
-    "finished": "2026-07-14 00:35:36",
-    "elapsed_ms": 239.9,
+    "started": "2026-07-14 02:07:10",
+    "finished": "2026-07-14 02:07:10",
+    "elapsed_ms": 871,
     "summary": {
         "passed": 40,
         "failed": 0,
@@ -12,7 +12,7 @@
         "exit_code": 0
     },
     "source_fingerprints": {
-        "modules/project-audit-ledger/services/FabricationService.php": "0ee221092fff2012001c18ccfaea6630",
+        "modules/project-audit-ledger/services/FabricationService.php": "b59dffd5720f985bff557e6a80ba6d8d",
         "modules/project-audit-ledger/services/CashAdvanceService.php": "d69e429aafd30d087cd49dafb34f45c8",
         "modules/project-audit-ledger/services/ApprovalService.php": "84f503a85921a50adced3abff3cc025d"
     },
@@ -22,56 +22,56 @@
             "label": "100k contract @ 25% = 25,000",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "500k contract @ 15% = 75,000",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0 contract @ 50% = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "0% allocation = 0",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "100% allocation = full contract",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "12.5% partial = 12,500",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "Rounding: 100000 @ 33.33% = 33330.00",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: allocation calculation",
             "label": "Large: 5M @ 40% = 2,000,000",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0
         },
         {
             "section": "Fabrication budget: remaining budget tracking",

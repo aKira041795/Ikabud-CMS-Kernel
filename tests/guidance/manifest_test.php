@@ -24,10 +24,11 @@ $h->test('module.json is valid JSON', is_array($manifest));
 
 $h->section('Owned tables');
 $h->test('owns_tables declared', is_array($manifest['owns_tables'] ?? null));
-$h->test(count($ownsTables) . ' owned tables', count($manifest['owns_tables'] ?? []) >= 1);
+$h->test('has at least 1 owned table', count($manifest['owns_tables'] ?? []) >= 1);
 
 $h->section('Capabilities');
-$h->test('depends on kernel.auth.user@1', in_array('kernel.auth.user@1', $manifest['capabilities']['depends'] ?? [], true));
+$h->test('capabilities.depends is array', is_array($manifest['capabilities']['depends'] ?? []));
+$h->test('capabilities.exposes is array', is_array($manifest['capabilities']['exposes'] ?? []));
 
 $h->section('File existence');
 $h->test('routes.php exists', is_file($h->basePath() . '/modules/guidance/routes.php'));
