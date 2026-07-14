@@ -114,7 +114,8 @@ class palFabricationService
             $num = 'FP-' . date('Ymd') . '-' . str_pad((string)((int)$cStmt->fetchColumn() + 1), 4, '0', STR_PAD_LEFT);
 
             $stmt = $this->db->prepare("INSERT INTO pal_fabrication_payments (tenant_id, payment_number, project_id, weekly_due_id, team_lead_id, payment_date, amount, payment_method, reference_number, notes, status, submitted_by, created_by) VALUES (:t, :num, :pj, :wd, :tl, :pd, :amt, :pm, :ref, :no, 'pending', :sb, :cb)");
-            $stmt->execute([':t' => $this->tenantId, ':num' => $num, ':pj' => (int)$data['project_id'], ':wd' => !empty($data['weekly_due_id']) ? (int)$data['weekly_due_id'] : null, ':tl' => !empty($data['team_lead_id']) ? (int)$data['team_lead_id'] : null, ':pd' => $data['payment_date'] ?? date('Y-m-d'), ':amt' => $data['amount'] ?? 0, ':pm' => $data['payment_method'] ?? null, ':ref' => $data['reference_number'] ?? null, ':no' => $data['notes'] ?? null, ':sb' => $this->userId, ':cb' => $this->userId]);
+            $projectIdForPayment = isset($data['project_id']) ? (int)$data['project_id'] : 0;
+            $stmt->execute([':t' => $this->tenantId, ':num' => $num, ':pj' => $projectIdForPayment, ':wd' => !empty($data['weekly_due_id']) ? (int)$data['weekly_due_id'] : null, ':tl' => !empty($data['team_lead_id']) ? (int)$data['team_lead_id'] : null, ':pd' => $data['payment_date'] ?? date('Y-m-d'), ':amt' => $data['amount'] ?? 0, ':pm' => $data['payment_method'] ?? null, ':ref' => $data['reference_number'] ?? null, ':no' => $data['notes'] ?? null, ':sb' => $this->userId, ':cb' => $this->userId]);
 
             // Capture lastInsertId BEFORE commit — it resets after commit in MySQL/PDO
             $id = (int)$this->db->lastInsertId();
