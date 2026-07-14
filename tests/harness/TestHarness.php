@@ -37,6 +37,7 @@ class TestHarness
 {
     private string $suiteName;
     private string $startTime;
+    private float $startMicrotime;
     private string $resultsDir;
     private string $resultsFile;
     private int $passed = 0;
@@ -68,6 +69,7 @@ class TestHarness
         $this->suiteName = $suiteName;
         $this->host = $host;
         $this->startTime = date('Y-m-d H:i:s');
+        $this->startMicrotime = microtime(true);
         $this->resultsDir = dirname(__DIR__, 2) . '/test_results';
         $this->resultsFile = $this->resultsDir . '/' . $suiteName . '.json';
         $this->sectionStart = microtime(true);
@@ -272,7 +274,7 @@ class TestHarness
 
     public function done(): void
     {
-        $elapsed = round((microtime(true) - strtotime($this->startTime)) * 1000, 1);
+        $elapsed = round((microtime(true) - $this->startMicrotime) * 1000, 1);
         $total = $this->passed + $this->failed;
 
         $this->checkLogs();
