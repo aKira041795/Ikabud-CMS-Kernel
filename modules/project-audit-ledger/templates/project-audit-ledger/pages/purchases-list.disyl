@@ -1,7 +1,7 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="font-semibold text-gray-900">Purchase Orders</h2>
-        <a href="/admin/project-audit-ledger/purchases/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Create PO</a>
+        <a href="/admin/project-audit-ledger/purchases/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Create PO</a>
     </div>
     {ikb_entity_list source="pal_purchase" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search purchase orders..." empty="No purchase orders yet." /}
 </div>

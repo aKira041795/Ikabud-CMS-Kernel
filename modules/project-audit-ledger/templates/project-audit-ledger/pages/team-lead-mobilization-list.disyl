@@ -4,7 +4,7 @@
             <span class="font-medium">{requests|count}</span> records
         </p>
     </div>
-    <a href="/admin/project-audit-ledger/team-lead/mobilization/create" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Request</a>
+    <a href="/admin/project-audit-ledger/team-lead/mobilization/create" class="wb-btn wb-btn--primary">+ New Request</a>
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

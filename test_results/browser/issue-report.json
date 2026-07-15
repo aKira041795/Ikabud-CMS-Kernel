@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-15T03:26:41.006Z",
+  "generated": "2026-07-15T06:47:25.325Z",
   "total_issues": 2,
   "total_suppressed": 0,
   "by_severity": {
@@ -13,7 +13,7 @@
       "kind": "perf",
       "severity": "major",
       "where": "JO create",
-      "detail": "8022ms > 3000ms threshold",
+      "detail": "8026ms > 3000ms threshold",
       "threshold": 3000,
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
@@ -22,7 +22,7 @@
       "kind": "perf",
       "severity": "major",
       "where": "full setup journey",
-      "detail": "20057ms > 3000ms threshold",
+      "detail": "20244ms > 3000ms threshold",
       "threshold": 3000,
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"

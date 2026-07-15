@@ -39,7 +39,7 @@
         </div>
         <button type="button" onclick="addPoRow()" class="text-sm text-blue-600 hover:text-blue-800">+ Add Item</button>
         <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.po-mat-select').forEach(function(e){makeCreatable(e);});});</script>
-        <div class="flex gap-3 pt-2"><button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit ? 'Update' : 'Create'}</button> <a href="/admin/project-audit-ledger/purchases" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a></div>
+        <div class="flex gap-3 pt-2"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button> <a href="/admin/project-audit-ledger/purchases" class="wb-btn wb-btn--secondary">Cancel</a></div>
     </form>
 </div>
 </div>

@@ -2,9 +2,9 @@
 {set _dh_subtitle = expense.project_title|default:''}
 {set _dh_status = expense.status|default:'draft'}
 {set _dh_amount = expense.amount|default:0}
-{set _dh_actions = '<a href="/admin/project-audit-ledger/expenses/' ~ expense.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>'}
-{if expense.status|default:'draft' == 'draft'}{set _dh_actions = _dh_actions ~ ' <form onsubmit="return ajaxSubmit(this, \'Submitted for approval\')" action="/api/v1/project-audit-ledger/expenses/' ~ expense.id ~ '/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Submit for Approval</button></form>'}{/if}
-{set _dh_actions = _dh_actions ~ ' <a href="/admin/project-audit-ledger/expenses" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>'}
+{set _dh_actions = '<a href="/admin/project-audit-ledger/expenses/' ~ expense.id ~ '/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a>'}
+{if expense.status|default:'draft' == 'draft'}{set _dh_actions = _dh_actions ~ ' <form onsubmit="return ajaxSubmit(this, \'Submitted for approval\')" action="/api/v1/project-audit-ledger/expenses/' ~ expense.id ~ '/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="wb-btn wb-btn--success wb-btn--sm">Submit for Approval</button></form>'}{/if}
+{set _dh_actions = _dh_actions ~ ' <a href="/admin/project-audit-ledger/expenses" class="wb-btn wb-btn--secondary wb-btn--sm">Back</a>'}
 {include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

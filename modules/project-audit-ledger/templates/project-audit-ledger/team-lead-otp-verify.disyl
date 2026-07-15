@@ -33,7 +33,7 @@
                            id="otp-code"
                            oninput="this.value=this.value.replace(/[^0-9]/g,'');if(this.value.length>=6)this.form.submit()">
                 </div>
-                <button type="submit" id="tl-verify-btn" class="w-full px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+                <button type="submit" id="tl-verify-btn" class="wb-btn wb-btn--primary wb-btn--lg" style="width:100%">
                     Verify & Sign In
                 </button>
             </form>

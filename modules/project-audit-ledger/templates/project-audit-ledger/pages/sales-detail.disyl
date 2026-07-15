@@ -5,7 +5,7 @@
 {set _dh_collected = (sale.invoice_total|default:sale.net_amount|default:0) - (sale.outstanding|default:0)}
 {set _dh_outstanding = sale.outstanding|default:0}
 {set _dh_target_date = sale.due_date|default:''}
-{set _dh_actions = '<a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a> <a href="/admin/project-audit-ledger/sales/' ~ sale.id ~ '/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a> <button onclick="window.print()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print</button>'}
+{set _dh_actions = '<a href="/admin/project-audit-ledger/sales" class="wb-btn wb-btn--secondary wb-btn--sm">← Back</a> <a href="/admin/project-audit-ledger/sales/' ~ sale.id ~ '/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a> <button onclick="window.print()" class="wb-btn wb-btn--secondary wb-btn--sm">🖨 Print</button>'}
 {include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
 <div class="max-w-4xl print-area">
@@ -130,10 +130,10 @@
 
     <!-- Actions -->
     <div class="mt-4 flex gap-2 no-print flex-wrap">
-        <a href="/admin/project-audit-ledger/sales/{sale.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
-        <a href="/admin/project-audit-ledger/sales/{sale.id}/print" target="_blank" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">🖨 Print Invoice</a>
-        <button onclick="sendInvoiceEmail({sale.id})" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">📧 Email to Client</button>
-        <a href="/admin/project-audit-ledger/sales" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
+        <a href="/admin/project-audit-ledger/sales/{sale.id}/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a>
+        <a href="/admin/project-audit-ledger/sales/{sale.id}/print" target="_blank" class="wb-btn wb-btn--secondary wb-btn--sm">🖨 Print Invoice</a>
+        <button onclick="sendInvoiceEmail({sale.id})" class="wb-btn wb-btn--success wb-btn--sm">📧 Email to Client</button>
+        <a href="/admin/project-audit-ledger/sales" class="wb-btn wb-btn--secondary wb-btn--sm">Back</a>
     </div>
 </div>
 </div>

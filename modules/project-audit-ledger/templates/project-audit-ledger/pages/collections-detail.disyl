@@ -2,7 +2,7 @@
 {set _dh_subtitle = collection.project_title|default:''}
 {set _dh_status = collection.status|default:'pending'}
 {set _dh_amount = collection.amount|default:0}
-{set _dh_actions = '<a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a>'}
+{set _dh_actions = '<a href="/admin/project-audit-ledger/collections" class="wb-btn wb-btn--secondary wb-btn--sm">← Back</a>'}
 {include "workbench:detail_header"
     title=_dh_title|default:''
     subtitle=_dh_subtitle|default:''
@@ -49,7 +49,7 @@
     </div>
 
     <div class="mt-4 flex gap-2">
-        <a href="/admin/project-audit-ledger/collections" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back to Collections</a>
+        <a href="/admin/project-audit-ledger/collections" class="wb-btn wb-btn--secondary wb-btn--sm">Back to Collections</a>
         <a href="/admin/project-audit-ledger/sales/{collection.sales_id}" class="px-3 py-1.5 text-blue-600 text-sm hover:text-blue-800">View Invoice →</a>
     </div>
 </div>

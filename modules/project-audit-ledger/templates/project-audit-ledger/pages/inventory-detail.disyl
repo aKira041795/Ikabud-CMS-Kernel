@@ -35,7 +35,7 @@
 
         <div class="col-span-2"><label class="block text-xs font-medium text-gray-600 mb-1">Description</label><input type="text" name="description" value="{material.description}" placeholder="e.g. 18ft x 8ft roll" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
 
-        <div class="col-span-2 flex gap-2 mt-2"><button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Save Changes</button><a href="/admin/project-audit-ledger/inventory" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back to Inventory</a></div>
+        <div class="col-span-2 flex gap-2 mt-2"><button type="submit" class="wb-btn wb-btn--primary">Save Changes</button><a href="/admin/project-audit-ledger/inventory" class="wb-btn wb-btn--secondary">← Back to Inventory</a></div>
     </form>
     <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.detail-cat-select,.detail-unit-select,.detail-conv-select,.detail-supplier-select').forEach(function(e){if(e)makeCreatable(e);});});</script>
 
@@ -46,7 +46,7 @@
         <input type="hidden" name="material_id" value="{material.id}">
         <div><input type="number" step="0.01" name="quantity" placeholder="Qty (+/-)" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
         <div><input type="text" name="reason" placeholder="Reason" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-        <div><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Adjust</button></div>
+        <div><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Adjust</button></div>
     </form>
 </div>
 </div>

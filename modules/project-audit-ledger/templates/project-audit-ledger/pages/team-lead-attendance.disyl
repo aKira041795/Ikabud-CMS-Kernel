@@ -8,7 +8,7 @@
         <input type="date" name="date_to" value="{date_to}" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
     </div>
     <div>
-        <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Filter</button>
+        <button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Filter</button>
     </div>
 </form>
 

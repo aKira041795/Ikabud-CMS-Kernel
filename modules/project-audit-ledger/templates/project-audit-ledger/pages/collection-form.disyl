@@ -29,8 +29,8 @@
         </div>
 
         <div class="flex gap-3 pt-2">
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Record Collection</button>
-            <a href="/admin/project-audit-ledger/collections" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="wb-btn wb-btn--primary">Record Collection</button>
+            <a href="/admin/project-audit-ledger/collections" class="wb-btn wb-btn--secondary">Cancel</a>
         </div>
     </form>
 </div>

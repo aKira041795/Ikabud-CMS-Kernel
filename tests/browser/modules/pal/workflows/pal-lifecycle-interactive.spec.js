@@ -67,7 +67,7 @@ test.describe('pal:jo-operational-setup', function () {
             await saveBtn.click();
             // Wait for client create redirect to stabilize before next navigation
             await page.waitForTimeout(3000);
-            await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(function () {});
+            await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(function () { });
             console.log('  ✅ Client: ' + CLIENT_NAME);
         });
 

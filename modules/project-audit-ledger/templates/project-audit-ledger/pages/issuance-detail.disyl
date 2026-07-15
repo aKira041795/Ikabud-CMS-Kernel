@@ -13,11 +13,11 @@
     <tbody>{for item in issuance.items}<tr class="border-b"><td class="py-1 px-2">{item.material_name|default:'—'}</td><td class="py-1 px-2 text-right">{item.quantity}</td></tr>{/for}</tbody></table>
     {/if}
     <div class="mt-4 flex gap-2">
-        <a href="/admin/project-audit-ledger/material-issuance/{issuance.id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
+        <a href="/admin/project-audit-ledger/material-issuance/{issuance.id}/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a>
         {if issuance.status == 'draft'}
-        <form onsubmit="return ajaxSubmit(this, 'Submitted for approval')" action="/api/v1/project-audit-ledger/issuances/{issuance.id}/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">Submit for Approval</button></form>
+        <form onsubmit="return ajaxSubmit(this, 'Submitted for approval')" action="/api/v1/project-audit-ledger/issuances/{issuance.id}/submit" method="POST" class="inline">{csrf_field | raw}<button type="submit" class="wb-btn wb-btn--success wb-btn--sm">Submit for Approval</button></form>
         {/if}
-        <a href="/admin/project-audit-ledger/material-issuance" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Back</a>
+        <a href="/admin/project-audit-ledger/material-issuance" class="wb-btn wb-btn--secondary wb-btn--sm">Back</a>
     </div>
 </div>
 </div>

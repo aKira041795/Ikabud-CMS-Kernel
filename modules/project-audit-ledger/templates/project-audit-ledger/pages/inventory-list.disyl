@@ -2,8 +2,8 @@
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="font-semibold text-gray-900">Inventory</h2>
         <div class="flex gap-2">
-            <a href="/admin/project-audit-ledger/inventory/movements" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Movements</a>
-            <button onclick="document.getElementById('material-form').classList.toggle('hidden')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add Material</button>
+            <a href="/admin/project-audit-ledger/inventory/movements" class="wb-btn wb-btn--secondary wb-btn--sm">Movements</a>
+            <button onclick="document.getElementById('material-form').classList.toggle('hidden')" class="wb-btn wb-btn--primary wb-btn--sm">+ Add Material</button>
         </div>
     </div>
     <div id="material-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
@@ -14,7 +14,7 @@
             <div><select name="category_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm inv-cat-select" data-creatable="material_category"><option value="">Category</option>{for c in categories}<option value="{c.id}">{c.name}</option>{/for}</select></div>
             <div><select name="unit_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm inv-unit-select" data-creatable="unit"><option value="">Unit</option>{for u in units}<option value="{u.id}">{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
             <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-            <div class="col-span-3 flex gap-2"><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Create</button><button type="button" onclick="document.getElementById('material-form').classList.add('hidden')" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button></div>
+            <div class="col-span-3 flex gap-2"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Create</button><button type="button" onclick="document.getElementById('material-form').classList.add('hidden')" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button></div>
         </form>
         <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.inv-cat-select,.inv-unit-select').forEach(function(e){if(e)makeCreatable(e);});});</script>
     </div>

@@ -177,8 +177,8 @@
         </div>
 
         <div class="flex gap-3">
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit ? 'Update' : 'Create Quotation'}</button>
-            <a href="/admin/project-audit-ledger/quotations" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create Quotation'}</button>
+            <a href="/admin/project-audit-ledger/quotations" class="wb-btn wb-btn--secondary">Cancel</a>
         </div>
     </form>
 </div>

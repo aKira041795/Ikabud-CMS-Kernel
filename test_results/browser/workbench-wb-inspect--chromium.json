@@ -1,7 +1,7 @@
 {
   "suite": "workbench-wb-inspect--chromium",
-  "started": "2026-07-15T03:26:24.652Z",
-  "finished": "2026-07-15T03:26:41.006Z",
+  "started": "2026-07-15T06:47:07.847Z",
+  "finished": "2026-07-15T06:47:25.325Z",
   "summary": {
     "passed": 5,
     "failed": 0,
@@ -15,31 +15,31 @@
     {
       "test": "project form: buttons annotated with data-wb-action",
       "status": "passed",
-      "duration": 5801,
+      "duration": 3501,
       "detail": ""
     },
     {
       "test": "project detail: status badge annotated",
       "status": "passed",
-      "duration": 3973,
+      "duration": 3560,
       "detail": ""
     },
     {
       "test": "approvals: approve/reject buttons annotated",
       "status": "passed",
-      "duration": 3689,
+      "duration": 3373,
       "detail": ""
     },
     {
       "test": "sidebar nav annotated with data-wb-nav",
       "status": "passed",
-      "duration": 4779,
+      "duration": 4894,
       "detail": ""
     },
     {
       "test": "entity list detected via data-wb-list",
       "status": "passed",
-      "duration": 3305,
+      "duration": 4858,
       "detail": ""
     }
   ],

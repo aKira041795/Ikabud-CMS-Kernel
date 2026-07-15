@@ -80,14 +80,22 @@
         }
 
         var toast = document.createElement('div');
-        toast.className = 'wb-badge wb-badge--' + variant;
-        toast.style.cssText = 'padding:0.75rem 1rem;font-size:var(--wb-text-sm);box-shadow:0 4px 6px rgba(0,0,0,0.1);';
+        toast.className = 'wb-badge wb-badge--' + variant + ' wb-toast';
+        toast.style.cssText = 'padding:0.75rem 1rem 0.75rem 2.5rem;font-size:var(--wb-text-sm);box-shadow:0 6px 16px rgba(0,0,0,0.15);border-radius:0.5rem;position:relative;animation:wbToastIn 250ms ease-out;';
+        // Add icon based on variant
+        var iconMap = { 'success': '✅', 'danger': '❌', 'warning': '⚠️', 'informational': 'ℹ️' };
         toast.textContent = message;
+        toast.style.paddingLeft = '2.5rem';
+        var icon = document.createElement('span');
+        icon.textContent = iconMap[variant] || 'ℹ️';
+        icon.style.cssText = 'position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);font-size:1rem;line-height:1;';
+        toast.insertBefore(icon, toast.firstChild);
         container.appendChild(toast);
 
         setTimeout(function () {
             toast.style.opacity = '0';
-            toast.style.transition = 'opacity 300ms ease';
+            toast.style.transform = 'translateX(1rem)';
+            toast.style.transition = 'opacity 300ms ease, transform 300ms ease';
             setTimeout(function () { toast.remove(); }, 300);
         }, 4000);
     };
@@ -111,6 +119,16 @@
             });
         }
     }
+
+    // ── cms-toast listener — bridges ajaxSubmit CustomEvent to wbToast ──
+    document.addEventListener('cms-toast', function (e) {
+        var detail = e.detail || {};
+        var variant = detail.type === 'error' || detail.type === 'danger' ? 'danger'
+            : detail.type === 'success' ? 'success'
+                : detail.type === 'warning' ? 'warning'
+                    : 'informational';
+        wbToast(detail.message || detail.title || '', variant);
+    });
 
     // ── Init ──
     document.addEventListener('DOMContentLoaded', function () {

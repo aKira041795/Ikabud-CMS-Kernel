@@ -24,8 +24,8 @@
             <p class="text-xs text-gray-600">You are requesting: <strong class="text-lg" x-text="'₱' + parseFloat(amount || 0).toFixed(2)">₱0.00</strong></p>
         </div>
         <div class="flex gap-3">
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit Request</button>
-            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+            <button type="submit" class="wb-btn wb-btn--primary">Submit Request</button>
+            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="wb-btn wb-btn--secondary">Cancel</a>
         </div>
     </form>
 </div>
