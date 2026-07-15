@@ -7,7 +7,7 @@
     <a href="/admin/project-audit-ledger/team-lead/mobilization/create" class="wb-btn wb-btn--primary">+ New Request</a>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+<div class="wb-panel">
     <table class="w-full text-sm">
         <thead>
             <tr class="bg-gray-50 border-b">

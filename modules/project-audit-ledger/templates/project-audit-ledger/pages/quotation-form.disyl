@@ -1,5 +1,5 @@
 <div class="max-w-4xl">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" x-data="quotationForm()">
+<div class="wb-panel p-6" x-data="quotationForm()">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit ? 'Edit Quotation' : 'Create Quotation'}</h2>
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}Quotation updated{else}Quotation created{/if}')" action="/api/v1/project-audit-ledger/quotations{if is_edit}{if quotation.id}/{quotation.id}{/if}{/if}" method="POST" class="space-y-4">
         {csrf_field | raw}

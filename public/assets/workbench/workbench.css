@@ -424,61 +424,6 @@
     font-family: var(--wb-font-mono);
 }
 
-/* ── Responsive Table ── */
-.wb-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.wb-table th {
-    text-align: left;
-    padding: var(--wb-space-3);
-    font-size: var(--wb-text-xs);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--wb-text-secondary);
-    border-bottom: 1px solid var(--wb-border);
-}
-
-.wb-table td {
-    padding: var(--wb-space-3);
-    font-size: var(--wb-text-sm);
-    border-bottom: 1px solid var(--wb-border-light);
-}
-
-.wb-table tr:hover td {
-    background: var(--wb-border-light);
-}
-
-@media (max-width: 639px) {
-    .wb-table thead {
-        display: none;
-    }
-
-    .wb-table tr {
-        display: block;
-        margin-bottom: var(--wb-space-3);
-        border: 1px solid var(--wb-border);
-        border-radius: var(--wb-radius-md);
-        background: var(--wb-surface-card);
-    }
-
-    .wb-table td {
-        display: flex;
-        justify-content: space-between;
-        padding: var(--wb-space-2) var(--wb-space-3);
-        border: none;
-    }
-
-    .wb-table td::before {
-        content: attr(data-label);
-        font-weight: 600;
-        color: var(--wb-text-secondary);
-        font-size: var(--wb-text-xs);
-    }
-}
-
 /* ── Utility: Skip Link ── */
 .wb-skip-link {
     position: absolute;

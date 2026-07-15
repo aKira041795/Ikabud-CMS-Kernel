@@ -1,6 +1,6 @@
 <div class="space-y-6">
     {for p in projects}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="wb-panel p-6 mb-4">
         <div class="flex justify-between items-start mb-3">
             <div>
                 <h3 class="font-semibold text-gray-900">{p.title}</h3>

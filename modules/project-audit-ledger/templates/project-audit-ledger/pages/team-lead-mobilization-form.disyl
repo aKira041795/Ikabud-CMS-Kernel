@@ -1,5 +1,5 @@
 <div class="max-w-lg">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" x-data="{ amount: 0, purpose: '', description: '', project_id: '' }">
+<div class="wb-panel p-6" x-data="{ amount: 0, purpose: '', description: '', project_id: '' }">
     <h2 class="font-semibold text-gray-900 mb-4">Request Mobilization</h2>
     <form onsubmit="return submitMobRequest(this)" action="/api/v1/project-audit-ledger/tl/mobilization" method="POST" class="space-y-4">
         {csrf_field | raw}

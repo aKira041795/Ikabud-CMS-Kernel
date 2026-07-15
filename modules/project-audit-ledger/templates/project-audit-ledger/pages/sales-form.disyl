@@ -1,5 +1,5 @@
 <div class="max-w-4xl">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6" x-data="saleForm()">
+<div class="wb-panel p-6" x-data="saleForm()">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit ? 'Edit Sales Invoice' : 'Create Sales Invoice'}</h2>
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}Invoice updated{else}Invoice created{/if}')" action="/api/v1/project-audit-ledger/sales{if is_edit}{if sale.id}/{sale.id}{/if}{/if}" method="POST" class="space-y-4">
         {csrf_field | raw}

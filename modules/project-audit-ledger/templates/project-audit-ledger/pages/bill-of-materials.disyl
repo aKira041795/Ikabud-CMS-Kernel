@@ -1,6 +1,6 @@
 <div class="max-w-6xl">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <h2 class="font-semibold text-gray-900 mb-4">Bill of Materials</h2>
+<div class="wb-panel p-6">
+    <h2 class="wb-section__title mb-4">Bill of Materials</h2>
 
     <form method="GET" class="mb-6 flex gap-3 items-end">
         <div class="flex-1">
