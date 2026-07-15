@@ -33,9 +33,14 @@ let moduleId = process.env.MODULE || '';
 let gate = process.env.HYBRID_GATE || 'critical';
 const passthrough = [];
 
-for (const arg of args) {
-    if (arg.startsWith('--module=')) {
+for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--module' && i + 1 < args.length) {
+        moduleId = args[++i];
+    } else if (arg.startsWith('--module=')) {
         moduleId = arg.slice(9);
+    } else if (arg === '--gate' && i + 1 < args.length) {
+        gate = args[++i];
     } else if (arg.startsWith('--gate=')) {
         gate = arg.slice(7);
     } else {
@@ -45,6 +50,7 @@ for (const arg of args) {
 
 if (!moduleId) {
     console.error('Usage: node tests/browser/run-workbench.js --module=<module-id> [--gate=critical|major|off]');
+    console.error('  or:  node tests/browser/run-workbench.js --module <module-id> --gate critical');
     process.exit(1);
 }
 

@@ -22,6 +22,7 @@
 // @ts-check
 var fs = require('fs');
 var path = require('path');
+var crypto = require('crypto');
 
 var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
 var FINGERPRINT_MODE = process.env.WB_FINGERPRINT_MODE || 'check';
