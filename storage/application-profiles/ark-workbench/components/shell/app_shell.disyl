@@ -205,5 +205,11 @@
     })();
     </script>
     {/if}
+    {if s.inspect_mode|default:false && s.preflight_data|default:null}
+    <script id="wb-preflight-runtime">
+    window.__wbPreflight = {s.preflight_data|json|raw};
+    console.log('[wb-preflight]', window.__wbPreflight);
+    </script>
+    {/if}
 </body>
 </html>

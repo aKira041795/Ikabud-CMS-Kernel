@@ -796,6 +796,28 @@ function palBuildShellContext(array $ctx): array
         ->withCurrentRoute($pc)
         ->withInspectMode(!empty($_GET['wb_inspect']));
 
+    // Workbench preflight: infrastructure checks for deployments
+    if (!empty($_GET['wb_inspect'])) {
+        $palDir = STORAGE_PATH . '/private/pal';
+        $shell->withPreflightData([
+            'storage' => [
+                'path'       => $palDir,
+                'exists'     => is_dir($palDir),
+                'writable'   => is_writable($palDir),
+                'not_public' => !str_starts_with($palDir, $_SERVER['DOCUMENT_ROOT'] ?? ''),
+            ],
+            'php' => [
+                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                'post_max_size'       => ini_get('post_max_size'),
+                'mime_detection'      => function_exists('mime_content_type'),
+            ],
+            'module' => [
+                'id'   => 'project-audit-ledger',
+                'name' => $ctx['pal_app_name'] ?? 'Project Audit Ledger',
+            ],
+        ]);
+    }
+
     // Overview
     $shell->addNavSection('Overview', [
         ['label' => 'Dashboard',     'url' => '/admin/project-audit-ledger',                  'icon_key' => '📊', 'routes' => 'dashboard'],

@@ -36,6 +36,8 @@ final class ApplicationShellViewModel
     private string $pageTitle = '';
     private string $currentRoute = '';
     private bool $inspectMode = false;
+    /** @var array<string, mixed>|null */
+    private ?array $preflightData = null;
     /** @var array<int, array{label: string, collapsed_default: bool, items: array}> */
     private array $navSections = [];
     /** @var array<int, array{label: string, url: string}> */
@@ -103,6 +105,18 @@ final class ApplicationShellViewModel
     public function withInspectMode(bool $enabled = true): self
     {
         $this->inspectMode = $enabled;
+        return $this;
+    }
+
+    /**
+     * Set workbench preflight data — infrastructure checks shown in the
+     * __wbPreflight script block when inspect mode is active.
+     *
+     * @param array<string, mixed> $data Preflight check results
+     */
+    public function withPreflightData(array $data): self
+    {
+        $this->preflightData = $data;
         return $this;
     }
 
@@ -199,6 +213,7 @@ final class ApplicationShellViewModel
             'extra_styles'        => $this->extraStyles,
             'extra_scripts'       => $this->extraScripts,
             'inspect_mode'        => $this->inspectMode,
+            'preflight_data'      => $this->preflightData,
         ];
     }
 

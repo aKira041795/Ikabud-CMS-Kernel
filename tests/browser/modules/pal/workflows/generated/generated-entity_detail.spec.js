@@ -34,12 +34,13 @@ test.describe('pal:generated-entity_detail', function () {
             var img = imgs.nth(ii);
             var src = await img.getAttribute("src");
             if (!src) continue;
-            var resp = await page.request.get(src);
+            var imgUrl = new URL(src, page.url()).toString();
+            var resp = await page.request.get(imgUrl);
             var ct = (resp.headers()["content-type"] || "").toLowerCase();
             if (resp.status() >= 400 || ct.indexOf("image/") !== 0) {
-                integrity.gap("Broken image: " + src.substring(0, 80) + " HTTP " + resp.status() + " CT: " + ct);
+                integrity.issue({kind:"broken-image",severity:"major",where:imgUrl,detail:"HTTP " + resp.status() + " CT: " + ct,recommendation:"Verify attachment download handler, storage permissions and MIME headers."});
             } else {
-                console.log("  Image OK: " + src.substring(0, 60));
+                console.log("  Image OK: " + imgUrl.substring(0, 60));
             }
         }
     });
@@ -65,12 +66,13 @@ test.describe('pal:generated-entity_detail', function () {
             var img = imgs.nth(ii);
             var src = await img.getAttribute("src");
             if (!src) continue;
-            var resp = await page.request.get(src);
+            var imgUrl = new URL(src, page.url()).toString();
+            var resp = await page.request.get(imgUrl);
             var ct = (resp.headers()["content-type"] || "").toLowerCase();
             if (resp.status() >= 400 || ct.indexOf("image/") !== 0) {
-                integrity.gap("Broken image: " + src.substring(0, 80) + " HTTP " + resp.status() + " CT: " + ct);
+                integrity.issue({kind:"broken-image",severity:"major",where:imgUrl,detail:"HTTP " + resp.status() + " CT: " + ct,recommendation:"Verify attachment download handler, storage permissions and MIME headers."});
             } else {
-                console.log("  Image OK: " + src.substring(0, 60));
+                console.log("  Image OK: " + imgUrl.substring(0, 60));
             }
         }
     });
