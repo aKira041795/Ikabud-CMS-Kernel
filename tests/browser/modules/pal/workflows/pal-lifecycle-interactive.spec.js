@@ -65,7 +65,9 @@ test.describe('pal:jo-operational-setup', function () {
             var saveBtn = page.locator('[data-wb-action], button[type="submit"], button:has-text("Save"), button:has-text("Create"), button:has-text("Add")').first();
             await expect(saveBtn, 'Save/submit button required on client form').toBeVisible({ timeout: 5000 });
             await saveBtn.click();
-            await page.waitForTimeout(1500);
+            // Wait for client create redirect to stabilize before next navigation
+            await page.waitForTimeout(3000);
+            await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(function () {});
             console.log('  ✅ Client: ' + CLIENT_NAME);
         });
 

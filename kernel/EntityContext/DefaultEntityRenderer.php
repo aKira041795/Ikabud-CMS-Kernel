@@ -169,7 +169,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $hasBulk = !empty($bulkActions) && $bulkActionUrl !== '';
         $hasCustomSlot = !empty($attrs['_children']);
 
-        $listId = $hasBulk ? 'ikb-entity-list-' . bin2hex(random_bytes(4)) : '';
+        $listId = $hasBulk ? 'ikb-entity-list-' . bin2hex(random_bytes(4)) : (string)($attrs['id'] ?? $source);
         // Use explicit id for query param namespacing if available
         $queryListId = (string)($attrs['id'] ?? $listId);
 

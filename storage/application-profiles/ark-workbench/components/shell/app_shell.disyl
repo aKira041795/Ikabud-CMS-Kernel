@@ -161,6 +161,22 @@
             }
         });
 
+        /* Fallback: check detail-header for plain-text status (no badge component used) */
+        if (!main.querySelector('[data-wb-status]')) {
+            var dh = main.querySelector('[data-wb-component="detail-header"]');
+            if (dh) {
+                var dhH2 = dh.querySelector('h2');
+                if (dhH2 && dhH2.parentElement) {
+                    var dhAll = (dhH2.parentElement.textContent || '').trim();
+                    var dhTitle = (dhH2.textContent || '').trim();
+                    var dhRemainder = dhAll.slice(dhAll.indexOf(dhTitle) + dhTitle.length).trim();
+                    if (/^(draft|pending|approved|started|ongoing|completed|cancelled|closed|paid|overdue|rejected|voided)$/i.test(dhRemainder)) {
+                        dhH2.parentElement.setAttribute('data-wb-status', dhRemainder.toLowerCase());
+                    }
+                }
+            }
+        }
+
         /* ---- Emit manifest ---- */
         var manifest = {
             module: document.title.split(' — ')[0] || '',
@@ -175,7 +191,9 @@
                 return { source: el.getAttribute('data-wb-list') };
             }),
             nav: [].map.call(document.querySelectorAll('[data-wb-nav]'), function(el) {
-                return { key: el.getAttribute('data-wb-nav'), label: (el.textContent||'').trim(), url: el.getAttribute('href') };
+                var clone = el.cloneNode(true);
+                clone.querySelectorAll('[aria-hidden="true"]').forEach(function(n) { n.remove(); });
+                return { key: el.getAttribute('data-wb-nav'), label: (clone.textContent||'').replace(/\s+/g, ' ').trim(), url: el.getAttribute('href') };
             }),
             status: (function() {
                 var s = main.querySelector('[data-wb-status]');
