@@ -8,7 +8,10 @@
         "test:ark:coverage": "./scripts/ark-test --mode coverage",
         "test:ark:triage": "./scripts/ark-test --mode triage",
         "test:steward": "node tests/ai/ArkTestSteward.js --module project-audit-ledger --mode triage",
-        "test:steward:coverage": "node tests/ai/ArkTestSteward.js --module project-audit-ledger --mode coverage"
+        "test:steward:coverage": "node tests/ai/ArkTestSteward.js --module project-audit-ledger --mode coverage",
+        "workbench:hybrid": "node tests/browser/run-workbench.js --module",
+        "workbench:pal": "node tests/browser/run-workbench.js --module=project-audit-ledger --gate=critical",
+        "workbench:guidance": "node tests/browser/run-workbench.js --module=guidance --gate=critical"
     },
     "devDependencies": {
         "@axe-core/playwright": "^4.12.1",
