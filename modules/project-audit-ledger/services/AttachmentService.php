@@ -104,7 +104,9 @@ class palAttachmentService
         $relDir = 'private/pal/' . $this->tenantId . '/' . $entityType . '/' . $entityId;
         $absDir = STORAGE_PATH . '/' . $relDir;
         if (!is_dir($absDir)) {
-            mkdir($absDir, 0755, true);
+            if (!@mkdir($absDir, 0755, true) && !is_dir($absDir)) {
+                throw new InvalidArgumentException('Failed to create storage directory ' . $absDir . '. Check filesystem permissions for ' . STORAGE_PATH . '/private/pal/');
+            }
         }
 
         $destPath = $absDir . '/' . $safeName;

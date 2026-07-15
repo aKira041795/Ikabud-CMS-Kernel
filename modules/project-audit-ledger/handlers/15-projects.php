@@ -395,7 +395,7 @@ function palApiProjectSendEmail(array $rp = []): void
 
         // Mockup URL
         $mockupUrl = '';
-        $mockupStmt = $db->prepare("SELECT file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
+        $mockupStmt = $db->prepare("SELECT id, file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
         $mockupStmt->execute([':tid' => $tid, ':eid' => $id]);
         $mockup = $mockupStmt->fetch(PDO::FETCH_ASSOC);
         if ($mockup) {

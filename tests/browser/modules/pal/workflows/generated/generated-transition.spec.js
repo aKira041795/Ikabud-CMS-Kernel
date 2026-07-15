@@ -13,7 +13,7 @@ async function goTo(page, url) {
 test.describe('pal:generated-transition', function () {
     test.afterAll(function () { try { execSync('php ' + SEED + ' --cleanup --tenant=' + TENANT, { timeout: 10000 }); } catch (e) {} });
 
-    test('draft-pending', async function ({ page, integrity }) {
+    test('draftpending', async function ({ page, integrity }) {
         test.setTimeout(30000);
         var base = '/admin/project-audit-ledger';
         var seed, pid;
@@ -39,7 +39,7 @@ test.describe('pal:generated-transition', function () {
         }
     });
 
-    test('pending-approved', async function ({ page, integrity }) {
+    test('pendingapproved', async function ({ page, integrity }) {
         test.setTimeout(30000);
         var base = '/admin/project-audit-ledger';
         var seed, pid;
@@ -65,7 +65,7 @@ test.describe('pal:generated-transition', function () {
         }
     });
 
-    test('approved-started', async function ({ page, integrity }) {
+    test('approvedstarted', async function ({ page, integrity }) {
         test.setTimeout(30000);
         var base = '/admin/project-audit-ledger';
         var seed, pid;
@@ -91,7 +91,7 @@ test.describe('pal:generated-transition', function () {
         }
     });
 
-    test('started-ongoing', async function ({ page, integrity }) {
+    test('startedongoing', async function ({ page, integrity }) {
         test.setTimeout(30000);
         var base = '/admin/project-audit-ledger';
         var seed, pid;
@@ -117,7 +117,7 @@ test.describe('pal:generated-transition', function () {
         }
     });
 
-    test('ongoing-completed', async function ({ page, integrity }) {
+    test('ongoingcompleted', async function ({ page, integrity }) {
         test.setTimeout(30000);
         var base = '/admin/project-audit-ledger';
         var seed, pid;

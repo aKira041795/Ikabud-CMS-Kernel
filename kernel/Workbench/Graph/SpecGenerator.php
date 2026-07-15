@@ -144,14 +144,19 @@ final class SpecGenerator
         $lines[] = "        var m = await page.evaluate(function () { return window.__wbManifest; });";
         $lines[] = "        if (m && m.status === null) { integrity.gap(" . $Q . "Missing status on " . $entity . $Q . "); }";
         $lines[] = "        else if (m) { console.log(" . $Q . "  Status: " . $Q . " + m.status); }";
-        $lines[] = "        // Semantic: check for broken images on detail page";
+        $lines[] = "        // Semantic: validate images via HTTP/MIME (catches 404, 403, wrong MIME)";
         $lines[] = "        var imgs = page.locator(\"#wb-main img\");";
         $lines[] = "        var imgCount = await imgs.count();";
         $lines[] = "        for (var ii = 0; ii < imgCount; ii++) {";
         $lines[] = "            var img = imgs.nth(ii);";
         $lines[] = "            var src = await img.getAttribute(\"src\");";
-        $lines[] = "            if (src && (src.indexOf(\"broken\") >= 0 || src.indexOf(\"404\") >= 0)) {";
-        $lines[] = "                integrity.gap(\"Broken image: \" + src.substring(0, 80));";
+        $lines[] = "            if (!src) continue;";
+        $lines[] = "            var resp = await page.request.get(src);";
+        $lines[] = "            var ct = (resp.headers()[\"content-type\"] || \"\").toLowerCase();";
+        $lines[] = "            if (resp.status() >= 400 || ct.indexOf(\"image/\") !== 0) {";
+        $lines[] = "                integrity.gap(\"Broken image: \" + src.substring(0, 80) + \" HTTP \" + resp.status() + \" CT: \" + ct);";
+        $lines[] = "            } else {";
+        $lines[] = "                console.log(\"  Image OK: \" + src.substring(0, 60));";
         $lines[] = "            }";
         $lines[] = "        }";
     }

@@ -27,14 +27,19 @@ test.describe('pal:generated-entity_detail', function () {
         var m = await page.evaluate(function () { return window.__wbManifest; });
         if (m && m.status === null) { integrity.gap('Missing status on pal.project'); }
         else if (m) { console.log('  Status: ' + m.status); }
-        // Semantic: check for broken images on detail page
+        // Semantic: validate images via HTTP/MIME (catches 404, 403, wrong MIME)
         var imgs = page.locator("#wb-main img");
         var imgCount = await imgs.count();
         for (var ii = 0; ii < imgCount; ii++) {
             var img = imgs.nth(ii);
             var src = await img.getAttribute("src");
-            if (src && (src.indexOf("broken") >= 0 || src.indexOf("404") >= 0)) {
-                integrity.gap("Broken image: " + src.substring(0, 80));
+            if (!src) continue;
+            var resp = await page.request.get(src);
+            var ct = (resp.headers()["content-type"] || "").toLowerCase();
+            if (resp.status() >= 400 || ct.indexOf("image/") !== 0) {
+                integrity.gap("Broken image: " + src.substring(0, 80) + " HTTP " + resp.status() + " CT: " + ct);
+            } else {
+                console.log("  Image OK: " + src.substring(0, 60));
             }
         }
     });
@@ -53,14 +58,19 @@ test.describe('pal:generated-entity_detail', function () {
         var m = await page.evaluate(function () { return window.__wbManifest; });
         if (m && m.status === null) { integrity.gap('Missing status on pal.client'); }
         else if (m) { console.log('  Status: ' + m.status); }
-        // Semantic: check for broken images on detail page
+        // Semantic: validate images via HTTP/MIME (catches 404, 403, wrong MIME)
         var imgs = page.locator("#wb-main img");
         var imgCount = await imgs.count();
         for (var ii = 0; ii < imgCount; ii++) {
             var img = imgs.nth(ii);
             var src = await img.getAttribute("src");
-            if (src && (src.indexOf("broken") >= 0 || src.indexOf("404") >= 0)) {
-                integrity.gap("Broken image: " + src.substring(0, 80));
+            if (!src) continue;
+            var resp = await page.request.get(src);
+            var ct = (resp.headers()["content-type"] || "").toLowerCase();
+            if (resp.status() >= 400 || ct.indexOf("image/") !== 0) {
+                integrity.gap("Broken image: " + src.substring(0, 80) + " HTTP " + resp.status() + " CT: " + ct);
+            } else {
+                console.log("  Image OK: " + src.substring(0, 60));
             }
         }
     });
