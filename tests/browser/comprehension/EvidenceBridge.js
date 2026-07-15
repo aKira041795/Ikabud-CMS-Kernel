@@ -191,6 +191,7 @@ class EvidenceBridge {
 
     /**
      * Build a summary from the collected steps.
+     * Preserves expected/actual/detail for causal diagnosis.
      * @returns {object}
      */
     _buildSummary() {
@@ -198,27 +199,25 @@ class EvidenceBridge {
         for (const step of this.steps) {
             const key = step.step || 'unknown';
             if (!byStep[key]) {
-                byStep[key] = { ok: 0, fail: 0, total: 0 };
+                byStep[key] = { ok: 0, fail: 0, total: 0, failures: [] };
             }
             if (step.success) {
                 byStep[key].ok++;
             } else {
                 byStep[key].fail++;
+                byStep[key].failures.push({
+                    action: step.action,
+                    detail: step.detail,
+                    expected: step.expected || null,
+                    actual: step.actual || null,
+                });
             }
             byStep[key].total++;
         }
         return byStep;
     }
 
-    /**
-     * Run the PHP Comprehension Engine with this evidence.
-     * @returns {string} Command to run
-     */
-    getRunCommand() {
-        const enginePath = path.resolve(__dirname, '../../../kernel/Workbench/Comprehension/run.php');
-        const evidencePath = path.join(this.outputDir, `${this.moduleId}-bridge.json`);
-        return `php ${enginePath} ${this.moduleId} --evidence=${evidencePath}`;
-    }
+
 }
 
 module.exports = { EvidenceBridge };

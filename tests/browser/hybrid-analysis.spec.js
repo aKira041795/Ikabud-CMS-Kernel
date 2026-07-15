@@ -119,7 +119,10 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         console.log('  LAYER 4: Evidence → Bayesian Analysis');
         console.log('═══════════════════════════════════════════');
 
-        const bridge = new EvidenceBridge(MODULE);
+        const bridge = new EvidenceBridge(MODULE, undefined, {
+            runId: process.env.WB_RUN_ID,
+            module: MODULE,
+        });
         bridge.addProcessData(processReport);
         bridge.addObservations(diagnosticResult.issues, `${MODULE}.diagnostic`);
         bridge.addBehavioralData(flowObservations);
@@ -153,7 +156,6 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         // Report all issues by severity
         const criticalIssues = diagnosticResult.issues.filter(i => i.severity === 'critical');
         const majorIssues = diagnosticResult.issues.filter(i => i.severity === 'major');
-        const warningIssues = diagnosticResult.issues.filter(i => i.severity === 'major');
 
         const behavioralErrors = flowObservations.filter(
             o => o.severity === 'error' || o.severity === 'critical'

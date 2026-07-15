@@ -332,6 +332,16 @@ class PalBehaviorFlow extends BehaviorFlow {
     async runDefaultScenario() {
         return await this.runJobOrderFlow();
     }
+
+    /**
+     * Clean up created entities. Returns entity list for external cleanup.
+     * Caller should invoke this at the end of a test or pass the list to
+     * a cleanup script via evidence.
+     * @returns {Array<{entityType: string, entityId: number, title: string}>}
+     */
+    getCreatedEntities() {
+        return this.createdEntities;
+    }
 }
 
 
