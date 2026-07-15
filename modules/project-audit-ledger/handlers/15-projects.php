@@ -62,7 +62,7 @@ function palPageProjectForm(array $rp = []): void
         $att = $attStmt->fetch(PDO::FETCH_ASSOC);
         if ($att) {
             $mockupId = (int)$att['id'];
-            $mockupUrl = '/' . $att['file_path'];
+            $mockupUrl = '/admin/project-audit-ledger/attachments/' . $att['id'] . '/download';
         }
     }
 
@@ -130,11 +130,11 @@ function palPageProjectDetail(array $rp = []): void
 
     // Fetch mockup image for detail view
     $mockupUrl = '';
-    $mStmt = $db->prepare("SELECT file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
+    $mStmt = $db->prepare("SELECT id, file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
     $mStmt->execute([':tid' => $tid, ':eid' => $id]);
     $mRow = $mStmt->fetch(PDO::FETCH_ASSOC);
     if ($mRow) {
-        $mockupUrl = '/' . $mRow['file_path'];
+        $mockupUrl = '/admin/project-audit-ledger/attachments/' . $mRow['id'] . '/download';
     }
 
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
@@ -399,7 +399,7 @@ function palApiProjectSendEmail(array $rp = []): void
         $mockupStmt->execute([':tid' => $tid, ':eid' => $id]);
         $mockup = $mockupStmt->fetch(PDO::FETCH_ASSOC);
         if ($mockup) {
-            $mockupUrl = '/' . $mockup['file_path'];
+            $mockupUrl = '/admin/project-audit-ledger/attachments/' . $mockup['id'] . '/download';
         }
 
         // Render email via DiSyL template

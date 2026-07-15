@@ -27,6 +27,16 @@ test.describe('pal:generated-entity_detail', function () {
         var m = await page.evaluate(function () { return window.__wbManifest; });
         if (m && m.status === null) { integrity.gap('Missing status on pal.project'); }
         else if (m) { console.log('  Status: ' + m.status); }
+        // Semantic: check for broken images on detail page
+        var imgs = page.locator("#wb-main img");
+        var imgCount = await imgs.count();
+        for (var ii = 0; ii < imgCount; ii++) {
+            var img = imgs.nth(ii);
+            var src = await img.getAttribute("src");
+            if (src && (src.indexOf("broken") >= 0 || src.indexOf("404") >= 0)) {
+                integrity.gap("Broken image: " + src.substring(0, 80));
+            }
+        }
     });
 
     test('Client', async function ({ page, integrity }) {
@@ -43,6 +53,16 @@ test.describe('pal:generated-entity_detail', function () {
         var m = await page.evaluate(function () { return window.__wbManifest; });
         if (m && m.status === null) { integrity.gap('Missing status on pal.client'); }
         else if (m) { console.log('  Status: ' + m.status); }
+        // Semantic: check for broken images on detail page
+        var imgs = page.locator("#wb-main img");
+        var imgCount = await imgs.count();
+        for (var ii = 0; ii < imgCount; ii++) {
+            var img = imgs.nth(ii);
+            var src = await img.getAttribute("src");
+            if (src && (src.indexOf("broken") >= 0 || src.indexOf("404") >= 0)) {
+                integrity.gap("Broken image: " + src.substring(0, 80));
+            }
+        }
     });
 
 });

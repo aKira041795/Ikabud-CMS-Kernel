@@ -9,7 +9,7 @@ final class SpecGenerator
     private array $generatedFiles = [];
 
     private array $entityConfig = [
-        "pal.project"  => ["path" => "projects", "seedId" => "project_id", "list" => true, "detail" => true, "edit" => true, "field" => "title",  "actions" => ["save-as-draft", "submit-for-approval"]],
+        "pal.project"  => ["path" => "projects", "seedId" => "project_id", "list" => true, "detail" => true, "edit" => true, "field" => "title",  "actions" => ["save-as-draft", "submit-for-approval"], "uploadField" => "#mockup-file", "uploadTrigger" => "change", "uploadAttachId" => "#mockup-attachment-id"],
         "pal.client"   => ["path" => "clients",   "seedId" => "client_id",  "list" => true, "detail" => true, "edit" => true, "field" => "name",   "actions" => ["save"]],
         "pal.approval" => ["path" => "approvals", "seedId" => null,        "list" => true, "detail" => false, "edit" => false],
         "pal.expense"  => ["path" => "expenses",  "seedId" => null,        "list" => true, "detail" => true, "edit" => true, "field" => "particulars", "actions" => ["save-as-draft"]],
@@ -144,6 +144,16 @@ final class SpecGenerator
         $lines[] = "        var m = await page.evaluate(function () { return window.__wbManifest; });";
         $lines[] = "        if (m && m.status === null) { integrity.gap(" . $Q . "Missing status on " . $entity . $Q . "); }";
         $lines[] = "        else if (m) { console.log(" . $Q . "  Status: " . $Q . " + m.status); }";
+        $lines[] = "        // Semantic: check for broken images on detail page";
+        $lines[] = "        var imgs = page.locator(\"#wb-main img\");";
+        $lines[] = "        var imgCount = await imgs.count();";
+        $lines[] = "        for (var ii = 0; ii < imgCount; ii++) {";
+        $lines[] = "            var img = imgs.nth(ii);";
+        $lines[] = "            var src = await img.getAttribute(\"src\");";
+        $lines[] = "            if (src && (src.indexOf(\"broken\") >= 0 || src.indexOf(\"404\") >= 0)) {";
+        $lines[] = "                integrity.gap(\"Broken image: \" + src.substring(0, 80));";
+        $lines[] = "            }";
+        $lines[] = "        }";
     }
 
     private function appendEditTest(array &$lines, string $entity, ?array $cfg, string $Q): void

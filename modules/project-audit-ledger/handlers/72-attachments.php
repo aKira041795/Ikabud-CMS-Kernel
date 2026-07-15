@@ -37,7 +37,10 @@ function palPageAttachmentDownload(array $rp = []): void
 
     header('Content-Type: ' . ($att['mime_type'] ?: 'application/octet-stream'));
     $safeFilename = preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($att['original_filename']));
-    header('Content-Disposition: attachment; filename="' . $safeFilename . '"');
+    // Serve images inline so <img> tags render them; other types download
+    $isImage = str_starts_with($att['mime_type'] ?? '', 'image/');
+    $disposition = $isImage ? 'inline' : 'attachment';
+    header('Content-Disposition: ' . $disposition . '; filename="' . $safeFilename . '"');
     header('Content-Length: ' . filesize($absPath));
     readfile($absPath);
     exit;
