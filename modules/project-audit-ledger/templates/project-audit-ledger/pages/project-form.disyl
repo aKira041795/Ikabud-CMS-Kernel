@@ -171,7 +171,7 @@
             <div class="text-right mt-2">
                 <span class="text-sm text-gray-600">Subtotal: </span><span class="text-sm font-semibold" id="items-subtotal">₱0.00</span>
             </div>
-        </div></div>
+        </div>
 
         <!-- ── Section 6: Documents ── -->
         <div id="sec-docs" class="border border-gray-200 rounded-lg p-4 -mx-2">
@@ -187,7 +187,7 @@
                     <button type="button" onclick="removeMockup()" class="block mt-1 text-xs text-red-500 hover:text-red-700" title="Remove mockup">✕ Remove</button>
                 </div>
             </div>
-        </div></div>
+        </div>
 
         <div class="flex gap-3">
             {if !is_edit|default:false || project.status=='draft'}
