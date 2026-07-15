@@ -27,10 +27,11 @@ var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
 var FINGERPRINT_MODE = process.env.WB_FINGERPRINT_MODE || 'check';
 
 function makeRunId() {
-    return new Date()
+    var stamp = new Date()
         .toISOString()
         .replace(/\D/g, '')
         .slice(0, 14);
+    return stamp + '-' + crypto.randomUUID().slice(0, 8);
 }
 
 function writeJsonAtomic(target, data) {

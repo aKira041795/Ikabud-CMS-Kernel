@@ -35,14 +35,21 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 
-// Canonical run ID — set early so all consumers (bridge, reporter, engine) share it
+// Canonical run ID — set early as fallback. For full reliability,
+// use the wrapper: node tests/browser/run-workbench.js --module=<id>
 if (!process.env.WB_RUN_ID) {
-    process.env.WB_RUN_ID = crypto.randomUUID().slice(0, 8);
+    const stamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
+    process.env.WB_RUN_ID = `${stamp}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 const MODULE = process.env.MODULE || '';
 const MODULE_PATH = process.env.MODULE_PATH || path.resolve(__dirname, '../../modules', MODULE);
 const HYBRID_GATE = process.env.HYBRID_GATE || 'critical';
+
+// Modules that have a registered PHP Comprehension Engine provider.
+// Unknown modules skip the engine layer gracefully.
+const MODULES_WITH_COMPREHENSION_PROVIDER = ['project-audit-ledger'];
+const HAS_COMPREHENSION_PROVIDER = MODULES_WITH_COMPREHENSION_PROVIDER.includes(MODULE);
 
 if (!MODULE) throw new Error('MODULE environment variable required.');
 
@@ -151,6 +158,7 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         // Run the PHP Comprehension Engine with this evidence
         console.log('  Running Comprehension Engine...');
         let comprehensionReport = null;
+        const engineFailures = [];
         try {
             const engineScript = path.resolve(__dirname, '../../kernel/Workbench/Comprehension/run.php');
             const output = execFileSync('php', [engineScript, MODULE, '--evidence=' + evidencePath], {
@@ -170,9 +178,14 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
             console.log(`  ⚠ Engine output: ${stdout}`);
             if (stderr) console.log(`  ⚠ Engine errors: ${stderr}`);
 
-            // Non-PAL modules gracefully report no provider
-            if (stderr.includes('No comprehension provider') || stdout.includes('No comprehension provider')) {
+            const isNoProvider = stderr.includes('No comprehension provider') || stdout.includes('No comprehension provider');
+            if (isNoProvider && !HAS_COMPREHENSION_PROVIDER) {
                 console.log('  ℹ No comprehension provider for this module — expected for non-PAL modules');
+            } else {
+                engineFailures.push({
+                    module: MODULE,
+                    detail: stderr || stdout || e.message || 'Engine crashed',
+                });
             }
         }
 
@@ -218,12 +231,19 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
                 ? comprehensionReport.analysis
                 : Object.values(comprehensionReport.analysis);
             for (const actionAnalysis of analyses) {
-                if (actionAnalysis && actionAnalysis.breakpoint && isGateFailure(HYBRID_GATE, 'critical')) {
-                    comprehensionFailures.push({
-                        action: actionAnalysis.action || 'unknown',
-                        breakpoint: actionAnalysis.breakpoint,
-                        likely_area: actionAnalysis.likely_area || 'unknown',
-                    });
+                if (actionAnalysis && actionAnalysis.breakpoint) {
+                    // Use diagnosis severity if available; default to critical for any breakpoint
+                    const severity = actionAnalysis.severity
+                        || actionAnalysis.breakpoint_severity
+                        || 'critical';
+                    if (isGateFailure(HYBRID_GATE, severity)) {
+                        comprehensionFailures.push({
+                            action: actionAnalysis.action || 'unknown',
+                            breakpoint: actionAnalysis.breakpoint,
+                            likely_area: actionAnalysis.likely_area || 'unknown',
+                            severity,
+                        });
+                    }
                 }
             }
         }
@@ -231,9 +251,15 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
             console.log(`  ❌ Comprehension gate (${HYBRID_GATE}): ${comprehensionFailures.length} breakpoints`);
         }
 
+        // Engine gate — modules with a registered provider must not crash
+        if (engineFailures.length > 0) {
+            console.log(`  ❌ Engine gate: ${engineFailures.length} engine failure(s) for module with expected provider`);
+        }
+
         // Assert gates
         expect(gateFailures.length, `Diagnostic gate failures (severity≥${HYBRID_GATE}): ${gateFailures.map(i => i.component).join(', ')}`).toBe(0);
         expect(behavioralGateFailures.length, `Behavioral gate failures (severity≥${HYBRID_GATE}): ${behavioralGateFailures.map(i => i.message).join('; ')}`).toBe(0);
-        expect(comprehensionFailures.length, `Comprehension breakpoints: ${comprehensionFailures.map(f => `${f.action}@${f.breakpoint}`).join(', ')}`).toBe(0);
+        expect(comprehensionFailures.length, `Comprehension breakpoints: ${comprehensionFailures.map(f => `${f.action}@${f.breakpoint} [${f.severity}]`).join(', ')}`).toBe(0);
+        expect(engineFailures.length, `Engine failures: ${engineFailures.map(f => f.detail).join('; ')}`).toBe(0);
     });
 });
