@@ -381,12 +381,15 @@ class SemanticComprehensionEngine
 
     /**
      * Build a complete evidence packet for the AI Steward.
+     *
+     * @param string $actionId The action to build the packet for
+     * @param array|null $analysis Pre-computed analysis result (avoids duplicate Bayesian recording)
      */
-    public function buildEvidencePacket(string $actionId): array
+    public function buildEvidencePacket(string $actionId, ?array $analysis = null): array
     {
-        $analysis = $this->analyze($actionId);
+        $analysis = $analysis ?? $this->analyze($actionId, recordHistory: false);
         $graph = $this->deterministic->buildGraph();
-        $reportCard = $this->generateReportCard($actionId);
+        $reportCard = $this->generateReportCard($actionId, $analysis);
         $similarCases = $this->caseMemory->findSimilar(
             $this->moduleId,
             $actionId,
@@ -415,16 +418,20 @@ class SemanticComprehensionEngine
 
     /**
      * Generate an actionable report card with root cause, timeline, and fix suggestions.
+     *
+     * @param string $actionId The action to generate a report for
+     * @param array|null $analysis Pre-computed analysis (avoids duplicate Bayesian recording)
      */
-    public function generateReportCard(string $actionId): array
+    public function generateReportCard(string $actionId, ?array $analysis = null): array
     {
-        $analysis = $this->analyze($actionId, recordHistory: false);
+        $analysis = $analysis ?? $this->analyze($actionId, recordHistory: false);
         return $this->aiHypothesis->generateReportCard($analysis, $this->runtimeEvidence);
     }
 
     /**
      * Store a successful fix outcome as a case memory entry.
      *
+     * @param string $actionId The action that was failing (e.g. 'pal.job-order.submit')
      * @param string $summary Human-readable bug description
      * @param array $changedFiles Files modified to fix the bug
      * @param string $fixSummary Description of what was changed
@@ -433,14 +440,14 @@ class SemanticComprehensionEngine
      * @return string The case ID
      */
     public function storeCaseMemory(
+        string $actionId,
         string $summary,
         array $changedFiles,
         string $fixSummary,
         string $testCommand = '',
         array $tags = [],
     ): string {
-        $actionId = $summary; // Use summary as seed for deterministic ID for now
-        $caseId = 'case-' . $this->moduleId . '-' . md5($summary . implode(',', $changedFiles));
+        $caseId = 'case-' . $this->moduleId . '-' . substr(md5($actionId . $summary . implode(',', $changedFiles)), 0, 12);
 
         $this->caseMemory->store(new \Ikabud\Kernel\Workbench\Comprehension\Contracts\CaseMemoryEntry(
             id: $caseId,
@@ -456,6 +463,14 @@ class SemanticComprehensionEngine
         ));
 
         return $caseId;
+    }
+
+    /**
+     * List all stored cases for this module.
+     */
+    public function listCases(): array
+    {
+        return $this->caseMemory->listByModule($this->moduleId);
     }
 
     /**

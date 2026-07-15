@@ -14,9 +14,9 @@ use Ikabud\Kernel\Workbench\Comprehension\Contracts\{
 /**
  * Layer 7: AI Hypothesis Generator.
  *
- * Receives structured evidence from Layers 1-6 and uses AI to generate
- * hypotheses about the root cause, proposed fixes, and "do not change"
- * boundary notes.
+ * Receives structured evidence from Layers 1-6 and uses heuristics to
+ * generate hypotheses about the root cause, proposed fixes, and "do not
+ * change" boundary notes.
  *
  * This layer does NOT have direct access to raw logs or the full repository.
  * It receives a compact, structured packet:
@@ -28,9 +28,9 @@ use Ikabud\Kernel\Workbench\Comprehension\Contracts\{
  *   - Bayesian history (prior failure probabilities)
  *   - Similar past cases (from CaseMemory)
  *
- * The AI provider integration is pluggable. Default: GitHub Copilot API
- * via the existing ArkTestSteward.js aiDiagnose() pattern.
- * For environments without AI, falls back to heuristic rules.
+ * Current implementation: heuristic rules only. External AI provider
+ * integration (Copilot, OpenAI) is planned behind a HypothesisProvider
+ * interface but not yet implemented in PHP.
  */
 class AiHypothesisGenerator
 {

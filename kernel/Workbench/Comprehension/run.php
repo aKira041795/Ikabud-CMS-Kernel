@@ -26,7 +26,7 @@ declare(strict_types=1);
  *   --fix-summary=text       Fix summary description (for --store-case)
  *   --stats                  Show case memory statistics
  *   --list-cases             List stored cases for this module
- *   --ai-provider=type       AI provider: heuristic (default), copilot, openai
+ *   --ai-provider=type       AI provider: heuristic (only supported provider)
  *
  * Examples:
  *   php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit
@@ -143,7 +143,16 @@ $provider = match ($moduleId) {
     default => throw new RuntimeException("No comprehension provider for '{$moduleId}'"),
 };
 
-$engine = new SemanticComprehensionEngine($moduleId, $provider);
+$engine = new SemanticComprehensionEngine(
+    $moduleId,
+    $provider,
+    aiHypothesis: new \Ikabud\Kernel\Workbench\Comprehension\Analyzers\AiHypothesisGenerator(
+        $moduleId,
+        null,
+        null,
+        $aiProvider,
+    ),
+);
 
 // Handle --reset-history
 if ($resetHistory) {
@@ -276,15 +285,14 @@ if ($showStats) {
 }
 
 if ($listCases) {
-    $cases = $engine->findSimilarCases('', 20);
+    $cases = $engine->listCases();
     if (empty($cases)) {
         echo "  No stored cases for module '{$moduleId}'.\n";
     } else {
         echo "  📚 Stored Cases for '{$moduleId}':\n";
         foreach ($cases as $c) {
-            echo "    [{$c['case']->id}] {$c['case']->summary} (sim: {$c['similarity']})\n";
-            echo "      Fix: {$c['case']->fixSummary}\n";
-            echo "      Files: " . implode(', ', $c['case']->changedFiles) . "\n";
+            echo "    [{$c['id']}] {$c['summary']} ({$c['created_at']})\n";
+            echo "      Action: {$c['action_id']}\n";
         }
     }
     echo "\n";
@@ -466,7 +474,7 @@ if ($actionId !== '') {
         // ── Report Card (if requested) ─────────────────────────
         if ($reportCard) {
             echo "\n  ── Report Card ──\n";
-            $reportCardData = $engine->generateReportCard($actionId);
+            $reportCardData = $engine->generateReportCard($actionId, $result);
             $rc = $reportCardData['root_cause'] ?? [];
             echo "  🎯 Root cause: {$rc['summary']}\n";
             echo "  Severity: {$rc['severity']}\n\n";
@@ -502,6 +510,7 @@ echo "\n";
 // ── Store case memory (if requested) ──────────────────────────
 if ($storeCase !== null && $actionId !== '') {
     $caseId = $engine->storeCaseMemory(
+        actionId: $actionId,
         summary: $storeCase,
         changedFiles: $changedFiles,
         fixSummary: $fixSummary,
@@ -512,7 +521,10 @@ if ($storeCase !== null && $actionId !== '') {
 }
 
 // ── 5. Output evidence packet ─────────────────────────────────
-$packet = $engine->buildEvidencePacket($actionId ?: 'all');
+$packet = $engine->buildEvidencePacket(
+    actionId: $actionId ?: 'all',
+    analysis: $result ?? null,
+);
 
 $outDir = $base . '/test_results/ai';
 

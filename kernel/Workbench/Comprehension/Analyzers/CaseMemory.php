@@ -34,17 +34,18 @@ class CaseMemory
     }
 
     /**
-     * Store a new case entry.
+     * Store a new case entry atomically.
      */
     public function store(CaseMemoryEntry $entry): void
     {
         $file = $this->caseFile($entry->id);
         $dir = dirname($file);
         if (!is_dir($dir)) {
-            @mkdir($dir, 0777, true);
+            @mkdir($dir, 0755, true);
         }
 
-        file_put_contents($file, json_encode([
+        $tmp = $file . '.' . getmypid() . '.tmp';
+        $written = file_put_contents($tmp, json_encode([
             'id' => $entry->id,
             'module_id' => $entry->moduleId,
             'action_id' => $entry->actionId,
@@ -55,7 +56,16 @@ class CaseMemory
             'fix_summary' => $entry->fixSummary,
             'created_at' => $entry->createdAt ?: date('c'),
             'tags' => array_slice($entry->tags, 0, self::MAX_TAGS),
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+
+        if ($written === false) {
+            return; // Write failed — don't proceed
+        }
+
+        if (!rename($tmp, $file)) {
+            @unlink($tmp);
+            return;
+        }
 
         $this->updateIndex($entry);
     }
@@ -179,7 +189,7 @@ class CaseMemory
     }
 
     /**
-     * Delete a case.
+     * Delete a case and atomically update the index.
      */
     public function delete(string $id): bool
     {
@@ -189,7 +199,19 @@ class CaseMemory
         }
 
         unlink($file);
-        $this->indexCache = null; // Force rebuild
+
+        // Atomically update the index to remove the deleted entry
+        if (file_exists($this->indexPath)) {
+            $index = json_decode(file_get_contents($this->indexPath), true) ?? [];
+            $index = array_values(array_filter(
+                $index,
+                fn (array $entry): bool => ($entry['id'] ?? '') !== $id
+            ));
+            $this->indexCache = $index;
+            $this->saveIndex();
+        } else {
+            $this->indexCache = null; // Force rebuild from files
+        }
         return true;
     }
 
@@ -315,12 +337,20 @@ class CaseMemory
     {
         $dir = dirname($this->indexPath);
         if (!is_dir($dir)) {
-            @mkdir($dir, 0777, true);
+            @mkdir($dir, 0755, true);
         }
-        file_put_contents(
-            $this->indexPath,
-            json_encode($this->indexCache ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        $tmp = $this->indexPath . '.' . getmypid() . '.tmp';
+        $written = file_put_contents(
+            $tmp,
+            json_encode($this->indexCache ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+            LOCK_EX,
         );
+        if ($written === false) {
+            return;
+        }
+        if (!rename($tmp, $this->indexPath)) {
+            @unlink($tmp);
+        }
     }
 
     private function caseFile(string $id): string
@@ -338,10 +368,10 @@ class CaseMemory
     private function ensureStorage(): void
     {
         if (!is_dir($this->storagePath)) {
-            @mkdir($this->storagePath, 0777, true);
+            @mkdir($this->storagePath, 0755, true);
         }
         if (!is_dir(dirname($this->indexPath))) {
-            @mkdir(dirname($this->indexPath), 0777, true);
+            @mkdir(dirname($this->indexPath), 0755, true);
         }
     }
 }

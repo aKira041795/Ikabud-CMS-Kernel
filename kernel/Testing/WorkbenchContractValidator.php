@@ -439,8 +439,15 @@ final class WorkbenchContractValidator
     }
 
     /**
-     * Behavioral requirements are asserted by browser harnesses; their
-     * presence here prevents JSON contract drift from being silently ignored.
+     * Behavioural requirements that MUST be verified by a browser harness.
+     *
+     * These methods exist only to prevent JSON contract drift — the
+     * requirements use `"validator": "browser"` and are NOT validated by PHP.
+     * Method presence alone is insufficient; a registered browser-harness
+     * test ID must be verified. Passing a contract test here does NOT mean
+     * the requirement is actually enforced.
+     *
+     * @behavior-stub issued-by review-of-c27d03c — do not add more stubs.
      */
     private function checkKeyboardNavigation(string $html, array $expected): ?string { return null; }
     private function checkFocusTrapsWithinListbox(string $html, bool $expected): ?string { return null; }

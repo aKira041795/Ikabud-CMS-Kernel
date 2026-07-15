@@ -65,3 +65,9 @@ vendor/
 *.zip
 test_results/evidence/*
 test_results/browser/runs/
+# Comprehension engine runtime artifacts (generated, not source)
+/storage/private/comprehension/history/
+/storage/private/comprehension/cases/
+/storage/private/pal/
+/test_results/ai/*.json
+/test_results/ai/runs/
