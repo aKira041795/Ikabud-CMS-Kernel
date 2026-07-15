@@ -244,30 +244,420 @@
     },
     "analysis": {
         "module": "project-audit-ledger",
-        "action": "all",
-        "breakpoint": null,
-        "break_category": null,
+        "action": "pal.job-order.submit",
+        "engine_version": "3.0-ai-enhanced",
+        "breakpoint": "button.visible",
+        "break_category": "ui",
         "deterministic": {
-            "action": "all",
-            "error": "Action 'all' not declared by module"
+            "action": "pal.job-order.submit",
+            "chain": [
+                {
+                    "step": "button.visible",
+                    "description": "Submit for Approval button is visible on edit page",
+                    "category": "ui",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "button.clicked",
+                    "description": "User clicks the Submit button",
+                    "category": "ui",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "http.request",
+                    "description": "POST request sent to status API endpoint",
+                    "category": "http",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "http.response_ok",
+                    "description": "API returns HTTP 200 with {ok: true}",
+                    "category": "http",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "workflow.transition",
+                    "description": "JobOrderWorkflow::apply() executes transition",
+                    "category": "service",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "db.status_change",
+                    "description": "Project status changes from draft to pending",
+                    "category": "db",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "approval.created",
+                    "description": "Approval request record created in pal_approvals",
+                    "category": "db",
+                    "expected": true,
+                    "actual": 0,
+                    "ok": false
+                },
+                {
+                    "step": "audit.created",
+                    "description": "Audit log entry created for status change",
+                    "category": "audit",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "ui.status_updated",
+                    "description": "Detail page renders Pending status badge",
+                    "category": "verify",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                },
+                {
+                    "step": "approval_queue.updated",
+                    "description": "Approval queue page shows the project",
+                    "category": "verify",
+                    "expected": true,
+                    "actual": false,
+                    "ok": false
+                }
+            ],
+            "breakpoint": "button.visible",
+            "likely_area": "template/javascript",
+            "confidence": 0
         },
         "semantic": {
-            "per_link_scores": []
+            "per_link_scores": {
+                "button.visible": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "button.clicked": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "http.request": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "http.response_ok": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "workflow.transition": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "db.status_change": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "approval.created": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "audit.created": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "ui.status_updated": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "approval_queue.updated": {
+                    "score": 0,
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                }
+            },
+            "embedding_scores": {
+                "button.visible": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "button.clicked": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "http.request": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "http.response_ok": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "workflow.transition": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "db.status_change": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "approval.created": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "audit.created": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "ui.status_updated": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                },
+                "approval_queue.updated": {
+                    "score": 0,
+                    "components": {
+                        "regex": 0,
+                        "tfidf": 0,
+                        "ngram": 0,
+                        "vector": 0,
+                        "historical": 0
+                    },
+                    "matched_pattern": null,
+                    "evidence_snippet": null
+                }
+            }
         },
         "bayesian": {
-            "per_link": [],
-            "action_history": []
+            "per_link": {
+                "button.visible": {
+                    "prior_failure_probability": 0.1739,
+                    "prior_success_probability": 0.8261
+                },
+                "button.clicked": {
+                    "prior_failure_probability": 0.4348,
+                    "prior_success_probability": 0.5652
+                },
+                "http.request": {
+                    "prior_failure_probability": 0.4348,
+                    "prior_success_probability": 0.5652
+                },
+                "http.response_ok": {
+                    "prior_failure_probability": 0.1739,
+                    "prior_success_probability": 0.8261
+                },
+                "workflow.transition": {
+                    "prior_failure_probability": 0.4783,
+                    "prior_success_probability": 0.5217
+                },
+                "db.status_change": {
+                    "prior_failure_probability": 0.4348,
+                    "prior_success_probability": 0.5652
+                },
+                "approval.created": {
+                    "prior_failure_probability": 0.7391,
+                    "prior_success_probability": 0.2609
+                },
+                "audit.created": {
+                    "prior_failure_probability": 0.4348,
+                    "prior_success_probability": 0.5652
+                },
+                "ui.status_updated": {
+                    "prior_failure_probability": 0.4348,
+                    "prior_success_probability": 0.5652
+                },
+                "approval_queue.updated": {
+                    "prior_failure_probability": 0.7391,
+                    "prior_success_probability": 0.2609
+                }
+            },
+            "action_history": [
+                {
+                    "step": "button.visible",
+                    "successes": 18,
+                    "failures": 4,
+                    "total": 22,
+                    "failure_prob": 0.2083,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "button.clicked",
+                    "successes": 12,
+                    "failures": 10,
+                    "total": 22,
+                    "failure_prob": 0.4583,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "http.request",
+                    "successes": 12,
+                    "failures": 10,
+                    "total": 22,
+                    "failure_prob": 0.4583,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "http.response_ok",
+                    "successes": 18,
+                    "failures": 4,
+                    "total": 22,
+                    "failure_prob": 0.2083,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "workflow.transition",
+                    "successes": 11,
+                    "failures": 11,
+                    "total": 22,
+                    "failure_prob": 0.5,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "db.status_change",
+                    "successes": 12,
+                    "failures": 10,
+                    "total": 22,
+                    "failure_prob": 0.4583,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "approval.created",
+                    "successes": 5,
+                    "failures": 17,
+                    "total": 22,
+                    "failure_prob": 0.75,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "audit.created",
+                    "successes": 12,
+                    "failures": 10,
+                    "total": 22,
+                    "failure_prob": 0.4583,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "ui.status_updated",
+                    "successes": 12,
+                    "failures": 10,
+                    "total": 22,
+                    "failure_prob": 0.4583,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                },
+                {
+                    "step": "approval_queue.updated",
+                    "successes": 5,
+                    "failures": 17,
+                    "total": 22,
+                    "failure_prob": 0.75,
+                    "last_seen": "2026-07-15T23:09:50+08:00"
+                }
+            ]
         },
         "temporal": {
-            "violations": [],
-            "order_score": 1,
+            "violations": [
+                {
+                    "type": "chain_gap",
+                    "description": "Chain broken at step 'button.visible' \u2014 10 consecutive failure(s)",
+                    "severity": "error",
+                    "step": "button.visible",
+                    "gap_size": 10
+                }
+            ],
+            "order_score": 0.9,
             "anomalies": []
         },
         "diagnosis": {
             "primary_classification": {
-                "category": "unknown",
-                "score": 0,
-                "matched_terms": [],
+                "category": "template",
+                "score": 0.02,
+                "matched_terms": [
+                    "render"
+                ],
                 "confidence": "none"
             },
             "full_classification": {
@@ -329,25 +719,312 @@
             "recommendations": []
         },
         "root_cause_hypothesis": {
-            "summary": "No failure detected \u2014 all chain links passed.",
-            "severity": "success",
-            "action": "none"
+            "summary": "Break at step 'button.visible' (ui)",
+            "severity": "warning",
+            "action": "Check template rendering and JavaScript execution"
         },
+        "ai_hypothesis": {
+            "summary": "Break at step 'button.visible' (ui)",
+            "confidence": 0,
+            "severity": "warning",
+            "files_to_inspect": [],
+            "proposed_test": "Debug the 'button.visible' step and verify fix",
+            "do_not_change_boundary": [
+                "Do not change the entity view contract \u2014 fix the template or presenter instead",
+                "Do not remove accessibility attributes from UI elements"
+            ],
+            "suggested_links": []
+        },
+        "remediation_plan": {
+            "failing_step": "button.visible",
+            "suspected_file": "templates/modules/project-audit-ledger/pages/ (unknown template)",
+            "invariant_violated": "UI element must be visible and interactive",
+            "fix_sketch": "Ensure 'button.visible' element is present in the template and visible after render",
+            "test_command": "php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit --tenant=1 --entity-id=1",
+            "risk_level": "low",
+            "related_files": []
+        },
+        "proposed_chain_links": [],
+        "source_context": {
+            "step": "button.visible",
+            "category": "ui",
+            "handler_files": [],
+            "template_files": [],
+            "route_files": [
+                "modules/project-audit-ledger/routes.php"
+            ],
+            "migration_files": []
+        },
+        "coverage_score": null,
         "confidence": {
-            "score": 0.4,
+            "score": 0.35,
             "factors": {
-                "coverage": 0,
-                "semantic_quality": 0.5,
-                "temporal_order": 1,
+                "coverage": 0.1,
+                "semantic_quality": 0,
+                "temporal_order": 0.9,
                 "classification": 0,
-                "has_breakpoint": 0.8
+                "has_breakpoint": 1,
+                "ai_confidence": 0.5
             },
             "label": "low"
         }
     },
-    "runtime": [],
+    "report_card": {
+        "root_cause": {
+            "summary": "Break at step 'button.visible' (ui)",
+            "severity": "warning",
+            "confidence": {
+                "score": 0.35,
+                "factors": {
+                    "coverage": 0.1,
+                    "semantic_quality": 0,
+                    "temporal_order": 0.9,
+                    "classification": 0,
+                    "has_breakpoint": 1,
+                    "ai_confidence": 0.5
+                },
+                "label": "low"
+            }
+        },
+        "failing_causal_chain": [
+            {
+                "step": "button.visible",
+                "category": "ui",
+                "description": "Submit for Approval button is visible on edit page",
+                "status": "failed"
+            },
+            {
+                "step": "button.clicked",
+                "category": "ui",
+                "description": "User clicks the Submit button",
+                "status": "failed"
+            },
+            {
+                "step": "http.request",
+                "category": "http",
+                "description": "POST request sent to status API endpoint",
+                "status": "failed"
+            },
+            {
+                "step": "http.response_ok",
+                "category": "http",
+                "description": "API returns HTTP 200 with {ok: true}",
+                "status": "failed"
+            },
+            {
+                "step": "workflow.transition",
+                "category": "service",
+                "description": "JobOrderWorkflow::apply() executes transition",
+                "status": "failed"
+            },
+            {
+                "step": "db.status_change",
+                "category": "db",
+                "description": "Project status changes from draft to pending",
+                "status": "failed"
+            },
+            {
+                "step": "approval.created",
+                "category": "db",
+                "description": "Approval request record created in pal_approvals",
+                "status": "failed"
+            },
+            {
+                "step": "audit.created",
+                "category": "audit",
+                "description": "Audit log entry created for status change",
+                "status": "failed"
+            },
+            {
+                "step": "ui.status_updated",
+                "category": "verify",
+                "description": "Detail page renders Pending status badge",
+                "status": "failed"
+            },
+            {
+                "step": "approval_queue.updated",
+                "category": "verify",
+                "description": "Approval queue page shows the project",
+                "status": "failed"
+            }
+        ],
+        "inspect_these_files": [],
+        "diagnosis": {
+            "primary": "template",
+            "details": "",
+            "all_patterns": []
+        },
+        "remediation": {
+            "failing_step": "button.visible",
+            "suspected_file": "templates/modules/project-audit-ledger/pages/ (unknown template)",
+            "invariant_violated": "UI element must be visible and interactive",
+            "fix_sketch": "Ensure 'button.visible' element is present in the template and visible after render",
+            "test_command": "php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit --tenant=1 --entity-id=1",
+            "risk_level": "low",
+            "related_files": []
+        },
+        "suggested_next_test": "After fixing button.visible, run the browser spec again and verify all UI assertions pass",
+        "temporal_insights": {
+            "order_score": 0.9,
+            "violations": [
+                {
+                    "type": "chain_gap",
+                    "description": "Chain broken at step 'button.visible' \u2014 10 consecutive failure(s)",
+                    "severity": "error",
+                    "step": "button.visible",
+                    "gap_size": 10
+                }
+            ],
+            "timing_anomalies": []
+        },
+        "anomalies": {
+            "unexpected_evidence": [],
+            "missing_links": []
+        },
+        "cross_module": {
+            "cross_module": false,
+            "cascade": [
+                {
+                    "type": "cross_module_read",
+                    "table": "audit_logs",
+                    "owner": "project-audit-ledger",
+                    "description": "Module reads table 'audit_logs' owned by 'project-audit-ledger'",
+                    "severity": "info"
+                },
+                {
+                    "type": "cross_module_read",
+                    "table": "attendance_groups",
+                    "owner": "project-audit-ledger",
+                    "description": "Module reads table 'attendance_groups' owned by 'project-audit-ledger'",
+                    "severity": "info"
+                },
+                {
+                    "type": "cross_module_read",
+                    "table": "attendance_group_members",
+                    "owner": "project-audit-ledger",
+                    "description": "Module reads table 'attendance_group_members' owned by 'project-audit-ledger'",
+                    "severity": "info"
+                },
+                {
+                    "type": "cross_module_read",
+                    "table": "attendance_wage_users",
+                    "owner": "project-audit-ledger",
+                    "description": "Module reads table 'attendance_wage_users' owned by 'project-audit-ledger'",
+                    "severity": "info"
+                },
+                {
+                    "type": "cross_module_read",
+                    "table": "employee_profiles",
+                    "owner": "project-audit-ledger",
+                    "description": "Module reads table 'employee_profiles' owned by 'project-audit-ledger'",
+                    "severity": "info"
+                },
+                {
+                    "type": "cross_module_read",
+                    "table": "attendance_records",
+                    "owner": "project-audit-ledger",
+                    "description": "Module reads table 'attendance_records' owned by 'project-audit-ledger'",
+                    "severity": "info"
+                }
+            ],
+            "recommendations": []
+        },
+        "generated_at": "2026-07-15T23:09:50+08:00"
+    },
+    "runtime": {
+        "_tenant_id": 1,
+        "_entity_id": 1
+    },
     "timestamps": [],
-    "bayesian_history": [],
-    "generated_at": "2026-07-14T23:50:45+08:00",
-    "engine_version": "2.0-semantic"
+    "bayesian_history": [
+        {
+            "step": "button.visible",
+            "successes": 18,
+            "failures": 4,
+            "total": 22,
+            "failure_prob": 0.2083,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "button.clicked",
+            "successes": 12,
+            "failures": 10,
+            "total": 22,
+            "failure_prob": 0.4583,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "http.request",
+            "successes": 12,
+            "failures": 10,
+            "total": 22,
+            "failure_prob": 0.4583,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "http.response_ok",
+            "successes": 18,
+            "failures": 4,
+            "total": 22,
+            "failure_prob": 0.2083,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "workflow.transition",
+            "successes": 11,
+            "failures": 11,
+            "total": 22,
+            "failure_prob": 0.5,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "db.status_change",
+            "successes": 12,
+            "failures": 10,
+            "total": 22,
+            "failure_prob": 0.4583,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "approval.created",
+            "successes": 5,
+            "failures": 17,
+            "total": 22,
+            "failure_prob": 0.75,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "audit.created",
+            "successes": 12,
+            "failures": 10,
+            "total": 22,
+            "failure_prob": 0.4583,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "ui.status_updated",
+            "successes": 12,
+            "failures": 10,
+            "total": 22,
+            "failure_prob": 0.4583,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        },
+        {
+            "step": "approval_queue.updated",
+            "successes": 5,
+            "failures": 17,
+            "total": 22,
+            "failure_prob": 0.75,
+            "last_seen": "2026-07-15T23:09:50+08:00"
+        }
+    ],
+    "similar_cases": [],
+    "case_memory_stats": {
+        "total_cases": 0,
+        "modules": [],
+        "oldest": null,
+        "newest": null
+    },
+    "generated_at": "2026-07-15T23:09:50+08:00",
+    "engine_version": "3.0-ai-enhanced"
 }

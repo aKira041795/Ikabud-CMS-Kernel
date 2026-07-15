@@ -12,56 +12,82 @@ use Ikabud\Kernel\Workbench\Comprehension\Contracts\{
 
 use Ikabud\Kernel\Workbench\Comprehension\Analyzers\{
     SemanticScorer,
+    EmbeddingScorer,
     BayesianReasoner,
     TemporalValidator,
     PatternClassifier,
     AnomalyDetector,
     CrossModuleAnalyzer,
+    SourceRetriever,
+    AiHypothesisGenerator,
+    CaseMemory,
+    ProviderCoverageScorer,
 };
 
 /**
  * Hybrid Semantic Comprehension Engine.
  *
- * Combines 6 reasoning layers for deep understanding of module behavior:
+ * Combines 8 reasoning layers for deep understanding of module behavior:
  *
  *   Layer 1 — Deterministic Causal Chain (via ModuleComprehensionEngine)
- *   Layer 2 — Semantic Similarity Scoring (text-based evidence matching)
- *   Layer 3 — Bayesian Failure History (historical probability)
- *   Layer 4 — Temporal Ordering Validation (causality constraints)
- *   Layer 5 — Pattern Classification + Anomaly Detection (error diagnosis)
- *   Layer 6 — Cross-Module Cascade Analysis (dependency impact)
+ *   Layer 2 — NLP-Enhanced Semantic Similarity Scoring (embedding + TF-IDF + n-gram)
+ *   Layer 3 — Bayesian Failure History (Beta-Binomial conjugate prior)
+ *   Layer 4 — Temporal Ordering Validation (causality constraints + timing anomalies)
+ *   Layer 5 — Pattern Classification + Anomaly Detection (error diagnosis + missing links)
+ *   Layer 6 — Cross-Module Cascade Analysis (dependency impact + drift)
+ *   Layer 7 — AI Hypothesis Generation (root cause + fix plan + boundary notes)
+ *   Layer 8 — Provider Coverage Scoring (missing/stale chain links, description quality)
  *
- * Each layer feeds into the next. The final output is a rich evidence
- * packet that the AI Steward can act on.
+ * Plus: Source Retrieval (step → handler/service/template mapping)
+ *       Case Memory (similar past fixes for faster diagnosis)
  */
 class SemanticComprehensionEngine
 {
     private ModuleComprehensionEngine $deterministic;
     private SemanticScorer $scorer;
+    private EmbeddingScorer $embeddingScorer;
     private BayesianReasoner $bayesian;
     private TemporalValidator $temporal;
     private PatternClassifier $classifier;
     private AnomalyDetector $anomaly;
     private CrossModuleAnalyzer $crossModule;
+    private SourceRetriever $sourceRetriever;
+    private AiHypothesisGenerator $aiHypothesis;
+    private CaseMemory $caseMemory;
+    private ProviderCoverageScorer $coverageScorer;
 
     private string $moduleId;
     private array $runtimeEvidence = [];
     private array $timestamps = [];
+    private ?ModuleComprehensionProvider $provider = null;
 
     public function __construct(
         string $moduleId,
         ModuleComprehensionProvider $provider,
         ?BayesianReasoner $bayesian = null,
         ?CrossModuleAnalyzer $crossModule = null,
+        ?SourceRetriever $sourceRetriever = null,
+        ?AiHypothesisGenerator $aiHypothesis = null,
+        ?CaseMemory $caseMemory = null,
     ) {
         $this->moduleId = $moduleId;
+        $this->provider = $provider;
         $this->deterministic = new ModuleComprehensionEngine($provider);
         $this->scorer = new SemanticScorer();
+        $this->embeddingScorer = new EmbeddingScorer();
         $this->bayesian = $bayesian ?? new BayesianReasoner();
         $this->temporal = new TemporalValidator();
         $this->classifier = new PatternClassifier();
         $this->anomaly = new AnomalyDetector();
         $this->crossModule = $crossModule ?? new CrossModuleAnalyzer();
+        $this->sourceRetriever = $sourceRetriever ?? new SourceRetriever($moduleId);
+        $this->caseMemory = $caseMemory ?? new CaseMemory();
+        $this->aiHypothesis = $aiHypothesis ?? new AiHypothesisGenerator(
+            $moduleId,
+            $this->sourceRetriever,
+            $this->caseMemory,
+        );
+        $this->coverageScorer = new ProviderCoverageScorer();
     }
 
     /**
@@ -204,23 +230,92 @@ class SemanticComprehensionEngine
             $crossModuleAnalysis
         );
 
-        // Overall confidence
+        // Layer 7: AI Hypothesis Generation (heuristic fallback)
+        $aiHypothesis = $this->aiHypothesis->generate(
+            [
+                'module' => $this->moduleId,
+                'action' => $actionId,
+                'breakpoint' => $breakpoint,
+                'break_category' => $breakCategory,
+                'deterministic' => $deterministicResult,
+                'diagnosis' => ['primary_classification' => $classification, 'full_classification' => $fullClassification],
+                'anomalies' => ['unexpected_evidence' => $anomalies, 'missing_links' => $missingLinks],
+                'cross_module' => $crossModuleAnalysis,
+                'root_cause_hypothesis' => $rootCause,
+                'temporal' => $temporalAnalysis,
+                'confidence' => ['score' => 0, 'label' => 'none'], // computed below
+            ],
+            $this->runtimeEvidence,
+            $bayesianAnalysis,
+        );
+
+        // Source retrieval for the failed step
+        $sourceContext = null;
+        if ($breakpoint !== null) {
+            $sourceContext = $this->sourceRetriever->retrieve($breakpoint, $breakCategory ?? 'unknown');
+        }
+
+        // Layer 8: Provider coverage scoring (when we have evidence)
+        $coverageScore = null;
+        $hasEvidence = !empty(array_diff_key($this->runtimeEvidence, ['_tenant_id' => true, '_entity_id' => true, '_entity_type' => true, '_run_id' => true]));
+        if ($hasEvidence && $this->provider !== null) {
+            $coverageScore = $this->coverageScorer->score($this->provider, $this->runtimeEvidence);
+        }
+
+        // NLP-enhanced semantic scoring (embedding-based)
+        $embeddingScores = [];
+        $action = $this->findAction($actionId);
+        if ($action) {
+            foreach ($action->chain as $link) {
+                $linkHistory = $bayesianAnalysis[$link->step] ?? [];
+                $embeddingScores[$link->step] = $this->embeddingScorer->scoreLink(
+                    $link,
+                    $this->runtimeEvidence,
+                    $linkHistory,
+                );
+            }
+        }
+
+        // Generate remediation plan for the failed step
+        $remediationPlan = $this->aiHypothesis->generateRemediationPlan(
+            [
+                'module' => $this->moduleId,
+                'action' => $actionId,
+                'breakpoint' => $breakpoint,
+                'break_category' => $breakCategory,
+                'deterministic' => $deterministicResult,
+                'diagnosis' => ['primary_classification' => $classification],
+                'confidence' => ['score' => 0, 'label' => 'none'],
+            ],
+            $this->runtimeEvidence,
+            $sourceContext,
+        );
+
+        // AI-proposed missing chain links
+        $proposedLinks = $this->aiHypothesis->proposeMissingLinks(
+            $anomalies,
+            $this->runtimeEvidence,
+        );
+
+        // Overall confidence (updated with embedding scores)
         $confidence = $this->computeOverallConfidence(
             $deterministicResult,
-            $semanticScores,
+            $embeddingScores,
             $temporalAnalysis,
             $classification,
-            $breakpoint
+            $breakpoint,
         );
 
         return [
             'module' => $this->moduleId,
             'action' => $actionId,
+            'engine_version' => '3.0-ai-enhanced',
             'breakpoint' => $breakpoint,
             'break_category' => $breakCategory,
             'deterministic' => $deterministicResult,
             'semantic' => [
                 'per_link_scores' => $semanticScores,
+                'embedding_scores' => $embeddingScores,
             ],
             'bayesian' => [
                 'per_link' => $bayesianAnalysis,
@@ -237,6 +332,34 @@ class SemanticComprehensionEngine
             ],
             'cross_module' => $crossModuleAnalysis,
             'root_cause_hypothesis' => $rootCause,
+            'ai_hypothesis' => [
+                'summary' => $aiHypothesis->summary,
+                'confidence' => $aiHypothesis->confidence,
+                'severity' => $aiHypothesis->severity,
+                'files_to_inspect' => $aiHypothesis->filesToInspect,
+                'proposed_test' => $aiHypothesis->proposedTest,
+                'do_not_change_boundary' => $aiHypothesis->doNotChangeBoundary,
+                'suggested_links' => $aiHypothesis->suggestedLinks,
+            ],
+            'remediation_plan' => $remediationPlan !== null ? [
+                'failing_step' => $remediationPlan->failingStep,
+                'suspected_file' => $remediationPlan->suspectedFile,
+                'invariant_violated' => $remediationPlan->invariantViolated,
+                'fix_sketch' => $remediationPlan->fixSketch,
+                'test_command' => $remediationPlan->testCommand,
+                'risk_level' => $remediationPlan->riskLevel,
+                'related_files' => $remediationPlan->relatedFiles,
+            ] : null,
+            'proposed_chain_links' => $proposedLinks,
+            'source_context' => $sourceContext !== null ? [
+                'step' => $sourceContext->step,
+                'category' => $sourceContext->category,
+                'handler_files' => $sourceContext->handlerFiles,
+                'template_files' => $sourceContext->templateFiles,
+                'route_files' => $sourceContext->routeInfo,
+                'migration_files' => $sourceContext->migrationFiles,
+            ] : null,
+            'coverage_score' => $coverageScore,
             'confidence' => $confidence,
         ];
     }
@@ -263,16 +386,103 @@ class SemanticComprehensionEngine
     {
         $analysis = $this->analyze($actionId);
         $graph = $this->deterministic->buildGraph();
+        $reportCard = $this->generateReportCard($actionId);
+        $similarCases = $this->caseMemory->findSimilar(
+            $this->moduleId,
+            $actionId,
+            $this->runtimeEvidence,
+        );
 
         return [
             'module' => $graph,
             'analysis' => $analysis,
+            'report_card' => $reportCard,
             'runtime' => $this->runtimeEvidence,
             'timestamps' => $this->timestamps,
             'bayesian_history' => $this->bayesian->actionHistory($this->moduleId, $actionId),
+            'similar_cases' => array_map(fn($c) => [
+                'id' => $c['case']->id,
+                'summary' => $c['case']->summary,
+                'fix_summary' => $c['case']->fixSummary,
+                'changed_files' => $c['case']->changedFiles,
+                'similarity' => $c['similarity'],
+            ], $similarCases),
+            'case_memory_stats' => $this->caseMemory->stats(),
             'generated_at' => date('c'),
-            'engine_version' => '2.0-semantic',
+            'engine_version' => '3.0-ai-enhanced',
         ];
+    }
+
+    /**
+     * Generate an actionable report card with root cause, timeline, and fix suggestions.
+     */
+    public function generateReportCard(string $actionId): array
+    {
+        $analysis = $this->analyze($actionId, recordHistory: false);
+        return $this->aiHypothesis->generateReportCard($analysis, $this->runtimeEvidence);
+    }
+
+    /**
+     * Store a successful fix outcome as a case memory entry.
+     *
+     * @param string $summary Human-readable bug description
+     * @param array $changedFiles Files modified to fix the bug
+     * @param string $fixSummary Description of what was changed
+     * @param string $testCommand The test that validates the fix
+     * @param array $tags Optional tags for similarity matching
+     * @return string The case ID
+     */
+    public function storeCaseMemory(
+        string $summary,
+        array $changedFiles,
+        string $fixSummary,
+        string $testCommand = '',
+        array $tags = [],
+    ): string {
+        $actionId = $summary; // Use summary as seed for deterministic ID for now
+        $caseId = 'case-' . $this->moduleId . '-' . md5($summary . implode(',', $changedFiles));
+
+        $this->caseMemory->store(new \Ikabud\Kernel\Workbench\Comprehension\Contracts\CaseMemoryEntry(
+            id: $caseId,
+            moduleId: $this->moduleId,
+            actionId: $actionId,
+            summary: $summary,
+            evidencePacket: $this->runtimeEvidence,
+            changedFiles: $changedFiles,
+            testCommand: $testCommand,
+            fixSummary: $fixSummary,
+            createdAt: date('c'),
+            tags: $tags,
+        ));
+
+        return $caseId;
+    }
+
+    /**
+     * Get case memory stats.
+     */
+    public function caseMemoryStats(): array
+    {
+        return $this->caseMemory->stats();
+    }
+
+    /**
+     * Find similar cases to the current evidence.
+     */
+    public function findSimilarCases(string $actionId = '', int $maxResults = 5): array
+    {
+        return $this->caseMemory->findSimilar($this->moduleId, $actionId, $this->runtimeEvidence, $maxResults);
+    }
+
+    /**
+     * Score provider coverage against current evidence.
+     */
+    public function scoreCoverage(): ?array
+    {
+        if ($this->provider === null) {
+            return null;
+        }
+        return $this->coverageScorer->score($this->provider, $this->runtimeEvidence);
     }
 
     private function findAction(string $actionId): ?ActionContract
@@ -419,7 +629,7 @@ class SemanticComprehensionEngine
 
     private function computeOverallConfidence(
         array $deterministic,
-        array $semanticScores,
+        array $embeddingScores,
         array $temporalAnalysis,
         array $classification,
         ?string $breakpoint
@@ -432,9 +642,9 @@ class SemanticComprehensionEngine
         $observedLinks = count(array_filter($chainResults, fn($r) => $r['actual'] !== false));
         $factors['coverage'] = $totalLinks > 0 ? $observedLinks / $totalLinks : 0;
 
-        // Semantic score quality
-        if (!empty($semanticScores)) {
-            $avgScore = array_sum(array_map(fn($s) => $s['score'] ?? 0, $semanticScores)) / count($semanticScores);
+        // Embedding score quality (NLP-enhanced)
+        if (!empty($embeddingScores)) {
+            $avgScore = array_sum(array_map(fn($s) => $s['score'] ?? 0, $embeddingScores)) / count($embeddingScores);
             $factors['semantic_quality'] = $avgScore;
         } else {
             $factors['semantic_quality'] = 0.5;
@@ -451,9 +661,12 @@ class SemanticComprehensionEngine
         // Breakpoint presence
         $factors['has_breakpoint'] = $breakpoint !== null ? 1.0 : 0.8;
 
+        // AI hypothesis confidence (from Layer 7)
+        $factors['ai_confidence'] = 0.5; // neutral baseline
+
         // Weighted average
-        $weights = ['coverage' => 0.25, 'semantic_quality' => 0.25, 'temporal_order' => 0.15,
-                     'classification' => 0.20, 'has_breakpoint' => 0.15];
+        $weights = ['coverage' => 0.20, 'semantic_quality' => 0.20, 'temporal_order' => 0.12,
+                     'classification' => 0.18, 'has_breakpoint' => 0.15, 'ai_confidence' => 0.15];
 
         $weightedSum = 0;
         $weightTotal = 0;

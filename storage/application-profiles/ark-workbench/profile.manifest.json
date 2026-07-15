@@ -36,6 +36,9 @@
             ],
             "workbench:combobox": [
                 "assets/workbench-combobox.js"
+            ],
+            "workbench:responsive_table": [
+                "assets/workbench-table.js"
             ]
         }
     },
@@ -47,7 +50,10 @@
             "sidebar",
             "radius",
             "typography",
-            "table"
+            "table",
+            "density",
+            "spacing",
+            "print"
         ]
     },
     "design_policy": {

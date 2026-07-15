@@ -20,7 +20,7 @@ class ApplicationProfileRegistryTest extends \PHPUnit\Framework\TestCase
 
     public function testRegisterAndRetrieveProfile(): void
     {
-        $provider = new \Ikabud\Themes\ArkWorkbench\ArkWorkbenchProvider();
+        $provider = new \Ikabud\ApplicationProfiles\ArkWorkbench\ArkWorkbenchProvider();
 
         \Ikabud\Kernel\Services\ApplicationProfileRegistry::register($provider);
 

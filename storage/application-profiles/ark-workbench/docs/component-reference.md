@@ -4,7 +4,7 @@
 
 ### `workbench:app_shell`
 Full application chrome: sidebar, header, content area, bottom navigation.
-Includes mobile drawer, overlay, and sidebar sections.
+Includes mobile drawer, overlay, bottom navigation, and sidebar sections as internal shell subpatterns in v0.1.
 - **File**: `components/shell/app_shell.disyl`
 - **Layouts**: `layouts/app-shell.disyl`, `layouts/app-shell-mobile.disyl`
 

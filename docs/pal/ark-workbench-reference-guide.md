@@ -140,9 +140,9 @@ A module declares its Workbench dependency in `module.json`:
 | Component | Purpose | JS Required |
 |---|---|---|
 | `workbench:app_shell` | Application chrome: sidebar, header, content area | `workbench-core.js` |
-| `workbench:mobile_drawer` | Off-canvas navigation drawer | `workbench-core.js` |
-| `workbench:bottom_navigation` | 4-5 item bottom tab bar for mobile | `workbench-core.js` |
-| `workbench:sidebar_section` | Collapsible nav section with active state | — |
+| `workbench:mobile_drawer` | Internal `app_shell` subpattern: off-canvas navigation drawer | `workbench-core.js` |
+| `workbench:bottom_navigation` | Internal `app_shell` subpattern: 4-5 item bottom tab bar for mobile | `workbench-core.js` |
+| `workbench:sidebar_section` | Internal `app_shell` subpattern: collapsible nav section with active state | `workbench-core.js` |
 
 ### 3.2 Page Structure
 

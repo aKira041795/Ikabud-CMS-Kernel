@@ -80,6 +80,8 @@ final class WorkbenchContractValidator
                 if ($result !== null) {
                     $violations[$key] = $result;
                 }
+            } else {
+                $violations[$key] = "Unsupported Workbench contract requirement: {$key}";
             }
         }
 
@@ -94,8 +96,12 @@ final class WorkbenchContractValidator
         foreach ($attrDefs as $attrName => $attrDef) {
             if ($attrName === 'data-wb-component') continue;
             $source = $attrDef['source'] ?? null;
-            if ($source && isset($props[$source])) {
-                $expectedValue = (string)$props[$source];
+            if ($source !== null) {
+                $expectedValue = $this->resolveAttributeSource($source, $props);
+                if ($expectedValue === null) {
+                    continue;
+                }
+                $expectedValue = (string)$expectedValue;
                 if (!str_contains($html, "{$attrName}=\"{$expectedValue}\"")) {
                     $violations[$attrName] = "Missing {$attrName}=\"{$expectedValue}\"";
                 }
@@ -103,6 +109,19 @@ final class WorkbenchContractValidator
         }
 
         return $violations;
+    }
+
+    /**
+     * Resolve a contract attribute source expression against component props.
+     */
+    private function resolveAttributeSource(string $source, array $props): mixed
+    {
+        if (str_ends_with($source, '|count')) {
+            $key = substr($source, 0, -6);
+            return isset($props[$key]) && is_countable($props[$key]) ? count($props[$key]) : null;
+        }
+
+        return array_key_exists($source, $props) ? $props[$source] : null;
     }
 
     /**
@@ -137,6 +156,28 @@ final class WorkbenchContractValidator
     {
         if ($expected && !preg_match('/aria-labelledby="[^"]+"/', $html)) {
             return 'Missing aria-labelledby attribute';
+        }
+        return null;
+    }
+
+    /**
+     * Validate aria-expanded is present.
+     */
+    private function checkAriaExpanded(string $html, bool $expected): ?string
+    {
+        if ($expected && !preg_match('/aria-expanded=\"[^\"]+\"/', $html)) {
+            return 'Missing aria-expanded attribute';
+        }
+        return null;
+    }
+
+    /**
+     * Validate aria-owns is present.
+     */
+    private function checkAriaOwns(string $html, bool $expected): ?string
+    {
+        if ($expected && !preg_match('/aria-owns=\"[^\"]+\"/', $html)) {
+            return 'Missing aria-owns attribute';
         }
         return null;
     }
@@ -192,6 +233,42 @@ final class WorkbenchContractValidator
     }
 
     /**
+     * Validate clickable table rows expose navigation metadata.
+     */
+    private function checkClickableRowsHaveDataWbHref(string $html, bool $expected): ?string
+    {
+        if (!$expected) return null;
+        if (preg_match('/<tr\b[^>]*(?:role=\"link\"|tabindex=\"0\")[^>]*>/i', $html)
+            && !preg_match('/<tr\b[^>]*data-wb-href=\"[^\"]+\"[^>]*>/i', $html)) {
+            return 'Clickable rows missing data-wb-href';
+        }
+        return null;
+    }
+
+    /**
+     * Validate populated table rows expose entity IDs.
+     */
+    private function checkEntityRowsHaveDataWbEntityId(string $html, bool $expected): ?string
+    {
+        if (!$expected) return null;
+
+        preg_match_all('/<tbody\b[^>]*>(.*?)<\/tbody>/is', $html, $bodies);
+        foreach ($bodies[1] ?? [] as $bodyHtml) {
+            preg_match_all('/<tr\b[^>]*>.*?<\/tr>/is', $bodyHtml, $rows);
+            foreach ($rows[0] ?? [] as $rowHtml) {
+                if (str_contains($rowHtml, 'colspan=')) {
+                    continue;
+                }
+                if (!preg_match('/data-wb-entity-id=\"[^\"]+\"/i', $rowHtml)) {
+                    return 'Entity rows missing data-wb-entity-id';
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Validate visible text content.
      */
     private function checkVisibleTextLabel(string $html, bool $expected): ?string
@@ -200,6 +277,28 @@ final class WorkbenchContractValidator
             $text = strip_tags($html);
             if (trim($text) === '') {
                 return 'Component has no visible text content';
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Validate tone badges do not rely on color alone.
+     */
+    private function checkToneNeverCommunicatedByColorAlone(string $html, bool $expected): ?string
+    {
+        return $this->checkVisibleTextLabel($html, $expected);
+    }
+
+    /**
+     * Validate data-wb-tone values against the contract tone set.
+     */
+    private function checkValidTones(string $html, array $expected): ?string
+    {
+        preg_match_all('/data-wb-tone=\"([^\"]+)\"/', $html, $matches);
+        foreach ($matches[1] ?? [] as $tone) {
+            if (!in_array($tone, $expected, true)) {
+                return "Invalid tone '{$tone}'";
             }
         }
         return null;
@@ -256,6 +355,101 @@ final class WorkbenchContractValidator
         }
         return null;
     }
+
+    /**
+     * Validate POST actions expose their method to Workbench observers.
+     */
+    private function checkPostActionsHaveDataWbMethod(string $html, bool $expected): ?string
+    {
+        if (!$expected) return null;
+        if (preg_match_all('/<form\b[^>]*method="POST"[^>]*>(.*?)<\/form>/is', $html, $forms)) {
+            foreach ($forms[1] as $formBody) {
+                if (!str_contains($formBody, 'data-wb-method="POST"')) {
+                    return 'POST action missing data-wb-method="POST"';
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Validate breadcrumb markup uses a navigation landmark when present.
+     */
+    private function checkBreadcrumbHasNavLandmark(string $html, bool $expected): ?string
+    {
+        if (!$expected || !str_contains($html, 'aria-label="Breadcrumb"')) {
+            return null;
+        }
+        if (!preg_match('/<nav\b[^>]*aria-label="Breadcrumb"[^>]*>/i', $html)) {
+            return 'Breadcrumb missing nav landmark';
+        }
+        return null;
+    }
+
+    /**
+     * Validate summary card label text.
+     */
+    private function checkDisplaysLabel(string $html, bool $expected, array $props = []): ?string
+    {
+        if (!$expected) return null;
+        $label = trim((string)($props['label'] ?? ''));
+        if ($label !== '' && !str_contains(strip_tags($html), $label)) {
+            return "Missing label text '{$label}'";
+        }
+        return null;
+    }
+
+    /**
+     * Validate summary card value text.
+     */
+    private function checkDisplaysValue(string $html, bool $expected, array $props = []): ?string
+    {
+        if (!$expected) return null;
+        $value = trim((string)($props['value'] ?? ''));
+        if ($value !== '' && !str_contains(strip_tags($html), $value)) {
+            return "Missing value text '{$value}'";
+        }
+        return null;
+    }
+
+    /**
+     * Validate tone metadata is present.
+     */
+    private function checkHasDataWbTone(string $html, bool $expected): ?string
+    {
+        if ($expected && !preg_match('/data-wb-tone="[^"]+"/', $html)) {
+            return 'Missing data-wb-tone attribute';
+        }
+        return null;
+    }
+
+    /**
+     * Validate href cards expose link affordances.
+     */
+    private function checkClickableWhenHrefPresent(string $html, bool $expected, array $props = []): ?string
+    {
+        if (!$expected || empty($props['href'])) return null;
+        if (!str_contains($html, 'data-wb-href="' . (string)$props['href'] . '"')) {
+            return 'Clickable summary card missing data-wb-href';
+        }
+        if (!str_contains($html, 'role="link"')) {
+            return 'Clickable summary card missing role="link"';
+        }
+        return null;
+    }
+
+    /**
+     * Behavioral requirements are asserted by browser harnesses; their
+     * presence here prevents JSON contract drift from being silently ignored.
+     */
+    private function checkKeyboardNavigation(string $html, array $expected): ?string { return null; }
+    private function checkFocusTrapsWithinListbox(string $html, bool $expected): ?string { return null; }
+    private function checkEscapeCloses(string $html, bool $expected): ?string { return null; }
+    private function checkFocusTrap(string $html, bool $expected): ?string { return null; }
+    private function checkRestoresFocus(string $html, bool $expected): ?string { return null; }
+    private function checkCloseOnBackdrop(string $html, bool $expected): ?string { return null; }
+    private function checkReceivesFocusOnError(string $html, bool $expected): ?string { return null; }
+    private function checkMobileBreakpoint(string $html, string $expected): ?string { return null; }
 
     /**
      * Convert snake_case or dot-separated to CamelCase.

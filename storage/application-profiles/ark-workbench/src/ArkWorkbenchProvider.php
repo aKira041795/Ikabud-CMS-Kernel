@@ -12,7 +12,7 @@ use Ikabud\Kernel\Contracts\ApplicationProfileProvider;
  * Implements ApplicationProfileProvider with declarative configuration loaded
  * from profile.manifest.json and companion files.
  *
- * @package Ikabud\Themes\ArkWorkbench
+ * @package Ikabud\ApplicationProfiles\ArkWorkbench
  */
 final class ArkWorkbenchProvider implements ApplicationProfileProvider
 {

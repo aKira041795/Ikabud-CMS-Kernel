@@ -1,9 +1,9 @@
 {
     "button.visible": {
         "successes": 18,
-        "failures": 3,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 4,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": true,
@@ -112,6 +112,14 @@
             {
                 "succeeded": true,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -121,9 +129,9 @@
     },
     "button.clicked": {
         "successes": 12,
-        "failures": 9,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 10,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -232,6 +240,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -241,9 +257,9 @@
     },
     "http.request": {
         "successes": 12,
-        "failures": 9,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 10,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -352,6 +368,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -361,9 +385,9 @@
     },
     "http.response_ok": {
         "successes": 18,
-        "failures": 3,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 4,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": true,
@@ -472,6 +496,14 @@
             {
                 "succeeded": true,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -481,9 +513,9 @@
     },
     "workflow.transition": {
         "successes": 11,
-        "failures": 10,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 11,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": true,
@@ -592,6 +624,14 @@
             {
                 "succeeded": true,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -601,9 +641,9 @@
     },
     "db.status_change": {
         "successes": 12,
-        "failures": 9,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 10,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -712,6 +752,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -721,9 +769,9 @@
     },
     "approval.created": {
         "successes": 5,
-        "failures": 16,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 17,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -832,6 +880,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -841,9 +897,9 @@
     },
     "audit.created": {
         "successes": 12,
-        "failures": 9,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 10,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -952,6 +1008,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -961,9 +1025,9 @@
     },
     "ui.status_updated": {
         "successes": 12,
-        "failures": 9,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 10,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -1072,6 +1136,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,
@@ -1081,9 +1153,9 @@
     },
     "approval_queue.updated": {
         "successes": 5,
-        "failures": 16,
-        "last_seen": "2026-07-14T17:22:38+08:00",
-        "total": 21,
+        "failures": 17,
+        "last_seen": "2026-07-15T23:09:50+08:00",
+        "total": 22,
         "runs": [
             {
                 "succeeded": false,
@@ -1192,6 +1264,14 @@
             {
                 "succeeded": false,
                 "recorded_at": "2026-07-14T17:22:38+08:00",
+                "run_id": null,
+                "commit": null,
+                "tenant": null,
+                "source": "cli"
+            },
+            {
+                "succeeded": false,
+                "recorded_at": "2026-07-15T23:09:50+08:00",
                 "run_id": null,
                 "commit": null,
                 "tenant": null,

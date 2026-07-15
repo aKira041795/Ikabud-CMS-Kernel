@@ -6,8 +6,8 @@ declare(strict_types=1);
  * Workbench Comprehension Runner — CLI entry point.
  *
  * Runs the hybrid semantic comprehension engine against a module,
- * collecting runtime evidence, applying all 6 reasoning layers,
- * and outputting a comprehensive report.
+ * collecting runtime evidence, applying all 8 reasoning layers,
+ * and outputting a comprehensive report with AI diagnosis.
  *
  * Usage:
  *   php kernel/Workbench/Comprehension/run.php <module-id> [action-id] [options]
@@ -19,11 +19,23 @@ declare(strict_types=1);
  *   --entity-id=N            Entity ID
  *   --run-id=string          Test run ID for history tracking
  *   --reset-history          Clear Bayesian history for this module/action
+ *   --report-card            Output an actionable report card (root cause, timeline, fix plan)
+ *   --coverage               Run provider coverage scoring
+ *   --store-case=summary     Store this run as a case memory entry (with --changed-files)
+ *   --changed-files=list     Comma-separated list of changed files (for --store-case)
+ *   --fix-summary=text       Fix summary description (for --store-case)
+ *   --stats                  Show case memory statistics
+ *   --list-cases             List stored cases for this module
+ *   --ai-provider=type       AI provider: heuristic (default), copilot, openai
  *
  * Examples:
  *   php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit
  *   php kernel/Workbench/Comprehension/run.php project-audit-ledger --evidence=test_results/evidence/pal-submit.json
  *   php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit --reset-history
+ *   php kernel/Workbench/Comprehension/run.php project-audit-ledger pal.job-order.submit --report-card
+ *   php kernel/Workbench/Comprehension/run.php project-audit-ledger --coverage
+ *   php kernel/Workbench/Comprehension/run.php project-audit-ledger --stats
+ *   php kernel/Workbench/Comprehension/run.php project-audit-ledger --list-cases
  *
  * Output: test_results/ai/comprehension-report.json
  */
@@ -41,6 +53,14 @@ $entityType = null;
 $entityId = null;
 $runId = null;
 $resetHistory = false;
+$reportCard = false;
+$coverage = false;
+$storeCase = null;
+$changedFiles = [];
+$fixSummary = '';
+$showStats = false;
+$listCases = false;
+$aiProvider = 'heuristic';
 
 for ($i = 1; $i < $argc; $i++) {
     $arg = $argv[$i];
@@ -54,8 +74,24 @@ for ($i = 1; $i < $argc; $i++) {
         $entityId = (int)substr($arg, 12);
     } elseif (str_starts_with($arg, '--run-id=')) {
         $runId = substr($arg, 9);
+    } elseif (str_starts_with($arg, '--store-case=')) {
+        $storeCase = substr($arg, 13);
+    } elseif (str_starts_with($arg, '--changed-files=')) {
+        $changedFiles = explode(',', substr($arg, 16));
+    } elseif (str_starts_with($arg, '--fix-summary=')) {
+        $fixSummary = substr($arg, 14);
+    } elseif (str_starts_with($arg, '--ai-provider=')) {
+        $aiProvider = substr($arg, 14);
     } elseif ($arg === '--reset-history') {
         $resetHistory = true;
+    } elseif ($arg === '--report-card') {
+        $reportCard = true;
+    } elseif ($arg === '--coverage') {
+        $coverage = true;
+    } elseif ($arg === '--stats') {
+        $showStats = true;
+    } elseif ($arg === '--list-cases') {
+        $listCases = true;
     } elseif ($moduleId === '') {
         $moduleId = $arg;
     } elseif ($actionId === '') {
@@ -79,21 +115,27 @@ require_once __DIR__ . '/Contracts/WorkflowContract.php';
 require_once __DIR__ . '/Contracts/ActionContract.php';
 require_once __DIR__ . '/Contracts/EffectContract.php';
 require_once __DIR__ . '/Contracts/SupportContracts.php';
+require_once __DIR__ . '/Contracts/AiContracts.php';
 require_once __DIR__ . '/ModuleComprehensionEngine.php';
 require_once __DIR__ . '/PalComprehensionProvider.php';
 require_once __DIR__ . '/Analyzers/SemanticScorer.php';
+require_once __DIR__ . '/Analyzers/EmbeddingScorer.php';
 require_once __DIR__ . '/Analyzers/BayesianReasoner.php';
 require_once __DIR__ . '/Analyzers/TemporalValidator.php';
 require_once __DIR__ . '/Analyzers/PatternClassifier.php';
 require_once __DIR__ . '/Analyzers/AnomalyDetector.php';
 require_once __DIR__ . '/Analyzers/CrossModuleAnalyzer.php';
+require_once __DIR__ . '/Analyzers/SourceRetriever.php';
+require_once __DIR__ . '/Analyzers/AiHypothesisGenerator.php';
+require_once __DIR__ . '/Analyzers/CaseMemory.php';
+require_once __DIR__ . '/Analyzers/ProviderCoverageScorer.php';
 require_once __DIR__ . '/SemanticComprehensionEngine.php';
 
 use Ikabud\Kernel\Workbench\Comprehension\SemanticComprehensionEngine;
 use Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider;
 
 echo "═══ Hybrid Semantic Comprehension Engine ═══\n";
-echo "Engine version: 2.0 (Deterministic + Bayesian + Semantic + Temporal + Pattern + Cross-Module)\n\n";
+echo "Engine version: 3.0 (Deterministic + NLP-Embedding + Bayesian + Temporal + Pattern + Cross-Module + AI Hypothesis + Provider Coverage)\n\n";
 
 // ── 1. Load provider ──────────────────────────────────────────
 $provider = match ($moduleId) {
@@ -217,10 +259,67 @@ if ($hasEvidence) {
 
 $engine->feedEvidence($evidence);
 
+// ── Handle quick commands (no analysis needed) ────────────────
+if ($showStats) {
+    $stats = $engine->caseMemoryStats();
+    echo "  📊 Case Memory Statistics:\n";
+    echo "    Total cases: {$stats['total_cases']}\n";
+    echo "    Oldest: {$stats['oldest']}\n";
+    echo "    Newest: {$stats['newest']}\n";
+    if (!empty($stats['modules'])) {
+        echo "    By module:\n";
+        foreach ($stats['modules'] as $mod => $count) {
+            echo "      {$mod}: {$count} case(s)\n";
+        }
+    }
+    echo "\n";
+}
+
+if ($listCases) {
+    $cases = $engine->findSimilarCases('', 20);
+    if (empty($cases)) {
+        echo "  No stored cases for module '{$moduleId}'.\n";
+    } else {
+        echo "  📚 Stored Cases for '{$moduleId}':\n";
+        foreach ($cases as $c) {
+            echo "    [{$c['case']->id}] {$c['case']->summary} (sim: {$c['similarity']})\n";
+            echo "      Fix: {$c['case']->fixSummary}\n";
+            echo "      Files: " . implode(', ', $c['case']->changedFiles) . "\n";
+        }
+    }
+    echo "\n";
+}
+
+if ($coverage) {
+    $coverageResult = $engine->scoreCoverage();
+    if ($coverageResult) {
+        echo "  📋 Provider Coverage Score: {$coverageResult['overall_score']}\n";
+        foreach ($coverageResult['dimensions'] as $dim => $info) {
+            $icon = $info['score'] >= 0.8 ? '✅' : ($info['score'] >= 0.5 ? '⚠️' : '❌');
+            echo "    {$icon} {$dim}: {$info['score']} — {$info['details']}\n";
+        }
+        if (!empty($coverageResult['suggestions'])) {
+            echo "  💡 Suggestions:\n";
+            foreach ($coverageResult['suggestions'] as $s) {
+                echo "    - {$s}\n";
+            }
+        }
+    }
+    echo "\n";
+}
+
+// Abort here if we're only doing stats/list/coverage without evidence
+if ($showStats || $listCases || $coverage) {
+    if (!$evidenceFile && $actionId === '') {
+        exit(0);
+    }
+}
+
 if ($actionId !== '') {
     // Only record history when analyzing a real test run with evidence
     $result = $engine->analyze($actionId, recordHistory: $hasEvidence, metadata: $meta);
     echo "Action analysis: {$actionId}\n";
+    echo "Engine: {$result['engine_version']}\n";
     if (isset($result['deterministic']['error'])) {
         echo "  ERROR: {$result['deterministic']['error']}\n";
     } else {
@@ -237,9 +336,10 @@ if ($actionId !== '') {
             echo "    {$icon} [{$link['category']}] {$link['step']}: {$link['description']}\n";
         }
 
-        echo "\n  Semantic scores:\n";
-        foreach ($result['semantic']['per_link_scores'] as $step => $score) {
-            echo "    {$step}: score={$score['score']} pattern={$score['matched_pattern']}\n";
+        echo "\n  NLP-Enhanced semantic scores (embedding + TF-IDF + n-gram):\n";
+        foreach ($result['semantic']['embedding_scores'] as $step => $score) {
+            $comp = $score['components'] ?? [];
+            echo "    {$step}: score={$score['score']} (regex={$comp['regex']}, tfidf={$comp['tfidf']}, ngram={$comp['ngram']}, vector={$comp['vector']}, hist={$comp['historical']})\n";
         }
 
         echo "\n  Bayesian priors:\n";
@@ -276,6 +376,114 @@ if ($actionId !== '') {
                 echo "    🔗 [{$c['severity']}] {$c['description']}\n";
             }
         }
+
+        // ── Layer 7: AI Hypothesis ──────────────────────────────
+        $aiHyp = $result['ai_hypothesis'] ?? [];
+        if (!empty($aiHyp)) {
+            echo "\n  ── Layer 7: AI Hypothesis ──\n";
+            echo "  🧠 Summary: {$aiHyp['summary']}\n";
+            echo "  Confidence: {$aiHyp['confidence']}\n";
+            echo "  Severity: {$aiHyp['severity']}\n";
+            if (!empty($aiHyp['files_to_inspect'])) {
+                echo "  📁 Files to inspect:\n";
+                foreach ($aiHyp['files_to_inspect'] as $f) {
+                    echo "    - {$f}\n";
+                }
+            }
+            if ($aiHyp['proposed_test']) {
+                echo "  🧪 Proposed test: {$aiHyp['proposed_test']}\n";
+            }
+            if (!empty($aiHyp['do_not_change_boundary'])) {
+                echo "  🚫 Do not change:\n";
+                foreach ($aiHyp['do_not_change_boundary'] as $b) {
+                    echo "    - {$b}\n";
+                }
+            }
+            if (!empty($aiHyp['suggested_links'])) {
+                echo "  💡 Suggested chain links to add:\n";
+                foreach ($aiHyp['suggested_links'] as $sl) {
+                    echo "    - {$sl['step']}: {$sl['description']}\n";
+                }
+            }
+        }
+
+        // ── Remediation Plan ────────────────────────────────────
+        $remediation = $result['remediation_plan'] ?? null;
+        if ($remediation !== null) {
+            echo "\n  ── Remediation Plan ──\n";
+            echo "  🔧 Failing step: {$remediation['failing_step']}\n";
+            echo "  📄 Suspected file: {$remediation['suspected_file']}\n";
+            echo "  ⚠ Invariant: {$remediation['invariant_violated']}\n";
+            echo "  ✏ Fix sketch: {$remediation['fix_sketch']}\n";
+            echo "  🧪 Test: {$remediation['test_command']}\n";
+            echo "  📊 Risk: {$remediation['risk_level']}\n";
+            if (!empty($remediation['related_files'])) {
+                echo "  🔗 Related files:\n";
+                foreach ($remediation['related_files'] as $rf) {
+                    echo "    - {$rf}\n";
+                }
+            }
+        }
+
+        // ── Source Context ──────────────────────────────────────
+        $srcCtx = $result['source_context'] ?? null;
+        if ($srcCtx !== null) {
+            echo "\n  ── Source Context (Layer 7) ──\n";
+            echo "  Step: {$srcCtx['step']} ({$srcCtx['category']})\n";
+            if (!empty($srcCtx['handler_files'])) {
+                echo "  Handlers:\n";
+                foreach ($srcCtx['handler_files'] as $hf) {
+                    echo "    - {$hf}\n";
+                }
+            }
+            if (!empty($srcCtx['template_files'])) {
+                echo "  Templates:\n";
+                foreach ($srcCtx['template_files'] as $tf) {
+                    echo "    - {$tf}\n";
+                }
+            }
+        }
+
+        // ── Proposed Chain Links ───────────────────────────────
+        $proposedLinks = $result['proposed_chain_links'] ?? [];
+        if (!empty($proposedLinks)) {
+            echo "\n  ── AI-Proposed Chain Links ──\n";
+            foreach ($proposedLinks as $pl) {
+                echo "  ➕ {$pl['step']}: {$pl['description']} [{$pl['category']}]\n";
+            }
+        }
+
+        // ── Coverage Score ─────────────────────────────────────
+        $cov = $result['coverage_score'] ?? null;
+        if ($cov !== null) {
+            echo "\n  ── Layer 8: Provider Coverage ──\n";
+            echo "  Overall score: {$cov['overall_score']}\n";
+            foreach ($cov['suggestions'] as $sug) {
+                echo "  💡 {$sug}\n";
+            }
+        }
+
+        // ── Report Card (if requested) ─────────────────────────
+        if ($reportCard) {
+            echo "\n  ── Report Card ──\n";
+            $reportCardData = $engine->generateReportCard($actionId);
+            $rc = $reportCardData['root_cause'] ?? [];
+            echo "  🎯 Root cause: {$rc['summary']}\n";
+            echo "  Severity: {$rc['severity']}\n\n";
+            echo "  Failing chain timeline:\n";
+            foreach ($reportCardData['failing_causal_chain'] as $fc) {
+                $icon = $fc['status'] === 'passed' ? '✅' : '❌';
+                echo "    {$icon} [{$fc['category']}] {$fc['step']}: {$fc['description']}\n";
+            }
+            echo "\n  📁 Inspect files:\n";
+            foreach ($reportCardData['inspect_these_files'] as $f) {
+                echo "    - {$f}\n";
+            }
+            $rem = $reportCardData['remediation'] ?? null;
+            if ($rem) {
+                echo "\n  🔧 Suggested next test: {$rem['test_command']}\n";
+            }
+        }
     }
 } else {
     $results = $engine->analyzeAll(recordHistory: $hasEvidence);
@@ -283,11 +491,25 @@ if ($actionId !== '') {
         $bp = $r['breakpoint'] ?? 'none';
         $conf = $r['confidence']['score'] ?? 0;
         $diag = $r['diagnosis']['primary_classification']['category'] ?? '?';
-        echo "  {$aid}: breakpoint={$bp}, diagnosis={$diag}, confidence={$conf}\n";
+        $aiSummary = $r['ai_hypothesis']['summary'] ?? '';
+        $summary = $aiSummary ? " ({$aiSummary})" : '';
+        echo "  {$aid}: breakpoint={$bp}, diagnosis={$diag}, confidence={$conf}{$summary}\n";
     }
 }
 
 echo "\n";
+
+// ── Store case memory (if requested) ──────────────────────────
+if ($storeCase !== null && $actionId !== '') {
+    $caseId = $engine->storeCaseMemory(
+        summary: $storeCase,
+        changedFiles: $changedFiles,
+        fixSummary: $fixSummary,
+        testCommand: "php {$argv[0]} {$moduleId} {$actionId} --tenant=" . ($tenantId ?? '{tenant}'),
+        tags: [$moduleId, $actionId],
+    );
+    echo "  ✅ Case stored: {$caseId}\n\n";
+}
 
 // ── 5. Output evidence packet ─────────────────────────────────
 $packet = $engine->buildEvidencePacket($actionId ?: 'all');
