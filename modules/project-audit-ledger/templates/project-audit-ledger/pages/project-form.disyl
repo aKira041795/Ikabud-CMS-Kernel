@@ -18,8 +18,8 @@
             <button type="button" @click="activeStep=6;document.getElementById('sec-docs').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===6?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">🖼 Docs<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(6)>=0?'bg-green-400':'bg-gray-400'"></span></button>
         </div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="space-y-4">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="space-y-3 sm:space-y-4">
         {csrf_field | raw}
         {if is_edit}<input type="hidden" name="_project_numeric_id" value="{project.id}">{/if}
         <!-- ── Section 1: Customer ── -->
