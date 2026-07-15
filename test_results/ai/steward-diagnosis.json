@@ -18,15 +18,21 @@
     "issues": 2
   },
   "git_changes": {
-    "files_changed": 12,
+    "files_changed": 18,
     "files": [
       "kernel/EntityContext/DefaultEntityRenderer.php",
+      "modules/project-audit-ledger/services/ProjectService.php",
+      "modules/project-audit-ledger/templates/project-audit-ledger/pages/project-form.disyl",
       "package.json",
       "public/uploads/pal/502/project/0/1813ed7eacf8fa7bf8be494e4300f2b5.jpg",
       "public/uploads/pal/502/project/0/d19d31679db7af2b548951d3fbdd6723.jpeg",
       "storage/application-profiles/ark-workbench/components/shell/app_shell.disyl",
       "storage/application-profiles/ark-workbench/layouts/app-shell.disyl",
       "storage/private/comprehension/history/project-audit-ledger/pal.job-order.submit.json",
+      "test_results/ai/runs/lifecycle-1784070303031/comprehension-report.json",
+      "test_results/ai/runs/lifecycle-1784070488470/comprehension-report.json",
+      "test_results/ai/runs/lifecycle-1784070687208/comprehension-report.json",
+      "test_results/ai/steward-diagnosis.json",
       "test_results/browser/issue-report.json",
       "test_results/browser/manifest.json",
       "test_results/browser/modules-pal-workflows-pal-lifecycle-interactive--chromium.json",

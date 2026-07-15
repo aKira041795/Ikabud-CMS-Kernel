@@ -360,8 +360,8 @@ class palProjectService
             $stmt = $this->db->prepare($sql);
             $stmt->execute($params);
 
-            // Save items if provided
-            if (isset($data['items'])) {
+            // Save items if provided (use !empty so empty array does not trigger delete)
+            if (!empty($data['items'])) {
                 $this->db->prepare("DELETE FROM pal_project_items WHERE project_id = :pid AND tenant_id = :tid")
                     ->execute([':pid' => $id, ':tid' => $this->tenantId]);
                 $this->saveItems($id, $data['items']);
