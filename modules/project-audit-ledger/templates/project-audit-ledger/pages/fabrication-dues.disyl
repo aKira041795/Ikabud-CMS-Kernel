@@ -8,7 +8,7 @@
 <!-- CA Dispense History -->
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">CA Dispense History ({dispenses|count})</h2></div>
-    <table class="w-full text-sm">
+    <table class="w-full text-sm pal-responsive-table">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-2 px-4 font-semibold text-gray-600">Date</th>
             <th class="text-left py-2 px-4 font-semibold text-gray-600">Amount</th>
@@ -23,7 +23,7 @@
                 <td class="py-2 px-4 font-medium text-indigo-600">₱{d.approved_amount|number_format:2}</td>
                 <td class="py-2 px-4 text-gray-600 text-xs">{d.approval_reason|default:'—'}</td>
                 <td class="py-2 px-4 text-gray-700">{d.dispensed_by_name|default:'—'}</td>
-                <td class="py-2 px-4"><span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if d.status=='approved'}bg-green-100 text-green-700{else}bg-yellow-100 text-yellow-700{/if}">{d.status|default:'approved'}</span></td>
+                <td class="py-2 px-4">{include "project-audit-ledger/components/pal_status_badge" _sb_status=d.status|default:'approved'}</td>
             </tr>
             {/for}
             {if dispenses|count == 0}
@@ -42,7 +42,7 @@
         {/if}
     </div>
     {if weekly_dues|count > 0}
-    <table class="w-full text-sm">
+    <table class="w-full text-sm pal-responsive-table">
         <thead><tr class="bg-gray-50 border-b">
             <th class="text-left py-2 px-4 font-semibold text-gray-600">Week</th>
             <th class="text-right py-2 px-4 font-semibold text-gray-600">Due Amount</th>
@@ -58,7 +58,7 @@
                 <td class="py-2 px-4 text-xs text-right">₱{w.paid_amount|number_format:2}</td>
                 <td class="py-2 px-4 text-xs text-right font-medium {if w.balance > 0}text-red-600{else}text-green-600{/if}">₱{w.balance|number_format:2}</td>
                 <td class="py-2 px-4 text-center">
-                    <span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if w.status=='paid'}bg-green-100 text-green-700{elseif w.status=='waived'}bg-gray-100 text-gray-700{else}bg-yellow-100 text-yellow-700{/if}">{w.status|default:'pending'}</span>
+                    {include "project-audit-ledger/components/pal_status_badge" _sb_status=w.status|default:'pending'}
                 </td>
             </tr>
             {/for}
@@ -80,7 +80,7 @@
             <p class="text-xs text-gray-500" id="gen-preview">₱{(remaining_budget / 4)|number_format:2} per week for 4 weeks</p>
         </div>
         <div class="flex gap-2 mt-4 justify-end">
-            <button onclick="closeGenDues()" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button>
+            <button onclick="closeGenDues()" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button>
             <button onclick="generateDues({project_id})" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Generate</button>
         </div>
     </div>

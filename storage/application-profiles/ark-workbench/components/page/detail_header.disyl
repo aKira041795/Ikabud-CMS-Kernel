@@ -14,7 +14,7 @@
         {if actions|default:[]}
         <div class="flex items-center gap-2">
             {for action in actions}
-                <a href="{action.url}" class="btn btn--{action.variant|default:'primary'}">{action.label}</a>
+                <a href="{action.url}" class="wb-btn wb-btn--{action.variant|default:'primary'}">{action.label}</a>
             {/for}
         </div>
         {/if}

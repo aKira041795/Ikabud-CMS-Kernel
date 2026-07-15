@@ -1,7 +1,7 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="font-semibold text-gray-900">System Users</h2>
-        <button onclick="document.getElementById('create-user-form').classList.toggle('hidden')" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Add User</button>
+        <button onclick="document.getElementById('create-user-form').classList.toggle('hidden')" class="wb-btn wb-btn--primary wb-btn--sm">+ Add User</button>
     </div>
     <div id="create-user-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
         <form onsubmit="return ajaxSubmit(this, 'User created')" action="/api/v1/project-audit-ledger/users" method="POST" class="grid grid-cols-2 gap-3">
@@ -11,7 +11,7 @@
             <div><label class="block text-xs font-medium text-gray-600 mb-1">Full Name</label><input type="text" name="full_name" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
             <div><label class="block text-xs font-medium text-gray-600 mb-1">Password</label><input type="password" name="password" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
             <div><label class="block text-xs font-medium text-gray-600 mb-1">Role</label><select name="role" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="encoder">Encoder</option><option value="supervisor">Supervisor</option><option value="admin">Admin</option></select></div>
-            <div class="flex items-end"><button type="submit" class="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Create</button></div>
+            <div class="flex items-end"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Create</button></div>
         </form>
     </div>
     <div class="flex border-b border-gray-200">
@@ -19,7 +19,7 @@
         <button onclick="switchTab('inactive')" id="tab-inactive" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-700">Inactive ({inactive_users|count})</button>
     </div>
     <div id="table-active">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm pal-responsive-table">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Username</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
@@ -47,7 +47,7 @@
                         <div><label class="block text-xs font-medium text-gray-600 mb-1">Full Name</label><input type="text" name="full_name" value="{u.full_name}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
                         <div><label class="block text-xs font-medium text-gray-600 mb-1">Role</label><select name="role" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><option value="encoder"{if u.role=='encoder'} selected{/if}>Encoder</option><option value="supervisor"{if u.role=='supervisor'} selected{/if}>Supervisor</option><option value="admin"{if u.role=='admin'} selected{/if}>Admin</option></select></div>
                         <div><label class="block text-xs font-medium text-gray-600 mb-1">Password</label><input type="password" name="password" placeholder="Leave blank to keep" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-                        <div class="flex gap-2"><button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Save</button><button type="button" onclick="toggleEdit({u.id})" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</button></div>
+                        <div class="flex gap-2"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Save</button><button type="button" onclick="toggleEdit({u.id})" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button></div>
                     </form>
                 </td>
             </tr>
@@ -59,7 +59,7 @@
     </table>
     </div>
     <div id="table-inactive" class="hidden">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm pal-responsive-table">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Username</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>

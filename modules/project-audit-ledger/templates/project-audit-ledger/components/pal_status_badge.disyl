@@ -1,6 +1,8 @@
 {* pal_status_badge — delegates to workbench:status_badge.
-   Maps legacy PAL domain status strings to semantic tones. *}
+   Maps legacy PAL domain status strings to semantic tones.
+   Pass: _sb_status (string), _sb_label? (string — overrides display label). *}
 {set s = _sb_status|default:''}
+{set lbl = _sb_label|default:(s|capitalize)}
 {set tone = 'neutral'}
 {if s=='draft'}{set tone = 'neutral'}
 {elseif s=='pending'}{set tone = 'warning'}
@@ -12,8 +14,13 @@
 {elseif s=='overdue'}{set tone = 'danger'}
 {elseif s=='rejected'}{set tone = 'danger'}
 {elseif s=='cancelled'}{set tone = 'danger'}
+{elseif s=='voided'}{set tone = 'danger'}
+{elseif s=='closed'}{set tone = 'neutral'}
+{elseif s=='active'}{set tone = 'success'}
+{elseif s=='inactive'}{set tone = 'neutral'}
+{elseif s=='waived'}{set tone = 'neutral'}
 {/if}
 {include "workbench:status_badge"
-    label=s|capitalize
+    label=lbl
     tone=tone
 }

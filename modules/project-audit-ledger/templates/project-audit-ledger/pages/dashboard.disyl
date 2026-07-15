@@ -6,14 +6,16 @@
 {# ── Row 1: Top KPI Cards ── #}
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
     <div data-wb-component="summary-card" data-wb-label="Active Projects" data-wb-tone="neutral" class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Active Projects</span>
             <span class="text-lg">📁</span>
         </div>
         <div class="flex items-baseline gap-2">
             <span class="text-3xl font-bold text-gray-900">{dashboard.active_projects}</span>
             <span class="text-sm text-gray-400">/ {dashboard.total_projects} total</span>
         </div>
-        <div class="mt-2 w-full bg-gray-100 rounded-full h-1.5">
-            <div class="bg-blue-600 h-1.5 rounded-full" style="width:{if dashboard.total_projects > 0}{(dashboard.active_projects / dashboard.total_projects * 100)|number_format:1}{else}0{/if}%"></div>
+        <div class="mt-3 w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+            <div class="bg-blue-600 h-2 rounded-full transition-all" style="width:{if dashboard.total_projects > 0}{(dashboard.active_projects / dashboard.total_projects * 100)|number_format:1}{else}0{/if}%"></div>
         </div>
     </div>
 
@@ -214,7 +216,7 @@
                 </div>
                 <div class="text-right ml-3 shrink-0">
                     <p class="text-sm font-semibold text-red-700">₱{e.amount|number_format:2}</p>
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium {if e.status == 'approved' || e.status == 'paid'}bg-green-100 text-green-700{elseif e.status == 'pending'}bg-amber-100 text-amber-700{else}bg-gray-100 text-gray-600{/if}">{e.status}</span>
+                    {include "project-audit-ledger/components/pal_status_badge" _sb_status=e.status}
                 </div>
             </div>
             {/for}

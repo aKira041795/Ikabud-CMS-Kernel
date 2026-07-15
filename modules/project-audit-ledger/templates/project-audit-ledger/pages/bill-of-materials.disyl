@@ -13,7 +13,7 @@
             </select>
         </div>
         {if selected_project}
-        <a href="/api/v1/project-audit-ledger/bom/export?project_id={selected_project.id}" class="px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">⬇ Export CSV</a>
+        <a href="/api/v1/project-audit-ledger/bom/export?project_id={selected_project.id}" class="wb-btn wb-btn--success wb-btn--sm">⬇ Export CSV</a>
         {/if}
     </form>
 
@@ -26,7 +26,7 @@
 
     {if bom|count > 0}
     <div class="overflow-x-auto">
-        <table class="w-full text-sm border-collapse">
+        <table class="w-full text-sm border-collapse pal-responsive-table">
             <thead>
                 <tr class="bg-gray-800 text-white text-xs">
                     <th class="text-left py-2 px-3">#</th>

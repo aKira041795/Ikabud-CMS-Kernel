@@ -24,8 +24,8 @@
         <div class="flex justify-between items-center mb-3">
             <h2 class="font-semibold text-gray-900">Collections</h2>
             <div class="flex gap-2">
-                <button onclick="generateCollections()" class="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">⚡ Generate</button>
-                <a href="/admin/project-audit-ledger/collections/create" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ Record</a>
+                <button onclick="generateCollections()" class="wb-btn wb-btn--secondary wb-btn--sm">⚡ Generate</button>
+                <a href="/admin/project-audit-ledger/collections/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Record</a>
             </div>
         </div>
 
@@ -45,7 +45,7 @@
     <!-- Table -->
     {if collections && collections|count > 0}
     <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <table class="w-full text-sm pal-responsive-table">
             <thead>
                 <tr class="bg-gray-50 border-b text-xs text-gray-600">
                     <th class="text-left py-3 px-4 font-semibold">Collection #</th>
@@ -66,7 +66,7 @@
                     <td class="py-3 px-4 text-sm">{c.client_name|default:'—'}</td>
                     <td class="py-3 px-4 text-sm text-right font-medium">₱{c.amount|number_format:2}</td>
                     <td class="py-3 px-4 text-sm text-center">{c.payment_method|default:'—'|capitalize}</td>
-                    <td class="py-3 px-4 text-center"><span class="inline-block px-2 py-0.5 rounded text-xs font-semibold {if c.status=='approved'}bg-green-100 text-green-800{elseif c.status=='rejected'||c.status=='voided'}bg-red-100 text-red-800{else}bg-amber-100 text-amber-800{/if}">{if c.status=='approved'}Paid{else}{c.status|capitalize}{/if}</span></td>
+                    <td class="py-3 px-4 text-center">{include "project-audit-ledger/components/pal_status_badge" _sb_status=c.status _sb_label={if c.status=='approved'}Paid{else}{c.status|capitalize}{/if}}</td>
                     <td class="py-3 px-4 text-sm text-center">{c.payment_date|default:c.created_at}</td>
                     <td class="py-3 px-4 text-center"><a href="/admin/project-audit-ledger/collections/{c.id}" class="text-blue-600 hover:text-blue-800 text-xs">View</a></td>
                 </tr>

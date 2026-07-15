@@ -19,7 +19,7 @@
         <h3 class="font-semibold text-gray-900 mb-3">My Assigned Projects</h3>
         {if projects|count > 0}
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm pal-responsive-table">
                 <thead>
                     <tr class="bg-gray-50 border-b">
                         <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">JO #</th>
@@ -37,7 +37,7 @@
                         <td class="py-2 px-3 text-xs text-right">₱{p.contract_amount|number_format:2}</td>
                         <td class="py-2 px-3 text-xs text-right font-medium text-indigo-600">₱{p.fab_budget|number_format:2}</td>
                         <td class="py-2 px-3 text-center">
-                            <span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if p.status=='started' || p.status=='ongoing'}bg-green-100 text-green-700{elseif p.status=='approved'}bg-blue-100 text-blue-700{elseif p.status=='completed'}bg-gray-100 text-gray-700{elseif p.status=='pending'}bg-yellow-100 text-yellow-700{elseif p.status=='cancelled' || p.status=='closed'}bg-red-100 text-red-700{else}bg-gray-100 text-gray-600{/if}">{p.status|capitalize}</span>
+                            {include "project-audit-ledger/components/pal_status_badge" _sb_status=p.status}
                         </td>
                     </tr>
                     {/for}

@@ -46,9 +46,7 @@
             <div class="flex gap-4">
                 <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     {if is_edit|default:false}
-                    <span class="inline-flex items-center px-3 py-2 rounded text-sm font-medium {if project.status=='draft'}bg-gray-100 text-gray-700{elseif project.status=='pending'}bg-yellow-100 text-yellow-800{elseif project.status=='approved'}bg-green-100 text-green-800{elseif project.status=='started'}bg-blue-100 text-blue-800{elseif project.status=='ongoing'}bg-indigo-100 text-indigo-800{elseif project.status=='completed'}bg-teal-100 text-teal-800{else}bg-gray-100 text-gray-700{/if}">
-                        {project.status|capitalize}
-                    </span>
+                    {include "project-audit-ledger/components/pal_status_badge" _sb_status=project.status}
                     <input type="hidden" name="status" value="{project.status}">
                     {else}
                     <span class="inline-flex items-center px-3 py-2 rounded text-sm font-medium bg-gray-100 text-gray-700">Draft</span>
@@ -189,20 +187,20 @@
             </div>
         </div>
 
-        <div class="flex gap-3">
+        <div class="flex gap-3 pt-4 border-t border-gray-100 mt-6">
             {if !is_edit|default:false || project.status=='draft'}
-            <button type="submit" data-wb-action="save-as-draft" onclick="document.querySelector('input[name=status]').value='draft';dirty=false" class="px-4 py-2 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700">Save as Draft</button>
-            <button type="submit" data-wb-action="submit-for-approval" onclick="document.querySelector('input[name=status]').value='pending';dirty=false" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Submit for Approval</button>
+            <button type="submit" data-wb-action="save-as-draft" onclick="document.querySelector('input[name=status]').value='draft';dirty=false" class="wb-btn wb-btn--secondary">Save as Draft</button>
+            <button type="submit" data-wb-action="submit-for-approval" onclick="document.querySelector('input[name=status]').value='pending';dirty=false" class="wb-btn wb-btn--primary">Submit for Approval</button>
             {elseif project.status=='approved'}
-            <button type="submit" data-wb-action="start-work" onclick="document.querySelector('input[name=status]').value='started'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Start Work</button>
+            <button type="submit" data-wb-action="start-work" onclick="document.querySelector('input[name=status]').value='started'" class="wb-btn wb-btn--primary">Start Work</button>
             {elseif project.status=='started'}
-            <button type="submit" data-wb-action="mark-ongoing" onclick="document.querySelector('input[name=status]').value='ongoing'" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Mark Ongoing</button>
+            <button type="submit" data-wb-action="mark-ongoing" onclick="document.querySelector('input[name=status]').value='ongoing'" class="wb-btn wb-btn--primary">Mark Ongoing</button>
             {elseif project.status=='ongoing'}
-            <button type="submit" onclick="document.querySelector('input[name=status]').value='completed'" class="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700">Complete Job Order</button>
+            <button type="submit" onclick="document.querySelector('input[name=status]').value='completed'" class="wb-btn wb-btn--success">Complete Job Order</button>
             {else}
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">{is_edit|default:false ? 'Update' : 'Create'} Job Order</button>
+            <button type="submit" class="wb-btn wb-btn--primary">{is_edit|default:false ? 'Update' : 'Create'} Job Order</button>
             {/if}
-            <a href="/admin/project-audit-ledger/projects" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">Cancel</a>
+            <a href="/admin/project-audit-ledger/projects" class="wb-btn wb-btn--secondary">Cancel</a>
         </div>
     </form>
 </div></div>

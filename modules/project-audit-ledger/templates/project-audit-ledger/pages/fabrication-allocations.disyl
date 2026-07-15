@@ -3,7 +3,7 @@
         <h2 class="font-semibold text-gray-900">Fabrication Dashboard</h2>
         <p class="text-xs text-gray-600 mt-1">Budget = Contract × Alloc%. CA Dispensed = amount released to team lead.</p>
     </div>
-    <table class="w-full text-sm">
+    <table class="w-full text-sm pal-responsive-table">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Project</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Team Lead</th>
@@ -53,8 +53,8 @@
                         <div><label class="block text-xs font-medium text-gray-600 mb-1">CA Amount *</label><input type="number" step="0.01" name="approved_amount" id="disp-amt-{p.project_id}" required placeholder="Max: ₱{p.ca_remaining|default:p.fab_budget|number_format:2}" class="w-36 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
                         <div><label class="block text-xs font-medium text-gray-600 mb-1">Reason / Ref</label><input type="text" name="approval_reason" placeholder="e.g. Phase 1 materials" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
                         <div><span class="text-xs text-gray-600">Budget: ₱{p.fab_budget|default:0|number_format:2} ({p.fabrication_alloc_pct}%)<br>Limit: ₱{p.ca_remaining|default:p.fab_budget|number_format:2}</span></div>
-                        <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Dispense</button>
-                        <button type="button" onclick="document.getElementById('dispense-{p.project_id}').classList.add('hidden')" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg">Cancel</button>
+                        <button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Dispense</button>
+                        <button type="button" onclick="document.getElementById('dispense-{p.project_id}').classList.add('hidden')" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button>
                     </form>
                 </td>
             </tr>

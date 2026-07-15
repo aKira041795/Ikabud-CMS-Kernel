@@ -1,6 +1,6 @@
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center"><h2 class="font-semibold text-gray-900">Stock Movements</h2><button onclick="exportCSV('tbl-movements','stock-movements')" class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">⤓ CSV</button></div>
-    <table id="tbl-movements" class="w-full text-sm">
+    <div class="p-4 border-b border-gray-200 flex justify-between items-center"><h2 class="font-semibold text-gray-900">Stock Movements</h2><button onclick="exportCSV('tbl-movements','stock-movements')" class="wb-btn wb-btn--success wb-btn--sm">⤓ CSV</button></div>
+    <table id="tbl-movements" class="w-full text-sm pal-responsive-table">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Material</th>

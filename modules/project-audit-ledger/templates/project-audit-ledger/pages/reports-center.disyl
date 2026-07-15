@@ -6,7 +6,7 @@
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Report Type</label><select name="report_type" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="financial">Financial Summary</option><option value="project">Project Status</option><option value="inventory">Inventory</option><option value="sales">Sales</option></select></div>
             <div><label class="block text-sm font-medium text-gray-700 mb-1">Format</label><select name="format" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="html">HTML (Preview)</option><option value="csv">CSV</option></select></div>
             <div class="grid grid-cols-2 gap-3"><div><label class="block text-xs font-medium text-gray-600 mb-1">From</label><input type="date" name="date_from" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div><div><label class="block text-xs font-medium text-gray-600 mb-1">To</label><input type="date" name="date_to" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div></div>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Generate</button>
+            <button type="submit" class="wb-btn wb-btn--primary">Generate</button>
         </form>
     </div>
     <div>
@@ -15,7 +15,7 @@
         {for e in exports}
         <div class="p-4 border-b border-gray-100 flex justify-between">
             <div><p class="font-medium text-gray-900 text-sm">{e.report_type}</p><p class="text-xs text-gray-600">{e.generated_at} · {e.format}</p></div>
-            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">{e.status}</span>
+            {include "project-audit-ledger/components/pal_status_badge" _sb_status=e.status}
         </div>
         {/for}
         {if exports|count == 0}

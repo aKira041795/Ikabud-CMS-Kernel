@@ -39,7 +39,7 @@
                     <p class="font-medium text-gray-900">{if eurl2}<a href="{eurl2}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
                     <p class="text-xs text-gray-600">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
                 </div>
-                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if a.decision=='approved'}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{a.decision}</span>
+                {include "project-audit-ledger/components/pal_status_badge" _sb_status=a.decision}
             </div>
         </div>
         {/for}
