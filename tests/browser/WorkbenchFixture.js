@@ -143,6 +143,7 @@ function createWorkbenchTest(config) {
                 evidenceFile: null,
                 actionId: null,
                 moduleId: null,
+                runId: process.env.WB_RUN_ID || '',
 
                 gap: function (description) {
                     testInfo.annotations.push({ type: 'wb-gap', description: description });

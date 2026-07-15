@@ -32,7 +32,13 @@ const { BehaviorFlow, BehaviorRegistry } = require('./BehaviorFlow');
 const { EvidenceBridge } = require('./comprehension/EvidenceBridge');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+
+// Canonical run ID — set early so all consumers (bridge, reporter, engine) share it
+if (!process.env.WB_RUN_ID) {
+    process.env.WB_RUN_ID = crypto.randomUUID().slice(0, 8);
+}
 
 const MODULE = process.env.MODULE || '';
 const MODULE_PATH = process.env.MODULE_PATH || path.resolve(__dirname, '../../modules', MODULE);
@@ -112,6 +118,14 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         const flowObservations = await flow.runDefaultScenario();
         console.log(flow.generateReport());
 
+        // Track created entities for evidence-based cleanup
+        const createdEntities = typeof flow.getCreatedEntities === 'function'
+            ? flow.getCreatedEntities()
+            : [];
+        if (createdEntities.length > 0) {
+            console.log(`  📦 Created ${createdEntities.length} entities (tracked for cleanup)`);
+        }
+
         // ════════════════════════════════════════════════════════
         // LAYER 4: Evidence Bridge → Comprehension Engine
         // ════════════════════════════════════════════════════════
@@ -126,10 +140,17 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         bridge.addProcessData(processReport);
         bridge.addObservations(diagnosticResult.issues, `${MODULE}.diagnostic`);
         bridge.addBehavioralData(flowObservations);
+
+        // Attach created entities to evidence meta for cleanup dispatch
+        if (createdEntities.length > 0) {
+            bridge.meta.created_entities = createdEntities;
+        }
+
         const evidencePath = bridge.write();
 
         // Run the PHP Comprehension Engine with this evidence
         console.log('  Running Comprehension Engine...');
+        let comprehensionReport = null;
         try {
             const engineScript = path.resolve(__dirname, '../../kernel/Workbench/Comprehension/run.php');
             const output = execFileSync('php', [engineScript, MODULE, '--evidence=' + evidencePath], {
@@ -137,9 +158,22 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
                 timeout: 30000,
             });
             console.log(output);
+
+            // Read the comprehension report the engine wrote
+            const reportDir = process.env.WB_RUN_ID
+                ? path.resolve(__dirname, `../../test_results/ai/runs/${process.env.WB_RUN_ID}`)
+                : path.resolve(__dirname, '../../test_results/ai');
+            comprehensionReport = readJsonIfExists(path.join(reportDir, 'comprehension-report.json'), null);
         } catch (e) {
-            console.log(`  ⚠ Engine output: ${e.stdout || ''}`);
-            if (e.stderr) console.log(`  ⚠ Engine errors: ${e.stderr}`);
+            const stderr = e.stderr || '';
+            const stdout = e.stdout || '';
+            console.log(`  ⚠ Engine output: ${stdout}`);
+            if (stderr) console.log(`  ⚠ Engine errors: ${stderr}`);
+
+            // Non-PAL modules gracefully report no provider
+            if (stderr.includes('No comprehension provider') || stdout.includes('No comprehension provider')) {
+                console.log('  ℹ No comprehension provider for this module — expected for non-PAL modules');
+            }
         }
 
         // ════════════════════════════════════════════════════════
@@ -177,8 +211,29 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
             console.log(`  ❌ Behavioral gate (${HYBRID_GATE}): ${behavioralGateFailures.length} behavioral errors`);
         }
 
+        // Comprehension gate — parse engine diagnosis and gate on breakpoints
+        const comprehensionFailures = [];
+        if (comprehensionReport && comprehensionReport.analysis) {
+            const analyses = Array.isArray(comprehensionReport.analysis)
+                ? comprehensionReport.analysis
+                : Object.values(comprehensionReport.analysis);
+            for (const actionAnalysis of analyses) {
+                if (actionAnalysis && actionAnalysis.breakpoint && isGateFailure(HYBRID_GATE, 'critical')) {
+                    comprehensionFailures.push({
+                        action: actionAnalysis.action || 'unknown',
+                        breakpoint: actionAnalysis.breakpoint,
+                        likely_area: actionAnalysis.likely_area || 'unknown',
+                    });
+                }
+            }
+        }
+        if (comprehensionFailures.length > 0) {
+            console.log(`  ❌ Comprehension gate (${HYBRID_GATE}): ${comprehensionFailures.length} breakpoints`);
+        }
+
         // Assert gates
         expect(gateFailures.length, `Diagnostic gate failures (severity≥${HYBRID_GATE}): ${gateFailures.map(i => i.component).join(', ')}`).toBe(0);
         expect(behavioralGateFailures.length, `Behavioral gate failures (severity≥${HYBRID_GATE}): ${behavioralGateFailures.map(i => i.message).join('; ')}`).toBe(0);
+        expect(comprehensionFailures.length, `Comprehension breakpoints: ${comprehensionFailures.map(f => `${f.action}@${f.breakpoint}`).join(', ')}`).toBe(0);
     });
 });
