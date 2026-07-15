@@ -194,6 +194,7 @@ class CaseMemory
 
     /**
      * Delete a case and atomically update the index.
+     * Forces disk reload under lock to prevent stale-cache overwrites.
      *
      * @throws \RuntimeException if index locking fails
      */
@@ -206,9 +207,9 @@ class CaseMemory
 
         unlink($file);
 
-        // Atomically update index under lock
+        // Atomically update index under lock — reload from disk first
         $this->withIndexLock(function () use ($id): void {
-            $index = $this->loadIndexUnlocked();
+            $index = $this->loadIndexForWriteUnlocked();
             $index = array_values(array_filter(
                 $index,
                 fn (array $entry): bool => ($entry['id'] ?? '') !== $id
@@ -275,11 +276,12 @@ class CaseMemory
 
     /**
      * Update the index with a new entry. Protected by shared index lock.
+     * Forces disk reload before mutation to prevent stale-cache overwrites.
      */
     private function updateIndex(CaseMemoryEntry $entry): void
     {
         $this->withIndexLock(function () use ($entry): void {
-            $index = $this->loadIndexUnlocked();
+            $index = $this->loadIndexForWriteUnlocked();
 
             // Remove existing entry with same ID
             $index = array_values(array_filter($index, fn($e) => ($e['id'] ?? '') !== $entry->id));
@@ -330,7 +332,18 @@ class CaseMemory
     }
 
     /**
-     * Load index from disk or cache (caller must hold lock for writes).
+     * Load index from disk, ignoring in-memory cache.
+     * MUST be used inside withIndexLock for write operations to prevent
+     * a stale process-local cache from overwriting another process's commit.
+     */
+    private function loadIndexForWriteUnlocked(): array
+    {
+        $this->indexCache = null; // Force disk reload
+        return $this->loadIndexUnlocked();
+    }
+
+    /**
+     * Load index from disk or cache (read-only — ok for listing/search).
      */
     private function loadIndexUnlocked(): array
     {

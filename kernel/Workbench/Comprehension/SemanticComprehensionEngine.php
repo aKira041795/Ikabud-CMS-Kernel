@@ -447,7 +447,10 @@ class SemanticComprehensionEngine
         string $testCommand = '',
         array $tags = [],
     ): string {
-        $caseId = 'case-' . $this->moduleId . '-' . substr(md5($actionId . $summary . implode(',', $changedFiles) . date('c')), 0, 12);
+        $caseId = 'case-' . $this->moduleId . '-' . bin2hex(random_bytes(8));
+        $fingerprint = hash('sha256', $actionId . $summary . implode(',', $changedFiles));
+        // Store fingerprint as a tag for deduplication queries
+        $allTags = array_merge($tags, ['fp:' . $fingerprint]);
 
         $this->caseMemory->store(new \Ikabud\Kernel\Workbench\Comprehension\Contracts\CaseMemoryEntry(
             id: $caseId,
@@ -459,7 +462,7 @@ class SemanticComprehensionEngine
             testCommand: $testCommand,
             fixSummary: $fixSummary,
             createdAt: date('c'),
-            tags: $tags,
+            tags: $allTags,
         ));
 
         return $caseId;

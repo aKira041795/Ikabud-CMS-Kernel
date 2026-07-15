@@ -110,16 +110,25 @@ $engine = new SemanticComprehensionEngine(
     aiHypothesis: new AiHypothesisGenerator('project-audit-ledger'),
 );
 
-$caseId = $engine->storeCaseMemory(
+$caseId1 = $engine->storeCaseMemory(
     actionId: 'pal.job-order.submit',
     summary: 'Test submit failure',
     changedFiles: ['handlers/30-projects.php'],
     fixSummary: 'Fixed',
 );
-$h->test('Case ID starts with module prefix', str_starts_with($caseId, 'case-project-audit-ledger-'));
+$h->test('Case ID starts with module prefix', str_starts_with($caseId1, 'case-project-audit-ledger-'));
+
+// Store a second case with same parameters — must get a different ID
+$caseId2 = $engine->storeCaseMemory(
+    actionId: 'pal.job-order.submit',
+    summary: 'Test submit failure',
+    changedFiles: ['handlers/30-projects.php'],
+    fixSummary: 'Fixed',
+);
+$h->test('Two stores with same params produce unique case IDs', $caseId1 !== $caseId2);
 
 $cases = $engine->listCases();
-$h->test('Stored case visible in list', count($cases) === 1);
+$h->test('Both cases visible in list', count($cases) === 2);
 $h->assertSame('pal.job-order.submit', $cases[0]['action_id'], 'Action ID is real action, not summary');
 
 // ── Section 4: buildEvidencePacket is read-only ────────────
@@ -132,7 +141,8 @@ $h->test('Evidence packet has engine version', ($packet['engine_version'] ?? '')
 $h->test('Evidence packet has case memory stats', isset($packet['case_memory_stats']));
 
 // Clean up
-@unlink($tmpDir2 . '/private/comprehension/cases/' . $caseId . '.json');
+@unlink($tmpDir2 . '/private/comprehension/cases/' . $caseId1 . '.json');
+@unlink($tmpDir2 . '/private/comprehension/cases/' . $caseId2 . '.json');
 @unlink($tmpDir2 . '/private/comprehension/cases/index.json');
 @unlink($tmpDir2 . '/private/comprehension/cases/index.lock');
 @rmdir($tmpDir2 . '/private/comprehension/cases');
@@ -153,5 +163,43 @@ $emptyEngine = new SemanticComprehensionEngine(
     aiHypothesis: new AiHypothesisGenerator('project-audit-ledger'),
 );
 $h->test('Empty module has no cases', count($emptyEngine->listCases()) === 0);
+
+// ── Section 7: Stale-cache prevention (write path) ─────────
+$h->section('Write-path stale-cache prevention');
+
+$lockDir = sys_get_temp_dir() . '/lock-test-' . getmypid();
+@mkdir($lockDir . '/private/comprehension/cases', 0755, true);
+
+// Two instances sharing the same storage directory
+$memA = new CaseMemory($lockDir . '/private/comprehension');
+$memB = new CaseMemory($lockDir . '/private/comprehension');
+
+// A stores a case — A's cache is now populated
+$memA->store(new CaseMemoryEntry('case-a-1', 'mod', 'act.a', 'Bug A'));
+
+// B stores a case — B sees A's case (forced disk reload under lock)
+$memB->store(new CaseMemoryEntry('case-b-1', 'mod', 'act.b', 'Bug B'));
+
+// A stores another case — under lock, must reload from disk
+// If stale cache were used, A would overwrite B's entry
+$memA->store(new CaseMemoryEntry('case-a-2', 'mod', 'act.c', 'Bug C'));
+
+// All 3 cases should be on disk — reload both instances' caches from disk
+$memC = new CaseMemory($lockDir . '/private/comprehension');
+$count = count($memC->listByModule('mod'));
+$h->test(
+    'Fresh instance sees all 3 cases — no stale-cache overwrite during writes',
+    $count === 3,
+);
+
+// Clean up
+@unlink($lockDir . '/private/comprehension/cases/case-a-1.json');
+@unlink($lockDir . '/private/comprehension/cases/case-b-1.json');
+@unlink($lockDir . '/private/comprehension/cases/case-a-2.json');
+@unlink($lockDir . '/private/comprehension/cases/index.json');
+@unlink($lockDir . '/private/comprehension/cases/index.lock');
+@rmdir($lockDir . '/private/comprehension/cases');
+@rmdir($lockDir . '/private/comprehension');
+@rmdir($lockDir);
 
 $h->done();
