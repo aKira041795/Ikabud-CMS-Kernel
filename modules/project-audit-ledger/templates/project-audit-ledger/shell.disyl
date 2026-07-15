@@ -5,11 +5,112 @@
     {csrf_field|raw}
     <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
     {page_body|raw}
-    {* Lightbox *}
-    <div id="lightbox" class="lightbox-overlay" role="dialog" aria-modal="true" aria-label="Image viewer" onclick="closeLightbox()" hidden>
-        <span class="lightbox-close" role="button" tabindex="0" aria-label="Close viewer">&times;</span>
-        <img id="lightbox-img" src="" alt="">
-        <div id="lightbox-caption" class="lightbox-caption"></div>
+    {* Lightbox — smooth open/close, keyboard escape/arrow nav *}
+    <div id="lightbox" class="wb-lightbox" role="dialog" aria-modal="true" aria-label="Image viewer">
+        <button class="wb-lightbox__close" id="lightbox-close-btn" aria-label="Close viewer">&times;</button>
+        <button class="wb-lightbox__nav wb-lightbox__nav--prev" id="lightbox-prev-btn" aria-label="Previous image">&#8249;</button>
+        <button class="wb-lightbox__nav wb-lightbox__nav--next" id="lightbox-next-btn" aria-label="Next image">&#8250;</button>
+        <img id="lightbox-img" class="wb-lightbox__img" src="" alt="">
+        <div id="lightbox-caption" class="wb-lightbox__caption"></div>
     </div>
+
+    <script>
+    {* Lightbox state *}
+    var wbLightboxItems = [];
+    var wbLightboxIndex = 0;
+
+    function openLightbox(src, caption) {
+        var lb = document.getElementById('lightbox');
+        document.getElementById('lightbox-img').src = src;
+        document.getElementById('lightbox-caption').textContent = caption || '';
+        lb.classList.add('active');
+        document.body.style.overflow = 'hidden';
+
+        // Find index in gallery if applicable
+        wbLightboxIndex = wbLightboxItems.findIndex(function(i) { return i.src === src; });
+        if (wbLightboxIndex < 0) {
+            wbLightboxItems = [{src: src, caption: caption || ''}];
+            wbLightboxIndex = 0;
+        }
+        updateLightboxNav();
+    }
+
+    function closeLightbox() {
+        document.getElementById('lightbox').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    function updateLightboxNav() {
+        var prev = document.getElementById('lightbox-prev-btn');
+        var next = document.getElementById('lightbox-next-btn');
+        prev.style.display = wbLightboxItems.length > 1 ? '' : 'none';
+        next.style.display = wbLightboxItems.length > 1 ? '' : 'none';
+    }
+
+    function lightboxPrev() {
+        if (wbLightboxItems.length < 2) return;
+        wbLightboxIndex = (wbLightboxIndex - 1 + wbLightboxItems.length) % wbLightboxItems.length;
+        var item = wbLightboxItems[wbLightboxIndex];
+        document.getElementById('lightbox-img').src = item.src;
+        document.getElementById('lightbox-caption').textContent = item.caption || '';
+    }
+
+    function lightboxNext() {
+        if (wbLightboxItems.length < 2) return;
+        wbLightboxIndex = (wbLightboxIndex + 1) % wbLightboxItems.length;
+        var item = wbLightboxItems[wbLightboxIndex];
+        document.getElementById('lightbox-img').src = item.src;
+        document.getElementById('lightbox-caption').textContent = item.caption || '';
+    }
+
+    {* Lightbox event listeners *}
+    document.addEventListener('DOMContentLoaded', function() {
+        var lb = document.getElementById('lightbox');
+        if (!lb) return;
+
+        // Click outside image to close
+        lb.addEventListener('click', function(e) {
+            if (e.target === lb) closeLightbox();
+        });
+
+        document.getElementById('lightbox-close-btn').addEventListener('click', closeLightbox);
+
+        document.getElementById('lightbox-prev-btn').addEventListener('click', function(e) {
+            e.stopPropagation(); lightboxPrev();
+        });
+        document.getElementById('lightbox-next-btn').addEventListener('click', function(e) {
+            e.stopPropagation(); lightboxNext();
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (!lb.classList.contains('active')) return;
+            if (e.key === 'Escape') { closeLightbox(); e.preventDefault(); }
+            if (e.key === 'ArrowLeft') { lightboxPrev(); e.preventDefault(); }
+            if (e.key === 'ArrowRight') { lightboxNext(); e.preventDefault(); }
+        });
+
+        // Wire up lightbox triggers
+        document.querySelectorAll('[data-wb-lightbox]').forEach(function(el) {
+            el.addEventListener('click', function(e) {
+                e.preventDefault();
+                var src = el.getAttribute('data-wb-lightbox');
+                var cap = el.getAttribute('data-wb-lightbox-caption') || '';
+                // Collect gallery siblings
+                var parent = el.closest('[data-wb-gallery]');
+                wbLightboxItems = [];
+                if (parent) {
+                    parent.querySelectorAll('[data-wb-lightbox]').forEach(function(s) {
+                        wbLightboxItems.push({
+                            src: s.getAttribute('data-wb-lightbox'),
+                            caption: s.getAttribute('data-wb-lightbox-caption') || ''
+                        });
+                    });
+                }
+                openLightbox(src, cap);
+            });
+        });
+    });
+    </script>
 {/include}
 

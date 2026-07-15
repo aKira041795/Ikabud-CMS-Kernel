@@ -1,6 +1,7 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center"><h2 class="font-semibold text-gray-900">Stock Movements</h2><button onclick="exportCSV('tbl-movements','stock-movements')" class="wb-btn wb-btn--success wb-btn--sm">⤓ CSV</button></div>
-    <table id="tbl-movements" class="w-full text-sm pal-responsive-table">
+<div class="wb-panel">
+    <div class="wb-panel__header"><span class="wb-panel__title">Stock Movements</span><button onclick="exportCSV('tbl-movements','stock-movements')" class="wb-btn wb-btn--success wb-btn--sm">⤓ CSV</button></div>
+    <div class="overflow-x-auto">
+    <table id="tbl-movements" class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Date</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Material</th>
@@ -23,4 +24,5 @@
             {/if}
         </tbody>
     </table>
+    </div>
 </div>

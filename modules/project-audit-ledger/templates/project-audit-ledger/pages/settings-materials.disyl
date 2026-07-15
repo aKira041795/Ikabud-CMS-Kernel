@@ -1,4 +1,4 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+<div class="wb-panel">
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
         <h2 class="font-semibold text-gray-900">Materials</h2>
         <button onclick="document.getElementById('mat-form').classList.toggle('hidden')" class="wb-btn wb-btn--primary wb-btn--sm">+ New Material</button>

@@ -1,6 +1,6 @@
 {* workbench:validation_summary — Accessible error summary with focus management.
    Pass: errors ({field_id,message}[]), heading? *}
-<div id="wb-validation-summary" class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6"
+<div id="wb-validation-summary" class="wb-validation-summary"
      role="alert" aria-live="assertive" tabindex="-1"
      data-wb-component="validation-summary"
      data-wb-error-count="{errors|count}">

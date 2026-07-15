@@ -20,8 +20,7 @@
 </div>
 {/if}
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <table class="w-full text-sm">
+<div class="wb-panel">
         <thead>
             <tr class="bg-gray-50 border-b">
                 <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Employee</th>

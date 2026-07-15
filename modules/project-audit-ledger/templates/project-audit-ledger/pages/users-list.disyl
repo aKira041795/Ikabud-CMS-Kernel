@@ -1,6 +1,6 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">System Users</h2>
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">System Users</span>
         <button onclick="document.getElementById('create-user-form').classList.toggle('hidden')" class="wb-btn wb-btn--primary wb-btn--sm">+ Add User</button>
     </div>
     <div id="create-user-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
@@ -18,8 +18,9 @@
         <button onclick="switchTab('active')" id="tab-active" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Active ({active_users|count})</button>
         <button onclick="switchTab('inactive')" id="tab-inactive" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-700">Inactive ({inactive_users|count})</button>
     </div>
+    <div class="overflow-x-auto">
     <div id="table-active">
-    <table class="w-full text-sm pal-responsive-table">
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Username</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
@@ -57,9 +58,11 @@
             {/if}
         </tbody>
     </table>
+    </div> <!-- close overflow-x-auto -->
     </div>
     <div id="table-inactive" class="hidden">
-    <table class="w-full text-sm pal-responsive-table">
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Username</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Name</th>
@@ -82,5 +85,6 @@
             {/if}
         </tbody>
     </table>
+    </div> <!-- close overflow-x-auto -->
     </div>
 </div>

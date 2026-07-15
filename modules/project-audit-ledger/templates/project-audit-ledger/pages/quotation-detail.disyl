@@ -1,5 +1,5 @@
 <div class="max-w-4xl print-area">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+<div class="wb-panel p-6">
     <div class="flex justify-between items-start mb-4">
         <div>
             <h2 class="font-semibold text-gray-900">Quotation #{quotation.quotation_number}</h2>

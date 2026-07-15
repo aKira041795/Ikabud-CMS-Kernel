@@ -1,6 +1,6 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Expense Categories</h2></div>
+    <div class="wb-panel">
+        <div class="wb-panel__header"><span class="wb-panel__title">Expense Categories</span></div>
         <table class="w-full text-sm">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for c in expense_cats}<tr class="border-b border-gray-100"><td class="py-2 px-4">{c.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('expense_category',{c.id})" class="text-xs px-2 py-0.5 rounded-full {if c.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{c.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
@@ -9,8 +9,8 @@
             <div class="flex gap-2"><input type="text" id="new-exp-cat" placeholder="Category name" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><button onclick="addCategory('expense_category','new-exp-cat')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
         </div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Material Categories</h2></div>
+    <div class="wb-panel">
+        <div class="wb-panel__header"><span class="wb-panel__title">Material Categories</span></div>
         <table class="w-full text-sm">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for c in material_cats}<tr class="border-b border-gray-100"><td class="py-2 px-4">{c.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('material_category',{c.id})" class="text-xs px-2 py-0.5 rounded-full {if c.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{c.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>

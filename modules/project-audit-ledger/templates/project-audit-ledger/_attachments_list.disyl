@@ -1,19 +1,22 @@
 {* _attachments_list — DiSyL template for attachment galleries.
-   Pass: files ([{id, original_filename, file_size, description?, is_image}]), entity_type *}
+   Pass: files ([{id, original_filename, file_size, description?, is_image}]), entity_type
+   Wraps images in data-wb-gallery for lightbox arrow nav. *}
 {if files|default:[]}
-    <div class="space-y-1">
+    <div class="space-y-1" data-wb-gallery>
         {for f in files}
-            <div class="flex justify-between items-center text-sm py-1">
+            <div class="flex justify-between items-center text-sm py-1.5 hover:bg-gray-50 rounded px-1 transition-colors">
                 {if f.is_image|default:false}
                     <a href="#" data-wb-lightbox="/admin/project-audit-ledger/attachments/{f.id}/download"
-                       data-wb-lightbox-caption="{f.original_filename|escape:'html'}"
-                       class="text-blue-600 hover:text-blue-800">
-                        🖼 {f.original_filename|escape:'html'}
+                       data-wb-lightbox-caption="{f.original_filename|escape:'html'} | {(f.file_size / 1024)|number_format:1} KB"
+                       class="text-blue-600 hover:text-blue-800 flex items-center gap-1.5">
+                        <span class="text-base">🖼</span>
+                        <span>{f.original_filename|escape:'html'}</span>
                     </a>
                 {else}
                     <a href="/admin/project-audit-ledger/attachments/{f.id}/download"
-                       class="text-blue-600 hover:text-blue-800">
-                        📎 {f.original_filename|escape:'html'}
+                       class="text-blue-600 hover:text-blue-800 flex items-center gap-1.5">
+                        <span class="text-base">📎</span>
+                        <span>{f.original_filename|escape:'html'}</span>
                     </a>
                 {/if}
                 <span class="text-xs text-gray-400">{(f.file_size / 1024)|number_format:1} KB</span>

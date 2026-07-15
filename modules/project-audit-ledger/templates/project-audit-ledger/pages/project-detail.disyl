@@ -67,7 +67,7 @@
         <div class="mt-6 border-t pt-4">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">📋 Line Items</h4>
             <div class="overflow-x-auto">
-            <table class="w-full text-sm pal-responsive-table">
+            <table class="w-full text-sm wb-table wb-table--sticky">
                 <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">#</th><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Material</th><th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Particulars</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">W×H</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">Unit</th><th class="text-center py-2 px-2 font-semibold text-gray-600 text-xs">QTY</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/Unit</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Price/SqFt</th><th class="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Total</th></tr></thead>
                 <tbody>
                 {for item in project.items}
@@ -87,7 +87,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Collections ({collection_history|count})</h4>
             <div class="overflow-x-auto">
-            <table class="w-full text-sm pal-responsive-table">
+            <table class="w-full text-sm wb-table wb-table--sticky">
                 <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Sale #</th><th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Amount</th><th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th></tr></thead>
                 <tbody>
                     {for c in collection_history}
@@ -107,7 +107,7 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Purchase Orders ({purchase_history|count})</h4>
             <div class="overflow-x-auto">
-            <table class="w-full text-sm pal-responsive-table">
+            <table class="w-full text-sm wb-table wb-table--sticky">
                 <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">PO #</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Supplier</th><th class="text-right py-2 px-3 font-semibold text-gray-600 text-xs">Total</th><th class="text-center py-2 px-3 font-semibold text-gray-600 text-xs">Status</th><th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th></tr></thead>
                 <tbody>
                     {for po in purchase_history}

@@ -1,16 +1,19 @@
 {* pal_status_badge — delegates to workbench:status_badge.
    Maps legacy PAL domain status strings to semantic tones.
-   Pass: _sb_status (string), _sb_label? (string — overrides display label). *}
+   Pass: _sb_status (string), _sb_label? (string — overrides display label).
+   Icons: pending=⏳, approved/paid=✓, rejected/voided=✕, overdue/danger=⚠. *}
 {set s = _sb_status|default:''}
 {set lbl = _sb_label|default:(s|capitalize)}
 {set tone = 'neutral'}
 {if s=='draft'}{set tone = 'neutral'}
 {elseif s=='pending'}{set tone = 'warning'}
+{elseif s=='for_approval'}{set tone = 'warning'}
 {elseif s=='approved'}{set tone = 'success'}
 {elseif s=='started'}{set tone = 'success'}
-{elseif s=='ongoing'}{set tone = 'success'}
+{elseif s=='ongoing'}{set tone = 'informational'}
 {elseif s=='completed'}{set tone = 'success'}
 {elseif s=='paid'}{set tone = 'success'}
+{elseif s=='released'}{set tone = 'success'}
 {elseif s=='overdue'}{set tone = 'danger'}
 {elseif s=='rejected'}{set tone = 'danger'}
 {elseif s=='cancelled'}{set tone = 'danger'}
@@ -20,7 +23,15 @@
 {elseif s=='inactive'}{set tone = 'neutral'}
 {elseif s=='waived'}{set tone = 'neutral'}
 {/if}
+{set icon = ''}
+{if tone=='warning' || s=='pending'}{set icon = '⏳'}
+{elseif tone=='success'}{set icon = '✓'}
+{elseif tone=='danger'}{set icon = '✕'}
+{elseif s=='draft'}{set icon = '○'}
+{elseif s=='ongoing'}{set icon = '●'}
+{/if}
 {include "workbench:status_badge"
     label=lbl
     tone=tone
+    icon=icon
 }

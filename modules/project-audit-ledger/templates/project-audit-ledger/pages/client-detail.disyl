@@ -4,16 +4,7 @@
 {include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div class="space-y-2 text-sm">
-            <div class="flex justify-between"><span class="text-gray-600">Contact</span><span>{client.contact_person|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">Email</span><span>{client.email|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">Phone</span><span>{client.phone|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">Address</span><span>{client.address|default:'—'}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">Status</span><span>{if client.is_active==1}<span class="text-green-600 font-medium">Active</span>{else}<span class="text-red-600 font-medium">Inactive</span>{/if}</span></div>
-        </div>
-    </div>
-    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="wb-panel p-6">
         <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Linked Projects ({clientProjects|count})</h2></div>
         <table class="w-full text-sm">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Project</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Amount</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Dates</th><th class="text-left py-2 px-4 font-semibold text-gray-600"></th></tr></thead>

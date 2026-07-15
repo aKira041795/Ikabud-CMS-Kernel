@@ -1,25 +1,25 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-3 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs text-gray-500">Assigned Projects</p>
-            <p class="text-2xl font-bold text-gray-900">{project_count|default:0}</p>
+    <div class="lg:col-span-3 wb-metric-grid">
+        <div class="wb-metric-card">
+            <div class="wb-metric-card__label">Assigned Projects</div>
+            <div class="wb-metric-card__value">{project_count|default:0}</div>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs text-gray-500">Active Fabrications</p>
-            <p class="text-2xl font-bold text-indigo-600">{fab_count|default:0}</p>
+        <div class="wb-metric-card">
+            <div class="wb-metric-card__label">Active Fabrications</div>
+            <div class="wb-metric-card__value" style="color:var(--wb-tone-info)">{fab_count|default:0}</div>
         </div>
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <p class="text-xs text-gray-500">Pending Approvals</p>
-            <p class="text-2xl font-bold text-amber-600">{pending_count|default:0}</p>
+        <div class="wb-metric-card">
+            <div class="wb-metric-card__label">Pending Approvals</div>
+            <div class="wb-metric-card__value" style="color:var(--wb-tone-warning)">{pending_count|default:0}</div>
         </div>
     </div>
 
     <!-- My Projects -->
-    <div class="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="lg:col-span-2 wb-panel p-6">
         <h3 class="font-semibold text-gray-900 mb-3">My Assigned Projects</h3>
         {if projects|count > 0}
         <div class="overflow-x-auto">
-            <table class="w-full text-sm pal-responsive-table">
+            <table class="w-full text-sm wb-table wb-table--sticky">
                 <thead>
                     <tr class="bg-gray-50 border-b">
                         <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">JO #</th>

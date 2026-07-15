@@ -1,5 +1,5 @@
 <div class="max-w-2xl">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+<div class="wb-panel p-6">
     <h2 class="font-semibold text-gray-900 mb-2">{material.name} <span class="text-xs text-gray-500 font-normal">#{material.id}</span></h2>
     <div class="grid grid-cols-2 gap-4 text-sm">
         <div class="col-span-2 border-b pb-2 mb-2"><span class="text-xs text-gray-500 uppercase tracking-wide">Stock Summary</span></div>

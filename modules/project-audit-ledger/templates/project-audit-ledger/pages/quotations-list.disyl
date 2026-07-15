@@ -1,5 +1,9 @@
-{!-- Quotations List --}
-{ikb_entity_list source="pal_quotation" view="table" use="tailwind" empty="No quotations found." /}
-<div class="mt-4 no-print">
-    <a href="/admin/project-audit-ledger/quotations/create" class="wb-btn wb-btn--primary">+ New Quotation</a>
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Quotations</span>
+        <a href="/admin/project-audit-ledger/quotations/create" class="wb-btn wb-btn--primary wb-btn--sm">+ New Quotation</a>
+    </div>
+    <div class="wb-panel__body--flush">
+        {ikb_entity_list source="pal_quotation" view="table" use="tailwind" empty="No quotations found." /}
+    </div>
 </div>

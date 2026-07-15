@@ -1,7 +1,9 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">Purchase Orders</h2>
-        <a href="/admin/project-audit-ledger/purchases/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Create PO</a>
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Purchase Orders</span>
+        <a href="/admin/project-audit-ledger/purchases/create" class="wb-btn wb-btn--primary wb-btn--sm">+ New Purchase</a>
     </div>
-    {ikb_entity_list source="pal_purchase" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search purchase orders..." empty="No purchase orders yet." /}
+    <div class="wb-panel__body--flush">
+        {ikb_entity_list source="pal_purchase" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search PO..." empty="No purchase orders yet." /}
+    </div>
 </div>

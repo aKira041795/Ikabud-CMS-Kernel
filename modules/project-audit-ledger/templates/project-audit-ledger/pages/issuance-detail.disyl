@@ -1,5 +1,5 @@
 <div class="max-w-lg">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+<div class="wb-panel p-6">
     <h2 class="font-semibold text-gray-900 mb-2">Issuance #{issuance.issuance_number|default:issuance.id}</h2>
     <div class="space-y-2 text-sm">
         <div class="flex justify-between"><span class="text-gray-600">Project</span><span>{if issuance.project_title && issuance.project_id}<a href="/admin/project-audit-ledger/projects/{issuance.project_id}" class="text-blue-600 hover:text-blue-800">{issuance.project_title}</a>{else}{issuance.project_title|default:'—'}{/if}</span></div>

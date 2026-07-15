@@ -1,7 +1,7 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center"><h2 class="font-semibold text-gray-900">Audit Trail</h2><button onclick="exportCSV('tbl-audit','audit-trail')" class="wb-btn wb-btn--success wb-btn--sm">⤓ CSV</button></div>
+<div class="wb-panel">
+    <div class="wb-panel__header"><span class="wb-panel__title">Audit Trail</span><button onclick="exportCSV('tbl-audit','audit-trail')" class="wb-btn wb-btn--success wb-btn--sm">⤓ CSV</button></div>
     <div class="overflow-x-auto">
-    <table id="tbl-audit" class="w-full text-sm pal-responsive-table">
+    <table id="tbl-audit" class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-3 px-4 font-semibold text-gray-600">Time</th>
             <th class="text-left py-3 px-4 font-semibold text-gray-600">User</th>
@@ -25,5 +25,5 @@
             {/if}
         </tbody>
     </table>
-    </div>
+    </div> <!-- close overflow-x-auto -->
 </div>

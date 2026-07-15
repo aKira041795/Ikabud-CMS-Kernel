@@ -1,7 +1,7 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">Inventory</h2>
-        <div class="flex gap-2">
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Inventory</span>
+        <div class="wb-toolbar__group">
             <a href="/admin/project-audit-ledger/inventory/movements" class="wb-btn wb-btn--secondary wb-btn--sm">Movements</a>
             <button onclick="document.getElementById('material-form').classList.toggle('hidden')" class="wb-btn wb-btn--primary wb-btn--sm">+ Add Material</button>
         </div>
@@ -18,5 +18,7 @@
         </form>
         <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.inv-cat-select,.inv-unit-select').forEach(function(e){if(e)makeCreatable(e);});});</script>
     </div>
-    {ikb_entity_list source="pal_material" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search materials..." empty="No materials." /}
+    <div class="wb-panel__body--flush">
+        {ikb_entity_list source="pal_material" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search materials..." empty="No materials." /}
+    </div>
 </div>

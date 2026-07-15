@@ -7,6 +7,6 @@
 {set _dh_actions = _dh_actions ~ ' <a href="/admin/project-audit-ledger/expenses" class="wb-btn wb-btn--secondary wb-btn--sm">Back</a>'}
 {include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions|default:''}
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+<div class="wb-panel">
     {ikb_entity_detail source="pal_expense" id="{expense.id}" view="detailed" /}
 </div>

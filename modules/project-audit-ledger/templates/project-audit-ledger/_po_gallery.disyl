@@ -1,6 +1,7 @@
-{* _po_gallery.disyl — PO image thumbnail grid.
+{* _po_gallery.disyl — PO image thumbnail grid with data-wb-gallery for lightbox nav.
    Pass: files ([{id, original_filename, description, is_image}]) *}
 {if files|default:[]}
+<div class="flex flex-wrap gap-3" data-wb-gallery>
     {for f in files}
         <div class="relative group w-20">
             <a href="#" data-wb-lightbox="/admin/project-audit-ledger/attachments/{f.id}/download"
@@ -18,6 +19,7 @@
             </button>
         </div>
     {/for}
+</div>
 {else}
     <p class="text-xs text-gray-400 col-span-full">No PO images uploaded yet.</p>
 {/if}

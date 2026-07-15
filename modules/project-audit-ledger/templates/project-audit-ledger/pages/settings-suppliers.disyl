@@ -1,4 +1,4 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+<div class="wb-panel">
     <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">All Suppliers</h2></div>
     <table class="w-full text-sm">
         <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Contact</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Email</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Phone</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>

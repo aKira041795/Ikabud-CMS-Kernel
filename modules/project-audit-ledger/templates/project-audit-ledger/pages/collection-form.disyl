@@ -1,6 +1,6 @@
 <div class="max-w-2xl">
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <h2 class="font-semibold text-gray-900 mb-4">Record Collection</h2>
+<div class="wb-panel p-6">
+    <h2 class="wb-section__title mb-4">Record Collection</h2>
     <form onsubmit="return ajaxSubmit(this, 'Collection recorded')" action="/api/v1/project-audit-ledger/collections" method="POST" class="space-y-4">
         {csrf_field | raw}
 

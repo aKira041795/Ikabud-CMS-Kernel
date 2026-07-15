@@ -1,24 +1,22 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Pending ({pending|count})</h2></div>
+    <div class="wb-list-card">
+        <div class="wb-list-card__header"><span class="wb-list-card__title">Pending ({pending|count})</span></div>
         {for a in pending}
         {set eurl = palEntityUrl(a.entity_type, a.entity_id)}
-        <div class="p-4 border-b border-gray-100" data-wb-entity-type="{a.entity_type}" data-wb-entity-id="{a.entity_id}">
-            <div class="flex justify-between items-start">
-                <div>
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{palEntityLabel(a.entity_type)}</span>
-                        {if a.project_title}<span class="text-xs text-gray-500">{a.project_title}</span>{/if}
-                    </div>
-                    <p class="font-medium text-gray-900">{if eurl}<a href="{eurl}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
-                    <p class="text-xs text-gray-600">{a.submitted_at} by {a.submitter_name|default:'—'}</p>
-                    {if a.amount|default:0 > 0}<p class="text-sm font-semibold text-gray-800 mt-1">₱{a.amount|number_format:2}</p>{/if}
-                    {if a.notes}<p class="text-xs text-gray-500 mt-1 italic">"{a.notes}"</p>{/if}
+        <div class="wb-list-card__item" data-wb-entity-type="{a.entity_type}" data-wb-entity-id="{a.entity_id}">
+            <div class="wb-list-card__item-main">
+                <div class="flex items-center gap-2 mb-0.5">
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{palEntityLabel(a.entity_type)}</span>
+                    {if a.project_title}<span class="text-xs text-gray-500">{a.project_title}</span>{/if}
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="approve({a.id}, '{palEntityLabel(a.entity_type)}', {a.amount|default:0}, '{a.project_title|default:''|escape:'html'}', '{a.submitter_name|default:'—'|escape:'html'}', '{a.notes|default:''|escape:'html'}')" class="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700">Approve</button>
-                    <button onclick="reject({a.id}, '{palEntityLabel(a.entity_type)}', {a.amount|default:0}, '{a.project_title|default:''|escape:'html'}')" class="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700">Reject</button>
-                </div>
+                <p class="wb-list-card__item-title">{if eurl}<a href="{eurl}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
+                <p class="wb-list-card__item-sub">{a.submitted_at} by {a.submitter_name|default:'—'}</p>
+                {if a.amount|default:0 > 0}<p class="text-sm font-semibold text-gray-800 mt-1">₱{a.amount|number_format:2}</p>{/if}
+                {if a.notes}<p class="text-xs text-gray-500 mt-1 italic">"{a.notes}"</p>{/if}
+            </div>
+            <div class="wb-list-card__item-end flex gap-1.5">
+                <button onclick="approve({a.id}, '{palEntityLabel(a.entity_type)}', {a.amount|default:0}, '{a.project_title|default:''|escape:'html'}', '{a.submitter_name|default:'—'|escape:'html'}', '{a.notes|default:''|escape:'html'}')" class="wb-btn wb-btn--success wb-btn--sm">Approve</button>
+                <button onclick="reject({a.id}, '{palEntityLabel(a.entity_type)}', {a.amount|default:0}, '{a.project_title|default:''|escape:'html'}')" class="wb-btn wb-btn--danger wb-btn--sm">Reject</button>
             </div>
         </div>
         {/for}
@@ -26,21 +24,19 @@
         <div class="p-8 text-center text-gray-600 text-sm">No pending approvals.</div>
         {/if}
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Recent Decisions</h2></div>
+    <div class="wb-list-card">
+        <div class="wb-list-card__header"><span class="wb-list-card__title">Recent Decisions</span></div>
         {for a in recent}
         {set eurl2 = palEntityUrl(a.entity_type, a.entity_id)}
-        <div class="p-4 border-b border-gray-100">
-            <div class="flex justify-between items-start">
-                <div>
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{palEntityLabel(a.entity_type)}</span>
-                    </div>
-                    <p class="font-medium text-gray-900">{if eurl2}<a href="{eurl2}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
-                    <p class="text-xs text-gray-600">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
+        <div class="wb-list-card__item">
+            <div class="wb-list-card__item-main">
+                <div class="flex items-center gap-2 mb-0.5">
+                    <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{palEntityLabel(a.entity_type)}</span>
                 </div>
-                {include "project-audit-ledger/components/pal_status_badge" _sb_status=a.decision}
+                <p class="wb-list-card__item-title">{if eurl2}<a href="{eurl2}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
+                <p class="wb-list-card__item-sub">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
             </div>
+            {include "project-audit-ledger/components/pal_status_badge" _sb_status=a.decision}
         </div>
         {/for}
         {if recent|count == 0}

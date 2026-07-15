@@ -1,7 +1,9 @@
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">Sales Invoices</h2>
+<div class="wb-panel">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Sales Invoices</span>
         <a href="/admin/project-audit-ledger/sales/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Create Invoice</a>
     </div>
-    {ikb_entity_list source="pal_sale" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search invoices..." empty="No invoices yet." /}
+    <div class="wb-panel__body--flush">
+        {ikb_entity_list source="pal_sale" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search invoices..." empty="No invoices yet." /}
+    </div>
 </div>

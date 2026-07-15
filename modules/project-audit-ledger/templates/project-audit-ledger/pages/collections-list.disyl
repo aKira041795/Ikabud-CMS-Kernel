@@ -1,36 +1,36 @@
 <!-- Stat Cards -->
-<div class="grid grid-cols-4 gap-4 mb-4">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='all'}ring-2 ring-blue-500{/if}">
-        <p class="text-2xl font-bold text-gray-900">{stats.total|default:0}</p>
-        <p class="text-xs text-gray-500 mt-1">Total Collections</p>
+<div class="wb-metric-grid mb-4">
+    <div class="wb-metric-card text-center {if tab=='all'}ring-2 ring-blue-500{/if}">
+        <div class="wb-metric-card__value">{stats.total|default:0}</div>
+        <div class="wb-metric-card__label">Total Collections</div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='pending'}ring-2 ring-amber-500{/if}">
-        <p class="text-2xl font-bold text-amber-600">{stats.pending_count|default:0}</p>
-        <p class="text-xs text-gray-500 mt-1">Pending — ₱{stats.pending_amount|default:0|number_format:0}</p>
+    <div class="wb-metric-card text-center {if tab=='pending'}ring-2 ring-amber-500{/if}">
+        <div class="wb-metric-card__value" style="color:var(--wb-tone-warning)">{stats.pending_count|default:0}</div>
+        <div class="wb-metric-card__label">Pending — ₱{stats.pending_amount|default:0|number_format:0}</div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center {if tab=='paid'}ring-2 ring-green-500{/if}">
-        <p class="text-2xl font-bold text-green-600">{stats.approved_count|default:0}</p>
-        <p class="text-xs text-gray-500 mt-1">Paid — ₱{stats.approved_amount|default:0|number_format:0}</p>
+    <div class="wb-metric-card text-center {if tab=='paid'}ring-2 ring-green-500{/if}">
+        <div class="wb-metric-card__value" style="color:var(--wb-tone-success)">{stats.approved_count|default:0}</div>
+        <div class="wb-metric-card__label">Paid — ₱{stats.approved_amount|default:0|number_format:0}</div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 text-center">
-        <p class="text-2xl font-bold text-red-500">{(stats.rejected_count|default:0) + (stats.voided_count|default:0)}</p>
-        <p class="text-xs text-gray-500 mt-1">Rejected / Voided</p>
+    <div class="wb-metric-card text-center">
+        <div class="wb-metric-card__value" style="color:var(--wb-tone-danger)">{(stats.rejected_count|default:0) + (stats.voided_count|default:0)}</div>
+        <div class="wb-metric-card__label">Rejected / Voided</div>
     </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+<div class="wb-panel">
     <!-- Header -->
-    <div class="p-4 border-b border-gray-200">
-        <div class="flex justify-between items-center mb-3">
-            <h2 class="font-semibold text-gray-900">Collections</h2>
-            <div class="flex gap-2">
+    <div class="wb-panel__header" style="flex-direction:column;align-items:stretch;gap:var(--wb-space-3);">
+        <div class="flex justify-between items-center">
+            <span class="wb-panel__title">Collections</span>
+            <div class="wb-toolbar__group">
                 <button onclick="generateCollections()" class="wb-btn wb-btn--secondary wb-btn--sm">⚡ Generate</button>
                 <a href="/admin/project-audit-ledger/collections/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Record</a>
             </div>
         </div>
 
         <!-- Tabs -->
-        <div class="flex gap-1 text-sm border-b border-gray-200 -mx-4 px-4">
+        <div class="flex gap-1 text-sm border-b border-gray-200" style="margin:0 calc(var(--wb-space-4)*-1);padding:0 var(--wb-space-4);">
             <a href="?tab=all" class="px-3 py-2 border-b-2 {if tab=='all'}border-blue-600 text-blue-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">All</a>
             <a href="?tab=pending" class="px-3 py-2 border-b-2 {if tab=='pending'}border-amber-500 text-amber-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Pending</a>
             <a href="?tab=paid" class="px-3 py-2 border-b-2 {if tab=='paid'}border-green-500 text-green-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Paid</a>
@@ -45,7 +45,7 @@
     <!-- Table -->
     {if collections && collections|count > 0}
     <div class="overflow-x-auto">
-        <table class="w-full text-sm pal-responsive-table">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead>
                 <tr class="bg-gray-50 border-b text-xs text-gray-600">
                     <th class="text-left py-3 px-4 font-semibold">Collection #</th>

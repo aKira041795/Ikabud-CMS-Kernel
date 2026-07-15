@@ -1,14 +1,17 @@
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Project</p><p class="font-semibold text-gray-900">{if project_id}<a href="/admin/project-audit-ledger/projects/{project_id}" class="text-blue-600 hover:text-blue-800">{project.title|default:'Project #'~project_id}</a>{else}{project.title|default:'Project #'~project_id}{/if}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Fabrication Budget</p><p class="font-semibold text-gray-900">₱{fab_budget|number_format:2} ({project.fabrication_alloc_pct|default:0}%)</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Total CA Dispensed</p><p class="font-semibold text-indigo-600">₱{total_dispensed|number_format:2}</p></div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4"><p class="text-xs text-gray-600 uppercase">Remaining</p><p class="font-semibold {if fab_budget - total_dispensed > 0}text-green-600{else}text-gray-600{/if}">₱{(fab_budget - total_dispensed)|number_format:2}</p></div>
+<div class="wb-panel p-6 wb-panel--bordered mb-6">
+    <div class="wb-metric-grid">
+        <div class="wb-metric-card"><div class="wb-metric-card__label">Project</div><div class="wb-metric-card__value" style="font-size:var(--wb-text-base);">{if project_id}<a href="/admin/project-audit-ledger/projects/{project_id}" class="text-blue-600 hover:text-blue-800">{project.title|default:'Project #'~project_id}</a>{else}{project.title|default:'Project #'~project_id}{/if}</div></div>
+        <div class="wb-metric-card"><div class="wb-metric-card__label">Fabrication Budget</div><div class="wb-metric-card__value">₱{fab_budget|number_format:2} ({project.fabrication_alloc_pct|default:0}%)</div></div>
+        <div class="wb-metric-card"><div class="wb-metric-card__label">Total CA Dispensed</div><div class="wb-metric-card__value" style="color:var(--wb-tone-info)">₱{total_dispensed|number_format:2}</div></div>
+        <div class="wb-metric-card"><div class="wb-metric-card__label">Remaining</div><div class="wb-metric-card__value" style="color:{if fab_budget - total_dispensed > 0}var(--wb-tone-success){else}var(--wb-tone-neutral){/if}">₱{(fab_budget - total_dispensed)|number_format:2}</div></div>
+    </div>
 </div>
 
 <!-- CA Dispense History -->
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-    <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">CA Dispense History ({dispenses|count})</h2></div>
-    <table class="w-full text-sm pal-responsive-table">
+<div class="wb-panel mb-6">
+    <div class="wb-panel__header"><span class="wb-panel__title">CA Dispense History ({dispenses|count})</span></div>
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b border-gray-200">
             <th class="text-left py-2 px-4 font-semibold text-gray-600">Date</th>
             <th class="text-left py-2 px-4 font-semibold text-gray-600">Amount</th>
@@ -31,18 +34,20 @@
             {/if}
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- Weekly Dues -->
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">Weekly Dues ({weekly_dues|count})</h2>
+<div class="wb-panel mb-6">
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Weekly Dues ({weekly_dues|count})</span>
         {if remaining_budget > 0}
-        <button onclick="showGenerateDues()" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">+ Generate Weekly Dues</button>
+        <button onclick="showGenerateDues()" class="wb-btn wb-btn--primary wb-btn--sm">+ Generate Weekly Dues</button>
         {/if}
     </div>
     {if weekly_dues|count > 0}
-    <table class="w-full text-sm pal-responsive-table">
+    <div class="overflow-x-auto">
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b">
             <th class="text-left py-2 px-4 font-semibold text-gray-600">Week</th>
             <th class="text-right py-2 px-4 font-semibold text-gray-600">Due Amount</th>
@@ -64,6 +69,7 @@
             {/for}
         </tbody>
     </table>
+    </div>
     {elseif fab_budget > 0}
     <div class="p-4 text-center text-sm text-gray-600">No weekly dues yet. Click "Generate Weekly Dues" to auto-split the remaining budget.</div>
     {/if}
