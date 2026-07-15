@@ -20,6 +20,7 @@ class CaseMemory
 {
     private string $storagePath;
     private string $indexPath;
+    private string $lockPath;
     private ?array $indexCache = null;
 
     private const MAX_CASES = 100;
@@ -30,11 +31,14 @@ class CaseMemory
         $base = $storagePath ?? $this->defaultPath();
         $this->storagePath = $base . '/cases';
         $this->indexPath = $base . '/cases/index.json';
+        $this->lockPath = $base . '/cases/index.lock';
         $this->ensureStorage();
     }
 
     /**
-     * Store a new case entry atomically.
+     * Store a new case entry atomically with index locking.
+     *
+     * @throws \RuntimeException on write or rename failure
      */
     public function store(CaseMemoryEntry $entry): void
     {
@@ -59,12 +63,12 @@ class CaseMemory
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
         if ($written === false) {
-            return; // Write failed — don't proceed
+            throw new \RuntimeException("Unable to write case file: {$tmp}");
         }
 
         if (!rename($tmp, $file)) {
             @unlink($tmp);
-            return;
+            throw new \RuntimeException("Unable to commit case file: {$file}");
         }
 
         $this->updateIndex($entry);
@@ -190,6 +194,8 @@ class CaseMemory
 
     /**
      * Delete a case and atomically update the index.
+     *
+     * @throws \RuntimeException if index locking fails
      */
     public function delete(string $id): bool
     {
@@ -200,18 +206,17 @@ class CaseMemory
 
         unlink($file);
 
-        // Atomically update the index to remove the deleted entry
-        if (file_exists($this->indexPath)) {
-            $index = json_decode(file_get_contents($this->indexPath), true) ?? [];
+        // Atomically update index under lock
+        $this->withIndexLock(function () use ($id): void {
+            $index = $this->loadIndexUnlocked();
             $index = array_values(array_filter(
                 $index,
                 fn (array $entry): bool => ($entry['id'] ?? '') !== $id
             ));
             $this->indexCache = $index;
-            $this->saveIndex();
-        } else {
-            $this->indexCache = null; // Force rebuild from files
-        }
+            $this->saveIndexUnlocked();
+        });
+
         return true;
     }
 
@@ -261,79 +266,122 @@ class CaseMemory
     }
 
     /**
-     * Get the case index, building from files if needed.
+     * Get the case index (read-only — no lock needed).
      */
     private function getIndex(): array
+    {
+        return $this->loadIndexUnlocked();
+    }
+
+    /**
+     * Update the index with a new entry. Protected by shared index lock.
+     */
+    private function updateIndex(CaseMemoryEntry $entry): void
+    {
+        $this->withIndexLock(function () use ($entry): void {
+            $index = $this->loadIndexUnlocked();
+
+            // Remove existing entry with same ID
+            $index = array_values(array_filter($index, fn($e) => ($e['id'] ?? '') !== $entry->id));
+
+            $index[] = [
+                'id' => $entry->id,
+                'module_id' => $entry->moduleId,
+                'action_id' => $entry->actionId,
+                'summary' => $entry->summary,
+                'evidence_packet' => $entry->evidencePacket,
+                'created_at' => $entry->createdAt ?: date('c'),
+            ];
+
+            // Trim to max
+            if (count($index) > self::MAX_CASES) {
+                usort($index, fn($a, $b) => ($b['created_at'] ?? '') <=> ($a['created_at'] ?? ''));
+                $index = array_slice($index, 0, self::MAX_CASES);
+            }
+
+            $this->indexCache = $index;
+            $this->saveIndexUnlocked();
+        });
+    }
+
+    /**
+     * Execute a closure while holding the exclusive index lock.
+     *
+     * @throws \RuntimeException if the lock cannot be acquired
+     */
+    private function withIndexLock(callable $fn): void
+    {
+        $handle = fopen($this->lockPath, 'c');
+        if ($handle === false) {
+            throw new \RuntimeException("Unable to open case-memory lock: {$this->lockPath}");
+        }
+
+        if (!flock($handle, LOCK_EX)) {
+            fclose($handle);
+            throw new \RuntimeException("Unable to acquire case-memory lock: {$this->lockPath}");
+        }
+
+        try {
+            $fn();
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+    }
+
+    /**
+     * Load index from disk or cache (caller must hold lock for writes).
+     */
+    private function loadIndexUnlocked(): array
     {
         if ($this->indexCache !== null) {
             return $this->indexCache;
         }
 
         if (file_exists($this->indexPath)) {
-            $this->indexCache = json_decode(file_get_contents($this->indexPath), true) ?? [];
-            return $this->indexCache;
-        }
-
-        // Build index from stored files
-        $this->indexCache = [];
-        $files = glob($this->storagePath . '/*.json');
-        if ($files) {
-            foreach ($files as $file) {
-                if (basename($file) === 'index.json') continue;
-                $data = json_decode(file_get_contents($file), true);
-                if ($data) {
-                    $this->indexCache[] = [
-                        'id' => $data['id'],
-                        'module_id' => $data['module_id'],
-                        'action_id' => $data['action_id'],
-                        'summary' => $data['summary'],
-                        'evidence_packet' => $data['evidence_packet'] ?? [],
-                        'created_at' => $data['created_at'] ?? '',
-                    ];
+            $raw = file_get_contents($this->indexPath);
+            if ($raw !== false) {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $this->indexCache = $decoded;
+                    return $this->indexCache;
                 }
             }
-            // Trim to max
-            if (count($this->indexCache) > self::MAX_CASES) {
-                // Keep most recent
-                usort($this->indexCache, fn($a, $b) => ($b['created_at'] ?? '') <=> ($a['created_at'] ?? ''));
-                $this->indexCache = array_slice($this->indexCache, 0, self::MAX_CASES);
-            }
-            $this->saveIndex();
         }
 
-        return $this->indexCache ?? [];
+        // Rebuild from case files
+        $this->indexCache = [];
+        $files = glob($this->storagePath . '/*.json') ?: [];
+        foreach ($files as $file) {
+            if (basename($file) === 'index.json' || basename($file) === 'index.lock') continue;
+            $data = json_decode((string)file_get_contents($file), true);
+            if (is_array($data) && isset($data['id'])) {
+                $this->indexCache[] = [
+                    'id' => $data['id'],
+                    'module_id' => $data['module_id'] ?? 'unknown',
+                    'action_id' => $data['action_id'] ?? '',
+                    'summary' => $data['summary'] ?? '',
+                    'evidence_packet' => $data['evidence_packet'] ?? [],
+                    'created_at' => $data['created_at'] ?? '',
+                ];
+            }
+        }
+
+        // Trim to max
+        if (count($this->indexCache) > self::MAX_CASES) {
+            usort($this->indexCache, fn($a, $b) => ($b['created_at'] ?? '') <=> ($a['created_at'] ?? ''));
+            $this->indexCache = array_slice($this->indexCache, 0, self::MAX_CASES);
+        }
+
+        return $this->indexCache;
     }
 
     /**
-     * Update the index with a new entry.
+     * Save index to disk with atomic rename (caller must hold lock).
+     *
+     * @throws \RuntimeException on write or rename failure
      */
-    private function updateIndex(CaseMemoryEntry $entry): void
-    {
-        $index = $this->getIndex();
-
-        // Remove existing entry with same ID
-        $index = array_values(array_filter($index, fn($e) => ($e['id'] ?? '') !== $entry->id));
-
-        $index[] = [
-            'id' => $entry->id,
-            'module_id' => $entry->moduleId,
-            'action_id' => $entry->actionId,
-            'summary' => $entry->summary,
-            'evidence_packet' => $entry->evidencePacket,
-            'created_at' => $entry->createdAt ?: date('c'),
-        ];
-
-        // Trim to max
-        if (count($index) > self::MAX_CASES) {
-            usort($index, fn($a, $b) => ($b['created_at'] ?? '') <=> ($a['created_at'] ?? ''));
-            $index = array_slice($index, 0, self::MAX_CASES);
-        }
-
-        $this->indexCache = $index;
-        $this->saveIndex();
-    }
-
-    private function saveIndex(): void
+    private function saveIndexUnlocked(): void
     {
         $dir = dirname($this->indexPath);
         if (!is_dir($dir)) {
@@ -343,13 +391,13 @@ class CaseMemory
         $written = file_put_contents(
             $tmp,
             json_encode($this->indexCache ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-            LOCK_EX,
         );
         if ($written === false) {
-            return;
+            throw new \RuntimeException("Unable to write case-memory index: {$tmp}");
         }
         if (!rename($tmp, $this->indexPath)) {
             @unlink($tmp);
+            throw new \RuntimeException("Unable to commit case-memory index: {$this->indexPath}");
         }
     }
 

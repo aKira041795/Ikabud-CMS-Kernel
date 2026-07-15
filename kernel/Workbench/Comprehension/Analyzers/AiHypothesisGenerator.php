@@ -35,12 +35,14 @@ use Ikabud\Kernel\Workbench\Comprehension\Contracts\{
 class AiHypothesisGenerator
 {
     private string $moduleId;
-    private string $providerType; // 'copilot', 'openai', 'heuristic'
+    private string $providerType; // Only 'heuristic' is currently implemented
     private SourceRetriever $sourceRetriever;
     private CaseMemory $caseMemory;
 
     /** @var array<string, array{pattern: string, severity: string, suggestion: string}> */
     private array $heuristicRules = [];
+
+    private const SUPPORTED_PROVIDERS = ['heuristic'];
 
     public function __construct(
         string $moduleId,
@@ -48,6 +50,11 @@ class AiHypothesisGenerator
         ?CaseMemory $caseMemory = null,
         string $providerType = 'heuristic',
     ) {
+        if (!in_array($providerType, self::SUPPORTED_PROVIDERS, true)) {
+            throw new \InvalidArgumentException(
+                "Unsupported AI provider '{$providerType}'. Supported: " . implode(', ', self::SUPPORTED_PROVIDERS)
+            );
+        }
         $this->moduleId = $moduleId;
         $this->sourceRetriever = $sourceRetriever ?? new SourceRetriever($moduleId);
         $this->caseMemory = $caseMemory ?? new CaseMemory();
@@ -81,14 +88,8 @@ class AiHypothesisGenerator
             $evidence,
         );
 
-        // 3. Generate hypothesis
-        if ($this->providerType === 'heuristic' || !$this->hasAiProvider()) {
-            $hypothesis = $this->generateHeuristic($analysisResult, $evidence, $bayesianHistory, $sourceContext, $similarCases);
-        } else {
-            $hypothesis = $this->generateWithAi($analysisResult, $evidence, $bayesianHistory, $sourceContext, $similarCases);
-        }
-
-        return $hypothesis;
+        // 3. Generate hypothesis (heuristic only; external AI providers not yet wired)
+        return $this->generateHeuristic($analysisResult, $evidence, $bayesianHistory, $sourceContext, $similarCases);
     }
 
     /**
@@ -354,23 +355,6 @@ class AiHypothesisGenerator
     }
 
     /**
-     * AI-powered hypothesis generation (requires external AI provider).
-     * Falls back to heuristic if provider unavailable.
-     */
-    private function generateWithAi(
-        array $analysisResult,
-        array $evidence,
-        array $bayesianHistory,
-        ?SourceContext $sourceContext,
-        array $similarCases,
-    ): AiHypothesis {
-        // For environments without an AI API client in PHP,
-        // fall back to heuristic. The aiDiagnose() function
-        // in ArkTestSteward.js handles Copilot API integration.
-        return $this->generateHeuristic($analysisResult, $evidence, $bayesianHistory, $sourceContext, $similarCases);
-    }
-
-    /**
      * Determine the most likely responsible file for a failure.
      */
     private function determineSuspectedFile(string $breakpoint, ?string $breakCategory, SourceContext $sourceContext, array $analysisResult): string
@@ -577,12 +561,4 @@ class AiHypothesisGenerator
         ];
     }
 
-    /**
-     * Check if an AI provider is available.
-     */
-    private function hasAiProvider(): bool
-    {
-        return in_array($this->providerType, ['copilot', 'openai'], true)
-            && function_exists('curl_init');
-    }
 }

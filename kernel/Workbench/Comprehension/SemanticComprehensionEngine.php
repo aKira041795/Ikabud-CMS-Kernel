@@ -447,7 +447,7 @@ class SemanticComprehensionEngine
         string $testCommand = '',
         array $tags = [],
     ): string {
-        $caseId = 'case-' . $this->moduleId . '-' . substr(md5($actionId . $summary . implode(',', $changedFiles)), 0, 12);
+        $caseId = 'case-' . $this->moduleId . '-' . substr(md5($actionId . $summary . implode(',', $changedFiles) . date('c')), 0, 12);
 
         $this->caseMemory->store(new \Ikabud\Kernel\Workbench\Comprehension\Contracts\CaseMemoryEntry(
             id: $caseId,
