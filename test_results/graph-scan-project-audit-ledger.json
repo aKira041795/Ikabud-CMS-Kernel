@@ -1,0 +1,14 @@
+{
+    "module": "project-audit-ledger",
+    "graph": {
+        "nodes": 58,
+        "edges": 48
+    },
+    "coverage": {
+        "total": 45,
+        "covered": 45,
+        "score": 1
+    },
+    "gaps": [],
+    "timestamp": "2026-07-15T12:00:54+08:00"
+}

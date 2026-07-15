@@ -35,7 +35,7 @@ test.afterAll(async function () {
     } catch (e) { /* ignore */ }
     if (GAPS.length > 0) {
         console.log('\n  ===== GAPS DISCOVERED =====');
-        GAPS.forEach(function (g, i) { console.log('  [' + (i+1) + '] ' + g); });
+        GAPS.forEach(function (g, i) { console.log('  [' + (i + 1) + '] ' + g); });
     }
 });
 
@@ -107,9 +107,9 @@ test.describe('pal:jo-form-semantic', function () {
             var count = await rows.count();
             for (var i = Math.max(0, count - 3); i < count; i++) {
                 var row = rows.nth(i);
-                await row.locator('input[name$="[particulars]"]').fill(PREFIX + '-Item-' + (i+1));
+                await row.locator('input[name$="[particulars]"]').fill(PREFIX + '-Item-' + (i + 1));
                 await row.locator('input[name$="[quantity]"]').fill(String(2 + i));
-                await row.locator('input[name$="[price_per_unit]"]').fill(String(100 * (i+1)));
+                await row.locator('input[name$="[price_per_unit]"]').fill(String(100 * (i + 1)));
             }
             console.log('  Filled last 3 items');
         });
@@ -248,7 +248,7 @@ test.describe('pal:jo-form-semantic', function () {
         await test.step('report gaps', function () {
             if (GAPS.length > 0) {
                 console.log('\n  ~~~~~~~~~~~~ GAPS DISCOVERED ~~~~~~~~~~~~');
-                GAPS.forEach(function (g, i) { console.log('  [' + (i+1) + '] ' + g); integrity.gap(g); });
+                GAPS.forEach(function (g, i) { console.log('  [' + (i + 1) + '] ' + g); integrity.gap(g); });
             } else {
                 console.log('\n  No gaps discovered');
             }
