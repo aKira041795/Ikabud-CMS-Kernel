@@ -45,7 +45,20 @@ function fakePage(hrefs, statuses) {
     assert.strictEqual(diagnostic.issues[0].status, 404);
 
     const healthy = new ModuleDiagnostic(
-        fakePage(['/admin/sample'], {}),
+        fakePage(
+            [
+                '/admin/sample',
+                '/admin/sample/download/report.csv',
+                '/admin/sample/logout',
+                'https://example.com/help',
+                '#details',
+            ],
+            {
+                '/': {status: 404},
+                '/admin/sample/download/report.csv': {status: 404},
+                '/admin/sample/logout': {status: 404},
+            }
+        ),
         __dirname,
         manifest
     );

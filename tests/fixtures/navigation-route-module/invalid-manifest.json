@@ -1,0 +1,6 @@
+{
+  "id": "navigation-route-module",
+  "name": "Navigation Route Module",
+  "version": "1.0.0",
+  "navigation_dependencies": ["navigation-route-module"]
+}

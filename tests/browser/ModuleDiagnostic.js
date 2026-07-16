@@ -496,6 +496,7 @@ class ModuleDiagnostic {
         const origin = new URL(baseUrl).origin;
         const urls = [...new Set(hrefs)].filter(href => {
             try {
+                if (href.startsWith('#')) return false;
                 const target = new URL(href, baseUrl);
                 return target.origin === origin && target.pathname.startsWith('/')
                     && !/\/(?:logout|download)(?:\/|$)/.test(target.pathname);

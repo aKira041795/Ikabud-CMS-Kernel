@@ -10,6 +10,15 @@
     "reporting",
     "billing-bridge"
   ],
+  "navigation_dependencies": [
+    "patient-registry",
+    "scheduling",
+    "encounters",
+    "clinical-notes",
+    "orders",
+    "results",
+    "documents"
+  ],
   "owns_tables": [
     "ehr_users",
     "ehr_password_resets"

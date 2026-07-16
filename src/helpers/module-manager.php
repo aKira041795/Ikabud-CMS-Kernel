@@ -2222,6 +2222,25 @@ function validateModuleManifest(string $path): array
         }
     }
 
+    if (array_key_exists('navigation_dependencies', $manifest)) {
+        if (!is_array($manifest['navigation_dependencies'])) {
+            return ['ok' => false, 'error' => 'module.json field navigation_dependencies must be an array of module ids', 'error_code' => 'manifest_invalid_navigation_dependencies'];
+        }
+        $seenNavigationDependencies = [];
+        foreach ($manifest['navigation_dependencies'] as $dependency) {
+            if (!is_string($dependency) || !preg_match('/^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$/', $dependency)) {
+                return ['ok' => false, 'error' => 'module.json field navigation_dependencies must contain valid module ids', 'error_code' => 'manifest_invalid_navigation_dependencies'];
+            }
+            if ($dependency === $manifest['id']) {
+                return ['ok' => false, 'error' => 'module.json field navigation_dependencies must not include the module itself', 'error_code' => 'manifest_invalid_navigation_dependencies'];
+            }
+            if (isset($seenNavigationDependencies[$dependency])) {
+                return ['ok' => false, 'error' => "module.json field navigation_dependencies contains duplicate module id: {$dependency}", 'error_code' => 'manifest_invalid_navigation_dependencies'];
+            }
+            $seenNavigationDependencies[$dependency] = true;
+        }
+    }
+
     $entityContextValidation = validateModuleEntityContexts($manifest);
     if (empty($entityContextValidation['ok'])) {
         return [
@@ -2306,13 +2325,14 @@ function moduleRoutePatternMatchesPath(string $route, string $path): bool
 
 /**
  * @param array<string, mixed> $manifest
- * @return array{ok: bool, missing: array<int, string>, checked: int, detail: string}
+ * @param array<string, array<string, mixed>>|null $installedModules
+ * @return array{ok: bool, missing: array<int, string>, undeclared_dependencies: array<string, array<int, string>>, checked: int, detail: string}
  */
-function validateModuleNavigationRoutes(array $manifest): array
+function validateModuleNavigationRoutes(array $manifest, ?array $installedModules = null): array
 {
     $urls = moduleNavigationUrls($manifest);
     if ($urls === []) {
-        return ['ok' => true, 'missing' => [], 'checked' => 0, 'detail' => 'No internal navigation URLs declared'];
+        return ['ok' => true, 'missing' => [], 'undeclared_dependencies' => [], 'checked' => 0, 'detail' => 'No internal navigation URLs declared'];
     }
 
     $moduleId = trim((string)($manifest['id'] ?? ''));
@@ -2323,13 +2343,16 @@ function validateModuleNavigationRoutes(array $manifest): array
     }
     $routesFile = $modulePath !== '' ? $modulePath . '/routes.php' : '';
     $routes = $routesFile !== '' && is_file($routesFile) ? require $routesFile : [];
-    $getRoutes = is_array($routes) && is_array($routes['GET'] ?? null)
-        ? array_map('strval', array_keys($routes['GET']))
-        : [];
+    $routeOwners = [
+        $moduleId => is_array($routes) && is_array($routes['GET'] ?? null)
+            ? array_map('strval', array_keys($routes['GET']))
+            : [],
+    ];
     // Shell modules may intentionally link to pages owned by companion modules
     // (for example, the EHR shell links to scheduling and encounters routes).
     // Certification validates against the complete installed route registry.
-    foreach (discoverModules() as $candidate) {
+    foreach ($installedModules ?? discoverModules() as $candidateId => $candidate) {
+        $candidateId = (string)($candidate['id'] ?? $candidateId);
         $candidatePath = trim((string)($candidate['_path'] ?? ''));
         $candidateRoutesFile = $candidatePath !== '' ? $candidatePath . '/routes.php' : '';
         if ($candidateRoutesFile === '' || $candidateRoutesFile === $routesFile || !is_file($candidateRoutesFile)) {
@@ -2337,32 +2360,57 @@ function validateModuleNavigationRoutes(array $manifest): array
         }
         $candidateRoutes = require $candidateRoutesFile;
         if (is_array($candidateRoutes) && is_array($candidateRoutes['GET'] ?? null)) {
-            $getRoutes = array_merge($getRoutes, array_map('strval', array_keys($candidateRoutes['GET'])));
+            $routeOwners[$candidateId] = array_map('strval', array_keys($candidateRoutes['GET']));
         }
     }
-    $getRoutes = array_values(array_unique($getRoutes));
 
     $missing = [];
+    $undeclaredDependencies = [];
+    $allowedDependencies = array_fill_keys(array_map('strval', (array)($manifest['navigation_dependencies'] ?? [])), true);
     foreach ($urls as $url) {
-        $matched = false;
-        foreach ($getRoutes as $route) {
-            if (moduleRoutePatternMatchesPath($route, $url)) {
-                $matched = true;
-                break;
+        $owners = [];
+        foreach ($routeOwners as $ownerId => $getRoutes) {
+            foreach ($getRoutes as $route) {
+                if (moduleRoutePatternMatchesPath($route, $url)) {
+                    $owners[] = $ownerId;
+                    break;
+                }
             }
         }
-        if (!$matched) {
+        if ($owners === []) {
             $missing[] = $url;
+            continue;
         }
+        if (in_array($moduleId, $owners, true)) {
+            continue;
+        }
+        $declaredOwner = array_filter($owners, static fn(string $owner): bool => isset($allowedDependencies[$owner]));
+        if ($declaredOwner === []) {
+            $undeclaredDependencies[$url] = array_values(array_unique($owners));
+        }
+    }
+
+    $ok = $missing === [] && $undeclaredDependencies === [];
+    if ($missing !== []) {
+        $detail = 'Missing GET route(s): ' . implode(', ', $missing);
+    } elseif ($undeclaredDependencies !== []) {
+        $parts = [];
+        foreach ($undeclaredDependencies as $url => $owners) {
+            $parts[] = $url . ' (owned by ' . implode('|', $owners) . ')';
+        }
+        $detail = 'Undeclared navigation dependency: ' . implode(', ', $parts);
+    } else {
+        $dependencyCount = count($allowedDependencies);
+        $detail = count($urls) . ' navigation URL(s) resolve with explicit ownership'
+            . ($dependencyCount > 0 ? " ({$dependencyCount} navigation dependencies declared)" : '');
     }
 
     return [
-        'ok' => $missing === [],
+        'ok' => $ok,
         'missing' => $missing,
+        'undeclared_dependencies' => $undeclaredDependencies,
         'checked' => count($urls),
-        'detail' => $missing === []
-            ? count($urls) . ' navigation URL(s) resolve to GET routes'
-            : 'Missing GET route(s): ' . implode(', ', $missing),
+        'detail' => $detail,
     ];
 }
 

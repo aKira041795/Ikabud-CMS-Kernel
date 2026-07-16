@@ -1,1 +1,5 @@
 <a href="/admin/navigation-route-module/items/{item.id}/edit">Edit item</a>
+<a href="/admin/navigation-route-module/download">Download</a>
+<a href="/admin/navigation-route-module/logout">Sign out</a>
+<a href="https://example.com/help">External help</a>
+<a href="#details">Details</a>

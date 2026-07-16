@@ -2417,13 +2417,14 @@ switch ($command) {
         }
 
         $manifestPath = moduleManifestPathForId($moduleId);
-        $packManifest = is_string($manifestPath)
-            ? json_decode((string)file_get_contents($manifestPath), true)
-            : null;
-        if (!is_array($packManifest)) {
-            out(red("  ✗ Module '{$moduleId}' has no valid manifest."));
+        $manifestValidation = is_string($manifestPath)
+            ? validateModuleManifest($manifestPath)
+            : ['ok' => false, 'error' => 'manifest not found'];
+        if (empty($manifestValidation['ok']) || !is_array($manifestValidation['manifest'] ?? null)) {
+            out(red("  ✗ Module '{$moduleId}' has an invalid manifest: " . (string)($manifestValidation['error'] ?? 'unknown error')));
             exit(1);
         }
+        $packManifest = $manifestValidation['manifest'];
         $packManifest['_path'] = $modDir;
         $certification = validateModuleCertification($packManifest);
         if (empty($certification['ok'])) {
