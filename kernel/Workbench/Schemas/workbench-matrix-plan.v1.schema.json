@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ark.workbench-matrix-plan.v1",
+  "type": "object",
+  "required": ["schema", "dimensions", "selected", "omitted", "mandatory", "checks", "coverage", "digest"],
+  "properties": {
+    "schema": {"const": "ark.workbench-matrix-plan.v1"},
+    "dimensions": {"type": "object"},
+    "selected": {"type": "array", "items": {"type": "object"}},
+    "omitted": {"type": "array", "items": {"type": "object", "required": ["combination", "reason"]}},
+    "mandatory": {"type": "array"},
+    "checks": {"type": "array"},
+    "coverage": {"type": "object"},
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

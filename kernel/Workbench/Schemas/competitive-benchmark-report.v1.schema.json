@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:competitive-benchmark-report:v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "corpus_version",
+    "generated_at",
+    "case_count",
+    "engines",
+    "gates",
+    "reproducibility_digest"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ark.competitive-benchmark-report.v1"
+    },
+    "corpus_version": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "case_count": {
+      "type": "integer"
+    },
+    "engines": {
+      "type": "object"
+    },
+    "gates": {
+      "type": "object"
+    },
+    "reproducibility_digest": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": false
+}

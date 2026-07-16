@@ -71,3 +71,5 @@ test_results/browser/runs/
 /storage/private/pal/
 /test_results/ai/*.json
 /test_results/ai/runs/
+/storage/workbench/ci/
+/storage/workbench/runs/

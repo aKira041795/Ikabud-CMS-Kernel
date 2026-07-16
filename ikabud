@@ -852,6 +852,12 @@ switch ($command) {
         out('    ' . green('test:module') . ' <id>           Run all tests for a module (PHP + browser)');
         out('    ' . green('test:module') . ' <id> --php-only      Run PHP tests only');
         out('    ' . green('test:module') . ' <id> --browser-only  Run browser tests only');
+        out('    ' . green('workbench:benchmark') . ' [--json]  Run competitive quality gates');
+        out('    ' . green('workbench:init') . ' <module> [--force]  Create/migrate the v1 test contract');
+        out('    ' . green('workbench:validate') . ' <module> [--json] Validate test contract claims');
+        out('    ' . green('workbench:doctor') . ' <module> [--json]   Run the pre-browser release gate');
+        out('    ' . green('workbench:run') . ' <module> [--gate=...] Record a gated run');
+        out('    ' . green('workbench:explain') . ' <run-id> [--json] Explain a durable run');
         out('');
         out('  ' . bold('Debug'));
         out('    ' . green('event:list') . '                  List registered event listeners');
@@ -5013,6 +5019,78 @@ MD;
 
         if ($phpFailed > 0) {
             exit(1);
+        }
+        break;
+    // ── workbench:benchmark ────────────────────────────────────────
+    case 'workbench:benchmark':
+        require_once __DIR__ . '/kernel/Workbench/Comprehension/Analyzers/PatternClassifier.php';
+        require_once __DIR__ . '/kernel/Workbench/Benchmark/CompetitiveBenchmark.php';
+        require_once __DIR__ . '/kernel/Workbench/Benchmark/CompetitiveBenchmarkRunner.php';
+        $outputFile = getFlagValue('--output=');
+        try {
+            $report = (new \Ikabud\Kernel\Workbench\Benchmark\CompetitiveBenchmarkRunner(__DIR__))->execute($outputFile);
+            if (hasFlag('--json')) {
+                out(json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            } else {
+                $ark = $report['engines']['ark_deterministic'];
+                out('');
+                out('  ' . bold('ARK Workbench Competitive Benchmark'));
+                out('  Cases: ' . $report['case_count']);
+                out('  Critical detection: ' . round($ark['critical_detection_rate'] * 100, 1) . '%');
+                out('  Root cause top-3: ' . round($ark['root_cause_top3_accuracy'] * 100, 1) . '%');
+                out('  False positives: ' . round($ark['false_positive_rate'] * 100, 1) . '%');
+                out('  Identity completeness: ' . round($ark['identity_completeness'] * 100, 1) . '%');
+                out('  Digest: ' . $report['reproducibility_digest']);
+                out('  Gate: ' . ($report['gates']['passed'] ? green('PASS') : red('FAIL')));
+                out('');
+            }
+            if (!$report['gates']['passed']) exit(1);
+        } catch (Throwable $e) {
+            out(red('  Benchmark failed: ' . $e->getMessage()));
+            exit(2);
+        }
+        break;
+
+    // ── Workbench Test Contract v1 ──────────────────────────────
+    case 'workbench:init':
+    case 'workbench:validate':
+    case 'workbench:doctor':
+    case 'workbench:run':
+    case 'workbench:explain':
+        require_once __DIR__ . '/kernel/Workbench/Contracts/WorkbenchTestContract.php';
+        require_once __DIR__ . '/kernel/Workbench/Contracts/WorkbenchTestContractMigrator.php';
+        require_once __DIR__ . '/kernel/Workbench/Contracts/WorkbenchTestContractValidator.php';
+        require_once __DIR__ . '/kernel/Workbench/Contracts/WorkbenchContractService.php';
+        $subject = paramsWithoutFlags($params)[0] ?? '';
+        if ($subject === '') {
+            out(red("  Usage: php ikabud {$command} <module-or-run-id> [--json]"));
+            exit(2);
+        }
+        $service = new \Ikabud\Kernel\Workbench\Contracts\WorkbenchContractService(__DIR__);
+        try {
+            $result = match ($command) {
+                'workbench:init' => $service->initialize($subject, hasFlag('--force')),
+                'workbench:validate' => $service->validate($subject),
+                'workbench:doctor' => $service->doctor($subject),
+                'workbench:run' => $service->run($subject, getFlagValue('--gate=') ?? 'critical'),
+                'workbench:explain' => $service->explain($subject),
+            };
+            if (hasFlag('--json')) {
+                out(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            } else {
+                out('');
+                out('  ' . bold(str_replace('workbench:', 'Workbench ', $command)) . ': ' . $subject);
+                out('  Status: ' . (($result['ok'] ?? (($result['outcome'] ?? '') !== 'blocked')) ? green('PASS') : red('BLOCKED')));
+                if (isset($result['path'])) out('  Contract: ' . $result['path']);
+                if (isset($result['run_id'])) out('  Run: ' . $result['run_id']);
+                if (isset($result['summary'])) out('  ' . $result['summary']);
+                foreach (($result['errors'] ?? $result['causes'] ?? []) as $error) out('  ' . red('✗') . ' ' . ($error['message'] ?? json_encode($error)));
+                out('');
+            }
+            if (($result['ok'] ?? true) === false || ($result['outcome'] ?? '') === 'blocked') exit(1);
+        } catch (Throwable $e) {
+            out(red('  Workbench contract error: ' . $e->getMessage()));
+            exit(2);
         }
         break;
 

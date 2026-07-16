@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:competitive-benchmark-corpus:v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "version",
+    "cases"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ark.competitive-benchmark-corpus.v1"
+    },
+    "version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 30,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "module_id",
+          "action_id",
+          "step_id",
+          "tenant_id",
+          "role",
+          "environment",
+          "outcome",
+          "severity",
+          "expected_detected",
+          "expected_category",
+          "evidence_text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "module_id": {
+            "type": "string"
+          },
+          "action_id": {
+            "type": "string"
+          },
+          "step_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "passed",
+              "failed",
+              "unobserved",
+              "not_applicable",
+              "probe_error",
+              "skipped"
+            ]
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "major",
+              "minor",
+              "note"
+            ]
+          },
+          "expected_detected": {
+            "type": "boolean"
+          },
+          "expected_category": {
+            "type": "string"
+          },
+          "evidence_text": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

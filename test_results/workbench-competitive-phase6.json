@@ -1,0 +1,109 @@
+{
+    "suite": "workbench-competitive-phase6",
+    "started": "2026-07-16 22:49:49",
+    "finished": "2026-07-16 22:49:49",
+    "elapsed_ms": 2.5,
+    "summary": {
+        "passed": 13,
+        "failed": 0,
+        "skipped": 0,
+        "total": 13,
+        "assertions": 13,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "",
+            "label": "history is indexed and filterable",
+            "status": "pass",
+            "detail": "got 2",
+            "time": 1.6
+        },
+        {
+            "section": "",
+            "label": "run comparison finds new defects",
+            "status": "pass",
+            "detail": "",
+            "time": 1.7
+        },
+        {
+            "section": "",
+            "label": "run comparison finds resolved defects",
+            "status": "pass",
+            "detail": "",
+            "time": 1.7
+        },
+        {
+            "section": "",
+            "label": "contract drift is visible",
+            "status": "pass",
+            "detail": "",
+            "time": 1.7
+        },
+        {
+            "section": "",
+            "label": "raw retention expires old artifact",
+            "status": "pass",
+            "detail": "",
+            "time": 2.1
+        },
+        {
+            "section": "",
+            "label": "historical summaries survive raw expiry",
+            "status": "pass",
+            "detail": "got 2",
+            "time": 2.2
+        },
+        {
+            "section": "",
+            "label": "flakes require mixed observed outcomes",
+            "status": "pass",
+            "detail": "",
+            "time": 2.2
+        },
+        {
+            "section": "",
+            "label": "recurrences cluster by fingerprint",
+            "status": "pass",
+            "detail": "got 1",
+            "time": 2.3
+        },
+        {
+            "section": "",
+            "label": "causal timeline is ordered",
+            "status": "pass",
+            "detail": "",
+            "time": 2.3
+        },
+        {
+            "section": "",
+            "label": "diagnosis requires contract evidence and remediation",
+            "status": "pass",
+            "detail": "",
+            "time": 2.3
+        },
+        {
+            "section": "",
+            "label": "JUnit export is standards-compatible XML",
+            "status": "pass",
+            "detail": "",
+            "time": 2.5
+        },
+        {
+            "section": "",
+            "label": "SARIF export uses 2.1.0",
+            "status": "pass",
+            "detail": "",
+            "time": 2.5
+        },
+        {
+            "section": "",
+            "label": "ARK export is versioned",
+            "status": "pass",
+            "detail": "",
+            "time": 2.5
+        }
+    ],
+    "gaps": []
+}

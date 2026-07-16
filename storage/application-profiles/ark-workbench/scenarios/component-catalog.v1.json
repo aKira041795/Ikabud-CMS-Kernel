@@ -1,0 +1,16 @@
+{
+  "schema": "ark.component-scenario-catalog.v1",
+  "components": [
+    "activity-timeline", "app-shell", "approval-panel", "combobox", "detail-header", "dialog",
+    "empty-state", "form-section", "money", "page-header", "progress", "responsive-table",
+    "status-badge", "summary-card", "validation-summary"
+  ],
+  "required_states": ["empty", "loading", "populated", "validation", "error", "unauthorized", "degraded"],
+  "required_variants": {
+    "viewports": ["desktop", "tablet", "mobile"],
+    "themes": ["light", "dark"],
+    "locales": ["en", "long-text"],
+    "data_shapes": ["standard", "dense", "long-text"]
+  },
+  "scenario_policy": "Every governed component executes every required state across the declared variant matrix."
+}

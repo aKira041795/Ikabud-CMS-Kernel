@@ -1,0 +1,102 @@
+{
+    "suite": "workbench-superadmin-sync",
+    "started": "2026-07-16 22:50:01",
+    "finished": "2026-07-16 22:50:01",
+    "elapsed_ms": 46.7,
+    "summary": {
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0,
+        "total": 12,
+        "assertions": 12,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Canonical ARK run assembly",
+            "label": "run-scoped ARK artifacts are discovered",
+            "status": "pass",
+            "detail": "",
+            "time": 45.3
+        },
+        {
+            "section": "Canonical ARK run assembly",
+            "label": "artifacts from multiple engines correlate by run id",
+            "status": "pass",
+            "detail": "",
+            "time": 45.4
+        },
+        {
+            "section": "Canonical ARK run assembly",
+            "label": "assembled run exposes module and unified status",
+            "status": "pass",
+            "detail": "",
+            "time": 45.4
+        },
+        {
+            "section": "Canonical ARK run assembly",
+            "label": "invalid run ids cannot address artifacts",
+            "status": "pass",
+            "detail": "",
+            "time": 45.4
+        },
+        {
+            "section": "Canonical ARK run assembly",
+            "label": "observed route matching supports dynamic placeholders without estimates",
+            "status": "pass",
+            "detail": "",
+            "time": 45.7
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "reporter manifest preserves timeout and interruption gates",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "module release certification is exposed",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "process map resolves through provider registry",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "issue filters retain API data outside async local scope",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "coverage declares observed evidence mode",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "Superadmin view loads published Workbench assets without raw Tailwind directives",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Superadmin consumer contracts",
+            "label": "module-scoped ARK Hybrid execution uses the guarded launcher",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        }
+    ],
+    "gaps": []
+}

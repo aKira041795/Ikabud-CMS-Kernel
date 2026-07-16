@@ -74,6 +74,71 @@ class PatternClassifier
             'keywords' => ['template', 'render', 'compile error', 'undefined variable', 'disyl'],
             'patterns' => ['/template.*not.*found/i', '/render.*error/i', '/compile.*error/i', '/undefined.*variable/i', '/disyl.*error/i'],
         ],
+        'navigation' => [
+            'weight' => 1.0,
+            'keywords' => ['broken navigation', 'navigation route', 'sidebar link', 'route returned 404', 'navigation dependency'],
+            'patterns' => ['/broken.*navigation/i', '/sidebar.*404/i', '/navigation.*route/i'],
+        ],
+        'tenant_isolation' => [
+            'weight' => 1.0,
+            'keywords' => ['cross-tenant', 'tenant leak', 'wrong tenant', 'tenant isolation', 'foreign tenant'],
+            'patterns' => ['/cross[- ]tenant/i', '/tenant.*leak/i', '/wrong.*tenant/i'],
+        ],
+        'accessibility' => [
+            'weight' => 0.9,
+            'keywords' => ['accessible name', 'keyboard trap', 'heading order', 'aria', 'focus invisible'],
+            'patterns' => ['/accessible.*name/i', '/keyboard.*trap/i', '/heading.*order/i', '/aria[- ]/i'],
+        ],
+        'workflow' => [
+            'weight' => 0.9,
+            'keywords' => ['invalid transition', 'workflow state', 'state remained', 'transition rejected'],
+            'patterns' => ['/invalid.*transition/i', '/workflow.*state/i', '/state.*remained/i'],
+        ],
+        'effect' => [
+            'weight' => 0.9,
+            'keywords' => ['effect missing', 'status unchanged', 'row not created', 'persisted effect'],
+            'patterns' => ['/effect.*missing/i', '/status.*unchanged/i', '/row.*not.*created/i'],
+        ],
+        'event' => [
+            'weight' => 0.9,
+            'keywords' => ['event not fired', 'listener not executed', 'event missing', 'domain event'],
+            'patterns' => ['/event.*not.*fired/i', '/listener.*not.*executed/i', '/event.*missing/i'],
+        ],
+        'audit' => [
+            'weight' => 0.9,
+            'keywords' => ['audit missing', 'audit not written', 'audit trail absent', 'no audit record'],
+            'patterns' => ['/audit.*missing/i', '/audit.*not.*written/i', '/no.*audit.*record/i'],
+        ],
+        'flaky' => [
+            'weight' => 0.8,
+            'keywords' => ['intermittent', 'flaky', 'passes on retry', 'nondeterministic'],
+            'patterns' => ['/pass.*on.*retry/i', '/intermittent/i', '/nondeterministic/i'],
+        ],
+        'environment' => [
+            'weight' => 0.8,
+            'keywords' => ['probe error', 'environment unavailable', 'database unreachable', 'service unavailable'],
+            'patterns' => ['/probe.*error/i', '/environment.*unavailable/i', '/service.*unavailable/i'],
+        ],
+        'performance' => [
+            'weight' => 0.8,
+            'keywords' => ['performance budget', 'slow response', 'latency exceeded', 'timeout budget'],
+            'patterns' => ['/performance.*budget/i', '/latency.*exceeded/i', '/slow.*response/i'],
+        ],
+        'dependency' => [
+            'weight' => 0.9,
+            'keywords' => ['undeclared dependency', 'dependency missing', 'companion module', 'provider unavailable'],
+            'patterns' => ['/undeclared.*dependency/i', '/dependency.*missing/i', '/provider.*unavailable/i'],
+        ],
+        'integration' => [
+            'weight' => 0.8,
+            'keywords' => ['contract mismatch', 'integration response', 'schema mismatch', 'provider contract'],
+            'patterns' => ['/contract.*mismatch/i', '/schema.*mismatch/i', '/provider.*contract/i'],
+        ],
+        'coverage' => [
+            'weight' => 0.7,
+            'keywords' => ['not observed', 'coverage gap', 'unobserved effect', 'skipped invariant'],
+            'patterns' => ['/not.*observed/i', '/coverage.*gap/i', '/unobserved/i'],
+        ],
     ];
 
     /**
@@ -84,64 +149,51 @@ class PatternClassifier
      */
     public function classify(string $errorText): array
     {
-        if (empty(trim($errorText))) {
-            return [
-                'category' => 'unknown',
-                'score' => 0.0,
-                'matched_terms' => [],
-                'confidence' => 'none',
-            ];
-        }
+        $ranked = $this->classifyTop($errorText, 1);
+        return $ranked[0] ?? [
+            'category' => 'unknown',
+            'score' => 0.0,
+            'matched_terms' => [],
+            'confidence' => 'none',
+        ];
+    }
 
-        $bestCategory = 'unknown';
-        $bestScore = 0.0;
-        $bestTerms = [];
+    /**
+     * Return ranked evidence-supported classifications for benchmark and diagnosis use.
+     *
+     * @return array<int, array{category: string, score: float, matched_terms: array, confidence: string}>
+     */
+    public function classifyTop(string $errorText, int $limit = 3): array
+    {
+        if (trim($errorText) === '' || $limit < 1) return [];
 
+        $ranked = [];
         foreach (self::PATTERNS as $category => $profile) {
             $score = 0.0;
             $matchedTerms = [];
-
-            // Score keywords (case-insensitive contains)
             foreach ($profile['keywords'] as $keyword) {
                 if (mb_stripos($errorText, $keyword) !== false) {
-                    $kwScore = $profile['weight'] * (strlen($keyword) / 50);
-                    $score += $kwScore;
+                    $score += $profile['weight'] * (strlen($keyword) / 50);
                     $matchedTerms[] = $keyword;
                 }
             }
-
-            // Score regex patterns (multiplicative bonus for pattern matches)
             foreach ($profile['patterns'] as $pattern) {
                 if (preg_match($pattern, $errorText)) {
-                    $score *= 1.5;
-                    if (!in_array($pattern, $matchedTerms, true)) {
-                        $matchedTerms[] = $pattern;
-                    }
+                    $score = max($profile['weight'] * 0.1, $score * 1.5);
+                    $matchedTerms[] = $pattern;
                 }
             }
-
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestCategory = $category;
-                $bestTerms = $matchedTerms;
-            }
+            if ($score <= 0.0) continue;
+            $normalized = min(1.0, $score / 5.0);
+            $ranked[] = [
+                'category' => $category,
+                'score' => round($normalized, 2),
+                'matched_terms' => array_values(array_unique($matchedTerms)),
+                'confidence' => $normalized >= 0.7 ? 'high' : ($normalized >= 0.4 ? 'medium' : ($normalized >= 0.1 ? 'low' : 'none')),
+            ];
         }
-
-        // Normalize score to 0.0–1.0 range
-        $normalized = min(1.0, $bestScore / 5.0);
-
-        // Confidence level
-        $confidence = $normalized >= 0.7 ? 'high'
-            : ($normalized >= 0.4 ? 'medium'
-            : ($normalized >= 0.1 ? 'low'
-            : 'none'));
-
-        return [
-            'category' => $bestCategory,
-            'score' => round($normalized, 2),
-            'matched_terms' => $bestTerms,
-            'confidence' => $confidence,
-        ];
+        usort($ranked, static fn(array $a, array $b): int => ($b['score'] <=> $a['score']) ?: strcmp($a['category'], $b['category']));
+        return array_slice($ranked, 0, $limit);
     }
 
     /**
@@ -212,6 +264,19 @@ class PatternClassifier
             'session' => 'Session expired — user needs to re-authenticate.',
             'capability' => 'Capability error — module capability not registered or disabled.',
             'template' => 'Template rendering error — check DiSyL template syntax or variable presence.',
+            'navigation' => 'Navigation contract failed — inspect route ownership and declared dependencies.',
+            'tenant_isolation' => 'Tenant isolation failed — evidence indicates cross-tenant access or leakage.',
+            'accessibility' => 'Accessibility contract failed — inspect names, focus, keyboard, and structure.',
+            'workflow' => 'Workflow contract failed — the observed state transition differs from the declaration.',
+            'effect' => 'Expected effect is missing — inspect persistence, service, and postcondition evidence.',
+            'event' => 'Expected domain event or listener effect was not observed.',
+            'audit' => 'Audit invariant failed — the required audit record was not observed.',
+            'flaky' => 'Intermittent behavior detected — quarantine requires governed recurrence evidence.',
+            'environment' => 'Environment or probe failure prevented an authoritative product verdict.',
+            'performance' => 'Performance budget failed — observed latency exceeds the declared threshold.',
+            'dependency' => 'Module dependency contract failed — inspect declarations and provider availability.',
+            'integration' => 'Integration contract mismatch — provider and consumer evidence disagree.',
+            'coverage' => 'Required evidence was not observed; this is a coverage gap, not a product failure.',
             default => 'Unrecognized error pattern — manual inspection required.',
         };
 

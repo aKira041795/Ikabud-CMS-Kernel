@@ -168,6 +168,8 @@ class WorkbenchReporter {
         // Aggregate manifest
         var manifest = {
             run_id: runId,
+            module: process.env.MODULE || '',
+            gate: process.env.HYBRID_GATE || 'critical',
             commit: process.env.GIT_COMMIT || '',
             started: this.startTime,
             finished: finishedAt,
@@ -177,15 +179,18 @@ class WorkbenchReporter {
         for (var suiteName in this.suites) {
             if (!this.suites.hasOwnProperty(suiteName)) continue;
             var suite = this.suites[suiteName];
-            var p = 0, f = 0, s = 0;
+            var p = 0, f = 0, s = 0, t = 0, x = 0;
             for (var j = 0; j < suite.results.length; j++) {
                 var r = suite.results[j];
                 if (r.status === 'passed') p++;
                 else if (r.status === 'failed') f++;
                 else if (r.status === 'skipped') s++;
+                else if (r.status === 'timedOut') t++;
+                else if (r.status === 'interrupted') x++;
             }
             manifest.suites[suiteName] = {
-                passed: p, failed: f, skipped: s, total: suite.results.length,
+                passed: p, failed: f, skipped: s,
+                timed_out: t, interrupted: x, total: suite.results.length,
                 gaps: suite.gaps.length,
                 fingerprints: Object.keys(suite.fingerprints).length,
                 finished: finishedAt,

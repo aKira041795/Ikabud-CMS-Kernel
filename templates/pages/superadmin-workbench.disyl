@@ -1,21 +1,21 @@
 {extends "layouts/kernel-admin.disyl"}
 
 {block head}
+<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
+<link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
+<script src="/assets/workbench/workbench-core.js?v=6" defer></script>
 <style>
-.wb-panel { @apply border border-slate-200 rounded-lg bg-white; }
-.wb-panel-header { @apply flex items-center justify-between px-4 py-3 border-b border-slate-100; }
-.wb-panel-body { @apply p-4; }
-.wb-stat { @apply text-2xl font-bold; }
-.wb-stat-label { @apply text-xs text-gray-500 uppercase tracking-wide; }
-.wb-severity-critical { @apply text-red-700 bg-red-50 border-red-200; }
-.wb-severity-major { @apply text-orange-700 bg-orange-50 border-orange-200; }
-.wb-severity-minor { @apply text-yellow-700 bg-yellow-50 border-yellow-200; }
-.wb-severity-note { @apply text-blue-700 bg-blue-50 border-blue-200; }
-.wb-pass { @apply text-green-700; }
-.wb-fail { @apply text-red-700; }
-.wb-skip { @apply text-yellow-600; }
-.coverage-bar { @apply h-2 rounded-full bg-slate-100 overflow-hidden; }
-.coverage-fill { @apply h-full rounded-full transition-all duration-500; }
+.wb-panel-header { display:flex;align-items:center;justify-content:space-between;padding:var(--wb-space-4);border-bottom:1px solid var(--wb-border); }
+.wb-panel-body { padding:var(--wb-space-4); }
+.wb-stat { font-size:1.5rem;line-height:2rem;font-weight:700; }
+.wb-stat-label { font-size:.75rem;line-height:1rem;color:#6b7280;text-transform:uppercase;letter-spacing:.025em; }
+.wb-severity-critical { color:#b91c1c;background:#fef2f2;border-color:#fecaca; }
+.wb-severity-major { color:#c2410c;background:#fff7ed;border-color:#fed7aa; }
+.wb-severity-minor { color:#a16207;background:#fefce8;border-color:#fef08a; }
+.wb-severity-note { color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe; }
+.wb-pass { color:#15803d; }.wb-fail { color:#b91c1c; }.wb-skip { color:#ca8a04; }
+.coverage-bar { height:.5rem;border-radius:9999px;background:#f1f5f9;overflow:hidden; }
+.coverage-fill { height:100%;border-radius:9999px;transition:width .5s; }
 /* Tab active state — JS toggles .wb-tab-active, CSS moves the visual indicator */
 .wb-tab-active { border-bottom-color: rgb(37 99 235) !important; color: rgb(29 78 216) !important; }
 .wb-tab:not(.wb-tab-active) { border-bottom-color: transparent !important; color: rgb(107 114 128) !important; }
@@ -62,7 +62,7 @@ async function wbLoadRuns() {
         if (runs.length === 0) { el.innerHTML = '<div class="empty-state"><h3>No Runs</h3><p>Run tests to see results here.</p></div>'; return; }
 
         var totalPassed = 0, totalFailed = 0, totalSkipped = 0;
-        runs.forEach(function(r) { totalPassed += r.passed || 0; totalFailed += r.failed || 0; totalSkipped += r.skipped || 0; });
+        runs.forEach(function(r) { totalPassed += r.passed || 0; totalFailed += (r.failed || 0) + (r.timed_out || 0) + (r.interrupted || 0) + (r.gate_failed && !(r.failed || r.timed_out || r.interrupted) ? 1 : 0); totalSkipped += r.skipped || 0; });
 
         var html = '';
 
@@ -82,12 +82,13 @@ async function wbLoadRuns() {
             var r = runs[i];
             var isBrowser = r.type === 'browser';
             var typeLabel = isBrowser ? (r.browser || 'browser') : r.type || 'php';
-            var rowClass = r.failed > 0 ? 'bg-red-50' : '';
+            var rowClass = (r.failed > 0 || r.timed_out > 0 || r.interrupted > 0 || r.gate_failed) ? 'bg-red-50' : '';
             html += '<tr class="' + rowClass + '">';
             html += '<td class="font-medium">' + escHtml(r.suite || '?') + '</td>';
             html += '<td><span class="badge text-xs">' + escHtml(typeLabel) + '</span></td>';
             html += '<td class="wb-pass font-semibold">' + (r.passed || 0) + '</td>';
-            html += '<td class="' + (r.failed > 0 ? 'wb-fail font-semibold' : 'text-gray-500') + '">' + (r.failed || 0) + '</td>';
+            var failedCount = (r.failed || 0) + (r.timed_out || 0) + (r.interrupted || 0);
+            html += '<td class="' + (failedCount > 0 || r.gate_failed ? 'wb-fail font-semibold' : 'text-gray-500') + '">' + failedCount + (r.gate_failed && failedCount === 0 ? ' gate' : '') + '</td>';
             html += '<td class="text-gray-500">' + (r.skipped || 0) + '</td>';
             html += '<td class="text-gray-500">' + (r.gaps || 0) + '</td>';
             html += '<td class="text-gray-500">' + (r.elapsed_ms ? Math.round(r.elapsed_ms / 1000) + 's' : '-') + '</td>';
@@ -105,15 +106,42 @@ async function wbViewRunDetail(file) {
     el.classList.remove('hidden');
     el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Loading...</div>';
     try {
+        var isHybrid = file.indexOf('run:') === 0;
         var suite = file.replace(/\.json$/, '').replace(/^browser\//, '');
+        var payload = isHybrid ? {run_id: file.substring(4)} : {suite: suite};
         var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/run', {
             method: 'POST', credentials: 'same-origin',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': wbCsrfToken},
-            body: JSON.stringify({suite: suite}),
+            body: JSON.stringify(payload),
         });
         var data = await res.json();
         if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
         var run = data.run || {};
+        if (data.kind === 'ark-hybrid') {
+            var a = (run.artifacts || {}).analyst || {};
+            var c = (run.artifacts || {}).comprehension || {};
+            var s = (run.artifacts || {}).scenario || {};
+            var p = (run.artifacts || {}).intelligence || {};
+            var analysis = c.analysis || {};
+            var ux = a.ux_evolution || {};
+            var cov = analysis.coverage_score || {};
+            var artifacts = Object.keys(run.artifacts || {});
+            var hybridHtml = '<div class="bg-white border border-slate-200 rounded-lg p-4">';
+            hybridHtml += '<div class="flex justify-between items-start mb-4"><div><h3 class="font-semibold">ARK Run ' + escHtml(run.run_id) + '</h3><div class="text-xs text-gray-500">' + escHtml(run.module) + ' · ' + escHtml(run.finished || '') + '</div></div><button onclick="document.getElementById(\'wb-run-detail\').classList.add(\'hidden\')" class="kernel-btn kernel-btn-outline text-xs">Close</button></div>';
+            hybridHtml += '<div class="grid grid-cols-4 gap-3 mb-4">';
+            hybridHtml += '<div class="wb-panel p-3"><div class="wb-stat ' + (run.status === 'passed' ? 'wb-pass' : 'wb-fail') + '">' + escHtml((run.status || 'unknown').toUpperCase()) + '</div><div class="wb-stat-label">Unified gate</div></div>';
+            hybridHtml += '<div class="wb-panel p-3"><div class="wb-stat">' + (ux.score == null ? '—' : ux.score) + '</div><div class="wb-stat-label">UX score · ' + ((ux.gate || {}).passed === false ? 'FAIL' : 'PASS') + '</div></div>';
+            hybridHtml += '<div class="wb-panel p-3"><div class="wb-stat">' + (cov.overall_score == null ? '—' : Math.round(cov.overall_score * 100) + '%') + '</div><div class="wb-stat-label">Comprehension coverage</div></div>';
+            hybridHtml += '<div class="wb-panel p-3"><div class="wb-stat">' + artifacts.length + '</div><div class="wb-stat-label">Engine artifacts</div></div></div>';
+            hybridHtml += '<div class="grid grid-cols-2 gap-3">';
+            hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">System Analyst</div><div class="text-sm mt-1">' + ((a.issues || []).length) + ' issue(s), ' + ((a.coverage || {}).runtime_pages || 0) + ' runtime pages, ' + ((a.coverage || {}).checks_passed || 0) + ' checks passed</div></div>';
+            hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">Comprehension</div><div class="text-sm mt-1">' + escHtml(((analysis.root_cause_hypothesis || {}).summary) || 'No report') + '</div><div class="text-xs text-gray-500 mt-1">Breakpoint: ' + escHtml(analysis.breakpoint || 'none') + ' · Confidence: ' + Math.round((((analysis.confidence || {}).score) || 0) * 100) + '%</div></div>';
+            hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">Scenario</div><div class="text-sm mt-1">' + escHtml(s.status || 'not run') + '</div><div class="text-xs text-gray-500">Cleanup: ' + (s.cleanup_result ? (s.cleanup_result.clean ? 'clean' : 'failed') : 'not recorded') + '</div></div>';
+            hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">Pattern Intelligence</div><div class="text-sm mt-1">' + (p.schema ? escHtml(p.schema) : (artifacts.indexOf('intelligence') >= 0 ? 'Available' : 'Not generated')) + '</div><div class="text-xs text-gray-500">Artifacts: ' + escHtml(artifacts.join(', ')) + '</div></div>';
+            hybridHtml += '</div></div>';
+            el.innerHTML = hybridHtml;
+            return;
+        }
         var summary = run.summary || {};
         var results = run.results || [];
 
@@ -205,7 +233,7 @@ async function wbLoadFailures() {
         var data = await res.json();
         if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'API error') + '</div>'; return; }
         var runs = data.runs || [];
-        var failedRuns = runs.filter(function(r) { return r.failed > 0; });
+        var failedRuns = runs.filter(function(r) { return r.failed > 0 || r.timed_out > 0 || r.interrupted > 0 || r.gate_failed; });
 
         if (failedRuns.length === 0) {
             el.innerHTML = '<div class="empty-state"><h3>No Failures</h3><p>All test suites are passing.</p></div>';
@@ -262,6 +290,7 @@ async function wbLoadIssues() {
         var bySeverity = data.by_severity || {};
         var byKind = data.by_kind || {};
 
+        window._wbIssueData = {issues: issues, bySeverity: bySeverity, byKind: byKind};
         wbRenderIssues(issues, bySeverity, byKind);
     } catch(e) { el.innerHTML = '<div class="text-sm text-red-600">Error: ' + escHtml(e.message) + '</div>'; }
 }
@@ -290,10 +319,10 @@ function wbRenderIssues(issues, bySeverity, byKind) {
         var c = sevCounts[s] || 0;
         var active = wbIssueFilters.severity === s ? 'ring-2 ring-offset-1' : '';
         var cls = 'wb-severity-' + s;
-        html += '<button onclick="wbIssueFilters.severity=\'' + s + '\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border ' + cls + ' ' + active + '">' + s.charAt(0).toUpperCase() + s.slice(1) + ' (' + c + ')</button>';
+        html += '<button onclick="wbIssueFilters.severity=\'' + s + '\';wbRenderIssues(window._wbIssueData.issues,window._wbIssueData.bySeverity,window._wbIssueData.byKind)" class="text-xs px-3 py-1 rounded-full border ' + cls + ' ' + active + '">' + s.charAt(0).toUpperCase() + s.slice(1) + ' (' + c + ')</button>';
     });
     if (wbIssueFilters.severity !== 'all') {
-        html += '<button onclick="wbIssueFilters.severity=\'all\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600">Clear</button>';
+        html += '<button onclick="wbIssueFilters.severity=\'all\';wbRenderIssues(window._wbIssueData.issues,window._wbIssueData.bySeverity,window._wbIssueData.byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600">Clear</button>';
     }
     html += '</div>';
 
@@ -304,10 +333,10 @@ function wbRenderIssues(issues, bySeverity, byKind) {
     for (var k in kinds) {
         if (!kinds.hasOwnProperty(k)) continue;
         var active = wbIssueFilters.kind === k ? 'ring-2 ring-offset-1' : '';
-        html += '<button onclick="wbIssueFilters.kind=\'' + k + '\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600 ' + active + '">' + escHtml(k) + ' (' + kinds[k] + ')</button>';
+        html += '<button onclick="wbIssueFilters.kind=\'' + k + '\';wbRenderIssues(window._wbIssueData.issues,window._wbIssueData.bySeverity,window._wbIssueData.byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600 ' + active + '">' + escHtml(k) + ' (' + kinds[k] + ')</button>';
     }
     if (wbIssueFilters.kind !== 'all') {
-        html += '<button onclick="wbIssueFilters.kind=\'all\';wbRenderIssues(issues, bySeverity, byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600">Clear</button>';
+        html += '<button onclick="wbIssueFilters.kind=\'all\';wbRenderIssues(window._wbIssueData.issues,window._wbIssueData.bySeverity,window._wbIssueData.byKind)" class="text-xs px-3 py-1 rounded-full border border-gray-300 text-gray-600">Clear</button>';
     }
     html += '</div>';
 
@@ -385,16 +414,19 @@ async function wbLoadCoverage() {
 
         // Module table
         html += '<div class="overflow-x-auto"><table class="data w-full text-xs">';
-        html += '<thead><tr><th>Module</th><th>Contract</th><th>Routes</th><th>Caps</th><th>Workflows</th><th>PHP Tests</th><th>Browser</th><th>Page Families</th><th>Last Run</th></tr></thead><tbody>';
+        html += '<thead><tr><th>Module</th><th>Release Gate</th><th>Contract</th><th>Routes</th><th>Caps</th><th>Workflows</th><th>PHP Tests</th><th>Browser</th><th>Last Run</th></tr></thead><tbody>';
 
         moduleIds.forEach(function(mid) {
             var m = modules[mid] || {};
             var c = coverage[mid] || {};
             var hasContract = m.has_contract;
             var contractIcon = hasContract ? '<span class="text-green-600">\u2713</span>' : '<span class="text-gray-400">\u2014</span>';
+            var cert = m.certification || {};
+            var failedChecks = (cert.checks || []).filter(function(check){ return !check.passed; });
+            var certLabel = cert.ok ? '<span class="wb-pass font-semibold">CERTIFIED ' + cert.score + '/' + cert.max + '</span>' : '<span class="wb-fail font-semibold" title="' + escHtml(failedChecks.map(function(check){return check.check;}).join(', ')) + '">BLOCKED ' + (cert.score || 0) + '/' + (cert.max || 0) + '</span>';
 
             var routePct = c.routes_claimed ? Math.round((c.routes_tested / c.routes_claimed) * 100) : 0;
-            var capPct = c.capabilities_claimed ? Math.round((c.capabilities_tested / c.capabilities_claimed) * 100) : 0;
+            var capPct = c.capabilities_measured && c.capabilities_claimed ? Math.round((c.capabilities_tested / c.capabilities_claimed) * 100) : 0;
             var wfPct = c.workflow_transitions_claimed ? Math.round((c.workflow_transitions_tested / c.workflow_transitions_claimed) * 100) : 0;
 
             var pageFams = Object.keys(c.page_families || {}).join(', ') || '-';
@@ -402,19 +434,17 @@ async function wbLoadCoverage() {
 
             html += '<tr>';
             html += '<td class="font-medium">' + escHtml(m.name || mid) + '</td>';
+            html += '<td>' + certLabel + '</td>';
             html += '<td class="text-center text-lg">' + contractIcon + '</td>';
             html += '<td><div class="flex items-center gap-1">' + c.routes_tested + '/' + c.routes_claimed;
             html += '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (routePct > 60 ? 'bg-green-500' : routePct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + routePct + '%"></div></div>';
             html += '</div></td>';
-            html += '<td><div class="flex items-center gap-1">' + c.capabilities_tested + '/' + c.capabilities_claimed;
-            html += '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (capPct > 60 ? 'bg-green-500' : capPct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + capPct + '%"></div></div>';
-            html += '</div></td>';
+            html += '<td>' + (c.capabilities_measured ? ('<div class="flex items-center gap-1">' + c.capabilities_tested + '/' + c.capabilities_claimed + '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (capPct > 60 ? 'bg-green-500' : capPct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + capPct + '%"></div></div></div>') : '<span class="text-gray-400" title="No capability-level evidence mapping is available">unmeasured / ' + (c.capabilities_claimed || 0) + '</span>') + '</td>';
             html += '<td><div class="flex items-center gap-1">' + c.workflow_transitions_tested + '/' + c.workflow_transitions_claimed;
             html += '<div class="coverage-bar flex-1 max-w-[60px]"><div class="coverage-fill ' + (wfPct > 60 ? 'bg-green-500' : wfPct > 30 ? 'bg-yellow-500' : 'bg-red-500') + '" style="width:' + wfPct + '%"></div></div>';
             html += '</div></td>';
             html += '<td>' + (c.php_test_files_existing || 0) + '/' + (c.php_test_files_claimed || 0) + '</td>';
             html += '<td>' + (c.browser_test_files_existing || 0) + '/' + (c.browser_test_files_claimed || 0) + '</td>';
-            html += '<td class="text-gray-500">' + escHtml(pageFams) + '</td>';
             html += '<td>' + lastRun + '</td>';
             html += '</tr>';
         });
@@ -515,7 +545,7 @@ async function wbLoadSteward() {
         html += '<div class="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">';
         html += '<div class="text-xs font-semibold text-gray-600 mb-2">Quick Actions</div>';
         html += '<div class="flex flex-wrap gap-2">';
-        html += '<button onclick="wbRunTests(\'all\')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test">Run All Tests</button>';
+        html += '<button onclick="wbRunTests(\'all\')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test">Run PHP Certification Tests</button>';
         html += '<button onclick="location.reload()" class="kernel-btn kernel-btn-outline text-xs">Refresh Page</button>';
         html += '<button onclick="window.open(wbBaseUrl + \'/superadmin/settings\', \'_blank\')" class="kernel-btn kernel-btn-outline text-xs">Settings</button>';
         html += '</div></div>';
@@ -577,11 +607,12 @@ async function wbRevokeKey(id, row) {
         location.reload();
     } catch(e) { alert('Error: ' + e.message); if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; } }
 }
-async function wbRunTests(target) {
+async function wbRunTests(target, options) {
+    options = options || {};
     var allowed = '{workbench_execution_allowed}' === '1' || '{workbench_execution_allowed}' === 'true';
     if (!allowed) { alert('Test execution is disabled in production. Set IKABUD_DEV_WORKBENCH=true to enable.'); return; }
-    var label = target === 'all' ? 'all test suites' : target;
-    if (!confirm('Run ' + label + '? This executes PHP tests on the server.')) return;
+    var label = target === 'all' ? 'all PHP certification suites' : (target === 'ark-hybrid' ? 'ARK Hybrid for ' + (options.module || '?') : target);
+    if (!confirm('Run ' + label + '? This executes tests on the server.')) return;
     var outEl = document.getElementById('wb-test-output');
     var btns = document.querySelectorAll('.wb-btn-test');
     for (var i = 0; i < btns.length; i++) { btns[i].disabled = true; }
@@ -590,7 +621,7 @@ async function wbRunTests(target) {
         var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/trigger-tests', {
             method: 'POST', credentials: 'same-origin',
             headers: {'Content-Type': 'application/json', 'X-CSRF-Token': wbCsrfToken},
-            body: JSON.stringify({target: target}),
+            body: JSON.stringify(Object.assign({target: target}, options)),
         });
         var data = await res.json();
         var cls = data.ok ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
@@ -630,6 +661,24 @@ async function wbRunTests(target) {
         for (var i = 0; i < btns.length; i++) { btns[i].disabled = false; }
     }
 }
+async function wbLoadArkModules() {
+    var selector = document.getElementById('wb-ark-module');
+    if (!selector || selector.options.length > 0) return;
+    try {
+        var response = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/modules');
+        var data = await response.json();
+        Object.keys(data.modules || {}).sort().forEach(function(moduleId) {
+            var option = document.createElement('option'); option.value = moduleId; option.textContent = data.modules[moduleId].name || moduleId; selector.appendChild(option);
+        });
+        if ((data.modules || {})['project-audit-ledger']) selector.value = 'project-audit-ledger';
+    } catch (e) { selector.innerHTML = '<option value="">Modules unavailable</option>'; }
+}
+function wbRunArkHybrid() {
+    var moduleId = document.getElementById('wb-ark-module').value;
+    var gate = document.getElementById('wb-ark-gate').value;
+    if (!moduleId) { alert('Select a module first.'); return; }
+    wbRunTests('ark-hybrid', {module: moduleId, gate: gate});
+}
 async function aiSaveProvider(providerId) {
     var row = document.getElementById('ai-row-' + providerId);
     if (!row) return;
@@ -662,7 +711,17 @@ async function wbLoadProcessMap() {
     window._wbMapLoaded = true;
     var el = document.getElementById('wb-map-body'); el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Building canonical map...</div>';
     try {
-        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/process-map?module=project-audit-ledger'); var data = await res.json();
+        var selector = document.getElementById('wb-map-module');
+        if (selector && selector.options.length === 0) {
+            var moduleResponse = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/modules');
+            var moduleData = await moduleResponse.json();
+            Object.keys(moduleData.modules || {}).sort().forEach(function(moduleId) {
+                var option = document.createElement('option'); option.value = moduleId; option.textContent = (moduleData.modules[moduleId].name || moduleId); selector.appendChild(option);
+            });
+            selector.value = 'project-audit-ledger';
+        }
+        var moduleId = selector ? selector.value : 'project-audit-ledger';
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/process-map?module=' + encodeURIComponent(moduleId)); var data = await res.json();
         if (!data.ok) { el.textContent = data.error || 'Map unavailable'; return; }
         var nodes = data.graph.nodes || [], edges = data.graph.edges || [], grouped = {};
         nodes.forEach(function(n){ (grouped[n.type] = grouped[n.type] || []).push(n); });
@@ -714,7 +773,7 @@ async function wbLoadProcessMap() {
     </div>
 
     <div id="wb-panel-map" class="wb-tab-panel hidden">
-        <div class="wb-panel"><div class="wb-panel-header"><h2 class="text-sm font-semibold text-slate-700">Canonical Process Map</h2><button onclick="wbLoadProcessMap()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button></div><div class="wb-panel-body"><p class="text-xs text-gray-500 mb-3">Nodes and edges are typed and expose provenance. Inferred facts are never presented as verified.</p><div id="wb-map-body">Switch to this tab to build the map.</div></div></div>
+        <div class="wb-panel"><div class="wb-panel-header"><h2 class="text-sm font-semibold text-slate-700">Canonical Process Map</h2><div class="flex gap-2"><select id="wb-map-module" onchange="wbLoadProcessMap()" class="input text-xs"></select><button onclick="wbLoadProcessMap()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button></div></div><div class="wb-panel-body"><p class="text-xs text-gray-500 mb-3">Resolved through the ARK Comprehension provider registry. Nodes and edges expose provenance; inferred facts are never presented as verified.</p><div id="wb-map-body">Switch to this tab to build the map.</div></div></div>
     </div>
 
     <!-- ════════════ PANEL A: RUN OVERVIEW ════════════ -->
@@ -724,7 +783,7 @@ async function wbLoadProcessMap() {
                 <h2 class="text-sm font-semibold text-slate-700">Run Overview</h2>
                 <div class="flex gap-2">
                     <button onclick="wbLoadRuns()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button>
-                    <button onclick="wbRunTests('all')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>Run All Tests</button>
+                    <button onclick="wbRunTests('all')" class="kernel-btn kernel-btn-primary text-xs wb-btn-test"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>Run PHP Certification Tests</button>
                 </div>
             </div>
             <div class="wb-panel-body">
@@ -758,6 +817,15 @@ async function wbLoadProcessMap() {
                     {/foreach}
                 </div>
                 {/if}
+                <div class="border border-blue-200 bg-blue-50 rounded-lg p-3 mb-3">
+                    <div class="text-xs font-semibold text-blue-800 mb-2">ARK Hybrid Analysis</div>
+                    <div class="flex flex-wrap gap-2 items-center">
+                        <select id="wb-ark-module" class="input text-xs min-w-[220px]"></select>
+                        <select id="wb-ark-gate" class="input text-xs"><option value="critical">Critical gate</option><option value="major">Major gate</option><option value="off">Observe only</option></select>
+                        <button onclick="wbRunArkHybrid()" class="kernel-btn kernel-btn-primary text-xs wb-btn-test"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>Run ARK Hybrid</button>
+                    </div>
+                    <p class="text-xs text-blue-700 mt-2">Runs Reporter, System Analyst, Comprehension, Scenario, and Pattern Intelligence under one run ID.</p>
+                </div>
                 <div id="wb-test-output"></div>
             </div>
         </div>
@@ -951,6 +1019,7 @@ async function wbLoadProcessMap() {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     wbLoadRuns();
+    wbLoadArkModules();
 });
 </script>
 {/block}

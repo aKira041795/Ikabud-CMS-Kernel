@@ -1,8 +1,8 @@
 {
     "suite": "workbench-phase4",
-    "started": "2026-07-16 08:51:18",
-    "finished": "2026-07-16 08:51:18",
-    "elapsed_ms": 1.8,
+    "started": "2026-07-16 16:15:37",
+    "finished": "2026-07-16 16:15:37",
+    "elapsed_ms": 0.9,
     "summary": {
         "passed": 5,
         "failed": 0,
@@ -18,14 +18,14 @@
             "label": "Dijkstra selects high-value path first",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Weighted traversal",
             "label": "Yen alternative retains diverse path",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Weighted traversal",
@@ -39,14 +39,14 @@
             "label": "diagnostic cost maps to likelihood",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.2
         },
         {
             "section": "Weighted traversal",
             "label": "mandatory path is retained",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.2
         }
     ],
     "gaps": []

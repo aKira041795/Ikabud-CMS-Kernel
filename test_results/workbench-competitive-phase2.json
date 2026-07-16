@@ -1,0 +1,116 @@
+{
+    "suite": "workbench-competitive-phase2",
+    "started": "2026-07-16 22:49:49",
+    "finished": "2026-07-16 22:49:49",
+    "elapsed_ms": 15.8,
+    "summary": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 0,
+        "total": 14,
+        "assertions": 14,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "",
+            "label": "uses v1 schema identity",
+            "status": "pass",
+            "detail": "",
+            "time": 2.9
+        },
+        {
+            "section": "",
+            "label": "legacy migration is deterministic",
+            "status": "pass",
+            "detail": "",
+            "time": 3.8
+        },
+        {
+            "section": "",
+            "label": "contract covers generic module semantics",
+            "status": "pass",
+            "detail": "",
+            "time": 3.8
+        },
+        {
+            "section": "",
+            "label": "censored evidence is preserved",
+            "status": "pass",
+            "detail": "",
+            "time": 3.9
+        },
+        {
+            "section": "",
+            "label": "invalid identity fails before browser execution",
+            "status": "pass",
+            "detail": "",
+            "time": 10.6
+        },
+        {
+            "section": "",
+            "label": "compatibility report is machine-readable",
+            "status": "pass",
+            "detail": "",
+            "time": 10.7
+        },
+        {
+            "section": "",
+            "label": "migration has no PAL assumptions",
+            "status": "pass",
+            "detail": "",
+            "time": 11.7
+        },
+        {
+            "section": "",
+            "label": "generic routes are discovered",
+            "status": "pass",
+            "detail": "",
+            "time": 11.8
+        },
+        {
+            "section": "",
+            "label": "init writes canonical contract",
+            "status": "pass",
+            "detail": "",
+            "time": 12.6
+        },
+        {
+            "section": "",
+            "label": "doctor permits valid contract",
+            "status": "pass",
+            "detail": "",
+            "time": 13
+        },
+        {
+            "section": "",
+            "label": "invalid contract blocks browser startup",
+            "status": "pass",
+            "detail": "",
+            "time": 14.1
+        },
+        {
+            "section": "",
+            "label": "blocked run has explicit outcome",
+            "status": "pass",
+            "detail": "",
+            "time": 14.2
+        },
+        {
+            "section": "",
+            "label": "blocked run remains explainable",
+            "status": "pass",
+            "detail": "",
+            "time": 14.5
+        },
+        {
+            "section": "",
+            "label": "valid run executes its declared test plan",
+            "status": "pass",
+            "detail": "",
+            "time": 15.7
+        }
+    ],
+    "gaps": []
+}

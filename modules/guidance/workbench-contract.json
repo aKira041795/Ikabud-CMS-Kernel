@@ -1,0 +1,2192 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "guidance",
+        "version": "1.0.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/admin/guidance",
+                "/admin/guidance/alerts",
+                "/admin/guidance/api/alerts",
+                "/admin/guidance/api/appointment-types",
+                "/admin/guidance/api/appointments",
+                "/admin/guidance/api/appointments/calendar",
+                "/admin/guidance/api/appointments/pending",
+                "/admin/guidance/api/appointments/session-stats",
+                "/admin/guidance/api/appointments/slots",
+                "/admin/guidance/api/appointments/stats",
+                "/admin/guidance/api/appointments/today",
+                "/admin/guidance/api/appointments/{id}/session-detail",
+                "/admin/guidance/api/case-severity-levels",
+                "/admin/guidance/api/cases",
+                "/admin/guidance/api/cases/options",
+                "/admin/guidance/api/cases/recent",
+                "/admin/guidance/api/cases/stats",
+                "/admin/guidance/api/cases/{id}",
+                "/admin/guidance/api/cases/{id}/activity",
+                "/admin/guidance/api/cases/{id}/alerts",
+                "/admin/guidance/api/cases/{id}/appointments",
+                "/admin/guidance/api/cases/{id}/documents",
+                "/admin/guidance/api/cases/{id}/documents/{docId}/download",
+                "/admin/guidance/api/cases/{id}/history",
+                "/admin/guidance/api/cases/{id}/notes",
+                "/admin/guidance/api/cases/{id}/notes/{noteId}",
+                "/admin/guidance/api/cases/{id}/panel",
+                "/admin/guidance/api/cases/{id}/session-records",
+                "/admin/guidance/api/cases/{id}/session-records/{apptId}/detail",
+                "/admin/guidance/api/colleges",
+                "/admin/guidance/api/dashboard/stats",
+                "/admin/guidance/api/email-templates",
+                "/admin/guidance/api/form-fields",
+                "/admin/guidance/api/modules/{id}/disable",
+                "/admin/guidance/api/modules/{id}/enable",
+                "/admin/guidance/api/notifications",
+                "/admin/guidance/api/reports/appointments",
+                "/admin/guidance/api/reports/export",
+                "/admin/guidance/api/reports/exported",
+                "/admin/guidance/api/reports/risk",
+                "/admin/guidance/api/reports/sessions",
+                "/admin/guidance/api/reports/students",
+                "/admin/guidance/api/reports/summary",
+                "/admin/guidance/api/settings",
+                "/admin/guidance/api/student-statuses",
+                "/admin/guidance/api/trackers",
+                "/admin/guidance/api/trackers/{id}/export",
+                "/admin/guidance/api/trackers/{id}/import/template",
+                "/admin/guidance/api/trackers/{id}/items",
+                "/admin/guidance/api/trackers/{id}/students",
+                "/admin/guidance/api/users",
+                "/admin/guidance/api/users/{id}/colleges",
+                "/admin/guidance/appointments",
+                "/admin/guidance/calendar",
+                "/admin/guidance/cases",
+                "/admin/guidance/cases/new",
+                "/admin/guidance/cases/{id}",
+                "/admin/guidance/colleges",
+                "/admin/guidance/email-templates",
+                "/admin/guidance/forgot-password",
+                "/admin/guidance/form-settings",
+                "/admin/guidance/login",
+                "/admin/guidance/logout",
+                "/admin/guidance/pages/alerts",
+                "/admin/guidance/pages/appointments",
+                "/admin/guidance/pages/appointments/new",
+                "/admin/guidance/pages/appointments/{id}",
+                "/admin/guidance/pages/appointments/{id}/edit",
+                "/admin/guidance/pages/calendar",
+                "/admin/guidance/pages/cases",
+                "/admin/guidance/pages/cases/new",
+                "/admin/guidance/pages/cases/{id}",
+                "/admin/guidance/pages/cases/{id}/documents/upload",
+                "/admin/guidance/pages/cases/{id}/edit",
+                "/admin/guidance/pages/cases/{id}/notes/new",
+                "/admin/guidance/pages/cases/{id}/notes/{noteId}/edit",
+                "/admin/guidance/pages/colleges",
+                "/admin/guidance/pages/colleges/new",
+                "/admin/guidance/pages/colleges/{id}/edit",
+                "/admin/guidance/pages/dashboard",
+                "/admin/guidance/pages/email-templates",
+                "/admin/guidance/pages/form-settings",
+                "/admin/guidance/pages/profile",
+                "/admin/guidance/pages/reports",
+                "/admin/guidance/pages/session-records",
+                "/admin/guidance/pages/settings",
+                "/admin/guidance/pages/settings/modules",
+                "/admin/guidance/pages/trackers",
+                "/admin/guidance/pages/trackers/new",
+                "/admin/guidance/pages/trackers/{id}",
+                "/admin/guidance/pages/trackers/{id}/edit",
+                "/admin/guidance/pages/trackers/{id}/items/new",
+                "/admin/guidance/pages/trackers/{id}/items/{itemId}/edit",
+                "/admin/guidance/pages/trackers/{id}/students/new",
+                "/admin/guidance/pages/trackers/{id}/students/{studentId}",
+                "/admin/guidance/pages/users",
+                "/admin/guidance/pages/users/new",
+                "/admin/guidance/pages/users/{id}/edit",
+                "/admin/guidance/profile",
+                "/admin/guidance/reports",
+                "/admin/guidance/reports/appointments/docx",
+                "/admin/guidance/reports/cases/{id}/docx",
+                "/admin/guidance/reset-password",
+                "/admin/guidance/session-records",
+                "/admin/guidance/settings",
+                "/admin/guidance/trackers",
+                "/admin/guidance/trackers/{id}",
+                "/admin/guidance/users",
+                "/guidance/api/booking/slots",
+                "/guidance/book",
+                "/guidance/book/api/slots",
+                "/guidance/forgot-password",
+                "/guidance/login",
+                "/guidance/logout",
+                "/guidance/reset-password"
+            ],
+            "POST": [
+                "/admin/guidance/api/activate-license",
+                "/admin/guidance/api/appointment-types",
+                "/admin/guidance/api/appointments",
+                "/admin/guidance/api/appointments/{id}/approve",
+                "/admin/guidance/api/appointments/{id}/cancel",
+                "/admin/guidance/api/appointments/{id}/complete",
+                "/admin/guidance/api/appointments/{id}/no-show",
+                "/admin/guidance/api/appointments/{id}/reject",
+                "/admin/guidance/api/auth/forgot-password",
+                "/admin/guidance/api/auth/login",
+                "/admin/guidance/api/auth/resend-otp",
+                "/admin/guidance/api/auth/reset-password",
+                "/admin/guidance/api/auth/verify-otp",
+                "/admin/guidance/api/cases",
+                "/admin/guidance/api/cases/{id}/close",
+                "/admin/guidance/api/cases/{id}/documents/upload",
+                "/admin/guidance/api/cases/{id}/notes",
+                "/admin/guidance/api/cases/{id}/reopen",
+                "/admin/guidance/api/colleges",
+                "/admin/guidance/api/form-fields",
+                "/admin/guidance/api/form-fields/reorder",
+                "/admin/guidance/api/modules/{id}/access-request",
+                "/admin/guidance/api/modules/{id}/settings",
+                "/admin/guidance/api/notifications/read",
+                "/admin/guidance/api/pro-access",
+                "/admin/guidance/api/profile",
+                "/admin/guidance/api/student-statuses",
+                "/admin/guidance/api/trackers",
+                "/admin/guidance/api/trackers/{id}/import/execute",
+                "/admin/guidance/api/trackers/{id}/import/preview",
+                "/admin/guidance/api/trackers/{id}/items",
+                "/admin/guidance/api/trackers/{id}/students",
+                "/admin/guidance/api/trackers/{id}/students/{studentId}/submissions",
+                "/admin/guidance/api/trackers/{id}/toggle",
+                "/admin/guidance/api/users",
+                "/admin/guidance/api/users/{id}/colleges",
+                "/admin/guidance/api/users/{id}/toggle-active",
+                "/api/v1/guidance/auth/forgot-password",
+                "/api/v1/guidance/auth/reset-password",
+                "/guidance/api/auth/forgot-password",
+                "/guidance/api/auth/login",
+                "/guidance/api/auth/resend-otp",
+                "/guidance/api/auth/reset-password",
+                "/guidance/api/auth/verify-otp",
+                "/guidance/auth/login",
+                "/guidance/book/api/booking",
+                "/guidance/book/api/resend-otp",
+                "/guidance/book/api/verify-otp"
+            ],
+            "PUT": [
+                "/admin/guidance/api/appointment-types/{id}",
+                "/admin/guidance/api/appointments/{id}",
+                "/admin/guidance/api/case-severity-levels",
+                "/admin/guidance/api/cases/{id}",
+                "/admin/guidance/api/cases/{id}/notes/{noteId}",
+                "/admin/guidance/api/colleges/{id}",
+                "/admin/guidance/api/email-templates",
+                "/admin/guidance/api/form-fields/{id}",
+                "/admin/guidance/api/profile",
+                "/admin/guidance/api/profile/availability",
+                "/admin/guidance/api/settings",
+                "/admin/guidance/api/student-statuses/{id}",
+                "/admin/guidance/api/trackers/{id}",
+                "/admin/guidance/api/trackers/{id}/items/{itemId}",
+                "/admin/guidance/api/users/{id}"
+            ],
+            "PATCH": [],
+            "DELETE": [
+                "/admin/guidance/api/appointment-types/{id}",
+                "/admin/guidance/api/cases/{id}",
+                "/admin/guidance/api/colleges/{id}",
+                "/admin/guidance/api/form-fields/{id}",
+                "/admin/guidance/api/student-statuses/{id}",
+                "/admin/guidance/api/trackers/{id}",
+                "/admin/guidance/api/trackers/{id}/items/{itemId}",
+                "/admin/guidance/api/trackers/{id}/students/{studentId}",
+                "/admin/guidance/api/users/{id}"
+            ]
+        },
+        "navigation_dependencies": [],
+        "tables": [
+            "gm_users",
+            "gm_password_resets",
+            "gm_otp_codes",
+            "gm_rate_limits",
+            "gm_colleges",
+            "gm_counselor_assignments",
+            "gm_cases",
+            "gm_case_status_history",
+            "gm_counselor_notes",
+            "gm_attachments",
+            "gm_appointment_types",
+            "gm_appointments",
+            "gm_blocked_dates",
+            "gm_counselor_availability",
+            "gm_notifications",
+            "gm_notification_queue",
+            "gm_settings",
+            "gm_form_fields",
+            "gm_audit_logs",
+            "gm_sync_queue",
+            "gm_trackers",
+            "gm_tracker_items",
+            "gm_tracker_students",
+            "gm_tracker_submissions",
+            "gm_tracker_custom_fields",
+            "gm_migrations"
+        ],
+        "capabilities": [
+            "entity.get.guidance_appointment@1",
+            "entity.get.guidance_case@1",
+            "entity.list.guidance_appointment@1",
+            "entity.list.guidance_case@1",
+            "guidance.case.status.update@1",
+            "kernel.auth.authenticate@1",
+            "module.license.activate@1"
+        ],
+        "events": [
+            "guidance.booking.created",
+            "guidance.appointment.created"
+        ]
+    },
+    "actors": [
+        {
+            "id": "admin",
+            "capabilities": []
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "records are scoped to the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "page-admin-guidance",
+            "family": "module-page",
+            "route": "/admin/guidance",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-alerts",
+            "family": "module-page",
+            "route": "/admin/guidance/alerts",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-appointments",
+            "family": "module-page",
+            "route": "/admin/guidance/appointments",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-calendar",
+            "family": "module-page",
+            "route": "/admin/guidance/calendar",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-cases",
+            "family": "module-page",
+            "route": "/admin/guidance/cases",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-cases-new",
+            "family": "module-page",
+            "route": "/admin/guidance/cases/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-cases-item",
+            "family": "module-page",
+            "route": "/admin/guidance/cases/{id}",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-colleges",
+            "family": "module-page",
+            "route": "/admin/guidance/colleges",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-email-templates",
+            "family": "module-page",
+            "route": "/admin/guidance/email-templates",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-forgot-password",
+            "family": "module-page",
+            "route": "/admin/guidance/forgot-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-form-settings",
+            "family": "module-page",
+            "route": "/admin/guidance/form-settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-login",
+            "family": "module-page",
+            "route": "/admin/guidance/login",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-logout",
+            "family": "module-page",
+            "route": "/admin/guidance/logout",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-alerts",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/alerts",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-appointments",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/appointments",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-appointments-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/appointments/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-appointments-item",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/appointments/{id}",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-appointments-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/appointments/{id}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-calendar",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/calendar",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases-item",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases/{id}",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases-item-documents-upload",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases/{id}/documents/upload",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases/{id}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases-item-notes-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases/{id}/notes/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-cases-item-notes-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/cases/{id}/notes/{noteId}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-colleges",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/colleges",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-colleges-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/colleges/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-colleges-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/colleges/{id}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-dashboard",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/dashboard",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-email-templates",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/email-templates",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-form-settings",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/form-settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-profile",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/profile",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-reports",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/reports",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-session-records",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/session-records",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-settings",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-settings-modules",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/settings/modules",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-item",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/{id}",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/{id}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-item-items-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/{id}/items/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-item-items-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/{id}/items/{itemId}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-item-students-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/{id}/students/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-trackers-item-students-item",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/trackers/{id}/students/{studentId}",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-users",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/users",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-users-new",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/users/new",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-pages-users-item-edit",
+            "family": "module-page",
+            "route": "/admin/guidance/pages/users/{id}/edit",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-profile",
+            "family": "module-page",
+            "route": "/admin/guidance/profile",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-reports",
+            "family": "module-page",
+            "route": "/admin/guidance/reports",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-reports-appointments-docx",
+            "family": "module-page",
+            "route": "/admin/guidance/reports/appointments/docx",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-reports-cases-item-docx",
+            "family": "module-page",
+            "route": "/admin/guidance/reports/cases/{id}/docx",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-reset-password",
+            "family": "module-page",
+            "route": "/admin/guidance/reset-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-session-records",
+            "family": "module-page",
+            "route": "/admin/guidance/session-records",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-settings",
+            "family": "module-page",
+            "route": "/admin/guidance/settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-trackers",
+            "family": "module-page",
+            "route": "/admin/guidance/trackers",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-trackers-item",
+            "family": "module-page",
+            "route": "/admin/guidance/trackers/{id}",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-guidance-users",
+            "family": "module-page",
+            "route": "/admin/guidance/users",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-guidance-book",
+            "family": "module-page",
+            "route": "/guidance/book",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-guidance-forgot-password",
+            "family": "module-page",
+            "route": "/guidance/forgot-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-guidance-login",
+            "family": "module-page",
+            "route": "/guidance/login",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-guidance-logout",
+            "family": "module-page",
+            "route": "/guidance/logout",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-guidance-reset-password",
+            "family": "module-page",
+            "route": "/guidance/reset-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        }
+    ],
+    "workflows": [],
+    "actions": [
+        {
+            "id": "action-admin-guidance-api-activate-license",
+            "route": "/admin/guidance/api/activate-license",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointment-types",
+            "route": "/admin/guidance/api/appointment-types",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointments",
+            "route": "/admin/guidance/api/appointments",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointments-item-approve",
+            "route": "/admin/guidance/api/appointments/{id}/approve",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointments-item-cancel",
+            "route": "/admin/guidance/api/appointments/{id}/cancel",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointments-item-complete",
+            "route": "/admin/guidance/api/appointments/{id}/complete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointments-item-no-show",
+            "route": "/admin/guidance/api/appointments/{id}/no-show",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-appointments-item-reject",
+            "route": "/admin/guidance/api/appointments/{id}/reject",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-auth-forgot-password",
+            "route": "/admin/guidance/api/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-auth-login",
+            "route": "/admin/guidance/api/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-auth-resend-otp",
+            "route": "/admin/guidance/api/auth/resend-otp",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-auth-reset-password",
+            "route": "/admin/guidance/api/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-auth-verify-otp",
+            "route": "/admin/guidance/api/auth/verify-otp",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-cases",
+            "route": "/admin/guidance/api/cases",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-cases-item-close",
+            "route": "/admin/guidance/api/cases/{id}/close",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-cases-item-documents-upload",
+            "route": "/admin/guidance/api/cases/{id}/documents/upload",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-cases-item-notes",
+            "route": "/admin/guidance/api/cases/{id}/notes",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-cases-item-reopen",
+            "route": "/admin/guidance/api/cases/{id}/reopen",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-colleges",
+            "route": "/admin/guidance/api/colleges",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-form-fields",
+            "route": "/admin/guidance/api/form-fields",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-form-fields-reorder",
+            "route": "/admin/guidance/api/form-fields/reorder",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-modules-item-access-request",
+            "route": "/admin/guidance/api/modules/{id}/access-request",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-modules-item-settings",
+            "route": "/admin/guidance/api/modules/{id}/settings",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-notifications-read",
+            "route": "/admin/guidance/api/notifications/read",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-pro-access",
+            "route": "/admin/guidance/api/pro-access",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-profile",
+            "route": "/admin/guidance/api/profile",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-student-statuses",
+            "route": "/admin/guidance/api/student-statuses",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers",
+            "route": "/admin/guidance/api/trackers",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers-item-import-execute",
+            "route": "/admin/guidance/api/trackers/{id}/import/execute",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers-item-import-preview",
+            "route": "/admin/guidance/api/trackers/{id}/import/preview",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers-item-items",
+            "route": "/admin/guidance/api/trackers/{id}/items",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers-item-students",
+            "route": "/admin/guidance/api/trackers/{id}/students",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers-item-students-item-submissions",
+            "route": "/admin/guidance/api/trackers/{id}/students/{studentId}/submissions",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-trackers-item-toggle",
+            "route": "/admin/guidance/api/trackers/{id}/toggle",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-users",
+            "route": "/admin/guidance/api/users",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-users-item-colleges",
+            "route": "/admin/guidance/api/users/{id}/colleges",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-guidance-api-users-item-toggle-active",
+            "route": "/admin/guidance/api/users/{id}/toggle-active",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-guidance-auth-forgot-password",
+            "route": "/api/v1/guidance/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-guidance-auth-reset-password",
+            "route": "/api/v1/guidance/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-api-auth-forgot-password",
+            "route": "/guidance/api/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-api-auth-login",
+            "route": "/guidance/api/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-api-auth-resend-otp",
+            "route": "/guidance/api/auth/resend-otp",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-api-auth-reset-password",
+            "route": "/guidance/api/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-api-auth-verify-otp",
+            "route": "/guidance/api/auth/verify-otp",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-auth-login",
+            "route": "/guidance/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-book-api-booking",
+            "route": "/guidance/book/api/booking",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-book-api-resend-otp",
+            "route": "/guidance/book/api/resend-otp",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-guidance-book-api-verify-otp",
+            "route": "/guidance/book/api/verify-otp",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        }
+    ],
+    "invariants": [
+        {
+            "id": "navigation-routes-resolve",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        }
+    ],
+    "scenarios": [
+        {
+            "id": "navigation-smoke",
+            "description": "Owned pages resolve for declared actors and tenants",
+            "actions": []
+        }
+    ],
+    "environments": {
+        "browsers": [
+            "chromium"
+        ],
+        "viewports": [
+            "desktop",
+            "mobile"
+        ]
+    },
+    "evidence": {
+        "required_identity_fields": [
+            "module",
+            "action",
+            "step",
+            "tenant",
+            "role",
+            "environment",
+            "outcome"
+        ],
+        "outcomes": [
+            "passed",
+            "failed",
+            "blocked",
+            "skipped",
+            "censored"
+        ]
+    },
+    "gates": {
+        "required": [
+            "contract",
+            "routes",
+            "ui-smoke"
+        ],
+        "release_blocker_severities": [
+            "critical",
+            "major"
+        ]
+    },
+    "test_files": {
+        "php": [],
+        "browser": []
+    },
+    "compatibility": {
+        "migrated_from": null,
+        "minimum_workbench": "1.0.0"
+    }
+}

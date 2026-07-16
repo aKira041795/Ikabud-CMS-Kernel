@@ -1,0 +1,484 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "project-audit-ledger",
+        "version": "1.0.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/admin/project-audit-ledger",
+                "/admin/project-audit-ledger/approvals",
+                "/admin/project-audit-ledger/attachments/{id}/download",
+                "/admin/project-audit-ledger/audit",
+                "/admin/project-audit-ledger/audit-trail",
+                "/admin/project-audit-ledger/bom",
+                "/admin/project-audit-ledger/cash-advances",
+                "/admin/project-audit-ledger/cash-advances/create",
+                "/admin/project-audit-ledger/clients",
+                "/admin/project-audit-ledger/clients/create",
+                "/admin/project-audit-ledger/clients/{id}",
+                "/admin/project-audit-ledger/clients/{id}/edit",
+                "/admin/project-audit-ledger/collections",
+                "/admin/project-audit-ledger/collections/create",
+                "/admin/project-audit-ledger/collections/{id}",
+                "/admin/project-audit-ledger/expenses",
+                "/admin/project-audit-ledger/expenses/create",
+                "/admin/project-audit-ledger/expenses/{id}",
+                "/admin/project-audit-ledger/expenses/{id}/edit",
+                "/admin/project-audit-ledger/fabrication",
+                "/admin/project-audit-ledger/fabrication/allocations",
+                "/admin/project-audit-ledger/fabrication/payments/create",
+                "/admin/project-audit-ledger/fabrication/{projectId}/dues",
+                "/admin/project-audit-ledger/inventory",
+                "/admin/project-audit-ledger/inventory/movements",
+                "/admin/project-audit-ledger/inventory/{id}",
+                "/admin/project-audit-ledger/issuances",
+                "/admin/project-audit-ledger/issuances/create",
+                "/admin/project-audit-ledger/issuances/returns",
+                "/admin/project-audit-ledger/material-issuance",
+                "/admin/project-audit-ledger/material-issuance/create",
+                "/admin/project-audit-ledger/material-issuance/{id}",
+                "/admin/project-audit-ledger/material-issuance/{id}/edit",
+                "/admin/project-audit-ledger/material-returns",
+                "/admin/project-audit-ledger/material-returns/create",
+                "/admin/project-audit-ledger/mobilization",
+                "/admin/project-audit-ledger/projects",
+                "/admin/project-audit-ledger/projects/create",
+                "/admin/project-audit-ledger/projects/{id}",
+                "/admin/project-audit-ledger/projects/{id}/edit",
+                "/admin/project-audit-ledger/purchases",
+                "/admin/project-audit-ledger/purchases/create",
+                "/admin/project-audit-ledger/purchases/{id}",
+                "/admin/project-audit-ledger/purchases/{id}/edit",
+                "/admin/project-audit-ledger/quotations",
+                "/admin/project-audit-ledger/quotations/create",
+                "/admin/project-audit-ledger/quotations/{id}",
+                "/admin/project-audit-ledger/quotations/{id}/edit",
+                "/admin/project-audit-ledger/reports",
+                "/admin/project-audit-ledger/sales",
+                "/admin/project-audit-ledger/sales/create",
+                "/admin/project-audit-ledger/sales/{id}",
+                "/admin/project-audit-ledger/sales/{id}/edit",
+                "/admin/project-audit-ledger/sales/{id}/print",
+                "/admin/project-audit-ledger/settings",
+                "/admin/project-audit-ledger/suppliers",
+                "/admin/project-audit-ledger/suppliers/create",
+                "/admin/project-audit-ledger/suppliers/{id}/edit",
+                "/admin/project-audit-ledger/team-lead",
+                "/admin/project-audit-ledger/team-lead/attendance",
+                "/admin/project-audit-ledger/team-lead/cash-advances",
+                "/admin/project-audit-ledger/team-lead/cash-advances/create",
+                "/admin/project-audit-ledger/team-lead/fabrication",
+                "/admin/project-audit-ledger/team-lead/mobilization",
+                "/admin/project-audit-ledger/team-lead/mobilization/create",
+                "/admin/project-audit-ledger/users",
+                "/api/v1/project-audit-ledger/auth/logout",
+                "/api/v1/project-audit-ledger/bom/export",
+                "/api/v1/project-audit-ledger/projects",
+                "/api/v1/project-audit-ledger/projects/{id}/cost",
+                "/api/v1/project-audit-ledger/projects/{id}/items",
+                "/project-audit-ledger/forgot-password",
+                "/project-audit-ledger/login",
+                "/project-audit-ledger/logout",
+                "/project-audit-ledger/reset-password",
+                "/project-audit-ledger/team-lead/login",
+                "/project-audit-ledger/team-lead/verify"
+            ],
+            "POST": [
+                "/api/v1/project-audit-ledger/approvals/{id}/decide",
+                "/api/v1/project-audit-ledger/attachments",
+                "/api/v1/project-audit-ledger/attachments/list",
+                "/api/v1/project-audit-ledger/attachments/{id}/delete",
+                "/api/v1/project-audit-ledger/auth/forgot-password",
+                "/api/v1/project-audit-ledger/auth/login",
+                "/api/v1/project-audit-ledger/auth/logout",
+                "/api/v1/project-audit-ledger/auth/reset-password",
+                "/api/v1/project-audit-ledger/autocomplete",
+                "/api/v1/project-audit-ledger/bom/export",
+                "/api/v1/project-audit-ledger/cash-advances",
+                "/api/v1/project-audit-ledger/cash-advances/{id}/approve",
+                "/api/v1/project-audit-ledger/cash-advances/{id}/settle",
+                "/api/v1/project-audit-ledger/cash-advances/{id}/void",
+                "/api/v1/project-audit-ledger/clients",
+                "/api/v1/project-audit-ledger/clients/{id}",
+                "/api/v1/project-audit-ledger/collections",
+                "/api/v1/project-audit-ledger/collections/generate",
+                "/api/v1/project-audit-ledger/collections/{id}/status",
+                "/api/v1/project-audit-ledger/expenses",
+                "/api/v1/project-audit-ledger/expenses/{id}",
+                "/api/v1/project-audit-ledger/expenses/{id}/submit",
+                "/api/v1/project-audit-ledger/fabrication/allocations",
+                "/api/v1/project-audit-ledger/fabrication/allocations/{id}",
+                "/api/v1/project-audit-ledger/fabrication/dues",
+                "/api/v1/project-audit-ledger/fabrication/payments",
+                "/api/v1/project-audit-ledger/inventory/adjust",
+                "/api/v1/project-audit-ledger/issuances",
+                "/api/v1/project-audit-ledger/issuances/{id}",
+                "/api/v1/project-audit-ledger/issuances/{id}/submit",
+                "/api/v1/project-audit-ledger/materials",
+                "/api/v1/project-audit-ledger/materials/return",
+                "/api/v1/project-audit-ledger/mobilization/{id}/approve",
+                "/api/v1/project-audit-ledger/mobilization/{id}/disburse",
+                "/api/v1/project-audit-ledger/mobilization/{id}/reject",
+                "/api/v1/project-audit-ledger/projects",
+                "/api/v1/project-audit-ledger/projects/{id}",
+                "/api/v1/project-audit-ledger/projects/{id}/email",
+                "/api/v1/project-audit-ledger/projects/{id}/status",
+                "/api/v1/project-audit-ledger/purchases",
+                "/api/v1/project-audit-ledger/purchases/{id}",
+                "/api/v1/project-audit-ledger/purchases/{id}/submit",
+                "/api/v1/project-audit-ledger/quick-create",
+                "/api/v1/project-audit-ledger/quotations",
+                "/api/v1/project-audit-ledger/quotations/{id}",
+                "/api/v1/project-audit-ledger/quotations/{id}/convert",
+                "/api/v1/project-audit-ledger/quotations/{id}/convert-project",
+                "/api/v1/project-audit-ledger/quotations/{id}/status",
+                "/api/v1/project-audit-ledger/reports/generate",
+                "/api/v1/project-audit-ledger/sales",
+                "/api/v1/project-audit-ledger/sales/{id}",
+                "/api/v1/project-audit-ledger/sales/{id}/email",
+                "/api/v1/project-audit-ledger/settings",
+                "/api/v1/project-audit-ledger/settings/categories",
+                "/api/v1/project-audit-ledger/settings/materials/{id}",
+                "/api/v1/project-audit-ledger/settings/suppliers",
+                "/api/v1/project-audit-ledger/settings/toggle/{id}",
+                "/api/v1/project-audit-ledger/suppliers",
+                "/api/v1/project-audit-ledger/suppliers/{id}",
+                "/api/v1/project-audit-ledger/tl/cash-advances",
+                "/api/v1/project-audit-ledger/tl/logout",
+                "/api/v1/project-audit-ledger/tl/mobilization",
+                "/api/v1/project-audit-ledger/tl/otp-request",
+                "/api/v1/project-audit-ledger/tl/otp-resend",
+                "/api/v1/project-audit-ledger/tl/otp-verify",
+                "/api/v1/project-audit-ledger/users",
+                "/api/v1/project-audit-ledger/users/{id}",
+                "/api/v1/project-audit-ledger/users/{id}/delete",
+                "/project-audit-ledger/auth/login",
+                "/project-audit-ledger/logout"
+            ],
+            "PUT": [],
+            "PATCH": [],
+            "DELETE": []
+        },
+        "navigation_dependencies": [],
+        "tables": [
+            "pal_users",
+            "pal_password_resets",
+            "pal_projects",
+            "pal_project_items",
+            "pal_project_types",
+            "pal_clients",
+            "pal_suppliers",
+            "pal_materials",
+            "pal_material_categories",
+            "pal_units",
+            "pal_inventory_locations",
+            "pal_inventory_movements",
+            "pal_inventory_balances",
+            "pal_purchases",
+            "pal_purchase_items",
+            "pal_material_issuances",
+            "pal_material_issuance_items",
+            "pal_material_returns",
+            "pal_expenses",
+            "pal_expense_categories",
+            "pal_sales",
+            "pal_collections",
+            "pal_fabrication_allocations",
+            "pal_fabrication_weekly_dues",
+            "pal_fabrication_payments",
+            "pal_team_leads",
+            "pal_approvals",
+            "pal_attachments",
+            "pal_audit_logs",
+            "pal_report_exports",
+            "pal_settings",
+            "pal_quotations",
+            "pal_quotation_items",
+            "pal_sale_items",
+            "pal_cash_advances",
+            "pal_otp_codes",
+            "pal_mobilization_requests",
+            "pal_receivables",
+            "pal_receivable_payments"
+        ],
+        "capabilities": [
+            "entity.get.pal_client@1",
+            "entity.get.pal_expense@1",
+            "entity.get.pal_issuance@1",
+            "entity.get.pal_material@1",
+            "entity.get.pal_project@1",
+            "entity.get.pal_purchase@1",
+            "entity.get.pal_quotation@1",
+            "entity.get.pal_sale@1",
+            "entity.get.pal_supplier@1",
+            "entity.list.pal_audit_log@1",
+            "entity.list.pal_cash_advance@1",
+            "entity.list.pal_client@1",
+            "entity.list.pal_collection@1",
+            "entity.list.pal_expense@1",
+            "entity.list.pal_fabrication_due@1",
+            "entity.list.pal_issuance@1",
+            "entity.list.pal_material@1",
+            "entity.list.pal_material_return@1",
+            "entity.list.pal_mobilization@1",
+            "entity.list.pal_project@1",
+            "entity.list.pal_purchase@1",
+            "entity.list.pal_quotation@1",
+            "entity.list.pal_quotation_item@1",
+            "entity.list.pal_sale@1",
+            "entity.list.pal_sale_item@1",
+            "entity.list.pal_supplier@1",
+            "kernel.auth.authenticate@1",
+            "pal.approvals.read@1",
+            "pal.approvals.write@1",
+            "pal.audit.read@1",
+            "pal.cash_advances.read@1",
+            "pal.cash_advances.write@1",
+            "pal.collections.read@1",
+            "pal.collections.write@1",
+            "pal.expenses.read@1",
+            "pal.expenses.write@1",
+            "pal.fabrication.read@1",
+            "pal.fabrication.write@1",
+            "pal.inventory.read@1",
+            "pal.inventory.write@1",
+            "pal.manage@1",
+            "pal.mobilization.read@1",
+            "pal.mobilization.write@1",
+            "pal.projects.read@1",
+            "pal.projects.write@1",
+            "pal.purchases.read@1",
+            "pal.purchases.write@1",
+            "pal.quotations.convert@1",
+            "pal.quotations.read@1",
+            "pal.quotations.write@1",
+            "pal.read@1",
+            "pal.reports.read@1",
+            "pal.sales.items.manage@1",
+            "pal.sales.read@1",
+            "pal.sales.write@1",
+            "pal.settings.read@1",
+            "pal.settings.write@1",
+            "pal.users.manage@1",
+            "workbench.scenario.cleanup@1",
+            "workbench.scenario.describe@1",
+            "workbench.scenario.seed@1",
+            "workbench.scenario.verify@1"
+        ],
+        "events": [
+            "pal.project.created",
+            "pal.project.updated",
+            "pal.project.completed",
+            "pal.expense.submitted",
+            "pal.expense.approved",
+            "pal.expense.rejected",
+            "pal.purchase.approved",
+            "pal.inventory.stocked_in",
+            "pal.inventory.material_issued",
+            "pal.inventory.material_returned",
+            "pal.inventory.adjusted",
+            "pal.fabrication.allocation_created",
+            "pal.fabrication.payment_recorded",
+            "pal.fabrication.payment_approved",
+            "pal.quotation.created",
+            "pal.quotation.updated",
+            "pal.quotation.converted",
+            "pal.sale.created",
+            "pal.collection.recorded",
+            "pal.approval.completed",
+            "pal.cash_advance.created",
+            "pal.cash_advance.approved",
+            "pal.cash_advance.rejected",
+            "pal.cash_advance.settled",
+            "pal.mobilization.requested",
+            "pal.mobilization.approved",
+            "pal.mobilization.rejected",
+            "pal.mobilization.disbursed",
+            "pal.report.generated"
+        ]
+    },
+    "actors": [
+        {
+            "id": "admin",
+            "capabilities": []
+        },
+        {
+            "id": "encoder",
+            "capabilities": []
+        },
+        {
+            "id": "team_lead",
+            "capabilities": []
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "records are scoped to the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "dashboard",
+            "family": "dashboard",
+            "roles": [
+                "admin",
+                "encoder",
+                "team_lead"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "operational-list",
+            "family": "operational-list",
+            "roles": [
+                "admin",
+                "encoder",
+                "team_lead"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "detail-workspace",
+            "family": "detail-workspace",
+            "roles": [
+                "admin",
+                "encoder",
+                "team_lead"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "transaction-form",
+            "family": "transaction-form",
+            "roles": [
+                "admin",
+                "encoder",
+                "team_lead"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "approval-review",
+            "family": "approval-review",
+            "roles": [
+                "admin",
+                "encoder",
+                "team_lead"
+            ],
+            "required_components": []
+        }
+    ],
+    "workflows": [
+        {
+            "id": "expense_approval",
+            "states": [
+                "draft",
+                "pending_approval",
+                "approved",
+                "rejected"
+            ],
+            "transitions": []
+        },
+        {
+            "id": "job_order",
+            "states": [
+                "draft",
+                "pending",
+                "approved",
+                "started",
+                "ongoing",
+                "completed",
+                "cancelled",
+                "closed"
+            ],
+            "transitions": []
+        },
+        {
+            "id": "payment_approval",
+            "states": [
+                "draft",
+                "pending_approval",
+                "approved",
+                "paid"
+            ],
+            "transitions": []
+        }
+    ],
+    "actions": [],
+    "invariants": [
+        {
+            "id": "navigation-routes-resolve",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        }
+    ],
+    "scenarios": [],
+    "environments": {
+        "browsers": [
+            "chromium"
+        ],
+        "viewports": [
+            "desktop",
+            "mobile"
+        ]
+    },
+    "evidence": {
+        "required_identity_fields": [
+            "module",
+            "action",
+            "step",
+            "tenant",
+            "role",
+            "environment",
+            "outcome"
+        ],
+        "outcomes": [
+            "passed",
+            "failed",
+            "blocked",
+            "skipped",
+            "censored"
+        ]
+    },
+    "gates": {
+        "required": [
+            "accessibility",
+            "capabilities",
+            "contract",
+            "responsive",
+            "routes",
+            "tenant-isolation",
+            "ui-smoke",
+            "workflow"
+        ],
+        "release_blocker_severities": [
+            "critical",
+            "major"
+        ]
+    },
+    "test_files": {
+        "php": [
+            "tests/pal/pal_job_order_workflow_test.php",
+            "tests/pal/pal_job_order_workflow_integration_test.php",
+            "tests/pal/pal_scenario_test.php",
+            "tests/pal/pal_fabrication_budget_test.php",
+            "tests/pal/pal_fabrication_integration_test.php",
+            "tests/pal/pal_fuzz_test.php"
+        ],
+        "browser": [
+            "tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
+            "tests/browser/modules/pal/pal-workflow.spec.js",
+            "tests/browser/modules/pal/pal-contract-verification.spec.js"
+        ]
+    },
+    "compatibility": {
+        "migrated_from": "test-contract.json",
+        "minimum_workbench": "1.0.0"
+    }
+}

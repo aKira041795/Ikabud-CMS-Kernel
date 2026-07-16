@@ -1,0 +1,562 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "ehr",
+        "version": "1.0.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/admin/ehr",
+                "/admin/ehr/patients/{id}/chart",
+                "/admin/ehr/settings",
+                "/admin/ehr/users",
+                "/api/v1/ehr/patients/search",
+                "/ehr/forgot-password",
+                "/ehr/login",
+                "/ehr/reset-password"
+            ],
+            "POST": [
+                "/admin/ehr/patients/context/clear",
+                "/admin/ehr/patients/context/set",
+                "/admin/ehr/users/create",
+                "/admin/ehr/users/reset-password",
+                "/admin/ehr/users/toggle-active",
+                "/admin/ehr/users/update",
+                "/api/v1/ehr/auth/forgot-password",
+                "/api/v1/ehr/auth/login",
+                "/api/v1/ehr/auth/reset-password",
+                "/api/v1/ehr/settings/branding-asset",
+                "/api/v1/ehr/settings/save",
+                "/ehr/auth/login",
+                "/ehr/logout"
+            ],
+            "PUT": [],
+            "PATCH": [],
+            "DELETE": []
+        },
+        "navigation_dependencies": [
+            "patient-registry",
+            "scheduling",
+            "encounters",
+            "clinical-notes",
+            "orders",
+            "results",
+            "documents"
+        ],
+        "tables": [
+            "ehr_users",
+            "ehr_password_resets"
+        ],
+        "capabilities": [
+            "kernel.auth.authenticate@1"
+        ],
+        "events": []
+    },
+    "actors": [
+        {
+            "id": "admin",
+            "capabilities": []
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "records are scoped to the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "page-admin-ehr",
+            "family": "module-page",
+            "route": "/admin/ehr",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-ehr-patients-item-chart",
+            "family": "module-page",
+            "route": "/admin/ehr/patients/{id}/chart",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-ehr-settings",
+            "family": "module-page",
+            "route": "/admin/ehr/settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-ehr-users",
+            "family": "module-page",
+            "route": "/admin/ehr/users",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-ehr-forgot-password",
+            "family": "module-page",
+            "route": "/ehr/forgot-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-ehr-login",
+            "family": "module-page",
+            "route": "/ehr/login",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-ehr-reset-password",
+            "family": "module-page",
+            "route": "/ehr/reset-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        }
+    ],
+    "workflows": [],
+    "actions": [
+        {
+            "id": "action-admin-ehr-patients-context-clear",
+            "route": "/admin/ehr/patients/context/clear",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-ehr-patients-context-set",
+            "route": "/admin/ehr/patients/context/set",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-ehr-users-create",
+            "route": "/admin/ehr/users/create",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-ehr-users-reset-password",
+            "route": "/admin/ehr/users/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-ehr-users-toggle-active",
+            "route": "/admin/ehr/users/toggle-active",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-admin-ehr-users-update",
+            "route": "/admin/ehr/users/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-ehr-auth-forgot-password",
+            "route": "/api/v1/ehr/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-ehr-auth-login",
+            "route": "/api/v1/ehr/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-ehr-auth-reset-password",
+            "route": "/api/v1/ehr/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-ehr-settings-branding-asset",
+            "route": "/api/v1/ehr/settings/branding-asset",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-ehr-settings-save",
+            "route": "/api/v1/ehr/settings/save",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-ehr-auth-login",
+            "route": "/ehr/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-ehr-logout",
+            "route": "/ehr/logout",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        }
+    ],
+    "invariants": [
+        {
+            "id": "patient-record-authority",
+            "severity": "critical",
+            "scope": "capability",
+            "description": "Patient records are disclosed only when the active tenant and actor possess the required patient-view capability."
+        },
+        {
+            "id": "clinical-privacy-no-cross-tenant-data",
+            "severity": "critical",
+            "scope": "tenancy",
+            "description": "Search, chart, logs, errors, exports, and cached views never disclose another tenant's clinical data."
+        },
+        {
+            "id": "navigation-routes-resolve",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        }
+    ],
+    "scenarios": [
+        {
+            "id": "navigation-smoke",
+            "description": "Owned pages resolve for declared actors and tenants",
+            "actions": []
+        }
+    ],
+    "environments": {
+        "browsers": [
+            "chromium"
+        ],
+        "viewports": [
+            "desktop",
+            "mobile"
+        ]
+    },
+    "evidence": {
+        "required_identity_fields": [
+            "module",
+            "action",
+            "step",
+            "tenant",
+            "role",
+            "environment",
+            "outcome"
+        ],
+        "outcomes": [
+            "passed",
+            "failed",
+            "blocked",
+            "skipped",
+            "censored"
+        ]
+    },
+    "gates": {
+        "required": [
+            "contract",
+            "routes",
+            "ui-smoke"
+        ],
+        "release_blocker_severities": [
+            "critical",
+            "major"
+        ]
+    },
+    "test_files": {
+        "php": [],
+        "browser": []
+    },
+    "compatibility": {
+        "migrated_from": null,
+        "minimum_workbench": "1.0.0"
+    }
+}

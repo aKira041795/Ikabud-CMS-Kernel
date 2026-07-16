@@ -1,0 +1,1793 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "wms",
+        "version": "2.0.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/api/v1/wms/batches",
+                "/api/v1/wms/batches/{id}",
+                "/api/v1/wms/cycle-counts",
+                "/api/v1/wms/cycle-counts/{id}",
+                "/api/v1/wms/deliveries",
+                "/api/v1/wms/deliveries/{id}",
+                "/api/v1/wms/locations",
+                "/api/v1/wms/locations/{id}",
+                "/api/v1/wms/locations/{id}/children",
+                "/api/v1/wms/orders",
+                "/api/v1/wms/orders/{id}",
+                "/api/v1/wms/picklists",
+                "/api/v1/wms/picklists/{id}",
+                "/api/v1/wms/production-orders",
+                "/api/v1/wms/production-orders/{id}",
+                "/api/v1/wms/products",
+                "/api/v1/wms/products/{id}",
+                "/api/v1/wms/putaway-rules",
+                "/api/v1/wms/recipes",
+                "/api/v1/wms/recipes/{id}",
+                "/api/v1/wms/returns",
+                "/api/v1/wms/returns/{id}",
+                "/api/v1/wms/stock",
+                "/api/v1/wms/stock/adjustments",
+                "/api/v1/wms/stock/movements",
+                "/api/v1/wms/stock/{id}",
+                "/api/v1/wms/suppliers",
+                "/api/v1/wms/suppliers/{id}",
+                "/api/v1/wms/tasks",
+                "/api/v1/wms/tasks/{id}",
+                "/api/v1/wms/warehouses",
+                "/api/v1/wms/warehouses/{id}",
+                "/api/v1/wms/webhooks",
+                "/wms",
+                "/wms/cycle-counts",
+                "/wms/dashboard",
+                "/wms/deliveries",
+                "/wms/forgot-password",
+                "/wms/inventory",
+                "/wms/login",
+                "/wms/logout",
+                "/wms/movements",
+                "/wms/orders",
+                "/wms/picking",
+                "/wms/production",
+                "/wms/receiving",
+                "/wms/recipes",
+                "/wms/reset-password",
+                "/wms/returns",
+                "/wms/scanner",
+                "/wms/settings",
+                "/wms/stock",
+                "/wms/suppliers",
+                "/wms/tasks",
+                "/wms/users"
+            ],
+            "POST": [
+                "/api/v1/wms/auth/admin-reset-password",
+                "/api/v1/wms/auth/forgot-password",
+                "/api/v1/wms/auth/login",
+                "/api/v1/wms/auth/register",
+                "/api/v1/wms/auth/reset-password",
+                "/api/v1/wms/batches",
+                "/api/v1/wms/batches/{id}",
+                "/api/v1/wms/configs",
+                "/api/v1/wms/cycle-counts",
+                "/api/v1/wms/cycle-counts/{id}/complete",
+                "/api/v1/wms/cycle-counts/{id}/items/{item_id}/record",
+                "/api/v1/wms/deliveries",
+                "/api/v1/wms/deliveries/{id}/cancel",
+                "/api/v1/wms/deliveries/{id}/receive",
+                "/api/v1/wms/locations",
+                "/api/v1/wms/locations/{id}",
+                "/api/v1/wms/orders",
+                "/api/v1/wms/orders/{id}/cancel",
+                "/api/v1/wms/picklists",
+                "/api/v1/wms/picklists/{id}/assign",
+                "/api/v1/wms/picklists/{id}/items/{item_id}/pick",
+                "/api/v1/wms/production-orders",
+                "/api/v1/wms/production-orders/{id}/complete",
+                "/api/v1/wms/products",
+                "/api/v1/wms/products/{id}",
+                "/api/v1/wms/products/{id}/delete",
+                "/api/v1/wms/putaway-rules",
+                "/api/v1/wms/putaway-rules/{id}/delete",
+                "/api/v1/wms/recipes",
+                "/api/v1/wms/returns",
+                "/api/v1/wms/returns/{id}/process",
+                "/api/v1/wms/shipments",
+                "/api/v1/wms/stock/adjust",
+                "/api/v1/wms/stock/adjustments/{id}",
+                "/api/v1/wms/stock/receive",
+                "/api/v1/wms/stock/scrap",
+                "/api/v1/wms/stock/transfer",
+                "/api/v1/wms/suppliers",
+                "/api/v1/wms/suppliers/{id}",
+                "/api/v1/wms/suppliers/{id}/delete",
+                "/api/v1/wms/tasks",
+                "/api/v1/wms/tasks/{id}",
+                "/api/v1/wms/tasks/{id}/complete",
+                "/api/v1/wms/users/{id}/toggle",
+                "/api/v1/wms/warehouses",
+                "/api/v1/wms/warehouses/{id}",
+                "/api/v1/wms/webhooks",
+                "/api/v1/wms/webhooks/{id}/delete",
+                "/api/v1/wms/webhooks/{id}/toggle",
+                "/wms/auth/login"
+            ],
+            "PUT": [],
+            "PATCH": [],
+            "DELETE": []
+        },
+        "navigation_dependencies": [],
+        "tables": [
+            "wms_users",
+            "wms_password_resets",
+            "wms_products",
+            "wms_warehouses",
+            "wms_locations",
+            "wms_batches",
+            "wms_stock",
+            "wms_stock_movements",
+            "wms_inventory_adjustments",
+            "wms_idempotency_keys",
+            "wms_deliveries",
+            "wms_delivery_items",
+            "wms_orders",
+            "wms_order_items",
+            "wms_picklists",
+            "wms_picklist_items",
+            "wms_shipments",
+            "wms_putaway_rules",
+            "wms_cycle_counts",
+            "wms_cycle_count_items",
+            "wms_suppliers",
+            "wms_returns",
+            "wms_return_items",
+            "wms_tasks",
+            "wms_recipes",
+            "wms_recipe_ingredients",
+            "wms_production_orders",
+            "wms_production_order_items",
+            "wms_configs",
+            "wms_event_webhooks"
+        ],
+        "capabilities": [
+            "kernel.auth.authenticate@1",
+            "wms.order.cancel@1",
+            "wms.order.create@1",
+            "wms.stock.query@1",
+            "wms.stock.release@1",
+            "wms.stock.reserve@1"
+        ],
+        "events": []
+    },
+    "actors": [
+        {
+            "id": "admin",
+            "capabilities": []
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "records are scoped to the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "page-wms",
+            "family": "module-page",
+            "route": "/wms",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-cycle-counts",
+            "family": "module-page",
+            "route": "/wms/cycle-counts",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-dashboard",
+            "family": "module-page",
+            "route": "/wms/dashboard",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-deliveries",
+            "family": "module-page",
+            "route": "/wms/deliveries",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-forgot-password",
+            "family": "module-page",
+            "route": "/wms/forgot-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-inventory",
+            "family": "module-page",
+            "route": "/wms/inventory",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-login",
+            "family": "module-page",
+            "route": "/wms/login",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-logout",
+            "family": "module-page",
+            "route": "/wms/logout",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-movements",
+            "family": "module-page",
+            "route": "/wms/movements",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-orders",
+            "family": "module-page",
+            "route": "/wms/orders",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-picking",
+            "family": "module-page",
+            "route": "/wms/picking",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-production",
+            "family": "module-page",
+            "route": "/wms/production",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-receiving",
+            "family": "module-page",
+            "route": "/wms/receiving",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-recipes",
+            "family": "module-page",
+            "route": "/wms/recipes",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-reset-password",
+            "family": "module-page",
+            "route": "/wms/reset-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-returns",
+            "family": "module-page",
+            "route": "/wms/returns",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-scanner",
+            "family": "module-page",
+            "route": "/wms/scanner",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-settings",
+            "family": "module-page",
+            "route": "/wms/settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-stock",
+            "family": "module-page",
+            "route": "/wms/stock",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-suppliers",
+            "family": "module-page",
+            "route": "/wms/suppliers",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-tasks",
+            "family": "module-page",
+            "route": "/wms/tasks",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-wms-users",
+            "family": "module-page",
+            "route": "/wms/users",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        }
+    ],
+    "workflows": [],
+    "actions": [
+        {
+            "id": "action-api-v1-wms-auth-admin-reset-password",
+            "route": "/api/v1/wms/auth/admin-reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-auth-forgot-password",
+            "route": "/api/v1/wms/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-auth-login",
+            "route": "/api/v1/wms/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-auth-register",
+            "route": "/api/v1/wms/auth/register",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-auth-reset-password",
+            "route": "/api/v1/wms/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-batches",
+            "route": "/api/v1/wms/batches",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-batches-item",
+            "route": "/api/v1/wms/batches/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-configs",
+            "route": "/api/v1/wms/configs",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-cycle-counts",
+            "route": "/api/v1/wms/cycle-counts",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-cycle-counts-item-complete",
+            "route": "/api/v1/wms/cycle-counts/{id}/complete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-cycle-counts-item-items-item-record",
+            "route": "/api/v1/wms/cycle-counts/{id}/items/{item_id}/record",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-deliveries",
+            "route": "/api/v1/wms/deliveries",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-deliveries-item-cancel",
+            "route": "/api/v1/wms/deliveries/{id}/cancel",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-deliveries-item-receive",
+            "route": "/api/v1/wms/deliveries/{id}/receive",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-locations",
+            "route": "/api/v1/wms/locations",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-locations-item",
+            "route": "/api/v1/wms/locations/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-orders",
+            "route": "/api/v1/wms/orders",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-orders-item-cancel",
+            "route": "/api/v1/wms/orders/{id}/cancel",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-picklists",
+            "route": "/api/v1/wms/picklists",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-picklists-item-assign",
+            "route": "/api/v1/wms/picklists/{id}/assign",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-picklists-item-items-item-pick",
+            "route": "/api/v1/wms/picklists/{id}/items/{item_id}/pick",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-production-orders",
+            "route": "/api/v1/wms/production-orders",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-production-orders-item-complete",
+            "route": "/api/v1/wms/production-orders/{id}/complete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-products",
+            "route": "/api/v1/wms/products",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-products-item",
+            "route": "/api/v1/wms/products/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-products-item-delete",
+            "route": "/api/v1/wms/products/{id}/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-putaway-rules",
+            "route": "/api/v1/wms/putaway-rules",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-putaway-rules-item-delete",
+            "route": "/api/v1/wms/putaway-rules/{id}/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-recipes",
+            "route": "/api/v1/wms/recipes",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-returns",
+            "route": "/api/v1/wms/returns",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-returns-item-process",
+            "route": "/api/v1/wms/returns/{id}/process",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-shipments",
+            "route": "/api/v1/wms/shipments",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-stock-adjust",
+            "route": "/api/v1/wms/stock/adjust",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-stock-adjustments-item",
+            "route": "/api/v1/wms/stock/adjustments/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-stock-receive",
+            "route": "/api/v1/wms/stock/receive",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-stock-scrap",
+            "route": "/api/v1/wms/stock/scrap",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-stock-transfer",
+            "route": "/api/v1/wms/stock/transfer",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-suppliers",
+            "route": "/api/v1/wms/suppliers",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-suppliers-item",
+            "route": "/api/v1/wms/suppliers/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-suppliers-item-delete",
+            "route": "/api/v1/wms/suppliers/{id}/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-tasks",
+            "route": "/api/v1/wms/tasks",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-tasks-item",
+            "route": "/api/v1/wms/tasks/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-tasks-item-complete",
+            "route": "/api/v1/wms/tasks/{id}/complete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-users-item-toggle",
+            "route": "/api/v1/wms/users/{id}/toggle",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-warehouses",
+            "route": "/api/v1/wms/warehouses",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-warehouses-item",
+            "route": "/api/v1/wms/warehouses/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-webhooks",
+            "route": "/api/v1/wms/webhooks",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-webhooks-item-delete",
+            "route": "/api/v1/wms/webhooks/{id}/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-wms-webhooks-item-toggle",
+            "route": "/api/v1/wms/webhooks/{id}/toggle",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-wms-auth-login",
+            "route": "/wms/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        }
+    ],
+    "invariants": [
+        {
+            "id": "navigation-routes-resolve",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        }
+    ],
+    "scenarios": [
+        {
+            "id": "navigation-smoke",
+            "description": "Owned pages resolve for declared actors and tenants",
+            "actions": []
+        }
+    ],
+    "environments": {
+        "browsers": [
+            "chromium"
+        ],
+        "viewports": [
+            "desktop",
+            "mobile"
+        ]
+    },
+    "evidence": {
+        "required_identity_fields": [
+            "module",
+            "action",
+            "step",
+            "tenant",
+            "role",
+            "environment",
+            "outcome"
+        ],
+        "outcomes": [
+            "passed",
+            "failed",
+            "blocked",
+            "skipped",
+            "censored"
+        ]
+    },
+    "gates": {
+        "required": [
+            "contract",
+            "routes",
+            "ui-smoke"
+        ],
+        "release_blocker_severities": [
+            "critical",
+            "major"
+        ]
+    },
+    "test_files": {
+        "php": [],
+        "browser": []
+    },
+    "compatibility": {
+        "migrated_from": null,
+        "minimum_workbench": "1.0.0"
+    }
+}

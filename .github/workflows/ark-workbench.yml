@@ -1,0 +1,31 @@
+name: ARK Workbench
+
+on:
+  workflow_call:
+    inputs:
+      modules:
+        description: Comma-separated module IDs
+        required: false
+        type: string
+        default: project-audit-ledger,guidance,wms,ehr
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: json, simplexml
+      - name: Run ARK contract and competitive gates
+        env:
+          ARK_MODULES: ${{ inputs.modules }}
+        run: php scripts/workbench-ci.php
+      - name: Publish Workbench evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ark-workbench-evidence
+          path: storage/workbench/ci/
+          retention-days: 30

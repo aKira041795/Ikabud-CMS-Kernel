@@ -1832,21 +1832,53 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchTriggerTests')) {
         $target = trim((string)($input['target'] ?? 'all'));
         $projectRoot = dirname(__DIR__, 2);
 
-        // ── Build the authoritative test registry ──
-        $registry = workbenchDiscoverTestFiles();
-        $registryByPath = [];
-        $registryRealpaths = [];
-        foreach ($registry as $entry) {
-            $registryByPath[$entry['path']] = $entry;
-            $registryRealpaths[$entry['realpath']] = $entry;
+        $cmd = null;
+        if ($target === 'ark-hybrid') {
+            $moduleId = trim((string)($input['module'] ?? ''));
+            $gate = trim((string)($input['gate'] ?? 'critical'));
+            if (!preg_match('/^[A-Za-z0-9_-]+$/', $moduleId)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'A valid module id is required']);
+                exit;
+            }
+            if (!in_array($gate, ['critical', 'major', 'off'], true)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'Invalid ARK gate']);
+                exit;
+            }
+            $modules = discoverModules();
+            if (!isset($modules[$moduleId]) || empty($modules[$moduleId]['_enabled'])) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Enabled module not found: ' . $moduleId]);
+                exit;
+            }
+            $launcher = $projectRoot . '/tests/browser/run-workbench.js';
+            if (!is_file($launcher)) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'ARK Hybrid launcher is unavailable']);
+                exit;
+            }
+            $cmd = 'node ' . escapeshellarg($launcher)
+                . ' --module=' . escapeshellarg($moduleId)
+                . ' --gate=' . escapeshellarg($gate) . ' 2>&1';
         }
+
+        if ($cmd === null) {
+            // ── Build the authoritative PHP test registry ──
+            $registry = workbenchDiscoverTestFiles();
+            $registryByPath = [];
+            $registryRealpaths = [];
+            foreach ($registry as $entry) {
+                $registryByPath[$entry['path']] = $entry;
+                $registryRealpaths[$entry['realpath']] = $entry;
+            }
 
         @file_put_contents($projectRoot . '/storage/logs/app.log', '');
         @file_put_contents($projectRoot . '/storage/logs/error.log', '');
 
-        if ($target === 'all') {
-            $cmd = 'php ' . escapeshellarg($projectRoot . '/tests/discover.php') . ' 2>&1';
-        } else {
+            if ($target === 'all') {
+                $cmd = 'php ' . escapeshellarg($projectRoot . '/tests/discover.php') . ' 2>&1';
+            } else {
             // ── Registry validation ──
             // Step 1: Check if target matches a registry entry by relative path
             $targetClean = ltrim($target, '/');
@@ -1881,7 +1913,8 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchTriggerTests')) {
                 echo json_encode(['ok' => false, 'error' => 'Test file not found: ' . $target]);
                 exit;
             }
-            $cmd = 'php ' . escapeshellarg($validPath) . ' 2>&1';
+                $cmd = 'php ' . escapeshellarg($validPath) . ' 2>&1';
+            }
         }
 
         $descriptors = [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
@@ -2038,6 +2071,120 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchAiSettings')) {
 }
 
 if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
+    /** Read a Workbench JSON artifact without allowing callers to choose a path. */
+    function workbenchReadJsonArtifact(string $path): ?array
+    {
+        if (!is_file($path)) return null;
+        $value = @json_decode((string)file_get_contents($path), true);
+        return is_array($value) ? $value : null;
+    }
+
+    /**
+     * Correlate the current ARK engines by their canonical run id.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    function workbenchHybridRuns(string $root): array
+    {
+        $locations = [
+            'reporter' => [$root . '/test_results/browser/runs', 'manifest.json'],
+            'analyst' => [$root . '/test_results/analyst', 'system-analyst-report.json'],
+            'comprehension' => [$root . '/test_results/ai/runs', 'comprehension-report.json'],
+            'scenario' => [$root . '/test_results/scenarios', 'scenario-run.json'],
+            'intelligence' => [$root . '/test_results/browser/runs', 'pattern-intelligence.json'],
+        ];
+        $runs = [];
+        foreach ($locations as $engine => [$base, $filename]) {
+            foreach (glob($base . '/*/' . $filename) ?: [] as $path) {
+                $runId = basename(dirname($path));
+                if (!preg_match('/^[A-Za-z0-9._-]+$/', $runId)) continue;
+                $artifact = workbenchReadJsonArtifact($path);
+                if ($artifact === null) continue;
+                $runs[$runId] ??= ['run_id' => $runId, 'artifacts' => []];
+                $runs[$runId]['artifacts'][$engine] = $artifact;
+                $runs[$runId]['artifact_files'][$engine] = $path;
+            }
+        }
+        foreach ($runs as $runId => &$run) {
+            $analyst = $run['artifacts']['analyst'] ?? [];
+            $reporter = $run['artifacts']['reporter'] ?? [];
+            $comprehension = $run['artifacts']['comprehension'] ?? [];
+            $scenario = $run['artifacts']['scenario'] ?? [];
+            $intelligence = $run['artifacts']['intelligence'] ?? [];
+            $analysis = $comprehension['analysis'] ?? [];
+            $module = (string)($reporter['module'] ?? $analyst['module'] ?? $analysis['module'] ?? ($scenario['scenario']['module'] ?? $intelligence['module'] ?? 'unknown'));
+            $finished = (string)($scenario['finished_at'] ?? $intelligence['generated_at'] ?? $analyst['generated_at'] ?? $comprehension['generated_at'] ?? '');
+            $issues = (array)($analyst['issues'] ?? []);
+            $critical = count(array_filter($issues, static fn($issue) => ($issue['severity'] ?? '') === 'critical'));
+            $major = count(array_filter($issues, static fn($issue) => ($issue['severity'] ?? '') === 'major'));
+            $gatePassed = (bool)($analyst['ux_evolution']['gate']['passed'] ?? true);
+            $scenarioOk = !isset($scenario['status']) || $scenario['status'] === 'completed';
+            $hasBreakpoint = ($analysis['breakpoint'] ?? null) !== null;
+            $suiteTotals = ['passed' => 0, 'failed' => 0, 'skipped' => 0, 'timed_out' => 0, 'interrupted' => 0, 'total' => 0];
+            foreach ((array)($reporter['suites'] ?? []) as $suite) {
+                foreach ($suiteTotals as $key => $_) $suiteTotals[$key] += (int)($suite[$key] ?? 0);
+            }
+            $run += [
+                'module' => $module,
+                'finished' => $finished,
+                'issues' => count($issues),
+                'critical' => $critical,
+                'major' => $major,
+                'ux_score' => $analyst['ux_evolution']['score'] ?? null,
+                'ux_gate_passed' => $gatePassed,
+                'comprehension_score' => $analysis['coverage_score']['overall_score'] ?? null,
+                'breakpoint' => $analysis['breakpoint'] ?? null,
+                'scenario_status' => $scenario['status'] ?? null,
+                'cleanup_clean' => $scenario['cleanup_result']['clean'] ?? null,
+                'summary' => $suiteTotals,
+                'status' => ($suiteTotals['failed'] > 0 || $suiteTotals['timed_out'] > 0 || $suiteTotals['interrupted'] > 0 || $critical > 0 || !$gatePassed || !$scenarioOk || $hasBreakpoint) ? 'failed' : 'passed',
+            ];
+        }
+        unset($run);
+        return $runs;
+    }
+
+    function workbenchHybridRunDetail(string $root, string $runId): ?array
+    {
+        if (!preg_match('/^[A-Za-z0-9._-]+$/', $runId)) return null;
+        $runs = workbenchHybridRuns($root);
+        if (!isset($runs[$runId])) return null;
+        unset($runs[$runId]['artifact_files']);
+        return $runs[$runId];
+    }
+
+    function workbenchRecursiveSpecCount(string $directory): int
+    {
+        if (!is_dir($directory)) return 0;
+        $count = 0;
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file->isFile() && str_ends_with($file->getFilename(), '.spec.js')) $count++;
+        }
+        return $count;
+    }
+
+    function workbenchObservedClaimedRoutes(array $testContract, array $analyst): int
+    {
+        $claimed = array_merge((array)($testContract['routes_claimed']['GET'] ?? []), (array)($testContract['routes_claimed']['POST'] ?? []));
+        $observed = [];
+        foreach ((array)($analyst['pages'] ?? []) as $page) {
+            $path = (string)(parse_url((string)($page['url'] ?? ''), PHP_URL_PATH) ?: '');
+            if ($path !== '') $observed[$path] = true;
+        }
+        $matched = 0;
+        foreach ($claimed as $route) {
+            $route = (string)(is_array($route) ? ($route['path'] ?? $route['route'] ?? '') : $route);
+            if ($route === '') continue;
+            $pattern = preg_quote($route, '#');
+            $pattern = preg_replace('#\\\\\{[^}]+\\\\\}|:[A-Za-z_][A-Za-z0-9_]*#', '[^/]+', $pattern);
+            foreach (array_keys($observed) as $path) {
+                if (preg_match('#^' . $pattern . '$#', $path)) { $matched++; break; }
+            }
+        }
+        return $matched;
+    }
+
     function kernelHandleApiSuperadminWorkbenchRuns(): void
     {
         header('Content-Type: application/json; charset=utf-8');
@@ -2051,6 +2198,32 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
 
         $resultsDir = dirname(__DIR__, 2) . '/test_results';
         $runs = [];
+
+        foreach (workbenchHybridRuns(dirname(__DIR__, 2)) as $hybrid) {
+            $runs[] = [
+                'file' => 'run:' . $hybrid['run_id'],
+                'run_id' => $hybrid['run_id'],
+                'suite' => $hybrid['module'] . ' / ' . $hybrid['run_id'],
+                'module' => $hybrid['module'],
+                'type' => 'ark-hybrid',
+                'started' => '',
+                'finished' => $hybrid['finished'],
+                'elapsed_ms' => 0,
+                'passed' => (int)($hybrid['summary']['passed'] ?? 0),
+                'failed' => (int)($hybrid['summary']['failed'] ?? 0),
+                'timed_out' => (int)($hybrid['summary']['timed_out'] ?? 0),
+                'interrupted' => (int)($hybrid['summary']['interrupted'] ?? 0),
+                'skipped' => (int)($hybrid['summary']['skipped'] ?? 0),
+                'total' => (int)($hybrid['summary']['total'] ?? 0),
+                'gate_failed' => $hybrid['status'] === 'failed',
+                'gaps' => $hybrid['issues'],
+                'issues' => $hybrid['issues'],
+                'artifacts' => array_keys($hybrid['artifacts']),
+                'ux_score' => $hybrid['ux_score'],
+                'comprehension_score' => $hybrid['comprehension_score'],
+                'scenario_status' => $hybrid['scenario_status'],
+            ];
+        }
 
         // Collect PHP test results
         if (is_dir($resultsDir)) {
@@ -2144,6 +2317,17 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRunDetail')) {
         }
 
         $input = app()->input();
+        $runId = trim((string)($input['run_id'] ?? ($_GET['run_id'] ?? '')));
+        if ($runId !== '') {
+            $detail = workbenchHybridRunDetail(dirname(__DIR__, 2), $runId);
+            if ($detail === null) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'ARK run not found: ' . $runId]);
+                exit;
+            }
+            echo json_encode(['ok' => true, 'kind' => 'ark-hybrid', 'run' => $detail], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            exit;
+        }
         $suite = trim((string)($input['suite'] ?? ($_GET['suite'] ?? '')));
         $suite = basename($suite);
 
@@ -2237,6 +2421,61 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchIssues')) {
             $allIssues = $issues['issues'];
         }
         $allIssues = array_merge($allIssues, $failureIssues);
+
+        // Current System Analyst and Comprehension artifacts are run-scoped.
+        // Surface their evidence here instead of relying only on legacy flat files.
+        $hybridRuns = workbenchHybridRuns(dirname(__DIR__, 2));
+        uasort($hybridRuns, static fn($a, $b) => strcmp((string)($b['finished'] ?? ''), (string)($a['finished'] ?? '')));
+        $currentArkDiagnosis = null;
+        foreach (array_slice($hybridRuns, 0, 10, true) as $runId => $hybrid) {
+            $intelligence = $hybrid['artifacts']['intelligence'] ?? [];
+            if ($currentArkDiagnosis === null && $intelligence !== []) {
+                $assessment = $intelligence['ai_assessment'] ?? [];
+                $trace = $assessment['provider_trace'] ?? [];
+                $claim = $assessment['claims'][0] ?? [];
+                $currentArkDiagnosis = [
+                    'schema' => $intelligence['schema'] ?? 'ark.pattern-intelligence.v1',
+                    'run_id' => $runId,
+                    'classification' => 'pattern-intelligence / ' . ($intelligence['conformance_verdict'] ?? 'unknown'),
+                    'confidence' => (float)($intelligence['latent_quality']['confidence'] ?? $claim['confidence'] ?? 0),
+                    'summary' => (string)($claim['text'] ?? ($intelligence['latent_quality']['verdict'] ?? 'ARK final evidence assembled')),
+                    'evidence' => array_values((array)($intelligence['final_evidence']['sources'] ?? [])),
+                    'suspected_files' => [],
+                    'recommended_action' => 'Mode: ' . ($assessment['mode'] ?? 'deterministic') . '; provider: ' . ($trace['provider'] ?? 'none') . '; policy: ' . ($intelligence['effective_ai_policy']['fallback'] ?? 'default'),
+                    'provider_trace' => $trace,
+                    'claim_validation' => $assessment['validation'] ?? null,
+                ];
+            }
+            foreach (($hybrid['artifacts']['analyst']['issues'] ?? []) as $issue) {
+                $allIssues[] = [
+                    'id' => $issue['fingerprint'] ?? null,
+                    'run_id' => $runId,
+                    'suite' => $hybrid['module'],
+                    'module' => $hybrid['module'],
+                    'kind' => $issue['kind'] ?? 'analyst-observation',
+                    'severity' => $issue['severity'] ?? 'note',
+                    'detail' => $issue['detail'] ?? '',
+                    'where' => $issue['component'] ?? $issue['url'] ?? '',
+                    'classification' => $issue['classification'] ?? null,
+                    'confidence' => $issue['confidence'] ?? null,
+                    'source_engine' => 'system-analyst',
+                ];
+            }
+            $analysis = $hybrid['artifacts']['comprehension']['analysis'] ?? [];
+            if (($analysis['breakpoint'] ?? null) !== null) {
+                $allIssues[] = [
+                    'run_id' => $runId,
+                    'suite' => $hybrid['module'],
+                    'module' => $hybrid['module'],
+                    'kind' => 'comprehension-breakpoint',
+                    'severity' => $analysis['root_cause_hypothesis']['severity'] ?? 'major',
+                    'detail' => $analysis['root_cause_hypothesis']['summary'] ?? 'ARK Comprehension breakpoint',
+                    'where' => $analysis['breakpoint'],
+                    'confidence' => $analysis['confidence']['score'] ?? null,
+                    'source_engine' => 'comprehension',
+                ];
+            }
+        }
         $latestLearnedDiagnosis = null;
 
         $ledgerFile = dirname(__DIR__, 2) . '/kernel/Workbench/Issues/IssueLedger.php';
@@ -2273,14 +2512,24 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchIssues')) {
                 // The file-based ledger is supplementary; legacy reports remain available.
             }
         }
-        if ($aiDiagnosis === null && $latestLearnedDiagnosis !== null) $aiDiagnosis = $latestLearnedDiagnosis;
+        if ($currentArkDiagnosis !== null) $aiDiagnosis = $currentArkDiagnosis;
+        elseif ($aiDiagnosis === null && $latestLearnedDiagnosis !== null) $aiDiagnosis = $latestLearnedDiagnosis;
+
+        $severityCounts = [];
+        $kindCounts = [];
+        foreach ($allIssues as $issue) {
+            $severity = (string)($issue['severity'] ?? 'note');
+            $kind = (string)($issue['kind'] ?? 'issue');
+            $severityCounts[$severity] = ($severityCounts[$severity] ?? 0) + 1;
+            $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
+        }
 
         echo json_encode([
             'ok' => true,
             'issues' => $allIssues,
             'total' => count($allIssues),
-            'by_severity' => $issues['by_severity'] ?? [],
-            'by_kind' => $issues['by_kind'] ?? [],
+            'by_severity' => $severityCounts,
+            'by_kind' => $kindCounts,
             'ai_diagnosis' => $aiDiagnosis,
         ]);
         exit;
@@ -2317,7 +2566,7 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchModules')) {
             // Count test files
             $phpTests = count(glob($modPath . '/tests/*_test.php') ?: []) + count(glob(dirname(__DIR__, 2) . '/tests/' . $moduleId . '/*_test.php') ?: []);
             $browserDir = dirname(__DIR__, 2) . '/tests/browser/modules/' . $moduleId;
-            $browserTests = is_dir($browserDir) ? count(glob($browserDir . '/**/*.spec.js', GLOB_NOSORT) ?: []) : 0;
+            $browserTests = workbenchRecursiveSpecCount($browserDir);
 
             // Check last run status
             $lastRun = null;
@@ -2337,6 +2586,21 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchModules')) {
                 }
             }
 
+            foreach (workbenchHybridRuns(dirname(__DIR__, 2)) as $hybrid) {
+                if (($hybrid['module'] ?? '') !== $moduleId) continue;
+                if ($lastRun !== null && strcmp((string)$lastRun['finished'], (string)$hybrid['finished']) >= 0) continue;
+                $lastRun = [
+                    'file' => 'run:' . $hybrid['run_id'],
+                    'run_id' => $hybrid['run_id'],
+                    'finished' => $hybrid['finished'],
+                    'passed' => $hybrid['status'] === 'passed' ? 1 : 0,
+                    'failed' => $hybrid['status'] === 'failed' ? 1 : 0,
+                    'total' => 1,
+                    'type' => 'ark-hybrid',
+                    'engines' => array_keys($hybrid['artifacts']),
+                ];
+            }
+
             $entry = [
                 'module'        => $moduleId,
                 'name'          => $manifest['name'] ?? $moduleId,
@@ -2346,6 +2610,9 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchModules')) {
                 'browser_tests' => $browserTests,
                 'last_run'      => $lastRun,
             ];
+            if (function_exists('validateModuleCertification')) {
+                $entry['certification'] = validateModuleCertification($manifest);
+            }
 
             if ($testContract) {
                 $entry['contract'] = [
@@ -2382,6 +2649,14 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchCoverage')) {
         $resultsDir = dirname(__DIR__, 2) . '/test_results';
 
         $coverage = [];
+        $hybridByModule = [];
+        foreach (workbenchHybridRuns(dirname(__DIR__, 2)) as $hybrid) {
+            $module = (string)($hybrid['module'] ?? '');
+            if ($module === '') continue;
+            if (!isset($hybridByModule[$module]) || strcmp((string)$hybrid['finished'], (string)$hybridByModule[$module]['finished']) > 0) {
+                $hybridByModule[$module] = $hybrid;
+            }
+        }
         $totalRoutesClaimed = 0;
         $totalRoutesTested = 0;
         $totalCapsClaimed = 0;
@@ -2444,15 +2719,22 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchCoverage')) {
             }
 
             $totalTests = $existingPhpTests + $existingBrowserTests;
+            $hybrid = $hybridByModule[$moduleId] ?? null;
+            $analyst = $hybrid['artifacts']['analyst'] ?? [];
+            $analysis = $hybrid['artifacts']['comprehension']['analysis'] ?? [];
+            $routesObserved = $hybrid ? workbenchObservedClaimedRoutes($testContract, $analyst) : 0;
+            $action = (string)($analysis['action'] ?? '');
+            $workflowObserved = ($action !== '' && $action !== 'all' && ($analysis['breakpoint'] ?? null) === null) ? 1 : 0;
 
             $entry = [
                 'module' => $moduleId,
                 'routes_claimed' => $routesClaimed,
-                'routes_tested' => $totalTests > 0 ? min($routesClaimed, $totalTests * 3) : 0,
+                'routes_tested' => $routesObserved,
                 'capabilities_claimed' => $capsClaimed,
-                'capabilities_tested' => $totalTests > 0 ? min($capsClaimed, $totalTests * 2) : 0,
+                'capabilities_tested' => null,
+                'capabilities_measured' => false,
                 'workflow_transitions_claimed' => $workflowTransitions,
-                'workflow_transitions_tested' => $existingPhpTests > 0 ? $workflowTransitions : 0,
+                'workflow_transitions_tested' => min($workflowTransitions, $workflowObserved),
                 'php_test_files_existing' => $existingPhpTests,
                 'php_test_files_claimed' => count($phpTestFiles),
                 'browser_test_files_existing' => $existingBrowserTests,
@@ -2462,13 +2744,20 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchCoverage')) {
                 'last_passed' => $lastPassed,
                 'last_failed' => $lastFailed,
                 'targets' => $testContract['coverage_targets'] ?? [],
+                'evidence_mode' => 'observed',
+                'latest_run_id' => $hybrid['run_id'] ?? null,
+                'analyst_coverage' => $analyst['coverage'] ?? null,
+                'ux_score' => $analyst['ux_evolution']['score'] ?? null,
+                'ux_gate_passed' => $analyst['ux_evolution']['gate']['passed'] ?? null,
+                'comprehension_coverage' => $analysis['coverage_score'] ?? null,
+                'note' => 'Counts are matched from run-scoped ARK evidence; unobserved claims remain zero.',
             ];
 
             $coverage[$moduleId] = $entry;
             $totalRoutesClaimed += $routesClaimed;
             $totalRoutesTested += $entry['routes_tested'];
             $totalCapsClaimed += $capsClaimed;
-            $totalCapsTested += $entry['capabilities_tested'];
+            $totalCapsTested += (int)($entry['capabilities_tested'] ?? 0);
             $totalWorkflowsClaimed += $workflowTransitions;
             $totalWorkflowTransitionsTested += $entry['workflow_transitions_tested'];
         }
@@ -2524,8 +2813,8 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchProcessMap')) {
             http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Superadmin only']); exit;
         }
         $moduleId = trim((string)($_GET['module'] ?? 'project-audit-ledger'));
-        if ($moduleId !== 'project-audit-ledger') {
-            http_response_code(404); echo json_encode(['ok' => false, 'error' => 'No canonical provider for module']); exit;
+        if (!preg_match('/^[A-Za-z0-9_-]+$/', $moduleId)) {
+            http_response_code(400); echo json_encode(['ok' => false, 'error' => 'Invalid module id']); exit;
         }
         $root = dirname(__DIR__, 2);
         require_once $root . '/kernel/Workbench/Graph/ModuleGraph.php';
@@ -2537,7 +2826,20 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchProcessMap')) {
         require_once $root . '/kernel/Workbench/Comprehension/Contracts/EffectContract.php';
         require_once $root . '/kernel/Workbench/Comprehension/Contracts/SupportContracts.php';
         require_once $root . '/kernel/Workbench/Comprehension/PalComprehensionProvider.php';
-        $provider = new \Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider();
+        require_once $root . '/kernel/Workbench/Comprehension/ComprehensionProviderRegistry.php';
+        $registry = new \Ikabud\Kernel\Workbench\Comprehension\ComprehensionProviderRegistry($root);
+        if (!$registry->has($moduleId)) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => "No ARK Comprehension provider for '{$moduleId}'", 'available_modules' => $registry->modules()]);
+            exit;
+        }
+        try {
+            $provider = $registry->resolve($moduleId);
+        } catch (\Throwable $e) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'error' => 'Provider could not be loaded: ' . $e->getMessage()]);
+            exit;
+        }
         $builder = new \Ikabud\Kernel\Workbench\Graph\GraphBuilder($provider, $moduleId);
         $graph = $builder->build();
         $planFile = $root . '/test_results/ai/test-plan.json';
@@ -2545,7 +2847,7 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchProcessMap')) {
         echo json_encode([
             'ok' => true, 'module_id' => $moduleId, 'graph' => $graph->toArray($moduleId),
             'paths' => $builder->computePaths(), 'validation_errors' => $graph->validate(),
-            'shadow_plan' => is_array($plan) ? $plan : null,
+            'shadow_plan' => is_array($plan) ? $plan : null, 'available_modules' => $registry->modules(),
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }

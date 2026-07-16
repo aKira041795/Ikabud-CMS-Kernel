@@ -1,8 +1,8 @@
 {
     "suite": "workbench-phase5",
-    "started": "2026-07-16 08:51:18",
-    "finished": "2026-07-16 08:51:18",
-    "elapsed_ms": 0.9,
+    "started": "2026-07-16 16:15:37",
+    "finished": "2026-07-16 16:15:37",
+    "elapsed_ms": 1.3,
     "summary": {
         "passed": 7,
         "failed": 0,
@@ -46,7 +46,7 @@
             "label": "process map tab and provenance legend exist",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Workbench experience",

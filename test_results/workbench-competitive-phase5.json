@@ -1,0 +1,67 @@
+{
+    "suite": "workbench-competitive-phase5",
+    "started": "2026-07-16 22:49:49",
+    "finished": "2026-07-16 22:49:49",
+    "elapsed_ms": 0.4,
+    "summary": {
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "total": 7,
+        "assertions": 7,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "",
+            "label": "every governed component has required scenarios",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "",
+            "label": "all Workbench primitives are governed",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "",
+            "label": "unchanged accessible baseline passes",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "",
+            "label": "visual change requires approval",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "",
+            "label": "approval is a durable artifact",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "",
+            "label": "critical accessibility regression blocks release",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "",
+            "label": "component changes identify affected modules",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        }
+    ],
+    "gaps": []
+}

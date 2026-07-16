@@ -1,0 +1,74 @@
+{
+    "suite": "workbench-competitive-phase7",
+    "started": "2026-07-16 22:49:49",
+    "finished": "2026-07-16 22:49:49",
+    "elapsed_ms": 1,
+    "summary": {
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "total": 8,
+        "assertions": 8,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "",
+            "label": "extension SDK inventory is deterministic",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "",
+            "label": "collector preserves explicit outcomes",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "",
+            "label": "extension gate is schema-checked",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "",
+            "label": "reusable GitHub workflow exists",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "",
+            "label": "CI publishes evidence artifacts",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "",
+            "label": "reproducible container runner exists",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "",
+            "label": "adoption snippet stays under ten project lines",
+            "status": "pass",
+            "detail": "",
+            "time": 0.9
+        },
+        {
+            "section": "",
+            "label": "extensions cannot replace authoritative truth",
+            "status": "pass",
+            "detail": "Extension attempted to replace authoritative truth",
+            "time": 0.9
+        }
+    ],
+    "gaps": []
+}
