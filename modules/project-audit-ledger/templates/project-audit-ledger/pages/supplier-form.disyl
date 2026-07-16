@@ -1,13 +1,15 @@
-<div class="max-w-lg">
-<div class="wb-panel p-6">
-    <h2 class="wb-section__title mb-4">{is_edit ? 'Edit Supplier' : 'Create Supplier'}</h2>
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Supplier updated{else}Supplier created{/if}')" action="/api/v1/project-audit-ledger/suppliers{if is_edit}{if supplier.id}/{supplier.id}{/if}{/if}" method="POST" class="space-y-4">
+<div class="max-w-4xl">
+<div class="wb-panel">
+    <div class="wb-panel__header"><h2 class="wb-section-title">{is_edit ? 'Edit Supplier' : 'Create Supplier'}</h2></div>
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Supplier updated{else}Supplier created{/if}')" action="/api/v1/project-audit-ledger/suppliers{if is_edit}{if supplier.id}/{supplier.id}{/if}{/if}" method="POST" class="wb-panel__body">
         {csrf_field | raw}
-        <div><label class="wb-label wb-label--required">Name</label><input type="text" name="name" value="{supplier.name}" required class="wb-input"></div>
-        <div><label class="wb-label">Contact Person</label><input type="text" name="contact_person" value="{supplier.contact_person}" class="wb-input"></div>
-        <div><label class="wb-label">Email</label><input type="email" name="email" value="{supplier.email}" class="wb-input"></div>
-        <div><label class="wb-label">Phone</label><input type="text" name="phone" value="{supplier.phone}" class="wb-input"></div>
-        <div class="flex gap-3"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button><a href="/admin/project-audit-ledger/suppliers" class="wb-btn wb-btn--secondary">Cancel</a></div>
+        <div class="wb-form-grid wb-form-grid--2">
+            <div class="sm:col-span-2"><label class="wb-label wb-label--required" for="supplier-name">Name</label><input id="supplier-name" type="text" name="name" value="{supplier.name}" required class="wb-input"></div>
+            <div><label class="wb-label" for="supplier-contact">Contact Person</label><input id="supplier-contact" type="text" name="contact_person" value="{supplier.contact_person}" class="wb-input"></div>
+            <div><label class="wb-label" for="supplier-phone">Phone</label><input id="supplier-phone" type="tel" name="phone" value="{supplier.phone}" class="wb-input"></div>
+            <div class="sm:col-span-2"><label class="wb-label" for="supplier-email">Email</label><input id="supplier-email" type="email" name="email" value="{supplier.email}" class="wb-input"></div>
+        </div>
+        <div class="wb-form-sticky-bar"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button><a href="/admin/project-audit-ledger/suppliers" class="wb-btn wb-btn--secondary">Cancel</a></div>
     </form>
 </div>
 </div>

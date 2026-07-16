@@ -1,14 +1,16 @@
-<div class="max-w-lg">
-<div class="wb-panel p-6">
-    <h2 class="wb-section__title mb-4">{is_edit ? 'Edit Client' : 'Create Client'}</h2>
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Client updated{else}Client created{/if}')" action="/api/v1/project-audit-ledger/clients{if is_edit}{if client.id}/{client.id}{/if}{/if}" method="POST" class="space-y-4">
+<div class="max-w-4xl">
+<div class="wb-panel">
+    <div class="wb-panel__header"><h2 class="wb-section-title">{is_edit ? 'Edit Client' : 'Create Client'}</h2></div>
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Client updated{else}Client created{/if}')" action="/api/v1/project-audit-ledger/clients{if is_edit}{if client.id}/{client.id}{/if}{/if}" method="POST" class="wb-panel__body">
         {csrf_field | raw}
-        <div><label class="wb-label wb-label--required">Name</label><input type="text" name="name" value="{client.name}" required class="wb-input"></div>
-        <div><label class="wb-label">Contact Person</label><input type="text" name="contact_person" value="{client.contact_person}" class="wb-input"></div>
-        <div><label class="wb-label">Email</label><input type="email" name="email" value="{client.email}" class="wb-input"></div>
-        <div><label class="wb-label">Phone</label><input type="text" name="phone" value="{client.phone}" class="wb-input"></div>
-        <div><label class="wb-label">Address</label><textarea name="address" rows="2" class="wb-textarea">{client.address}</textarea></div>
-        <div class="flex gap-3"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button><a href="/admin/project-audit-ledger/clients" class="wb-btn wb-btn--secondary">Cancel</a></div>
+        <div class="wb-form-grid wb-form-grid--2">
+            <div class="sm:col-span-2"><label class="wb-label wb-label--required" for="client-name">Name</label><input id="client-name" type="text" name="name" value="{client.name}" required class="wb-input"></div>
+            <div><label class="wb-label" for="client-contact">Contact Person</label><input id="client-contact" type="text" name="contact_person" value="{client.contact_person}" class="wb-input"></div>
+            <div><label class="wb-label" for="client-phone">Phone</label><input id="client-phone" type="tel" name="phone" value="{client.phone}" class="wb-input"></div>
+            <div class="sm:col-span-2"><label class="wb-label" for="client-email">Email</label><input id="client-email" type="email" name="email" value="{client.email}" class="wb-input"></div>
+            <div class="sm:col-span-2"><label class="wb-label" for="client-address">Address</label><textarea id="client-address" name="address" rows="3" class="wb-textarea">{client.address}</textarea></div>
+        </div>
+        <div class="wb-form-sticky-bar"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button><a href="/admin/project-audit-ledger/clients" class="wb-btn wb-btn--secondary">Cancel</a></div>
     </form>
 </div>
 </div>

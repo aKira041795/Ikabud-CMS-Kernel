@@ -9,11 +9,11 @@
     <div id="material-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
         <form onsubmit="return ajaxSubmit(this, 'Material created')" action="/api/v1/project-audit-ledger/materials" method="POST" class="grid grid-cols-3 gap-3">
             {csrf_field | raw}
-            <div><input type="text" name="name" placeholder="Material name *" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-            <div><input type="text" name="description" placeholder="e.g. 18ft x 8ft roll" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-            <div><select name="category_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm inv-cat-select" data-creatable="material_category"><option value="">Category</option>{for c in categories}<option value="{c.id}">{c.name}</option>{/for}</select></div>
-            <div><select name="unit_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm inv-unit-select" data-creatable="unit"><option value="">Unit</option>{for u in units}<option value="{u.id}">{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
-            <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div><input type="text" name="name" placeholder="Material name *" required class="wb-input"></div>
+            <div><input type="text" name="description" placeholder="e.g. 18ft x 8ft roll" class="wb-input"></div>
+            <div><select name="category_id" class="wb-select inv-cat-select" data-creatable="material_category"><option value="">Category</option>{for c in categories}<option value="{c.id}">{c.name}</option>{/for}</select></div>
+            <div><select name="unit_id" class="wb-select inv-unit-select" data-creatable="unit"><option value="">Unit</option>{for u in units}<option value="{u.id}">{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
+            <div><input type="number" step="0.01" name="reorder_level" placeholder="Reorder level" class="wb-input"></div>
             <div class="col-span-3 flex gap-2"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Create</button><button type="button" onclick="document.getElementById('material-form').classList.add('hidden')" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button></div>
         </form>
         <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.inv-cat-select,.inv-unit-select').forEach(function(e){if(e)makeCreatable(e);});});</script>

@@ -1,14 +1,14 @@
 <div class="max-w-4xl">
 <div class="wb-panel p-6" x-data="quotationForm()">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit ? 'Edit Quotation' : 'Create Quotation'}</h2>
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Quotation updated{else}Quotation created{/if}')" action="/api/v1/project-audit-ledger/quotations{if is_edit}{if quotation.id}/{quotation.id}{/if}{/if}" method="POST" class="space-y-4">
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Quotation updated{else}Quotation created{/if}')" action="/api/v1/project-audit-ledger/quotations{if is_edit}{if quotation.id}/{quotation.id}{/if}{/if}" method="POST" class="wb-form-surface">
         {csrf_field | raw}
 
         <!-- Header Fields -->
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Client *</label>
-                <select name="client_id" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="client">
+                <label class="wb-label">Client *</label>
+                <select name="client_id" required class="wb-select" data-creatable="client">
                     <option value="">— Select Client —</option>
                     {for c in clients}
                     <option value="{c.id}"{if quotation.client_id==c.id} selected{/if}>{c.name}</option>
@@ -17,8 +17,8 @@
                 <script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=client_id]');if(e)makeCreatable(e);});</script>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Project</label>
-                <select name="project_id" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="project">
+                <label class="wb-label">Project</label>
+                <select name="project_id" class="wb-select" data-creatable="project">
                     <option value="">— Optional —</option>
                     {for p in projects}
                     <option value="{p.id}"{if quotation.project_id==p.id} selected{/if}>{p.title}</option>
@@ -27,12 +27,12 @@
                 <script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Quotation Date</label>
-                <input type="date" name="quotation_date" value="{is_edit ? quotation.quotation_date : ('now'|date:'Y-m-d')}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Quotation Date</label>
+                <input type="date" name="quotation_date" value="{is_edit ? quotation.quotation_date : ('now'|date:'Y-m-d')}" class="wb-input">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Scope of Work</label>
-                <select name="scope_of_work" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Scope of Work</label>
+                <select name="scope_of_work" class="wb-select">
                     <option value="">— Select —</option>
                     <option value="new"{if quotation.scope_of_work=='new'} selected{/if}>New</option>
                     <option value="refurbish"{if quotation.scope_of_work=='refurbish'} selected{/if}>Refurbish</option>
@@ -52,8 +52,8 @@
                 </label>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mode of Payment</label>
-                <select name="mode_of_payment" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Mode of Payment</label>
+                <select name="mode_of_payment" class="wb-select">
                     <option value="">— Select —</option>
                     <option value="cash"{if quotation.mode_of_payment=='cash'} selected{/if}>Cash</option>
                     <option value="check"{if quotation.mode_of_payment=='check'} selected{/if}>Check</option>
@@ -66,28 +66,28 @@
         <!-- Charges -->
         <div class="grid grid-cols-3 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Installation Charge</label>
-                <input type="number" step="0.01" name="installation_charge" value="{quotation.installation_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Installation Charge</label>
+                <input type="number" step="0.01" name="installation_charge" value="{quotation.installation_charge|default:0}" class="wb-input">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Mobilization Charge</label>
-                <input type="number" step="0.01" name="mobilization_charge" value="{quotation.mobilization_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Mobilization Charge</label>
+                <input type="number" step="0.01" name="mobilization_charge" value="{quotation.mobilization_charge|default:0}" class="wb-input">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Other Charges</label>
-                <input type="number" step="0.01" name="other_charges" value="{quotation.other_charges|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Other Charges</label>
+                <input type="number" step="0.01" name="other_charges" value="{quotation.other_charges|default:0}" class="wb-input">
             </div>
         </div>
 
         <!-- Down Payment -->
         <div class="grid grid-cols-2 gap-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Down Payment Amount</label>
-                <input type="number" step="0.01" name="down_payment" value="{quotation.down_payment|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Down Payment Amount</label>
+                <input type="number" step="0.01" name="down_payment" value="{quotation.down_payment|default:''}" class="wb-input">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Down Payment Type</label>
-                <select name="down_payment_type" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                <label class="wb-label">Down Payment Type</label>
+                <select name="down_payment_type" class="wb-select">
                     <option value="">— Select —</option>
                     <option value="down_payment"{if quotation.down_payment_type=='down_payment'} selected{/if}>Down Payment</option>
                     <option value="full_payment"{if quotation.down_payment_type=='full_payment'} selected{/if}>Full Payment</option>
@@ -120,7 +120,7 @@
                             <tr class="border-b border-gray-100">
                                 <td class="py-1 px-2 text-xs text-gray-500 text-center" x-text="idx + 1"></td>
                                 <td class="py-1 px-2">
-                                    <select x-model="item.material_id" @change="onMaterialSelect(idx)" class="w-28 px-1 py-1 border border-gray-300 rounded text-xs">
+                                    <select x-model="item.material_id" @change="onMaterialSelect(idx)" class="wb-table-control w-28">
                                         <option value="">—</option>
                                         {for m in materials}
                                         <option value="{m.id}"
@@ -134,29 +134,29 @@
                                     </select>
                                 </td>
                                 <td class="py-1 px-2">
-                                    <input type="text" x-model="item.particulars" :name="'particulars['+idx+']'" class="w-36 px-1 py-1 border border-gray-300 rounded text-xs">
+                                    <input type="text" x-model="item.particulars" :name="'particulars['+idx+']'" class="wb-table-control w-36">
                                 </td>
                                 <td class="py-1 px-2">
-                                    <input type="number" step="0.01" x-model="item.width" @input="calcLine(idx)" :name="'width['+idx+']'" class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center">
+                                    <input type="number" step="0.01" x-model="item.width" @input="calcLine(idx)" :name="'width['+idx+']'" class="wb-table-control w-16 text-center">
                                 </td>
                                 <td class="py-1 px-2">
-                                    <input type="number" step="0.01" x-model="item.height" @input="calcLine(idx)" :name="'height['+idx+']'" class="w-16 px-1 py-1 border border-gray-300 rounded text-xs text-center">
+                                    <input type="number" step="0.01" x-model="item.height" @input="calcLine(idx)" :name="'height['+idx+']'" class="wb-table-control w-16 text-center">
                                 </td>
                                 <td class="py-1 px-2">
-                                    <select x-model="item.uom" :name="'uom['+idx+']'" class="w-14 px-1 py-1 border border-gray-300 rounded text-xs">
+                                    <select x-model="item.uom" :name="'uom['+idx+']'" class="wb-table-control w-14">
                                         <option value="ft">ft</option>
                                         <option value="m">m</option>
                                         <option value="in">in</option>
                                     </select>
                                 </td>
                                 <td class="py-1 px-2">
-                                    <input type="number" step="0.01" x-model="item.quantity" @input="calcLine(idx)" :name="'quantity['+idx+']'" class="w-14 px-1 py-1 border border-gray-300 rounded text-xs text-center">
+                                    <input type="number" step="0.01" x-model="item.quantity" @input="calcLine(idx)" :name="'quantity['+idx+']'" class="wb-table-control w-14 text-center">
                                 </td>
                                 <td class="py-1 px-2">
-                                    <input type="number" step="0.01" x-model="item.price_per_unit" @input="calcLine(idx)" :name="'price_per_unit['+idx+']'" class="w-20 px-1 py-1 border border-gray-300 rounded text-xs text-right">
+                                    <input type="number" step="0.01" x-model="item.price_per_unit" @input="calcLine(idx)" :name="'price_per_unit['+idx+']'" class="wb-table-control w-20 text-right">
                                 </td>
                                 <td class="py-1 px-2">
-                                    <input type="number" step="0.01" x-model="item.price_per_sqft" @input="calcLine(idx)" :name="'price_per_sqft['+idx+']'" class="w-20 px-1 py-1 border border-gray-300 rounded text-xs text-right">
+                                    <input type="number" step="0.01" x-model="item.price_per_sqft" @input="calcLine(idx)" :name="'price_per_sqft['+idx+']'" class="wb-table-control w-20 text-right">
                                 </td>
                                 <td class="py-1 px-2 text-xs text-right font-medium" x-text="formatMoney(item.line_total)"></td>
                                 <td class="py-1 px-2 text-center">
@@ -172,8 +172,8 @@
 
         <!-- Notes -->
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-            <textarea name="notes" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{quotation.notes}</textarea>
+            <label class="wb-label">Notes</label>
+            <textarea name="notes" rows="2" class="wb-textarea">{quotation.notes}</textarea>
         </div>
 
         <div class="flex gap-3">

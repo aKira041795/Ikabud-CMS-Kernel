@@ -1,7 +1,7 @@
 <div class="max-w-lg">
 <div class="wb-panel p-6" x-data="{ amount: 0, description: '', project_id: '' }">
     <h2 class="font-semibold text-gray-900 mb-4">Request Cash Advance</h2>
-    <form onsubmit="return submitCaRequest(this)" action="/api/v1/project-audit-ledger/tl/cash-advances" method="POST" class="space-y-4">
+    <form onsubmit="return submitCaRequest(this)" action="/api/v1/project-audit-ledger/tl/cash-advances" method="POST" class="wb-form-surface">
         {csrf_field | raw}
         <div>
             <label class="wb-label wb-label--required">Amount</label>

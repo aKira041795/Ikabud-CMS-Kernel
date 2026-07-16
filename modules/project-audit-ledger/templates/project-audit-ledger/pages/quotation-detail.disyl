@@ -128,10 +128,10 @@
         <form onsubmit="return uploadQuotationAttachment(this, {quotation.id})" class="flex gap-2 items-end">
             {csrf_field | raw}
             <div class="flex-1">
-                <input type="file" name="file" accept="image/*" required class="w-full text-sm">
+                <input type="file" name="file" accept="image/*" required class="wb-file-input">
             </div>
             <div>
-                <select name="description" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                <select name="description" class="wb-select">
                     <option value="mockup">🎨 Mockup</option>
                     <option value="photo">📷 Photo</option>
                     <option value="reference">📄 Reference</option>

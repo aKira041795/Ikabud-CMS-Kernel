@@ -1,36 +1,36 @@
 <div class="max-w-2xl">
 <div class="wb-panel p-6">
     <h2 class="wb-section__title mb-4">{is_edit ? 'Edit Purchase' : 'Create Purchase'}</h2>
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Purchase updated{else}Purchase created{/if}')" action="/api/v1/project-audit-ledger/purchases{if is_edit}{if purchase.id}/{purchase.id}{/if}{/if}" method="POST" class="space-y-4">
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Purchase updated{else}Purchase created{/if}')" action="/api/v1/project-audit-ledger/purchases{if is_edit}{if purchase.id}/{purchase.id}{/if}{/if}" method="POST" class="wb-form-surface">
         {csrf_field | raw}
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Supplier *</label><select name="supplier_id" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="supplier"><option value="">—</option>{for s in suppliers}<option value="{s.id}"{if purchase.supplier_id==s.id} selected{/if}>{s.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=supplier_id]');if(e)makeCreatable(e);});</script></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Project</label><select name="project_id" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="project"><option value="">—</option>{for p in projects}<option value="{p.id}"{if purchase.project_id==p.id} selected{/if}>{p.title}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script></div>
-        <div class="grid grid-cols-2 gap-3"><div><label class="block text-sm font-medium text-gray-700 mb-1">Invoice #</label><input type="text" name="invoice_number" value="{purchase.invoice_number}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label><input type="date" name="purchase_date" value="{purchase.purchase_date|default:'now'|date:'Y-m-d'}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div></div>
+        <div><label class="wb-label">Supplier *</label><select name="supplier_id" required class="wb-select" data-creatable="supplier"><option value="">—</option>{for s in suppliers}<option value="{s.id}"{if purchase.supplier_id==s.id} selected{/if}>{s.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=supplier_id]');if(e)makeCreatable(e);});</script></div>
+        <div><label class="wb-label">Project</label><select name="project_id" class="wb-select" data-creatable="project"><option value="">—</option>{for p in projects}<option value="{p.id}"{if purchase.project_id==p.id} selected{/if}>{p.title}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script></div>
+        <div class="grid grid-cols-2 gap-3"><div><label class="wb-label">Invoice #</label><input type="text" name="invoice_number" value="{purchase.invoice_number}" class="wb-input"></div>
+        <div><label class="wb-label">Purchase Date</label><input type="date" name="purchase_date" value="{purchase.purchase_date|default:'now'|date:'Y-m-d'}" class="wb-input"></div></div>
         <h3 class="font-semibold text-gray-900 text-sm border-t pt-4">Line Items</h3>
         <div id="po-items">
         <div class="grid grid-cols-12 gap-2 items-end mb-2">
-            <div class="col-span-4"><label class="block text-xs font-medium text-gray-600">Material</label></div>
-            <div class="col-span-2"><label class="block text-xs font-medium text-gray-600">Qty</label></div>
-            <div class="col-span-2"><label class="block text-xs font-medium text-gray-600">Unit Cost</label></div>
-            <div class="col-span-3"><label class="block text-xs font-medium text-gray-600">Total</label></div>
+            <div class="col-span-4"><span class="wb-label">Material</span></div>
+            <div class="col-span-2"><span class="wb-label">Qty</span></div>
+            <div class="col-span-2"><span class="wb-label">Unit Cost</span></div>
+            <div class="col-span-3"><span class="wb-label">Total</span></div>
             <div class="col-span-1"></div>
         </div>
         {if purchase}{if purchase.items}
         {for item in purchase.items}
         <div class="grid grid-cols-12 gap-2 items-end mb-2 po-row">
-            <div class="col-span-4"><select name="material_id[]" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm po-mat-select" data-creatable="material">{for m in materials}<option value="{m.id}"{if item.material_id==m.id} selected{/if}>{m.name}</option>{/for}</select></div>
-            <div class="col-span-2"><input type="number" step="0.01" name="quantity[]" value="{item.quantity}" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm qty-input"></div>
-            <div class="col-span-2"><input type="number" step="0.01" name="unit_cost[]" value="{item.unit_cost}" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm cost-input"></div>
+            <div class="col-span-4"><select name="material_id[]" required class="wb-select po-mat-select" data-creatable="material">{for m in materials}<option value="{m.id}"{if item.material_id==m.id} selected{/if}>{m.name}</option>{/for}</select></div>
+            <div class="col-span-2"><input type="number" step="0.01" name="quantity[]" value="{item.quantity}" required class="wb-input qty-input"></div>
+            <div class="col-span-2"><input type="number" step="0.01" name="unit_cost[]" value="{item.unit_cost}" required class="wb-input cost-input"></div>
             <div class="col-span-3"><span class="text-sm font-medium line-total">₱{(item.quantity*item.unit_cost)|number_format:2}</span></div>
             <div class="col-span-1"><button type="button" onclick="this.closest('.po-row').remove()" class="text-xs text-red-500">✕</button></div>
         </div>
         {/for}
         {else}
         <div class="grid grid-cols-12 gap-2 items-end mb-2 po-row">
-            <div class="col-span-4"><select name="material_id[]" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm po-mat-select" data-creatable="material">{for m in materials}<option value="{m.id}">{m.name}</option>{/for}</select></div>
-            <div class="col-span-2"><input type="number" step="0.01" name="quantity[]" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm qty-input"></div>
-            <div class="col-span-2"><input type="number" step="0.01" name="unit_cost[]" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm cost-input"></div>
+            <div class="col-span-4"><select name="material_id[]" required class="wb-select po-mat-select" data-creatable="material">{for m in materials}<option value="{m.id}">{m.name}</option>{/for}</select></div>
+            <div class="col-span-2"><input type="number" step="0.01" name="quantity[]" required class="wb-input qty-input"></div>
+            <div class="col-span-2"><input type="number" step="0.01" name="unit_cost[]" required class="wb-input cost-input"></div>
             <div class="col-span-3"><span class="text-sm font-medium line-total">₱0.00</span></div>
             <div class="col-span-1"><button type="button" onclick="this.closest('.po-row').remove()" class="text-xs text-red-500">✕</button></div>
         </div>

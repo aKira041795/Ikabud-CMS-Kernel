@@ -1091,16 +1091,20 @@
     padding: var(--wb-space-4);
 }
 
+.wb-panel:not(.p-4):not(.p-6) > form:not(.wb-panel__body) {
+    padding: var(--wb-space-4);
+}
+
 .wb-section-title {
     margin: 0;
-    color: var(--wb-color-text);
+    color: var(--wb-text-primary);
     font-size: var(--wb-text-sm);
     font-weight: 600;
 }
 
 .wb-text-muted {
     margin: 0;
-    color: var(--wb-color-text-muted);
+    color: var(--wb-text-muted);
     font-size: var(--wb-text-sm);
 }
 

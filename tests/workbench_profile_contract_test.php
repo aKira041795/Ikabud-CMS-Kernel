@@ -113,6 +113,34 @@ foreach ($palTemplates as $template) {
 $h->assertSame([], $tailwindEntityLists, 'PAL entity lists do not select the Tailwind renderer preset');
 $h->assertSame([], $unwiredEntityLists, 'PAL entity lists explicitly select the Workbench renderer preset');
 
+$legacyFormControls = [];
+$unwiredFormControls = [];
+foreach ($palTemplates as $template) {
+    $contents = (string)file_get_contents($template);
+    if (preg_match('/class="[^"]*(?:w-full px-[23] py|block text-(?:xs|sm) font-medium)/', $contents)) {
+        $legacyFormControls[] = $template;
+    }
+    preg_match_all('/<(input|select|textarea)\b[^>]*>/s', $contents, $controls);
+    foreach ($controls[0] ?? [] as $control) {
+        if (preg_match('/type="(?:hidden|checkbox|radio|button|submit|reset)"/', $control)) {
+            continue;
+        }
+        if (!preg_match('/class="[^"]*\bwb-(?:input|select|textarea|table-control|file-input)\b/', $control)) {
+            $unwiredFormControls[] = basename($template) . ': ' . substr(preg_replace('/\s+/', ' ', $control), 0, 100);
+        }
+    }
+}
+$h->assertSame([], array_values(array_unique($legacyFormControls)), 'PAL templates contain no legacy standard-control signatures');
+$h->assertSame([], $unwiredFormControls, 'PAL standard controls explicitly use Workbench form primitives');
+$clientForm = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/pages/client-form.disyl');
+$supplierForm = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/pages/supplier-form.disyl');
+$workbenchCss = (string)file_get_contents($base . '/public/assets/workbench/workbench.css');
+$h->test('Client form has padded panel body', str_contains($clientForm, 'class="wb-panel__body"'));
+$h->test('Client form has responsive field spacing', str_contains($clientForm, 'wb-form-grid wb-form-grid--2'));
+$h->test('Supplier form has padded panel body', str_contains($supplierForm, 'class="wb-panel__body"'));
+$h->test('Supplier form has responsive field spacing', str_contains($supplierForm, 'wb-form-grid wb-form-grid--2'));
+$h->test('Unpadded panels protect direct form inset', str_contains($workbenchCss, '.wb-panel:not(.p-4):not(.p-6) > form:not(.wb-panel__body)'));
+
 $shellTemplates = [
     $profileRoot . '/layouts/app-shell.disyl',
     $profileRoot . '/layouts/app-shell-mobile.disyl',

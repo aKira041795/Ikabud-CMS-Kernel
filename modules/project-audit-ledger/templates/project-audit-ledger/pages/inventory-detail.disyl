@@ -15,25 +15,25 @@
         {csrf_field | raw}
         <div class="col-span-2 border-b pb-2 mb-2"><span class="text-xs text-gray-500 uppercase tracking-wide">Edit Material</span></div>
 
-        <div class="col-span-2"><label class="block text-xs font-medium text-gray-600 mb-1">Name</label><input type="text" name="name" value="{material.name}" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div class="col-span-2"><label class="wb-label">Name</label><input type="text" name="name" value="{material.name}" required class="wb-input"></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Code</label><input type="text" name="material_code" value="{material.material_code}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div><label class="wb-label">Code</label><input type="text" name="material_code" value="{material.material_code}" class="wb-input"></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Category</label><select name="category_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm detail-cat-select" data-creatable="material_category"><option value="">—</option>{for c in categories}<option value="{c.id}"{if material.category_id==c.id} selected{/if}>{c.name}</option>{/for}</select></div>
+        <div><label class="wb-label">Category</label><select name="category_id" class="wb-select detail-cat-select" data-creatable="material_category"><option value="">—</option>{for c in categories}<option value="{c.id}"{if material.category_id==c.id} selected{/if}>{c.name}</option>{/for}</select></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Unit (purchase)</label><select name="unit_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm detail-unit-select" data-creatable="unit"><option value="">—</option>{for u in units}<option value="{u.id}"{if material.unit_id==u.id} selected{/if}>{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
+        <div><label class="wb-label">Unit (purchase)</label><select name="unit_id" class="wb-select detail-unit-select" data-creatable="unit"><option value="">—</option>{for u in units}<option value="{u.id}"{if material.unit_id==u.id} selected{/if}>{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Unit (cost conversion)</label><select name="conversion_unit_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm detail-conv-select" data-creatable="unit"><option value="">— (same as purchase unit)</option>{for u in units}<option value="{u.id}"{if material.conversion_unit_id==u.id} selected{/if}>{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
+        <div><label class="wb-label">Unit (cost conversion)</label><select name="conversion_unit_id" class="wb-select detail-conv-select" data-creatable="unit"><option value="">— (same as purchase unit)</option>{for u in units}<option value="{u.id}"{if material.conversion_unit_id==u.id} selected{/if}>{u.name}{if u.abbreviation} ({u.abbreviation}){/if}</option>{/for}</select></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Conversion factor</label><input type="number" step="0.000001" name="conversion_factor" value="{material.conversion_factor}" placeholder="e.g. 144 for sqft/roll" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"><p class="text-xs text-gray-400 mt-1">How many {material.conversion_unit_name|default:'sub-units'} per purchase unit</p></div>
+        <div><label class="wb-label">Conversion factor</label><input type="number" step="0.000001" name="conversion_factor" value="{material.conversion_factor}" placeholder="e.g. 144 for sqft/roll" class="wb-input"><p class="text-xs text-gray-400 mt-1">How many {material.conversion_unit_name|default:'sub-units'} per purchase unit</p></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Avg Cost ({material.unit_name|default:'per unit'})</label><input type="number" step="0.01" name="current_avg_cost" value="{material.current_avg_cost|default:0}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div><label class="wb-label">Avg Cost ({material.unit_name|default:'per unit'})</label><input type="number" step="0.01" name="current_avg_cost" value="{material.current_avg_cost|default:0}" class="wb-input"></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Supplier</label><select name="preferred_supplier_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm detail-supplier-select" data-creatable="supplier"><option value="">—</option>{for s in suppliers}<option value="{s.id}"{if material.preferred_supplier_id==s.id} selected{/if}>{s.name}</option>{/for}</select></div>
+        <div><label class="wb-label">Supplier</label><select name="preferred_supplier_id" class="wb-select detail-supplier-select" data-creatable="supplier"><option value="">—</option>{for s in suppliers}<option value="{s.id}"{if material.preferred_supplier_id==s.id} selected{/if}>{s.name}</option>{/for}</select></div>
 
-        <div><label class="block text-xs font-medium text-gray-600 mb-1">Reorder Level</label><input type="number" step="0.01" name="reorder_level" value="{material.reorder_level}" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div><label class="wb-label">Reorder Level</label><input type="number" step="0.01" name="reorder_level" value="{material.reorder_level}" class="wb-input"></div>
 
-        <div class="col-span-2"><label class="block text-xs font-medium text-gray-600 mb-1">Description</label><input type="text" name="description" value="{material.description}" placeholder="e.g. 18ft x 8ft roll" class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div class="col-span-2"><label class="wb-label">Description</label><input type="text" name="description" value="{material.description}" placeholder="e.g. 18ft x 8ft roll" class="wb-input"></div>
 
         <div class="col-span-2 flex gap-2 mt-2"><button type="submit" class="wb-btn wb-btn--primary">Save Changes</button><a href="/admin/project-audit-ledger/inventory" class="wb-btn wb-btn--secondary">← Back to Inventory</a></div>
     </form>
@@ -44,8 +44,8 @@
     <form onsubmit="return ajaxSubmit(this, 'Stock adjusted')" action="/api/v1/project-audit-ledger/inventory/adjust" method="POST" class="grid grid-cols-3 gap-3">
         {csrf_field | raw}
         <input type="hidden" name="material_id" value="{material.id}">
-        <div><input type="number" step="0.01" name="quantity" placeholder="Qty (+/-)" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
-        <div><input type="text" name="reason" placeholder="Reason" required class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+        <div><input type="number" step="0.01" name="quantity" placeholder="Qty (+/-)" required class="wb-input"></div>
+        <div><input type="text" name="reason" placeholder="Reason" required class="wb-input"></div>
         <div><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Adjust</button></div>
     </form>
 </div>

@@ -1,7 +1,7 @@
 <div class="max-w-lg">
 <div class="wb-panel p-6">
     <h2 class="wb-section__title mb-4">{is_edit ? 'Edit Material Issuance' : 'Create Material Issuance'}</h2>
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Issuance updated{else}Issuance created{/if}')" action="/api/v1/project-audit-ledger/issuances{if is_edit}{if issuance.id}/{issuance.id}{/if}{/if}" method="POST" class="space-y-4">
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}Issuance updated{else}Issuance created{/if}')" action="/api/v1/project-audit-ledger/issuances{if is_edit}{if issuance.id}/{issuance.id}{/if}{/if}" method="POST" class="wb-form-surface">
         {csrf_field | raw}
         <div><label class="wb-label wb-label--required">Project</label><select name="project_id" required class="wb-select" data-creatable="project"><option value="">—</option>{for p in projects}<option value="{p.id}"{if issuance.project_id==p.id} selected{/if}>{p.title}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script></div>
         <div><label class="wb-label wb-label--required">Material</label><select name="material_id[]" required class="wb-select pal-mat-select" data-creatable="material"><option value="">—</option>{for m in materials}<option value="{m.id}"{if issuance}{if issuance.items[0]}{if m.id==issuance.items[0].material_id} selected{/if}{/if}{/if}>{m.name} (stock: {m.stock|default:0})</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.pal-mat-select').forEach(function(e){if(e)makeCreatable(e);});});</script></div>

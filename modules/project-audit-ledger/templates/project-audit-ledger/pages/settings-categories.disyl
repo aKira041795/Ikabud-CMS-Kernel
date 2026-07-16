@@ -6,7 +6,7 @@
             <tbody>{for c in expense_cats}<tr class="border-b border-gray-100"><td class="py-2 px-4">{c.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('expense_category',{c.id})" class="text-xs px-2 py-0.5 rounded-full {if c.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{c.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
         <div class="p-4 border-t bg-gray-50">
-            <div class="flex gap-2"><input type="text" id="new-exp-cat" placeholder="Category name" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><button onclick="addCategory('expense_category','new-exp-cat')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
+            <div class="flex gap-2"><input type="text" id="new-exp-cat" placeholder="Category name" class="wb-input flex-1"><button onclick="addCategory('expense_category','new-exp-cat')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
         </div>
     </div>
     <div class="wb-panel">
@@ -16,7 +16,7 @@
             <tbody>{for c in material_cats}<tr class="border-b border-gray-100"><td class="py-2 px-4">{c.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('material_category',{c.id})" class="text-xs px-2 py-0.5 rounded-full {if c.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{c.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
         <div class="p-4 border-t bg-gray-50">
-            <div class="flex gap-2"><input type="text" id="new-mat-cat" placeholder="Category name" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><button onclick="addCategory('material_category','new-mat-cat')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
+            <div class="flex gap-2"><input type="text" id="new-mat-cat" placeholder="Category name" class="wb-input flex-1"><button onclick="addCategory('material_category','new-mat-cat')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
         </div>
     </div>
     <div class="wb-panel">
@@ -26,7 +26,7 @@
             <tbody>{for t in project_types}<tr class="border-b border-gray-100"><td class="py-2 px-4">{t.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('project_type',{t.id})" class="text-xs px-2 py-0.5 rounded-full {if t.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{t.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
         <div class="p-4 border-t bg-gray-50">
-            <div class="flex gap-2"><input type="text" id="new-ptype" placeholder="Type name" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><button onclick="addCategory('project_type','new-ptype')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
+            <div class="flex gap-2"><input type="text" id="new-ptype" placeholder="Type name" class="wb-input flex-1"><button onclick="addCategory('project_type','new-ptype')" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
         </div>
     </div>
     <div class="wb-panel">
@@ -36,7 +36,7 @@
             <tbody>{for u in units}<tr class="border-b border-gray-100"><td class="py-2 px-4">{u.name}</td><td class="py-2 px-4 text-xs">{u.abbreviation|default:'—'}</td><td class="py-2 px-4"><button onclick="toggleStatus('unit',{u.id})" class="text-xs px-2 py-0.5 rounded-full {if u.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{u.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
         <div class="p-4 border-t bg-gray-50 border-b border-gray-200">
-            <div class="flex gap-2 mb-2"><input type="text" id="new-unit-name" placeholder="Unit name (e.g. Piece)" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><input type="text" id="new-unit-abbr" placeholder="Abbr (e.g. pc)" class="w-24 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div class="flex gap-2 mb-2"><input type="text" id="new-unit-name" placeholder="Unit name (e.g. Piece)" class="wb-input flex-1"><input type="text" id="new-unit-abbr" placeholder="Abbr (e.g. pc)" class="wb-input w-24"></div>
             <button onclick="addUnit()" class="wb-btn wb-btn--primary wb-btn--sm">Add Unit</button>
         </div>
         <div class="wb-panel__header"><span class="wb-panel__title">Team Leads</span></div>
@@ -45,7 +45,7 @@
             <tbody>{for l in team_leads}<tr class="border-b border-gray-100"><td class="py-2 px-4">{l.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('team_lead',{l.id})" class="text-xs px-2 py-0.5 rounded-full {if l.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{l.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
         <div class="p-4 border-t bg-gray-50">
-            <div class="flex gap-2 mb-2"><input type="text" id="new-tl-name" placeholder="Name" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><input type="text" id="new-tl-contact" placeholder="Contact" class="w-32 px-2 py-1.5 border border-gray-300 rounded text-sm"><input type="text" id="new-tl-email" placeholder="Email" class="w-32 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+            <div class="flex gap-2 mb-2"><input type="text" id="new-tl-name" placeholder="Name" class="wb-input flex-1"><input type="text" id="new-tl-contact" placeholder="Contact" class="wb-input w-32"><input type="text" id="new-tl-email" placeholder="Email" class="wb-input w-32"></div>
             <button onclick="addTeamLead()" class="wb-btn wb-btn--primary wb-btn--sm">Add Team Lead</button>
         </div>
     </div>
@@ -56,7 +56,7 @@
             <tbody>{for l in locations}<tr class="border-b border-gray-100"><td class="py-2 px-4">{l.name}</td><td class="py-2 px-4 text-xs">{l.description|default:'—'}</td><td class="py-2 px-4"><button onclick="toggleStatus('inventory_location',{l.id})" class="text-xs px-2 py-0.5 rounded-full {if l.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{l.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
         <div class="p-4 border-t bg-gray-50">
-            <div class="flex gap-2"><input type="text" id="new-loc-name" placeholder="Location name" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><input type="text" id="new-loc-desc" placeholder="Description" class="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm"><button onclick="addInvLocation()" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
+            <div class="flex gap-2"><input type="text" id="new-loc-name" placeholder="Location name" class="wb-input flex-1"><input type="text" id="new-loc-desc" placeholder="Description" class="wb-input flex-1"><button onclick="addInvLocation()" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
         </div>
     </div>
 </div>

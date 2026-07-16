@@ -1,11 +1,11 @@
 <form method="GET" class="flex gap-3 items-end mb-4">
     <div>
         <label class="block text-xs text-gray-600 mb-1">From</label>
-        <input type="date" name="date_from" value="{date_from}" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+        <input type="date" name="date_from" value="{date_from}" class="wb-input">
     </div>
     <div>
         <label class="block text-xs text-gray-600 mb-1">To</label>
-        <input type="date" name="date_to" value="{date_to}" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+        <input type="date" name="date_to" value="{date_to}" class="wb-input">
     </div>
     <div>
         <button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Filter</button>

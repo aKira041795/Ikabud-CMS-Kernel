@@ -129,8 +129,8 @@
             <p class="text-xs text-gray-600 mb-2">Upload contracts, permits, plans, and other project files.</p>
             <form onsubmit="return uploadAttachment(this, 'project', {project.id})" class="flex gap-2 items-end">
                 {csrf_field | raw}
-                <div class="flex-1"><input type="file" name="file" required class="w-full text-sm"></div>
-                <div><input type="text" name="description" placeholder="Description" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                <div class="flex-1"><input type="file" name="file" required class="wb-file-input"></div>
+                <div><input type="text" name="description" placeholder="Description" class="wb-input w-40"></div>
                 <button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Upload</button>
             </form>
             <div id="project-attachments" class="mt-2">{attachments_html|raw}</div>
@@ -140,8 +140,8 @@
             <p class="text-xs text-gray-600 mb-2">Upload supplier invoices, receipts, and delivery documents.</p>
             <form onsubmit="return uploadAttachment(this, 'po', {project.id})" class="flex gap-2 items-end mb-3">
                 {csrf_field | raw}
-                <div class="flex-1"><input type="file" name="file" accept="image/*" required class="w-full text-sm"></div>
-                <div><input type="text" name="description" placeholder="PO ref / notes" class="w-40 px-2 py-1.5 border border-gray-300 rounded text-sm"></div>
+                <div class="flex-1"><input type="file" name="file" accept="image/*" required class="wb-file-input"></div>
+                <div><input type="text" name="description" placeholder="PO ref / notes" class="wb-input w-40"></div>
                 <button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Upload PO</button>
             </form>
             <div id="po-images" class="grid grid-cols-2 md:grid-cols-3 gap-3">{po_images_html|raw}</div>

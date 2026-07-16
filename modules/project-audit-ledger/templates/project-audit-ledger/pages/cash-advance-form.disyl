@@ -1,7 +1,7 @@
 <div class="max-w-lg">
 <div class="wb-panel p-6">
     <h2 class="wb-section__title mb-4">New Cash Advance</h2>
-    <form onsubmit="return ajaxSubmit(this, 'Cash advance created')" action="/api/v1/project-audit-ledger/cash-advances" method="POST" class="space-y-4">
+    <form onsubmit="return ajaxSubmit(this, 'Cash advance created')" action="/api/v1/project-audit-ledger/cash-advances" method="POST" class="wb-form-surface">
         {csrf_field | raw}
         <div><label class="wb-label">Team Lead *</label><select name="team_lead_id" required class="wb-select" data-creatable="team_lead"><option value="">— Select —</option>{for tl in team_leads}<option value="{tl.id}">{tl.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=team_lead_id]');if(e)makeCreatable(e);});</script></div>
         <div><label class="wb-label">Project</label><select name="project_id" class="wb-select"><option value="">— Optional —</option>{for p in projects}<option value="{p.id}">{p.title}</option>{/for}</select></div>

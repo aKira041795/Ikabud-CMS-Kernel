@@ -3,7 +3,7 @@
         <div>
             <form method="GET" class="flex gap-2 items-center">
                 <label class="text-xs text-gray-600">Month:</label>
-                <select name="month" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded text-xs">
+                <select name="month" onchange="this.form.submit()" class="wb-select">
                     <option value="">All</option>
                     <option value="01"{if _GET.month=='01'} selected{/if}>January</option>
                     <option value="02"{if _GET.month=='02'} selected{/if}>February</option>
@@ -18,7 +18,7 @@
                     <option value="11"{if _GET.month=='11'} selected{/if}>November</option>
                     <option value="12"{if _GET.month=='12'} selected{/if}>December</option>
                 </select>
-                <select name="year" onchange="this.form.submit()" class="px-2 py-1 border border-gray-300 rounded text-xs">
+                <select name="year" onchange="this.form.submit()" class="wb-select">
                     <option value="">All Years</option>
                     <option value="2025"{if _GET.year=='2025'} selected{/if}>2025</option>
                     <option value="2026"{if _GET.year=='2026'} selected{/if}>2026</option>

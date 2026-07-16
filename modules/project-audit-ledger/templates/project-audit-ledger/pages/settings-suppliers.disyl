@@ -6,6 +6,6 @@
     </table>
     <div class="p-4 border-t bg-gray-50">
         <h3 class="text-sm font-semibold text-gray-800 mb-2">Add Supplier</h3>
-        <div class="flex gap-2 flex-wrap"><input type="text" id="new-sup-name" placeholder="Name" class="px-2 py-1.5 border border-gray-300 rounded text-sm"><input type="text" id="new-sup-cp" placeholder="Contact person" class="px-2 py-1.5 border border-gray-300 rounded text-sm"><input type="text" id="new-sup-email" placeholder="Email" class="px-2 py-1.5 border border-gray-300 rounded text-sm"><button onclick="addSupplier()" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
+        <div class="flex gap-2 flex-wrap"><input type="text" id="new-sup-name" placeholder="Name" class="wb-input"><input type="text" id="new-sup-cp" placeholder="Contact person" class="wb-input"><input type="text" id="new-sup-email" placeholder="Email" class="wb-input"><button onclick="addSupplier()" class="wb-btn wb-btn--primary wb-btn--sm">Add</button></div>
     </div>
 </div>

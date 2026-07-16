@@ -19,7 +19,7 @@
         </div>
     </div>
     <div class="wb-jo-form-card">
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="space-y-3 sm:space-y-4">
+    <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="wb-form-surface">
         {csrf_field | raw}
         {if is_edit}<input type="hidden" name="_project_numeric_id" value="{project.id}">{/if}
         <!-- ── Section 1: Customer ── -->

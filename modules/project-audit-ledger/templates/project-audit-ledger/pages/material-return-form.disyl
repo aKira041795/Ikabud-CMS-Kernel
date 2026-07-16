@@ -1,7 +1,7 @@
 <div class="max-w-lg">
 <div class="wb-panel p-6">
     <h2 class="wb-section__title mb-4">Record Material Return</h2>
-    <form onsubmit="return ajaxSubmit(this, 'Return recorded')" action="/api/v1/project-audit-ledger/materials/return" method="POST" class="space-y-4">
+    <form onsubmit="return ajaxSubmit(this, 'Return recorded')" action="/api/v1/project-audit-ledger/materials/return" method="POST" class="wb-form-surface">
         {csrf_field | raw}
         <div><label class="wb-label wb-label--required">Project</label><select name="project_id" required class="wb-select" data-creatable="project"><option value="">—</option>{for p in projects}<option value="{p.id}">{p.title}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=project_id]');if(e)makeCreatable(e);});</script></div>
         <div><label class="wb-label wb-label--required">Material</label><select name="material_id" required class="wb-select" data-creatable="material"><option value="">—</option>{for m in materials}<option value="{m.id}">{m.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.querySelector('select[name=material_id]');if(e)makeCreatable(e);});</script></div>
