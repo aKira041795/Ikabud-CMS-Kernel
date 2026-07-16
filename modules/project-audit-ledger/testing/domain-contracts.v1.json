@@ -1,0 +1,26 @@
+{
+  "schema": "ark.module-domain-contracts.v1",
+  "module": "project-audit-ledger",
+  "version": "1.0.0",
+  "entities": {
+    "pal_expense": {
+      "variants": {
+        "operating": {
+          "required": ["expense_date", "category_id", "description", "amount"],
+          "project_rule": "prohibited",
+          "initial_status": "draft"
+        },
+        "project": {
+          "required": ["expense_date", "category_id", "description", "amount", "project_id"],
+          "project_rule": "required",
+          "initial_status": "draft"
+        }
+      }
+    },
+    "pal_receivable": {
+      "origin": "issued_invoice",
+      "required": ["sales_id", "project_id", "client_id", "amount", "due_date"],
+      "lifecycle": ["job_order", "invoice_issued", "receivable_pending", "payment_received", "settled"]
+    }
+  }
+}

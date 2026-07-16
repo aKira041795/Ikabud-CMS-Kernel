@@ -18,7 +18,7 @@ function palPageDashboard(): void
     $cf = $ctx['cash_flow'];
     $pa = $ctx['pending_approvals'];
     $ls = $ctx['low_stock'];
-    $rec = $ctx['recent_activity'];
+    $rec = $ctx['recent_projects'];
 
     palRender(__DIR__ . '/../templates/project-audit-ledger/shell.disyl', [
         'current_user' => $user,

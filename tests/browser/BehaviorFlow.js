@@ -31,6 +31,7 @@ class BehaviorFlow {
         /** @type {Array<{type:string, severity:string, message:string, url:string, step?:string}>} */
         this.observations = [];
         this._toastObserver = null;
+        this.telemetry = { started_at: null, finished_at: null, duration_ms: 0, interactions: 0, successful_steps: 0, failures: 0, clicks: 0, field_entries: 0, navigation_depth: 0 };
     }
 
     /**
@@ -102,8 +103,10 @@ class BehaviorFlow {
      * @param {string|RegExp} text
      */
     async clickButton(text) {
+        this.telemetry.interactions++; this.telemetry.clicks++;
         const btn = this.page.locator('button, a[role="button"], [data-wb-action]').filter({ hasText: text }).first();
         await btn.click();
+        this.telemetry.successful_steps++;
         await this.page.waitForTimeout(300);
     }
 
@@ -112,8 +115,10 @@ class BehaviorFlow {
      * @param {string} actionKey
      */
     async clickAction(actionKey) {
+        this.telemetry.interactions++; this.telemetry.clicks++;
         const btn = this.page.locator(`[data-wb-action="${actionKey}"]`).first();
         await btn.click();
+        this.telemetry.successful_steps++;
         await this.page.waitForTimeout(300);
     }
 
@@ -123,6 +128,7 @@ class BehaviorFlow {
      * @param {string} value
      */
     async fillField(labelOrName, value) {
+        this.telemetry.interactions++; this.telemetry.field_entries++;
         // Try by label text first
         const byLabel = this.page.locator('label').filter({ hasText: labelOrName }).first();
         if (await byLabel.isVisible({ timeout: 500 }).catch(() => false)) {
@@ -131,6 +137,7 @@ class BehaviorFlow {
                 const input = this.page.locator(`#${forAttr}`);
                 if (await input.isVisible({ timeout: 300 }).catch(() => false)) {
                     await input.fill(value);
+                    this.telemetry.successful_steps++;
                     return;
                 }
             }
@@ -138,6 +145,7 @@ class BehaviorFlow {
             const wrapped = byLabel.locator('input, select, textarea');
             if (await wrapped.count() > 0) {
                 await wrapped.first().fill(value);
+                this.telemetry.successful_steps++;
                 return;
             }
         }
@@ -145,15 +153,18 @@ class BehaviorFlow {
         const byField = this.page.locator(`[data-wb-field="${labelOrName}"]`).first();
         if (await byField.isVisible({ timeout: 300 }).catch(() => false)) {
             await byField.fill(value);
+            this.telemetry.successful_steps++;
             return;
         }
         // Try by name
         const byName = this.page.locator(`[name="${labelOrName}"]`).first();
         if (await byName.isVisible({ timeout: 300 }).catch(() => false)) {
             await byName.fill(value);
+            this.telemetry.successful_steps++;
             return;
         }
         this._observe('interaction', 'warning', `Could not find field: ${labelOrName}`);
+        this.telemetry.failures++;
     }
 
     /**
@@ -164,6 +175,7 @@ class BehaviorFlow {
      * @returns {Promise<{redirected: boolean, url: string, toast: string|null}>}
      */
     async submitForm(opts) {
+        this.telemetry.interactions++; this.telemetry.clicks++;
         const formKey = opts?.formKey;
         const redirectPattern = opts?.redirectPattern;
 
@@ -173,10 +185,12 @@ class BehaviorFlow {
 
         if (!(await submitBtn.isVisible({ timeout: 1000 }).catch(() => false))) {
             this._observe('interaction', 'warning', 'No submit button found');
+            this.telemetry.failures++;
             return { redirected: false, url: this.page.url(), toast: null };
         }
 
         await submitBtn.click();
+        this.telemetry.successful_steps++;
         console.log('  ✓ Clicked submit');
 
         const toast = await this.waitForToast(3000);
@@ -233,6 +247,10 @@ class BehaviorFlow {
         return report;
     }
 
+    getTelemetry() {
+        return { ...this.telemetry };
+    }
+
     /**
      * Default no-op scenario for modules without registered behavior flows.
      * @returns {Promise<Array>} Empty observations array
@@ -265,6 +283,8 @@ class PalBehaviorFlow extends BehaviorFlow {
      * @returns {Promise<Array>} Flow observations
      */
     async runJobOrderFlow() {
+        this.telemetry.started_at = new Date().toISOString();
+        const flowStarted = Date.now();
         const base = this.basePath;
         const observations = [];
 
@@ -279,15 +299,19 @@ class PalBehaviorFlow extends BehaviorFlow {
         console.log(`  ✓ Filled title: ${title}`);
 
         // ── Step 3: Try to add a line item ──
-        const addItemBtn = this.page.locator('button:has-text("Add"), [data-wb-action="add-item"], [data-wb-action="pal.job-order.add-item"], button:has-text("Item")').first();
+        const addItemBtn = this.page.locator('[data-wb-action="add-item"], [data-wb-action$=".add-item"], button:has-text("Add Item"), button:has-text("Add Line")').first();
         if (await addItemBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            const rows = this.page.locator('[class*="item-row"], [class*="po-row"], [class*="line-item"]');
+            const beforeRows = await rows.count();
             await addItemBtn.click();
+            this.telemetry.interactions++; this.telemetry.clicks++; this.telemetry.successful_steps++;
             await this.page.waitForTimeout(500);
             console.log('  ✓ Clicked Add Item button');
 
             // Check if new row appeared
-            const newRow = this.page.locator('[class*="item-row"], [class*="po-row"], [class*="line-item"], tr:last-child input').first();
-            const rowAppeared = await newRow.isVisible({ timeout: 2000 }).catch(() => false);
+            const afterRows = await rows.count();
+            const newRow = rows.last();
+            const rowAppeared = afterRows > beforeRows;
             if (rowAppeared) {
                 console.log('  ✓ New line item row appeared');
             } else {
@@ -298,6 +322,7 @@ class PalBehaviorFlow extends BehaviorFlow {
             const firstInput = this.page.locator('[class*="item-row"]:last-child input, [class*="po-row"]:last-child input, tr:last-child input').first();
             if (await firstInput.isVisible({ timeout: 1000 }).catch(() => false)) {
                 await firstInput.fill('Test item');
+                this.telemetry.interactions++; this.telemetry.field_entries++; this.telemetry.successful_steps++;
                 console.log('  ✓ Filled line item field');
             }
         } else {
@@ -322,7 +347,10 @@ class PalBehaviorFlow extends BehaviorFlow {
         }
 
         this.observations.push(...observations);
-        return observations;
+        this.telemetry.finished_at = new Date().toISOString();
+        this.telemetry.duration_ms = Date.now() - flowStarted;
+        this.telemetry.navigation_depth = new URL(this.page.url()).pathname.split('/').filter(Boolean).length;
+        return this.observations;
     }
 
     /**

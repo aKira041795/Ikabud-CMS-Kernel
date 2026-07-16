@@ -23,6 +23,7 @@
 var fs = require('fs');
 var path = require('path');
 var crypto = require('crypto');
+var IssueCorrelator = require('./analyst/IssueCorrelator').IssueCorrelator;
 
 var RESULTS_DIR = path.resolve(__dirname, '../../test_results/browser');
 var FINGERPRINT_MODE = process.env.WB_FINGERPRINT_MODE || 'check';
@@ -228,6 +229,8 @@ class WorkbenchReporter {
             return true;
         });
         var suppressedCount = allIssues.length - filteredIssues.length;
+        var rawIssueCount = filteredIssues.length;
+        filteredIssues = IssueCorrelator.correlate(filteredIssues);
 
         // Sort by severity: critical > major > minor > note
         var sevOrder = { critical: 0, major: 1, minor: 2, note: 3 };
@@ -243,6 +246,8 @@ class WorkbenchReporter {
         var issueReport = {
             generated: finishedAt,
             total_issues: filteredIssues.length,
+            total_observations: rawIssueCount,
+            total_correlated: rawIssueCount - filteredIssues.length,
             total_suppressed: suppressedCount,
             by_severity: {},
             by_kind: {},
@@ -254,6 +259,21 @@ class WorkbenchReporter {
             issueReport.by_kind[iss.kind] = (issueReport.by_kind[iss.kind] || 0) + 1;
         }
         writeRunResult('issue-report.json', issueReport);
+
+        // Human guidance is finalized against the correlated reporter issues.
+        // Earlier diagnostic matches remain provisional and cannot overrule a
+        // final HTTP or browser observation.
+        try {
+            var scenarioFile = process.env.WB_SCENARIO_FILE || '';
+            if (scenarioFile && fs.existsSync(scenarioFile)) {
+                var ScenarioGuidance = require('./scenario/ScenarioGuidance').ScenarioGuidance;
+                var finalScenario = ScenarioGuidance.load(scenarioFile);
+                var finalGuidance = ScenarioGuidance.evaluate(finalScenario, { pages: [], issues: filteredIssues }, 'final');
+                writeRunResult('scenario-guidance.json', finalGuidance);
+            }
+        } catch (scenarioError) {
+            console.warn('  ⚠ Scenario guidance finalization failed: ' + (scenarioError.message || scenarioError));
+        }
 
         // ── Comprehension Auto-Launch ──────────────────────────
         // For every evidence annotation on failed tests, auto-launch Comprehension Engine.
@@ -299,6 +319,20 @@ class WorkbenchReporter {
         }
         if (comprehended > 0) {
             console.log('  🧠 Comprehension ran for ' + comprehended + ' action(s)');
+        }
+
+        // Assemble final evidence only after issue correlation and all
+        // comprehension jobs, so AI never reasons over an interim report.
+        try {
+            var intelligenceRunner = path.resolve(__dirname, '../../kernel/Workbench/Intelligence/run.php');
+            if (fs.existsSync(intelligenceRunner)) {
+                var intelligenceOutput = require('child_process').execFileSync('php', [
+                    intelligenceRunner, runId, process.env.MODULE || 'unknown'
+                ], { encoding: 'utf8', timeout: 45000 });
+                console.log('  🧠 Pattern intelligence: ' + intelligenceOutput.trim());
+            }
+        } catch (intelligenceError) {
+            console.warn('  ⚠ Pattern intelligence unavailable; deterministic report retained: ' + (intelligenceError.message || intelligenceError));
         }
 
         // Console summary

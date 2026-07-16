@@ -1,0 +1,67 @@
+{
+    "suite": "workbench-phase5",
+    "started": "2026-07-16 08:51:18",
+    "finished": "2026-07-16 08:51:18",
+    "elapsed_ms": 0.9,
+    "summary": {
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0,
+        "total": 7,
+        "assertions": 7,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Clear canonical map",
+            "label": "graph has no validation errors",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Clear canonical map",
+            "label": "every node has stable identity and type",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Clear canonical map",
+            "label": "every node exposes provenance and confidence",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Clear canonical map",
+            "label": "ordered step edges exist",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Workbench experience",
+            "label": "process map tab and provenance legend exist",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Workbench experience",
+            "label": "AI provider policy controls exist",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Workbench experience",
+            "label": "process map API is registered",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        }
+    ],
+    "gaps": []
+}

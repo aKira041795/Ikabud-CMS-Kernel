@@ -19,6 +19,24 @@
     var wbLightboxItems = [];
     var wbLightboxIndex = 0;
 
+    {* Ensure legacy PAL controls expose names while templates are progressively
+       migrated to explicit label/for pairs. Dynamic rows are covered too. *}
+    function wbEnsureAccessibleNames(root) {
+        (root || document).querySelectorAll('input:not([type="hidden"]), select, textarea, button, a[role="button"]').forEach(function(el) {
+            if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')) return;
+            if (el.id && document.querySelector('label[for="' + CSS.escape(el.id) + '"]')) return;
+            if (el.closest('label')) return;
+            if ((el.matches('button, a[role="button"]')) && (el.textContent || '').trim()) return;
+
+            var container = el.closest('.wb-field, div, td');
+            var label = container ? container.querySelector('label') : null;
+            var name = label ? (label.textContent || '') : '';
+            if (!name) name = el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('data-wb-action') || el.getAttribute('name') || '';
+            name = name.replace(/[＊*]/g, '').replace(/[_\[\]]+/g, ' ').replace(/\s+/g, ' ').trim();
+            if (name) el.setAttribute('aria-label', name);
+        });
+    }
+
     function openLightbox(src, caption) {
         var lb = document.getElementById('lightbox');
         document.getElementById('lightbox-img').src = src;
@@ -90,6 +108,14 @@
 
     {* Lightbox event listeners *}
     document.addEventListener('DOMContentLoaded', function() {
+        wbEnsureAccessibleNames(document);
+        new MutationObserver(function(records) {
+            records.forEach(function(record) {
+                record.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1) wbEnsureAccessibleNames(node);
+                });
+            });
+        }).observe(document.body, {childList:true, subtree:true});
         var lb = document.getElementById('lightbox');
         if (!lb) return;
 
@@ -120,4 +146,3 @@
     });
     </script>
 {/include}
-

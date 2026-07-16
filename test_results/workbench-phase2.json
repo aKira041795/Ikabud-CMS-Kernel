@@ -1,0 +1,60 @@
+{
+    "suite": "workbench-phase2",
+    "started": "2026-07-16 08:51:17",
+    "finished": "2026-07-16 08:51:17",
+    "elapsed_ms": 1.5,
+    "summary": {
+        "passed": 6,
+        "failed": 0,
+        "skipped": 0,
+        "total": 6,
+        "assertions": 6,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Configured provider adapter",
+            "label": "schema-valid provider result accepted",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Configured provider adapter",
+            "label": "provider trace is recorded",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Configured provider adapter",
+            "label": "secrets and bearer values are redacted",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Configured provider adapter",
+            "label": "identical requests use cache",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Safe fallback",
+            "label": "invalid AI schema falls back",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Safe fallback",
+            "label": "disabled AI is explicit",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        }
+    ],
+    "gaps": []
+}

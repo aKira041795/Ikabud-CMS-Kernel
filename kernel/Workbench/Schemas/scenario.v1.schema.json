@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:scenario:v1",
+  "type": "object",
+  "required": ["schema", "scenario_id", "version", "module", "title", "fronts", "directions", "questions", "data", "cleanup", "created_at", "created_by"],
+  "properties": {
+    "schema": {"const": "ark.scenario.v1"},
+    "scenario_id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{2,79}$"},
+    "version": {"type": "integer", "minimum": 1},
+    "module": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "title": {"type": "string", "minLength": 1},
+    "purpose": {"type": "string"},
+    "fronts": {"type": "array", "items": {"enum": ["design", "logic", "semantics"]}, "uniqueItems": true},
+    "directions": {"type": "array", "items": {"type": "object"}},
+    "questions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "data": {"type": "object"},
+    "cleanup": {"type": "object"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "created_by": {"type": "string"}
+  },
+  "additionalProperties": false
+}

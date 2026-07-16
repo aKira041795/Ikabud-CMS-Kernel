@@ -1,0 +1,29 @@
+{
+  "scenario_id": "pal-human-guided-approval",
+  "module": "project-audit-ledger",
+  "title": "Human-guided approval and route clarity",
+  "purpose": "Validate whether unavailable process routes are defects, permission boundaries, or obsolete navigation contracts.",
+  "fronts": ["design", "logic", "semantics"],
+  "questions": [
+    "Can an administrator understand why an approval or issuance route is unavailable?",
+    "Does the interface distinguish an unavailable feature from a permission restriction?"
+  ],
+  "directions": [
+    {
+      "front": "logic",
+      "statement": "The approval queue route is available to the administrator",
+      "check": "route_available",
+      "route": "/admin/project-audit-ledger/approvals"
+    },
+    {
+      "front": "semantics",
+      "statement": "The issuance route communicates its availability and purpose clearly",
+      "check": "route_available",
+      "route": "/admin/project-audit-ledger/issuances"
+    }
+  ],
+  "data": {
+    "entities": {},
+    "relationships": []
+  }
+}

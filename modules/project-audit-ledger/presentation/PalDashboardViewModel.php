@@ -28,6 +28,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
             'pending_approvals'  => $this->data['pending_approvals'] ?? [],
             'low_stock'          => $this->data['low_stock'] ?? [],
             'recent_activity'    => $this->data['recent'] ?? [],
+            'recent_projects'    => $this->data['recent_projects'] ?? [],
             'recent_expenses'    => $this->data['recent_expenses'] ?? [],
             'recent_collections' => $this->data['recent_collections'] ?? [],
         ];
@@ -50,6 +51,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
             'pending_approvals'  => self::pendingApprovals($db, $tenantId),
             'low_stock'          => self::lowStock($db, $tenantId),
             'recent'             => self::recentActivity($db, $tenantId),
+            'recent_projects'    => self::recentProjects($db, $tenantId),
             'recent_expenses'    => self::recentExpenses($db, $tenantId),
             'recent_collections' => self::recentCollections($db, $tenantId),
         ]);
@@ -225,6 +227,18 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
         $stmt = $db->prepare(
             "SELECT action, entity_type, entity_id, created_at, actor_user_id AS user_name
              FROM pal_audit_logs WHERE tenant_id = :tid
+             ORDER BY created_at DESC LIMIT 10"
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** @return array<int, array<string,mixed>> */
+    private static function recentProjects(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
+    {
+        $stmt = $db->prepare(
+            "SELECT id, project_id, title, status, created_at
+             FROM pal_projects WHERE tenant_id = :tid
              ORDER BY created_at DESC LIMIT 10"
         );
         $stmt->execute([':tid' => $tenantId]);

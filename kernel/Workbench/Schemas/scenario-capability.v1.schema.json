@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:scenario-capability:v1",
+  "type": "object",
+  "required": ["module", "capabilities", "domain_contract_version", "data_classes"],
+  "properties": {
+    "module": {"type": "string"},
+    "capabilities": {"type": "array", "items": {"enum": ["workbench.scenario.describe@1", "workbench.scenario.seed@1", "workbench.scenario.verify@1", "workbench.scenario.cleanup@1"]}, "uniqueItems": true},
+    "domain_contract_version": {"type": "string"},
+    "data_classes": {"type": "object"}
+  },
+  "additionalProperties": true
+}

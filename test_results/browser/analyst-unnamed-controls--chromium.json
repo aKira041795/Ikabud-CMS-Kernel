@@ -1,0 +1,42 @@
+{
+  "suite": "analyst-unnamed-controls--chromium",
+  "started": "2026-07-16T08:03:10.886Z",
+  "finished": "2026-07-16T08:03:21.146Z",
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "timedOut": 0,
+    "interrupted": 0,
+    "total": 4
+  },
+  "source_fingerprints": {},
+  "results": [
+    {
+      "test": "inventory /admin/project-audit-ledger",
+      "status": "passed",
+      "duration": 4056,
+      "detail": ""
+    },
+    {
+      "test": "inventory /admin/project-audit-ledger/projects/create",
+      "status": "passed",
+      "duration": 3597,
+      "detail": ""
+    },
+    {
+      "test": "inventory /admin/project-audit-ledger/quotations/create",
+      "status": "passed",
+      "duration": 3306,
+      "detail": ""
+    },
+    {
+      "test": "inventory /admin/project-audit-ledger/sales/create",
+      "status": "passed",
+      "duration": 2942,
+      "detail": ""
+    }
+  ],
+  "gaps": [],
+  "issues": []
+}

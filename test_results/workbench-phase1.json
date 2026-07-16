@@ -1,0 +1,88 @@
+{
+    "suite": "workbench-phase1",
+    "started": "2026-07-16 08:51:17",
+    "finished": "2026-07-16 08:51:17",
+    "elapsed_ms": 1.2,
+    "summary": {
+        "passed": 10,
+        "failed": 0,
+        "skipped": 0,
+        "total": 10,
+        "assertions": 10,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Evidence identity",
+            "label": "all structured observations are preserved",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Evidence identity",
+            "label": "same step remains separated by action",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Evidence identity",
+            "label": "unobserved is represented explicitly",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Evidence identity",
+            "label": "observation IDs are unique",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Canonical graph invariants",
+            "label": "node merge preserves adjacency",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Canonical graph invariants",
+            "label": "canonical graph validates",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Canonical graph invariants",
+            "label": "serialized graph is provenance-aware",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Canonical graph invariants",
+            "label": "dangling edges are rejected",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Censored deterministic outcomes",
+            "label": "missing evidence does not create a breakpoint",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Censored deterministic outcomes",
+            "label": "missing links are marked unobserved",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        }
+    ],
+    "gaps": []
+}

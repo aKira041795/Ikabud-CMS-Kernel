@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:pattern-intelligence:v1",
+  "type": "object",
+  "required": ["schema", "final_evidence", "grain_signature", "similar_verified_cases", "latent_quality", "conformance_verdict"],
+  "properties": {
+    "schema": {"const": "ark.pattern-intelligence.v1"},
+    "final_evidence": {"type": "object"},
+    "grain_signature": {"type": "object"},
+    "similar_verified_cases": {"type": "array"},
+    "latent_quality": {"type": "object"},
+    "conformance_verdict": {"enum": ["pass", "fail", "unknown"]},
+    "ai_assessment": {"type": "object"},
+    "effective_ai_policy": {"type": "object"},
+    "scenario_guidance": {"type": "object"},
+    "run_id": {"type": "string"},
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": false
+}

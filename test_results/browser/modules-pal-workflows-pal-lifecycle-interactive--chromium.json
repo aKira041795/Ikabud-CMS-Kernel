@@ -1,7 +1,7 @@
 {
   "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-  "started": "2026-07-15T06:47:03.954Z",
-  "finished": "2026-07-15T06:47:25.325Z",
+  "started": "2026-07-16T05:28:40.954Z",
+  "finished": "2026-07-16T05:28:41.187Z",
   "summary": {
     "passed": 1,
     "failed": 0,
@@ -15,7 +15,7 @@
     {
       "test": "JO operational setup: draft → ongoing",
       "status": "passed",
-      "duration": 24023,
+      "duration": 22711,
       "detail": ""
     }
   ],
@@ -25,7 +25,7 @@
       "kind": "perf",
       "severity": "major",
       "where": "JO create",
-      "detail": "8026ms > 3000ms threshold",
+      "detail": "8147ms > 3000ms threshold",
       "threshold": 3000,
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"
@@ -34,7 +34,7 @@
       "kind": "perf",
       "severity": "major",
       "where": "full setup journey",
-      "detail": "20244ms > 3000ms threshold",
+      "detail": "20296ms > 3000ms threshold",
       "threshold": 3000,
       "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
       "test": "JO operational setup: draft → ongoing"

@@ -27,7 +27,7 @@
     <aside id="wb-sidebar" class="wb-app-shell__sidebar">
         <div class="p-4 border-b border-slate-700">
             {if s.logo_url}<img src="{s.logo_url}" class="h-8 mb-1" alt="">{/if}
-            <h1 class="text-lg font-bold text-white">{s.application_name}</h1>
+            <div class="text-lg font-bold text-white" role="presentation">{s.application_name}</div>
             {if s.user_display|default:''}<p class="text-xs text-slate-400">{s.user_display}</p>{/if}
         </div>
         <nav class="flex-1 overflow-y-auto p-2 space-y-1" aria-label="Main navigation">

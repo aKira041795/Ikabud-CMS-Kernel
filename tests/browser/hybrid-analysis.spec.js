@@ -30,6 +30,8 @@ const { ProcessComprehension } = require('./ProcessComprehension');
 const { ModuleDiagnostic } = require('./ModuleDiagnostic');
 const { BehaviorFlow, BehaviorRegistry } = require('./BehaviorFlow');
 const { EvidenceBridge } = require('./comprehension/EvidenceBridge');
+const { AnalystReport } = require('./analyst/AnalystReport');
+const { ScenarioGuidance } = require('./scenario/ScenarioGuidance');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -45,11 +47,6 @@ if (!process.env.WB_RUN_ID) {
 const MODULE = process.env.MODULE || '';
 const MODULE_PATH = process.env.MODULE_PATH || path.resolve(__dirname, '../../modules', MODULE);
 const HYBRID_GATE = process.env.HYBRID_GATE || 'critical';
-
-// Modules that have a registered PHP Comprehension Engine provider.
-// Unknown modules skip the engine layer gracefully.
-const MODULES_WITH_COMPREHENSION_PROVIDER = ['project-audit-ledger'];
-const HAS_COMPREHENSION_PROVIDER = MODULES_WITH_COMPREHENSION_PROVIDER.includes(MODULE);
 
 if (!MODULE) throw new Error('MODULE environment variable required.');
 
@@ -112,6 +109,9 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         const diagnostic = new ModuleDiagnostic(page, MODULE_PATH, manifest, providerData);
         const diagnosticResult = await diagnostic.runFullDiagnostic();
         console.log(`  Checks: ${diagnosticResult.passed} passed, ${diagnosticResult.failed} issues`);
+        const scenario = ScenarioGuidance.load(process.env.WB_SCENARIO_FILE || '');
+        const scenarioGuidance = ScenarioGuidance.evaluate(scenario, diagnosticResult);
+        if (scenario) console.log(`  Human guidance: ${scenarioGuidance.summary.answered} evidence-linked, ${scenarioGuidance.summary.unresolved} for validation`);
 
         // ════════════════════════════════════════════════════════
         // LAYER 3: Behavioral Flow (runtime interaction)
@@ -123,6 +123,7 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         const BehaviorClass = BehaviorRegistry.forModule(MODULE);
         const flow = new BehaviorClass(page);
         const flowObservations = await flow.runDefaultScenario();
+        const taskTelemetry = typeof flow.getTelemetry === 'function' ? flow.getTelemetry() : {};
         console.log(flow.generateReport());
 
         // Track created entities for evidence-based cleanup
@@ -147,6 +148,13 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         bridge.addProcessData(processReport);
         bridge.addObservations(diagnosticResult.issues, `${MODULE}.diagnostic`);
         bridge.addBehavioralData(flowObservations);
+        if (scenario) {
+            bridge.meta.scenario_id = scenario.scenario_id;
+            bridge.meta.scenario_run_file = process.env.WB_SCENARIO_RUN_FILE || null;
+            bridge.meta.human_directions = scenario.directions;
+            bridge.meta.human_questions = scenario.questions;
+            bridge.meta.scenario_guidance = scenarioGuidance;
+        }
 
         // Attach created entities to evidence meta for cleanup dispatch
         if (createdEntities.length > 0) {
@@ -179,8 +187,8 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
             if (stderr) console.log(`  ⚠ Engine errors: ${stderr}`);
 
             const isNoProvider = stderr.includes('No comprehension provider') || stdout.includes('No comprehension provider');
-            if (isNoProvider && !HAS_COMPREHENSION_PROVIDER) {
-                console.log('  ℹ No comprehension provider for this module — expected for non-PAL modules');
+            if (isNoProvider) {
+                console.log('  ℹ No comprehension provider registered — deterministic analyst layers remain active');
             } else {
                 engineFailures.push({
                     module: MODULE,
@@ -210,6 +218,29 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
 
         console.log(`  Critical: ${criticalIssues.length}, Major: ${majorIssues.length}, Info: ${diagnosticResult.issues.filter(i => i.severity === 'minor').length}`);
         console.log(`  Behavioral errors: ${behavioralErrors.length}`);
+
+        const analystReport = AnalystReport.build({
+            runId: process.env.WB_RUN_ID,
+            module: MODULE,
+            process: processReport,
+            pages: diagnosticResult.pages || [],
+            issues: [...diagnosticResult.issues, ...flowObservations],
+            coverage: {
+                static_pages: processReport.pages,
+                runtime_pages: (diagnosticResult.pages || []).length,
+                checks_passed: diagnosticResult.passed,
+                raw_observations: diagnosticResult.issues.length + flowObservations.length,
+            },
+            task: taskTelemetry,
+            scenario: scenario ? scenarioGuidance : null,
+        });
+        const analystPath = AnalystReport.write(
+            analystReport,
+            path.resolve(__dirname, '../../test_results/analyst')
+        );
+        console.log(`  Analyst report: ${analystPath}`);
+        console.log(`  UX evolution: ${analystReport.ux_evolution.score}/100 (${analystReport.ux_evolution.comparison.status})`);
+        const uxGateFailure = !analystReport.ux_evolution.gate.passed;
 
         // ── Gate checks ──
         // Static/dynamic gate
@@ -261,5 +292,6 @@ test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
         expect(behavioralGateFailures.length, `Behavioral gate failures (severity≥${HYBRID_GATE}): ${behavioralGateFailures.map(i => i.message).join('; ')}`).toBe(0);
         expect(comprehensionFailures.length, `Comprehension breakpoints: ${comprehensionFailures.map(f => `${f.action}@${f.breakpoint} [${f.severity}]`).join(', ')}`).toBe(0);
         expect(engineFailures.length, `Engine failures: ${engineFailures.map(f => f.detail).join('; ')}`).toBe(0);
+        expect(uxGateFailure, `UX evolution gate failed: score=${analystReport.ux_evolution.score}, status=${analystReport.ux_evolution.comparison.status}, regressions=${JSON.stringify(analystReport.ux_evolution.comparison.regressions)}`).toBe(false);
     });
 });

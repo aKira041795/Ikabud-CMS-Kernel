@@ -1,0 +1,74 @@
+{
+    "suite": "workbench-phase3",
+    "started": "2026-07-16 08:51:17",
+    "finished": "2026-07-16 08:51:18",
+    "elapsed_ms": 13.9,
+    "summary": {
+        "passed": 8,
+        "failed": 0,
+        "skipped": 0,
+        "total": 8,
+        "assertions": 8,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Capture and clustering",
+            "label": "duplicate occurrence is idempotent",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Capture and clustering",
+            "label": "normalized signatures cluster changing IDs",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Capture and clustering",
+            "label": "repeat issue becomes clustered",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Governed lifecycle",
+            "label": "verified lifecycle is enforced",
+            "status": "pass",
+            "detail": "",
+            "time": 3.5
+        },
+        {
+            "section": "Governed lifecycle",
+            "label": "verified issue promotes to case memory",
+            "status": "pass",
+            "detail": "",
+            "time": 4.9
+        },
+        {
+            "section": "Governed lifecycle",
+            "label": "invalid backward transition rejected",
+            "status": "pass",
+            "detail": "",
+            "time": 5.1
+        },
+        {
+            "section": "Governed lifecycle",
+            "label": "passing regression automatically verifies and promotes",
+            "status": "pass",
+            "detail": "",
+            "time": 8.3
+        },
+        {
+            "section": "Governed lifecycle",
+            "label": "failed verification cannot become knowledge",
+            "status": "pass",
+            "detail": "",
+            "time": 11
+        }
+    ],
+    "gaps": []
+}

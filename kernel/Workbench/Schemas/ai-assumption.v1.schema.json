@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:ai-assumption:v1",
+  "type": "object",
+  "required": ["assumption_id", "text", "status", "verification"],
+  "properties": {
+    "assumption_id": {"type": "string", "minLength": 1},
+    "text": {"type": "string", "minLength": 1},
+    "status": {"enum": ["unverified", "verified", "rejected", "expired"]},
+    "verification": {"type": "object", "required": ["method"], "properties": {"method": {"type": "string"}, "evidence_ids": {"type": "array", "items": {"type": "string"}}, "verified_at": {"type": ["string", "null"], "format": "date-time"}}, "additionalProperties": false}
+  },
+  "additionalProperties": false
+}

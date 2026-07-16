@@ -17,6 +17,8 @@
 
 // @ts-check
 const { ProcessComprehension } = require('./ProcessComprehension');
+const { RuntimeResolver } = require('./analyst/RuntimeResolver');
+const { ExperienceAnalyst } = require('./analyst/ExperienceAnalyst');
 
 class ModuleDiagnostic {
 
@@ -31,6 +33,10 @@ class ModuleDiagnostic {
         this.comprehension = new ProcessComprehension(modulePath, manifest, providerData);
         this.manifest = manifest;
         this.modulePath = modulePath;
+        this.resolver = new RuntimeResolver(page, manifest);
+        this.experience = new ExperienceAnalyst(page);
+        this.pageAnalyses = [];
+        this.responsiveKinds = new Set();
         /** @type {Array<{severity:string, component:string, expected:string, actual:string, cause:string, fix:string, location:string}>} */
         this.issues = [];
     }
@@ -73,6 +79,7 @@ class ModuleDiagnostic {
      */
     async runFullDiagnostic() {
         this.issues = [];
+        this.pageAnalyses = [];
         const templates = this.comprehension.analyzeTemplates();
         const usesShell = this._usesShellWrapper();
         const baseUrl = process.env.APP_URL || 'http://palsystem.test';
@@ -86,17 +93,25 @@ class ModuleDiagnostic {
         for (const item of this._getNavItems()) {
             navUrlMap.set(item.url, item.label);
         }
+        await this.resolver.seedFromNavigation();
 
         for (const tmpl of templates) {
             // Find the route URL for this template
-            const url = this._findPageUrl(tmpl.page, navUrlMap);
-            if (!url) continue;
+            const templateUrl = this._findPageUrl(tmpl.page, navUrlMap);
+            if (!templateUrl) continue;
+            let url = await this.resolver.discover(templateUrl);
+            if (!url && /(?:\{\w+\}|:\w+|\/\d+(?=\/|$))/.test(templateUrl)) {
+                this.issues.push(this.resolver.classifyUnresolved(templateUrl));
+                continue;
+            }
+            url = url || RuntimeResolver.withInspection(templateUrl);
 
             console.log(`\n  🔍 Diagnosing: ${tmpl.page} (${url})`);
 
             try {
                 await this.page.goto(`${baseUrl}${url}`, { waitUntil: 'networkidle', timeout: 15000 });
                 tmpl._usedUrl = url; // store for _isDetailPage check
+                await this.resolver.observeCurrentPage();
             } catch (e) {
                 this._recordIssue('critical', tmpl.page,
                     `Page ${url} should load within 15s`,
@@ -131,7 +146,37 @@ class ModuleDiagnostic {
             // ── 6. Page content health ──
             await this._checkContentHealth(tmpl);
 
-            // ── 7. Action endpoint checks ──
+            // ── 7. Deterministic experience and accessibility signals ──
+            const experience = await this.experience.inspect(tmpl.page, url);
+            experience.keyboard = await this.experience.inspectKeyboard();
+            const pageKind = /form|create|edit/.test(tmpl.page) ? 'form'
+                : /detail/.test(tmpl.page) ? 'detail'
+                : /list|queue/.test(tmpl.page) ? 'list' : 'dashboard';
+            if (!this.responsiveKinds.has(pageKind)) {
+                experience.responsive = await this.experience.inspectResponsive();
+                this.responsiveKinds.add(pageKind);
+            }
+            if (experience.keyboard.invisible_focus > 0) {
+                experience.findings.push({ discipline: 'design-frontend', severity: 'major', rule: 'keyboard-visible-target', detail: `${experience.keyboard.invisible_focus} tab stops focus invisible controls` });
+            }
+            if (experience.keyboard.unique_reached < Math.min(3, experience.keyboard.tabs)) {
+                experience.findings.push({ discipline: 'design-frontend', severity: 'major', rule: 'keyboard-progress', detail: `Tab navigation reached only ${experience.keyboard.unique_reached} unique controls` });
+            }
+            for (const responsive of experience.responsive || []) {
+                if (responsive.horizontal_overflow) experience.findings.push({ discipline: 'design-frontend', severity: 'major', rule: `responsive-overflow-${responsive.name}`, detail: `Horizontal overflow at ${responsive.width}px` });
+                if (responsive.desktop_visible_primary_actions > 0 && responsive.visible_primary_actions === 0) experience.findings.push({ discipline: 'design-frontend', severity: 'critical', rule: `responsive-actions-${responsive.name}`, detail: `${responsive.desktop_visible_primary_actions} desktop-visible primary actions become unavailable at ${responsive.width}px` });
+            }
+            this.pageAnalyses.push(experience);
+            for (const finding of experience.findings || []) {
+                this._recordIssue(finding.severity, tmpl.page,
+                    `UX rule ${finding.rule} should pass`, finding.detail,
+                    'Rendered information architecture or accessible semantics violate a deterministic rule',
+                    `Review ${tmpl.file} for ${finding.rule}`,
+                    { kind: 'ux', source: 'ux', rule: finding.rule, discipline: finding.discipline }
+                );
+            }
+
+            // ── 8. Action endpoint checks ──
             for (const action of tmpl.actions) {
                 if (action.url) {
                     await this._checkActionEndpoint(tmpl, action);
@@ -347,7 +392,7 @@ class ModuleDiagnostic {
     /**
      * Record a diagnostic issue with root cause analysis.
      */
-    _recordIssue(severity, component, expected, actual, cause, fix) {
+    _recordIssue(severity, component, expected, actual, cause, fix, metadata = {}) {
         this.issues.push({
             severity,
             component,
@@ -356,6 +401,7 @@ class ModuleDiagnostic {
             cause,
             fix,
             location: this.manifest.name || this.manifest.id || 'unknown',
+            ...metadata,
         });
     }
 
@@ -411,7 +457,7 @@ class ModuleDiagnostic {
         }
         report += `═══════════════════════════════════════════════════\n`;
 
-        return { passed, failed, issues: this.issues, report };
+        return { passed, failed, issues: this.issues, pages: this.pageAnalyses, report };
     }
 
     /**
@@ -422,35 +468,35 @@ class ModuleDiagnostic {
         for (const [url, label] of navUrlMap) {
             if (url.includes(pageName)) return url;
         }
-        // Try to match by heuristics
+        // Infer conventional paths from the template's semantic name. Entity IDs
+        // remain placeholders and are resolved from links observed at runtime.
         const base = '/admin/' + (this.manifest.id || '') + '/';
-        const urlMap = {
-            'dashboard': base.replace(/\/$/, ''),
-            'projects-list': base + 'projects',
-            'project-form': base + 'projects/create',
-            'project-detail': base + 'projects/1', // will use first project
-            'clients-list': base + 'clients',
-            'client-form': base + 'clients/create',
-            'expenses-list': base + 'expenses',
-            'expense-form': base + 'expenses/create',
-            'inventory-list': base + 'inventory',
-            'inventory-detail': base + 'inventory/1',
-            'purchases-list': base + 'purchases',
-            'purchase-form': base + 'purchases/create',
-            'sales-list': base + 'sales',
-            'sales-form': base + 'sales/create',
-            'approval-queue': base + 'approvals',
-            'reports': base + 'reports',
-            'settings': base + 'settings',
-            'audit-trail': base + 'audit-trail',
-            'fabrication': base + 'fabrication/allocations',
-            'cash-advance-form': base + 'cash-advances/create',
-            'collections-list': base + 'collections',
-            'collection-form': base + 'collections/create',
-            'issuance-form': base + 'issuances/create',
-            'material-return-form': base + 'issuances/returns/create',
-        };
-        return urlMap[pageName] || null;
+        if (pageName === 'dashboard' || pageName === 'index') return base.replace(/\/$/, '');
+        const normalized = String(pageName).replace(/_/g, '-');
+        const special = { 'approval-queue': 'approvals', 'audit-trail': 'audit-trail' };
+        if (special[normalized]) return base + special[normalized];
+        const match = normalized.match(/^(.+?)-(list|form|detail|create|edit)$/);
+        if (!match) return null;
+        let entity = match[1];
+        const navCollection = [...navUrlMap.keys()].find(url => {
+            const leaf = String(url).split('?')[0].replace(/\/$/, '').split('/').pop() || '';
+            return leaf === entity || leaf === `${entity}s` || leaf === `${entity}es` ||
+                (entity.endsWith('y') && leaf === `${entity.slice(0, -1)}ies`);
+        });
+        let collection = navCollection || '';
+        if (!collection) {
+            const uncountable = new Set(['inventory', 'equipment', 'information', 'staff']);
+            if (uncountable.has(entity) || entity.endsWith('s')) collection = base + entity;
+            else if (entity.endsWith('y') && !/[aeiou]y$/.test(entity)) collection = base + entity.slice(0, -1) + 'ies';
+            else if (/(?:ch|sh|x|z)$/.test(entity)) collection = base + entity + 'es';
+            else collection = base + entity + 's';
+        }
+        collection = collection.replace(/\/$/, '');
+        if (match[2] === 'list') return collection;
+        if (match[2] === 'form' || match[2] === 'create') return collection + '/create';
+        if (match[2] === 'detail') return collection + '/{id}';
+        if (match[2] === 'edit') return collection + '/{id}/edit';
+        return null;
     }
 }
 

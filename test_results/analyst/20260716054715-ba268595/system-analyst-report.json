@@ -1,0 +1,3735 @@
+{
+  "schema": "ark.system-analyst-report.v1",
+  "run_id": "20260716054715-ba268595",
+  "module": "project-audit-ledger",
+  "generated_at": "2026-07-16T05:48:41.047Z",
+  "understanding": {
+    "module": "Project Audit Ledger",
+    "pages": 54,
+    "fields": 210,
+    "creatables": 29,
+    "dataFlows": 239,
+    "details": {
+      "templates": [
+        {
+          "page": "approval-queue",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "audit-trail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "bill-of-materials",
+          "fieldCount": 1,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "cash-advance-form",
+          "fieldCount": 5,
+          "creatableCount": 1,
+          "creatables": [
+            {
+              "field": "team_lead_id",
+              "reason": "User can type a new team lead not in the predefined list",
+              "createsRecord": "pal_team_leads",
+              "displayPage": "/team_leads"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "cash-advances-list",
+          "fieldCount": 2,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "client-detail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "client-form",
+          "fieldCount": 5,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "clients-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "collection-form",
+          "fieldCount": 6,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "collections-detail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "collections-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "dashboard",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "expense-detail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "expense-form",
+          "fieldCount": 6,
+          "creatableCount": 3,
+          "creatables": [
+            {
+              "field": "category_id",
+              "reason": "User can type a new expense category not in the predefined list",
+              "createsRecord": "pal_expense_categorys",
+              "displayPage": "/expense_categorys"
+            },
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            },
+            {
+              "field": "supplier_id",
+              "reason": "User can type a new supplier not in the predefined list",
+              "createsRecord": "pal_suppliers",
+              "displayPage": "/suppliers"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "expenses-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "fabrication-allocations",
+          "fieldCount": 3,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "fabrication-dues",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "fabrication-payment-form",
+          "fieldCount": 4,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            },
+            {
+              "field": "team_lead_id",
+              "reason": "User can type a new team lead not in the predefined list",
+              "createsRecord": "pal_team_leads",
+              "displayPage": "/team_leads"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "inventory-detail",
+          "fieldCount": 13,
+          "creatableCount": 4,
+          "creatables": [
+            {
+              "field": "category_id",
+              "reason": "User can type a new material category not in the predefined list",
+              "createsRecord": "pal_material_categorys",
+              "displayPage": "/material_categorys"
+            },
+            {
+              "field": "unit_id",
+              "reason": "User can type a new unit not in the predefined list",
+              "createsRecord": "pal_units",
+              "displayPage": "/units"
+            },
+            {
+              "field": "conversion_unit_id",
+              "reason": "User can type a new unit not in the predefined list",
+              "createsRecord": "pal_units",
+              "displayPage": "/units"
+            },
+            {
+              "field": "preferred_supplier_id",
+              "reason": "User can type a new supplier not in the predefined list",
+              "createsRecord": "pal_suppliers",
+              "displayPage": "/suppliers"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "inventory-list",
+          "fieldCount": 5,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "category_id",
+              "reason": "User can type a new material category not in the predefined list",
+              "createsRecord": "pal_material_categorys",
+              "displayPage": "/material_categorys"
+            },
+            {
+              "field": "unit_id",
+              "reason": "User can type a new unit not in the predefined list",
+              "createsRecord": "pal_units",
+              "displayPage": "/units"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "issuance-detail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "issuance-form",
+          "fieldCount": 4,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            },
+            {
+              "field": "material_id[]",
+              "reason": "User can type a new material not in the predefined list",
+              "createsRecord": "pal_materials",
+              "displayPage": "/materials"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "issuance-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "material-return-form",
+          "fieldCount": 7,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            },
+            {
+              "field": "material_id",
+              "reason": "User can type a new material not in the predefined list",
+              "createsRecord": "pal_materials",
+              "displayPage": "/materials"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "material-return-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "mobilization-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "movements-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "project-detail",
+          "fieldCount": 4,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "project-form",
+          "fieldCount": 48,
+          "creatableCount": 3,
+          "creatables": [
+            {
+              "field": "client_id",
+              "reason": "User can type a new client not in the predefined list",
+              "createsRecord": "pal_clients",
+              "displayPage": "/clients"
+            },
+            {
+              "field": "project_type_id",
+              "reason": "User can type a new project type not in the predefined list",
+              "createsRecord": "pal_project_types",
+              "displayPage": "/project_types"
+            },
+            {
+              "field": "fabrication_team_lead_id",
+              "reason": "User can type a new team lead not in the predefined list",
+              "createsRecord": "pal_team_leads",
+              "displayPage": "/team_leads"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "projects-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "purchase-detail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "purchase-form",
+          "fieldCount": 10,
+          "creatableCount": 4,
+          "creatables": [
+            {
+              "field": "supplier_id",
+              "reason": "User can type a new supplier not in the predefined list",
+              "createsRecord": "pal_suppliers",
+              "displayPage": "/suppliers"
+            },
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            },
+            {
+              "field": "material_id[]",
+              "reason": "User can type a new material not in the predefined list",
+              "createsRecord": "pal_materials",
+              "displayPage": "/materials"
+            },
+            {
+              "field": "material_id[]",
+              "reason": "User can type a new material not in the predefined list",
+              "createsRecord": "pal_materials",
+              "displayPage": "/materials"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "purchases-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "quotation-detail",
+          "fieldCount": 2,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "quotation-form",
+          "fieldCount": 19,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "client_id",
+              "reason": "User can type a new client not in the predefined list",
+              "createsRecord": "pal_clients",
+              "displayPage": "/clients"
+            },
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "quotations-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "reports-center",
+          "fieldCount": 4,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "sales-detail",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "sales-form",
+          "fieldCount": 17,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "project_id",
+              "reason": "User can type a new project not in the predefined list",
+              "createsRecord": "pal_projects",
+              "displayPage": "/projects"
+            },
+            {
+              "field": "client_id",
+              "reason": "User can type a new client not in the predefined list",
+              "createsRecord": "pal_clients",
+              "displayPage": "/clients"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "sales-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "settings-categories",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "settings-materials",
+          "fieldCount": 6,
+          "creatableCount": 2,
+          "creatables": [
+            {
+              "field": "category_id",
+              "reason": "User can type a new material category not in the predefined list",
+              "createsRecord": "pal_material_categorys",
+              "displayPage": "/material_categorys"
+            },
+            {
+              "field": "unit_id",
+              "reason": "User can type a new unit not in the predefined list",
+              "createsRecord": "pal_units",
+              "displayPage": "/units"
+            }
+          ],
+          "entityRefs": []
+        },
+        {
+          "page": "settings-overview",
+          "fieldCount": 17,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "settings-suppliers",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "supplier-form",
+          "fieldCount": 4,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "suppliers-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-attendance",
+          "fieldCount": 2,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-ca-form",
+          "fieldCount": 3,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-ca-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-dashboard",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-fabrication",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-mobilization-form",
+          "fieldCount": 4,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "team-lead-mobilization-list",
+          "fieldCount": 0,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        },
+        {
+          "page": "users-list",
+          "fieldCount": 9,
+          "creatableCount": 0,
+          "creatables": [],
+          "entityRefs": []
+        }
+      ],
+      "dataFlows": [
+        {
+          "origin": {
+            "page": "bill-of-materials",
+            "field": "project_id",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal_project",
+            "column": "project_id",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field project_id collected on bill-of-materials → stored in pal_project.project_id → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advance-form",
+            "field": "team_lead_id",
+            "description": "New team lead (user-defined, created on-the-fly)"
+          },
+          "destination": {
+            "entity": "team_lead",
+            "table": "pal_team_leads",
+            "listPage": "/team_leads"
+          },
+          "process": "User enters new team lead → POST to API → INSERT into pal_team_leads → displayed on /team_leads list",
+          "routes": []
+        },
+        {
+          "origin": {
+            "page": "cash-advance-form",
+            "field": "team_lead_id",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal_team_lead",
+            "column": "team_lead_id",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field team_lead_id collected on cash-advance-form → stored in pal_team_lead.team_lead_id → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advance-form",
+            "field": "project_id",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal_project",
+            "column": "project_id",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field project_id collected on cash-advance-form → stored in pal_project.project_id → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advance-form",
+            "field": "amount",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "amount",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field amount collected on cash-advance-form → stored in pal.users.amount → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advance-form",
+            "field": "advance_date",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "advance_date",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field advance_date collected on cash-advance-form → stored in pal.users.advance_date → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advance-form",
+            "field": "description",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "description",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field description collected on cash-advance-form → stored in pal.users.description → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advances-list",
+            "field": "month",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "month",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field month collected on cash-advances-list → stored in pal.users.month → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "cash-advances-list",
+            "field": "year",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "year",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field year collected on cash-advances-list → stored in pal.users.year → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "client-form",
+            "field": "name",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "name",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field name collected on client-form → stored in pal.users.name → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "client-form",
+            "field": "contact_person",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "contact_person",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field contact_person collected on client-form → stored in pal.users.contact_person → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "client-form",
+            "field": "phone",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "phone",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field phone collected on client-form → stored in pal.users.phone → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "client-form",
+            "field": "email",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "email",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field email collected on client-form → stored in pal.users.email → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "client-form",
+            "field": "address",
+            "type": "textarea"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "address",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field address collected on client-form → stored in pal.users.address → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "collection-form",
+            "field": "sales_id",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal_sales",
+            "column": "sales_id",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field sales_id collected on collection-form → stored in pal_sales.sales_id → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "collection-form",
+            "field": "amount",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "amount",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field amount collected on collection-form → stored in pal.users.amount → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "collection-form",
+            "field": "payment_date",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "payment_date",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field payment_date collected on collection-form → stored in pal.users.payment_date → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "collection-form",
+            "field": "payment_method",
+            "type": "select"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "payment_method",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field payment_method collected on collection-form → stored in pal.users.payment_method → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "collection-form",
+            "field": "reference_number",
+            "type": "input"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "reference_number",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field reference_number collected on collection-form → stored in pal.users.reference_number → displayed on detail page"
+        },
+        {
+          "origin": {
+            "page": "collection-form",
+            "field": "notes",
+            "type": "textarea"
+          },
+          "destination": {
+            "entity": "pal.users",
+            "column": "notes",
+            "displayedOn": [
+              "same page (detail view)"
+            ]
+          },
+          "process": "Field notes collected on collection-form → stored in pal.users.notes → displayed on detail page"
+        }
+      ]
+    }
+  },
+  "coverage": {
+    "static_pages": 54,
+    "runtime_pages": 36,
+    "checks_passed": 263,
+    "raw_observations": 84
+  },
+  "pages": [
+    {
+      "page_id": "approval-queue",
+      "url": "/admin/project-audit-ledger/approvals?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Approvals",
+      "metrics": {
+        "controls": 32,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "audit-trail",
+      "url": "/admin/project-audit-ledger/audit-trail?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "cash-advance-form",
+      "url": "/admin/project-audit-ledger/cash-advances/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — New Cash Advance",
+      "metrics": {
+        "controls": 39,
+        "forms": 1,
+        "tables": 0,
+        "headings": 3,
+        "h1_count": 2,
+        "unnamed_controls": 4,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "4 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "cash-advances-list",
+      "url": "/admin/project-audit-ledger/cash-advances?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Cash Advances",
+      "metrics": {
+        "controls": 37,
+        "forms": 1,
+        "tables": 1,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 2,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "2 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "client-form",
+      "url": "/admin/project-audit-ledger/clients/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Create Client",
+      "metrics": {
+        "controls": 39,
+        "forms": 1,
+        "tables": 0,
+        "headings": 3,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "clients-list",
+      "url": "/admin/project-audit-ledger/clients?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Clients",
+      "metrics": {
+        "controls": 33,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "collection-form",
+      "url": "/admin/project-audit-ledger/collections/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Record Collection",
+      "metrics": {
+        "controls": 41,
+        "forms": 1,
+        "tables": 0,
+        "headings": 6,
+        "h1_count": 2,
+        "unnamed_controls": 4,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "4 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "collections-list",
+      "url": "/admin/project-audit-ledger/collections?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Collections",
+      "metrics": {
+        "controls": 40,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "dashboard",
+      "url": "/admin/project-audit-ledger?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Dashboard",
+      "metrics": {
+        "controls": 52,
+        "forms": 0,
+        "tables": 1,
+        "headings": 4,
+        "h1_count": 2,
+        "unnamed_controls": 10,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "10 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "expense-detail",
+      "url": "/admin/project-audit-ledger/expenses/65?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Expense #EXP-SCEN-1",
+      "metrics": {
+        "controls": 32,
+        "forms": 0,
+        "tables": 0,
+        "headings": 3,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "expense-form",
+      "url": "/admin/project-audit-ledger/expenses/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Create Expense",
+      "metrics": {
+        "controls": 40,
+        "forms": 1,
+        "tables": 0,
+        "headings": 3,
+        "h1_count": 2,
+        "unnamed_controls": 6,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "6 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "expenses-list",
+      "url": "/admin/project-audit-ledger/expenses?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Expenses",
+      "metrics": {
+        "controls": 43,
+        "forms": 0,
+        "tables": 1,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "fabrication-payment-form",
+      "url": "/admin/project-audit-ledger/fabrication-payments/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "inventory-list",
+      "url": "/admin/project-audit-ledger/inventory?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Inventory",
+      "metrics": {
+        "controls": 34,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "issuance-form",
+      "url": "/admin/project-audit-ledger/issuances/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "issuance-list",
+      "url": "/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "material-return-form",
+      "url": "/admin/project-audit-ledger/material-returns/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Material Return",
+      "metrics": {
+        "controls": 40,
+        "forms": 1,
+        "tables": 0,
+        "headings": 3,
+        "h1_count": 2,
+        "unnamed_controls": 7,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "7 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "material-return-list",
+      "url": "/admin/project-audit-ledger/material-returns?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Material Returns",
+      "metrics": {
+        "controls": 33,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "mobilization-list",
+      "url": "/admin/project-audit-ledger/mobilizations?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "movements-list",
+      "url": "/admin/project-audit-ledger/movements?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "project-detail",
+      "url": "/admin/project-audit-ledger/projects/573?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — JO: FlowTest-1784180745734",
+      "metrics": {
+        "controls": 36,
+        "forms": 0,
+        "tables": 0,
+        "headings": 4,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "project-form",
+      "url": "/admin/project-audit-ledger/projects/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — New Job Order",
+      "metrics": {
+        "controls": 64,
+        "forms": 1,
+        "tables": 1,
+        "headings": 11,
+        "h1_count": 2,
+        "unnamed_controls": 18,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "18 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "projects-list",
+      "url": "/admin/project-audit-ledger/projects?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Job Orders",
+      "metrics": {
+        "controls": 45,
+        "forms": 0,
+        "tables": 1,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "purchase-form",
+      "url": "/admin/project-audit-ledger/purchases/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Create Purchase",
+      "metrics": {
+        "controls": 39,
+        "forms": 1,
+        "tables": 0,
+        "headings": 4,
+        "h1_count": 2,
+        "unnamed_controls": 4,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "4 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "purchases-list",
+      "url": "/admin/project-audit-ledger/purchases?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Purchases",
+      "metrics": {
+        "controls": 33,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "quotation-form",
+      "url": "/admin/project-audit-ledger/quotations/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Create Quotation",
+      "metrics": {
+        "controls": 55,
+        "forms": 1,
+        "tables": 1,
+        "headings": 4,
+        "h1_count": 2,
+        "unnamed_controls": 20,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "20 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "quotations-list",
+      "url": "/admin/project-audit-ledger/quotations?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Quotations",
+      "metrics": {
+        "controls": 33,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "sales-form",
+      "url": "/admin/project-audit-ledger/sales/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Create Sale",
+      "metrics": {
+        "controls": 60,
+        "forms": 1,
+        "tables": 1,
+        "headings": 5,
+        "h1_count": 2,
+        "unnamed_controls": 25,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        },
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "accessible-name",
+          "detail": "25 visible controls lack an accessible name"
+        }
+      ]
+    },
+    {
+      "page_id": "sales-list",
+      "url": "/admin/project-audit-ledger/sales?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Sales",
+      "metrics": {
+        "controls": 33,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "supplier-form",
+      "url": "/admin/project-audit-ledger/suppliers/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Create Supplier",
+      "metrics": {
+        "controls": 38,
+        "forms": 1,
+        "tables": 0,
+        "headings": 3,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "suppliers-list",
+      "url": "/admin/project-audit-ledger/suppliers?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — Suppliers",
+      "metrics": {
+        "controls": 33,
+        "forms": 0,
+        "tables": 0,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    },
+    {
+      "page_id": "team-lead-ca-form",
+      "url": "/admin/project-audit-ledger/team-lead-cas/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "team-lead-ca-list",
+      "url": "/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "team-lead-mobilization-form",
+      "url": "/admin/project-audit-ledger/team-lead-mobilizations/create?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "team-lead-mobilization-list",
+      "url": "/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "title": "Not Found — APPLICATION KERNEL OS",
+      "metrics": {
+        "controls": 17,
+        "forms": 0,
+        "tables": 0,
+        "headings": 1,
+        "h1_count": 1,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": []
+    },
+    {
+      "page_id": "users-list",
+      "url": "/admin/project-audit-ledger/users?wb_inspect=1&disyl_nocache=1",
+      "title": "Project Audit Ledger — User Management",
+      "metrics": {
+        "controls": 39,
+        "forms": 0,
+        "tables": 1,
+        "headings": 2,
+        "h1_count": 2,
+        "unnamed_controls": 0,
+        "heading_jumps": 0,
+        "duplicate_ids": 0,
+        "horizontal_overflow": false
+      },
+      "findings": [
+        {
+          "discipline": "design-frontend",
+          "severity": "major",
+          "rule": "single-page-h1",
+          "detail": "Expected one page H1; found 2"
+        }
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "approval-queue",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review approval-queue.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "9ad85e3d8927536092c4",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "cash-advance-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review cash-advance-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "26031db02a3d24330034",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "cash-advance-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "4 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review cash-advance-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "4 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "f5fe3354ecefea3f26f6",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "cash-advances-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review cash-advances-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "41180981597708aae5fb",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "cash-advances-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "2 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review cash-advances-list.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "2 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "d8366d0fbd28b4d5b6d5",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "note",
+      "component": "route-prerequisite",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "No valid entity link was discovered",
+      "expected": "A discoverable runtime instance for /admin/project-audit-ledger/clients/{id}",
+      "cause": "The route requires an entity or workflow prerequisite not present in the observed state",
+      "fix": "Seed or discover a valid prerequisite through a list/detail relationship before testing this route",
+      "timestamp": null,
+      "classification": "unmet-prerequisite",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "No valid entity link was discovered",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 7,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "8fe131245a0827224531",
+      "confidence": 0.6900000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "client-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review client-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "466a4800374b356949eb",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "clients-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review clients-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "cc337b7c01fd928044f9",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "collection-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review collection-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "dca9570b12bbe4733ce2",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "collection-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "4 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review collection-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "4 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "e4e2416c06bb270314b7",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "collections-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review collections-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "6555f29ca6485b0c5b9b",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "dashboard",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review dashboard.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "8300405184ee17b8b97f",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "dashboard",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "10 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review dashboard.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "10 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "b89cd022244f8bd2f5ea",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "expense-detail",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review expense-detail.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "ca5d0de8092206c82f58",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "expense-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review expense-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "b5b47e4f6c0dc675dbe3",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "expense-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "6 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review expense-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "6 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "29104cc1bd449d6339f2",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "expenses-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review expenses-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "cb9a997cc51af3df2ac3",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "fabrication-payment-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"project_id\" (select) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In fabrication-payment-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 4,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "ad3c67c3d94da5d11a48",
+      "confidence": 0.63
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "fabrication-payment-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"project_id\" not found on page",
+      "expected": "Creatable field \"project_id\" (data-creatable=\"project\") should be present — allows users to create new project on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In fabrication-payment-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"project_id\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "40d3ed6b3312a5155d91",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "fabrication-payment-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"team_lead_id\" not found on page",
+      "expected": "Creatable field \"team_lead_id\" (data-creatable=\"team_lead\") should be present — allows users to create new team lead on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In fabrication-payment-form.disyl, check that <select name=\"team_lead_id\" data-creatable=\"team_lead\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"team_lead_id\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "63f9139fadd6c49464e2",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "inventory-list",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"category_id\" not found on page",
+      "expected": "Creatable field \"category_id\" (data-creatable=\"material_category\") should be present — allows users to create new material category on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In inventory-list.disyl, check that <select name=\"category_id\" data-creatable=\"material_category\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"category_id\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "a405e99a4e8c6494982d",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "inventory-list",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"unit_id\" not found on page",
+      "expected": "Creatable field \"unit_id\" (data-creatable=\"unit\") should be present — allows users to create new unit on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In inventory-list.disyl, check that <select name=\"unit_id\" data-creatable=\"unit\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"unit_id\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "80310c9b778d0aa1f29b",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "inventory-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review inventory-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "fe9723091fba288e1bb8",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "issuance-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"project_id\" (select) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In issuance-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 4,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "ce8493ff429a2cdee86b",
+      "confidence": 0.63
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "issuance-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"project_id\" not found on page",
+      "expected": "Creatable field \"project_id\" (data-creatable=\"project\") should be present — allows users to create new project on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In issuance-form.disyl, check that <select name=\"project_id\" data-creatable=\"project\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"project_id\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "60b5fcc88b225ac5b9ed",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "issuance-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"material_id[]\" not found on page",
+      "expected": "Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In issuance-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"material_id[]\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "901d5b2baa01213df326",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "material-return-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review material-return-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "30ccd7e311d0a4fb9452",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "material-return-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "7 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review material-return-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "7 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "4f0f6478fde01d79b769",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "material-return-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review material-return-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "6d57d9e2a2c2c3b8a281",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "project-detail",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review project-detail.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "5bf55d577eb03fd6b1ac",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "project-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"_project_numeric_id\" (input) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In project-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 4,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "d1f3c94e480885581a48",
+      "confidence": 0.63
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "project-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"fabrication_team_lead_id\" not found on page",
+      "expected": "Creatable field \"fabrication_team_lead_id\" (data-creatable=\"team_lead\") should be present — allows users to create new team lead on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In project-form.disyl, check that <select name=\"fabrication_team_lead_id\" data-creatable=\"team_lead\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"fabrication_team_lead_id\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "46201ee58927b28c7681",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "project-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review project-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "9e817f87b2f11060f4a0",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "project-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "18 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review project-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "18 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "0c774d0841c968525c39",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "projects-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review projects-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "e631294465f3912abf67",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "purchase-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"material_id[]\" (select) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In purchase-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 6,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "05ce46d1ca5d5af3fd5f",
+      "confidence": 0.67
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "purchase-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field \"material_id[]\" not found on page",
+      "expected": "Creatable field \"material_id[]\" (data-creatable=\"material\") should be present — allows users to create new material on-the-fly",
+      "cause": "Field may be conditionally rendered or removed in template refactor",
+      "fix": "In purchase-form.disyl, check that <select name=\"material_id[]\" data-creatable=\"material\"> exists",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"material_id[]\" not found on page",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field \"material_id[]\" not found on page",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 2,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "d127274dd77715b49296",
+      "confidence": 0.5900000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "purchase-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review purchase-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "cb506566bf441f5fb921",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "purchase-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "4 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review purchase-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "4 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "e3906dbb59fd8108790d",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "purchases-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review purchases-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "eae79b04c8b6a82ba7da",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "quotation-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"'particulars['+idx+']'\" (input) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In quotation-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 7,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "ea6a5769fa2bf8a5f6e9",
+      "confidence": 0.6900000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "quotation-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review quotation-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "ab4eefd648a254eb30ef",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "quotation-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "20 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review quotation-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "20 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "dded7a59dbe37bc822df",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "quotations-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review quotations-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "46181d3fff884bebe813",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "sales-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review sales-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "510bd4e4db37da18b4ae",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "sales-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "25 visible controls lack an accessible name",
+      "expected": "UX rule accessible-name should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review sales-form.disyl for accessible-name",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "25 visible controls lack an accessible name",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "50135e57453dd7a8c2bf",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "sales-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review sales-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "46095cbd6309bbd5ac90",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "supplier-form",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review supplier-form.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "c800e2dad8dbc554c213",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "suppliers-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review suppliers-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "ac51c14af45fdd29b478",
+      "confidence": 0.5700000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "team-lead-ca-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"amount\" (input) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In team-lead-ca-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 3,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "6847e9c9df30695d3506",
+      "confidence": 0.6100000000000001
+    },
+    {
+      "kind": "diagnostic",
+      "severity": "minor",
+      "component": "team-lead-mobilization-form",
+      "source": "diagnostic",
+      "url": "",
+      "status": null,
+      "detail": "Field may be in a hidden form, modal, or JS-added row",
+      "expected": "Form field \"amount\" (input) not found on page",
+      "cause": "Template may use conditional {if} block, class=\"hidden\" container, or JS dynamic rows",
+      "fix": "In team-lead-mobilization-form.disyl, field renders only when its container is visible (edit mode, button click, etc.)",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        },
+        {
+          "kind": "diagnostic",
+          "source": "diagnostic",
+          "url": "",
+          "status": null,
+          "detail": "Field may be in a hidden form, modal, or JS-added row",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 4,
+      "evidence_kinds": [
+        "diagnostic"
+      ],
+      "fingerprint": "d37d90c9ba9ff3fa3305",
+      "confidence": 0.63
+    },
+    {
+      "kind": "ux",
+      "severity": "major",
+      "component": "users-list",
+      "source": "ux",
+      "url": "",
+      "status": null,
+      "detail": "Expected one page H1; found 2",
+      "expected": "UX rule single-page-h1 should pass",
+      "cause": "Rendered information architecture or accessible semantics violate a deterministic rule",
+      "fix": "Review users-list.disyl for single-page-h1",
+      "timestamp": null,
+      "classification": "unconfirmed",
+      "evidence": [
+        {
+          "kind": "ux",
+          "source": "ux",
+          "url": "",
+          "status": null,
+          "detail": "Expected one page H1; found 2",
+          "timestamp": null
+        }
+      ],
+      "occurrences": 1,
+      "evidence_kinds": [
+        "ux"
+      ],
+      "fingerprint": "cc2d1d03443edd2314e9",
+      "confidence": 0.5700000000000001
+    }
+  ],
+  "role_indexes": {
+    "web-design": [
+      "9ad85e3d8927536092c4",
+      "26031db02a3d24330034",
+      "f5fe3354ecefea3f26f6",
+      "41180981597708aae5fb",
+      "d8366d0fbd28b4d5b6d5",
+      "466a4800374b356949eb",
+      "cc337b7c01fd928044f9",
+      "dca9570b12bbe4733ce2",
+      "e4e2416c06bb270314b7",
+      "6555f29ca6485b0c5b9b",
+      "8300405184ee17b8b97f",
+      "b89cd022244f8bd2f5ea",
+      "ca5d0de8092206c82f58",
+      "b5b47e4f6c0dc675dbe3",
+      "29104cc1bd449d6339f2",
+      "cb9a997cc51af3df2ac3",
+      "fe9723091fba288e1bb8",
+      "30ccd7e311d0a4fb9452",
+      "4f0f6478fde01d79b769",
+      "6d57d9e2a2c2c3b8a281",
+      "5bf55d577eb03fd6b1ac",
+      "9e817f87b2f11060f4a0",
+      "0c774d0841c968525c39",
+      "e631294465f3912abf67",
+      "cb506566bf441f5fb921",
+      "e3906dbb59fd8108790d",
+      "eae79b04c8b6a82ba7da",
+      "ab4eefd648a254eb30ef",
+      "dded7a59dbe37bc822df",
+      "46181d3fff884bebe813",
+      "510bd4e4db37da18b4ae",
+      "50135e57453dd7a8c2bf",
+      "46095cbd6309bbd5ac90",
+      "c800e2dad8dbc554c213",
+      "ac51c14af45fdd29b478",
+      "cc2d1d03443edd2314e9"
+    ],
+    "frontend": [
+      "9ad85e3d8927536092c4",
+      "26031db02a3d24330034",
+      "f5fe3354ecefea3f26f6",
+      "41180981597708aae5fb",
+      "d8366d0fbd28b4d5b6d5",
+      "466a4800374b356949eb",
+      "cc337b7c01fd928044f9",
+      "dca9570b12bbe4733ce2",
+      "e4e2416c06bb270314b7",
+      "6555f29ca6485b0c5b9b",
+      "8300405184ee17b8b97f",
+      "b89cd022244f8bd2f5ea",
+      "ca5d0de8092206c82f58",
+      "b5b47e4f6c0dc675dbe3",
+      "29104cc1bd449d6339f2",
+      "cb9a997cc51af3df2ac3",
+      "ad3c67c3d94da5d11a48",
+      "40d3ed6b3312a5155d91",
+      "63f9139fadd6c49464e2",
+      "a405e99a4e8c6494982d",
+      "80310c9b778d0aa1f29b",
+      "fe9723091fba288e1bb8",
+      "ce8493ff429a2cdee86b",
+      "60b5fcc88b225ac5b9ed",
+      "901d5b2baa01213df326",
+      "30ccd7e311d0a4fb9452",
+      "4f0f6478fde01d79b769",
+      "6d57d9e2a2c2c3b8a281",
+      "5bf55d577eb03fd6b1ac",
+      "d1f3c94e480885581a48",
+      "46201ee58927b28c7681",
+      "9e817f87b2f11060f4a0",
+      "0c774d0841c968525c39",
+      "e631294465f3912abf67",
+      "05ce46d1ca5d5af3fd5f",
+      "d127274dd77715b49296",
+      "cb506566bf441f5fb921",
+      "e3906dbb59fd8108790d",
+      "eae79b04c8b6a82ba7da",
+      "ea6a5769fa2bf8a5f6e9",
+      "ab4eefd648a254eb30ef",
+      "dded7a59dbe37bc822df",
+      "46181d3fff884bebe813",
+      "510bd4e4db37da18b4ae",
+      "50135e57453dd7a8c2bf",
+      "46095cbd6309bbd5ac90",
+      "c800e2dad8dbc554c213",
+      "ac51c14af45fdd29b478",
+      "6847e9c9df30695d3506",
+      "d37d90c9ba9ff3fa3305",
+      "cc2d1d03443edd2314e9"
+    ],
+    "backend": [
+      "8fe131245a0827224531"
+    ],
+    "product": [
+      "9ad85e3d8927536092c4",
+      "26031db02a3d24330034",
+      "f5fe3354ecefea3f26f6",
+      "41180981597708aae5fb",
+      "d8366d0fbd28b4d5b6d5",
+      "8fe131245a0827224531",
+      "466a4800374b356949eb",
+      "cc337b7c01fd928044f9",
+      "dca9570b12bbe4733ce2",
+      "e4e2416c06bb270314b7",
+      "6555f29ca6485b0c5b9b",
+      "8300405184ee17b8b97f",
+      "b89cd022244f8bd2f5ea",
+      "ca5d0de8092206c82f58",
+      "b5b47e4f6c0dc675dbe3",
+      "29104cc1bd449d6339f2",
+      "cb9a997cc51af3df2ac3",
+      "ad3c67c3d94da5d11a48",
+      "40d3ed6b3312a5155d91",
+      "63f9139fadd6c49464e2",
+      "a405e99a4e8c6494982d",
+      "80310c9b778d0aa1f29b",
+      "fe9723091fba288e1bb8",
+      "ce8493ff429a2cdee86b",
+      "60b5fcc88b225ac5b9ed",
+      "901d5b2baa01213df326",
+      "30ccd7e311d0a4fb9452",
+      "4f0f6478fde01d79b769",
+      "6d57d9e2a2c2c3b8a281",
+      "5bf55d577eb03fd6b1ac",
+      "d1f3c94e480885581a48",
+      "46201ee58927b28c7681",
+      "9e817f87b2f11060f4a0",
+      "0c774d0841c968525c39",
+      "e631294465f3912abf67",
+      "05ce46d1ca5d5af3fd5f",
+      "d127274dd77715b49296",
+      "cb506566bf441f5fb921",
+      "e3906dbb59fd8108790d",
+      "eae79b04c8b6a82ba7da",
+      "ea6a5769fa2bf8a5f6e9",
+      "ab4eefd648a254eb30ef",
+      "dded7a59dbe37bc822df",
+      "46181d3fff884bebe813",
+      "510bd4e4db37da18b4ae",
+      "50135e57453dd7a8c2bf",
+      "46095cbd6309bbd5ac90",
+      "c800e2dad8dbc554c213",
+      "ac51c14af45fdd29b478",
+      "6847e9c9df30695d3506",
+      "d37d90c9ba9ff3fa3305",
+      "cc2d1d03443edd2314e9"
+    ],
+    "qa": [
+      "8fe131245a0827224531",
+      "ad3c67c3d94da5d11a48",
+      "40d3ed6b3312a5155d91",
+      "63f9139fadd6c49464e2",
+      "a405e99a4e8c6494982d",
+      "80310c9b778d0aa1f29b",
+      "ce8493ff429a2cdee86b",
+      "60b5fcc88b225ac5b9ed",
+      "901d5b2baa01213df326",
+      "d1f3c94e480885581a48",
+      "46201ee58927b28c7681",
+      "05ce46d1ca5d5af3fd5f",
+      "d127274dd77715b49296",
+      "ea6a5769fa2bf8a5f6e9",
+      "6847e9c9df30695d3506",
+      "d37d90c9ba9ff3fa3305"
+    ]
+  },
+  "confidence": {
+    "process": "measured",
+    "runtime": "measured",
+    "issue_correlation": "measured"
+  }
+}

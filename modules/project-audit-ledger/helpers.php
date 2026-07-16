@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/testing/ScenarioCapabilityProvider.php';
+
 app()->registerAuthTable('project-audit-ledger', 'pal_users');
 
 /**
@@ -13,6 +15,10 @@ function project_audit_ledger_capability_handlers(): array
 {
     return [
         'kernel.auth.authenticate@1' => 'pal_cap_kernel_auth_authenticate_1',
+        'workbench.scenario.describe@1' => 'pal_cap_workbench_scenario_describe_1',
+        'workbench.scenario.seed@1' => 'pal_cap_workbench_scenario_seed_1',
+        'workbench.scenario.verify@1' => 'pal_cap_workbench_scenario_verify_1',
+        'workbench.scenario.cleanup@1' => 'pal_cap_workbench_scenario_cleanup_1',
         'pal.read@1' => 'pal_cap_read_1',
         'pal.manage@1' => 'pal_cap_manage_1',
         'pal.projects.read@1' => 'pal_cap_projects_read_1',
@@ -72,6 +78,11 @@ function project_audit_ledger_capability_handlers(): array
         'entity.list.pal_mobilization@1' => 'pal_cap_entity_list_mobilization_1',
     ];
 }
+
+function pal_cap_workbench_scenario_describe_1(array $args): array { return palWorkbenchScenarioDescribe($args); }
+function pal_cap_workbench_scenario_seed_1(array $args): array { return palWorkbenchScenarioSeed($args); }
+function pal_cap_workbench_scenario_verify_1(array $args): array { return palWorkbenchScenarioVerify($args); }
+function pal_cap_workbench_scenario_cleanup_1(array $args): array { return palWorkbenchScenarioCleanup($args); }
 
 // ── Role-based capability handlers ──
 

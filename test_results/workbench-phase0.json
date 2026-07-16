@@ -1,0 +1,137 @@
+{
+    "suite": "workbench-phase0",
+    "started": "2026-07-16 08:51:17",
+    "finished": "2026-07-16 08:51:17",
+    "elapsed_ms": 8.3,
+    "summary": {
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "total": 17,
+        "assertions": 17,
+        "exit_code": 0
+    },
+    "source_fingerprints": [],
+    "results": [
+        {
+            "section": "Versioned contracts",
+            "label": "evidence-observation.v1.schema.json is valid JSON",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Versioned contracts",
+            "label": "process-graph.v1.schema.json is valid JSON",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Versioned contracts",
+            "label": "issue.v1.schema.json is valid JSON",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Versioned contracts",
+            "label": "ai-diagnosis.v1.schema.json is valid JSON",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Versioned contracts",
+            "label": "run-manifest.v1.schema.json is valid JSON",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Versioned contracts",
+            "label": "outcomes distinguish missing from failure",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Golden baseline",
+            "label": "golden dataset has at least 30 cases",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Golden baseline",
+            "label": "golden case IDs are unique",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Golden baseline",
+            "label": "golden dataset includes censored outcomes",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Credential security",
+            "label": "openai key is classified sensitive",
+            "status": "pass",
+            "detail": "",
+            "time": 6.2
+        },
+        {
+            "section": "Credential security",
+            "label": "groq key is classified sensitive",
+            "status": "pass",
+            "detail": "",
+            "time": 6.3
+        },
+        {
+            "section": "Credential security",
+            "label": "gemini key is classified sensitive",
+            "status": "pass",
+            "detail": "",
+            "time": 6.3
+        },
+        {
+            "section": "Credential security",
+            "label": "mistral key is classified sensitive",
+            "status": "pass",
+            "detail": "",
+            "time": 6.3
+        },
+        {
+            "section": "Credential security",
+            "label": "cerebras key is classified sensitive",
+            "status": "pass",
+            "detail": "",
+            "time": 6.3
+        },
+        {
+            "section": "Credential security",
+            "label": "openrouter key is classified sensitive",
+            "status": "pass",
+            "detail": "",
+            "time": 6.3
+        },
+        {
+            "section": "Governance",
+            "label": "retention policy is documented",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Governance",
+            "label": "AI mutation boundary is documented",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        }
+    ],
+    "gaps": []
+}

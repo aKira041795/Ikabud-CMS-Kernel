@@ -1,8 +1,8 @@
 {
     "suite": "comprehension-engine-v3",
-    "started": "2026-07-16 03:18:18",
-    "finished": "2026-07-16 03:18:18",
-    "elapsed_ms": 18.5,
+    "started": "2026-07-16 08:51:18",
+    "finished": "2026-07-16 08:51:18",
+    "elapsed_ms": 19.9,
     "summary": {
         "passed": 18,
         "failed": 0,
@@ -18,7 +18,7 @@
             "label": "Unsupported provider openai is rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "AI provider validation",
@@ -32,7 +32,7 @@
             "label": "Heuristic provider accepted",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Case memory",
@@ -46,21 +46,21 @@
             "label": "Action ID persisted correctly",
             "status": "pass",
             "detail": "",
-            "time": 0.9
+            "time": 0.8
         },
         {
             "section": "Case memory",
             "label": "Delete removes from index",
             "status": "pass",
             "detail": "",
-            "time": 1.3
+            "time": 1.1
         },
         {
             "section": "Case memory",
             "label": "Stats reflect deletion",
             "status": "pass",
             "detail": "",
-            "time": 1.3
+            "time": 1.2
         },
         {
             "section": "Store case with explicit actionId",
@@ -81,42 +81,42 @@
             "label": "Both cases visible in list",
             "status": "pass",
             "detail": "",
-            "time": 1.1
+            "time": 1
         },
         {
             "section": "Store case with explicit actionId",
             "label": "Action ID is real action, not summary",
             "status": "pass",
             "detail": "",
-            "time": 1.1
+            "time": 1
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has analysis",
             "status": "pass",
             "detail": "",
-            "time": 4.9
+            "time": 3.3
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has report card",
             "status": "pass",
             "detail": "",
-            "time": 4.9
+            "time": 3.3
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has engine version",
             "status": "pass",
             "detail": "",
-            "time": 4.9
+            "time": 3.3
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has case memory stats",
             "status": "pass",
             "detail": "",
-            "time": 4.9
+            "time": 3.3
         },
         {
             "section": "Coverage scoring",
@@ -130,14 +130,14 @@
             "label": "Empty module has no cases",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "Write-path stale-cache prevention",
             "label": "Fresh instance sees all 3 cases — no stale-cache overwrite during writes",
             "status": "pass",
             "detail": "",
-            "time": 1.4
+            "time": 1.6
         }
     ],
     "gaps": []

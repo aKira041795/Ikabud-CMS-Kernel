@@ -1,0 +1,60 @@
+{
+  "score": 48,
+  "penalties": {
+    "heading": 20,
+    "accessible_names": 25,
+    "structure": 0,
+    "responsive": 0,
+    "keyboard": 0,
+    "terminology": 7,
+    "task_effort": 0
+  },
+  "terminology": {
+    "inconsistent_actions": [
+      {
+        "key": "docs",
+        "labels": [
+          "📄 Docs",
+          "🖼 Docs"
+        ]
+      },
+      {
+        "key": "create-invoice",
+        "labels": [
+          "Create Invoice",
+          "+ Create Invoice"
+        ]
+      }
+    ],
+    "casing_variants": [
+      {
+        "term": "overview",
+        "labels": [
+          "Overview −",
+          "📋 Overview"
+        ]
+      },
+      {
+        "term": "docs",
+        "labels": [
+          "📄 Docs",
+          "🖼 Docs"
+        ]
+      },
+      {
+        "term": "create invoice",
+        "labels": [
+          "Create Invoice",
+          "+ Create Invoice"
+        ]
+      }
+    ]
+  },
+  "comparison": {
+    "status": "improved",
+    "delta": 44,
+    "regressions": []
+  },
+  "baseline_file": "/var/www/html/applicationostest/test_results/ux-baselines/project-audit-ledger.json",
+  "baseline_mode": "update"
+}

@@ -43,7 +43,7 @@
                             <tr class="border-b border-gray-100">
                                 <td class="py-1 px-2 text-xs text-gray-500 text-center" x-text="idx + 1"></td>
                                 <td class="py-1 px-2">
-                                    <select x-model="item.material_id" @change="onMaterialSelect(idx)" class="wb-table-control w-28">
+                                    <select x-model="item.material_id" aria-label="Material" @change="onMaterialSelect(idx)" class="wb-table-control w-28">
                                         <option value="">—</option>
                                         {for m in materials}
                                         <option value="{m.id}"
@@ -55,13 +55,13 @@
                                         {/for}
                                     </select>
                                 </td>
-                                <td class="py-1 px-2"><input type="text" x-model="item.particulars" class="wb-table-control w-36"></td>
-                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.width" @input="calcLine(idx)" class="wb-table-control w-16 text-center"></td>
-                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.height" @input="calcLine(idx)" class="wb-table-control w-16 text-center"></td>
-                                <td class="py-1 px-2"><select x-model="item.uom" class="wb-table-control w-14"><option value="ft">ft</option><option value="m">m</option><option value="in">in</option></select></td>
-                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.quantity" @input="calcLine(idx)" class="wb-table-control w-14 text-center"></td>
-                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.price_per_unit" @input="calcLine(idx)" class="wb-table-control w-20 text-right"></td>
-                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.price_per_sqft" @input="calcLine(idx)" class="wb-table-control w-20 text-right"></td>
+                                <td class="py-1 px-2"><input type="text" x-model="item.particulars" aria-label="Particulars" class="wb-table-control w-36"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.width" aria-label="Width" @input="calcLine(idx)" class="wb-table-control w-16 text-center"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.height" aria-label="Height" @input="calcLine(idx)" class="wb-table-control w-16 text-center"></td>
+                                <td class="py-1 px-2"><select x-model="item.uom" aria-label="Unit of measure" class="wb-table-control w-14"><option value="ft">ft</option><option value="m">m</option><option value="in">in</option></select></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.quantity" aria-label="Quantity" @input="calcLine(idx)" class="wb-table-control w-14 text-center"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.price_per_unit" aria-label="Price per unit" @input="calcLine(idx)" class="wb-table-control w-20 text-right"></td>
+                                <td class="py-1 px-2"><input type="number" step="0.01" x-model="item.price_per_sqft" aria-label="Price per square foot" @input="calcLine(idx)" class="wb-table-control w-20 text-right"></td>
                                 <td class="py-1 px-2 text-xs text-right font-medium" x-text="formatMoney(item.line_total)"></td>
                                 <td class="py-1 px-2 text-center"><button type="button" @click="removeItem(idx)" class="text-red-500 hover:text-red-700 text-xs" x-show="items.length > 1">✕</button></td>
                             </tr>

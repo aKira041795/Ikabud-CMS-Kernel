@@ -1,12 +1,12 @@
 {
   "suite": "hybrid-analysis--chromium",
-  "started": "2026-07-16T03:22:55.279Z",
-  "finished": "2026-07-16T03:22:55.408Z",
+  "started": "2026-07-16T09:09:32.189Z",
+  "finished": "2026-07-16T09:09:32.424Z",
   "summary": {
-    "passed": 0,
+    "passed": 1,
     "failed": 0,
     "skipped": 0,
-    "timedOut": 1,
+    "timedOut": 0,
     "interrupted": 0,
     "total": 1
   },
@@ -14,11 +14,373 @@
   "results": [
     {
       "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian",
-      "status": "timedOut",
-      "duration": 30610,
-      "detail": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"page\".\u001b[39m"
+      "status": "passed",
+      "duration": 111163,
+      "detail": ""
     }
   ],
   "gaps": [],
-  "issues": []
+  "issues": [
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/audit-trail?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:07:47.217Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/audit-trail?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:07:47.227Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/fabrication-payments?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:16.246Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/fabrication-payments?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:16.253Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/fabrication-payments/create?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:17.158Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/fabrication-payments/create?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:17.164Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:22.814Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:22.823Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:23.708Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:23.712Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/issuances/create?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:24.580Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/issuances/create?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:24.588Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:27.108Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/issuances?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:27.115Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/mobilizations?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:34.461Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/mobilizations?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:34.471Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/mobilizations?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:35.419Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/mobilizations?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:35.426Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/movements?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:37.410Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/movements?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:37.416Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/movements?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:08:38.293Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/movements?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:08:38.301Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:08.436Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:08.441Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-cas/create?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:09.326Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-cas/create?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:09.333Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:11.581Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:11.589Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:12.556Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-cas?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:12.563Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:14.730Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:14.739Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations/create?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:15.665Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations/create?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:15.670Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:18.046Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:18.061Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "http-error",
+      "severity": "minor",
+      "where": "GET http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "detail": "HTTP 404 Not Found",
+      "timestamp": "2026-07-16T09:09:18.969Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    },
+    {
+      "kind": "console-error",
+      "severity": "major",
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "url": "http://palsystem.test/admin/project-audit-ledger/team-lead-mobilizations?wb_inspect=1&disyl_nocache=1",
+      "browser": "chromium",
+      "timestamp": "2026-07-16T09:09:18.975Z",
+      "suite": "hybrid-analysis--chromium",
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian"
+    }
+  ]
 }

@@ -15,7 +15,7 @@
             <button type="button" @click="activeStep=3;document.getElementById('sec-pricing').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===3?'is-active':''" class="wb-step">💰 Pricing<span class="wb-step__dot" aria-hidden="true"></span></button>
             <button type="button" @click="activeStep=4;document.getElementById('sec-fab').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===4?'is-active':''" class="wb-step">🔧 Fab<span class="wb-step__dot" aria-hidden="true"></span></button>
             <button type="button" @click="activeStep=5;document.getElementById('sec-items').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===5?'is-active':''" class="wb-step">📦 Items<span class="wb-step__dot" aria-hidden="true"></span></button>
-            <button type="button" @click="activeStep=6;document.getElementById('sec-docs').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===6?'is-active':''" class="wb-step">🖼 Docs<span class="wb-step__dot" aria-hidden="true"></span></button>
+            <button type="button" @click="activeStep=6;document.getElementById('sec-docs').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===6?'is-active':''" class="wb-step">📄 Docs<span class="wb-step__dot" aria-hidden="true"></span></button>
         </div>
     </div>
     <div class="wb-jo-form-card">
@@ -178,7 +178,7 @@
         <h3 class="wb-form-section__title">🖼 Mockup / Reference Image</h3>
             <div class="flex gap-4 items-start">
                 <div class="flex-1">
-                     <input type="file" id="mockup-file" accept="image/*" onchange="uploadMockup()" class="wb-file-input">
+                    <input type="file" id="mockup-file" aria-label="Upload project mockup" accept="image/*" onchange="uploadMockup()" class="wb-file-input">
                     <p class="text-xs text-gray-500 mt-1">Upload a design mockup or reference image for this JO (max 2MB recommended)</p>
                     <input type="hidden" name="mockup_attachment_id" id="mockup-attachment-id" value="{mockup_attachment_id|default:0}">
                 </div>

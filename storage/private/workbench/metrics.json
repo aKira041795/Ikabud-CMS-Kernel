@@ -1,0 +1,11 @@
+{
+    "ai_fallback|0ccb3864d9a41c6e34426dc471f330424962c6acdaab534dd67ef44d6084734b": {
+        "metric": "ai_fallback",
+        "labels": {
+            "reason": "disabled"
+        },
+        "count": 43,
+        "sum": 43,
+        "last_seen": "2026-07-16T17:09:32+08:00"
+    }
+}

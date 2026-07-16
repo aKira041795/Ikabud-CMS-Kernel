@@ -102,6 +102,30 @@
                 ]
             },
             {
+                "id": "workbench.scenario.describe@1",
+                "priority": 50,
+                "modes": ["first"],
+                "description": "Describe PAL-owned scenario and domain data contracts"
+            },
+            {
+                "id": "workbench.scenario.seed@1",
+                "priority": 50,
+                "modes": ["first"],
+                "description": "Prepare PAL-owned isolated scenario data"
+            },
+            {
+                "id": "workbench.scenario.verify@1",
+                "priority": 50,
+                "modes": ["first"],
+                "description": "Verify PAL scenario data and drift"
+            },
+            {
+                "id": "workbench.scenario.cleanup@1",
+                "priority": 50,
+                "modes": ["first"],
+                "description": "Clean PAL-owned isolated scenario data"
+            },
+            {
                 "id": "pal.read@1",
                 "priority": 50,
                 "modes": [

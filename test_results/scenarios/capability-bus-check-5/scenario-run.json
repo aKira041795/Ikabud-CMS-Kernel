@@ -1,0 +1,81 @@
+{
+    "schema": "ark.scenario-run.v1",
+    "run_id": "capability-bus-check-5",
+    "scenario": {
+        "schema": "ark.scenario.v1",
+        "scenario_id": "pal-human-guided-approval",
+        "version": 1,
+        "module": "project-audit-ledger",
+        "title": "Human-guided approval and route clarity",
+        "purpose": "Validate whether unavailable process routes are defects, permission boundaries, or obsolete navigation contracts.",
+        "fronts": [
+            "design",
+            "logic",
+            "semantics"
+        ],
+        "directions": [
+            {
+                "direction_id": "direction-1",
+                "front": "logic",
+                "statement": "The approval queue route is available to the administrator",
+                "check": "route_available",
+                "route": "/admin/project-audit-ledger/approvals",
+                "selector": null,
+                "expected": null
+            },
+            {
+                "direction_id": "direction-2",
+                "front": "semantics",
+                "statement": "The issuance route communicates its availability and purpose clearly",
+                "check": "route_available",
+                "route": "/admin/project-audit-ledger/issuances",
+                "selector": null,
+                "expected": null
+            }
+        ],
+        "questions": [
+            "Can an administrator understand why an approval or issuance route is unavailable?",
+            "Does the interface distinguish an unavailable feature from a permission restriction?"
+        ],
+        "data": {
+            "entities": [],
+            "relationships": []
+        },
+        "cleanup": {
+            "required": true,
+            "preserve_evidence": true
+        },
+        "created_at": "2026-07-16T09:49:49+00:00",
+        "created_by": "human-tester"
+    },
+    "seed_receipt": {
+        "ok": true,
+        "provider": "project-audit-ledger",
+        "namespace": "capability-bus-check-5",
+        "file": "/var/www/html/applicationostest/storage/private/workbench/module-scenarios/project-audit-ledger/capability-bus-check-5/seed.json",
+        "entity_count": 0,
+        "fingerprint": "0926f142ac7a45e37bf984ca9ee3294117f070d2a4c1f2ff80eaaedca25bf304",
+        "prepared_at": "2026-07-16T09:53:50+00:00"
+    },
+    "preconditions": {
+        "valid": true,
+        "drift": "none",
+        "expected_fingerprint": "0926f142ac7a45e37bf984ca9ee3294117f070d2a4c1f2ff80eaaedca25bf304",
+        "actual_fingerprint": "0926f142ac7a45e37bf984ca9ee3294117f070d2a4c1f2ff80eaaedca25bf304",
+        "verified_at": "2026-07-16T09:53:50+00:00"
+    },
+    "status": "completed",
+    "postconditions": {
+        "valid": true,
+        "drift": "none",
+        "expected_fingerprint": "0926f142ac7a45e37bf984ca9ee3294117f070d2a4c1f2ff80eaaedca25bf304",
+        "actual_fingerprint": "0926f142ac7a45e37bf984ca9ee3294117f070d2a4c1f2ff80eaaedca25bf304",
+        "verified_at": "2026-07-16T09:53:50+00:00"
+    },
+    "cleanup_result": {
+        "clean": true,
+        "removed": true,
+        "cleaned_at": "2026-07-16T09:53:50+00:00"
+    },
+    "finished_at": "2026-07-16T09:53:50+00:00"
+}
