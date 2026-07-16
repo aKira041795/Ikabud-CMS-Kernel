@@ -4,84 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — Team Lead Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=2">
+    <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="stylesheet" href="/assets/pal/pal-ui.css">
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="wb-app-shell">
     {csrf_field | raw}
     <!-- Mobile sidebar toggle -->
-    <button id="mobile-menu-btn" class="lg:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" onclick="toggleMobileSidebar()">
+    <button id="wb-menu-btn" class="md:hidden fixed top-3 left-3 z-50 p-2 bg-slate-900 text-white rounded-lg shadow-lg" aria-label="Open menu" aria-expanded="false">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
     <!-- Mobile overlay -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden" onclick="closeMobileSidebar()" aria-hidden="true"></div>
-    <div class="flex h-screen overflow-hidden">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="w-64 bg-slate-900 flex flex-col fixed lg:relative inset-y-0 left-0 z-40 transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out">
-            <div class="p-4 border-b border-slate-700">
-                <h1 class="text-lg font-bold text-white">ZAP-ARTS</h1>
-                <p class="text-xs text-slate-400">Team Lead Portal</p>
-                <p class="text-xs text-slate-500 mt-1">{tl.name|default:''}</p>
-            </div>
-            <nav class="flex-1 overflow-y-auto p-2 space-y-1">
-                <a href="/admin/project-audit-ledger/team-lead" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    📊 Dashboard
-                </a>
-                <a href="/admin/project-audit-ledger/team-lead/fabrication" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🔧 My Fabrications
-                </a>
-                <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    💵 Cash Advances
-                </a>
-                <a href="/admin/project-audit-ledger/team-lead/mobilization" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    🚛 Mobilization Requests
-                </a>
-                <a href="/admin/project-audit-ledger/team-lead/attendance" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                    👥 Team Attendance
-                </a>
-            </nav>
-            <div class="p-4 border-t border-slate-700">
-                <form method="POST" action="/api/v1/project-audit-ledger/tl/logout">
-                    <button type="submit" class="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors">Sign Out</button>
-                </form>
-            </div>
-        </aside>
+    <div id="wb-overlay" class="wb-app-shell__overlay" aria-hidden="true"></div>
 
-        <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto pb-16 lg:pb-0">
-            <div class="p-4 lg:p-6">
-                <h1 class="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6">{page_title}</h1>
-                {page_body|raw}
-            </div>
-        </main>
-    </div>
-
-    <!-- Mobile bottom nav (visible on small screens only) -->
-    <nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-area-bottom">
-        <div class="flex justify-around py-2">
-            <a href="/admin/project-audit-ledger/team-lead" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-dashboard'}text-blue-600{else}text-gray-600{/if}">
-                <span class="text-lg">📊</span><span>Home</span>
-            </a>
-            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-fabrication'}text-blue-600{else}text-gray-600{/if}">
-                <span class="text-lg">🔧</span><span>Fabrication</span>
-            </a>
-            <a href="/admin/project-audit-ledger/team-lead/attendance" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-attendance'}text-blue-600{else}text-gray-600{/if}">
-                <span class="text-lg">👥</span><span>Attendance</span>
-            </a>
-            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs {if page_content=='team-lead-cash-advances'}text-blue-600{else}text-gray-600{/if}">
-                <span class="text-lg">💵</span><span>Cash</span>
-            </a>
-            <button onclick="toggleMobileSidebar()" class="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg text-xs text-gray-600">
-                <span class="text-lg">☰</span><span>More</span>
-            </button>
+    <aside id="wb-sidebar" class="wb-app-shell__sidebar">
+        <div class="p-4 border-b border-slate-700">
+            <h1 class="text-lg font-bold text-white">ZAP-ARTS</h1>
+            <p class="text-xs text-slate-400">Team Lead Portal</p>
+            <p class="text-xs text-slate-500 mt-1">{tl.name|default:''}</p>
         </div>
+        <nav class="flex-1 overflow-y-auto p-2 space-y-1">
+            <a href="/admin/project-audit-ledger/team-lead" class="wb-nav-item {if page_content=='team-lead-dashboard'}is-active{/if}">📊 Dashboard</a>
+            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="wb-nav-item {if page_content=='team-lead-fabrication'}is-active{/if}">🔧 My Fabrications</a>
+            <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="wb-nav-item {if page_content=='team-lead-cash-advances'}is-active{/if}">💵 Cash Advances</a>
+            <a href="/admin/project-audit-ledger/team-lead/mobilization" class="wb-nav-item {if page_content=='team-lead-mobilization'}is-active{/if}">🚛 Mobilization</a>
+            <a href="/admin/project-audit-ledger/team-lead/attendance" class="wb-nav-item {if page_content=='team-lead-attendance'}is-active{/if}">👥 Attendance</a>
+        </nav>
+        <div class="p-4 border-t border-slate-700">
+            <form method="POST" action="/api/v1/project-audit-ledger/tl/logout">
+                <button type="submit" class="wb-nav-item" style="color:var(--wb-text-muted)">Sign Out</button>
+            </form>
+        </div>
+    </aside>
+
+    <main class="wb-app-shell__main" id="wb-main">
+        <h1 class="wb-page-header__title mb-6">{page_title}</h1>
+        {page_body|raw}
+    </main>
+
+    <!-- Mobile bottom nav -->
+    <nav class="wb-bottom-nav">
+        <a href="/admin/project-audit-ledger/team-lead" class="wb-bottom-nav__item {if page_content=='team-lead-dashboard'}is-active{/if}"><span class="text-lg">📊</span><span>Home</span></a>
+        <a href="/admin/project-audit-ledger/team-lead/fabrication" class="wb-bottom-nav__item {if page_content=='team-lead-fabrication'}is-active{/if}"><span class="text-lg">🔧</span><span>Fab</span></a>
+        <a href="/admin/project-audit-ledger/team-lead/attendance" class="wb-bottom-nav__item {if page_content=='team-lead-attendance'}is-active{/if}"><span class="text-lg">👥</span><span>Attend</span></a>
+        <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="wb-bottom-nav__item {if page_content=='team-lead-cash-advances'}is-active{/if}"><span class="text-lg">💵</span><span>Cash</span></a>
+        <button onclick="toggleMobileSidebar()" class="wb-bottom-nav__item"><span class="text-lg">☰</span><span>Menu</span></button>
     </nav>
-<!-- Toast (accessible) -->
-<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
-<script src="/assets/pal/pal-routes.js?v=1"></script>
-<script src="/assets/pal/pal-core.js?v=1"></script>
-<script src="/assets/pal/pal-forms.js?v=1"></script>
+
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
+    <script src="/assets/pal/pal-core.js?v=1"></script>
+    <script src="/assets/pal/pal-forms.js?v=1"></script>
 </body>
 </html>

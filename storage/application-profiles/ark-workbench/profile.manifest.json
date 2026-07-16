@@ -24,7 +24,8 @@
     "assets": {
         "core": {
             "styles": [
-                "assets/workbench.css"
+                "assets/workbench.css",
+                "assets/workbench-tailwind.css"
             ],
             "scripts": [
                 "assets/workbench-core.js"

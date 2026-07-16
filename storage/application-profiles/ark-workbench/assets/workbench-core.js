@@ -124,8 +124,8 @@
     document.addEventListener('cms-toast', function (e) {
         var detail = e.detail || {};
         var variant = detail.type === 'error' || detail.type === 'danger' ? 'danger'
-            : detail.type === 'success' ? 'success'
-                : detail.type === 'warning' ? 'warning'
+                    : detail.type === 'success' ? 'success'
+                    : detail.type === 'warning' ? 'warning'
                     : 'informational';
         wbToast(detail.message || detail.title || '', variant);
     });

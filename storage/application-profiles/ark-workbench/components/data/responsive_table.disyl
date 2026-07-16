@@ -24,7 +24,7 @@
                             <td data-label="Actions">
                                 <div class="flex gap-1">
                                     {for action in row_actions}
-                                        <a href="{action.url}" class="btn btn--{action.variant|default:'ghost'} text-xs">{action.label}</a>
+                                        <a href="{action.url}" class="wb-btn wb-btn--{if action.variant|default:'ghost'=='ghost'}outline{else}{action.variant}{/if} wb-btn--sm">{action.label}</a>
                                     {/for}
                                 </div>
                             </td>

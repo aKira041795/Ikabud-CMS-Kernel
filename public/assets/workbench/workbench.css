@@ -594,6 +594,108 @@
     margin-top: 0.75rem;
 }
 
+/* ── Form primitives ── */
+.wb-input,
+.wb-select,
+.wb-textarea {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--wb-border);
+    border-radius: var(--wb-radius-lg);
+    font-size: var(--wb-text-sm);
+    color: var(--wb-text-primary);
+    background: var(--wb-surface-card);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.wb-input:focus,
+.wb-select:focus,
+.wb-textarea:focus {
+    outline: none;
+    border-color: var(--wb-tone-info);
+    box-shadow: 0 0 0 2px var(--wb-tone-info-bg);
+}
+
+.wb-input--error,
+.wb-select--error,
+.wb-textarea--error {
+    border-color: var(--wb-tone-danger);
+}
+
+.wb-input--error:focus,
+.wb-select--error:focus,
+.wb-textarea--error:focus {
+    box-shadow: 0 0 0 2px var(--wb-tone-danger-bg);
+}
+
+.wb-input:disabled,
+.wb-select:disabled,
+.wb-textarea:disabled {
+    background: var(--wb-border-light);
+    color: var(--wb-text-muted);
+    cursor: not-allowed;
+}
+
+.wb-label {
+    display: block;
+    font-size: var(--wb-text-sm);
+    font-weight: 500;
+    color: var(--wb-text-primary);
+    margin-bottom: var(--wb-space-1);
+}
+
+.wb-label--required::after {
+    content: ' *';
+    color: var(--wb-tone-danger);
+}
+
+.wb-form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--wb-space-3);
+}
+
+@media (min-width: 640px) {
+    .wb-form-grid--2 { grid-template-columns: 1fr 1fr; }
+    .wb-form-grid--3 { grid-template-columns: 1fr 1fr 1fr; }
+    .wb-form-grid--4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+
+.wb-form-grid .sm\:col-span-2 { grid-column: span 2; }
+
+/* ── Tabs ── */
+.wb-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--wb-border);
+    margin-bottom: var(--wb-space-4);
+    overflow-x: auto;
+}
+
+.wb-tab {
+    padding: var(--wb-space-2) var(--wb-space-4);
+    font-size: var(--wb-text-sm);
+    font-weight: 500;
+    color: var(--wb-text-secondary);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 150ms ease, border-color 150ms ease;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+}
+
+.wb-tab:hover {
+    color: var(--wb-text-primary);
+}
+
+.wb-tab.is-active {
+    color: var(--wb-tone-info);
+    border-bottom-color: var(--wb-tone-info);
+}
+
 /* ── Print utilities ── */
 @media print {
     .print-only { display: block !important; }

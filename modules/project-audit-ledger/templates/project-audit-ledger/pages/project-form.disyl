@@ -7,8 +7,8 @@
 <div class="flex flex-col lg:flex-row gap-6">
   <div class="flex-1 space-y-4">
     <!-- Step navigation -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-3">
-        <h2 class="font-semibold text-gray-900 mb-2">{is_edit|default:false ? 'Edit Job Order' : 'Create Job Order'}</h2>
+    <div class="wb-panel p-3">
+        <h2 class="wb-section__title mb-2">{is_edit|default:false ? 'Edit Job Order' : 'Create Job Order'}</h2>
         <div class="flex flex-wrap gap-1">
             <button type="button" @click="activeStep=1;document.getElementById('sec-customer').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===1?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">👤 Customer<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(1)>=0?'bg-green-400':'bg-gray-400'"></span></button>
             <button type="button" @click="activeStep=2;document.getElementById('sec-details').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===2?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">📋 Details<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(2)>=0?'bg-green-400':'bg-gray-400'"></span></button>
@@ -18,33 +18,33 @@
             <button type="button" @click="activeStep=6;document.getElementById('sec-docs').scrollIntoView({behavior:'smooth',block:'start'})" :class="activeStep===6?'bg-blue-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors">🖼 Docs<span class="inline-block w-1.5 h-1.5 rounded-full ml-0.5" :class="visitedSteps.indexOf(6)>=0?'bg-green-400':'bg-gray-400'"></span></button>
         </div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+    <div class="wb-panel p-4 sm:p-6">
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="space-y-3 sm:space-y-4">
         {csrf_field | raw}
         {if is_edit}<input type="hidden" name="_project_numeric_id" value="{project.id}">{/if}
         <!-- ── Section 1: Customer ── -->
-        <div id="sec-customer" class="p-4 rounded-lg bg-gray-50/40 border-l-4 border-l-blue-500">
-        <h3 class="text-base font-semibold text-gray-900 mb-3">👤 Customer Information</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Customer's Name *</label><select name="client_id" id="sel-client" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="client" onchange="selClient(this)"><option value="">—</option>{for c in clients}<option value="{c.id}" data-contact="{c.contact_person|escape:'html'}" data-addr="{c.address|escape:'html'}" data-phone="{c.phone|escape:'html'}" data-email="{c.email|escape:'html'}"{if project.client_id==c.id} selected{/if}>{c.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('sel-client');if(e)makeCreatable(e);});</script></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label><input type="text" id="client-company" name="client_company" value="{project.client_contact|default:''}" placeholder="Company or contact person" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Contact #</label><input type="text" id="client-phone" name="client_phone" value="{project.client_phone|default:''}" placeholder="Phone number" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Client Email</label><input type="email" id="client-email" name="client_email" value="{project.client_email|default:''}" placeholder="Email address" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div class="sm:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Address</label><textarea id="client-address" name="client_address" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{project.client_address|default:''}</textarea></div>
+        <div id="sec-customer" class="wb-form-section wb-form-section--highlight">
+        <h3 class="wb-form-section__title">👤 Customer Information</h3>
+        <div class="wb-form-grid sm:grid-cols-2">
+            <div class="sm:col-span-2"><label class="wb-label wb-label--required">Customer's Name</label><select name="client_id" id="sel-client" class="wb-select" data-creatable="client" onchange="selClient(this)"><option value="">—</option>{for c in clients}<option value="{c.id}" data-contact="{c.contact_person|escape:'html'}" data-addr="{c.address|escape:'html'}" data-phone="{c.phone|escape:'html'}" data-email="{c.email|escape:'html'}"{if project.client_id==c.id} selected{/if}>{c.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('sel-client');if(e)makeCreatable(e);});</script></div>
+            <div><label class="wb-label">Contact Person</label><input type="text" id="client-company" name="client_company" value="{project.client_contact|default:''}" placeholder="Company or contact person" class="wb-input"></div>
+            <div><label class="wb-label">Contact #</label><input type="text" id="client-phone" name="client_phone" value="{project.client_phone|default:''}" placeholder="Phone number" class="wb-input"></div>
+            <div><label class="wb-label">Client Email</label><input type="email" id="client-email" name="client_email" value="{project.client_email|default:''}" placeholder="Email address" class="wb-input"></div>
+            <div class="sm:col-span-2"><label class="wb-label">Address</label><textarea id="client-address" name="client_address" rows="2" class="wb-textarea">{project.client_address|default:''}</textarea></div>
         </div></div>
 
         <!-- ── Section 2: Job Details ── -->
-        <div id="sec-details" class="p-4 rounded-lg bg-gray-50/20">
-        <h3 class="text-base font-semibold text-gray-900 mb-3">📋 Job Details</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-            <div class="sm:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Title / Job Description *</label><input type="text" name="title" value="{project.title}" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">JO Number</label><input type="text" name="job_order_number" value="{project.job_order_number}" placeholder="Auto-generated if empty" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Date</label><input type="date" name="start_date" value="{project.start_date|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Scope of Work</label><select name="scope_of_work" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="">—</option><option value="new"{if project.scope_of_work=='new'} selected{/if}>New</option><option value="refurbish"{if project.scope_of_work=='refurbish'} selected{/if}>Refurbish</option><option value="warranty_claim"{if project.scope_of_work=='warranty_claim'} selected{/if}>Warranty Claim</option><option value="labor_only"{if project.scope_of_work=='labor_only'} selected{/if}>Labor Only</option><option value="print_only"{if project.scope_of_work=='print_only'} selected{/if}>Print Only</option></select></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Project Type</label><select name="project_type_id" id="sel-proj-type" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="project_type"><option value="">—</option>{for t in project_types}<option value="{t.id}"{if project.project_type_id==t.id} selected{/if}>{t.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('sel-proj-type');if(e)makeCreatable(e);});</script></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Prepared by</label><input type="text" value="{prepared_by|default:current_user.full_name|default:current_user.username}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-gray-50" disabled><input type="hidden" name="prepared_by" value="{current_user.full_name|default:current_user.username}"></div>
+        <div id="sec-details" class="wb-form-section">
+        <h3 class="wb-form-section__title">📋 Job Details</h3>
+        <div class="wb-form-grid sm:grid-cols-2">
+            <div class="sm:col-span-2"><label class="wb-label wb-label--required">Title / Job Description</label><input type="text" name="title" value="{project.title}" required class="wb-input"></div>
+            <div><label class="wb-label">JO Number</label><input type="text" name="job_order_number" value="{project.job_order_number}" placeholder="Auto-generated if empty" class="wb-input"></div>
+            <div><label class="wb-label">Date</label><input type="date" name="start_date" value="{project.start_date|default:''}" class="wb-input"></div>
+            <div><label class="wb-label">Scope of Work</label><select name="scope_of_work" class="wb-select"><option value="">—</option><option value="new"{if project.scope_of_work=='new'} selected{/if}>New</option><option value="refurbish"{if project.scope_of_work=='refurbish'} selected{/if}>Refurbish</option><option value="warranty_claim"{if project.scope_of_work=='warranty_claim'} selected{/if}>Warranty Claim</option><option value="labor_only"{if project.scope_of_work=='labor_only'} selected{/if}>Labor Only</option><option value="print_only"{if project.scope_of_work=='print_only'} selected{/if}>Print Only</option></select></div>
+            <div><label class="wb-label">Project Type</label><select name="project_type_id" id="sel-proj-type" class="wb-select" data-creatable="project_type"><option value="">—</option>{for t in project_types}<option value="{t.id}"{if project.project_type_id==t.id} selected{/if}>{t.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('sel-proj-type');if(e)makeCreatable(e);});</script></div>
+            <div><label class="wb-label">Prepared by</label><input type="text" value="{prepared_by|default:current_user.full_name|default:current_user.username}" class="wb-input bg-gray-50" disabled><input type="hidden" name="prepared_by" value="{current_user.full_name|default:current_user.username}"></div>
             <div class="flex gap-4">
-                <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <div class="flex-1"><label class="wb-label">Status</label>
                     {if is_edit|default:false}
                     {include "project-audit-ledger/components/pal_status_badge" _sb_status=project.status}
                     <input type="hidden" name="status" value="{project.status}">
@@ -53,15 +53,15 @@
                     <input type="hidden" name="status" value="draft">
                     {/if}
                 </div>
-                <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Target End</label><input type="date" name="target_completion_date" value="{project.target_completion_date}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+                <div class="flex-1"><label class="wb-label">Target End</label><input type="date" name="target_completion_date" value="{project.target_completion_date}" class="wb-input"></div>
             </div>
-            <div class="sm:col-span-2"><label class="block text-sm font-medium text-gray-700 mb-1">Description</label><textarea name="description" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">{project.description}</textarea></div>
+            <div class="sm:col-span-2"><label class="wb-label">Description</label><textarea name="description" rows="2" class="wb-textarea">{project.description}</textarea></div>
         </div></div>
 
         <!-- ── Section 3: Pricing & Charges ── -->
-        <div id="sec-pricing" class="p-4 rounded-lg bg-gray-50/20">
-        <h3 class="text-base font-semibold text-gray-900 mb-3">💰 Pricing &amp; Charges</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+        <div id="sec-pricing" class="wb-form-section">
+        <h3 class="wb-form-section__title">💰 Pricing &amp; Charges</h3>
+        <div class="wb-form-grid sm:grid-cols-2">
             <div class="sm:col-span-2"><h4 class="text-sm font-semibold text-gray-700 mb-2">📋 JO Type</h4></div>
             <div class="sm:col-span-2 flex gap-4">
                 <label class="flex items-center gap-2 text-sm cursor-pointer" @click="joType='items'"><input type="radio" name="_jo_type" value="items" x-bind:checked="joType==='items'" class="rounded-full border-gray-300" :disabled="joType==='items'"> <span :class="joType==='items' ? 'font-semibold text-blue-600' : 'text-gray-500'">📋 Quotation Items</span></label>
@@ -69,45 +69,45 @@
             </div>
 
             <!-- Contracted Amount (visible when joType=contract) -->
-            <div class="sm:col-span-2" x-show="joType==='contract'"><label class="block text-sm font-medium text-gray-700 mb-1">Contract Amount *</label><input type="number" step="0.01" name="contract_amount" value="{project.contract_amount|default:''}" x-bind:required="joType==='contract'" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><p class="text-xs text-gray-600 mt-1">Fixed contract price — line items below are for material tracking only</p></div>
+            <div class="sm:col-span-2" x-show="joType==='contract'"><label class="wb-label">Contract Amount *</label><input type="number" step="0.01" name="contract_amount" value="{project.contract_amount|default:''}" x-bind:required="joType==='contract'" class="wb-input"><p class="text-xs text-gray-600 mt-1">Fixed contract price — line items below are for material tracking only</p></div>
 
             <!-- Charges (only for quotation-items mode) -->
             <div class="sm:col-span-2" x-show="joType==='items'"><h4 class="text-sm font-semibold text-gray-700 mb-2">💰 Charges</h4></div>
-            <div x-show="joType==='items'"><label class="block text-sm font-medium text-gray-700 mb-1">Installation Charge</label><input type="number" step="0.01" name="installation_charge" value="{project.installation_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div x-show="joType==='items'"><label class="block text-sm font-medium text-gray-700 mb-1">Mobilization Charge</label><input type="number" step="0.01" name="mobilization_charge" value="{project.mobilization_charge|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div x-show="joType==='items'"><label class="block text-sm font-medium text-gray-700 mb-1">Other Charges</label><input type="number" step="0.01" name="other_charges" value="{project.other_charges|default:0}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Mode of Payment</label><select name="mode_of_payment" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="">—</option><option value="cash"{if project.mode_of_payment=='cash'} selected{/if}>Cash</option><option value="check"{if project.mode_of_payment=='check'} selected{/if}>Check</option><option value="bank_transfer"{if project.mode_of_payment=='bank_transfer'} selected{/if}>Bank Transfer</option><option value="gcash"{if project.mode_of_payment=='gcash'} selected{/if}>Gcash</option></select></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Down Payment</label><input type="number" step="0.01" name="down_payment" value="{project.down_payment|default:''}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">With Installation</label><label class="flex items-center gap-2 mt-2"><input type="checkbox" name="with_installation" value="1" x-model="hasInstallation" class="rounded border-gray-300"> <span class="text-sm">Yes</span></label></div>
+            <div x-show="joType==='items'"><label class="wb-label">Installation Charge</label><input type="number" step="0.01" name="installation_charge" value="{project.installation_charge|default:0}" class="wb-input"></div>
+            <div x-show="joType==='items'"><label class="wb-label">Mobilization Charge</label><input type="number" step="0.01" name="mobilization_charge" value="{project.mobilization_charge|default:0}" class="wb-input"></div>
+            <div x-show="joType==='items'"><label class="wb-label">Other Charges</label><input type="number" step="0.01" name="other_charges" value="{project.other_charges|default:0}" class="wb-input"></div>
+            <div><label class="wb-label">Mode of Payment</label><select name="mode_of_payment" class="wb-select"><option value="">—</option><option value="cash"{if project.mode_of_payment=='cash'} selected{/if}>Cash</option><option value="check"{if project.mode_of_payment=='check'} selected{/if}>Check</option><option value="bank_transfer"{if project.mode_of_payment=='bank_transfer'} selected{/if}>Bank Transfer</option><option value="gcash"{if project.mode_of_payment=='gcash'} selected{/if}>Gcash</option></select></div>
+            <div><label class="wb-label">Down Payment</label><input type="number" step="0.01" name="down_payment" value="{project.down_payment|default:''}" class="wb-input"></div>
+            <div><label class="wb-label">With Installation</label><label class="flex items-center gap-2 mt-2"><input type="checkbox" name="with_installation" value="1" x-model="hasInstallation" class="rounded border-gray-300"> <span class="text-sm">Yes</span></label></div>
         </div></div>
 
         <!-- ── Section 4: Installation & Fabrication ── -->
-        <div id="sec-fab" class="p-4 rounded-lg bg-gray-50/20" x-show="hasInstallation">
-        <h3 class="text-base font-semibold text-gray-900 mb-3">🔧 Installation &amp; Fabrication</h3>
+        <div id="sec-fab" class="wb-form-section" x-show="hasInstallation">
+        <h3 class="wb-form-section__title">🔧 Installation &amp; Fabrication</h3>
 
             <!-- Team Lead (only when With Installation = YES, works for both JO types) -->
             <template x-if="hasInstallation">
             <div class="sm:col-span-2"><h4 class="text-sm font-semibold text-gray-700 mb-2">👤 Team Lead</h4></div>
             </template>
             <template x-if="hasInstallation">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Team Lead</label><select name="fabrication_team_lead_id" id="sel-tl" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" data-creatable="team_lead"><option value="">—</option>{for l in team_leads}<option value="{l.id}"{if project.fabrication_team_lead_id==l.id} selected{/if}>{l.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('sel-tl');if(e)makeCreatable(e);});</script></div>
+            <div><label class="wb-label">Team Lead</label><select name="fabrication_team_lead_id" id="sel-tl" class="wb-select" data-creatable="team_lead"><option value="">—</option>{for l in team_leads}<option value="{l.id}"{if project.fabrication_team_lead_id==l.id} selected{/if}>{l.name}</option>{/for}</select><script>document.addEventListener('DOMContentLoaded',function(){var e=document.getElementById('sel-tl');if(e)makeCreatable(e);});</script></div>
             </template>
             <template x-if="hasInstallation">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Allocation Basis</label><select name="fabrication_alloc_basis" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><option value="expenses"{if project.fabrication_alloc_basis=='expenses'} selected{/if}>Expenses</option><option value="labor_materials"{if project.fabrication_alloc_basis=='labor_materials'} selected{/if}>Labor + Materials</option><option value="contract"{if project.fabrication_alloc_basis=='contract'} selected{/if}>Contract Amount</option><option value="fixed"{if project.fabrication_alloc_basis=='fixed'} selected{/if}>Fixed Amount</option><option value="manual"{if project.fabrication_alloc_basis=='manual'} selected{/if}>Manual</option></select></div>
+            <div><label class="wb-label">Allocation Basis</label><select name="fabrication_alloc_basis" class="wb-select"><option value="expenses"{if project.fabrication_alloc_basis=='expenses'} selected{/if}>Expenses</option><option value="labor_materials"{if project.fabrication_alloc_basis=='labor_materials'} selected{/if}>Labor + Materials</option><option value="contract"{if project.fabrication_alloc_basis=='contract'} selected{/if}>Contract Amount</option><option value="fixed"{if project.fabrication_alloc_basis=='fixed'} selected{/if}>Fixed Amount</option><option value="manual"{if project.fabrication_alloc_basis=='manual'} selected{/if}>Manual</option></select></div>
             </template>
             <template x-if="hasInstallation">
-            <div><label class="block text-sm font-medium text-gray-700 mb-1">Allocation %</label><input type="number" step="0.01" name="fabrication_alloc_pct" value="{project.fabrication_alloc_pct|default:25}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"><p class="text-xs text-gray-600 mt-1">% of basis amount allocated to fabrication</p></div>
+            <div><label class="wb-label">Allocation %</label><input type="number" step="0.01" name="fabrication_alloc_pct" value="{project.fabrication_alloc_pct|default:25}" class="wb-input"><p class="text-xs text-gray-600 mt-1">% of basis amount allocated to fabrication</p></div>
             </template>
             <input type="hidden" name="_jo_type" x-bind:value="joType">
         </div>
 
         <!-- ── Section 5: Line Items ── -->
-        <div id="sec-items" class="p-4 rounded-lg bg-gray-50/20">
-        <h3 class="text-base font-semibold text-gray-900 mb-3">📦 Line Items</h3>
+        <div id="sec-items" class="wb-form-section">
+        <h3 class="wb-form-section__title">📦 Line Items</h3>
             <div class="overflow-x-auto">
-                <table class="w-full text-sm" id="items-table">
+                <table class="w-full text-sm wb-table wb-table--sticky" id="items-table">
                     <thead>
-                        <tr class="bg-gray-50 border-b text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        <tr class="text-xs font-semibold text-gray-600 uppercase tracking-wider">
                             <th class="text-left py-2 px-2">#</th>
                             <th class="text-left py-2 px-2">Material</th>
                             <th class="text-left py-2 px-2">Particulars</th>
@@ -115,17 +115,17 @@
                             <th class="text-center py-2 px-2">Height</th>
                             <th class="text-center py-2 px-2">Unit</th>
                             <th class="text-center py-2 px-2">QTY</th>
-                            <th class="text-right py-2 px-2">Price/Unit</th>
-                            <th class="text-right py-2 px-2">Price/SqFt</th>
-                            <th class="text-right py-2 px-2">Total</th>
+                            <th class="wb-table__cell--numeric py-2 px-2">Price/Unit</th>
+                            <th class="wb-table__cell--numeric py-2 px-2">Price/SqFt</th>
+                            <th class="wb-table__cell--numeric py-2 px-2">Total</th>
                             <th class="text-center py-2 px-2"></th>
                         </tr>
                     </thead>
                     <tbody id="items-body">
                         {for item in project.items}
-                        <tr class="border-b border-gray-200 item-row">
-                            <td class="py-2 px-2 text-center item-num">{item.sort_order}</td>
-                            <td class="py-2 px-2">
+                        <tr class="item-row">
+                            <td data-label="#" class="py-2 px-2 text-center item-num">{item.sort_order}</td>
+                            <td data-label="Material" class="py-2 px-2">
                                 {if !item.material_id}
                                 <input type="text" name="items[{item.sort_order}][custom_material]" value="" class="w-full px-2 py-1 border border-blue-400 rounded text-xs bg-blue-50" placeholder="Custom material">
                                 {else}
@@ -138,10 +138,10 @@
                                 </select>
                                 {/if}
                             </td>
-                            <td class="py-2 px-2"><input type="text" name="items[{item.sort_order}][particulars]" value="{item.particulars}" class="w-full px-2 py-1 border border-gray-300 rounded text-xs" oninput="calcRow(this)"></td>
-                            <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][width]" value="{item.width}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
-                            <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][height]" value="{item.height}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
-                            <td class="py-2 px-2">
+                            <td data-label="Particulars" class="py-2 px-2"><input type="text" name="items[{item.sort_order}][particulars]" value="{item.particulars}" class="w-full px-2 py-1 border border-gray-300 rounded text-xs" oninput="calcRow(this)"></td>
+                            <td data-label="Width" class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][width]" value="{item.width}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
+                            <td data-label="Height" class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][height]" value="{item.height}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
+                            <td data-label="Unit" class="py-2 px-2">
                                 {if item.uom && item.uom != 'meter' && item.uom != 'inches' && item.uom != 'cm' && item.uom != 'liter'}
                                 <input type="text" name="items[{item.sort_order}][uom]" value="{item.uom}" class="w-20 px-2 py-1 border border-blue-400 rounded text-xs bg-blue-50">
                                 {else}
@@ -155,10 +155,10 @@
                                 </select>
                                 {/if}
                             </td>
-                            <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][quantity]" value="{item.quantity|default:1}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
-                            <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][price_per_unit]" value="{item.price_per_unit|default:0}" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>
-                            <td class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][price_per_sqft]" value="{item.price_per_sqft|default:''}" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>
-                            <td class="py-2 px-2 text-right font-medium item-total">₱{item.line_total|default:0|number_format:2}</td>
+                            <td data-label="QTY" class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][quantity]" value="{item.quantity|default:1}" class="w-16 px-2 py-1 border border-gray-300 rounded text-xs text-center" oninput="calcRow(this)"></td>
+                            <td data-label="Price/Unit" class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][price_per_unit]" value="{item.price_per_unit|default:0}" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>
+                            <td data-label="Price/SqFt" class="py-2 px-2"><input type="number" step="0.01" name="items[{item.sort_order}][price_per_sqft]" value="{item.price_per_sqft|default:''}" class="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-right" oninput="calcRow(this)"></td>
+                            <td data-label="Total" class="py-2 px-2 text-right font-medium item-total wb-table__cell--numeric">₱{item.line_total|default:0|number_format:2}</td>
                             <td class="py-2 px-2 text-center"><button type="button" onclick="this.closest('tr').remove(); renumItems();" class="text-red-500 hover:text-red-700 text-xs">✕</button></td>
                         </tr>
                         {/for}
@@ -172,8 +172,8 @@
         </div>
 
         <!-- ── Section 6: Documents ── -->
-        <div id="sec-docs" class="p-4 rounded-lg bg-gray-50/20">
-        <h3 class="text-base font-semibold text-gray-900 mb-3">🖼 Mockup / Reference Image</h3>
+        <div id="sec-docs" class="wb-form-section">
+        <h3 class="wb-form-section__title">🖼 Mockup / Reference Image</h3>
             <div class="flex gap-4 items-start">
                 <div class="flex-1">
                     <input type="file" id="mockup-file" accept="image/*" onchange="uploadMockup()" class="w-full text-sm">
@@ -187,7 +187,7 @@
             </div>
         </div>
 
-        <div class="flex gap-3 pt-4 border-t border-gray-100 mt-6">
+        <div class="wb-form-sticky-bar">
             {if !is_edit|default:false || project.status=='draft'}
             <button type="submit" data-wb-action="save-as-draft" onclick="document.querySelector('input[name=status]').value='draft';dirty=false" class="wb-btn wb-btn--secondary">Save as Draft</button>
             <button type="submit" data-wb-action="submit-for-approval" onclick="document.querySelector('input[name=status]').value='pending';dirty=false" class="wb-btn wb-btn--primary">Submit for Approval</button>

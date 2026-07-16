@@ -118,19 +118,6 @@
         // Initial wire up
         wbInitLightbox();
     });
-                wbLightboxItems = [];
-                if (parent) {
-                    parent.querySelectorAll('[data-wb-lightbox]').forEach(function(s) {
-                        wbLightboxItems.push({
-                            src: s.getAttribute('data-wb-lightbox'),
-                            caption: s.getAttribute('data-wb-lightbox-caption') || ''
-                        });
-                    });
-                }
-                openLightbox(src, cap);
-            });
-        });
-    });
     </script>
 {/include}
 
