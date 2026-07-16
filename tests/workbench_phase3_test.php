@@ -1,0 +1,43 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__ . '/harness/TestHarness.php';
+require_once __DIR__ . '/../kernel/Workbench/Issues/IssueLedger.php';
+require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/AiContracts.php';
+require_once __DIR__ . '/../kernel/Workbench/Comprehension/Analyzers/CaseMemory.php';
+use Ikabud\Kernel\Workbench\Issues\IssueLedger;
+use Ikabud\Kernel\Workbench\Comprehension\Analyzers\CaseMemory;
+$h = new TestHarness('workbench-phase3');
+$dir = sys_get_temp_dir() . '/wb-ledger-' . bin2hex(random_bytes(6));
+$ledger = new IssueLedger($dir);
+$finding = ['module_id' => 'pal', 'action_id' => 'pal.submit', 'step' => 'http.request', 'category' => 'csrf', 'severity' => 'critical', 'summary' => 'CSRF token 12345 mismatch'];
+$first = $ledger->ingest($finding, ['run_id' => 'r1', 'observation_id' => 'o1']);
+$same = $ledger->ingest($finding, ['run_id' => 'r1', 'observation_id' => 'o1']);
+$cluster = $ledger->ingest($finding + ['summary' => 'CSRF token 99999 mismatch'], ['run_id' => 'r2', 'observation_id' => 'o2']);
+$h->section('Capture and clustering');
+$h->test('duplicate occurrence is idempotent', count($same['occurrences']) === 1);
+$h->test('normalized signatures cluster changing IDs', $first['id'] === $cluster['id']);
+$h->test('repeat issue becomes clustered', $cluster['state'] === 'clustered' && count($cluster['occurrences']) === 2);
+$h->section('Governed lifecycle');
+$issue = $ledger->transition($first['id'], 'triaged');
+$issue = $ledger->transition($first['id'], 'diagnosed');
+$issue = $ledger->addDiagnosis($first['id'], ['summary' => 'stale page token'], 'accepted');
+$issue = $ledger->transition($first['id'], 'fixed', ['changed_files' => ['handler.php']]);
+$issue = $ledger->transition($first['id'], 'verified', ['test_command' => 'php test.php']);
+$h->test('verified lifecycle is enforced', $issue['state'] === 'verified');
+$memory = new CaseMemory($dir . '/cases');
+$caseId = $ledger->promoteVerified($first['id'], $memory, ['changed_files' => ['handler.php'], 'fix_summary' => 'refresh token', 'test_command' => 'php test.php']);
+$h->test('verified issue promotes to case memory', str_starts_with($caseId, 'case-pal-') && count($memory->listByModule('pal')) === 1);
+$invalid = false; try { $ledger->transition($first['id'], 'fixed'); } catch (DomainException) { $invalid = true; }
+$h->test('invalid backward transition rejected', $invalid);
+$second = $ledger->ingest(array_replace($finding, ['step' => 'service.call', 'summary' => 'Second verified problem']), ['run_id' => 'r3', 'observation_id' => 'o3']);
+$ledger->transition($second['id'], 'triaged');
+$ledger->transition($second['id'], 'diagnosed');
+$ledger->transition($second['id'], 'fixed');
+$autoCase = $ledger->verifyAndPromote($second['id'], ['outcome' => 'passed', 'run_id' => 'r4', 'observation_id' => 'o4', 'test_command' => 'php regression.php'], $memory, ['fix_summary' => 'verified fix']);
+$h->test('passing regression automatically verifies and promotes', str_starts_with($autoCase, 'case-pal-'));
+$blocked = false;
+$third = $ledger->ingest(array_replace($finding, ['step' => 'db.call', 'summary' => 'Third problem']), ['run_id' => 'r5', 'observation_id' => 'o5']);
+$ledger->transition($third['id'], 'triaged'); $ledger->transition($third['id'], 'diagnosed'); $ledger->transition($third['id'], 'fixed');
+try { $ledger->verifyAndPromote($third['id'], ['outcome' => 'failed', 'test_command' => 'php regression.php'], $memory, []); } catch (DomainException) { $blocked = true; }
+$h->test('failed verification cannot become knowledge', $blocked);
+$h->done();

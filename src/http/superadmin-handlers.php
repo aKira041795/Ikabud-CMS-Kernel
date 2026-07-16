@@ -1593,6 +1593,7 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
         $models = [];
         $aiModuleEnabled = false;
         $aiProvidersSettings = [];
+        $aiSettings = [];
         $allModules = discoverModules();
         if (isset($allModules['ai']) && !empty($allModules['ai']['_enabled'])) {
             $aiModuleEnabled = true;
@@ -1681,6 +1682,12 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
                 'discoverable_tests' => $discoverableTests,
                 'discoverable_count' => count($discoverableTests),
                 'workbench_execution_allowed' => workbenchExecutionAllowed(),
+                'workbench_ai_enabled' => (bool)($aiSettings['workbench_ai_enabled'] ?? false),
+                'workbench_ai_provider' => (string)($aiSettings['workbench_ai_provider'] ?? $aiSettings['provider'] ?? ''),
+                'workbench_ai_tier' => (string)($aiSettings['workbench_ai_tier'] ?? 'free'),
+                'workbench_ai_model' => (string)($aiSettings['workbench_ai_model'] ?? ''),
+                'workbench_ai_timeout_ms' => (int)($aiSettings['workbench_ai_timeout_ms'] ?? 15000),
+                'workbench_ai_max_tokens' => (int)($aiSettings['workbench_ai_max_tokens'] ?? 2000),
             ]
         ));
         exit;
@@ -1924,6 +1931,29 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchAiSettings')) {
         app()->csrfEnforce();
 
         $input = app()->input();
+        if (($input['scope'] ?? '') === 'workbench_policy') {
+            $provider = trim((string)($input['provider'] ?? ''));
+            $validProviders = ['', 'openai', 'groq', 'gemini', 'mistral', 'cerebras', 'openrouter', 'ollama'];
+            $tier = trim((string)($input['tier'] ?? 'free'));
+            if (!in_array($provider, $validProviders, true) || !in_array($tier, ['free', 'paid', 'custom'], true)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'Invalid Workbench AI policy']);
+                exit;
+            }
+            $registry = readModuleRegistry();
+            $settings = is_array($registry['ai']['settings'] ?? null) ? $registry['ai']['settings'] : [];
+            $settings['workbench_ai_enabled'] = filter_var($input['enabled'] ?? false, FILTER_VALIDATE_BOOL);
+            $settings['workbench_ai_provider'] = $provider;
+            $settings['workbench_ai_tier'] = $tier;
+            $settings['workbench_ai_model'] = trim((string)($input['model'] ?? ''));
+            $settings['workbench_ai_timeout_ms'] = max(1000, min(60000, (int)($input['timeout_ms'] ?? 15000)));
+            $settings['workbench_ai_max_tokens'] = max(256, min(8000, (int)($input['max_tokens'] ?? 2000)));
+            $settings['workbench_ai_max_evidence_bytes'] = max(4096, min(131072, (int)($input['max_evidence_bytes'] ?? 32768)));
+            $registry['ai']['settings'] = $settings;
+            writeModuleRegistry($registry);
+            echo json_encode(['ok' => true, 'message' => 'Workbench AI policy saved', 'policy' => $settings]);
+            exit;
+        }
         $providerId = trim((string)($input['provider'] ?? ''));
         $apiKey = trim((string)($input['api_key'] ?? ''));
         $modelFree = trim((string)($input['model_free'] ?? ''));
@@ -2207,6 +2237,43 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchIssues')) {
             $allIssues = $issues['issues'];
         }
         $allIssues = array_merge($allIssues, $failureIssues);
+        $latestLearnedDiagnosis = null;
+
+        $ledgerFile = dirname(__DIR__, 2) . '/kernel/Workbench/Issues/IssueLedger.php';
+        if (is_file($ledgerFile)) {
+            require_once $ledgerFile;
+            try {
+                $ledger = new \Ikabud\Kernel\Workbench\Issues\IssueLedger(dirname(__DIR__, 2) . '/storage/private/workbench/issues');
+                foreach ($ledger->all() as $learnedIssue) {
+                    $allIssues[] = [
+                        'id' => $learnedIssue['id'], 'suite' => $learnedIssue['module_id'],
+                        'kind' => $learnedIssue['category'], 'severity' => $learnedIssue['severity'],
+                        'detail' => $learnedIssue['summary'], 'where' => $learnedIssue['failing_node'],
+                        'state' => $learnedIssue['state'], 'occurrences' => count($learnedIssue['occurrences'] ?? []),
+                    ];
+                    $diagnoses = $learnedIssue['diagnoses'] ?? [];
+                    if ($latestLearnedDiagnosis === null && $diagnoses !== []) {
+                        $diagnosis = $diagnoses[count($diagnoses) - 1];
+                        $hypothesis = $diagnosis['hypotheses'][0] ?? [];
+                        $trace = $diagnosis['provider_trace'] ?? [];
+                        $latestLearnedDiagnosis = [
+                            'classification' => 'configured-ai',
+                            'confidence' => (float)($hypothesis['confidence'] ?? 0),
+                            'summary' => (string)($hypothesis['summary'] ?? ''),
+                            'evidence' => array_values((array)($hypothesis['evidence_for'] ?? [])),
+                            'suspected_files' => array_values((array)($hypothesis['suspected_nodes'] ?? [])),
+                            'recommended_action' => isset($trace['fallback_reason']) && $trace['fallback_reason'] !== null
+                                ? 'Heuristic fallback: ' . $trace['fallback_reason']
+                                : 'Provider ' . ($trace['provider'] ?? '?') . ' / model ' . ($trace['model'] ?? '?'),
+                            'provider_trace' => $trace,
+                        ];
+                    }
+                }
+            } catch (\Throwable $e) {
+                // The file-based ledger is supplementary; legacy reports remain available.
+            }
+        }
+        if ($aiDiagnosis === null && $latestLearnedDiagnosis !== null) $aiDiagnosis = $latestLearnedDiagnosis;
 
         echo json_encode([
             'ok' => true,
@@ -2443,6 +2510,43 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchContracts')) {
             'ok' => true,
             'summary' => $summary,
         ]);
+        exit;
+    }
+}
+
+if (!function_exists('kernelHandleApiSuperadminWorkbenchProcessMap')) {
+    function kernelHandleApiSuperadminWorkbenchProcessMap(): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Request-Id: ' . request_id());
+        $user = app()->user();
+        if (!$user || ($user['role'] ?? '') !== 'superadmin' || ($user['source'] ?? '') !== 'kernel') {
+            http_response_code(403); echo json_encode(['ok' => false, 'error' => 'Superadmin only']); exit;
+        }
+        $moduleId = trim((string)($_GET['module'] ?? 'project-audit-ledger'));
+        if ($moduleId !== 'project-audit-ledger') {
+            http_response_code(404); echo json_encode(['ok' => false, 'error' => 'No canonical provider for module']); exit;
+        }
+        $root = dirname(__DIR__, 2);
+        require_once $root . '/kernel/Workbench/Graph/ModuleGraph.php';
+        require_once $root . '/kernel/Workbench/Graph/GraphBuilder.php';
+        require_once $root . '/kernel/Workbench/Comprehension/Contracts/ModuleComprehensionProvider.php';
+        require_once $root . '/kernel/Workbench/Comprehension/Contracts/EntityContract.php';
+        require_once $root . '/kernel/Workbench/Comprehension/Contracts/WorkflowContract.php';
+        require_once $root . '/kernel/Workbench/Comprehension/Contracts/ActionContract.php';
+        require_once $root . '/kernel/Workbench/Comprehension/Contracts/EffectContract.php';
+        require_once $root . '/kernel/Workbench/Comprehension/Contracts/SupportContracts.php';
+        require_once $root . '/kernel/Workbench/Comprehension/PalComprehensionProvider.php';
+        $provider = new \Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider();
+        $builder = new \Ikabud\Kernel\Workbench\Graph\GraphBuilder($provider, $moduleId);
+        $graph = $builder->build();
+        $planFile = $root . '/test_results/ai/test-plan.json';
+        $plan = is_file($planFile) ? json_decode((string)file_get_contents($planFile), true) : null;
+        echo json_encode([
+            'ok' => true, 'module_id' => $moduleId, 'graph' => $graph->toArray($moduleId),
+            'paths' => $builder->computePaths(), 'validation_errors' => $graph->validate(),
+            'shadow_plan' => is_array($plan) ? $plan : null,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 }

@@ -47,28 +47,31 @@ function collectEvidence() {
             return f.endsWith('.json') && f !== 'manifest.json' && f !== 'issue-report.json' && f !== 'fingerprint-baseline.json';
         });
     } catch (e) { /* no results dir */ }
+    var embeddedSuites = manifest && manifest.suites && typeof manifest.suites === 'object' ? manifest.suites : null;
+    if (embeddedSuites) suiteFiles = Object.keys(embeddedSuites);
 
     // Collect all suite results
     var suites = {};
     var allFailures = [];
     var allSkipped = [];
     for (var i = 0; i < suiteFiles.length; i++) {
-        var suite = readJson(path.join(RESULTS_DIR, suiteFiles[i]));
+        var suite = embeddedSuites ? embeddedSuites[suiteFiles[i]] : readJson(path.join(RESULTS_DIR, suiteFiles[i]));
+        var suiteArtifact = embeddedSuites ? suiteFiles[i] + '--fixture.json' : suiteFiles[i];
         if (suite) {
-            suites[suiteFiles[i]] = suite;
+            suites[suiteArtifact] = suite;
             if (suite.results) {
                 for (var j = 0; j < suite.results.length; j++) {
                     var r = suite.results[j];
                     if (r.status === 'failed' || r.status === 'timedOut') {
                         allFailures.push({
-                            suite: suiteFiles[i],
-                            suiteName: suite.suite || suiteFiles[i],
+                            suite: suiteArtifact,
+                            suiteName: suite.suite || suiteArtifact,
                             test: r.test,
                             status: r.status,
                             detail: r.detail || '',
                         });
                     } else if (r.status === 'skipped') {
-                        allSkipped.push({ suite: suiteFiles[i], test: r.test });
+                        allSkipped.push({ suite: suiteArtifact, test: r.test });
                     }
                 }
             }
@@ -314,6 +317,14 @@ function diagnose(evidence) {
 
     // Assertion failure → wrong text, missing element
     if (cleanDetail.includes('expect') || cleanDetail.includes('Expected')) {
+        if (cleanDetail.includes('Entity list') || cleanDetail.includes('entity list') || cleanDetail.includes('toBeGreaterThan')) {
+            diagnosis.classification = 'application-defect';
+            diagnosis.confidence = 0.8;
+            diagnosis.summary = 'Expected entity data was not rendered on the page.';
+            diagnosis.evidence.push('Entity/list structural assertion failed');
+            diagnosis.recommended_action = 'Inspect the entity provider, route payload, and rendered list contract.';
+            return diagnosis;
+        }
         if (cleanDetail.includes('toContainText') || cleanDetail.includes('toHaveText')) {
             diagnosis.classification = 'application-defect';
             diagnosis.confidence = 0.75;
@@ -417,10 +428,12 @@ function summarizeManifest(manifest) {
     for (var s in manifest.suites) {
         if (!manifest.suites.hasOwnProperty(s)) continue;
         var suite = manifest.suites[s];
-        summary.total += suite.total || 0;
-        summary.passed += suite.passed || 0;
-        summary.failed += suite.failed || 0;
-        summary.skipped += suite.skipped || 0;
+        var counts = suite.summary || suite;
+        summary.total += counts.total || 0;
+        summary.passed += counts.passed || 0;
+        summary.failed += counts.failed || 0;
+        summary.skipped += counts.skipped || 0;
+        summary.timedOut += counts.timedOut || 0;
     }
     return summary;
 }

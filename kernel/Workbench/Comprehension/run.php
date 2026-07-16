@@ -118,6 +118,7 @@ require_once __DIR__ . '/Contracts/SupportContracts.php';
 require_once __DIR__ . '/Contracts/AiContracts.php';
 require_once __DIR__ . '/ModuleComprehensionEngine.php';
 require_once __DIR__ . '/PalComprehensionProvider.php';
+require_once __DIR__ . '/ComprehensionProviderRegistry.php';
 require_once __DIR__ . '/Analyzers/SemanticScorer.php';
 require_once __DIR__ . '/Analyzers/EmbeddingScorer.php';
 require_once __DIR__ . '/Analyzers/BayesianReasoner.php';
@@ -130,18 +131,43 @@ require_once __DIR__ . '/Analyzers/AiHypothesisGenerator.php';
 require_once __DIR__ . '/Analyzers/CaseMemory.php';
 require_once __DIR__ . '/Analyzers/ProviderCoverageScorer.php';
 require_once __DIR__ . '/SemanticComprehensionEngine.php';
+require_once dirname(__DIR__) . '/Evidence/EvidenceNormalizer.php';
+require_once dirname(__DIR__) . '/AI/WorkbenchAiAnalyzer.php';
+require_once dirname(__DIR__) . '/Issues/IssueLedger.php';
+require_once dirname(__DIR__) . '/Governance/WorkbenchRolloutPolicy.php';
 
 use Ikabud\Kernel\Workbench\Comprehension\SemanticComprehensionEngine;
 use Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider;
+use Ikabud\Kernel\Workbench\Comprehension\ComprehensionProviderRegistry;
+use Ikabud\Kernel\Workbench\Evidence\EvidenceNormalizer;
+use Ikabud\Kernel\Workbench\AI\WorkbenchAiAnalyzer;
+use Ikabud\Kernel\Workbench\Issues\IssueLedger;
+use Ikabud\Kernel\Workbench\Governance\WorkbenchRolloutPolicy;
 
 echo "═══ Hybrid Semantic Comprehension Engine ═══\n";
 echo "Engine version: 3.0 (Deterministic + NLP-Embedding + Bayesian + Temporal + Pattern + Cross-Module + AI Hypothesis + Provider Coverage)\n\n";
 
 // ── 1. Load provider ──────────────────────────────────────────
-$provider = match ($moduleId) {
-    'project-audit-ledger' => new PalComprehensionProvider(),
-    default => throw new RuntimeException("No comprehension provider for '{$moduleId}'"),
-};
+$provider = (new ComprehensionProviderRegistry($base))->resolve($moduleId);
+
+$aiSettings = function_exists('aiResolvedSettings') ? aiResolvedSettings() : [];
+$rollout = (new WorkbenchRolloutPolicy($aiSettings))->decision(
+    $moduleId,
+    (string)($aiSettings['workbench_ai_provider'] ?? $aiSettings['provider'] ?? ''),
+    (string)($runId ?? ''),
+);
+$workbenchAi = new WorkbenchAiAnalyzer([
+    'enabled' => (bool)($aiSettings['workbench_ai_enabled'] ?? false) && $rollout['allowed'],
+    'provider' => (string)($aiSettings['workbench_ai_provider'] ?? $aiSettings['provider'] ?? ''),
+    'model' => (string)($aiSettings['workbench_ai_model'] ?? ''),
+    'tier' => (string)($aiSettings['workbench_ai_tier'] ?? 'free'),
+    'timeout_ms' => (int)($aiSettings['workbench_ai_timeout_ms'] ?? 15000),
+    'max_tokens' => (int)($aiSettings['workbench_ai_max_tokens'] ?? 2000),
+    'max_evidence_bytes' => (int)($aiSettings['workbench_ai_max_evidence_bytes'] ?? 32768),
+    'prompt_version' => 'workbench-diagnosis-v1',
+    'rollout_mode' => $rollout['mode'],
+    'metrics_path' => $base . '/storage/private/workbench/metrics.json',
+], null, $base . '/storage/private/comprehension/ai-cache');
 
 $engine = new SemanticComprehensionEngine(
     $moduleId,
@@ -152,6 +178,7 @@ $engine = new SemanticComprehensionEngine(
         null,
         $aiProvider,
     ),
+    configuredAi: $workbenchAi,
 );
 
 // Handle --reset-history
@@ -170,6 +197,7 @@ echo "Module actions: " . implode(', ', $actionIds) . "\n\n";
 // ── 3. Collect runtime evidence ─────────────────────────────
 $evidence = [];
 $evidenceMeta = [];
+$normalizedObservations = [];
 
 // Load evidence file if specified
 if ($evidenceFile && is_file($evidenceFile)) {
@@ -177,6 +205,12 @@ if ($evidenceFile && is_file($evidenceFile)) {
     if (is_array($fileEvidence)) {
         // Extract metadata if present (ActionObserver format)
         $evidenceMeta = $fileEvidence['_meta'] ?? [];
+        $normalizedObservations = (new EvidenceNormalizer())->normalize(
+            $fileEvidence,
+            $moduleId,
+            $actionId !== '' ? $actionId : 'unknown',
+            $runId,
+        );
 
         // Detect format: flat (keys = step names) or structured (has steps/summary keys)
         if (isset($fileEvidence['steps']) && is_array($fileEvidence['steps'])) {
@@ -323,9 +357,15 @@ if ($showStats || $listCases || $coverage) {
     }
 }
 
+$analysisResultsForLedger = [];
 if ($actionId !== '') {
+    if ($normalizedObservations !== []) {
+        $actionEvidence = (new EvidenceNormalizer())->evidenceForAction($normalizedObservations, $actionId);
+        $engine->feedEvidence(array_merge($evidence, $actionEvidence));
+    }
     // Only record history when analyzing a real test run with evidence
     $result = $engine->analyze($actionId, recordHistory: $hasEvidence, metadata: $meta);
+    $analysisResultsForLedger[$actionId] = $result;
     echo "Action analysis: {$actionId}\n";
     echo "Engine: {$result['engine_version']}\n";
     if (isset($result['deterministic']['error'])) {
@@ -494,7 +534,15 @@ if ($actionId !== '') {
         }
     }
 } else {
-    $results = $engine->analyzeAll(recordHistory: $hasEvidence);
+    $results = [];
+    foreach ($engine->actionIds() as $aid) {
+        if ($normalizedObservations !== []) {
+            $actionEvidence = (new EvidenceNormalizer())->evidenceForAction($normalizedObservations, $aid);
+            $engine->feedEvidence(array_merge($evidence, $actionEvidence));
+        }
+        $results[$aid] = $engine->analyze($aid, recordHistory: $hasEvidence, metadata: $meta);
+    }
+    $analysisResultsForLedger = $results;
     foreach ($results as $aid => $r) {
         $bp = $r['breakpoint'] ?? 'none';
         $conf = $r['confidence']['score'] ?? 0;
@@ -502,6 +550,26 @@ if ($actionId !== '') {
         $aiSummary = $r['ai_hypothesis']['summary'] ?? '';
         $summary = $aiSummary ? " ({$aiSummary})" : '';
         echo "  {$aid}: breakpoint={$bp}, diagnosis={$diag}, confidence={$conf}{$summary}\n";
+    }
+}
+
+$ledger = new IssueLedger($base . '/storage/private/workbench/issues');
+foreach ($analysisResultsForLedger as $aid => $analysisResult) {
+    if (($analysisResult['breakpoint'] ?? null) === null) continue;
+    $issue = $ledger->ingest([
+        'module_id' => $moduleId,
+        'action_id' => $aid,
+        'failing_node' => (string)$analysisResult['breakpoint'],
+        'category' => (string)($analysisResult['diagnosis']['primary_classification']['category'] ?? $analysisResult['break_category'] ?? 'unknown'),
+        'severity' => in_array(($analysisResult['root_cause_hypothesis']['severity'] ?? ''), ['error', 'critical'], true) ? 'critical' : 'major',
+        'summary' => (string)($analysisResult['root_cause_hypothesis']['summary'] ?? 'Comprehension breakpoint'),
+    ], [
+        'run_id' => $evidence['_run_id'] ?? $runId,
+        'observation_id' => null,
+        'source_fingerprint' => (string)($meta['commit'] ?? ''),
+    ]);
+    if (is_array($analysisResult['configured_ai'] ?? null)) {
+        $ledger->addDiagnosis($issue['id'], $analysisResult['configured_ai'], 'pending');
     }
 }
 

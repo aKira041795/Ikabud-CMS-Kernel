@@ -81,7 +81,15 @@ function aiSettingsDefaults(): array
  */
 function aiSensitiveKeyNames(): array
 {
-    return ['openai_api_key', 'groq_api_key', 'search_grounding_api_key'];
+    return [
+        'openai_api_key',
+        'groq_api_key',
+        'gemini_api_key',
+        'mistral_api_key',
+        'cerebras_api_key',
+        'openrouter_api_key',
+        'search_grounding_api_key',
+    ];
 }
 
 /**
@@ -93,6 +101,10 @@ function aiEncryptSensitiveSettings(array $settings): array
     $sensitiveKeys = aiSensitiveKeyNames();
     foreach ($sensitiveKeys as $key) {
         if (isset($settings[$key]) && is_string($settings[$key]) && $settings[$key] !== '') {
+            $existingEnvelope = json_decode($settings[$key], true);
+            if (is_array($existingEnvelope) && isset($existingEnvelope['ciphertext'], $existingEnvelope['iv'], $existingEnvelope['tag'])) {
+                continue;
+            }
             try {
                 $enc = (new \Ikabud\Kernel\Crypto())->encryptString($settings[$key]);
                 $settings[$key] = json_encode($enc, JSON_UNESCAPED_SLASHES);

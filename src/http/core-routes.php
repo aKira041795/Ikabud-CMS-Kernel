@@ -38,6 +38,7 @@ if (!function_exists('kernelCoreRoutes')) {
                 '/api/v1/superadmin/workbench/modules' => 'apiSuperadminWorkbenchModules',
                 '/api/v1/superadmin/workbench/coverage' => 'apiSuperadminWorkbenchCoverage',
                 '/api/v1/superadmin/workbench/contracts' => 'apiSuperadminWorkbenchContracts',
+                '/api/v1/superadmin/workbench/process-map' => 'apiSuperadminWorkbenchProcessMap',
                 '/api/v1/superadmin/modules' => 'apiSuperadminModules',
                 '/api/v1/superadmin/perf' => 'apiSuperadminPerf',
                 '/api/v1/superadmin/cache' => 'apiSuperadminCache',

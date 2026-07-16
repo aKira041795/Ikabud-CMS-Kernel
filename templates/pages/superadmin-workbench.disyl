@@ -44,6 +44,7 @@ function wbSwitchTab(tab) {
     if (tab === 'issues' && !window._wbIssuesLoaded) { wbLoadIssues(); }
     if (tab === 'coverage' && !window._wbCoverageLoaded) { wbLoadCoverage(); }
     if (tab === 'steward' && !window._wbStewardLoaded) { wbLoadSteward(); }
+    if (tab === 'map' && !window._wbMapLoaded) { wbLoadProcessMap(); }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -650,6 +651,28 @@ async function aiSaveProvider(providerId) {
         setTimeout(function(){ location.reload(); }, 1200);
     } catch(e) { alert('Error: ' + e.message); if (btn) { btn.disabled = false; btn.textContent = 'Save'; } }
 }
+
+async function wbSaveAiPolicy() {
+    var payload = {scope:'workbench_policy', enabled:document.getElementById('wb-ai-enabled').checked, provider:document.getElementById('wb-ai-provider').value, tier:document.getElementById('wb-ai-tier').value, model:document.getElementById('wb-ai-model').value, timeout_ms:Number(document.getElementById('wb-ai-timeout').value), max_tokens:Number(document.getElementById('wb-ai-max-tokens').value)};
+    var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/ai-settings', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','X-CSRF-Token':wbCsrfToken}, body:JSON.stringify(payload)});
+    var data = await res.json(); alert(data.ok ? 'Workbench AI policy saved' : 'Error: ' + (data.error || 'Unknown'));
+}
+
+async function wbLoadProcessMap() {
+    window._wbMapLoaded = true;
+    var el = document.getElementById('wb-map-body'); el.innerHTML = '<div class="text-sm text-gray-500 animate-pulse">Building canonical map...</div>';
+    try {
+        var res = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/process-map?module=project-audit-ledger'); var data = await res.json();
+        if (!data.ok) { el.textContent = data.error || 'Map unavailable'; return; }
+        var nodes = data.graph.nodes || [], edges = data.graph.edges || [], grouped = {};
+        nodes.forEach(function(n){ (grouped[n.type] = grouped[n.type] || []).push(n); });
+        var html = '<div class="grid grid-cols-4 gap-3 mb-4"><div class="wb-panel p-3"><div class="wb-stat">'+nodes.length+'</div><div class="wb-stat-label">Typed nodes</div></div><div class="wb-panel p-3"><div class="wb-stat">'+edges.length+'</div><div class="wb-stat-label">Validated edges</div></div><div class="wb-panel p-3"><div class="wb-stat">'+(data.paths||[]).length+'</div><div class="wb-stat-label">Process paths</div></div><div class="wb-panel p-3"><div class="wb-stat">'+((data.validation_errors||[]).length)+'</div><div class="wb-stat-label">Graph errors</div></div></div>';
+        html += '<div class="text-xs mb-3"><span class="badge">declared</span> <span class="badge" style="color:#2563eb">runtime</span> <span class="badge" style="color:#9333ea">AI inferred</span> <span class="badge" style="color:#059669">human verified</span></div>';
+        Object.keys(grouped).sort().forEach(function(type){ html += '<details class="border border-slate-200 rounded mb-2"><summary class="p-2 text-sm font-semibold cursor-pointer">'+escHtml(type)+' ('+grouped[type].length+')</summary><div class="p-2 border-t overflow-x-auto"><table class="data w-full text-xs"><thead><tr><th>ID</th><th>Label</th><th>Provenance</th><th>Confidence</th><th>Why it exists</th></tr></thead><tbody>'; grouped[type].forEach(function(n){ var src=n.source||{}; html+='<tr><td class="font-mono">'+escHtml(n.id)+'</td><td>'+escHtml(n.label)+'</td><td>'+escHtml(n.provenance)+'</td><td>'+Math.round((n.confidence||0)*100)+'%</td><td>'+escHtml(src.file ? src.file+':'+(src.line||'') : (n.verified?'verified contract':'provider declaration'))+'</td></tr>'; }); html+='</tbody></table></div></details>'; });
+        html += '<details class="border border-slate-200 rounded mt-3"><summary class="p-2 text-sm font-semibold cursor-pointer">Edges ('+edges.length+')</summary><div class="p-2 border-t max-h-96 overflow-auto">'; edges.forEach(function(e){html+='<div class="text-xs font-mono py-1">'+escHtml(e.from)+' <span class="text-blue-600">—'+escHtml(e.type)+'→</span> '+escHtml(e.to)+' <span class="text-gray-400">['+escHtml(e.provenance)+']</span></div>';}); html+='</div></details>';
+        el.innerHTML=html;
+    } catch(e) { el.textContent='Map error: '+e.message; }
+}
 {/verbatim}
 </script>
 {/block}
@@ -684,7 +707,14 @@ async function aiSaveProvider(providerId) {
             <button data-tab="steward" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('steward')">
                 E. AI Steward
             </button>
+            <button data-tab="map" class="wb-tab px-4 py-2 text-xs font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700" onclick="wbSwitchTab('map')">
+                F. Process Map
+            </button>
         </nav>
+    </div>
+
+    <div id="wb-panel-map" class="wb-tab-panel hidden">
+        <div class="wb-panel"><div class="wb-panel-header"><h2 class="text-sm font-semibold text-slate-700">Canonical Process Map</h2><button onclick="wbLoadProcessMap()" class="kernel-btn kernel-btn-outline text-xs">Refresh</button></div><div class="wb-panel-body"><p class="text-xs text-gray-500 mb-3">Nodes and edges are typed and expose provenance. Inferred facts are never presented as verified.</p><div id="wb-map-body">Switch to this tab to build the map.</div></div></div>
     </div>
 
     <!-- ════════════ PANEL A: RUN OVERVIEW ════════════ -->
@@ -863,6 +893,14 @@ async function aiSaveProvider(providerId) {
                 <h3 class="text-xs font-semibold text-slate-600 uppercase mb-3">AI Provider Configuration</h3>
                 <p class="hint mb-3 text-xs">Set API keys and models per provider. API keys are encrypted at rest. Changes are saved immediately per row.</p>
                 {if ai_module_enabled}
+                <div class="grid grid-cols-6 gap-2 p-3 mb-4 bg-blue-50 border border-blue-100 rounded-lg items-end">
+                    <label class="text-xs"><span class="block text-gray-600 mb-1">Enabled</span><input id="wb-ai-enabled" type="checkbox" {if workbench_ai_enabled}checked{/if}></label>
+                    <label class="text-xs"><span class="block text-gray-600 mb-1">Provider</span><select id="wb-ai-provider" class="form-input"><option value="">Inherit</option>{foreach models as m}<option value="{m.provider_id}" {if workbench_ai_provider == m.provider_id}selected{/if}>{m.provider}</option>{/foreach}</select></label>
+                    <label class="text-xs"><span class="block text-gray-600 mb-1">Tier</span><select id="wb-ai-tier" class="form-input"><option value="free" {if workbench_ai_tier == 'free'}selected{/if}>Free</option><option value="paid" {if workbench_ai_tier == 'paid'}selected{/if}>Paid</option><option value="custom" {if workbench_ai_tier == 'custom'}selected{/if}>Custom</option></select></label>
+                    <label class="text-xs"><span class="block text-gray-600 mb-1">Model override</span><input id="wb-ai-model" class="form-input" value="{workbench_ai_model}"></label>
+                    <label class="text-xs"><span class="block text-gray-600 mb-1">Timeout / tokens</span><div class="flex gap-1"><input id="wb-ai-timeout" type="number" class="form-input" value="{workbench_ai_timeout_ms}"><input id="wb-ai-max-tokens" type="number" class="form-input" value="{workbench_ai_max_tokens}"></div></label>
+                    <button onclick="wbSaveAiPolicy()" class="kernel-btn kernel-btn-primary text-xs">Save AI Policy</button>
+                </div>
                 <table class="data w-full text-xs">
                     <thead>
                         <tr>

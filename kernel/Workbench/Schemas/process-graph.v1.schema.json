@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:process-graph:v1",
+  "title": "Workbench Canonical Process Graph v1",
+  "type": "object",
+  "required": ["schema_version", "graph_id", "nodes", "edges"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "graph_id": {"type": "string"}, "generated_at": {"type": "string"},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}}
+  },
+  "$defs": {
+    "provenance": {"enum": ["declared", "static", "runtime", "ai_inferred", "human_verified"]},
+    "node": {"type": "object", "required": ["id", "type", "provenance", "confidence"], "properties": {"id": {"type": "string"}, "type": {"type": "string"}, "label": {"type": "string"}, "provenance": {"$ref": "#/$defs/provenance"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "verified": {"type": "boolean"}, "source": {"type": "object"}, "meta": {"type": "object"}}, "additionalProperties": false},
+    "edge": {"type": "object", "required": ["id", "from", "to", "type", "provenance", "confidence"], "properties": {"id": {"type": "string"}, "from": {"type": "string"}, "to": {"type": "string"}, "type": {"type": "string"}, "provenance": {"$ref": "#/$defs/provenance"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "verified": {"type": "boolean"}, "evidence_ids": {"type": "array", "items": {"type": "string"}}, "meta": {"type": "object"}}, "additionalProperties": false}
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:evidence-observation:v1",
+  "title": "Workbench Evidence Observation v1",
+  "type": "object",
+  "required": ["schema_version", "observation_id", "run_id", "module_id", "action_id", "step_id", "outcome", "source", "observed_at"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "observation_id": {"type": "string", "minLength": 1},
+    "run_id": {"type": "string", "minLength": 1},
+    "module_id": {"type": "string", "minLength": 1},
+    "action_id": {"type": "string", "minLength": 1},
+    "step_id": {"type": "string", "minLength": 1},
+    "outcome": {"enum": ["passed", "failed", "unobserved", "not_applicable", "probe_error", "skipped"]},
+    "source": {"enum": ["contract", "static", "browser", "php_test", "database_probe", "event", "human"]},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "attempt": {"type": "integer", "minimum": 1},
+    "expected": {}, "actual": {}, "detail": {"type": "string"},
+    "severity": {"enum": ["critical", "major", "minor", "note", "none"]},
+    "duration_ms": {"type": "number", "minimum": 0},
+    "references": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "content_hash": {"type": "string"},
+    "redaction": {"enum": ["public", "internal", "sensitive", "secret"]},
+    "metadata": {"type": "object"}
+  },
+  "additionalProperties": false
+}

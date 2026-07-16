@@ -23,6 +23,7 @@ use Ikabud\Kernel\Workbench\Comprehension\Analyzers\{
     CaseMemory,
     ProviderCoverageScorer,
 };
+use Ikabud\Kernel\Workbench\AI\WorkbenchAiAnalyzer;
 
 /**
  * Hybrid Semantic Comprehension Engine.
@@ -55,6 +56,7 @@ class SemanticComprehensionEngine
     private AiHypothesisGenerator $aiHypothesis;
     private CaseMemory $caseMemory;
     private ProviderCoverageScorer $coverageScorer;
+    private ?WorkbenchAiAnalyzer $configuredAi;
 
     private string $moduleId;
     private array $runtimeEvidence = [];
@@ -69,6 +71,7 @@ class SemanticComprehensionEngine
         ?SourceRetriever $sourceRetriever = null,
         ?AiHypothesisGenerator $aiHypothesis = null,
         ?CaseMemory $caseMemory = null,
+        ?WorkbenchAiAnalyzer $configuredAi = null,
     ) {
         $this->moduleId = $moduleId;
         $this->provider = $provider;
@@ -88,6 +91,7 @@ class SemanticComprehensionEngine
             $this->caseMemory,
         );
         $this->coverageScorer = new ProviderCoverageScorer();
+        $this->configuredAi = $configuredAi;
     }
 
     /**
@@ -185,6 +189,9 @@ class SemanticComprehensionEngine
             // Record outcomes (only when explicitly analyzing real data)
             if ($recordHistory) {
                 foreach ($chainResults as $result) {
+                    if (!in_array(($result['outcome'] ?? null), ['passed', 'failed'], true)) {
+                        continue;
+                    }
                     $this->bayesian->recordOutcome(
                         $this->moduleId, $actionId,
                         $result['step'] ?? '?',
@@ -247,6 +254,25 @@ class SemanticComprehensionEngine
             ],
             $this->runtimeEvidence,
             $bayesianAnalysis,
+        );
+
+        $configuredAi = $this->configuredAi?->analyze(
+            [
+                'module_id' => $this->moduleId,
+                'action_id' => $actionId,
+                'breakpoint' => $breakpoint,
+                'break_category' => $breakCategory,
+                'observations' => $this->runtimeEvidence,
+                'deterministic_chain' => $chainResults,
+                'bayesian' => $bayesianAnalysis,
+                'temporal' => $temporalAnalysis,
+                'classification' => $classification,
+            ],
+            [
+                'summary' => $aiHypothesis->summary,
+                'confidence' => $aiHypothesis->confidence,
+                'suspected_nodes' => $aiHypothesis->filesToInspect,
+            ],
         );
 
         // Source retrieval for the failed step
@@ -341,6 +367,7 @@ class SemanticComprehensionEngine
                 'do_not_change_boundary' => $aiHypothesis->doNotChangeBoundary,
                 'suggested_links' => $aiHypothesis->suggestedLinks,
             ],
+            'configured_ai' => $configuredAi,
             'remediation_plan' => $remediationPlan !== null ? [
                 'failing_step' => $remediationPlan->failingStep,
                 'suspected_file' => $remediationPlan->suspectedFile,
@@ -657,7 +684,7 @@ class SemanticComprehensionEngine
         // Deterministic chain completeness
         $chainResults = $deterministic['chain'] ?? [];
         $totalLinks = count($chainResults);
-        $observedLinks = count(array_filter($chainResults, fn($r) => $r['actual'] !== false));
+        $observedLinks = count(array_filter($chainResults, fn($r) => ($r['observed'] ?? false) === true));
         $factors['coverage'] = $totalLinks > 0 ? $observedLinks / $totalLinks : 0;
 
         // Embedding score quality (NLP-enhanced)

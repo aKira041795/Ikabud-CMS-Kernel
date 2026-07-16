@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:ai-diagnosis:v1",
+  "type": "object",
+  "required": ["schema_version", "hypotheses", "next_tests", "graph_suggestions", "provider_trace"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "hypotheses": {"type": "array", "items": {"type": "object", "required": ["summary", "confidence", "evidence_for", "evidence_against"], "properties": {"summary": {"type": "string"}, "confidence": {"type": "number", "minimum": 0, "maximum": 1}, "evidence_for": {"type": "array", "items": {"type": "string"}}, "evidence_against": {"type": "array", "items": {"type": "string"}}, "suspected_nodes": {"type": "array", "items": {"type": "string"}}, "violated_invariant": {"type": "string"}}, "additionalProperties": false}},
+    "next_tests": {"type": "array", "items": {"type": "object"}}, "graph_suggestions": {"type": "array", "items": {"type": "object"}},
+    "remediation": {"type": ["object", "null"]},
+    "provider_trace": {"type": "object", "required": ["provider", "model", "prompt_version"], "properties": {"provider": {"type": "string"}, "model": {"type": "string"}, "prompt_version": {"type": "string"}, "latency_ms": {"type": "number"}, "fallback_reason": {"type": ["string", "null"]}}, "additionalProperties": true}
+  }, "additionalProperties": false
+}

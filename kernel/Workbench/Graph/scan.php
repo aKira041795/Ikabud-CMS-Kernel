@@ -16,6 +16,11 @@ require_once __DIR__ . '/../../../bootstrap.php';
 use Ikabud\Kernel\Workbench\Graph\GraphBuilder;
 use Ikabud\Kernel\Workbench\Graph\SpecGenerator;
 use Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider;
+use Ikabud\Kernel\Workbench\Comprehension\ComprehensionProviderRegistry;
+use Ikabud\Kernel\Workbench\Planning\WeightedPathPlanner;
+
+require_once __DIR__ . '/../Planning/WeightedPathPlanner.php';
+require_once __DIR__ . '/../Comprehension/ComprehensionProviderRegistry.php';
 
 $args = $argv ?? [];
 $moduleId = null;
@@ -27,9 +32,8 @@ foreach ($args as $i => $arg) {
 }
 if ($moduleId === null) { echo "Usage: php scan.php <module-id> [--all]\n"; exit(1); }
 
-$providerMap = ['project-audit-ledger' => PalComprehensionProvider::class];
-$providerClass = $providerMap[$moduleId] ?? null;
-if (!$providerClass) { echo "No provider for {$moduleId}\n"; exit(1); }
+$registry = new ComprehensionProviderRegistry(dirname(__DIR__, 3));
+if (!$registry->has($moduleId)) { echo "No provider for {$moduleId}\n"; exit(1); }
 
 echo "\n═══════════════════════════════════════════\n";
 echo "  ARK Workbench — Proactive Scanner\n";
@@ -38,33 +42,40 @@ echo "════════════════════════�
 
 // 1. Build graph
 echo "[1/3] Building graph...\n";
-$provider = new $providerClass();
+$provider = $registry->resolve($moduleId);
 $builder = new GraphBuilder($provider, $moduleId);
 $graph = $builder->build();
 echo "  Nodes: " . count($graph->nodes()) . ", Edges: " . count($graph->edges()) . "\n";
 
-// 2. Compute paths from provider data directly
+// 2. Compute paths from the canonical graph
 echo "\n[2/3] Computing paths...\n";
-$paths = [];
-foreach ($provider->entities() as $e) {
-    foreach (['entity_list', 'entity_detail', 'entity_edit'] as $t) {
-        $paths[] = ['type' => $t, 'entity' => $e->id, 'label' => $e->label, 'table' => $e->table];
-    }
-}
-foreach ($provider->actions() as $a) {
-    $paths[] = ['type' => 'action', 'id' => $a->id, 'label' => $a->label, 'entity' => $a->entityType];
-}
-foreach ($provider->workflows() as $wf) {
-    foreach ($wf->transitions as $t) {
-        $paths[] = ['type' => 'transition', 'from' => $t['from'], 'to' => $t['to'],
-                     'action_id' => $t['action'], 'entity' => $wf->entityType,
-                     'label' => "{$t['from']}→{$t['to']}"];
-    }
-}
+$paths = $builder->computePaths();
 echo "  Paths: " . count($paths) . "\n";
 foreach ($paths as $i => $p) {
     printf("  [%2d] (%-12s) %s\n", $i, $p['type'], $p['label'] ?? $p['type']);
 }
+
+// Shadow planner: persist reproducible weighted paths without changing test gating.
+$planner = new WeightedPathPlanner();
+$plannedPaths = [];
+foreach ($provider->actions() as $action) {
+    if ($action->chain === []) continue;
+    $routeId = 'route:' . $action->method . ':' . $action->route;
+    $last = $action->chain[count($action->chain) - 1];
+    $targetId = $action->id . ':' . $last->step;
+    foreach ($planner->kShortestTestPaths($graph, $routeId, $targetId, [], 3) as $path) {
+        $plannedPaths[] = ['action_id' => $action->id] + $path;
+    }
+}
+$planDir = BASE_PATH . '/test_results/ai';
+if (!is_dir($planDir)) mkdir($planDir, 0770, true);
+file_put_contents($planDir . '/test-plan.json', json_encode([
+    'schema_version' => '1.0', 'mode' => 'shadow', 'module_id' => $moduleId,
+    'graph_version' => hash('sha256', json_encode($graph->toArray($moduleId))),
+    'policy_version' => 'weighted-planner-v1', 'generated_at' => date('c'),
+    'selected_paths' => $plannedPaths,
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+echo "  Shadow weighted paths: " . count($plannedPaths) . " (test_results/ai/test-plan.json)\n";
 
 // 3. Generate + run
 $outputDir = BASE_PATH . '/tests/browser/modules/pal/workflows/generated';

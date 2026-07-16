@@ -35,8 +35,8 @@ final class GraphBuilder
         $this->graph = new ModuleGraph();
 
         $this->buildEntities();
-        $this->buildWorkflows();
         $this->buildActions();
+        $this->buildWorkflows();
         $this->buildRoutes();
         $this->buildCapabilities();
 
@@ -46,7 +46,7 @@ final class GraphBuilder
     private function buildEntities(): void
     {
         foreach ($this->provider->entities() as $entity) {
-            $node = $this->graph->addNode(
+            $this->graph->addNode(
                 $entity->id,
                 'entity',
                 [
@@ -57,8 +57,19 @@ final class GraphBuilder
                 ]
             );
 
-            // Entity relationships
+        }
+
+        // Relationships are a second pass so every declared endpoint exists.
+        foreach ($this->provider->entities() as $entity) {
             foreach (($entity->relationships ?? []) as $relName => $targetEntityId) {
+                if ($this->graph->node($targetEntityId) === null) {
+                    $this->graph->addNode($targetEntityId, 'entity', [
+                        'label' => $targetEntityId,
+                        'provenance' => 'declared',
+                        'confidence' => 0.7,
+                        'unresolved' => true,
+                    ]);
+                }
                 $this->graph->addEdge($entity->id, $targetEntityId, 'references', [
                     'relationship' => $relName,
                 ]);
@@ -126,14 +137,25 @@ final class GraphBuilder
             ]);
 
             // Each chain step becomes a sub-node
-            foreach ($action->chain as $chainLink) {
+            foreach ($action->chain as $chainIndex => $chainLink) {
                 $stepId = "{$action->id}:{$chainLink->step}";
                 $this->graph->addNode($stepId, 'chain_step', [
                     'action' => $action->id,
                     'category' => $chainLink->category,
                     'description' => $chainLink->description,
                 ]);
-                $this->graph->addEdge($action->id, $stepId, 'has_step');
+                if ($chainIndex === 0) {
+                    $this->graph->addEdge($action->id, $stepId, 'starts_with');
+                }
+            }
+
+            $previousStepId = null;
+            foreach ($action->chain as $chainLink) {
+                $stepId = "{$action->id}:{$chainLink->step}";
+                if ($previousStepId !== null) {
+                    $this->graph->addEdge($previousStepId, $stepId, 'next_step', ['action' => $action->id]);
+                }
+                $previousStepId = $stepId;
             }
 
             // Connect action to entity
@@ -164,6 +186,11 @@ final class GraphBuilder
             ]);
             $this->graph->addNode($handlerId, 'handler');
             $this->graph->addEdge($routeId, $handlerId, 'dispatched_to');
+            foreach ($this->provider->actions() as $action) {
+                if (strcasecmp($action->method, (string)$r['method']) === 0 && $action->route === $r['path']) {
+                    $this->graph->addEdge($handlerId, $action->id, 'handles_action');
+                }
+            }
         }
     }
 
@@ -226,74 +253,46 @@ final class GraphBuilder
     public function computePaths(): array
     {
         $paths = [];
-        $entities = $this->graph->nodesOfType('entity');
-
-        foreach ($entities as $entity) {
-            $statuses = $entity->meta['statuses'] ?? [];
-            $entityId = $entity->id;
-
-            // Path for each entity: list → create_form → create → detail → edit → update
-            $paths[] = [
-                'nodes' => [
-                    "route:GET:/admin/{$entityId}",
-                    $entityId,
-                ],
-                'edges' => [],
-                'type' => 'entity_list',
-                'label' => "List {$entity->meta['label']}",
-            ];
-
-            $paths[] = [
-                'nodes' => [
-                    "route:GET:/admin/{$entityId}/create",
-                    $entityId,
-                ],
-                'edges' => [],
-                'type' => 'entity_create_form',
-                'label' => "Create {$entity->meta['label']} form",
-            ];
-
-            // Workflow lifecycle path
-            $stateNodes = $this->graph->nodesOfType('state');
-            $entityStates = array_filter(
-                $stateNodes,
-                fn(GraphNode $n) => str_starts_with($n->id, "{$entityId}:")
-            );
-
-            if (!empty($entityStates)) {
-                $states = array_map(fn(GraphNode $n) => $n->meta['status'], array_values($entityStates));
+        foreach ($this->graph->nodesOfType('entity') as $entity) {
+            if (($entity->meta['unresolved'] ?? false) === true) continue;
+            foreach (['entity_list', 'entity_detail', 'entity_edit'] as $type) {
                 $paths[] = [
-                    'nodes' => array_map(fn(string $s) => "{$entityId}:{$s}", $states),
+                    'type' => $type,
+                    'entity' => $entity->id,
+                    'label' => (string)($entity->meta['label'] ?? $entity->id),
+                    'table' => (string)($entity->meta['table'] ?? ''),
+                    'nodes' => [$entity->id],
                     'edges' => [],
-                    'type' => 'entity_lifecycle',
-                    'label' => "Lifecycle: {$entity->meta['label']} ({$states[0]}→{$states[count($states)-1]})",
                 ];
             }
         }
 
-        // Paths for each action
-        $actions = $this->graph->nodesOfType('action');
-        foreach ($actions as $action) {
+        foreach ($this->graph->nodesOfType('action') as $action) {
             $paths[] = [
                 'nodes' => [$action->id],
                 'edges' => [],
-                'type' => 'action_execute',
-                'label' => "Action: {$action->meta['label']}",
+                'type' => 'action',
+                'id' => $action->id,
+                'entity' => $action->meta['entity_type'] ?? null,
+                'label' => (string)($action->meta['label'] ?? $action->id),
             ];
+        }
 
-            // Chain steps path
-            $chainSteps = array_filter(
-                $this->graph->nodesOfType('chain_step'),
-                fn(GraphNode $n) => ($n->meta['action'] ?? '') === $action->id
-            );
-            if (!empty($chainSteps)) {
-                $paths[] = [
-                    'nodes' => array_map(fn(GraphNode $n) => $n->id, array_values($chainSteps)),
-                    'edges' => [],
-                    'type' => 'action_chain',
-                    'label' => "Verify chain: {$action->meta['label']}",
-                ];
-            }
+        foreach ($this->graph->edges() as $edge) {
+            if ($edge->type !== 'transitions') continue;
+            $from = $this->graph->node($edge->from);
+            $to = $this->graph->node($edge->to);
+            if ($from === null || $to === null) continue;
+            $paths[] = [
+                'type' => 'transition',
+                'from' => (string)($from->meta['status'] ?? $from->id),
+                'to' => (string)($to->meta['status'] ?? $to->id),
+                'action_id' => (string)($edge->meta['action_id'] ?? ''),
+                'entity' => (string)($from->meta['entity'] ?? ''),
+                'label' => (string)($from->meta['status'] ?? $from->id) . '→' . (string)($to->meta['status'] ?? $to->id),
+                'nodes' => [$from->id, $to->id],
+                'edges' => [$edge->from . '→' . $edge->to . '::' . $edge->type],
+            ];
         }
 
         return $paths;

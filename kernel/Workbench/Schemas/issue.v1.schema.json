@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:issue:v1",
+  "type": "object",
+  "required": ["schema_version", "id", "fingerprint", "module_id", "state", "category", "severity", "occurrences"],
+  "properties": {
+    "schema_version": {"const": "1.0"}, "id": {"type": "string"}, "fingerprint": {"type": "string"}, "module_id": {"type": "string"},
+    "action_id": {"type": "string"}, "failing_node": {"type": "string"},
+    "state": {"enum": ["observed", "clustered", "triaged", "reproduced", "diagnosed", "fixed", "verified", "promoted_to_case", "dismissed", "accepted", "flaky", "environment_only"]},
+    "category": {"type": "string"}, "severity": {"enum": ["critical", "major", "minor", "note"]}, "summary": {"type": "string"},
+    "occurrences": {"type": "array", "items": {"type": "object"}}, "diagnoses": {"type": "array", "items": {"type": "object"}},
+    "resolution": {"type": ["object", "null"]}, "first_seen": {"type": "string"}, "last_seen": {"type": "string"}
+  }, "additionalProperties": false
+}

@@ -1,0 +1,246 @@
+{
+  "schema_version": "1.0",
+  "description": "ARK Workbench comprehension golden baseline",
+  "cases": [
+    {
+      "id": "csrf-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "http.request",
+      "outcome": "failed",
+      "expected_category": "csrf"
+    },
+    {
+      "id": "csrf-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "http.response",
+      "outcome": "failed",
+      "expected_category": "csrf"
+    },
+    {
+      "id": "permission-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "capability.check",
+      "outcome": "failed",
+      "expected_category": "permission"
+    },
+    {
+      "id": "permission-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "http.response",
+      "outcome": "failed",
+      "expected_category": "permission"
+    },
+    {
+      "id": "validation-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "input.validate",
+      "outcome": "failed",
+      "expected_category": "validation"
+    },
+    {
+      "id": "validation-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "http.response",
+      "outcome": "failed",
+      "expected_category": "validation"
+    },
+    {
+      "id": "missing-record-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "db.entity_exists",
+      "outcome": "failed",
+      "expected_category": "missing_record"
+    },
+    {
+      "id": "missing-record-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "service.load",
+      "outcome": "failed",
+      "expected_category": "missing_record"
+    },
+    {
+      "id": "schema-drift-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "db.query",
+      "outcome": "failed",
+      "expected_category": "db"
+    },
+    {
+      "id": "schema-drift-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "migration.check",
+      "outcome": "failed",
+      "expected_category": "db"
+    },
+    {
+      "id": "ui-selector-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "button.visible",
+      "outcome": "failed",
+      "expected_category": "ui"
+    },
+    {
+      "id": "ui-selector-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "form.render",
+      "outcome": "failed",
+      "expected_category": "ui"
+    },
+    {
+      "id": "timeout-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "http.request",
+      "outcome": "failed",
+      "expected_category": "timeout"
+    },
+    {
+      "id": "timeout-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "service.call",
+      "outcome": "failed",
+      "expected_category": "timeout"
+    },
+    {
+      "id": "event-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "event.fired",
+      "outcome": "failed",
+      "expected_category": "event"
+    },
+    {
+      "id": "event-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "listener.executed",
+      "outcome": "failed",
+      "expected_category": "event"
+    },
+    {
+      "id": "audit-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "audit.written",
+      "outcome": "failed",
+      "expected_category": "audit"
+    },
+    {
+      "id": "audit-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "audit.visible",
+      "outcome": "failed",
+      "expected_category": "audit"
+    },
+    {
+      "id": "flaky-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "browser.click",
+      "outcome": "failed",
+      "expected_category": "flaky"
+    },
+    {
+      "id": "flaky-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "network.response",
+      "outcome": "failed",
+      "expected_category": "flaky"
+    },
+    {
+      "id": "unobserved-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "db.effect",
+      "outcome": "unobserved",
+      "expected_category": "coverage"
+    },
+    {
+      "id": "unobserved-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "event.fired",
+      "outcome": "unobserved",
+      "expected_category": "coverage"
+    },
+    {
+      "id": "probe-error-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "db.probe",
+      "outcome": "probe_error",
+      "expected_category": "environment"
+    },
+    {
+      "id": "probe-error-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "http.probe",
+      "outcome": "probe_error",
+      "expected_category": "environment"
+    },
+    {
+      "id": "success-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "workflow.complete",
+      "outcome": "passed",
+      "expected_category": "none"
+    },
+    {
+      "id": "success-02",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "db.persist",
+      "outcome": "passed",
+      "expected_category": "none"
+    },
+    {
+      "id": "not-applicable-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "approval.required",
+      "outcome": "not_applicable",
+      "expected_category": "none"
+    },
+    {
+      "id": "skipped-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "browser.flow",
+      "outcome": "skipped",
+      "expected_category": "coverage"
+    },
+    {
+      "id": "cross-module-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "capability.dispatch",
+      "outcome": "failed",
+      "expected_category": "dependency"
+    },
+    {
+      "id": "performance-01",
+      "module_id": "project-audit-ledger",
+      "action_id": "pal.golden.action",
+      "step_id": "page.load",
+      "outcome": "failed",
+      "expected_category": "performance"
+    }
+  ]
+}

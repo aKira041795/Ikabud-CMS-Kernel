@@ -84,8 +84,12 @@ class ModuleComprehensionEngine
             $raw = $this->probeLink($link);
             // Treat any truthy value (boolean true, non-empty string, number > 0) as success
             $actual = $raw;
+            $explicitOutcome = is_array($raw) ? ($raw['__workbench_outcome'] ?? null) : null;
+            $outcome = is_string($explicitOutcome) ? $explicitOutcome : null;
             $ok = $raw === true || (is_string($raw) && $raw !== '' && $raw !== 'false' && $raw !== '0')
                   || (is_numeric($raw) && (float)$raw > 0);
+            if ($outcome === null) $outcome = $ok ? 'passed' : 'failed';
+            $observed = in_array($outcome, ['passed', 'failed'], true);
 
             $chainResults[] = [
                 'step' => $link->step,
@@ -94,9 +98,11 @@ class ModuleComprehensionEngine
                 'expected' => $expected,
                 'actual' => $actual,
                 'ok' => $ok,
+                'outcome' => $outcome,
+                'observed' => $observed,
             ];
 
-            if (!$ok && $breakpoint === null) {
+            if ($outcome === 'failed' && $breakpoint === null) {
                 $breakpoint = $link->step;
                 $breakCategory = $link->category;
             }
@@ -229,12 +235,12 @@ class ModuleComprehensionEngine
                 }
             } catch (\Throwable $e) {
                 // Probe execution failed — evidence missing
-                return false;
+                return ['__workbench_outcome' => 'probe_error', 'detail' => $e->getMessage()];
             }
         }
 
         // Default: no evidence = step not observed = failed
-        return false;
+        return ['__workbench_outcome' => 'unobserved'];
     }
 
     /**

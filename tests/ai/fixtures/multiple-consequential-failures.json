@@ -1,0 +1,18 @@
+{
+  "run_id": "20260713-test005",
+  "commit": "test",
+  "suites": {
+    "workbench-wb-inspect": {
+      "suite": "workbench-wb-inspect",
+      "summary": {"passed": 0, "failed": 2, "skipped": 3, "total": 5},
+      "results": [
+        {"test": "seed tenant", "status": "failed", "detail": "Command failed: SQLSTATE connection refused"},
+        {"test": "open project", "status": "failed", "detail": "Expected project page after seed"},
+        {"test": "project detail", "status": "skipped", "detail": ""},
+        {"test": "approval flow", "status": "skipped", "detail": ""},
+        {"test": "entity list", "status": "skipped", "detail": ""}
+      ],
+      "gaps": [], "fingerprints": {}, "issues": []
+    }
+  }
+}

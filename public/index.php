@@ -655,6 +655,10 @@ switch ($handler) {
         kernelHandleApiSuperadminWorkbenchContracts();
         exit;
 
+    case 'apiSuperadminWorkbenchProcessMap':
+        kernelHandleApiSuperadminWorkbenchProcessMap();
+        exit;
+
     case 'apiSuperadminWorkbenchRunDetail':
         kernelHandleApiSuperadminWorkbenchRunDetail();
         exit;

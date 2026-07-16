@@ -35,14 +35,15 @@ class SemanticComprehensionEngineV3Test extends \PHPUnit\Framework\TestCase
         );
     }
 
-    public function testAnalyzeWithoutEvidenceFindsBreakpoint(): void
+    public function testAnalyzeWithoutEvidenceReportsUnobservedCoverage(): void
     {
         $engine = $this->createEngine();
         $result = $engine->analyze('pal.job-order.submit', recordHistory: false);
 
         $this->assertSame('3.0-ai-enhanced', $result['engine_version']);
-        $this->assertSame('button.visible', $result['breakpoint']);
-        $this->assertSame('ui', $result['break_category']);
+        $this->assertNull($result['breakpoint']);
+        $this->assertNull($result['break_category']);
+        $this->assertSame('unobserved', $result['deterministic']['chain'][0]['outcome']);
         $this->assertArrayHasKey('ai_hypothesis', $result);
         $this->assertNotNull($result['ai_hypothesis']['summary']);
     }
