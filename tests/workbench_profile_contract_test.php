@@ -140,6 +140,9 @@ $h->test('Client form has responsive field spacing', str_contains($clientForm, '
 $h->test('Supplier form has padded panel body', str_contains($supplierForm, 'class="wb-panel__body"'));
 $h->test('Supplier form has responsive field spacing', str_contains($supplierForm, 'wb-form-grid wb-form-grid--2'));
 $h->test('Unpadded panels protect direct form inset', str_contains($workbenchCss, '.wb-panel:not(.p-4):not(.p-6) > form:not(.wb-panel__body)'));
+$h->test('Workbench controls use border-box sizing inside form grids', str_contains($workbenchCss, 'box-sizing: border-box;'));
+$cliSource = (string)file_get_contents($base . '/ikabud');
+$h->test('DiSyL cache clear includes compiled template cache', str_contains($cliSource, "STORAGE_PATH . '/cache/compiled'"));
 
 $shellTemplates = [
     $profileRoot . '/layouts/app-shell.disyl',

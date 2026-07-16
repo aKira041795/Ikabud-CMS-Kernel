@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Code — Project Audit Ledger</title>
-<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=4">
-<link rel="stylesheet" href="/assets/workbench/workbench.css?v=4">
+<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
+<link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
 </head>
 <body class="wb-auth-page min-h-screen flex items-center justify-center p-4">
     <div class="max-w-md w-full p-8">
@@ -19,7 +19,7 @@
             <p class="text-xs text-gray-600 mb-1">A 6-digit code was sent to:</p>
             <p class="text-sm font-medium text-gray-800 mb-4" id="masked-email">{masked_email|default:''}</p>
 
-            <form onsubmit="return verifyOtp(this)" class="space-y-4">
+            <form onsubmit="return verifyOtp(this)" class="wb-form-surface">
                 {csrf_field | raw}
                 <input type="hidden" name="ticket" value="{ticket}" id="otp-ticket">
                 <div>
@@ -46,7 +46,7 @@
         </div>
     </div>
 
-    <script src="/assets/workbench/workbench-core.js?v=3"></script>
+    <script src="/assets/workbench/workbench-core.js?v=6"></script>
     <script>
     function verifyOtp(form) {
         var btn = document.getElementById('tl-verify-btn');

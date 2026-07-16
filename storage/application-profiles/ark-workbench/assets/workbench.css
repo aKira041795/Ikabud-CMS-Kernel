@@ -664,6 +664,9 @@
 .wb-input,
 .wb-select,
 .wb-textarea {
+    box-sizing: border-box;
+    display: block;
+    min-width: 0;
     width: 100%;
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--wb-border);
@@ -751,6 +754,10 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: var(--wb-space-4);
+}
+
+.wb-form-grid > * {
+    min-width: 0;
 }
 
 @media (min-width: 640px) {

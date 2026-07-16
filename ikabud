@@ -3780,15 +3780,25 @@ MD;
 
         // ── DiSyL compiled template cache ────────────────────────
         if (!$apcuOnly) {
-            $disylCacheDir = STORAGE_PATH . '/cache/disyl';
+            $disylCacheDirs = [
+                STORAGE_PATH . '/cache/disyl',
+                STORAGE_PATH . '/cache/compiled',
+            ];
             $disylCleared = 0;
-            if (is_dir($disylCacheDir)) {
-                $files = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($disylCacheDir, \FilesystemIterator::SKIP_DOTS)
-                );
-                foreach ($files as $file) {
-                    if ($file->isFile() && @unlink($file->getPathname())) {
-                        $disylCleared++;
+            foreach ($disylCacheDirs as $disylCacheDir) {
+                if (is_dir($disylCacheDir)) {
+                    $files = new \RecursiveIteratorIterator(
+                        new \RecursiveDirectoryIterator($disylCacheDir, \FilesystemIterator::SKIP_DOTS)
+                    );
+                    foreach ($files as $file) {
+                        if (!$file->isFile()) {
+                            continue;
+                        }
+                        if (@unlink($file->getPathname())) {
+                            $disylCleared++;
+                        } else {
+                            $errors[] = 'DiSyL cache: unable to remove ' . $file->getPathname();
+                        }
                     }
                 }
             }

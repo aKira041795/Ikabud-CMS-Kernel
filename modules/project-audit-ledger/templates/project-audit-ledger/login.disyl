@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — Project Audit Ledger</title>
-<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=4">
-<link rel="stylesheet" href="/assets/workbench/workbench.css?v=4">
+<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
+<link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
 </head>
 <body class="wb-auth-page min-h-screen flex items-center justify-center p-4">
     <div class="wb-auth-card w-full max-w-sm p-8">
@@ -25,14 +25,14 @@
         <div class="wb-alert wb-alert--success">{message}</div>
         {/if}
 
-        <form method="POST" action="{baseUrl}/project-audit-ledger/auth/login" class="space-y-4">
+        <form method="POST" action="{baseUrl}/project-audit-ledger/auth/login" class="wb-form-surface">
             {csrf_field | raw}
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5" for="username">Username</label>
+                <label class="wb-label" for="username">Username</label>
                 <input class="wb-input" type="text" id="username" name="username" required autofocus placeholder="Enter your username">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5" for="password">Password</label>
+                <label class="wb-label" for="password">Password</label>
                 <input class="wb-input" type="password" id="password" name="password" required placeholder="Enter your password">
             </div>
             <div class="flex items-center justify-between text-sm">
@@ -49,6 +49,6 @@
             <p>Contact your administrator for access.</p>
         </div>
     </div>
-    <script src="/assets/workbench/workbench-core.js?v=3"></script>
+    <script src="/assets/workbench/workbench-core.js?v=6"></script>
 </body>
 </html>

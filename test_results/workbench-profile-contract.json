@@ -1,15 +1,15 @@
 {
     "suite": "workbench-profile-contract",
-    "started": "2026-07-16 03:38:54",
-    "finished": "2026-07-16 03:38:54",
-    "elapsed_ms": 9.2,
+    "started": "2026-07-16 04:21:15",
+    "finished": "2026-07-16 04:21:15",
+    "elapsed_ms": 15.6,
     "summary": {
-        "passed": 69,
-        "failed": 1,
+        "passed": 72,
+        "failed": 0,
         "skipped": 0,
-        "total": 70,
-        "assertions": 70,
-        "exit_code": 1
+        "total": 72,
+        "assertions": 72,
+        "exit_code": 0
     },
     "source_fingerprints": {
         "storage/application-profiles/ark-workbench/profile.manifest.json": "70a0e99c51675866221adcbe737f8bc1",
@@ -25,14 +25,14 @@
             "label": "Provider id is ark.workbench",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Provider registration",
             "label": "Provider is registered by canonical namespace",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Manifest synchronization",
@@ -53,77 +53,77 @@
             "label": "Design policy locked matches manifest",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Manifest synchronization",
             "label": "Design policy tone_contract matches manifest",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Manifest synchronization",
             "label": "Design policy resolution_precedence matches manifest",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Manifest synchronization",
             "label": "Responsive table script is declared in profile manifest",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.2
         },
         {
             "section": "Manifest synchronization",
             "label": "Every component script declared by profile exists in asset manifest",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.2
         },
         {
             "section": "Manifest synchronization",
             "label": "Tailwind bundle is declared in the profile asset manifest",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.2
         },
         {
             "section": "Published asset parity",
             "label": "workbench.css is published identically",
             "status": "pass",
             "detail": "",
-            "time": 0.9
+            "time": 1.2
         },
         {
             "section": "Published asset parity",
             "label": "workbench-core.js is published identically",
             "status": "pass",
             "detail": "",
-            "time": 1.3
+            "time": 1.6
         },
         {
             "section": "Published asset parity",
             "label": "workbench-tailwind.css is published identically",
             "status": "pass",
             "detail": "",
-            "time": 2.2
+            "time": 2.6
         },
         {
             "section": "Published asset parity",
             "label": "workbench-tailwind.src.css is published identically",
             "status": "pass",
             "detail": "",
-            "time": 2.5
+            "time": 2.9
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Entity renderer exposes Workbench preset",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "PAL Workbench wiring",
@@ -144,14 +144,14 @@
             "label": "Dynamic Workbench controls are observed",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Tailwind scans the kernel entity renderer",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.5
         },
         {
             "section": "PAL Workbench wiring",
@@ -165,355 +165,365 @@
             "label": "PAL entity lists do not select the Tailwind renderer preset",
             "status": "pass",
             "detail": "",
-            "time": 2.9
+            "time": 4.8
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL entity lists explicitly select the Workbench renderer preset",
             "status": "pass",
             "detail": "",
-            "time": 3
+            "time": 4.8
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL templates contain no legacy standard-control signatures",
-            "status": "fail",
-            "detail": "got [0, 1, 2, 3]",
-            "time": 4.7
+            "status": "pass",
+            "detail": "",
+            "time": 7.9
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL standard controls explicitly use Workbench form primitives",
             "status": "pass",
             "detail": "",
-            "time": 4.7
+            "time": 7.9
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Client form has padded panel body",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Client form has responsive field spacing",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8.1
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Supplier form has padded panel body",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8.1
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Supplier form has responsive field spacing",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8.1
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Unpadded panels protect direct form inset",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8.1
+        },
+        {
+            "section": "PAL Workbench wiring",
+            "label": "Workbench controls use border-box sizing inside form grids",
+            "status": "pass",
+            "detail": "",
+            "time": 8.2
+        },
+        {
+            "section": "PAL Workbench wiring",
+            "label": "DiSyL cache clear includes compiled template cache",
+            "status": "pass",
+            "detail": "",
+            "time": 8.6
         },
         {
             "section": "PAL Workbench wiring",
             "label": "app-shell.disyl loads Workbench CSS after utilities",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8.7
         },
         {
             "section": "PAL Workbench wiring",
             "label": "app-shell-mobile.disyl loads Workbench CSS after utilities",
             "status": "pass",
             "detail": "",
-            "time": 4.8
+            "time": 8.8
         },
         {
             "section": "PAL Workbench wiring",
             "label": "app_shell.disyl loads Workbench CSS after utilities",
             "status": "pass",
             "detail": "",
-            "time": 4.9
+            "time": 8.9
         },
         {
             "section": "Contract validator coverage",
             "label": "combobox.contract.json requirement role is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.5
         },
         {
             "section": "Contract validator coverage",
             "label": "combobox.contract.json requirement aria_expanded is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.5
         },
         {
             "section": "Contract validator coverage",
             "label": "combobox.contract.json requirement aria_owns is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.5
         },
         {
             "section": "Contract validator coverage",
             "label": "combobox.contract.json requirement keyboard_navigation is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.5
         },
         {
             "section": "Contract validator coverage",
             "label": "combobox.contract.json requirement focus_traps_within_listbox is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.5
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement role is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement aria_modal is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement aria_labelledby is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement escape_closes is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement focus_trap is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement restores_focus is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "dialog.contract.json requirement close_on_backdrop is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.6
         },
         {
             "section": "Contract validator coverage",
             "label": "page-header.contract.json requirement has_exactly_one_h1 is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.7
         },
         {
             "section": "Contract validator coverage",
             "label": "page-header.contract.json requirement actions_have_data_wb_action is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.7
         },
         {
             "section": "Contract validator coverage",
             "label": "page-header.contract.json requirement post_actions_have_data_wb_method is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.7
         },
         {
             "section": "Contract validator coverage",
             "label": "page-header.contract.json requirement breadcrumb_has_nav_landmark is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.7
         },
         {
             "section": "Contract validator coverage",
             "label": "responsive-table.contract.json requirement table_has_scope_col is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.8
         },
         {
             "section": "Contract validator coverage",
             "label": "responsive-table.contract.json requirement cells_have_data_label is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.8
         },
         {
             "section": "Contract validator coverage",
             "label": "responsive-table.contract.json requirement mobile_breakpoint is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.8
         },
         {
             "section": "Contract validator coverage",
             "label": "responsive-table.contract.json requirement clickable_rows_have_data_wb_href is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.8
         },
         {
             "section": "Contract validator coverage",
             "label": "responsive-table.contract.json requirement entity_rows_have_data_wb_entity_id is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.8
         },
         {
             "section": "Contract validator coverage",
             "label": "status-badge.contract.json requirement visible_text_label is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "status-badge.contract.json requirement tone_never_communicated_by_color_alone is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "status-badge.contract.json requirement valid_tones is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement displays_label is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement displays_value is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement has_data_wb_tone is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement clickable_when_href_present is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.9
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement role is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 1
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement aria_live is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 1
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement tabindex is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 1
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement receives_focus_on_error is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 1
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement error_links_point_to_fields is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 1
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement error_links_have_data_wb_error_for is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 1
         },
         {
             "section": "Validator behavior",
             "label": "Invalid domain status tone is rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         },
         {
             "section": "Validator behavior",
             "label": "Missing aria-owns is rejected for combobox",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.4
         },
         {
             "section": "Validator behavior",
             "label": "Valid summary card passes contract validation",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.6
         },
         {
             "section": "Validator behavior",
             "label": "Empty responsive table row does not require entity id",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.9
         }
     ],
-    "gaps": {
-        "PAL Workbench wiring": [
-            "PAL templates contain no legacy standard-control signatures"
-        ]
-    }
+    "gaps": []
 }

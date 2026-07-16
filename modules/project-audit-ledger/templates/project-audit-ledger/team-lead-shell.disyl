@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — Team Lead Portal</title>
-<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=4">
-<link rel="stylesheet" href="/assets/workbench/workbench.css?v=4">
+<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
+<link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="wb-app-shell">
@@ -52,7 +52,7 @@
     </nav>
 
     <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
-    <script src="/assets/workbench/workbench-core.js?v=3"></script>
+    <script src="/assets/workbench/workbench-core.js?v=6"></script>
     <script src="/assets/pal/pal-core.js?v=1"></script>
     <script src="/assets/pal/pal-forms.js?v=1"></script>
 </body>
