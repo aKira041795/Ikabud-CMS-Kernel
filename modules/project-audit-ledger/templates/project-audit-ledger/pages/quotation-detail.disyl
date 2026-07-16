@@ -9,12 +9,12 @@
             <a href="/admin/project-audit-ledger/quotations" class="wb-btn wb-btn--secondary wb-btn--sm">← Back</a>
             <a href="/admin/project-audit-ledger/quotations/{quotation.id}/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a>
             {if quotation.status == 'approved'}
-            <button onclick="convertToProject({quotation.id})" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Create Project</button>
+            <button onclick="convertToProject({quotation.id})" class="wb-btn wb-btn--primary wb-btn--sm">Create Project</button>
             {/if}
             {if quotation.status != 'converted'}
             <button onclick="convertToSale({quotation.id})" class="wb-btn wb-btn--success wb-btn--sm">Convert to Invoice</button>
             {/if}
-            <button onclick="updateQuotationStatus({quotation.id}, '{if quotation.status=='draft'}sent{elseif quotation.status=='sent'}approved{else}draft{/if}')" class="px-3 py-1.5 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700">
+            <button onclick="updateQuotationStatus({quotation.id}, '{if quotation.status=='draft'}sent{elseif quotation.status=='sent'}approved{else}draft{/if}')" class="wb-btn wb-btn--warning wb-btn--sm">
                 {if quotation.status=='draft'}Mark Sent{elseif quotation.status=='sent'}Approve{else}—{/if}
             </button>
             <button onclick="window.print()" class="wb-btn wb-btn--secondary wb-btn--sm">🖨 Print</button>
@@ -50,7 +50,7 @@
     <!-- Line Items -->
     <h3 class="text-sm font-semibold text-gray-800 mb-2">Line Items</h3>
     <div class="overflow-x-auto mb-4">
-        <table class="w-full text-sm border-collapse">
+        <table class="w-full text-sm border-collapse wb-table wb-table--sticky">
             <thead>
                 <tr class="bg-gray-800 text-white text-xs">
                     <th class="text-left py-2 px-3">#</th>
@@ -171,12 +171,12 @@
                     var icon = typeLabel === 'mockup' ? '🎨' : typeLabel === 'photo' ? '📷' : typeLabel === 'reference' ? '📄' : '📁';
                     var div = document.createElement('div');
                     div.className = 'relative group';
-                    div.innerHTML = '<a href="/admin/project-audit-ledger/attachments/' + a.id + '/download" target="_blank" class="block p-3 bg-gray-50 rounded border border-gray-200 hover:border-blue-300 text-center">'
+                    div.innerHTML = '<a href="/admin/project-audit-ledger/attachments/' + a.id + '/download" target="_blank" class="wb-action-tile text-center">'
                         + '<div class="text-2xl mb-1">' + icon + '</div>'
                         + '<div class="text-xs text-gray-700 truncate">' + a.original_filename + '</div>'
                         + '<div class="text-xs text-gray-500">' + typeLabel + '</div>'
                         + '</a>'
-                        + '<button onclick="deleteQuotationAttachment(' + a.id + ', ' + quotationId + ')" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>';
+                        + '<button onclick="deleteQuotationAttachment(' + a.id + ', ' + quotationId + ')" class="wb-icon-btn wb-icon-btn--danger absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>';
                     container.appendChild(div);
                 });
             })

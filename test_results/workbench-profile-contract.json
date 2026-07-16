@@ -1,0 +1,354 @@
+{
+    "suite": "workbench-profile-contract",
+    "started": "2026-07-16 01:45:26",
+    "finished": "2026-07-16 01:45:26",
+    "elapsed_ms": 3,
+    "summary": {
+        "passed": 47,
+        "failed": 0,
+        "skipped": 0,
+        "total": 47,
+        "assertions": 47,
+        "exit_code": 0
+    },
+    "source_fingerprints": {
+        "storage/application-profiles/ark-workbench/profile.manifest.json": "4378aaac8f90ccbce0610c964e254f71",
+        "storage/application-profiles/ark-workbench/design-policy.json": "eb35b853e53c4ec2f476a7a38b8ab10a",
+        "storage/application-profiles/ark-workbench/customizer.schema.json": "26c44da89c32afff114386084c7ccf11",
+        "storage/application-profiles/ark-workbench/assets/asset-manifest.json": "996a60b7f1f5f19ab70d85ee49b77fea",
+        "storage/application-profiles/ark-workbench/src/ArkWorkbenchProvider.php": "fe5f51f7d66df0b8327f62a295c793fb",
+        "kernel/Testing/WorkbenchContractValidator.php": "302234efbd475c8f2b4932d8c2cc69ef"
+    },
+    "results": [
+        {
+            "section": "Provider registration",
+            "label": "Provider id is ark.workbench",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Provider registration",
+            "label": "Provider is registered by canonical namespace",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Customizer manifest sections match schema sections",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Design policy configurable matches manifest",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Design policy locked matches manifest",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Design policy tone_contract matches manifest",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Design policy resolution_precedence matches manifest",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Responsive table script is declared in profile manifest",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "Manifest synchronization",
+            "label": "Every component script declared by profile exists in asset manifest",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "combobox.contract.json requirement role is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "combobox.contract.json requirement aria_expanded is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "combobox.contract.json requirement aria_owns is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "combobox.contract.json requirement keyboard_navigation is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "combobox.contract.json requirement focus_traps_within_listbox is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement role is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement aria_modal is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement aria_labelledby is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement escape_closes is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement focus_trap is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement restores_focus is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "dialog.contract.json requirement close_on_backdrop is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "page-header.contract.json requirement has_exactly_one_h1 is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "page-header.contract.json requirement actions_have_data_wb_action is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "page-header.contract.json requirement post_actions_have_data_wb_method is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "page-header.contract.json requirement breadcrumb_has_nav_landmark is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.5
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "responsive-table.contract.json requirement table_has_scope_col is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "responsive-table.contract.json requirement cells_have_data_label is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "responsive-table.contract.json requirement mobile_breakpoint is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "responsive-table.contract.json requirement clickable_rows_have_data_wb_href is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "responsive-table.contract.json requirement entity_rows_have_data_wb_entity_id is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "status-badge.contract.json requirement visible_text_label is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "status-badge.contract.json requirement tone_never_communicated_by_color_alone is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "status-badge.contract.json requirement valid_tones is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "summary-card.contract.json requirement displays_label is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "summary-card.contract.json requirement displays_value is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "summary-card.contract.json requirement has_data_wb_tone is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "summary-card.contract.json requirement clickable_when_href_present is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.7
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "validation-summary.contract.json requirement role is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "validation-summary.contract.json requirement aria_live is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "validation-summary.contract.json requirement tabindex is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "validation-summary.contract.json requirement receives_focus_on_error is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "validation-summary.contract.json requirement error_links_point_to_fields is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "Contract validator coverage",
+            "label": "validation-summary.contract.json requirement error_links_have_data_wb_error_for is supported",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "Validator behavior",
+            "label": "Invalid domain status tone is rejected",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "Validator behavior",
+            "label": "Missing aria-owns is rejected for combobox",
+            "status": "pass",
+            "detail": "",
+            "time": 0.4
+        },
+        {
+            "section": "Validator behavior",
+            "label": "Valid summary card passes contract validation",
+            "status": "pass",
+            "detail": "",
+            "time": 0.6
+        },
+        {
+            "section": "Validator behavior",
+            "label": "Empty responsive table row does not require entity id",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        }
+    ],
+    "gaps": []
+}

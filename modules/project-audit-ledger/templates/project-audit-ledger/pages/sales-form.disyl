@@ -22,7 +22,7 @@
         <div class="border-t pt-4">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">📋 Line Items</h3>
             <div class="overflow-x-auto">
-                <table class="w-full text-sm">
+                <table class="w-full text-sm wb-table wb-table--sticky">
                     <thead>
                         <tr class="bg-gray-50 border-b">
                             <th class="text-left py-2 px-2 font-semibold text-gray-600 text-xs">#</th>
@@ -69,7 +69,7 @@
                     </tbody>
                 </table>
             </div>
-            <button type="button" @click="addItem()" class="mt-2 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 border border-gray-300">+ Add Item</button>
+            <button type="button" @click="addItem()" class="wb-btn wb-btn--outline wb-btn--sm mt-2">+ Add Item</button>
         </div>
 
         <!-- Extra Charges -->

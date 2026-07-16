@@ -135,8 +135,88 @@
         initMobileDrawer();
         initSidebarSections();
         initValidationSummary();
+        initFormSurfaces();
+        initResponsiveTables();
         initDelegatedClicks();
     });
+
+    // ── Form normalization ──
+    function initFormSurfaces() {
+        var scopes = Array.prototype.slice.call(document.querySelectorAll('#wb-main, .wb-auth-page'));
+        if (!scopes.length) return;
+
+        scopes.forEach(function (scope) {
+        scope.querySelectorAll('form').forEach(function (form) {
+            var method = (form.getAttribute('method') || '').toLowerCase();
+            var isInlineAction = form.classList.contains('inline')
+                || form.classList.contains('flex')
+                || form.classList.contains('inline-flex')
+                || form.closest('.wb-page-header__actions');
+
+            if (!isInlineAction) {
+                form.classList.add(method === 'get' ? 'wb-filter-form' : 'wb-form-surface');
+            }
+
+            form.querySelectorAll('label:not(.wb-label)').forEach(function (label) {
+                label.classList.add('wb-label');
+            });
+
+            form.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"])').forEach(function (input) {
+                input.classList.add('wb-input');
+            });
+
+            form.querySelectorAll('select:not(.wb-select)').forEach(function (select) {
+                select.classList.add('wb-select');
+            });
+
+            form.querySelectorAll('textarea:not(.wb-textarea)').forEach(function (textarea) {
+                textarea.classList.add('wb-textarea');
+            });
+
+            form.querySelectorAll('input[type="file"]:not(.wb-file-input)').forEach(function (input) {
+                input.classList.add('wb-file-input');
+            });
+        });
+        });
+    }
+
+    // ── Table normalization ──
+    function initResponsiveTables() {
+        var scopes = Array.prototype.slice.call(document.querySelectorAll('#wb-main, .wb-auth-page'));
+        if (!scopes.length) return;
+
+        scopes.forEach(function (scope) {
+        scope.querySelectorAll('table').forEach(function (table) {
+            if (table.closest('.print-area')) return;
+
+            table.classList.add('wb-table');
+            if (!table.classList.contains('wb-table--sticky')) {
+                table.classList.add('wb-table--sticky');
+            }
+
+            var headers = [];
+            table.querySelectorAll('thead th').forEach(function (th) {
+                headers.push((th.textContent || '').replace(/\s+/g, ' ').trim());
+                if (!th.hasAttribute('scope')) {
+                    th.setAttribute('scope', 'col');
+                }
+            });
+
+            table.querySelectorAll('tbody tr').forEach(function (tr) {
+                tr.querySelectorAll('td').forEach(function (td, index) {
+                    if (!td.hasAttribute('data-label')) {
+                        td.setAttribute('data-label', headers[index] || '');
+                    }
+                });
+            });
+
+            var wrapper = table.parentElement;
+            if (wrapper && !wrapper.hasAttribute('data-wb-component') && wrapper.classList.contains('overflow-x-auto')) {
+                wrapper.setAttribute('data-wb-component', 'responsive-table');
+            }
+        });
+        });
+    }
 
     // ── Delegated click handlers (no inline onclick) ──
     function initDelegatedClicks() {

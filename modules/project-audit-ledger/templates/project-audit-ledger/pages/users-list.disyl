@@ -14,9 +14,9 @@
             <div class="flex items-end"><button type="submit" class="wb-btn wb-btn--primary wb-btn--sm">Create</button></div>
         </form>
     </div>
-    <div class="flex border-b border-gray-200">
-        <button onclick="switchTab('active')" id="tab-active" class="px-4 py-2 text-sm font-medium border-b-2 border-blue-600 text-blue-600">Active ({active_users|count})</button>
-        <button onclick="switchTab('inactive')" id="tab-inactive" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-600 hover:text-gray-700">Inactive ({inactive_users|count})</button>
+    <div class="wb-tabs">
+        <button onclick="switchTab('active')" id="tab-active" class="wb-tab is-active">Active ({active_users|count})</button>
+        <button onclick="switchTab('inactive')" id="tab-inactive" class="wb-tab">Inactive ({inactive_users|count})</button>
     </div>
     <div class="overflow-x-auto">
     <div id="table-active">
@@ -88,3 +88,18 @@
     </div> <!-- close overflow-x-auto -->
     </div>
 </div>
+
+<script>
+function switchTab(state) {
+    var activeTab = document.getElementById('tab-active');
+    var inactiveTab = document.getElementById('tab-inactive');
+    var activeTable = document.getElementById('table-active');
+    var inactiveTable = document.getElementById('table-inactive');
+    var showActive = state === 'active';
+
+    if (activeTab) activeTab.classList.toggle('is-active', showActive);
+    if (inactiveTab) inactiveTab.classList.toggle('is-active', !showActive);
+    if (activeTable) activeTable.classList.toggle('hidden', !showActive);
+    if (inactiveTable) inactiveTable.classList.toggle('hidden', showActive);
+}
+</script>

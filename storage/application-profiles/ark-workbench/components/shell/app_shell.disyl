@@ -7,7 +7,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{s.application_name} — {s.page_title|default:'Dashboard'}</title>
-    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=2">
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=3">
     <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
     {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="{style}">{/for}{/if}
 </head>
@@ -80,7 +80,7 @@
     {* Toast container *}
     <div id="wb-toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
 
-    <script src="/assets/workbench/workbench-core.js"></script>
+    <script src="/assets/workbench/workbench-core.js?v=3"></script>
     {if s.extra_scripts|default:[]}{for script in s.extra_scripts}<script src="{script}"></script>{/for}{/if}
     <script>
     /* ajaxSubmit — handles form submission via fetch with toast feedback.

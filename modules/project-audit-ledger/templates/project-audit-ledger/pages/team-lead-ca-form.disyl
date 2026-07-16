@@ -4,12 +4,12 @@
     <form onsubmit="return submitCaRequest(this)" action="/api/v1/project-audit-ledger/tl/cash-advances" method="POST" class="space-y-4">
         {csrf_field | raw}
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
-            <input type="number" step="0.01" name="amount" required min="1" x-model="amount" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="0.00">
+            <label class="wb-label wb-label--required">Amount</label>
+            <input type="number" step="0.01" name="amount" required min="1" x-model="amount" class="wb-input" placeholder="0.00">
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Project</label>
-            <select name="project_id" x-model="project_id" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+            <label class="wb-label">Project</label>
+            <select name="project_id" x-model="project_id" class="wb-select">
                 <option value="">— Select (optional) —</option>
                 {for p in projects}
                 <option value="{p.id}">{p.title}{if p.job_order_number} [{p.job_order_number}]{/if}</option>
@@ -17,8 +17,8 @@
             </select>
         </div>
         <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea name="description" rows="2" x-model="description" class="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Purpose of this advance"></textarea>
+            <label class="wb-label">Description</label>
+            <textarea name="description" rows="2" x-model="description" class="wb-textarea" placeholder="Purpose of this advance"></textarea>
         </div>
         <div class="bg-gray-50 p-3 rounded text-sm">
             <p class="text-xs text-gray-600">You are requesting: <strong class="text-lg" x-text="'₱' + parseFloat(amount || 0).toFixed(2)">₱0.00</strong></p>

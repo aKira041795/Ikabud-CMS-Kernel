@@ -825,25 +825,25 @@ function palBuildShellContext(array $ctx): array
     ]);
     // Job Orders
     $shell->addNavSection('Job Orders', [
-        ['label' => 'All Job Orders', 'url' => '/admin/project-audit-ledger/projects', 'icon_key' => '📋', 'routes' => 'project-list'],
-        ['label' => 'Clients',       'url' => '/admin/project-audit-ledger/clients',  'icon_key' => '👤', 'routes' => ['client-list', 'client-form']],
-        ['label' => 'Suppliers',     'url' => '/admin/project-audit-ledger/suppliers','icon_key' => '🏭', 'routes' => ['supplier-list', 'supplier-form']],
+        ['label' => 'All Job Orders', 'url' => '/admin/project-audit-ledger/projects', 'icon_key' => '📋', 'routes' => ['projects-list', 'project-detail']],
+        ['label' => 'Clients',       'url' => '/admin/project-audit-ledger/clients',  'icon_key' => '👤', 'routes' => ['clients-list', 'client-form', 'client-detail']],
+        ['label' => 'Suppliers',     'url' => '/admin/project-audit-ledger/suppliers','icon_key' => '🏭', 'routes' => ['suppliers-list', 'supplier-form']],
     ]);
     // Sales & Billing
     $shell->addNavSection('Sales & Billing', [
-        ['label' => 'Sales Invoices', 'url' => '/admin/project-audit-ledger/sales',       'icon_key' => '💰', 'routes' => ['sales-list', 'sales-form']],
-        ['label' => 'Collections',    'url' => '/admin/project-audit-ledger/collections', 'icon_key' => '💵', 'routes' => ['collection-list', 'collection-form']],
-        ['label' => 'Quotations',     'url' => '/admin/project-audit-ledger/quotations',  'icon_key' => '📝', 'routes' => ['quotation-list', 'quotation-form']],
-        ['label' => 'BOM',            'url' => '/admin/project-audit-ledger/bom',         'icon_key' => '📋', 'routes' => ['bom-list', 'bom-form']],
+        ['label' => 'Sales Invoices', 'url' => '/admin/project-audit-ledger/sales',       'icon_key' => '💰', 'routes' => ['sales-list', 'sales-form', 'sales-detail']],
+        ['label' => 'Collections',    'url' => '/admin/project-audit-ledger/collections', 'icon_key' => '💵', 'routes' => ['collections-list', 'collection-form', 'collections-detail']],
+        ['label' => 'Quotations',     'url' => '/admin/project-audit-ledger/quotations',  'icon_key' => '📝', 'routes' => ['quotations-list', 'quotation-form', 'quotation-detail']],
+        ['label' => 'BOM',            'url' => '/admin/project-audit-ledger/bom',         'icon_key' => '📋', 'routes' => 'bill-of-materials'],
     ]);
     // Inventory & Procurement
     $shell->addNavSection('Inventory & Procurement', [
         ['label' => 'Inventory',       'url' => '/admin/project-audit-ledger/inventory',           'icon_key' => '📦', 'routes' => 'inventory-list'],
-        ['label' => 'Stock Movements',  'url' => '/admin/project-audit-ledger/inventory/movements','icon_key' => '📤', 'routes' => 'movement-list'],
-        ['label' => 'Purchases',        'url' => '/admin/project-audit-ledger/purchases',          'icon_key' => '🛒', 'routes' => ['purchase-list', 'purchase-form']],
-        ['label' => 'Issuances',        'url' => '/admin/project-audit-ledger/issuances',          'icon_key' => '📤', 'routes' => 'issuance-list'],
+        ['label' => 'Stock Movements',  'url' => '/admin/project-audit-ledger/inventory/movements','icon_key' => '📤', 'routes' => 'movements-list'],
+        ['label' => 'Purchases',        'url' => '/admin/project-audit-ledger/purchases',          'icon_key' => '🛒', 'routes' => ['purchases-list', 'purchase-form', 'purchase-detail']],
+        ['label' => 'Issuances',        'url' => '/admin/project-audit-ledger/issuances',          'icon_key' => '📤', 'routes' => ['issuance-list', 'issuance-form', 'issuance-detail']],
         ['label' => 'Returns',          'url' => '/admin/project-audit-ledger/issuances/returns',  'icon_key' => '↩',  'routes' => 'material-return-list'],
-        ['label' => 'Expenses',         'url' => '/admin/project-audit-ledger/expenses',           'icon_key' => '💳', 'routes' => ['expense-list', 'expense-form']],
+        ['label' => 'Expenses',         'url' => '/admin/project-audit-ledger/expenses',           'icon_key' => '💳', 'routes' => ['expenses-list', 'expense-form', 'expense-detail']],
     ]);
     // Operations
     $shell->addNavSection('Operations', [

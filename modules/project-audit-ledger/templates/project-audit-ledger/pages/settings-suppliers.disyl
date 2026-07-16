@@ -1,6 +1,6 @@
 <div class="wb-panel">
-    <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">All Suppliers</h2></div>
-    <table class="w-full text-sm">
+    <div class="wb-panel__header"><span class="wb-panel__title">All Suppliers</span></div>
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Contact</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Email</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Phone</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
         <tbody>{for s in suppliers}<tr class="border-b border-gray-100"><td class="py-2 px-4 font-medium">{s.name}</td><td class="py-2 px-4">{s.contact_person|default:'—'}</td><td class="py-2 px-4">{s.email|default:'—'}</td><td class="py-2 px-4">{s.phone|default:'—'}</td><td class="py-2 px-4"><button onclick="toggleStatus('supplier',{s.id})" class="text-xs px-2 py-0.5 rounded-full {if s.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{s.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
     </table>

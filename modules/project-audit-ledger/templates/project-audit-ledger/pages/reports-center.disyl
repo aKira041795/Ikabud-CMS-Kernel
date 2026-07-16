@@ -23,12 +23,12 @@
         {/if}
     </div>
     {if preview_type}{if preview_data|count > 0}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Preview: {preview_type}</h2></div>
+    <div class="wb-panel overflow-hidden">
+        <div class="wb-panel__header"><span class="wb-panel__title">Preview: {preview_type}</span></div>
         {if preview_type == 'financial'}
         <div class="p-4 space-y-2">{for d in preview_data}<div class="flex justify-between text-sm"><span class="text-gray-600">{d.item}</span><span class="font-medium">₱{d.val|number_format:2}</span></div>{/for}</div>
         {else}
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b border-gray-200">{for k in preview_data[0]|keys}<th class="text-left py-2 px-3 font-semibold text-gray-600">{k}</th>{/for}</tr></thead>
             <tbody>{for row in preview_data}<tr class="border-b border-gray-100">{for v in row}<td class="py-2 px-3 text-gray-700">{v|default:'—'}</td>{/for}</tr>{/for}</tbody>
         </table>

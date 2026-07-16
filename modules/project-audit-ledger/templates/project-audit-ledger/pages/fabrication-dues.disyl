@@ -77,7 +77,7 @@
 
 <!-- Generate Dues Modal -->
 <div id="gen-dues-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center" onclick="if(event.target==this)closeGenDues()">
-    <div class="bg-white rounded-xl p-6 w-96 shadow-lg" onclick="event.stopPropagation()">
+    <div class="wb-auth-card p-6 w-96" onclick="event.stopPropagation()">
         <h3 class="font-semibold text-gray-900 mb-3">Generate Weekly Dues</h3>
         <p class="text-xs text-gray-600 mb-4">Remaining budget: <strong>₱{remaining_budget|number_format:2}</strong></p>
         <div class="space-y-3">
@@ -87,7 +87,7 @@
         </div>
         <div class="flex gap-2 mt-4 justify-end">
             <button onclick="closeGenDues()" class="wb-btn wb-btn--secondary wb-btn--sm">Cancel</button>
-            <button onclick="generateDues({project_id})" class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700">Generate</button>
+            <button onclick="generateDues({project_id})" class="wb-btn wb-btn--primary wb-btn--sm">Generate</button>
         </div>
     </div>
 </div>

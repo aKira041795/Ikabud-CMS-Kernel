@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{page_title} — Team Lead Portal</title>
-    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=2">
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=3">
     <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
@@ -48,10 +48,11 @@
         <a href="/admin/project-audit-ledger/team-lead/fabrication" class="wb-bottom-nav__item {if page_content=='team-lead-fabrication'}is-active{/if}"><span class="text-lg">🔧</span><span>Fab</span></a>
         <a href="/admin/project-audit-ledger/team-lead/attendance" class="wb-bottom-nav__item {if page_content=='team-lead-attendance'}is-active{/if}"><span class="text-lg">👥</span><span>Attend</span></a>
         <a href="/admin/project-audit-ledger/team-lead/cash-advances" class="wb-bottom-nav__item {if page_content=='team-lead-cash-advances'}is-active{/if}"><span class="text-lg">💵</span><span>Cash</span></a>
-        <button onclick="toggleMobileSidebar()" class="wb-bottom-nav__item"><span class="text-lg">☰</span><span>Menu</span></button>
+        <button onclick="document.getElementById('wb-menu-btn').click()" class="wb-bottom-nav__item"><span class="text-lg">☰</span><span>Menu</span></button>
     </nav>
 
     <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2" role="status" aria-live="polite" aria-atomic="false"></div>
+    <script src="/assets/workbench/workbench-core.js?v=3"></script>
     <script src="/assets/pal/pal-core.js?v=1"></script>
     <script src="/assets/pal/pal-forms.js?v=1"></script>
 </body>

@@ -14,7 +14,7 @@
     <div class="flex justify-between"><span class="text-gray-600">Invoice</span><span>{purchase.invoice_number|default:'—'}</span></div></div>
     {if purchase.items}
     <h3 class="font-semibold text-gray-900 text-sm mt-4 mb-2">Items</h3>
-    <table class="w-full text-sm"><thead><tr class="bg-gray-50"><th class="text-left py-1 px-2 font-semibold text-gray-600">Material</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Qty</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Cost</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Total</th></tr></thead>
+    <table class="w-full text-sm wb-table wb-table--sticky"><thead><tr class="bg-gray-50"><th class="text-left py-1 px-2 font-semibold text-gray-600">Material</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Qty</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Cost</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Total</th></tr></thead>
     <tbody>{for item in purchase.items}<tr class="border-b"><td class="py-1 px-2">{item.material_name|default:'—'}</td><td class="py-1 px-2 text-right">{item.quantity}</td><td class="py-1 px-2 text-right">₱{item.unit_cost|number_format:2}</td><td class="py-1 px-2 text-right">₱{(item.quantity*item.unit_cost)|number_format:2}</td></tr>{/for}</tbody></table>
     {/if}
 </div>

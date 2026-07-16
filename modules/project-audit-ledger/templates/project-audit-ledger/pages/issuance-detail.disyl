@@ -9,7 +9,7 @@
     </div>
     {if issuance.items}
     <h3 class="font-semibold text-gray-900 text-sm mt-4 mb-2">Items</h3>
-    <table class="w-full text-sm"><thead><tr class="bg-gray-50"><th class="text-left py-1 px-2 font-semibold text-gray-600">Material</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Qty</th></tr></thead>
+    <table class="w-full text-sm wb-table wb-table--sticky"><thead><tr class="bg-gray-50"><th class="text-left py-1 px-2 font-semibold text-gray-600">Material</th><th class="text-right py-1 px-2 font-semibold text-gray-600">Qty</th></tr></thead>
     <tbody>{for item in issuance.items}<tr class="border-b"><td class="py-1 px-2">{item.material_name|default:'—'}</td><td class="py-1 px-2 text-right">{item.quantity}</td></tr>{/for}</tbody></table>
     {/if}
     <div class="mt-4 flex gap-2">

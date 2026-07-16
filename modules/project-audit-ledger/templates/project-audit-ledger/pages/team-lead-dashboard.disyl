@@ -50,18 +50,18 @@
     </div>
 
     <!-- Quick Actions -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="wb-panel p-6">
         <h3 class="font-semibold text-gray-900 mb-3">Quick Actions</h3>
         <div class="space-y-3">
-            <a href="/admin/project-audit-ledger/team-lead/cash-advances/create" class="block p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 text-sm">
+            <a href="/admin/project-audit-ledger/team-lead/cash-advances/create" class="wb-action-tile">
                 <span class="font-medium text-gray-900">Request Cash Advance</span>
                 <p class="text-xs text-gray-600 mt-1">Submit a new cash advance request</p>
             </a>
-            <a href="/admin/project-audit-ledger/team-lead/mobilization/create" class="block p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 text-sm">
+            <a href="/admin/project-audit-ledger/team-lead/mobilization/create" class="wb-action-tile">
                 <span class="font-medium text-gray-900">Request Mobilization</span>
                 <p class="text-xs text-gray-600 mt-1">Submit a mobilization fund request</p>
             </a>
-            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="block p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-blue-300 text-sm">
+            <a href="/admin/project-audit-ledger/team-lead/fabrication" class="wb-action-tile">
                 <span class="font-medium text-gray-900">View Fabrications</span>
                 <p class="text-xs text-gray-600 mt-1">See your fabrication dues and history</p>
             </a>

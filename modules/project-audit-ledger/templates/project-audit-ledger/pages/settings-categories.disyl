@@ -1,7 +1,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
     <div class="wb-panel">
         <div class="wb-panel__header"><span class="wb-panel__title">Expense Categories</span></div>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for c in expense_cats}<tr class="border-b border-gray-100"><td class="py-2 px-4">{c.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('expense_category',{c.id})" class="text-xs px-2 py-0.5 rounded-full {if c.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{c.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
@@ -11,7 +11,7 @@
     </div>
     <div class="wb-panel">
         <div class="wb-panel__header"><span class="wb-panel__title">Material Categories</span></div>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for c in material_cats}<tr class="border-b border-gray-100"><td class="py-2 px-4">{c.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('material_category',{c.id})" class="text-xs px-2 py-0.5 rounded-full {if c.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{c.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
@@ -21,7 +21,7 @@
     </div>
     <div class="wb-panel">
         <div class="wb-panel__header"><span class="wb-panel__title">Project Types</span></div>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for t in project_types}<tr class="border-b border-gray-100"><td class="py-2 px-4">{t.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('project_type',{t.id})" class="text-xs px-2 py-0.5 rounded-full {if t.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{t.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
@@ -31,7 +31,7 @@
     </div>
     <div class="wb-panel">
         <div class="wb-panel__header"><span class="wb-panel__title">Units of Measure</span></div>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Abbr</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for u in units}<tr class="border-b border-gray-100"><td class="py-2 px-4">{u.name}</td><td class="py-2 px-4 text-xs">{u.abbreviation|default:'—'}</td><td class="py-2 px-4"><button onclick="toggleStatus('unit',{u.id})" class="text-xs px-2 py-0.5 rounded-full {if u.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{u.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
@@ -40,7 +40,7 @@
             <button onclick="addUnit()" class="wb-btn wb-btn--primary wb-btn--sm">Add Unit</button>
         </div>
         <div class="wb-panel__header"><span class="wb-panel__title">Team Leads</span></div>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for l in team_leads}<tr class="border-b border-gray-100"><td class="py-2 px-4">{l.name}</td><td class="py-2 px-4"><button onclick="toggleStatus('team_lead',{l.id})" class="text-xs px-2 py-0.5 rounded-full {if l.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{l.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>
@@ -49,9 +49,9 @@
             <button onclick="addTeamLead()" class="wb-btn wb-btn--primary wb-btn--sm">Add Team Lead</button>
         </div>
     </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="p-4 border-b border-gray-200"><h2 class="font-semibold text-gray-900">Inventory Locations</h2></div>
-        <table class="w-full text-sm">
+    <div class="wb-panel overflow-hidden">
+        <div class="wb-panel__header"><span class="wb-panel__title">Inventory Locations</span></div>
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Description</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
             <tbody>{for l in locations}<tr class="border-b border-gray-100"><td class="py-2 px-4">{l.name}</td><td class="py-2 px-4 text-xs">{l.description|default:'—'}</td><td class="py-2 px-4"><button onclick="toggleStatus('inventory_location',{l.id})" class="text-xs px-2 py-0.5 rounded-full {if l.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{l.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
         </table>

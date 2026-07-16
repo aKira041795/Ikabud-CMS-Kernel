@@ -4,12 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Team Lead Login — Project Audit Ledger</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=3">
+    <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
 </head>
-<body class="bg-[#f0f2f5] min-h-screen flex items-center justify-center p-4" style="background-image: radial-gradient(ellipse at 20% 50%, rgba(37,99,235,0.04) 0%, transparent 50%), radial-gradient(ellipse at 80% 50%, rgba(5,150,105,0.03) 0%, transparent 50%);">
+<body class="wb-auth-page min-h-screen flex items-center justify-center p-4">
     <div class="w-full max-w-sm">
         <div class="text-center mb-8">
-            <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-sm">
+            <div class="wb-auth-brand mx-auto mb-3">
                 <span class="text-lg font-bold text-white">Z</span>
             </div>
             <h1 class="text-xl font-bold text-gray-900">ZAP-ARTS</h1>
@@ -18,10 +19,10 @@
         </div>
 
         {if error}
-        <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg p-3 mb-4">{error}</div>
+        <div class="wb-alert wb-alert--danger">{error}</div>
         {/if}
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="wb-auth-card p-6">
             <h2 class="text-sm font-semibold text-gray-900 mb-1">Enter your email</h2>
             <p class="text-xs text-gray-500 mb-4">A 6-digit code will be sent to your email.</p>
             <form onsubmit="return requestOtp(this)" class="space-y-4">
@@ -36,10 +37,11 @@
             </form>
         </div>
         <div class="mt-4 text-center">
-            <a href="/project-audit-ledger/login" class="text-xs text-gray-400 hover:text-gray-600">Admin Login</a>
+            <a href="/project-audit-ledger/login" class="wb-auth-link text-xs">Admin Login</a>
         </div>
     </div>
 
+    <script src="/assets/workbench/workbench-core.js?v=3"></script>
     <script>
     function requestOtp(form) {
         var btn = document.getElementById('tl-submit-btn');

@@ -15,7 +15,7 @@
     </div>
     <div class="lg:col-span-2 wb-panel">
         <div class="wb-panel__header"><span class="wb-panel__title">Linked Projects ({clientProjects|count})</span></div>
-        <table class="w-full text-sm">
+        <table class="w-full text-sm wb-table wb-table--sticky">
             <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Project</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Amount</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Dates</th><th class="text-left py-2 px-4 font-semibold text-gray-600"></th></tr></thead>
             <tbody>
                 {for p in clientProjects}

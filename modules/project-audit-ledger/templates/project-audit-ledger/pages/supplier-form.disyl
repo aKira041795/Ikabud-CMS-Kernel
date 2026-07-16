@@ -3,10 +3,10 @@
     <h2 class="wb-section__title mb-4">{is_edit ? 'Edit Supplier' : 'Create Supplier'}</h2>
     <form onsubmit="return ajaxSubmit(this, '{if is_edit}Supplier updated{else}Supplier created{/if}')" action="/api/v1/project-audit-ledger/suppliers{if is_edit}{if supplier.id}/{supplier.id}{/if}{/if}" method="POST" class="space-y-4">
         {csrf_field | raw}
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Name *</label><input type="text" name="name" value="{supplier.name}" required class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label><input type="text" name="contact_person" value="{supplier.contact_person}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" name="email" value="{supplier.email}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
-        <div><label class="block text-sm font-medium text-gray-700 mb-1">Phone</label><input type="text" name="phone" value="{supplier.phone}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></div>
+        <div><label class="wb-label wb-label--required">Name</label><input type="text" name="name" value="{supplier.name}" required class="wb-input"></div>
+        <div><label class="wb-label">Contact Person</label><input type="text" name="contact_person" value="{supplier.contact_person}" class="wb-input"></div>
+        <div><label class="wb-label">Email</label><input type="email" name="email" value="{supplier.email}" class="wb-input"></div>
+        <div><label class="wb-label">Phone</label><input type="text" name="phone" value="{supplier.phone}" class="wb-input"></div>
         <div class="flex gap-3"><button type="submit" class="wb-btn wb-btn--primary">{is_edit ? 'Update' : 'Create'}</button><a href="/admin/project-audit-ledger/suppliers" class="wb-btn wb-btn--secondary">Cancel</a></div>
     </form>
 </div>

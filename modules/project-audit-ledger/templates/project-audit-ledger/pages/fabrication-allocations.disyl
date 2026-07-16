@@ -38,7 +38,7 @@
                 <td class="py-3 px-4 text-xs text-gray-600">{p.start_date|default:'—'} → {p.target_completion_date|default:'—'}</td>
                 <td class="py-3 px-4 flex gap-2">
                     {if p.ca_remaining|default:0 > 0}
-                    <button onclick="var r=document.getElementById('dispense-{p.project_id}');r.classList.toggle('hidden');if(!r.classList.contains('hidden')){document.getElementById('disp-amt-{p.project_id}').max='{p.ca_remaining|default:p.fab_budget}';}" class="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">+ Dispense CA</button>
+                    <button onclick="var r=document.getElementById('dispense-{p.project_id}');r.classList.toggle('hidden');if(!r.classList.contains('hidden')){document.getElementById('disp-amt-{p.project_id}').max='{p.ca_remaining|default:p.fab_budget}';}" class="wb-btn wb-btn--primary wb-btn--sm">+ Dispense CA</button>
                     {/if}
                     {if p.ca_dispensed > 0}
                     <a href="/admin/project-audit-ledger/fabrication/{p.project_id}/dues" class="text-xs text-blue-600 hover:text-blue-800 font-medium">Dues →</a>

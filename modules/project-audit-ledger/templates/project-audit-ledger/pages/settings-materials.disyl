@@ -1,6 +1,6 @@
 <div class="wb-panel">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="font-semibold text-gray-900">Materials</h2>
+    <div class="wb-panel__header">
+        <span class="wb-panel__title">Materials</span>
         <button onclick="document.getElementById('mat-form').classList.toggle('hidden')" class="wb-btn wb-btn--primary wb-btn--sm">+ New Material</button>
     </div>
     <div id="mat-form" class="hidden p-4 border-b border-gray-200 bg-gray-50">
@@ -16,7 +16,7 @@
         </form>
         <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.set-mat-cat,.set-mat-unit').forEach(function(e){if(e)makeCreatable(e);});});</script>
     </div>
-    <table class="w-full text-sm">
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead><tr class="bg-gray-50 border-b"><th class="text-left py-2 px-4 font-semibold text-gray-600">Name</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Code</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Category</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Unit</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Stock</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Avg Cost</th><th class="text-left py-2 px-4 font-semibold text-gray-600">Status</th></tr></thead>
         <tbody>{for m in materials}<tr class="border-b border-gray-100"><td class="py-2 px-4 font-medium">{m.name}</td><td class="py-2 px-4 text-xs">{m.material_code|default:'—'}</td><td class="py-2 px-4">{m.category_name|default:'—'}</td><td class="py-2 px-4">{m.unit_name|default:'—'}</td><td class="py-2 px-4">{m.stock_qty|default:0}</td><td class="py-2 px-4">₱{m.current_avg_cost|default:0|number_format:2}</td><td class="py-2 px-4"><button onclick="toggleStatus('material',{m.id})" class="text-xs px-2 py-0.5 rounded-full {if m.is_active}bg-green-100 text-green-700{else}bg-red-100 text-red-700{/if}">{m.is_active?'active':'inactive'}</button></td></tr>{/for}</tbody>
     </table>

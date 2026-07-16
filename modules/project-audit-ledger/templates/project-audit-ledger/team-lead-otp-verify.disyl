@@ -4,19 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Code — Project Audit Ledger</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        * { border-radius: 3px !important; }
-    </style>
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=3">
+    <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+<body class="wb-auth-page min-h-screen flex items-center justify-center p-4">
     <div class="max-w-md w-full p-8">
         <div class="text-center mb-8">
             <h1 class="text-2xl font-bold text-gray-900">ZAP-ARTS</h1>
             <p class="text-sm text-gray-600">Team Lead Portal</p>
         </div>
 
-        <div class="wb-panel p-6">
+        <div class="wb-auth-card p-6">
             <h2 class="font-semibold text-gray-900 mb-2">Enter verification code</h2>
             <p class="text-xs text-gray-600 mb-1">A 6-digit code was sent to:</p>
             <p class="text-sm font-medium text-gray-800 mb-4" id="masked-email">{masked_email|default:''}</p>
@@ -39,15 +37,16 @@
             </form>
 
             <div class="mt-4 text-center">
-                <button onclick="resendOtp()" class="text-sm text-blue-600 hover:text-blue-800" id="resend-btn">Resend Code</button>
+                <button onclick="resendOtp()" class="wb-auth-link text-sm" id="resend-btn">Resend Code</button>
                 <span id="resend-timer" class="text-xs text-gray-500 ml-2"></span>
             </div>
             <div class="mt-2 text-center">
-                <a href="/project-audit-ledger/team-lead/login" class="text-xs text-gray-500 hover:text-gray-700">Use a different email</a>
+                <a href="/project-audit-ledger/team-lead/login" class="wb-auth-link text-xs">Use a different email</a>
             </div>
         </div>
     </div>
 
+    <script src="/assets/workbench/workbench-core.js?v=3"></script>
     <script>
     function verifyOtp(form) {
         var btn = document.getElementById('tl-verify-btn');

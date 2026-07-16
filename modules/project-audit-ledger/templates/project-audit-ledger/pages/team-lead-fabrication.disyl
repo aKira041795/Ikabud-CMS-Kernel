@@ -20,7 +20,7 @@
 
         {if p.weekly_dues|count > 0}
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm wb-table wb-table--sticky">
                 <thead>
                     <tr class="bg-gray-50 border-b">
                         <th class="text-left py-1 px-2 font-semibold text-gray-600 text-xs">Week</th>
@@ -50,7 +50,7 @@
         {/if}
     </div>
     {else}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center text-gray-600 text-sm">
+    <div class="wb-empty-state wb-empty-state--bordered text-gray-600 text-sm">
         No fabrication projects assigned to you.
     </div>
     {/for}
