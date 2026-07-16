@@ -2416,6 +2416,27 @@ switch ($command) {
             exit(1);
         }
 
+        $manifestPath = moduleManifestPathForId($moduleId);
+        $packManifest = is_string($manifestPath)
+            ? json_decode((string)file_get_contents($manifestPath), true)
+            : null;
+        if (!is_array($packManifest)) {
+            out(red("  ✗ Module '{$moduleId}' has no valid manifest."));
+            exit(1);
+        }
+        $packManifest['_path'] = $modDir;
+        $certification = validateModuleCertification($packManifest);
+        if (empty($certification['ok'])) {
+            out(red("  ✗ Refusing to pack uncertified module '{$moduleId}'."));
+            foreach ($certification['checks'] as $check) {
+                if (empty($check['passed'])) {
+                    out('    ' . red('✗') . ' ' . $check['check'] . ': ' . $check['detail']);
+                }
+            }
+            out('  Run: php ikabud module:certify ' . $moduleId);
+            exit(1);
+        }
+
         if ($zipOut === '') {
             $zipOut = BASE_PATH . '/storage/' . $moduleId . '-' . date('Ymd-His') . '.zip';
         } elseif (!str_starts_with($zipOut, '/')) {

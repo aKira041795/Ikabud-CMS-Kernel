@@ -27,6 +27,18 @@ var contractPath = path.resolve(__dirname, '../../../../modules/project-audit-le
 var contract = JSON.parse(fs.readFileSync(contractPath, 'utf-8'));
 var testContract = contract.test_contract || {};
 var claimedRoutes = (testContract.routes_claimed || {}).GET || [];
+var manifestPath = path.resolve(__dirname, '../../../../modules/project-audit-ledger/module.json');
+var manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+var collectNavRoutes = function (entries, routes) {
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i] || {};
+        if (entry.url) routes.push(entry.url);
+        if (Array.isArray(entry.children)) collectNavRoutes(entry.children, routes);
+    }
+};
+var manifestNavRoutes = [];
+collectNavRoutes(manifest.nav || manifest.sidebar || [], manifestNavRoutes);
+claimedRoutes = Array.from(new Set(claimedRoutes.concat(manifestNavRoutes)));
 
 /**
  * Visit a route and collect all diagnostic issues found.

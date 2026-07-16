@@ -35,6 +35,7 @@ class ModuleDiagnostic {
         this.modulePath = modulePath;
         this.resolver = new RuntimeResolver(page, manifest);
         this.experience = new ExperienceAnalyst(page);
+        this.getRoutes = this._parseGetRoutes();
         this.pageAnalyses = [];
         this.responsiveKinds = new Set();
         /** @type {Array<{severity:string, component:string, expected:string, actual:string, cause:string, fix:string, location:string}>} */
@@ -88,6 +89,10 @@ class ModuleDiagnostic {
             console.log('  ℹ Module uses shell wrapper pattern (shell.disyl → page fragments)');
         }
 
+        // Audit the navigation rendered to the authenticated user. Manifest-only
+        // discovery cannot catch drift in helper-built or template-built sidebars.
+        await this._auditRuntimeNavigation(baseUrl);
+
         // Build URL map from nav items
         const navUrlMap = new Map();
         for (const item of this._getNavItems()) {
@@ -98,7 +103,16 @@ class ModuleDiagnostic {
         for (const tmpl of templates) {
             // Find the route URL for this template
             const templateUrl = this._findPageUrl(tmpl.page, navUrlMap);
-            if (!templateUrl) continue;
+            if (!templateUrl) {
+                this._recordIssue('critical', tmpl.page,
+                    `A resolvable page URL for template ${tmpl.page}`,
+                    'Template was silently outside dynamic test coverage',
+                    'No manifest navigation URL or conventional route mapping matched this template',
+                    'Declare the page URL in module navigation/route metadata or extend the explicit route mapping',
+                    { kind: 'coverage-gap' }
+                );
+                continue;
+            }
             let url = await this.resolver.discover(templateUrl);
             if (!url && /(?:\{\w+\}|:\w+|\/\d+(?=\/|$))/.test(templateUrl)) {
                 this.issues.push(this.resolver.classifyUnresolved(templateUrl));
@@ -109,7 +123,18 @@ class ModuleDiagnostic {
             console.log(`\n  🔍 Diagnosing: ${tmpl.page} (${url})`);
 
             try {
-                await this.page.goto(`${baseUrl}${url}`, { waitUntil: 'networkidle', timeout: 15000 });
+                const response = await this.page.goto(`${baseUrl}${url}`, { waitUntil: 'networkidle', timeout: 15000 });
+                const status = response ? response.status() : 0;
+                if (status >= 400 || status === 0) {
+                    this._recordIssue('critical', tmpl.page,
+                        `Page ${url} returns a successful document response`,
+                        `HTTP ${status || 'unavailable'}`,
+                        status === 404 ? 'No GET route resolved for the diagnosed page' : 'The page document request failed',
+                        'Correct the page-route contract or register a working GET handler',
+                        { kind: 'page-http-error', url, status }
+                    );
+                    continue;
+                }
                 tmpl._usedUrl = url; // store for _isDetailPage check
                 await this.resolver.observeCurrentPage();
             } catch (e) {
@@ -461,20 +486,95 @@ class ModuleDiagnostic {
     }
 
     /**
+     * Verify every internal link in the sidebar actually rendered by the app.
+     * Uses the authenticated browser context, but does not mutate page state.
+     */
+    async _auditRuntimeNavigation(baseUrl) {
+        const hrefs = await this.page.locator('#wb-sidebar .wb-nav-item[href]')
+            .evaluateAll(nodes => nodes.map(node => node.getAttribute('href')).filter(Boolean))
+            .catch(() => []);
+        const origin = new URL(baseUrl).origin;
+        const urls = [...new Set(hrefs)].filter(href => {
+            try {
+                const target = new URL(href, baseUrl);
+                return target.origin === origin && target.pathname.startsWith('/')
+                    && !/\/(?:logout|download)(?:\/|$)/.test(target.pathname);
+            } catch (_) {
+                return false;
+            }
+        });
+
+        if (urls.length === 0) {
+            this._recordIssue('critical', 'runtime-navigation',
+                'At least one authenticated sidebar navigation link',
+                'No internal sidebar links were discoverable',
+                'The rendered shell is missing navigation or uses an unsupported contract',
+                'Render internal navigation as #wb-sidebar .wb-nav-item[href]',
+                { kind: 'navigation-coverage' }
+            );
+            return;
+        }
+
+        const request = this.page.context().request;
+        await Promise.all(urls.map(async href => {
+            const target = new URL(href, baseUrl).toString();
+            try {
+                const response = await request.get(target, { maxRedirects: 0, timeout: 15000 });
+                const status = response.status();
+                const location = response.headers()['location'] || '';
+                if (status >= 400 || (status >= 300 && /\/login(?:\?|$)/.test(location))) {
+                    this._recordIssue('critical', href,
+                        'Rendered sidebar navigation returns a usable authenticated page',
+                        `HTTP ${status}${location ? ` → ${location}` : ''}`,
+                        status === 404
+                            ? 'Rendered navigation URL has no registered GET route'
+                            : 'Rendered navigation is unavailable or redirects out of the authenticated application',
+                        'Register the GET route or correct the rendered sidebar URL',
+                        { kind: 'broken-navigation', url: href, status }
+                    );
+                }
+            } catch (error) {
+                this._recordIssue('critical', href,
+                    'Rendered sidebar navigation is reachable',
+                    `Navigation probe failed: ${error.message || error}`,
+                    'The route could not be reached by the authenticated Workbench browser context',
+                    'Check the route, server availability, and authentication middleware',
+                    { kind: 'broken-navigation', url: href, status: 0 }
+                );
+            }
+        }));
+    }
+
+    /**
      * Find the page URL from the nav URL map.
      */
     _findPageUrl(pageName, navUrlMap) {
+        const explicit = this.manifest.workbench?.page_routes?.[pageName];
+        if (typeof explicit === 'string' && explicit.startsWith('/')) return explicit;
+
         // Direct match first
         for (const [url, label] of navUrlMap) {
-            if (url.includes(pageName)) return url;
+            const moduleBase = `/admin/${this.manifest.id || ''}/`;
+            const semanticPath = url.startsWith(moduleBase) ? url.slice(moduleBase.length) : url;
+            const semanticName = semanticPath.replace(/^\/+|\/+$/g, '').replace(/\//g, '-');
+            if (url.includes(pageName) || semanticName === pageName) return url;
         }
         // Infer conventional paths from the template's semantic name. Entity IDs
         // remain placeholders and are resolved from links observed at runtime.
         const base = '/admin/' + (this.manifest.id || '') + '/';
         if (pageName === 'dashboard' || pageName === 'index') return base.replace(/\/$/, '');
         const normalized = String(pageName).replace(/_/g, '-');
-        const special = { 'approval-queue': 'approvals', 'audit-trail': 'audit-trail' };
+        const special = {
+            'approval-queue': 'approvals',
+            'audit-trail': 'audit-trail',
+            'bill-of-materials': 'bom',
+            'reports-center': 'reports',
+        };
         if (special[normalized]) return base + special[normalized];
+
+        const semanticRoute = this._findDeclaredRouteBySemanticName(normalized);
+        if (semanticRoute) return semanticRoute;
+
         const match = normalized.match(/^(.+?)-(list|form|detail|create|edit)$/);
         if (!match) return null;
         let entity = match[1];
@@ -492,10 +592,74 @@ class ModuleDiagnostic {
             else collection = base + entity + 's';
         }
         collection = collection.replace(/\/$/, '');
-        if (match[2] === 'list') return collection;
-        if (match[2] === 'form' || match[2] === 'create') return collection + '/create';
-        if (match[2] === 'detail') return collection + '/{id}';
-        if (match[2] === 'edit') return collection + '/{id}/edit';
+        let candidate = null;
+        if (match[2] === 'list') candidate = collection;
+        if (match[2] === 'form' || match[2] === 'create') candidate = collection + '/create';
+        if (match[2] === 'detail') candidate = collection + '/{id}';
+        if (match[2] === 'edit') candidate = collection + '/{id}/edit';
+        if (candidate && this.getRoutes.some(route => this._routePatternsEquivalent(route, candidate))) return candidate;
+        return null;
+    }
+
+    _parseGetRoutes() {
+        const fs = require('fs');
+        const path = require('path');
+        const routesPath = path.join(this.modulePath, 'routes.php');
+        if (!fs.existsSync(routesPath)) return [];
+        const source = fs.readFileSync(routesPath, 'utf-8');
+        const getMatch = /['"]GET['"]\s*=>\s*\[/.exec(source);
+        if (!getMatch) return [];
+        const start = getMatch.index + getMatch[0].lastIndexOf('[');
+        let depth = 0;
+        let quote = '';
+        let escaped = false;
+        let end = source.length;
+        for (let i = start; i < source.length; i++) {
+            const ch = source[i];
+            if (quote) {
+                if (escaped) escaped = false;
+                else if (ch === '\\') escaped = true;
+                else if (ch === quote) quote = '';
+                continue;
+            }
+            if (ch === "'" || ch === '"') { quote = ch; continue; }
+            if (ch === '[') depth++;
+            if (ch === ']' && --depth === 0) { end = i; break; }
+        }
+        const block = source.slice(start + 1, end);
+        return [...block.matchAll(/['"]([^'"]+)['"]\s*=>/g)].map(match => match[1]);
+    }
+
+    _routePatternsEquivalent(left, right) {
+        const normalize = value => String(value)
+            .split('?')[0]
+            .replace(/\{[^}]+\}|:[A-Za-z_][A-Za-z0-9_]*/g, '{id}')
+            .replace(/\/$/, '') || '/';
+        return normalize(left) === normalize(right);
+    }
+
+    _findDeclaredRouteBySemanticName(pageName) {
+        const base = `/admin/${this.manifest.id || ''}/`;
+        const singular = value => {
+            if (/ies$/.test(value)) return value.slice(0, -3) + 'y';
+            if (/s$/.test(value) && !/ss$/.test(value)) return value.slice(0, -1);
+            return value;
+        };
+        for (const route of this.getRoutes) {
+            if (!route.startsWith(base)) continue;
+            const parts = route.slice(base.length).split('/').filter(Boolean);
+            const hasTrailingId = /^(?:\{[^}]+\}|:[A-Za-z_])/.test(parts.at(-1) || '');
+            const hasEdit = parts.at(-1) === 'edit';
+            const hasCreate = parts.at(-1) === 'create';
+            const staticParts = parts.filter(part => !/^(?:\{[^}]+\}|:[A-Za-z_])/.test(part));
+            if (hasEdit || hasCreate) staticParts.pop();
+            const raw = staticParts.join('-');
+            const singularName = staticParts.map(singular).join('-');
+            const candidates = new Set([raw, singularName, `${raw}-list`, `${singularName}-list`]);
+            if (hasCreate || hasEdit) candidates.add(`${singularName}-form`);
+            if (hasTrailingId) candidates.add(`${singularName}-detail`);
+            if (candidates.has(pageName)) return route;
+        }
         return null;
     }
 }

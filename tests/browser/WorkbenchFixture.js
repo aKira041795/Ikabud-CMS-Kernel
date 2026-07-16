@@ -93,7 +93,7 @@ function createWorkbenchTest(config) {
                 if (status >= 500 || (status === 404 && url.indexOf(appUrl) === 0)) {
                     captured.push({
                         kind: 'http-error',
-                        severity: status >= 500 ? 'critical' : 'minor',
+                        severity: 'critical',
                         where: response.request().method() + ' ' + url,
                         detail: 'HTTP ' + status + ' ' + response.statusText(),
                         timestamp: new Date().toISOString(),

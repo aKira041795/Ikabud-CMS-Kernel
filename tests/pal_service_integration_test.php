@@ -125,6 +125,23 @@ ok(isset($routes['GET']), 'GET routes defined');
 ok(isset($routes['POST']), 'POST routes defined');
 ok(count($routes['GET']) > 20, 'At least 20 GET routes');
 ok(count($routes['POST']) > 20, 'At least 20 POST routes');
+ok(
+    ($routes['GET']['/admin/project-audit-ledger/fabrication/allocations'] ?? null)
+        === 'project-audit-ledger:palPageFabricationAllocation',
+    'Fabrication allocations page route is registered'
+);
+foreach ([
+    '/admin/project-audit-ledger/issuances',
+    '/admin/project-audit-ledger/issuances/create',
+    '/admin/project-audit-ledger/issuances/returns',
+    '/admin/project-audit-ledger/audit-trail',
+] as $navigationRoute) {
+    ok(isset($routes['GET'][$navigationRoute]), "Navigation route {$navigationRoute} is registered");
+}
+ok(
+    isset($routes['GET']['/api/v1/project-audit-ledger/bom/export']),
+    'BOM export anchor uses a registered GET route'
+);
 
 // Check no duplicate keys (the logout fix)
 $getKeys = array_keys($routes['GET']);

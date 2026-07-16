@@ -177,13 +177,8 @@ test.describe(`Module Pages: ${discovery.moduleName}`, () => {
     // ════════════════════════════════════════════════════════════
     test.describe('Sidebar navigation walk', () => {
 
-        test('navigate through all discovered pages via direct URL', async ({ page, shell }) => {
-            // Navigate via URL (not sidebar click) since manifest labels may differ
-            // from rendered sidebar labels. The Comprehension Engine should reconcile
-            // this mismatch.
-            const sample = discovery.navItems.slice(0, 5); // first 5 pages
-
-            for (const item of sample) {
+        test('navigate through every discovered page via direct URL', async ({ page, shell }) => {
+            for (const item of discovery.navItems) {
                 await page.goto(`${APP_URL}${item.url}`);
                 await page.waitForSelector('[data-wb-component="app-shell"]', { timeout: 15000 });
 

@@ -51,10 +51,13 @@ if [ "$MODE" = "pipeline" ] || [ "$MODE" = "triage" ]; then
     ADMIN_PASS="${ADMIN_PASS:-pal123456}"
     PAL_TEST_TENANT="${PAL_TEST_TENANT:-502}"
     
-    ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" PAL_TEST_TENANT="$PAL_TEST_TENANT" \
+    ADMIN_USER="$ADMIN_USER" ADMIN_PASS="$ADMIN_PASS" PAL_TEST_TENANT="$PAL_TEST_TENANT" MODULE="$MODULE" \
     npx playwright test \
         tests/browser/workbench/wb-inspect.spec.js \
         tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js \
+        tests/browser/module-page-views.spec.js \
+        tests/browser/modules/pal/navigation/sidebar-navigation.spec.js \
+        tests/browser/modules/pal/pal-contract-verification.spec.js \
         2>&1 | tail -8
     
     echo ""

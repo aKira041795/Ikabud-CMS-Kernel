@@ -6,6 +6,18 @@
         "id": "ark.workbench",
         "version": "^0.1"
     },
+    "workbench": {
+        "page_routes": {
+            "issuance-detail": "/admin/project-audit-ledger/material-issuance/{id}",
+            "settings-categories": "/admin/project-audit-ledger/settings",
+            "settings-materials": "/admin/project-audit-ledger/settings",
+            "settings-overview": "/admin/project-audit-ledger/settings",
+            "settings-suppliers": "/admin/project-audit-ledger/settings",
+            "team-lead-ca-form": "/admin/project-audit-ledger/team-lead/cash-advances/create",
+            "team-lead-ca-list": "/admin/project-audit-ledger/team-lead/cash-advances",
+            "team-lead-dashboard": "/admin/project-audit-ledger/team-lead"
+        }
+    },
     "description": "Project costing, inventory, fabrication dues, sales, and audit management for construction, fabrication, signage, and installation businesses.",
     "author": "Ikabud Kernel Team",
     "auth_owned": {
@@ -718,98 +730,68 @@
     ],
     "nav": [
         {
-            "label": "Project Ledger",
-            "url": "/admin/project-audit-ledger",
-            "icon": "clipboard-list",
-            "roles": [
-                "admin",
-                "supervisor",
-                "encoder"
+            "label": "Overview",
+            "roles": ["admin", "supervisor", "encoder"],
+            "children": [
+                {"label": "Dashboard", "url": "/admin/project-audit-ledger", "icon": "clipboard-list"},
+                {"label": "New Job Order", "url": "/admin/project-audit-ledger/projects/create", "icon": "plus-circle"}
             ]
         },
         {
-            "label": "Projects",
-            "url": "/admin/project-audit-ledger/projects",
-            "icon": "folder",
-            "roles": [
-                "admin",
-                "supervisor",
-                "encoder"
+            "label": "Job Orders",
+            "roles": ["admin", "supervisor", "encoder"],
+            "children": [
+                {"label": "All Job Orders", "url": "/admin/project-audit-ledger/projects", "icon": "folder"},
+                {"label": "Clients", "url": "/admin/project-audit-ledger/clients", "icon": "user"},
+                {"label": "Suppliers", "url": "/admin/project-audit-ledger/suppliers", "icon": "truck"}
             ]
         },
         {
-            "label": "Expenses",
-            "url": "/admin/project-audit-ledger/expenses",
-            "icon": "credit-card",
-            "roles": [
-                "admin",
-                "supervisor",
-                "encoder"
+            "label": "Sales & Billing",
+            "roles": ["admin", "supervisor", "encoder"],
+            "children": [
+                {"label": "Sales Invoices", "url": "/admin/project-audit-ledger/sales", "icon": "dollar-sign"},
+                {"label": "Collections", "url": "/admin/project-audit-ledger/collections", "icon": "credit-card"},
+                {"label": "Quotations", "url": "/admin/project-audit-ledger/quotations", "icon": "file-text"},
+                {"label": "BOM", "url": "/admin/project-audit-ledger/bom", "icon": "clipboard"}
             ]
         },
         {
-            "label": "Inventory",
-            "url": "/admin/project-audit-ledger/inventory",
-            "icon": "package",
-            "roles": [
-                "admin",
-                "supervisor",
-                "encoder"
+            "label": "Inventory & Procurement",
+            "roles": ["admin", "supervisor", "encoder"],
+            "children": [
+                {"label": "Inventory", "url": "/admin/project-audit-ledger/inventory", "icon": "package"},
+                {"label": "Stock Movements", "url": "/admin/project-audit-ledger/inventory/movements", "icon": "shuffle"},
+                {"label": "Purchases", "url": "/admin/project-audit-ledger/purchases", "icon": "shopping-cart"},
+                {"label": "Issuances", "url": "/admin/project-audit-ledger/issuances", "icon": "send"},
+                {"label": "Returns", "url": "/admin/project-audit-ledger/issuances/returns", "icon": "corner-up-left"},
+                {"label": "Expenses", "url": "/admin/project-audit-ledger/expenses", "icon": "credit-card"}
             ]
         },
         {
-            "label": "Purchases",
-            "url": "/admin/project-audit-ledger/purchases",
-            "icon": "shopping-cart",
-            "roles": [
-                "admin",
-                "supervisor",
-                "encoder"
+            "label": "Operations",
+            "roles": ["admin", "supervisor"],
+            "children": [
+                {"label": "Fabrication", "url": "/admin/project-audit-ledger/fabrication/allocations", "icon": "wrench"},
+                {"label": "Mobilization", "url": "/admin/project-audit-ledger/mobilization", "icon": "truck"},
+                {"label": "Cash Advances", "url": "/admin/project-audit-ledger/cash-advances", "icon": "banknote"}
             ]
         },
         {
-            "label": "Fabrication",
-            "url": "/admin/project-audit-ledger/fabrication",
-            "icon": "wrench",
-            "roles": [
-                "admin",
-                "supervisor"
+            "label": "Oversight",
+            "roles": ["admin", "supervisor"],
+            "children": [
+                {"label": "Approvals", "url": "/admin/project-audit-ledger/approvals", "icon": "check-circle"},
+                {"label": "Reports", "url": "/admin/project-audit-ledger/reports", "icon": "bar-chart"},
+                {"label": "Audit Trail", "url": "/admin/project-audit-ledger/audit-trail", "icon": "search"}
             ]
         },
         {
-            "label": "Sales",
-            "url": "/admin/project-audit-ledger/sales",
-            "icon": "dollar-sign",
-            "roles": [
-                "admin",
-                "supervisor",
-                "encoder"
-            ]
-        },
-        {
-            "label": "Approvals",
-            "url": "/admin/project-audit-ledger/approvals",
-            "icon": "check-circle",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        },
-        {
-            "label": "Reports",
-            "url": "/admin/project-audit-ledger/reports",
-            "icon": "bar-chart",
-            "roles": [
-                "admin",
-                "supervisor"
-            ]
-        },
-        {
-            "label": "Settings",
-            "url": "/admin/project-audit-ledger/settings",
-            "icon": "settings",
-            "roles": [
-                "admin"
+            "label": "Administration",
+            "roles": ["admin"],
+            "children": [
+                {"label": "Settings", "url": "/admin/project-audit-ledger/settings", "icon": "settings"},
+                {"label": "Users", "url": "/admin/project-audit-ledger/users", "icon": "users"}
             ]
         }
     ]

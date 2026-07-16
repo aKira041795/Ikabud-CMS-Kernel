@@ -2235,6 +2235,138 @@ function validateModuleManifest(string $path): array
 }
 
 /**
+ * Collect internal navigation URLs declared by a module manifest and by
+ * literal sidebar links in module-owned PHP/DiSyL files.
+ *
+ * @param array<string, mixed> $manifest
+ * @return array<int, string>
+ */
+function moduleNavigationUrls(array $manifest): array
+{
+    $urls = [];
+    $visit = static function (mixed $entry) use (&$visit, &$urls): void {
+        if (!is_array($entry)) {
+            return;
+        }
+        $url = trim((string)($entry['url'] ?? ''));
+        if (str_starts_with($url, '/')) {
+            $urls[] = $url;
+        }
+        foreach ((array)($entry['children'] ?? []) as $child) {
+            $visit($child);
+        }
+    };
+    foreach ((array)($manifest['nav'] ?? $manifest['sidebar'] ?? []) as $entry) {
+        $visit($entry);
+    }
+
+    $moduleId = trim((string)($manifest['id'] ?? ''));
+    $manifestPath = $moduleId !== '' ? moduleManifestPathForId($moduleId) : null;
+    $modulePath = trim((string)($manifest['_path'] ?? ''));
+    if ($modulePath === '' && is_string($manifestPath)) {
+        $modulePath = dirname($manifestPath);
+    }
+    if ($modulePath !== '' && is_dir($modulePath)) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($modulePath, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || !in_array(strtolower($file->getExtension()), ['php', 'disyl'], true)) {
+                continue;
+            }
+            $source = @file_get_contents($file->getPathname());
+            if (!is_string($source)) {
+                continue;
+            }
+            preg_match_all('/[\'\"]url[\'\"]\s*=>\s*([\'\"])(\/admin\/[^\'\"]+)\1\s*[,\]]/', $source, $phpMatches);
+            preg_match_all('/<a\b[^>]*\bhref\s*=\s*([\'\"])(\/[^\/\'\"][^\'\"]*)\1/i', $source, $hrefMatches);
+            foreach (array_merge($phpMatches[2] ?? [], $hrefMatches[2] ?? []) as $url) {
+                $urls[] = $url;
+            }
+        }
+    }
+
+    $urls = array_values(array_unique(array_map(static function (string $url): string {
+        $path = parse_url($url, PHP_URL_PATH);
+        return rtrim(is_string($path) ? $path : $url, '/') ?: '/';
+    }, $urls)));
+    sort($urls);
+    return $urls;
+}
+
+function moduleRoutePatternMatchesPath(string $route, string $path): bool
+{
+    $route = rtrim((string)(parse_url($route, PHP_URL_PATH) ?: $route), '/') ?: '/';
+    $path = rtrim((string)(parse_url($path, PHP_URL_PATH) ?: $path), '/') ?: '/';
+    $path = preg_replace('/\{[^}]+\}|:[A-Za-z_][A-Za-z0-9_]*/', '1', $path) ?? $path;
+    $quoted = preg_quote($route, '#');
+    $pattern = preg_replace('/\\\\\{[^}]+\\\\\}|\\:[A-Za-z_][A-Za-z0-9_]*/', '[^/]+', $quoted) ?? $quoted;
+    return preg_match('#^' . $pattern . '$#', $path) === 1;
+}
+
+/**
+ * @param array<string, mixed> $manifest
+ * @return array{ok: bool, missing: array<int, string>, checked: int, detail: string}
+ */
+function validateModuleNavigationRoutes(array $manifest): array
+{
+    $urls = moduleNavigationUrls($manifest);
+    if ($urls === []) {
+        return ['ok' => true, 'missing' => [], 'checked' => 0, 'detail' => 'No internal navigation URLs declared'];
+    }
+
+    $moduleId = trim((string)($manifest['id'] ?? ''));
+    $manifestPath = $moduleId !== '' ? moduleManifestPathForId($moduleId) : null;
+    $modulePath = trim((string)($manifest['_path'] ?? ''));
+    if ($modulePath === '' && is_string($manifestPath)) {
+        $modulePath = dirname($manifestPath);
+    }
+    $routesFile = $modulePath !== '' ? $modulePath . '/routes.php' : '';
+    $routes = $routesFile !== '' && is_file($routesFile) ? require $routesFile : [];
+    $getRoutes = is_array($routes) && is_array($routes['GET'] ?? null)
+        ? array_map('strval', array_keys($routes['GET']))
+        : [];
+    // Shell modules may intentionally link to pages owned by companion modules
+    // (for example, the EHR shell links to scheduling and encounters routes).
+    // Certification validates against the complete installed route registry.
+    foreach (discoverModules() as $candidate) {
+        $candidatePath = trim((string)($candidate['_path'] ?? ''));
+        $candidateRoutesFile = $candidatePath !== '' ? $candidatePath . '/routes.php' : '';
+        if ($candidateRoutesFile === '' || $candidateRoutesFile === $routesFile || !is_file($candidateRoutesFile)) {
+            continue;
+        }
+        $candidateRoutes = require $candidateRoutesFile;
+        if (is_array($candidateRoutes) && is_array($candidateRoutes['GET'] ?? null)) {
+            $getRoutes = array_merge($getRoutes, array_map('strval', array_keys($candidateRoutes['GET'])));
+        }
+    }
+    $getRoutes = array_values(array_unique($getRoutes));
+
+    $missing = [];
+    foreach ($urls as $url) {
+        $matched = false;
+        foreach ($getRoutes as $route) {
+            if (moduleRoutePatternMatchesPath($route, $url)) {
+                $matched = true;
+                break;
+            }
+        }
+        if (!$matched) {
+            $missing[] = $url;
+        }
+    }
+
+    return [
+        'ok' => $missing === [],
+        'missing' => $missing,
+        'checked' => count($urls),
+        'detail' => $missing === []
+            ? count($urls) . ' navigation URL(s) resolve to GET routes'
+            : 'Missing GET route(s): ' . implode(', ', $missing),
+    ];
+}
+
+/**
  * Validate a module manifest against the Phase 9 certification checklist.
  *
  * Returns an array of certification items with pass/fail status.
@@ -2342,12 +2474,24 @@ function validateModuleCertification(array $manifest): array
     $checks[] = ['check' => 'C9: Module type', 'passed' => $ok, 'detail' => $ok ? $type : "Invalid type: {$type}"];
     if ($ok) $passed++;
 
-    // C10: Service-module endpoint (only if type=service-module)
+    // C10: Every declared/rendered internal navigation URL has a GET route.
+    $total++;
+    if ($isServiceModule) {
+        $checks[] = ['check' => 'C10: Navigation routes', 'passed' => true, 'detail' => 'N/A for service-module'];
+        $passed++;
+    } else {
+        $navigation = validateModuleNavigationRoutes($manifest);
+        $ok = $navigation['ok'];
+        $checks[] = ['check' => 'C10: Navigation routes', 'passed' => $ok, 'detail' => $navigation['detail']];
+        if ($ok) $passed++;
+    }
+
+    // C11: Service-module endpoint (only if type=service-module)
     if ($type === 'service-module') {
         $total++;
         $endpoint = !empty($manifest['service']['endpoint']) && is_string($manifest['service']['endpoint']);
         $ok = $endpoint;
-        $checks[] = ['check' => 'C10: Service endpoint', 'passed' => $ok, 'detail' => $ok ? (string)$manifest['service']['endpoint'] : 'No service endpoint declared'];
+        $checks[] = ['check' => 'C11: Service endpoint', 'passed' => $ok, 'detail' => $ok ? (string)$manifest['service']['endpoint'] : 'No service endpoint declared'];
         if ($ok) $passed++;
     }
 
@@ -2666,6 +2810,22 @@ function installModuleFromZip(string $zipPath): array
         }
     }
     $zip->close();
+
+    $installManifest = $manifest;
+    $installManifest['_path'] = $targetDir;
+    $certification = validateModuleCertification($installManifest);
+    if (empty($certification['ok'])) {
+        $removeDirectory($targetDir);
+        $failedChecks = array_values(array_map(
+            static fn(array $check): string => (string)$check['check'] . ': ' . (string)$check['detail'],
+            array_filter($certification['checks'], static fn(array $check): bool => empty($check['passed']))
+        ));
+        return moduleInstallFailure(
+            'module_not_certified',
+            'Module failed production certification: ' . implode('; ', $failedChecks),
+            ['certification' => $certification]
+        );
+    }
 
     // Auto-enable the newly installed module if capability dependencies are satisfiable.
     // If not satisfiable, install succeeds but module remains disabled.

@@ -197,7 +197,7 @@
   "nav": [
     {
       "label": "Ledger",
-      "url": "/cashier/ledger",
+      "url": "/daily-ledger/ledger",
       "icon": "clipboard",
       "roles": [
         "cashier",
@@ -206,7 +206,7 @@
     },
     {
       "label": "Production Output",
-      "url": "/admin/production-output",
+      "url": "/daily-ledger/admin/production-output",
       "icon": "layers",
       "roles": [
         "admin",
@@ -216,7 +216,7 @@
     },
     {
       "label": "Commissary",
-      "url": "/admin/commissary",
+      "url": "/daily-ledger/admin/commissary",
       "icon": "archive",
       "roles": [
         "admin",
@@ -226,7 +226,7 @@
     },
     {
       "label": "Deliveries",
-      "url": "/admin/deliveries",
+      "url": "/daily-ledger/admin/deliveries",
       "icon": "truck",
       "roles": [
         "admin",
@@ -236,7 +236,7 @@
     },
     {
       "label": "Usage",
-      "url": "/admin/usage",
+      "url": "/daily-ledger/admin/usage",
       "icon": "package",
       "roles": [
         "admin",
@@ -246,7 +246,7 @@
     },
     {
       "label": "Dashboard",
-      "url": "/admin/dashboard",
+      "url": "/daily-ledger/admin/dashboard",
       "icon": "grid",
       "roles": [
         "supervisor"
@@ -254,7 +254,7 @@
     },
     {
       "label": "Sales",
-      "url": "/admin/sales",
+      "url": "/daily-ledger/admin/sales",
       "icon": "bar-chart",
       "roles": [
         "supervisor"
@@ -262,7 +262,7 @@
     },
     {
       "label": "Variances",
-      "url": "/admin/variances",
+      "url": "/daily-ledger/admin/variances",
       "icon": "alert-triangle",
       "roles": [
         "supervisor"
@@ -270,7 +270,7 @@
     },
     {
       "label": "Branch Summary",
-      "url": "/admin/branch-summary",
+      "url": "/daily-ledger/admin/branch-summary",
       "icon": "layers",
       "roles": [
         "admin",
@@ -279,7 +279,7 @@
     },
     {
       "label": "Activity",
-      "url": "/admin/activity",
+      "url": "/daily-ledger/admin/activity",
       "icon": "activity",
       "roles": [
         "supervisor"

@@ -91,13 +91,21 @@ bt('total settings fields count is 8', count($settings) === 8);
 
 echo "\n── Navigation ──\n";
 $nav = $manifest['nav'] ?? [];
-$navUrls = array_column($nav, 'url');
+$navUrls = [];
+$collectNavUrls = static function (array $items) use (&$collectNavUrls, &$navUrls): void {
+    foreach ($items as $item) {
+        if (!is_array($item)) continue;
+        if (!empty($item['url'])) $navUrls[] = (string)$item['url'];
+        if (is_array($item['children'] ?? null)) $collectNavUrls($item['children']);
+    }
+};
+$collectNavUrls($nav);
 bt('Dashboard nav', in_array('/admin/project-audit-ledger', $navUrls, true));
 bt('Projects nav', in_array('/admin/project-audit-ledger/projects', $navUrls, true));
 bt('Expenses nav', in_array('/admin/project-audit-ledger/expenses', $navUrls, true));
 bt('Inventory nav', in_array('/admin/project-audit-ledger/inventory', $navUrls, true));
 bt('Approvals nav', in_array('/admin/project-audit-ledger/approvals', $navUrls, true));
-bt('total nav items count is 10', count($nav) === 10);
+bt('all 23 rendered desktop nav items are declared', count(array_unique($navUrls)) === 23);
 
 echo "\n── File Existence ──\n";
 bt('routes.php exists', is_file(BASE_PATH . '/modules/project-audit-ledger/routes.php'));
