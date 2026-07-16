@@ -4,6 +4,6 @@
         <a href="/admin/project-audit-ledger/clients/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Add Client</a>
     </div>
     <div class="wb-panel__body--flush">
-        {ikb_entity_list source="pal_client" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search clients..." empty="No clients yet." /}
+        {ikb_entity_list source="pal_client" view="table" use="workbench" sortable="true" search="true" search-placeholder="Search clients..." empty="No clients yet." /}
     </div>
 </div>

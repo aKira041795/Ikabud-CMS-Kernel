@@ -265,5 +265,5 @@
         <h2 class="text-base font-bold text-gray-900">📊 All Projects</h2>
         <a href="/admin/project-audit-ledger/projects" class="text-xs text-blue-600 hover:text-blue-700 font-medium">Manage projects →</a>
     </div>
-    {ikb_entity_list source="pal_project" view="table" limit="10" empty="No projects yet. Create your first project to get started." /}
+    {ikb_entity_list source="pal_project" view="table" use="workbench" limit="10" empty="No projects yet. Create your first project to get started." /}
 </div>

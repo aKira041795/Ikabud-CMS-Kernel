@@ -1,8 +1,8 @@
 {
     "suite": "pal-job-order-workflow",
-    "started": "2026-07-14 15:46:38",
-    "finished": "2026-07-14 15:46:38",
-    "elapsed_ms": 0.6,
+    "started": "2026-07-16 03:15:03",
+    "finished": "2026-07-16 03:15:03",
+    "elapsed_ms": 0.9,
     "summary": {
         "passed": 133,
         "failed": 0,
@@ -55,21 +55,21 @@
             "label": "draft → completed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "draft → cancelled = ALLOWED",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
             "label": "draft → closed = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
@@ -258,7 +258,7 @@
             "label": "ongoing → approved = FORBIDDEN",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Exhaustive 8×8 transition matrix",
@@ -699,105 +699,105 @@
             "label": "approved allowed: ongoing",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "approved allowed: completed",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "approved allowed: cancelled",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "approved → started is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "approved → ongoing is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "approved → completed is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "approved → cancelled is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started → 3 next states",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started allowed: ongoing",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started allowed: completed",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started allowed: cancelled",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started → ongoing is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started → completed is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "started → cancelled is valid",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",
             "label": "ongoing → 2 next states",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "allowedTransitions — every status",

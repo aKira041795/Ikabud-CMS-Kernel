@@ -19,6 +19,6 @@
         <script>document.addEventListener('DOMContentLoaded',function(){document.querySelectorAll('.inv-cat-select,.inv-unit-select').forEach(function(e){if(e)makeCreatable(e);});});</script>
     </div>
     <div class="wb-panel__body--flush">
-        {ikb_entity_list source="pal_material" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search materials..." empty="No materials." /}
+        {ikb_entity_list source="pal_material" view="table" use="workbench" sortable="true" search="true" search-placeholder="Search materials..." empty="No materials." /}
     </div>
 </div>

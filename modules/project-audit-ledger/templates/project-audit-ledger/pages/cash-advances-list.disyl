@@ -32,7 +32,7 @@
         <a href="/admin/project-audit-ledger/cash-advances/create" class="wb-btn wb-btn--primary wb-btn--sm">+ New Cash Advance</a>
     </div>
     <div class="wb-panel__body--flush">
-        {ikb_entity_list source="pal_cash_advance" view="table" use="tailwind" empty="No cash advances recorded." /}
+        {ikb_entity_list source="pal_cash_advance" view="table" use="workbench" empty="No cash advances recorded." /}
     </div>
 </div>
 

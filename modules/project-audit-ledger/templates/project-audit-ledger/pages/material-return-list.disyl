@@ -4,6 +4,6 @@
         <a href="/admin/project-audit-ledger/material-returns/create" class="wb-btn wb-btn--primary wb-btn--sm">+ New Return</a>
     </div>
     <div class="wb-panel__body--flush">
-        {ikb_entity_list source="pal_material_return" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search returns..." empty="No material returns yet." /}
+        {ikb_entity_list source="pal_material_return" view="table" use="workbench" sortable="true" search="true" search-placeholder="Search returns..." empty="No material returns yet." /}
     </div>
 </div>

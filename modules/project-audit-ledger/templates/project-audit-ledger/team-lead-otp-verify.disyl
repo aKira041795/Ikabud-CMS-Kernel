@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Code — Project Audit Ledger</title>
-    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=3">
-    <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
+<link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=4">
+<link rel="stylesheet" href="/assets/workbench/workbench.css?v=4">
 </head>
 <body class="wb-auth-page min-h-screen flex items-center justify-center p-4">
     <div class="max-w-md w-full p-8">

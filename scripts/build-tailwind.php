@@ -14,10 +14,22 @@
 $rootDir = dirname(__DIR__);
 $srcFile = $rootDir . '/public/assets/workbench/workbench-tailwind.src.css';
 $outFile = $rootDir . '/public/assets/workbench/workbench-tailwind.css';
+$profileSrcFile = $rootDir . '/storage/application-profiles/ark-workbench/assets/workbench-tailwind.src.css';
+$profileOutFile = $rootDir . '/storage/application-profiles/ark-workbench/assets/workbench-tailwind.css';
 
 echo "Building Tailwind CSS bundle...\n";
 
+if (!copy($srcFile, $profileSrcFile)) {
+    fwrite(STDERR, "ERROR: Unable to synchronize Tailwind source into the Workbench profile\n");
+    exit(1);
+}
+
 // Step 1: Run Tailwind CLI
+if (file_exists($outFile) && !unlink($outFile)) {
+    fwrite(STDERR, "ERROR: Unable to remove stale Tailwind output\n");
+    exit(1);
+}
+
 $cmd = sprintf(
     'cd %s && npx tailwindcss -c tailwind.config.js -i %s -o %s --minify 2>&1',
     escapeshellarg($rootDir),
@@ -25,10 +37,12 @@ $cmd = sprintf(
     escapeshellarg($outFile)
 );
 
-$output = shell_exec($cmd);
-echo $output;
+$output = [];
+$exitCode = 0;
+exec($cmd, $output, $exitCode);
+echo implode("\n", $output) . "\n";
 
-if (!file_exists($outFile)) {
+if ($exitCode !== 0 || !file_exists($outFile) || filesize($outFile) === 0) {
     fwrite(STDERR, "ERROR: Tailwind build failed\n");
     exit(1);
 }
@@ -77,5 +91,10 @@ ENDCSS;
 
 file_put_contents($outFile, file_get_contents($outFile) . $variants);
 
+if (!copy($outFile, $profileOutFile)) {
+    fwrite(STDERR, "ERROR: Unable to publish Tailwind output into the Workbench profile\n");
+    exit(1);
+}
+
 $size = filesize($outFile);
-echo "Done: {$outFile} ({$size} bytes)\n";
+echo "Done: public and profile Tailwind assets ({$size} bytes each)\n";

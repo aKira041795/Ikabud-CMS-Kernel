@@ -1,0 +1,24 @@
+{
+  "suite": "hybrid-analysis--chromium",
+  "started": "2026-07-16T03:22:55.279Z",
+  "finished": "2026-07-16T03:22:55.408Z",
+  "summary": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "timedOut": 1,
+    "interrupted": 0,
+    "total": 1
+  },
+  "source_fingerprints": {},
+  "results": [
+    {
+      "test": "full hybrid analysis — static → dynamic → behavioral → Bayesian",
+      "status": "timedOut",
+      "duration": 30610,
+      "detail": "\u001b[31mTest timeout of 30000ms exceeded while setting up \"page\".\u001b[39m"
+    }
+  ],
+  "gaps": [],
+  "issues": []
+}

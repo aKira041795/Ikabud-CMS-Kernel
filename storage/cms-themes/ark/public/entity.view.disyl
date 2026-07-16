@@ -5,26 +5,11 @@
 
 {extends "_cms_active_theme/layouts/public.disyl"}
 
-{set builder_enabled = builder_enabled|default:false}
-{set is_ecommerce_public = is_ecommerce_public|default:false}
-{set is_ecommerce_entity_route = is_ecommerce_entity_route|default:false}
-{set entity_view_context = entity_view_context|default:[]}
-{set entity_presentation = entity_presentation|default:[]}
-
-{block head}
-{include "partials/canonical-entity-styles.disyl"}
-{if is_ecommerce_public or is_ecommerce_entity_route}
-{include "partials/storefront-styles.disyl"}
-{/if}
-{if structured_data}{structured_data|raw}{/if}
-{/block}
-
 {block content}
         {if entity}
-        <article class="ark-detail{if builder_enabled} ark-detail--builder{/if}">
+        <article class="ark-detail">
 
-            {# Title + Meta — suppressed when builder handles layout #}
-            {if not builder_enabled}
+            {# Title #}
             {if entity_view_context.show_header|default:1}
                 {if entity.title or content.title}
                 <h1 class="ark-detail__title">{entity.title|default:content.title}</h1>
@@ -44,12 +29,11 @@
                 {/if}
             {/if}
 
-            {# Featured image — builder pages use their own media blocks #}
+            {# Featured image #}
             {if entity_view_context.show_media|default:1}
                 {if entity.featured_image_url or entity.image}
-                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" class="ark-detail__image" loading="lazy" />
+                <img src="{entity.featured_image_url|default:entity.image}" alt="{entity.title|default:content.title}" style="width:100%;max-height:400px;object-fit:cover;border-radius:var(--radius-md);margin-bottom:var(--spacing-md);" />
                 {/if}
-            {/if}
             {/if}
 
             {# Body — rendered content from editor or builder #}
@@ -112,6 +96,10 @@
                 {/if}
             {/if}
 
+            {# Navigation — back link #}
+            <div style="margin-top:var(--spacing-lg);">
+                <a href="javascript:history.back()" style="color:var(--color-primary);font-weight:500;font-size:0.875rem;text-decoration:none;">&larr; Back</a>
+            </div>
         </article>
 
         {else}

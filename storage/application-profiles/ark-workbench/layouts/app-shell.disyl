@@ -19,8 +19,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{s.application_name|default:'Application'} — {s.page_title|default:'Dashboard'}</title>
-    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=1">
-    <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=1">
+    <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=4">
+    <link rel="stylesheet" href="/assets/workbench/workbench.css?v=4">
     {if s.extra_styles|default:[]}{for style in s.extra_styles}<link rel="stylesheet" href="{style}">{/for}{/if}
 </head>
 <body class="wb-app-shell" data-wb-component="app-shell">

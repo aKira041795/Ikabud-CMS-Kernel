@@ -1,8 +1,8 @@
 {
     "suite": "comprehension-engine-v3",
-    "started": "2026-07-15 20:57:54",
-    "finished": "2026-07-15 20:57:54",
-    "elapsed_ms": 32.9,
+    "started": "2026-07-16 03:18:18",
+    "finished": "2026-07-16 03:18:18",
+    "elapsed_ms": 18.5,
     "summary": {
         "passed": 18,
         "failed": 0,
@@ -39,105 +39,105 @@
             "label": "List returns stored case",
             "status": "pass",
             "detail": "",
-            "time": 1.2
+            "time": 0.8
         },
         {
             "section": "Case memory",
             "label": "Action ID persisted correctly",
             "status": "pass",
             "detail": "",
-            "time": 1.2
+            "time": 0.9
         },
         {
             "section": "Case memory",
             "label": "Delete removes from index",
             "status": "pass",
             "detail": "",
-            "time": 1.7
+            "time": 1.3
         },
         {
             "section": "Case memory",
             "label": "Stats reflect deletion",
             "status": "pass",
             "detail": "",
-            "time": 1.7
+            "time": 1.3
         },
         {
             "section": "Store case with explicit actionId",
             "label": "Case ID starts with module prefix",
             "status": "pass",
             "detail": "",
-            "time": 1
+            "time": 0.7
         },
         {
             "section": "Store case with explicit actionId",
             "label": "Two stores with same params produce unique case IDs",
             "status": "pass",
             "detail": "",
-            "time": 1.7
+            "time": 1
         },
         {
             "section": "Store case with explicit actionId",
             "label": "Both cases visible in list",
             "status": "pass",
             "detail": "",
-            "time": 1.7
+            "time": 1.1
         },
         {
             "section": "Store case with explicit actionId",
             "label": "Action ID is real action, not summary",
             "status": "pass",
             "detail": "",
-            "time": 1.8
+            "time": 1.1
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has analysis",
             "status": "pass",
             "detail": "",
-            "time": 5.3
+            "time": 4.9
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has report card",
             "status": "pass",
             "detail": "",
-            "time": 5.3
+            "time": 4.9
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has engine version",
             "status": "pass",
             "detail": "",
-            "time": 5.4
+            "time": 4.9
         },
         {
             "section": "buildEvidencePacket read-only",
             "label": "Evidence packet has case memory stats",
             "status": "pass",
             "detail": "",
-            "time": 5.4
+            "time": 4.9
         },
         {
             "section": "Coverage scoring",
             "label": "Coverage score is between 0 and 1",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.2
         },
         {
             "section": "List empty",
             "label": "Empty module has no cases",
             "status": "pass",
             "detail": "",
-            "time": 0.6
+            "time": 0.4
         },
         {
             "section": "Write-path stale-cache prevention",
             "label": "Fresh instance sees all 3 cases — no stale-cache overwrite during writes",
             "status": "pass",
             "detail": "",
-            "time": 1.9
+            "time": 1.4
         }
     ],
     "gaps": []

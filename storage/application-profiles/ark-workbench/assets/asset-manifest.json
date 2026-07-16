@@ -5,6 +5,10 @@
             "workbench.css": {
                 "path": "assets/workbench.css",
                 "size": "~8KB"
+            },
+            "workbench-tailwind.css": {
+                "path": "assets/workbench-tailwind.css",
+                "source": "assets/workbench-tailwind.src.css"
             }
         },
         "scripts": {

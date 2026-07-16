@@ -18,6 +18,9 @@ module.exports = {
 
         // PHP handlers that may contain inline class references
         './modules/project-audit-ledger/handlers/**/*.php',
+
+        // Kernel entity renderer emits utility classes for non-Workbench profiles
+        './kernel/EntityContext/DefaultEntityRenderer.php',
     ],
     safelist: [
         // DiSyL-dynamic background classes (conditionally rendered in {if} blocks)
@@ -29,6 +32,14 @@ module.exports = {
     theme: {
         extend: {
             colors: {
+                brand: {
+                    50: '#eff6ff',
+                    100: '#dbeafe',
+                    200: '#bfdbfe',
+                    500: '#3b82f6',
+                    700: '#1d4ed8',
+                    800: '#1e40af',
+                },
                 pal: {
                     50: '#eef2ff',
                     100: '#e0e7ff',

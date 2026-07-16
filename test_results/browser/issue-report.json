@@ -1,31 +1,8 @@
 {
-  "generated": "2026-07-15T06:47:25.325Z",
-  "total_issues": 2,
+  "generated": "2026-07-16T03:22:55.408Z",
+  "total_issues": 0,
   "total_suppressed": 0,
-  "by_severity": {
-    "major": 2
-  },
-  "by_kind": {
-    "perf": 2
-  },
-  "issues": [
-    {
-      "kind": "perf",
-      "severity": "major",
-      "where": "JO create",
-      "detail": "8026ms > 3000ms threshold",
-      "threshold": 3000,
-      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-      "test": "JO operational setup: draft → ongoing"
-    },
-    {
-      "kind": "perf",
-      "severity": "major",
-      "where": "full setup journey",
-      "detail": "20244ms > 3000ms threshold",
-      "threshold": 3000,
-      "suite": "modules-pal-workflows-pal-lifecycle-interactive--chromium",
-      "test": "JO operational setup: draft → ongoing"
-    }
-  ]
+  "by_severity": {},
+  "by_kind": {},
+  "issues": []
 }

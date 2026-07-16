@@ -1091,6 +1091,19 @@
     padding: var(--wb-space-4);
 }
 
+.wb-section-title {
+    margin: 0;
+    color: var(--wb-color-text);
+    font-size: var(--wb-text-sm);
+    font-weight: 600;
+}
+
+.wb-text-muted {
+    margin: 0;
+    color: var(--wb-color-text-muted);
+    font-size: var(--wb-text-sm);
+}
+
 .wb-panel__body--flush {
     padding: 0;
 }

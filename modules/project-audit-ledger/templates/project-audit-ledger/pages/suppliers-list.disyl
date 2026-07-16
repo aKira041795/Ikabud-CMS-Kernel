@@ -4,6 +4,6 @@
         <a href="/admin/project-audit-ledger/suppliers/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Add Supplier</a>
     </div>
     <div class="wb-panel__body--flush">
-        {ikb_entity_list source="pal_supplier" view="table" use="tailwind" sortable="true" search="true" search-placeholder="Search suppliers..." empty="No suppliers yet." /}
+        {ikb_entity_list source="pal_supplier" view="table" use="workbench" sortable="true" search="true" search-placeholder="Search suppliers..." empty="No suppliers yet." /}
     </div>
 </div>

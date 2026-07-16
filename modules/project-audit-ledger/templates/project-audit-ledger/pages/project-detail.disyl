@@ -102,7 +102,7 @@
         </div>
         <div class="wb-panel p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Expenses</h4>
-            {ikb_entity_list source="pal_expense" view="table" use="tailwind" filter="project_id={project.id}" empty="No expenses recorded." /}
+            {ikb_entity_list source="pal_expense" view="table" use="workbench" filter="project_id={project.id}" empty="No expenses recorded." /}
         </div>
         <div class="wb-panel p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Purchase Orders ({purchase_history|count})</h4>

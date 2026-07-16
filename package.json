@@ -1,7 +1,7 @@
 {
     "private": true,
     "scripts": {
-        "build:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --minify",
+        "build:tailwind": "php scripts/build-tailwind.php",
         "watch:tailwind": "tailwindcss -i ./public/assets/workbench/workbench-tailwind.src.css -o ./public/assets/workbench/workbench-tailwind.css --watch",
         "test": "npx playwright test",
         "test:ark": "./scripts/ark-test",

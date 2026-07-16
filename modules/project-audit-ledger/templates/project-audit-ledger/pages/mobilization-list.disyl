@@ -1,5 +1,5 @@
 <div class="wb-panel p-6">
     <h2 class="wb-section__title mb-4">Mobilization Requests</h2>
     <p class="text-sm text-gray-600 mb-4">Manage team lead mobilization fund requests.</p>
-    {ikb_entity_list source="pal_mobilization" view="table" use="tailwind" empty="No mobilization requests found." /}
+    {ikb_entity_list source="pal_mobilization" view="table" use="workbench" empty="No mobilization requests found." /}
 </div>

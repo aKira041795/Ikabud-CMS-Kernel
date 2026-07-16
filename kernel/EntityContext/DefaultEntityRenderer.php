@@ -32,7 +32,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     private CellRendererRegistryInterface $cellRenderers;
     private EntityConditionEvaluator $conditionEvaluator;
 
-    /** @var array<string, array<string, string>> CSS preset map (tailwind / bootstrap / legacy) */
+    /** @var array<string, array<string, string>> CSS preset map */
     private array $stylePresets;
 
     /** @var array<string, array{ast: array, source: string}> Compiled action_show_if cache */
@@ -95,7 +95,8 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $total = (int)($attrs['_total'] ?? $context['_total'] ?? count($rows));
 
         if (empty($rows)) {
-            $result = '<div class="ikb-entity-list--empty text-center py-8 text-gray-500 ' . $this->entitySourceClass($source) . ' ' . $class . '">'
+            $emptyClass = $use === 'workbench' ? 'wb-empty-state wb-panel' : 'text-center py-8 text-gray-500';
+            $result = '<div class="ikb-entity-list--empty ' . $emptyClass . ' ' . $this->entitySourceClass($source) . ' ' . $class . '">'
                 . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . '</div>';
             return $this->afterRenderList($result, $attrs);
         }
@@ -207,12 +208,12 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
         $searchHtml = '';
         if ($search && !$hasCustomSlot) {
-            $searchHtml = $this->renderEntitySearchBar($listId, $searchPlaceholder);
+            $searchHtml = $this->renderEntitySearchBar($listId, $searchPlaceholder, $use);
         }
 
         $bulkHtml = '';
         if ($hasBulk) {
-            $bulkHtml = $this->renderEntityBulkBar($bulkActions, $bulkActionUrl, $listId);
+            $bulkHtml = $this->renderEntityBulkBar($bulkActions, $bulkActionUrl, $listId, $use);
         }
 
         $wrapperClass = $this->style('wrapper', $viewMode, $use);
@@ -221,7 +222,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $sourceDataAttr = 'data-ikb-source="' . htmlspecialchars(str_replace('.', '-', $source), ENT_QUOTES, 'UTF-8') . '"';
         $viewDataAttr = 'data-ikb-view="' . htmlspecialchars($viewMode, ENT_QUOTES, 'UTF-8') . '"';
         $listDataAttr = $listId !== '' ? ' data-ikb-list="' . htmlspecialchars($listId, ENT_QUOTES, 'UTF-8') . '"' : '';
-        $wbComponentAttr = 'data-wb-component="entity-list"';
+        $wbComponentAttr = 'data-wb-component="' . ($use === 'workbench' && $viewMode === 'table' ? 'responsive-table' : 'entity-list') . '"';
         $wbEntityAttr = 'data-wb-entity="' . htmlspecialchars($this->entityTypeFromSource($source), ENT_QUOTES, 'UTF-8') . '"';
 
         if ($viewMode === 'table' && !$hasCustomSlot) {
@@ -230,7 +231,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $alpine = $search ? ' x-data="{ q:\'\' }"' : '';
             $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $alpine . '>'
                 . $searchHtml . $bulkHtml
-                . '<table class="w-full text-sm">' . $bulkCol . $tableHeader . '<tbody>' . $out . '</tbody></table>'
+                . '<table class="' . ($use === 'workbench' ? 'wb-table wb-table--sticky' : 'w-full text-sm') . '">' . $bulkCol . $tableHeader . '<tbody>' . $out . '</tbody></table>'
                 . ($paginated ? $this->renderPagination($total, $queryState) : '')
                 . '</div>';
         } else {
@@ -554,7 +555,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $cells = '';
         if ($ctx->hasBulk) {
             $rowId = htmlspecialchars((string)($ctx->row['id'] ?? ''), ENT_QUOTES, 'UTF-8');
-            $cells .= '<td class="' . $tdClass . '"><input type="checkbox" name="ids[]" value="' . $rowId . '" class="ikb-bulk-row"></td>';
+            $cells .= '<td class="' . $tdClass . '" data-label=""><input type="checkbox" name="ids[]" value="' . $rowId . '" class="ikb-bulk-row"></td>';
         }
         foreach ($ctx->fields as $field) {
             if ($field === '*') continue;
@@ -562,16 +563,17 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $renderer = $ctx->renderers[$field] ?? null;
             $fc = $ctx->fieldContracts[$field] ?? [];
             $editable = !empty($ctx->fieldContracts[$field]['editable']);
+            $label = htmlspecialchars(ucwords(str_replace('_', ' ', $field)), ENT_QUOTES, 'UTF-8');
             if ($editable) {
-                $cells .= '<td class="' . $tdClass . '">' . $this->renderCellEditable($rawValue, $renderer, $field, $ctx->row, $fc) . '</td>';
+                $cells .= '<td class="' . $tdClass . '" data-label="' . $label . '">' . $this->renderCellEditable($rawValue, $renderer, $field, $ctx->row, $fc) . '</td>';
             } else {
-                $cells .= '<td class="' . $tdClass . '">' . $this->renderCell($rawValue, $renderer, $field, $ctx->row) . '</td>';
+                $cells .= '<td class="' . $tdClass . '" data-label="' . $label . '">' . $this->renderCell($rawValue, $renderer, $field, $ctx->row) . '</td>';
             }
         }
 
         $actionHtml = $this->renderRowActions($ctx);
         if ($actionHtml !== '') {
-            $cells .= '<td class="' . $tdClass . ' text-right whitespace-nowrap">' . $actionHtml . '</td>';
+            $cells .= '<td class="' . $tdClass . ' text-right whitespace-nowrap" data-label="Actions">' . $actionHtml . '</td>';
         }
 
         return '<tr class="' . $trClass . $clickAttrs['class'] . '"' . $clickAttrs['attrs'] . '>' . $cells . '</tr>';
@@ -934,14 +936,17 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         ];
     }
 
-    private function renderEntitySearchBar(string $listId, string $placeholder): string
+    private function renderEntitySearchBar(string $listId, string $placeholder, string $use): string
     {
         $safePlaceholder = htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8');
         $listSelector = $listId !== '' ? '#' . $listId . ' ' : '';
+        $inputClass = $use === 'workbench'
+            ? 'wb-input'
+            : 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500';
         return <<<HTML
         <div class="ikb-entity-search mb-3">
             <input type="text" x-model="q" placeholder="{$safePlaceholder}"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                class="{$inputClass}" aria-label="{$safePlaceholder}"
                 @input="document.querySelectorAll('{$listSelector}tbody tr, {$listSelector}.ikb-entity-row, {$listSelector}.ikb-entity-card').forEach(el => {
                     const visible = !q || el.textContent.toLowerCase().includes(q.toLowerCase());
                     el.style.display = visible ? '' : 'none';
@@ -950,7 +955,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         HTML;
     }
 
-    private function renderEntityBulkBar(array $bulkActions, string $bulkActionUrl, string $listId): string
+    private function renderEntityBulkBar(array $bulkActions, string $bulkActionUrl, string $listId, string $use): string
     {
         $csrfInput = '';
         if (function_exists('csrf_token')) {
@@ -963,7 +968,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             $ba = trim($ba);
             if ($ba === '') continue;
             $label = htmlspecialchars(ucfirst($ba), ENT_QUOTES, 'UTF-8');
-            $actionClass = $this->style('action', $ba, 'tailwind');
+            $actionClass = $this->style('action', $ba, $use);
             $buttons .= '<button type="submit" name="bulk_action" value="' . $ba . '" class="' . $actionClass . '">' . $label . '</button>';
         }
         $barId = $listId !== '' ? 'ikb-bulk-bar-' . $listId : 'ikb-bulk-bar';
@@ -985,6 +990,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     {
         $defaultAction = match ($use) {
             'bootstrap' => 'ikb-row-action btn btn-sm btn-outline-secondary',
+            'workbench' => 'ikb-row-action wb-btn wb-btn--outline wb-btn--sm',
             'tailwind' => 'ikb-row-action inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-gray-600 bg-gray-100 hover:bg-gray-200',
             default => 'ikb-row-action inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md text-gray-600 hover:bg-gray-100 transition',
         };
@@ -1043,6 +1049,30 @@ final class DefaultEntityRenderer implements EntityRendererInterface
     private function buildStylePresets(): array
     {
         return [
+            'workbench' => [
+                'wrapper' => [
+                    'table'     => 'ikb-entity-list ikb-entity-list--table wb-panel overflow-x-auto',
+                    'compact'   => 'ikb-entity-list ikb-entity-list--compact wb-panel',
+                    'card_grid' => 'ikb-entity-list ikb-entity-list--grid grid gap-4 sm:grid-cols-2 lg:grid-cols-3',
+                ],
+                'thead'   => ['table' => ''],
+                'th'      => ['table' => ''],
+                'tr'      => ['table' => ''],
+                'td'      => ['table' => ''],
+                'row'     => ['compact' => 'ikb-entity-row wb-panel__body'],
+                'title'   => ['compact' => 'wb-section-title', 'card_grid' => 'wb-section-title'],
+                'subtitle'=> ['compact' => 'wb-text-muted', 'card_grid' => 'wb-text-muted'],
+                'card'    => ['card_grid' => 'ikb-entity-card wb-panel'],
+                'actionWrapper' => ['actions' => 'flex items-center justify-end gap-2'],
+                'action'  => [
+                    'view'    => 'ikb-row-action wb-btn wb-btn--outline wb-btn--sm',
+                    'edit'    => 'ikb-row-action wb-btn wb-btn--outline wb-btn--sm',
+                    'delete'  => 'ikb-row-action wb-btn wb-btn--danger wb-btn--sm',
+                    'approve' => 'ikb-row-action wb-btn wb-btn--success wb-btn--sm',
+                    'process' => 'ikb-row-action wb-btn wb-btn--primary wb-btn--sm',
+                    'cancel'  => 'ikb-row-action wb-btn wb-btn--outline wb-btn--sm',
+                ],
+            ],
             'tailwind' => [
                 'wrapper' => [
                     'table'     => 'ikb-entity-list ikb-entity-list--table w-full overflow-x-auto',

@@ -109,7 +109,16 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: modules/cms/builder-ui/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            modules/cms/builder-ui/package-lock.json
+
+      - name: Build and verify Workbench assets
+        run: |
+          npm ci
+          npm run build:tailwind
+          php tests/workbench_profile_contract_test.php
+          git diff --exit-code -- public/assets/workbench/workbench-tailwind.css storage/application-profiles/ark-workbench/assets/workbench-tailwind.css storage/application-profiles/ark-workbench/assets/workbench-tailwind.src.css
 
       - name: Builder UI type-check
         working-directory: modules/cms/builder-ui

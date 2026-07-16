@@ -65,6 +65,66 @@ $h->test(
     'Every component script declared by profile exists in asset manifest',
     count(array_diff($declaredScripts, $assetScripts)) === 0
 );
+$h->test(
+    'Tailwind bundle is declared in the profile asset manifest',
+    isset($assetManifest['assets']['styles']['workbench-tailwind.css'])
+);
+
+$h->section('Published asset parity');
+foreach (['workbench.css', 'workbench-core.js', 'workbench-tailwind.css', 'workbench-tailwind.src.css'] as $asset) {
+    $publicAsset = $base . '/public/assets/workbench/' . $asset;
+    $profileAsset = $profileRoot . '/assets/' . $asset;
+    $h->test("{$asset} is published identically", hash_file('sha256', $publicAsset) === hash_file('sha256', $profileAsset));
+}
+
+$h->section('PAL Workbench wiring');
+$renderer = (string)file_get_contents($base . '/kernel/EntityContext/DefaultEntityRenderer.php');
+$runtime = (string)file_get_contents($base . '/public/assets/workbench/workbench-core.js');
+$tailwindConfig = (string)file_get_contents($base . '/tailwind.config.js');
+$tailwindCss = (string)file_get_contents($base . '/public/assets/workbench/workbench-tailwind.css');
+$h->test('Entity renderer exposes Workbench preset', str_contains($renderer, "'workbench' => ["));
+$h->test('Workbench tables carry responsive classes', str_contains($renderer, 'wb-table wb-table--sticky'));
+$h->test('Entity table cells include server-rendered labels', str_contains($renderer, 'data-label="'));
+$h->test('Dynamic Workbench controls are observed', str_contains($runtime, 'new MutationObserver'));
+$h->test('Tailwind scans the kernel entity renderer', str_contains($tailwindConfig, './kernel/EntityContext/DefaultEntityRenderer.php'));
+$h->test('Compiled Tailwind contains brand utilities', str_contains($tailwindCss, '.text-brand-700'));
+
+$palTemplates = [];
+$palTemplateIterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(
+    $base . '/modules/project-audit-ledger/templates',
+    FilesystemIterator::SKIP_DOTS
+));
+foreach ($palTemplateIterator as $templateFile) {
+    if ($templateFile->isFile() && $templateFile->getExtension() === 'disyl') {
+        $palTemplates[] = $templateFile->getPathname();
+    }
+}
+$tailwindEntityLists = [];
+$unwiredEntityLists = [];
+foreach ($palTemplates as $template) {
+    $contents = (string)file_get_contents($template);
+    if (str_contains($contents, 'ikb_entity_list') && str_contains($contents, 'use="tailwind"')) {
+        $tailwindEntityLists[] = $template;
+    }
+    if (preg_match('/\{ikb_entity_list\b(?![^}]*\buse="workbench")/s', $contents)) {
+        $unwiredEntityLists[] = $template;
+    }
+}
+$h->assertSame([], $tailwindEntityLists, 'PAL entity lists do not select the Tailwind renderer preset');
+$h->assertSame([], $unwiredEntityLists, 'PAL entity lists explicitly select the Workbench renderer preset');
+
+$shellTemplates = [
+    $profileRoot . '/layouts/app-shell.disyl',
+    $profileRoot . '/layouts/app-shell-mobile.disyl',
+    $profileRoot . '/components/shell/app_shell.disyl',
+];
+foreach ($shellTemplates as $shellTemplate) {
+    $contents = (string)file_get_contents($shellTemplate);
+    $h->test(
+        basename($shellTemplate) . ' loads Workbench CSS after utilities',
+        strpos($contents, 'workbench-tailwind.css') < strpos($contents, 'workbench.css')
+    );
+}
 
 $h->section('Contract validator coverage');
 $validator = new \Ikabud\Kernel\Testing\WorkbenchContractValidator();
