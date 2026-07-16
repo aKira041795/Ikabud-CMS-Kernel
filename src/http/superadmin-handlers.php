@@ -2105,15 +2105,26 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
                 $runs[$runId]['artifact_files'][$engine] = $path;
             }
         }
+        foreach (glob($root . '/storage/workbench/runs/*.json') ?: [] as $path) {
+            $runId = basename($path, '.json');
+            if (!preg_match('/^[A-Za-z0-9._-]+$/', $runId)) continue;
+            $artifact = workbenchReadJsonArtifact($path);
+            if ($artifact === null || ($artifact['run_id'] ?? null) !== $runId) continue;
+            $runs[$runId] ??= ['run_id' => $runId, 'artifacts' => []];
+            $runs[$runId]['artifacts']['contract'] = $artifact;
+            $runs[$runId]['artifact_files']['contract'] = $path;
+        }
+
         foreach ($runs as $runId => &$run) {
             $analyst = $run['artifacts']['analyst'] ?? [];
             $reporter = $run['artifacts']['reporter'] ?? [];
             $comprehension = $run['artifacts']['comprehension'] ?? [];
             $scenario = $run['artifacts']['scenario'] ?? [];
             $intelligence = $run['artifacts']['intelligence'] ?? [];
+            $contract = $run['artifacts']['contract'] ?? [];
             $analysis = $comprehension['analysis'] ?? [];
-            $module = (string)($reporter['module'] ?? $analyst['module'] ?? $analysis['module'] ?? ($scenario['scenario']['module'] ?? $intelligence['module'] ?? 'unknown'));
-            $finished = (string)($scenario['finished_at'] ?? $intelligence['generated_at'] ?? $analyst['generated_at'] ?? $comprehension['generated_at'] ?? '');
+            $module = (string)($contract['module'] ?? $reporter['module'] ?? $analyst['module'] ?? $analysis['module'] ?? ($scenario['scenario']['module'] ?? $intelligence['module'] ?? 'unknown'));
+            $finished = (string)($contract['finished_at'] ?? $scenario['finished_at'] ?? $intelligence['generated_at'] ?? $analyst['generated_at'] ?? $comprehension['generated_at'] ?? '');
             $issues = (array)($analyst['issues'] ?? []);
             $critical = count(array_filter($issues, static fn($issue) => ($issue['severity'] ?? '') === 'critical'));
             $major = count(array_filter($issues, static fn($issue) => ($issue['severity'] ?? '') === 'major'));
@@ -2123,6 +2134,22 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
             $suiteTotals = ['passed' => 0, 'failed' => 0, 'skipped' => 0, 'timed_out' => 0, 'interrupted' => 0, 'total' => 0];
             foreach ((array)($reporter['suites'] ?? []) as $suite) {
                 foreach ($suiteTotals as $key => $_) $suiteTotals[$key] += (int)($suite[$key] ?? 0);
+            }
+            if (($reporter['suites'] ?? []) === [] && $contract !== []) {
+                foreach ((array)($contract['executions'] ?? []) as $execution) {
+                    $suiteTotals['total']++;
+                    if (!empty($execution['timed_out'])) {
+                        $suiteTotals['timed_out']++;
+                    } elseif ((int)($execution['exit_code'] ?? 1) === 0) {
+                        $suiteTotals['passed']++;
+                    } else {
+                        $suiteTotals['failed']++;
+                    }
+                }
+                if (($contract['outcome'] ?? '') === 'blocked' && $suiteTotals['total'] === 0) {
+                    $suiteTotals['failed'] = 1;
+                    $suiteTotals['total'] = 1;
+                }
             }
             $run += [
                 'module' => $module,
@@ -2137,7 +2164,7 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
                 'scenario_status' => $scenario['status'] ?? null,
                 'cleanup_clean' => $scenario['cleanup_result']['clean'] ?? null,
                 'summary' => $suiteTotals,
-                'status' => ($suiteTotals['failed'] > 0 || $suiteTotals['timed_out'] > 0 || $suiteTotals['interrupted'] > 0 || $critical > 0 || !$gatePassed || !$scenarioOk || $hasBreakpoint) ? 'failed' : 'passed',
+                'status' => ($suiteTotals['failed'] > 0 || $suiteTotals['timed_out'] > 0 || $suiteTotals['interrupted'] > 0 || $critical > 0 || !$gatePassed || !$scenarioOk || $hasBreakpoint || ($contract !== [] && ($contract['outcome'] ?? 'failed') !== 'passed')) ? 'failed' : 'passed',
             ];
         }
         unset($run);
@@ -2205,8 +2232,8 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRuns')) {
                 'run_id' => $hybrid['run_id'],
                 'suite' => $hybrid['module'] . ' / ' . $hybrid['run_id'],
                 'module' => $hybrid['module'],
-                'type' => 'ark-hybrid',
-                'started' => '',
+                'type' => isset($hybrid['artifacts']['contract']) && count($hybrid['artifacts']) === 1 ? 'ark-contract' : 'ark-hybrid',
+                'started' => (string)($hybrid['artifacts']['contract']['started_at'] ?? ''),
                 'finished' => $hybrid['finished'],
                 'elapsed_ms' => 0,
                 'passed' => (int)($hybrid['summary']['passed'] ?? 0),
@@ -2325,7 +2352,8 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchRunDetail')) {
                 echo json_encode(['ok' => false, 'error' => 'ARK run not found: ' . $runId]);
                 exit;
             }
-            echo json_encode(['ok' => true, 'kind' => 'ark-hybrid', 'run' => $detail], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $kind = isset($detail['artifacts']['contract']) && count($detail['artifacts']) === 1 ? 'ark-contract' : 'ark-hybrid';
+            echo json_encode(['ok' => true, 'kind' => $kind, 'run' => $detail], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             exit;
         }
         $suite = trim((string)($input['suite'] ?? ($_GET['suite'] ?? '')));

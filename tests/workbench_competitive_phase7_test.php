@@ -19,5 +19,19 @@ $h->test('CI publishes evidence artifacts', str_contains($workflow, 'actions/upl
 $h->test('reproducible container runner exists', is_file(__DIR__ . '/../docker/workbench/Dockerfile'));
 $docs = (string) file_get_contents(__DIR__ . '/../docs/workbench/extension-sdk-and-ci.md');
 $h->test('adoption snippet stays under ten project lines', str_contains($docs, 'fewer than ten project lines'));
+$dockerfile = (string) file_get_contents(__DIR__ . '/../docker/workbench/Dockerfile');
+$h->test(
+    'container scope is explicitly contract and benchmark only',
+    str_contains($dockerfile, 'contract-and-benchmark-only')
+        && str_contains($docs, 'does not claim to execute browser or hybrid E2E suites')
+);
+$ciScript = (string) file_get_contents(__DIR__ . '/../scripts/workbench-ci.php');
+$h->test(
+    'trust-critical CI entry point exposes auditable sections',
+    str_contains($ciScript, 'Contract doctor')
+        && str_contains($ciScript, 'Competitive benchmark')
+        && str_contains($ciScript, 'Durable summary')
+        && str_contains($ciScript, 'Exit gate')
+);
 $h->assertThrows(RuntimeException::class, function (): void { $bad = new class implements EvidenceCollectorExtension { public function id(): string { return 'bad.collector'; } public function collect(array $context): array { return [['source' => 'bad', 'outcome' => 'passed', 'authoritative_digest' => 'forged']]; } }; $r = new ExtensionRegistry(); $r->register($bad); $r->runCollector('bad.collector', ['digest' => 'truth'], 'truth'); }, 'extensions cannot replace authoritative truth');
 $h->done();

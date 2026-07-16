@@ -35,7 +35,7 @@
     "actions": {"type": "array", "items": {"$ref": "#/$defs/identified"}},
     "invariants": {"type": "array", "items": {"$ref": "#/$defs/identified"}},
     "scenarios": {"type": "array", "items": {"$ref": "#/$defs/identified"}},
-    "environments": {"type": "object", "required": ["browsers", "viewports"]},
+    "environments": {"type": "object", "required": ["browsers", "viewports"], "properties": {"browsers": {"type": "array", "items": {"type": "string"}}, "viewports": {"type": "array", "items": {"type": "string"}}, "timeout_seconds": {"type": "object", "properties": {"php": {"type": "integer", "minimum": 1, "maximum": 3600}, "browser": {"type": "integer", "minimum": 1, "maximum": 3600}}}}},
     "evidence": {"type": "object", "required": ["required_identity_fields", "outcomes"]},
     "gates": {"type": "object", "required": ["required", "release_blocker_severities"]},
     "test_files": {"type": "object", "required": ["php", "browser"]},

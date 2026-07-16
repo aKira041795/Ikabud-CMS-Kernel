@@ -10,7 +10,7 @@
 const { createWorkbenchTest } = require('./WorkbenchFixture');
 
 module.exports = createWorkbenchTest({
-    appUrl: process.env.GUIDANCE_URL || process.env.APP_URL || 'http://guidance.test',
+    appUrl: process.env.GUIDANCE_URL || process.env.APP_URL || 'http://palsystem.test',
     loginPath: '/guidance/login',
     landingPath: '/admin/guidance',
     adminUser: process.env.GUIDANCE_ADMIN_USER || process.env.ADMIN_USER || 'admin',

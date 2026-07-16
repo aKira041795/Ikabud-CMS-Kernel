@@ -26,6 +26,27 @@ php ikabud workbench:explain <run-id> [--json]
 
 `init` deterministically migrates legacy `test-contract.json` when present, otherwise it derives owned routes, capabilities, events, and tables from the module manifest and routes file. `validate` checks schema and implementation claims. `doctor` is the pre-browser gate. `run` records a durable run manifest and refuses to start a browser when preflight fails. `explain` turns that run evidence into a machine-readable cause list and next action.
 
+## Execution identity and timeouts
+
+`workbench:run` creates the canonical run ID before starting any child process. PHP and browser executions receive `WB_RUN_ID`, `ARK_MODULE`, compatibility `MODULE`, and `HYBRID_GATE`. Reporter, Playwright, Comprehension, contract-run, and Superadmin evidence therefore correlate under one identity.
+
+Modules may declare bounded execution limits:
+
+```json
+{
+  "environments": {
+    "browsers": ["chromium"],
+    "viewports": ["desktop", "mobile"],
+    "timeout_seconds": {
+      "php": 300,
+      "browser": 900
+    }
+  }
+}
+```
+
+Limits are clamped to 1-3600 seconds. A timeout terminates the child process group, records `timed_out: true` with exit code 124 and a partial-output digest, fails the run gate, and remains available through `workbench:explain`.
+
 ## Compatibility and deprecation
 
 - v1 readers accept only `contract_version` major 1.

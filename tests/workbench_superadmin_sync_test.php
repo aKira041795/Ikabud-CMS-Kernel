@@ -23,6 +23,41 @@ $h->test('observed route matching supports dynamic placeholders without estimate
         ['pages' => [['url' => '/admin/example/42?inspect=1']]]
     ) === 1);
 
+$fixtureRoot = sys_get_temp_dir() . '/ark-superadmin-contract-' . bin2hex(random_bytes(4));
+$fixtureRuns = $fixtureRoot . '/storage/workbench/runs';
+mkdir($fixtureRuns, 0775, true);
+$fixtureRunId = 'guidance-contract-proof';
+file_put_contents($fixtureRuns . '/' . $fixtureRunId . '.json', json_encode([
+    'schema' => 'ark.workbench-contract-run.v1',
+    'run_id' => $fixtureRunId,
+    'module' => 'guidance',
+    'gate' => 'critical',
+    'started_at' => '2026-07-17T00:00:00+00:00',
+    'finished_at' => '2026-07-17T00:00:01+00:00',
+    'outcome' => 'passed',
+    'executions' => [[
+        'kind' => 'browser',
+        'target' => 'tests/browser/modules/guidance/showcase.spec.js',
+        'exit_code' => 0,
+        'timed_out' => false,
+        'duration_ms' => 840,
+    ]],
+], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
+$fixtureRunsResult = workbenchHybridRuns($fixtureRoot);
+$fixtureDetail = workbenchHybridRunDetail($fixtureRoot, $fixtureRunId);
+$h->test('contract-only runs are correlated into Superadmin history',
+    isset($fixtureRunsResult[$fixtureRunId]['artifacts']['contract'])
+    && ($fixtureRunsResult[$fixtureRunId]['module'] ?? '') === 'guidance');
+$h->test('contract execution totals drive the unified run summary',
+    ($fixtureRunsResult[$fixtureRunId]['summary']['passed'] ?? 0) === 1
+    && ($fixtureRunsResult[$fixtureRunId]['status'] ?? '') === 'passed');
+$h->test('contract run detail retains execution evidence',
+    ($fixtureDetail['artifacts']['contract']['executions'][0]['kind'] ?? '') === 'browser');
+unlink($fixtureRuns . '/' . $fixtureRunId . '.json');
+rmdir($fixtureRuns);
+rmdir(dirname($fixtureRuns));
+rmdir(dirname(dirname($fixtureRuns)));
+
 $h->section('Superadmin consumer contracts');
 $handler = (string)file_get_contents($root . '/src/http/superadmin-handlers.php');
 $template = (string)file_get_contents($root . '/templates/pages/superadmin-workbench.disyl');
@@ -43,5 +78,9 @@ $h->test('module-scoped ARK Hybrid execution uses the guarded launcher',
     str_contains($handler, "\$target === 'ark-hybrid'")
     && str_contains($handler, '/tests/browser/run-workbench.js')
     && str_contains($template, 'wbRunArkHybrid'));
+$h->test('Superadmin renders standalone contract runs and timeout evidence',
+    str_contains($template, "data.kind === 'ark-contract'")
+    && str_contains($template, 'Contract execution')
+    && str_contains($template, 'execution.timed_out'));
 
 $h->done();

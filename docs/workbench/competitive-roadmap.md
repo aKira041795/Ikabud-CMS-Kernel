@@ -56,13 +56,13 @@ These foundations do not by themselves establish competitive readiness. Portabil
 | Phase | Objective | Status | Exit evidence |
 |---|---|---:|---|
 | 1 | Competitive benchmark and reproducibility baseline | Complete | 40 cases; all gates PASS |
-| 2 | Workbench Test Contract v1 and developer tooling | Complete | 14/14 conformance gates PASS |
-| 3 | Module-independence proof: Guidance, WMS, EHR | Complete | 20/20 portability gates PASS |
+| 2 | Workbench Test Contract v1 and developer tooling | Complete | 24/24 conformance and execution-safety gates PASS |
+| 3 | Module-independence proof: Guidance, WMS, EHR | Complete | 25/25 portability and Guidance showcase gates PASS |
 | 4 | Role, tenant, capability, and environment matrices | Complete | 7/7 matrix gates PASS |
 | 5 | Component scenarios, visual and accessibility matrices | Complete | 7/7 governance gates PASS |
-| 6 | Durable cockpit, comparisons, flakes, and exports | Complete | 13/13 run-intelligence gates PASS |
-| 7 | CI integrations, extension SDK, and adoption readiness | Complete | 8/8 ecosystem gates; CI PASS |
-| Final | Full regression and production-readiness audit | Complete | 272/272 Workbench assertions PASS; broader baseline recorded |
+| 6 | Durable cockpit, comparisons, flakes, and exports | Complete | 16/16 run-intelligence and concurrency gates PASS |
+| 7 | CI integrations, extension SDK, and adoption readiness | Complete | 10/10 ecosystem and runner-scope gates; CI PASS |
+| Final | Full regression and production-readiness audit | Complete | 296/296 current Workbench assertions PASS; broader baseline recorded |
 
 ## Phase 1 — Competitive benchmark
 
@@ -273,3 +273,14 @@ Entries are append-only and must name the phase, implementation files, tests, me
 - The repository-wide sandboxed baseline executed 298 test files: 251 passed and 47 failed outside the Workbench change set. Failures were retained as honest external evidence rather than counted as Workbench passes; the dominant class was censored MySQL/HTTP integration access, with existing theme-manifest and trigger/workflow assertions also visible.
 - An elevated integration rerun was attempted but the legacy runner did not complete reliably because several HTTP integration tests wait on services not provisioned by the runner. This is a repository test-environment defect, not converted into a pass.
 - Production decision: ARK Workbench competitive implementation is complete and its own release gates are green. Repository-wide production release still requires the existing integration environment and unrelated baseline failures to be resolved by their owning modules.
+
+### 2026-07-17 — Trust and second-module proof hardening
+
+- Serialized durable run-index updates with an exclusive lock, reload-under-lock, checked temporary writes, and atomic rename. Concurrent-writer regression coverage proves that parallel writers retain every summary.
+- Made `WB_RUN_ID`, `ARK_MODULE`, compatibility `MODULE`, and `HYBRID_GATE` canonical child-process inputs for PHP and browser execution.
+- Added contract-governed PHP/browser timeouts, process-group termination, exit code `124`, `timed_out`, duration, and partial-output digest evidence.
+- Reorganized the generic CI runner into auditable bootstrap, input, doctor, benchmark, summary, and exit-gate sections. The lightweight Docker image is explicitly a contract-and-benchmark runner, not a browser-E2E image.
+- Added Guidance's independent authenticated browser showcase, responsive and declared-navigation checks, run-correlation evidence, and a Superadmin contract-run drilldown.
+- Proof procedure and environment boundaries are documented in `docs/workbench/guidance-showcase.md`.
+- Verification: contract execution 24/24; module portability 25/25; durable run intelligence 16/16; ecosystem 10/10; Superadmin synchronization 16/16; all 19 Workbench, Comprehension, and Pattern Intelligence suites 296/296; generic CI PASS; Guidance validate and doctor PASS; Playwright discovers all four Guidance showcase tests.
+- Environment evidence: live browser execution was not marked passed because no web server is listening on `palsystem.test` in this workspace session. The full-browser command and infrastructure boundary remain explicit in the showcase guide.

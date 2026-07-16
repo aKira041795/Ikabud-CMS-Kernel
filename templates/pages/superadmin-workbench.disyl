@@ -117,11 +117,12 @@ async function wbViewRunDetail(file) {
         var data = await res.json();
         if (!data.ok) { el.innerHTML = '<div class="text-sm text-red-600">' + escHtml(data.error || 'Not found') + '</div>'; return; }
         var run = data.run || {};
-        if (data.kind === 'ark-hybrid') {
+        if (data.kind === 'ark-hybrid' || data.kind === 'ark-contract') {
             var a = (run.artifacts || {}).analyst || {};
             var c = (run.artifacts || {}).comprehension || {};
             var s = (run.artifacts || {}).scenario || {};
             var p = (run.artifacts || {}).intelligence || {};
+            var contract = (run.artifacts || {}).contract || {};
             var analysis = c.analysis || {};
             var ux = a.ux_evolution || {};
             var cov = analysis.coverage_score || {};
@@ -138,6 +139,19 @@ async function wbViewRunDetail(file) {
             hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">Comprehension</div><div class="text-sm mt-1">' + escHtml(((analysis.root_cause_hypothesis || {}).summary) || 'No report') + '</div><div class="text-xs text-gray-500 mt-1">Breakpoint: ' + escHtml(analysis.breakpoint || 'none') + ' · Confidence: ' + Math.round((((analysis.confidence || {}).score) || 0) * 100) + '%</div></div>';
             hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">Scenario</div><div class="text-sm mt-1">' + escHtml(s.status || 'not run') + '</div><div class="text-xs text-gray-500">Cleanup: ' + (s.cleanup_result ? (s.cleanup_result.clean ? 'clean' : 'failed') : 'not recorded') + '</div></div>';
             hybridHtml += '<div class="border rounded p-3"><div class="text-xs font-semibold uppercase text-gray-500">Pattern Intelligence</div><div class="text-sm mt-1">' + (p.schema ? escHtml(p.schema) : (artifacts.indexOf('intelligence') >= 0 ? 'Available' : 'Not generated')) + '</div><div class="text-xs text-gray-500">Artifacts: ' + escHtml(artifacts.join(', ')) + '</div></div>';
+            if (contract.schema) {
+                var executions = contract.executions || [];
+                hybridHtml += '<div class="border rounded p-3 col-span-2"><div class="flex justify-between"><div class="text-xs font-semibold uppercase text-gray-500">Contract execution</div><div class="text-xs font-semibold ' + (contract.outcome === 'passed' ? 'wb-pass' : 'wb-fail') + '">' + escHtml((contract.outcome || 'unknown').toUpperCase()) + '</div></div>';
+                hybridHtml += '<div class="text-xs text-gray-500 mt-1">Gate: ' + escHtml(contract.gate || 'critical') + ' · Run: ' + escHtml(contract.run_id || run.run_id || '') + '</div>';
+                if (executions.length) {
+                    hybridHtml += '<div class="overflow-x-auto mt-2"><table class="w-full text-xs"><thead><tr class="text-left text-gray-500"><th class="py-1">Kind</th><th>Target</th><th>Exit</th><th>Duration</th><th>Timeout</th></tr></thead><tbody>';
+                    executions.forEach(function (execution) {
+                        hybridHtml += '<tr class="border-t"><td class="py-1">' + escHtml(execution.kind || '') + '</td><td class="font-mono">' + escHtml(execution.target || '') + '</td><td>' + escHtml(execution.exit_code == null ? '—' : execution.exit_code) + '</td><td>' + escHtml(execution.duration_ms == null ? '—' : execution.duration_ms + 'ms') + '</td><td>' + (execution.timed_out ? '<span class="wb-fail">YES</span>' : 'no') + '</td></tr>';
+                    });
+                    hybridHtml += '</tbody></table></div>';
+                }
+                hybridHtml += '</div>';
+            }
             hybridHtml += '</div></div>';
             el.innerHTML = hybridHtml;
             return;

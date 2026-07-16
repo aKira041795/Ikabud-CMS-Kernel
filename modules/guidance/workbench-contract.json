@@ -2141,6 +2141,23 @@
             "id": "navigation-smoke",
             "description": "Owned pages resolve for declared actors and tenants",
             "actions": []
+        },
+        {
+            "id": "guidance-independent-showcase",
+            "description": "Guidance authenticates, renders its Workbench shell, serves declared navigation, emits browser evidence under the contract run ID, and appears in Superadmin run history.",
+            "actions": [],
+            "pages": [
+                "/admin/guidance",
+                "/admin/guidance/cases",
+                "/admin/guidance/appointments",
+                "/admin/guidance/reports"
+            ],
+            "required_evidence": [
+                "authenticated-shell",
+                "navigation-route",
+                "responsive-viewport",
+                "run-correlation"
+            ]
         }
     ],
     "environments": {
@@ -2150,7 +2167,11 @@
         "viewports": [
             "desktop",
             "mobile"
-        ]
+        ],
+        "timeout_seconds": {
+            "php": 300,
+            "browser": 900
+        }
     },
     "evidence": {
         "required_identity_fields": [
@@ -2174,7 +2195,9 @@
         "required": [
             "contract",
             "routes",
-            "ui-smoke"
+            "ui-smoke",
+            "browser-evidence",
+            "run-correlation"
         ],
         "release_blocker_severities": [
             "critical",
@@ -2183,7 +2206,9 @@
     },
     "test_files": {
         "php": [],
-        "browser": []
+        "browser": [
+            "tests/browser/modules/guidance/showcase.spec.js"
+        ]
     },
     "compatibility": {
         "migrated_from": null,
