@@ -28,6 +28,15 @@ final class ScenarioContract
         }
         foreach ((array)($scenario['questions'] ?? []) as $i => $question) if (trim((string)$question) === '') $errors[] = "invalid:question:{$i}";
         if (!is_array($scenario['data'] ?? null)) $errors[] = 'invalid:data';
+
+        // Validate fixture declaration fields if present
+        $fixtureData = (array)($scenario['data']['fixture'] ?? $scenario['fixture'] ?? []);
+        if ($fixtureData !== []) {
+            $fixtureDecl = new ScenarioFixtureDeclaration($fixtureData + ['module' => (string)($scenario['module'] ?? '')]);
+            $fixtureValidation = $fixtureDecl->validate();
+            foreach ($fixtureValidation['errors'] as $fe) $errors[] = "fixture:{$fe}";
+        }
+
         return ['valid' => $errors === [], 'errors' => array_values(array_unique($errors))];
     }
 }

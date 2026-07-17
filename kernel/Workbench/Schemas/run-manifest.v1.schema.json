@@ -2,10 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:ikabud:workbench:run-manifest:v1",
   "type": "object",
-  "required": ["schema_version", "run_id", "module_id", "started_at", "policy_version", "graph_version", "observations"],
+  "required": ["schema_version", "run_id", "module_id", "started_at", "policy_version", "graph_version", "observations", "provenance"],
   "properties": {
     "schema_version": {"const": "1.0"}, "run_id": {"type": "string"}, "module_id": {"type": "string"}, "started_at": {"type": "string"}, "finished_at": {"type": ["string", "null"]},
     "commit": {"type": ["string", "null"]}, "environment": {"type": "string"}, "policy_version": {"type": "string"}, "graph_version": {"type": "string"},
-    "observations": {"type": "array", "items": {"type": "string"}}, "selected_paths": {"type": "array", "items": {"type": "object"}}, "summary": {"type": "object"}
+    "observations": {"type": "array", "items": {"type": "string"}}, "selected_paths": {"type": "array", "items": {"type": "object"}}, "summary": {"type": "object"},
+    "provenance": {"$ref": "run-provenance.v1.schema.json"}
   }, "additionalProperties": false
 }

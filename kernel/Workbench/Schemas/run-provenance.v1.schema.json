@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:run-provenance:v1",
+  "type": "object",
+  "title": "ARK Workbench Run Provenance",
+  "description": "Canonical provenance block attached to every top-level Workbench report and export.",
+  "required": [
+    "provenance_schema", "run_id", "started_at", "finished_at", "completion_status",
+    "git_sha", "module_id", "module_version", "app_url",
+    "environment_fingerprint", "tenant_identity", "role_fixture_identity",
+    "gate_policy", "ai_policy",
+    "artifact_schema_versions", "redaction_status"
+  ],
+  "properties": {
+    "provenance_schema": {
+      "const": "ark.workbench-run-provenance.v1"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique identifier for this run"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the run started"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the run finished"
+    },
+    "completion_status": {
+      "type": "string",
+      "enum": ["complete", "interrupted", "blocked", "failed-before-analysis"],
+      "description": "Must be one of the four canonical statuses. 'interrupted', 'blocked', or 'failed-before-analysis' must not be presented as release certification."
+    },
+    "certification_disclaimer": {
+      "type": "string",
+      "description": "Present when completion_status is not 'complete', warning against using results for release certification."
+    },
+    "git_sha": {
+      "type": "string",
+      "description": "Git commit SHA of the code under test"
+    },
+    "module_id": {
+      "type": "string",
+      "description": "Module identifier being tested"
+    },
+    "module_version": {
+      "type": "string",
+      "description": "Version from module.json or 'unknown'"
+    },
+    "app_url": {
+      "type": "string",
+      "description": "Application base URL used during the run"
+    },
+    "environment_fingerprint": {
+      "type": "string",
+      "description": "SHA256 hash of PHP version, OS, hostname, and APP_ENV"
+    },
+    "tenant_identity": {
+      "type": "object",
+      "properties": {
+        "tenant_id": { "type": "integer" },
+        "tenant_key": { "type": "string" },
+        "domain": { "type": "string" }
+      },
+      "description": "Tenant fixture identity used during the run"
+    },
+    "role_fixture_identity": {
+      "type": "object",
+      "properties": {
+        "role": { "type": "string" },
+        "user_id": { "type": "integer" },
+        "fixture_label": { "type": "string" }
+      },
+      "description": "Role and user fixture identity"
+    },
+    "scenario_version": {
+      "type": "string",
+      "description": "Version of the scenario/seed data used"
+    },
+    "test_plan_version": {
+      "type": "string",
+      "description": "Version of the test plan"
+    },
+    "gate_policy": {
+      "type": "string",
+      "description": "Gate policy applied (e.g. 'critical', 'major', 'all')"
+    },
+    "ai_policy": {
+      "type": "object",
+      "properties": {
+        "ai_enabled": { "type": "boolean" },
+        "configured_provider": { "type": "string" },
+        "configured_model": { "type": "string" },
+        "tier": { "type": "string" },
+        "resolved_provider": { "type": "string" },
+        "resolved_model": { "type": "string" }
+      },
+      "description": "AI policy showing both configured and resolved provider/model"
+    },
+    "resolved_provider": {
+      "type": "string",
+      "description": "The provider actually used (resolved from policy)"
+    },
+    "resolved_model": {
+      "type": "string",
+      "description": "The model actually used (resolved from policy)"
+    },
+    "artifact_schema_versions": {
+      "type": "object",
+      "description": "Map of artifact type to schema version identifier",
+      "additionalProperties": { "type": "string" }
+    },
+    "input_artifacts": {
+      "type": "object",
+      "description": "References to exact input artifacts consumed, with relative path and content hash",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "relative_path": { "type": "string" },
+          "content_hash": { "type": "string" }
+        }
+      }
+    },
+    "redaction_status": {
+      "type": "string",
+      "enum": ["none", "partial", "full"],
+      "description": "Whether any evidence or fields were redacted"
+    }
+  },
+  "additionalProperties": false
+}

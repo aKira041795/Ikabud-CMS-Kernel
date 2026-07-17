@@ -29,6 +29,23 @@ final class RunRepository
 
         $run['schema'] = $run['schema'] ?? 'ark.workbench-run.v1';
         $run['recorded_at'] = $run['recorded_at'] ?? gmdate(DATE_ATOM);
+
+        // Attach provenance if not present
+        if (!isset($run['provenance'])) {
+            $provenance = new \Ikabud\Kernel\Workbench\Runs\RunProvenance();
+            $run['provenance'] = $provenance->build([
+                'run_id' => $id,
+                'module_id' => (string) ($run['module'] ?? $run['module_id'] ?? ''),
+                'started_at' => (string) ($run['recorded_at'] ?? gmdate(DATE_ATOM)),
+                'finished_at' => (string) ($run['recorded_at'] ?? gmdate(DATE_ATOM)),
+                'completion_status' => match ((string) ($run['outcome'] ?? '')) {
+                    'passed', 'failed' => 'complete',
+                    'blocked' => 'blocked',
+                    'interrupted' => 'interrupted',
+                    default => 'failed-before-analysis',
+                },
+            ]);
+        }
         $this->atomic($this->root . '/runs/' . $id . '.json', $run);
 
         $this->withIndexLock(function () use ($id, $run): void {
@@ -132,10 +149,13 @@ final class RunRepository
     /** @return array<string,mixed> */
     private function summary(array $run): array
     {
+        $provenance = (array) ($run['provenance'] ?? []);
         return [
             'run_id' => $run['run_id'],
             'module' => $run['module'] ?? '',
-            'commit' => $run['commit'] ?? '',
+            'module_id' => $provenance['module_id'] ?? $run['module_id'] ?? '',
+            'commit' => $provenance['git_sha'] ?? $run['commit'] ?? '',
+            'completion_status' => $provenance['completion_status'] ?? 'unknown',
             'tenant' => $run['tenant'] ?? '',
             'role' => $run['role'] ?? '',
             'browser' => $run['browser'] ?? '',

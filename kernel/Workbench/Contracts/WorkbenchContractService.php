@@ -73,6 +73,17 @@ final class WorkbenchContractService
             12
         );
         $environment = $this->executionEnvironment($runId, $moduleId, $gate);
+
+        // Resolve provenance parameters
+        $provenanceBuilder = new \Ikabud\Kernel\Workbench\Runs\RunProvenance();
+        $provenanceParams = [
+            'run_id' => $runId,
+            'module_id' => $moduleId,
+            'started_at' => $startedAt,
+            'gate_policy' => $gate,
+            'project_root' => $this->projectRoot,
+        ];
+
         $report = [
             'schema' => 'ark.workbench-contract-run.v1',
             'run_id' => $runId,
@@ -80,6 +91,7 @@ final class WorkbenchContractService
             'gate' => $gate,
             'started_at' => $startedAt,
             'preflight' => $preflight,
+            'provenance' => $provenanceBuilder->build($provenanceParams),
             'browser_started' => false,
             'executions' => [],
             'outcome' => $preflight['ok'] ? 'passed' : 'blocked',
@@ -125,12 +137,38 @@ final class WorkbenchContractService
                 static fn(array $execution): bool =>
                     $execution['exit_code'] !== 0 || $execution['timed_out']
             )) > 0;
+            $hasTimeout = count(array_filter(
+                $report['executions'],
+                static fn(array $execution): bool =>
+                    !empty($execution['timed_out'])
+            )) > 0;
             if ($hasFailure) {
                 $report['outcome'] = 'failed';
             }
+            if ($hasTimeout) {
+                $report['outcome'] = 'interrupted';
+            }
+        } elseif (!$preflight['ok']) {
+            $report['outcome'] = 'blocked';
         }
 
         $report['finished_at'] = gmdate(DATE_ATOM);
+        // Update provenance with completion status and finished_at
+        if (isset($report['provenance'])) {
+            $report['provenance']['finished_at'] = $report['finished_at'];
+            $completionStatus = match ($report['outcome'] ?? '') {
+                'passed' => 'complete',
+                'failed' => 'complete',
+                'blocked' => 'blocked',
+                'interrupted' => 'interrupted',
+                default => 'failed-before-analysis',
+            };
+            $report['provenance']['completion_status'] = $completionStatus;
+            if ($completionStatus !== 'complete') {
+                $report['provenance']['certification_disclaimer'] =
+                    'This run did not complete. Results must not be used for release certification.';
+            }
+        }
         $dir = $this->projectRoot . '/storage/workbench/runs';
         if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
             throw new \RuntimeException("Unable to create Workbench run directory: {$dir}");

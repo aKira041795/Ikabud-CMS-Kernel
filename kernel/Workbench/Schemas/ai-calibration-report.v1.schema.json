@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ikabud:workbench:ai-calibration-report:v1",
+  "type": "object",
+  "title": "ARK Workbench AI Calibration Report",
+  "description": "Measures AI performance against verified golden cases. Reports deterministic and AI metrics with target gates.",
+  "required": [
+    "schema", "corpus_version", "generated_at", "sample_size",
+    "metrics", "gates", "reproducibility", "target_gates"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ark.ai-calibration-report.v1"
+    },
+    "corpus_version": {
+      "type": "string",
+      "description": "Version of the golden corpus used"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "elapsed_ms": {
+      "type": "number",
+      "description": "Total calibration runtime in milliseconds"
+    },
+    "sample_size": {
+      "type": "integer",
+      "description": "Number of cases in the corpus — must be stated alongside any confidence metrics"
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "deterministic": {
+          "type": "object",
+          "properties": {
+            "cases": {"type": "integer"},
+            "detected": {"type": "integer"},
+            "critical_recall": {"type": "number"},
+            "critical_cases": {"type": "integer"},
+            "top_three_root_cause": {"type": "number"},
+            "false_positive_rate": {"type": "number"},
+            "positive_cases": {"type": "integer"},
+            "negative_cases": {"type": "integer"}
+          }
+        },
+        "ai": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "cases": {"type": "integer"},
+            "accepted": {"type": "integer"},
+            "acceptance_rate": {"type": "number"},
+            "citation_validity_rate": {"type": "number"},
+            "timeouts": {"type": "integer"},
+            "fallbacks": {"type": "integer"},
+            "average_latency_ms": {"type": "number"},
+            "total_latency_ms": {"type": "number"},
+            "cost_proxy": {"type": "number"}
+          }
+        },
+        "delta": {
+          "type": "object",
+          "properties": {
+            "top3_improvement": {"type": "number"},
+            "critical_recall_delta": {"type": "number"}
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "description": "Gate evaluation results",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "actual": {"type": "number"},
+          "target": {"type": "number"},
+          "operator": {"type": "string"},
+          "passed": {"type": "boolean"}
+        }
+      }
+    },
+    "reproducibility": {
+      "type": "object",
+      "properties": {
+        "deterministic_plan_reproducible": {"type": "boolean"},
+        "first_digest": {"type": "string"},
+        "second_digest": {"type": "string"}
+      }
+    },
+    "provider_trace": {
+      "type": "object",
+      "properties": {
+        "ai_enabled": {"type": "boolean"},
+        "total_cases": {"type": "integer"},
+        "timeouts": {"type": "integer"},
+        "fallbacks": {"type": "integer"},
+        "average_latency_ms": {"type": "number"},
+        "cost_proxy": {"type": "number"}
+      }
+    },
+    "target_gates": {
+      "type": "object",
+      "description": "Reference target gates for calibration",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "operator": {"type": "string"},
+          "target": {"type": "number"}
+        }
+      }
+    },
+    "note": {
+      "type": "string",
+      "description": "Warning when sample size is below 30"
+    }
+  }
+}

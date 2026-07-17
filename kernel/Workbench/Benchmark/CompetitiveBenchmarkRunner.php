@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Ikabud\Kernel\Workbench\Benchmark;
 
+use Ikabud\Kernel\Workbench\Runs\RunProvenance;
 use RuntimeException;
 
 final class CompetitiveBenchmarkRunner
@@ -15,8 +16,30 @@ final class CompetitiveBenchmarkRunner
         $corpus = is_file($corpusFile) ? json_decode((string)file_get_contents($corpusFile), true) : null;
         if (!is_array($corpus)) throw new RuntimeException('Competitive benchmark corpus is missing or invalid');
 
+        $startedAt = gmdate(DATE_ATOM);
         $classifier = new \Ikabud\Kernel\Workbench\Comprehension\Analyzers\PatternClassifier();
         $report = (new CompetitiveBenchmark($classifier))->run($corpus);
+        $finishedAt = gmdate(DATE_ATOM);
+
+        // Attach canonical provenance
+        $provenance = new RunProvenance();
+        $report['provenance'] = $provenance->build([
+            'run_id' => 'benchmark-' . substr($report['reproducibility_digest'] ?? hash('sha256', $startedAt), 0, 16),
+            'module_id' => 'kernel.workbench.benchmark',
+            'started_at' => $startedAt,
+            'finished_at' => $finishedAt,
+            'completion_status' => 'complete',
+            'git_sha' => '',
+            'project_root' => $this->projectRoot,
+            'scenario_version' => (string)($corpus['version'] ?? 'unknown'),
+            'test_plan_version' => 'competitive-benchmark-v1',
+            'gate_policy' => 'benchmark',
+            'artifact_schema_versions' => [
+                'benchmark' => 'ark.competitive-benchmark-report.v1',
+                'provenance' => 'ark.workbench-run-provenance.v1',
+            ],
+        ]);
+
         $outputFile ??= $this->projectRoot . '/test_results/benchmark/competitive-latest.json';
         $this->writeAtomic($outputFile, $report);
 
