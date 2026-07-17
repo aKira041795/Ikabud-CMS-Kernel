@@ -30,6 +30,7 @@
                 "/admin/project-audit-ledger/expenses/{id}/edit",
                 "/admin/project-audit-ledger/fabrication",
                 "/admin/project-audit-ledger/fabrication/allocations",
+                "/admin/project-audit-ledger/fabrication/payments",
                 "/admin/project-audit-ledger/fabrication/payments/create",
                 "/admin/project-audit-ledger/fabrication/{projectId}/dues",
                 "/admin/project-audit-ledger/inventory",

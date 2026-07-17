@@ -99,8 +99,9 @@ function aiGroqSuggestTriggers(array $context): array
     ];
 
     // Groq is OpenAI-compatible. We avoid response_format here for maximum compatibility.
+    $model = aiGroqModel();
     $payload = [
-        'model' => aiGroqModel(),
+        'model' => $model,
         'messages' => [
             ['role' => 'system', 'content' => $system],
             ['role' => 'user', 'content' => json_encode($user, JSON_UNESCAPED_SLASHES)],
@@ -135,8 +136,9 @@ function aiGroqTextGenerate(array $messages, float $temperature = 0.2, bool $jso
 
     $timeoutSeconds = max(1, min(55, $timeoutSeconds));
 
+    $model = aiGroqModel();
     $payload = [
-        'model' => aiGroqModel(),
+        'model' => $model,
         'messages' => $messages,
         'temperature' => $temperature,
     ];
@@ -152,7 +154,12 @@ function aiGroqTextGenerate(array $messages, float $temperature = 0.2, bool $jso
         return $resp;
     }
 
-    return ['ok' => true, 'content' => (string)($resp['content'] ?? '')];
+    return [
+        'ok' => true,
+        'content' => (string)($resp['content'] ?? ''),
+        'provider' => 'groq',
+        'model' => $model,
+    ];
 }
 
 function aiGroqHttp(string $url, array $payload, string $apiKey, int $timeoutSeconds = 25): array

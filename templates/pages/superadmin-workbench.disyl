@@ -999,7 +999,16 @@ async function wbLoadProcessMap() {
                         <tr id="ai-row-{m.provider_id}">
                             <td class="font-medium align-middle">{m.provider}</td>
                             <td>
-                                <input type="text" class="form-input ai-api-key" style="width:160px;font-size:11px;font-family:monospace" placeholder="{if m.has_key}Key set ({m.key_masked}) &mdash; leave blank to keep{else}Enter API key or URL{/if}" value="">
+                                {if m.provider_id == 'ollama'}
+                                <input type="url" class="form-input ai-api-key" style="width:160px;font-size:11px;font-family:monospace" placeholder="{if m.has_key}Leave blank to keep endpoint{else}Enter base URL{/if}" value="">
+                                {else}
+                                <input type="password" autocomplete="new-password" class="form-input ai-api-key" style="width:160px;font-size:11px;font-family:monospace" placeholder="{if m.has_key}Leave blank to keep current key{else}Enter API key{/if}" value="">
+                                {/if}
+                                {if m.has_key}
+                                <span class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-emerald-700 ai-key-configured" role="status"><span aria-hidden="true">&#10003;</span> {if m.provider_id == 'ollama'}Endpoint configured{else}Key configured{/if}</span>
+                                {else}
+                                <span class="mt-1 block text-xs text-gray-400 ai-key-not-configured">{if m.provider_id == 'ollama'}Endpoint not configured{else}Key not configured{/if}</span>
+                                {/if}
                             </td>
                             <td>
                                 <input type="text" class="form-input ai-model-free" style="width:120px;font-size:11px" value="{m.model_free}" placeholder="Free model">

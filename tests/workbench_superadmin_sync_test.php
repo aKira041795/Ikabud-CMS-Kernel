@@ -64,6 +64,8 @@ $template = (string)file_get_contents($root . '/templates/pages/superadmin-workb
 $reporter = (string)file_get_contents($root . '/tests/browser/WorkbenchReporter.js');
 $h->test('reporter manifest preserves timeout and interruption gates',
     str_contains($reporter, 'timed_out: t') && str_contains($reporter, 'interrupted: x'));
+$h->test('hybrid severity gate reaches Reporter issue blocking',
+    str_contains($reporter, 'process.env.WB_ISSUE_GATE || process.env.HYBRID_GATE'));
 $h->test('module release certification is exposed',
     str_contains($handler, "validateModuleCertification(\$manifest)") && str_contains($template, 'Release Gate'));
 $h->test('process map resolves through provider registry',
@@ -82,5 +84,11 @@ $h->test('Superadmin renders standalone contract runs and timeout evidence',
     str_contains($template, "data.kind === 'ark-contract'")
     && str_contains($template, 'Contract execution')
     && str_contains($template, 'execution.timed_out'));
+$h->test('saved AI secrets have persistent configured feedback without secret values',
+    str_contains($template, 'Key configured')
+    && str_contains($template, 'ai-key-configured')
+    && str_contains($template, 'type="password" autocomplete="new-password"')
+    && !str_contains($template, 'm.key_masked')
+    && !str_contains($handler, "'key_masked'"));
 
 $h->done();

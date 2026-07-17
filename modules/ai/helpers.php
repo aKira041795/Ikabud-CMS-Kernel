@@ -212,6 +212,24 @@ function ai_capability_handlers(): array
     ];
 }
 
+/** Register AI providers for trusted headless/CLI consumers such as Workbench. */
+function aiRegisterHeadlessCapabilities(): void
+{
+    foreach (ai_capability_handlers() as $capabilityId => $handler) {
+        if (!is_callable($handler) || app()->capabilities()->has($capabilityId)) {
+            continue;
+        }
+        app()->capabilities()->register(
+            $capabilityId,
+            'ai',
+            $handler,
+            50,
+            ['first'],
+            ['origin' => ['type' => 'headless_module_activation', 'module' => 'ai']]
+        );
+    }
+}
+
 function ai_cap_ai_capability_suggest_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     if (!is_array($payload)) {
@@ -441,5 +459,10 @@ function ai_cap_ai_text_generate_1(mixed $payload, string $capabilityId = '', st
         return $out;
     }
 
-    return ['ok' => true, 'content' => (string)($out['content'] ?? '')];
+    return [
+        'ok' => true,
+        'content' => (string)($out['content'] ?? ''),
+        'provider' => (string)($out['provider'] ?? ($provider !== '' ? $provider : 'openai')),
+        'model' => (string)($out['model'] ?? ''),
+    ];
 }

@@ -361,7 +361,7 @@ class WorkbenchReporter {
         // WB_ISSUE_GATE=off     — issues are informational only (default)
         // WB_ISSUE_GATE=critical — fail when ≥1 critical issue exists
         // WB_ISSUE_GATE=major    — fail when any critical or major issue exists
-        var GATE = (process.env.WB_ISSUE_GATE || 'off').toLowerCase();
+        var GATE = (process.env.WB_ISSUE_GATE || process.env.HYBRID_GATE || 'off').toLowerCase();
         if (GATE !== 'off') {
             var blockers = 0;
             for (var i = 0; i < filteredIssues.length; i++) {

@@ -112,6 +112,62 @@ function palPageFabricationPaymentForm(): void {
     ]);
 }
 
+function palPageFabricationPayments(): void {
+    $u = palCurrentUser();
+    $db = palDb();
+    $tid = (int)($u['tenant_id'] ?? 0);
+    $status = (string)($_GET['status'] ?? 'all');
+
+    $allowedStatuses = ['pending', 'pending_approval', 'approved', 'rejected', 'voided'];
+    $where = 'fp.tenant_id = :tid';
+    $params = [':tid' => $tid];
+    if (in_array($status, $allowedStatuses, true)) {
+        $where .= ' AND fp.status = :status';
+        $params[':status'] = $status;
+    } else {
+        $status = 'all';
+    }
+
+    $stmt = $db->prepare("
+        SELECT fp.id, fp.payment_number, fp.payment_date, fp.amount, fp.payment_method,
+               fp.reference_number, fp.status, fp.created_at,
+               p.title AS project_title,
+               tl.name AS team_lead_name,
+               u.full_name AS submitted_by_name
+        FROM pal_fabrication_payments fp
+        LEFT JOIN pal_projects p ON p.id = fp.project_id AND p.tenant_id = fp.tenant_id
+        LEFT JOIN pal_team_leads tl ON tl.id = fp.team_lead_id AND tl.tenant_id = fp.tenant_id
+        LEFT JOIN pal_users u ON u.id = fp.submitted_by AND u.tenant_id = fp.tenant_id
+        WHERE {$where}
+        ORDER BY fp.created_at DESC, fp.id DESC
+        LIMIT 100
+    ");
+    $stmt->execute($params);
+
+    $stats = $db->prepare("
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(amount), 0) AS total_amount,
+            SUM(CASE WHEN status IN ('pending','pending_approval') THEN 1 ELSE 0 END) AS pending_count,
+            COALESCE(SUM(CASE WHEN status IN ('pending','pending_approval') THEN amount ELSE 0 END), 0) AS pending_amount,
+            SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) AS approved_count,
+            COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) AS approved_amount
+        FROM pal_fabrication_payments
+        WHERE tenant_id = :tid
+    ");
+    $stats->execute([':tid' => $tid]);
+
+    $t = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
+    palRender($t, [
+        'current_user' => $u,
+        'page_title' => 'Fabrication Payments',
+        'page_content' => 'fabrication-payments',
+        'payments' => $stmt->fetchAll(PDO::FETCH_ASSOC),
+        'stats' => $stats->fetch(PDO::FETCH_ASSOC) ?: [],
+        'status' => $status,
+    ]);
+}
+
 function palApiFabricationAllocationStore(): void {
     palResponseGuard(function() {
         $u = palCurrentUser();

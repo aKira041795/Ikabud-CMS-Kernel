@@ -56,6 +56,7 @@ return [
         '/admin/project-audit-ledger/fabrication' => 'project-audit-ledger:palPageFabricationAllocation',
         '/admin/project-audit-ledger/fabrication/allocations' => 'project-audit-ledger:palPageFabricationAllocation',
         '/admin/project-audit-ledger/fabrication/{projectId}/dues' => 'project-audit-ledger:palPageFabricationDues',
+        '/admin/project-audit-ledger/fabrication/payments' => 'project-audit-ledger:palPageFabricationPayments',
         '/admin/project-audit-ledger/fabrication/payments/create' => 'project-audit-ledger:palPageFabricationPaymentForm',
         '/admin/project-audit-ledger/sales' => 'project-audit-ledger:palPageSalesList',
         '/admin/project-audit-ledger/sales/create' => 'project-audit-ledger:palPageSalesForm',

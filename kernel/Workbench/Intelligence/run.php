@@ -10,6 +10,9 @@ $module = $argv[2] ?? 'unknown';
 if ($runId === '') { fwrite(STDERR, "Usage: run.php <run-id> <module>\n"); exit(1); }
 
 require_once $base . '/bootstrap.php';
+require_once $base . '/src/helpers/module-manager.php';
+require_once $base . '/modules/ai/helpers.php';
+aiRegisterHeadlessCapabilities();
 require_once __DIR__ . '/PatternIntelligence.php';
 require_once dirname(__DIR__) . '/AI/WorkbenchAiAnalyzer.php';
 
@@ -37,7 +40,17 @@ foreach ((array)($manifest['suites'] ?? []) as $suite) {
         + (int)($suite['timed_out'] ?? 0)
         + (int)($suite['interrupted'] ?? 0);
 }
-$conformanceVerdict = $failedTests > 0 ? 'fail' : (!empty($manifest['suites']) ? 'pass' : 'unknown');
+$issueGate = strtolower((string)(getenv('WB_ISSUE_GATE') ?: getenv('HYBRID_GATE') ?: ($manifest['gate'] ?? 'off')));
+$blockingIssues = 0;
+foreach ((array)($issues['issues'] ?? []) as $issue) {
+    $severity = strtolower((string)($issue['severity'] ?? ''));
+    if ($severity === 'critical' || ($issueGate === 'major' && $severity === 'major')) {
+        $blockingIssues++;
+    }
+}
+$conformanceVerdict = ($failedTests > 0 || ($issueGate !== 'off' && $blockingIssues > 0))
+    ? 'fail'
+    : (!empty($manifest['suites']) ? 'pass' : 'unknown');
 
 $settings = function_exists('aiResolvedSettings') ? aiResolvedSettings() : [];
 $effective = (new AiGovernancePolicy())->effective([
@@ -68,6 +81,10 @@ $heuristic = [
     'evidence_for' => array_column($preliminary['final_evidence']['issues'] ?? [], 'fingerprint'),
     'suspected_nodes' => [],
 ];
+$knownIds = array_values(array_filter(array_merge(
+    array_column($preliminary['final_evidence']['issues'] ?? [], 'fingerprint'),
+    array_map(fn($v) => is_array($v) ? (string)($v['id'] ?? '') : '', $preliminary['final_evidence']['successful_checks'] ?? [])
+)));
 $ai = new WorkbenchAiAnalyzer([
     'enabled' => $effective['allowed'] && $effective['authority_level'] >= 2,
     'provider' => $effective['provider'], 'model' => $effective['model'],
@@ -78,6 +95,9 @@ $ai = new WorkbenchAiAnalyzer([
 ], null, $base . '/storage/private/comprehension/ai-cache');
 $rawAi = $ai->analyze([
     'task' => 'latent_quality_assessment',
+    // Keep the validator's authoritative citation contract ahead of the potentially
+    // truncated evidence body so providers always see it within the byte budget.
+    'allowed_evidence_ids' => $knownIds,
     'final_evidence' => $preliminary['final_evidence'],
     'grain_signature' => $preliminary['grain_signature'],
     'latent_quality' => $preliminary['latent_quality'],
@@ -94,10 +114,6 @@ foreach (($rawAi['hypotheses'] ?? []) as $index => $hypothesis) {
         'confidence' => (float)($hypothesis['confidence'] ?? 0),
     ];
 }
-$knownIds = array_values(array_filter(array_merge(
-    array_column($preliminary['final_evidence']['issues'] ?? [], 'fingerprint'),
-    array_map(fn($v) => is_array($v) ? (string)($v['id'] ?? '') : '', $preliminary['final_evidence']['successful_checks'] ?? [])
-)));
 $validation = (new ClaimContract())->validate(['claims' => $claims], $knownIds);
 $assessment = [
     'accepted' => $validation['valid'], 'claims' => $claims, 'validation' => $validation,

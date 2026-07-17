@@ -1,0 +1,69 @@
+<div class="wb-metric-grid mb-4">
+    <div class="wb-metric-card text-center">
+        <div class="wb-metric-card__value">{stats.total|default:0}</div>
+        <div class="wb-metric-card__label">Payments</div>
+    </div>
+    <div class="wb-metric-card text-center">
+        <div class="wb-metric-card__value">₱{stats.total_amount|default:0|number_format:0}</div>
+        <div class="wb-metric-card__label">Total Recorded</div>
+    </div>
+    <div class="wb-metric-card text-center">
+        <div class="wb-metric-card__value" style="color:var(--wb-tone-warning)">{stats.pending_count|default:0}</div>
+        <div class="wb-metric-card__label">Pending — ₱{stats.pending_amount|default:0|number_format:0}</div>
+    </div>
+    <div class="wb-metric-card text-center">
+        <div class="wb-metric-card__value" style="color:var(--wb-tone-success)">{stats.approved_count|default:0}</div>
+        <div class="wb-metric-card__label">Approved — ₱{stats.approved_amount|default:0|number_format:0}</div>
+    </div>
+</div>
+
+<div class="wb-panel">
+    <div class="wb-panel__header" style="flex-direction:column;align-items:stretch;gap:var(--wb-space-3);">
+        <div class="flex justify-between items-center">
+            <span class="wb-panel__title">Fabrication Payments</span>
+            <a href="/admin/project-audit-ledger/fabrication/payments/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Record Payment</a>
+        </div>
+        <div class="flex gap-1 text-sm border-b border-gray-200" style="margin:0 calc(var(--wb-space-4)*-1);padding:0 var(--wb-space-4);">
+            <a href="?status=all" class="px-3 py-2 border-b-2 {if status=='all'}border-blue-600 text-blue-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">All</a>
+            <a href="?status=pending_approval" class="px-3 py-2 border-b-2 {if status=='pending_approval'}border-amber-500 text-amber-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Pending Approval</a>
+            <a href="?status=approved" class="px-3 py-2 border-b-2 {if status=='approved'}border-green-500 text-green-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Approved</a>
+            <a href="?status=rejected" class="px-3 py-2 border-b-2 {if status=='rejected'}border-red-500 text-red-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Rejected</a>
+            <a href="?status=voided" class="px-3 py-2 border-b-2 {if status=='voided'}border-red-500 text-red-600{else}border-transparent text-gray-600 hover:text-gray-800{/if}">Voided</a>
+        </div>
+    </div>
+
+    {if payments && payments|count > 0}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm wb-table wb-table--sticky">
+            <thead>
+                <tr class="bg-gray-50 border-b text-xs text-gray-600">
+                    <th class="text-left py-3 px-4 font-semibold">Payment #</th>
+                    <th class="text-left py-3 px-4 font-semibold">Project</th>
+                    <th class="text-left py-3 px-4 font-semibold">Team Lead</th>
+                    <th class="text-right py-3 px-4 font-semibold">Amount</th>
+                    <th class="text-center py-3 px-4 font-semibold">Method</th>
+                    <th class="text-center py-3 px-4 font-semibold">Status</th>
+                    <th class="text-center py-3 px-4 font-semibold">Date</th>
+                    <th class="text-left py-3 px-4 font-semibold">Submitted By</th>
+                </tr>
+            </thead>
+            <tbody>
+                {for p in payments}
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="py-3 px-4 font-medium text-gray-900">{p.payment_number}</td>
+                    <td class="py-3 px-4">{p.project_title|default:'-'}</td>
+                    <td class="py-3 px-4">{p.team_lead_name|default:'-'}</td>
+                    <td class="py-3 px-4 text-right font-medium">₱{p.amount|default:0|number_format:2}</td>
+                    <td class="py-3 px-4 text-center">{p.payment_method|default:'-'|capitalize}</td>
+                    <td class="py-3 px-4 text-center">{include "project-audit-ledger/components/pal_status_badge" _sb_status=p.status _sb_label={if p.status=='pending_approval'}Pending Approval{else}{p.status|capitalize}{/if}}</td>
+                    <td class="py-3 px-4 text-center">{p.payment_date|default:p.created_at}</td>
+                    <td class="py-3 px-4">{p.submitted_by_name|default:'-'}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+    {else}
+    <div class="p-8 text-center text-gray-400 text-sm">No fabrication payments found.</div>
+    {/if}
+</div>

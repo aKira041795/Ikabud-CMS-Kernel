@@ -107,6 +107,8 @@ if ($moduleId === '') {
 $base = dirname(__DIR__, 3);
 require_once $base . '/bootstrap.php';
 require_once $base . '/src/helpers/module-manager.php';
+require_once $base . '/modules/ai/helpers.php';
+aiRegisterHeadlessCapabilities();
 
 // Autoload comprehension classes
 require_once __DIR__ . '/Contracts/ModuleComprehensionProvider.php';

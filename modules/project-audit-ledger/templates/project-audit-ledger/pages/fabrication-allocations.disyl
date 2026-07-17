@@ -1,6 +1,12 @@
 <div class="wb-panel">
     <div class="wb-panel__header" style="flex-direction:column;align-items:start;gap:4px;">
-        <span class="wb-panel__title">Fabrication Dashboard</span>
+        <div class="flex justify-between items-center w-full">
+            <span class="wb-panel__title">Fabrication Dashboard</span>
+            <div class="wb-toolbar__group">
+                <a href="/admin/project-audit-ledger/fabrication/payments" class="wb-btn wb-btn--secondary wb-btn--sm">Payments</a>
+                <a href="/admin/project-audit-ledger/fabrication/payments/create" class="wb-btn wb-btn--primary wb-btn--sm">+ Record Payment</a>
+            </div>
+        </div>
         <p class="text-xs text-gray-600">Budget = Contract × Alloc%. CA Dispensed = amount released to team lead.</p>
     </div>
     <div class="overflow-x-auto">

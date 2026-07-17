@@ -1626,7 +1626,6 @@ if (!function_exists('kernelHandlePageSuperadminWorkbench')) {
                     'provider'       => $pinfo['name'],
                     'provider_id'    => $pid,
                     'has_key'        => $hasKey,
-                    'key_masked'     => $hasKey ? substr($rawKey, 0, 8) . '...' : '',
                     'key_setting'    => $pinfo['key_setting'],
                     'model_free'     => (string)($aiSettings[$pinfo['model_free']] ?? ''),
                     'model_paid'     => (string)($aiSettings[$pinfo['model_paid']] ?? ''),
