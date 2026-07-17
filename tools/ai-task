@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+TASK="${*:-}"
+
+if [[ -z "$TASK" ]]; then
+    echo "Usage: tools/ai-task \"task description\""
+    exit 1
+fi
+
+mkdir -p .ai
+
+cat > .ai/current-task.md <<EOF
+# Current Task
+
+## Request
+
+$TASK
+
+## Status
+
+Awaiting architecture plan.
+EOF
+
+echo "Created .ai/current-task.md"
+echo
+echo "Next commands:"
+echo "  Codex:    /architect $TASK"
+echo "  DeepSeek: /implement"
+echo "  DeepSeek: /review"
+echo "  Codex:    /release-gate"
