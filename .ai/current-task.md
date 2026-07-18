@@ -121,45 +121,49 @@ This is a staged hardening and consolidation task, not a visual rewrite. Preserv
 
 ## Implementation Report (Phase 2)
 
-**Commit**: `c786bd04` (branch: `agent/workbench-trust-hardening`)  
+**Commits**: `c786bd04` → `0bbc776d` (branch: `agent/workbench-trust-hardening`)  
 **Date**: 2026-07-18  
-**Files**: 12 changed (902 insertions, 539 deletions)
+**Files**: 13 changed across 2 commits  
+**Status**: Committed to HEAD — `git diff HEAD` is clean; validate against these commits.
 
 ### Completed
 
 #### Transition enforcement (P0 resolved)
 - `guidanceGetAppointmentTransitionPolicy()` — canonical 10-status transition matrix with terminal states (`completed`, `cancelled`, `no_show`, `rejected`) locked
-- `guidanceTransitionAppointmentStatus()` — single entry point for all appointment status mutations with policy validation, scheduled-time gating, conditional atomic UPDATE, and transactional history recording
-- Generic `PUT /api/appointments/{id}` no longer accepts `status` field (line ~1750) — status changes must go through dedicated endpoints or the transition service
+- `guidanceTransitionAppointmentStatus()` — single entry point for all appointment status mutations: policy validation, scheduled-time gating, `FOR UPDATE` row lock inside transaction, conditional atomic UPDATE, and transactional history INSERT (rollback on any failure)
+- Generic `PUT /api/appointments/{id}` no longer accepts `status` field — status changes must go through dedicated endpoints or the transition service
 - `apiGuidanceCompleteAppointment`, `apiGuidanceNoShowAppointment`, `apiGuidanceCancelAppointment` all route through `guidanceTransitionAppointmentStatus`
 
 #### Scheduled-time enforcement (P0 resolved)
 - `guidanceAppointmentScheduledAtReached()` — validates date+time is in the past
-- Enforced inside `guidanceTransitionAppointmentStatus` for `completed` and `no_show` targets — future appointments cannot be completed or marked no-show via direct API
+- Enforced inside `guidanceTransitionAppointmentStatus` for `completed` and `no_show` targets
 
 #### Case closure hardening
-- `apiGuidanceCloseCase` blocks closure (409) when active future appointments exist in `pending`, `requested`, `confirmed`, `scheduled`, or `rescheduled` status
+- Blocks closure (409) when active future appointments exist
+- Blocks closure (409) when unresolved alerts exist (`gm_alerts.resolved_at IS NULL`)
+- Blocks closure (409) when completed appointments lack counseling notes (`gm_counseling_notes`)
+- Requires non-empty resolution summary beyond default "Case closed" (422)
 
 #### Audit trail
 - Migration `010_guidance_appointment_status_history.sql` — `gm_appointment_status_history` table (InnoDB, utf8mb4)
-- Every transition via `guidanceTransitionAppointmentStatus` writes a history row in the same transaction as the status UPDATE — rollback on failure
+- Every transition writes a history row in the same transaction as the status UPDATE — `FOR UPDATE` lock held for full transaction duration; rollback on any failure
 
 #### Template dead-code removal
 - `alerts.disyl` — removed 135 lines of duplicate notification list and competing JS functions
-- `appointments.disyl` — removed 56 lines of unreachable embedded calendar panel (separate Calendar page exists)
+- `appointments.disyl` — removed 56 lines of unreachable embedded calendar panel
 - `dashboard.disyl` — removed 9-line Kernel OS 5.0 POC panel
-- `reports.disyl` — removed duplicate `hx-get` attributes from tab buttons (Alpine `@click` now owns tab state)
-- `session-records-list.disyl` — removed 112 lines of duplicate table/empty-state implementation
+- `reports.disyl` — removed duplicate `hx-get` from tab buttons (Alpine owns tab state)
+- `session-records-list.disyl` — removed 112 lines of duplicate table/empty-state
 
 #### Workbench contract
 - Added `supervisor`, `counselor`, `guest` actor roles with descriptions
-- Corrected page family classifications: `/pages/*` fragments → `htmx-fragment` or `modal-fragment`
-- Expanded role access on pages to reflect actual runtime authorization
+- Corrected page family classifications: `/pages/*` → `htmx-fragment` or `modal-fragment`
+- Expanded role access on pages to reflect runtime authorization
 
 #### Tests
-- `guidance_route_resolution_test.php` — 163/163 assertions: every `guidance:*` route handler resolves from `handlers.php`; verifies no file imports from split handler directory
-- `guidance_appointment_transition_enforcement_test.php` — 11/11 assertions: validates transition policy exists, generic PUT stripped of status, scheduled-time enforcement wired
-- `guidance_state_machine_test.php` — rewritten: exhaustive 10×10 transition matrix (94/94), sources actual policy from `handlers.php`, marks `FORBIDDEN`/`INTENDED_ALLOWED` per spec
+- `guidance_route_resolution_test.php` — 163/163: every `guidance:*` handler resolves from `handlers.php`; zero imports from split handler dir
+- `guidance_appointment_transition_enforcement_test.php` — 11/11: transition policy exists, generic PUT stripped, scheduled-time wired
+- `guidance_state_machine_test.php` — rewritten: exhaustive 10×10 matrix (94/94), sources actual policy from `handlers.php`
 
 ### Deferred (Phase 3+)
 - Integer version compare-and-swap for concurrent update safety
@@ -169,34 +173,6 @@ This is a staged hardening and consolidation task, not a visual rewrite. Preserv
 - Pro entitlement server-side guards
 - Counselor scope enforcement on all mutation endpoints
 - Session Records / encounter record separation from appointment attendance
-- `templates/modules/guidance/partials/case-detail-panel.disyl`
-- `templates/modules/guidance/partials/case-session-detail.disyl`
-- `templates/modules/guidance/partials/session-detail-panel.disyl`
-- `templates/modules/guidance/partials/case-appointments-tab.disyl`
-- `templates/modules/guidance/partials/case-session-records-tab.disyl`
-- `templates/modules/guidance/partials/case-notes-tab.disyl`
-- `templates/modules/guidance/partials/case-documents-tab.disyl`
-- `templates/modules/guidance/partials/case-alerts-tab.disyl`
-- Relevant appointment, note, closure, upload, and tracker modals
-
-### Contracts, documentation, and tests
-
-- `modules/guidance/workbench-contract.json`
-- `docs/guidance/guidance-module.md`
-- `docs/guidance/guidance-ux-ia-enhancements-2026-05.md`
-- `tests/guidance/guidance_state_machine_test.php`
-- `tests/guidance/guidance_integration_test.php`
-- Existing focused `tests/guidance_*_test.php` files where contracts change
-- New focused authorization, CSRF, lifecycle, encounter, closure, and route-resolution tests under `tests/guidance/`
-- `tests/browser/modules/guidance/showcase.spec.js`
-- `tests/browser/modules/guidance/workflows/navigation.spec.js`
-- New focused browser workflow files under `tests/browser/modules/guidance/workflows/`
-
-### Deferred cleanup after runtime parity
-
-- `modules/guidance/handlers/`
-  - either remove as obsolete after confirming no scripts depend on it, or regenerate it as the real decomposition and change the loader contract intentionally;
-  - never leave two editable implementations claiming to be canonical.
 
 ## Implementation steps
 

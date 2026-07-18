@@ -1269,11 +1269,45 @@ function apiGuidanceCloseCase(array $params = []): void
         return;
     }
 
+    // Block closure if unresolved alerts exist
+    $alertStmt = $db->prepare(
+        "SELECT COUNT(*) FROM gm_alerts WHERE case_id = ? AND resolved_at IS NULL"
+    );
+    $alertStmt->execute([$caseId]);
+    if ((int)$alertStmt->fetchColumn() > 0) {
+        http_response_code(409);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cannot close — unresolved alerts exist. Resolve them first.', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+
+    // Block closure if completed appointments lack counseling notes
+    $undocumentedStmt = $db->prepare(
+        "SELECT COUNT(*) FROM gm_appointments a\n"
+        . "LEFT JOIN gm_counseling_notes n ON n.appointment_id = a.id AND n.deleted_at IS NULL\n"
+        . "WHERE a.case_id = ? AND a.status = 'completed' AND n.id IS NULL"
+    );
+    $undocumentedStmt->execute([$caseId]);
+    if ((int)$undocumentedStmt->fetchColumn() > 0) {
+        http_response_code(409);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cannot close — completed appointments exist without session documentation. Add counseling notes first.', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+
+    // Require a non-empty resolution summary (structured disposition)
+    if ($resolutionSummary === '' || strtolower($resolutionSummary) === 'case closed') {
+        http_response_code(422);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'A resolution summary describing the case outcome is required to close the case.', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+
     try {
         $db->beginTransaction();
         $updateStmt = $db->prepare('UPDATE gm_cases SET status = ?, resolution_summary = ?, closed_at = NOW(), closed_by = ?, last_modified_by = ?, updated_at = NOW(), version = version + 1 WHERE id = ?');
-        $updateStmt->execute(['closed', $resolutionSummary !== '' ? $resolutionSummary : 'Case closed', $userId, $userId, $caseId]);
-        guidanceInsertCaseStatusHistory($db, $caseId, (string)($case['status'] ?? 'open'), 'closed', $userId, $resolutionSummary !== '' ? $resolutionSummary : 'Case closed');
+        $updateStmt->execute(['closed', $resolutionSummary, $userId, $userId, $caseId]);
+        guidanceInsertCaseStatusHistory($db, $caseId, (string)($case['status'] ?? 'open'), 'closed', $userId, $resolutionSummary);
         guidanceLogAudit($db, 'case.closed', 'gm_cases', $caseId, null, [
             'resolution_summary' => $resolutionSummary,
         ], $userId);
@@ -1926,41 +1960,47 @@ function guidanceTransitionAppointmentStatus(
     int $byUserId
 ): bool {
     $policy = guidanceGetAppointmentTransitionPolicy();
-
-    $stmt = $db->prepare("SELECT status, scheduled_date, scheduled_time FROM gm_appointments WHERE id = ? LIMIT 1 FOR UPDATE");
-    $stmt->execute([$id]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!is_array($row)) {
-        return false;
-    }
-    $curStatus = strtolower(trim((string)$row['status']));
-    $date = (string)$row['scheduled_date'];
-    $time = (string)$row['scheduled_time'];
-
-    // Validate target status
     $target = strtolower(trim($newStatus));
+
+    // Validate target status is a known state (before acquiring lock)
     if (!isset($policy[$target])) {
         return false;
     }
 
-    // Validate transition is allowed
-    $allowedTargets = $policy[$curStatus] ?? [];
-    if (!isset($allowedTargets[$target])) {
-        return false;
-    }
-
-    // Scheduled-time enforcement for completed and no_show
+    // Pre-validate scheduled-time enforcement (pure logic, no lock needed)
     if (in_array($target, ['completed', 'no_show'], true)) {
-        if (!guidanceAppointmentScheduledAtReached($date, $time)) {
+        $preStmt = $db->prepare("SELECT scheduled_date, scheduled_time FROM gm_appointments WHERE id = ? LIMIT 1");
+        $preStmt->execute([$id]);
+        $preRow = $preStmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($preRow)) {
+            return false;
+        }
+        if (!guidanceAppointmentScheduledAtReached((string)$preRow['scheduled_date'], (string)$preRow['scheduled_time'])) {
             return false;
         }
     }
 
-    // Atomic conditional update + history in one transaction.
-    // If history recording fails, the status update is rolled back
-    // so the audit trail is never silently lost.
+    // Open transaction BEFORE acquiring FOR UPDATE lock so the
+    // row lock is held for the full duration of the atomic block.
     $db->beginTransaction();
     try {
+        $stmt = $db->prepare("SELECT status FROM gm_appointments WHERE id = ? LIMIT 1 FOR UPDATE");
+        $stmt->execute([$id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($row)) {
+            $db->rollBack();
+            return false;
+        }
+        $curStatus = strtolower(trim((string)$row['status']));
+
+        // Validate transition is allowed
+        $allowedTargets = $policy[$curStatus] ?? [];
+        if (!isset($allowedTargets[$target])) {
+            $db->rollBack();
+            return false;
+        }
+
+        // Atomic conditional update: only if current status matches expected
         $stmt = $db->prepare(
             "UPDATE gm_appointments SET status = ?, last_modified_by = ?, updated_at = NOW() WHERE id = ? AND status = ?"
         );
@@ -1970,6 +2010,7 @@ function guidanceTransitionAppointmentStatus(
             return false;
         }
 
+        // Status history — must succeed; rolls back the UPDATE on failure
         $histStmt = $db->prepare(
             "INSERT INTO gm_appointment_status_history (appointment_id, from_status, to_status, changed_by, created_at)
              VALUES (?, ?, ?, ?, NOW())"
@@ -1980,7 +2021,7 @@ function guidanceTransitionAppointmentStatus(
         return true;
     } catch (Throwable $e) {
         $db->rollBack();
-        app()->log('Appointment transition history write failed: ' . $e->getMessage(), 'error');
+        app()->log('Appointment transition failed: ' . $e->getMessage(), 'error');
         return false;
     }
 }
