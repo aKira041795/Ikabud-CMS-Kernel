@@ -681,11 +681,64 @@ async function wbLoadArkModules() {
     try {
         var response = await fetch(wbBaseUrl + '/api/v1/superadmin/workbench/modules');
         var data = await response.json();
-        Object.keys(data.modules || {}).sort().forEach(function(moduleId) {
+        var ids = Object.keys(data.modules || {}).sort();
+        ids.forEach(function(moduleId) {
             var option = document.createElement('option'); option.value = moduleId; option.textContent = data.modules[moduleId].name || moduleId; selector.appendChild(option);
         });
         if ((data.modules || {})['project-audit-ledger']) selector.value = 'project-audit-ledger';
+        // Also populate the test module filter
+        var testSelector = document.getElementById('wb-test-module');
+        if (testSelector && testSelector.options.length <= 1) {
+            ids.forEach(function(moduleId) {
+                var opt = document.createElement('option'); opt.value = moduleId; opt.textContent = (data.modules[moduleId].name || moduleId); testSelector.appendChild(opt);
+            });
+        }
     } catch (e) { selector.innerHTML = '<option value="">Modules unavailable</option>'; }
+}
+function wbFilterTestButtons() {
+    var module = document.getElementById('wb-test-module').value;
+    var buttons = document.querySelectorAll('#wb-test-buttons .wb-btn-test');
+    var visible = 0;
+    buttons.forEach(function(btn) {
+        if (!module || btn.getAttribute('data-module') === module) {
+            btn.style.display = ''; visible++;
+        } else {
+            btn.style.display = 'none';
+        }
+    });
+}
+function wbRunModuleTests() {
+    var moduleId = document.getElementById('wb-test-module').value;
+    if (!moduleId) { alert('Select a module first, or use "Run PHP Certification Tests" for all modules.'); return; }
+    wbRunTests('module', {module: moduleId});
+}
+// ── Browser test environment config (localStorage) ──────────
+function wbLoadEnvConfig() {
+    try {
+        var saved = JSON.parse(localStorage.getItem('wb_env_config') || '{}');
+        if (saved.url) document.getElementById('wb-env-url').value = saved.url;
+        if (saved.tenant) document.getElementById('wb-env-tenant').value = saved.tenant;
+        if (saved.user) document.getElementById('wb-env-user').value = saved.user;
+        if (saved.pass) document.getElementById('wb-env-pass').value = saved.pass;
+    } catch(e) {}
+}
+function wbSaveEnvConfig() {
+    var config = {
+        url: document.getElementById('wb-env-url').value,
+        tenant: document.getElementById('wb-env-tenant').value,
+        user: document.getElementById('wb-env-user').value,
+        pass: document.getElementById('wb-env-pass').value,
+    };
+    try { localStorage.setItem('wb_env_config', JSON.stringify(config)); } catch(e) {}
+}
+function wbGetEnvConfig() {
+    try { return JSON.parse(localStorage.getItem('wb_env_config') || '{}'); } catch(e) { return {}; }
+}
+// Load stored config on page ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wbLoadEnvConfig);
+} else {
+    wbLoadEnvConfig();
 }
 function wbRunArkHybrid() {
     var moduleId = document.getElementById('wb-ark-module').value;
@@ -823,12 +876,49 @@ async function wbLoadProcessMap() {
                     <p class="text-xs text-red-600 mt-1">Test execution is blocked in production environments. Set <code class="bg-red-100 px-1 rounded">IKABUD_DEV_WORKBENCH=true</code> to enable.</p>
                 </div>
                 {/if}
+
+                <!-- Browser Test Environment Config -->
+                <details class="border border-slate-200 rounded-lg mb-3" id="wb-env-config">
+                    <summary class="p-3 text-xs font-semibold text-gray-600 cursor-pointer hover:text-gray-800">Browser Test Environment</summary>
+                    <div class="p-3 border-t space-y-2">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                                <label class="text-xs text-gray-500">Base URL</label>
+                                <input id="wb-env-url" type="url" class="input text-xs w-full" placeholder="https://palsystem.test" onchange="wbSaveEnvConfig()">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">Tenant ID (optional)</label>
+                                <input id="wb-env-tenant" type="text" class="input text-xs w-full" placeholder="502" onchange="wbSaveEnvConfig()">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">Admin User</label>
+                                <input id="wb-env-user" type="text" class="input text-xs w-full" placeholder="admin" onchange="wbSaveEnvConfig()">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">Admin Password</label>
+                                <input id="wb-env-pass" type="password" class="input text-xs w-full" placeholder="••••••••" onchange="wbSaveEnvConfig()">
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-400">Stored in browser localStorage only. Never sent to the server except as test runner parameters.</p>
+                    </div>
+                </details>
                 {if discoverable_tests | count > 0}
-                <div class="space-y-1 mb-3">
-                    <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Run Individual Test</div>
+                <div class="space-y-3 mb-3">
+                    <div class="flex flex-wrap gap-2 items-end">
+                        <div>
+                            <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Module Filter</div>
+                            <select id="wb-test-module" class="input text-xs min-w-[200px]" onchange="wbFilterTestButtons()">
+                                <option value="">All modules ({discoverable_tests | count} tests)</option>
+                            </select>
+                        </div>
+                        <button onclick="wbRunModuleTests()" class="kernel-btn kernel-btn-primary text-xs wb-btn-test"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>Run Module Tests</button>
+                    </div>
+                    <div class="text-xs font-semibold text-gray-500 uppercase mb-1">Individual Tests</div>
+                    <div id="wb-test-buttons">
                     {foreach discoverable_tests as dt}
-                    <button onclick="wbRunTests('{dt.path | esc_js}')" class="kernel-btn kernel-btn-outline text-xs mr-1 mb-1 wb-btn-test" title="Run {dt.path | esc_attr}"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>{dt.module}/{dt.file}</button>
+                    <button onclick="wbRunTests('{dt.path | esc_js}')" class="kernel-btn kernel-btn-outline text-xs mr-1 mb-1 wb-btn-test" title="Run {dt.path | esc_attr}" data-module="{dt.module | esc_attr}"{if ! workbench_execution_allowed} disabled style="opacity:0.4;cursor:not-allowed"{/if}>{dt.module}/{dt.file}</button>
                     {/foreach}
+                    </div>
                 </div>
                 {/if}
                 <div class="border border-blue-200 bg-blue-50 rounded-lg p-3 mb-3">

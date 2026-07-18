@@ -1860,6 +1860,28 @@ if (!function_exists('kernelHandleApiSuperadminWorkbenchTriggerTests')) {
             $cmd = 'node ' . escapeshellarg($launcher)
                 . ' --module=' . escapeshellarg($moduleId)
                 . ' --gate=' . escapeshellarg($gate) . ' 2>&1';
+        } elseif ($target === 'module') {
+            // Run all PHP tests for a specific module
+            $moduleId = trim((string)($input['module'] ?? ''));
+            if (!preg_match('/^[A-Za-z0-9_-]+$/', $moduleId)) {
+                http_response_code(400);
+                echo json_encode(['ok' => false, 'error' => 'A valid module id is required']);
+                exit;
+            }
+            $modules = discoverModules();
+            if (!isset($modules[$moduleId]) || empty($modules[$moduleId]['_enabled'])) {
+                http_response_code(404);
+                echo json_encode(['ok' => false, 'error' => 'Enabled module not found: ' . $moduleId]);
+                exit;
+            }
+            $discoverRunner = $projectRoot . '/tests/discover.php';
+            if (!is_file($discoverRunner)) {
+                http_response_code(500);
+                echo json_encode(['ok' => false, 'error' => 'Test discover runner is unavailable']);
+                exit;
+            }
+            $cmd = 'php ' . escapeshellarg($discoverRunner)
+                . ' --module=' . escapeshellarg($moduleId) . ' 2>&1';
         }
 
         if ($cmd === null) {

@@ -1,0 +1,1683 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "daily-ledger",
+        "version": "1.1.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/daily-ledger/admin/activity",
+                "/daily-ledger/admin/branch-summary",
+                "/daily-ledger/admin/branches",
+                "/daily-ledger/admin/commissary",
+                "/daily-ledger/admin/dashboard",
+                "/daily-ledger/admin/deliveries",
+                "/daily-ledger/admin/price-groups",
+                "/daily-ledger/admin/production-output",
+                "/daily-ledger/admin/products",
+                "/daily-ledger/admin/products/export",
+                "/daily-ledger/admin/sales",
+                "/daily-ledger/admin/settings",
+                "/daily-ledger/admin/usage",
+                "/daily-ledger/admin/users",
+                "/daily-ledger/admin/variances",
+                "/daily-ledger/admin/withdrawals",
+                "/daily-ledger/api/v1/admin/branch-summary",
+                "/daily-ledger/api/v1/admin/branch-supply-rules",
+                "/daily-ledger/api/v1/admin/branches/search",
+                "/daily-ledger/api/v1/cashier/ledger/day-status",
+                "/daily-ledger/api/v1/cashier/ledger/incoming-deliveries",
+                "/daily-ledger/api/v1/cashier/ledger/rows",
+                "/daily-ledger/api/v1/cashier/ledger/withdrawals",
+                "/daily-ledger/api/v1/commissary/materials",
+                "/daily-ledger/api/v1/deliveries",
+                "/daily-ledger/api/v1/deliveries/receiving-detail",
+                "/daily-ledger/api/v1/me",
+                "/daily-ledger/api/v1/price-groups",
+                "/daily-ledger/api/v1/product-prices",
+                "/daily-ledger/api/v1/production/destinations",
+                "/daily-ledger/api/v1/production/movements",
+                "/daily-ledger/api/v1/production/products",
+                "/daily-ledger/api/v1/receivings",
+                "/daily-ledger/forgot-password",
+                "/daily-ledger/ledger",
+                "/daily-ledger/ledger/rows",
+                "/daily-ledger/login",
+                "/daily-ledger/logout",
+                "/daily-ledger/reset-password"
+            ],
+            "POST": [
+                "/daily-ledger/api/v1/admin/branch-supply-rules",
+                "/daily-ledger/api/v1/admin/branches",
+                "/daily-ledger/api/v1/admin/branches/update",
+                "/daily-ledger/api/v1/admin/dl-users",
+                "/daily-ledger/api/v1/admin/dl-users/delete",
+                "/daily-ledger/api/v1/admin/dl-users/restore",
+                "/daily-ledger/api/v1/admin/dl-users/update",
+                "/daily-ledger/api/v1/admin/price-groups",
+                "/daily-ledger/api/v1/admin/price-groups/assign-branch",
+                "/daily-ledger/api/v1/admin/price-groups/update",
+                "/daily-ledger/api/v1/admin/product-prices",
+                "/daily-ledger/api/v1/admin/products",
+                "/daily-ledger/api/v1/admin/products/import-csv",
+                "/daily-ledger/api/v1/admin/products/update",
+                "/daily-ledger/api/v1/admin/reopen-day",
+                "/daily-ledger/api/v1/admin/settings/branding-asset",
+                "/daily-ledger/api/v1/admin/settings/permissions",
+                "/daily-ledger/api/v1/admin/variances/update",
+                "/daily-ledger/api/v1/auth/forgot-password",
+                "/daily-ledger/api/v1/auth/reset-password",
+                "/daily-ledger/api/v1/cashier/ledger/close-day",
+                "/daily-ledger/api/v1/cashier/ledger/dispatch",
+                "/daily-ledger/api/v1/cashier/ledger/receive-delivery",
+                "/daily-ledger/api/v1/cashier/ledger/receive-paper-dr",
+                "/daily-ledger/api/v1/cashier/ledger/save",
+                "/daily-ledger/api/v1/cashier/ledger/save-batch",
+                "/daily-ledger/api/v1/cashier/ledger/withdrawals",
+                "/daily-ledger/api/v1/commissary/dispatch",
+                "/daily-ledger/api/v1/commissary/material",
+                "/daily-ledger/api/v1/commissary/run",
+                "/daily-ledger/api/v1/deliveries/create",
+                "/daily-ledger/api/v1/deliveries/post",
+                "/daily-ledger/api/v1/deliveries/review-provenance",
+                "/daily-ledger/api/v1/deliveries/void",
+                "/daily-ledger/api/v1/production/output",
+                "/daily-ledger/api/v1/production/reverse",
+                "/daily-ledger/api/v1/production/sync-batch",
+                "/daily-ledger/api/v1/production/withdrawal",
+                "/daily-ledger/api/v1/receivings/create",
+                "/daily-ledger/api/v1/receivings/post",
+                "/daily-ledger/api/v1/receivings/void",
+                "/daily-ledger/auth/login",
+                "/daily-ledger/auth/refresh"
+            ],
+            "PUT": [],
+            "PATCH": [],
+            "DELETE": []
+        },
+        "navigation_dependencies": [],
+        "tables": [
+            "dl_users",
+            "dl_user_branches",
+            "dl_admins",
+            "dl_branches",
+            "dl_cashiers",
+            "dl_supervisors",
+            "dl_supervisor_branches",
+            "dl_production_incharges",
+            "dl_production_incharge_branches",
+            "dl_daily_ledger",
+            "dl_ledger_day_status",
+            "dl_variance_flags",
+            "dl_products",
+            "dl_product_price_history",
+            "dl_branch_products",
+            "dl_production_movements",
+            "dl_raw_materials",
+            "dl_commissary_ledger",
+            "dl_cashier_withdrawals",
+            "dl_deliveries",
+            "dl_delivery_items",
+            "dl_branch_receivings",
+            "dl_branch_receiving_items",
+            "dl_price_groups",
+            "dl_product_prices",
+            "dl_production_runs",
+            "dl_branch_product_supply_rules",
+            "dl_delivery_variance_flags",
+            "dl_commissary_product_ledger",
+            "dl_password_resets"
+        ],
+        "capabilities": [
+            "entity.get.daily_ledger_entry@1",
+            "entity.list.daily_ledger_entry@1",
+            "kernel.auth.authenticate@1"
+        ],
+        "events": []
+    },
+    "actors": [
+        {
+            "id": "admin",
+            "capabilities": []
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "records are scoped to the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "page-daily-ledger-admin-activity",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/activity",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "activity-timeline"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-branch-summary",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/branch-summary",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "responsive-table"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-branches",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/branches",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "dialog",
+                "form-section"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-commissary",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/commissary",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "form-section"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-dashboard",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/dashboard",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "summary-card",
+                "entity-list"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-deliveries",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/deliveries",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "status-badge",
+                "dialog"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-price-groups",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/price-groups",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "dialog",
+                "form-section"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-production-output",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/production-output",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "form-section"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-products",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/products",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "combobox",
+                "dialog"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-products-export",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/products/export",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-daily-ledger-admin-sales",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/sales",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "responsive-table"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-settings",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "form-section",
+                "validation-summary"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-usage",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/usage",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "responsive-table"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-users",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/users",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "dialog",
+                "form-section"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-variances",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/variances",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "status-badge",
+                "entity-list"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-admin-withdrawals",
+            "family": "module-page",
+            "route": "/daily-ledger/admin/withdrawals",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "entity-list",
+                "status-badge"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-forgot-password",
+            "family": "module-page",
+            "route": "/daily-ledger/forgot-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-daily-ledger-ledger",
+            "family": "module-page",
+            "route": "/daily-ledger/ledger",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "app-shell",
+                "page-header",
+                "responsive-table",
+                "dialog"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-ledger-rows",
+            "family": "module-page",
+            "route": "/daily-ledger/ledger/rows",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-daily-ledger-login",
+            "family": "module-page",
+            "route": "/daily-ledger/login",
+            "roles": [
+                "admin"
+            ],
+            "required_components": [
+                "form-section",
+                "validation-summary"
+            ]
+        },
+        {
+            "id": "page-daily-ledger-logout",
+            "family": "module-page",
+            "route": "/daily-ledger/logout",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-daily-ledger-reset-password",
+            "family": "module-page",
+            "route": "/daily-ledger/reset-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        }
+    ],
+    "workflows": [],
+    "actions": [
+        {
+            "id": "action-daily-ledger-api-v1-admin-branch-supply-rules",
+            "route": "/daily-ledger/api/v1/admin/branch-supply-rules",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-branches",
+            "route": "/daily-ledger/api/v1/admin/branches",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-branches-update",
+            "route": "/daily-ledger/api/v1/admin/branches/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-dl-users",
+            "route": "/daily-ledger/api/v1/admin/dl-users",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-dl-users-delete",
+            "route": "/daily-ledger/api/v1/admin/dl-users/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-dl-users-restore",
+            "route": "/daily-ledger/api/v1/admin/dl-users/restore",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-dl-users-update",
+            "route": "/daily-ledger/api/v1/admin/dl-users/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-price-groups",
+            "route": "/daily-ledger/api/v1/admin/price-groups",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-price-groups-assign-branch",
+            "route": "/daily-ledger/api/v1/admin/price-groups/assign-branch",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-price-groups-update",
+            "route": "/daily-ledger/api/v1/admin/price-groups/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-product-prices",
+            "route": "/daily-ledger/api/v1/admin/product-prices",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-products",
+            "route": "/daily-ledger/api/v1/admin/products",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-products-import-csv",
+            "route": "/daily-ledger/api/v1/admin/products/import-csv",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-products-update",
+            "route": "/daily-ledger/api/v1/admin/products/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-reopen-day",
+            "route": "/daily-ledger/api/v1/admin/reopen-day",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-settings-branding-asset",
+            "route": "/daily-ledger/api/v1/admin/settings/branding-asset",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-settings-permissions",
+            "route": "/daily-ledger/api/v1/admin/settings/permissions",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-admin-variances-update",
+            "route": "/daily-ledger/api/v1/admin/variances/update",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-auth-forgot-password",
+            "route": "/daily-ledger/api/v1/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-auth-reset-password",
+            "route": "/daily-ledger/api/v1/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-close-day",
+            "route": "/daily-ledger/api/v1/cashier/ledger/close-day",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-dispatch",
+            "route": "/daily-ledger/api/v1/cashier/ledger/dispatch",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-receive-delivery",
+            "route": "/daily-ledger/api/v1/cashier/ledger/receive-delivery",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-receive-paper-dr",
+            "route": "/daily-ledger/api/v1/cashier/ledger/receive-paper-dr",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-save",
+            "route": "/daily-ledger/api/v1/cashier/ledger/save",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-save-batch",
+            "route": "/daily-ledger/api/v1/cashier/ledger/save-batch",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-cashier-ledger-withdrawals",
+            "route": "/daily-ledger/api/v1/cashier/ledger/withdrawals",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-commissary-dispatch",
+            "route": "/daily-ledger/api/v1/commissary/dispatch",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-commissary-material",
+            "route": "/daily-ledger/api/v1/commissary/material",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-commissary-run",
+            "route": "/daily-ledger/api/v1/commissary/run",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-deliveries-create",
+            "route": "/daily-ledger/api/v1/deliveries/create",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-deliveries-post",
+            "route": "/daily-ledger/api/v1/deliveries/post",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-deliveries-review-provenance",
+            "route": "/daily-ledger/api/v1/deliveries/review-provenance",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-deliveries-void",
+            "route": "/daily-ledger/api/v1/deliveries/void",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-production-output",
+            "route": "/daily-ledger/api/v1/production/output",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-production-reverse",
+            "route": "/daily-ledger/api/v1/production/reverse",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-production-sync-batch",
+            "route": "/daily-ledger/api/v1/production/sync-batch",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-production-withdrawal",
+            "route": "/daily-ledger/api/v1/production/withdrawal",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-receivings-create",
+            "route": "/daily-ledger/api/v1/receivings/create",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-receivings-post",
+            "route": "/daily-ledger/api/v1/receivings/post",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-api-v1-receivings-void",
+            "route": "/daily-ledger/api/v1/receivings/void",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-auth-login",
+            "route": "/daily-ledger/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-daily-ledger-auth-refresh",
+            "route": "/daily-ledger/auth/refresh",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        }
+    ],
+    "invariants": [
+        {
+            "id": "navigation-routes-resolve",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        },
+        {
+            "id": "workbench-selectors-present",
+            "severity": "major",
+            "scope": "rendering",
+            "description": "High-risk pages expose stable data-wb-* selectors for primary entities, actions, status badges, filters, modals, and destructive operations."
+        },
+        {
+            "id": "nav-routes-match-get",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route. No sidebar link may drift from registered routes."
+        }
+    ],
+    "scenarios": [
+        {
+            "id": "navigation-smoke",
+            "description": "Owned pages resolve for declared actors and tenants",
+            "actions": []
+        }
+    ],
+    "environments": {
+        "browsers": [
+            "chromium"
+        ],
+        "viewports": [
+            "desktop",
+            "mobile"
+        ]
+    },
+    "evidence": {
+        "required_identity_fields": [
+            "module",
+            "action",
+            "step",
+            "tenant",
+            "role",
+            "environment",
+            "outcome"
+        ],
+        "outcomes": [
+            "passed",
+            "failed",
+            "blocked",
+            "skipped",
+            "censored"
+        ]
+    },
+    "gates": {
+        "required": [
+            "contract",
+            "routes",
+            "ui-smoke"
+        ],
+        "release_blocker_severities": [
+            "critical",
+            "major"
+        ]
+    },
+    "test_files": {
+        "php": [
+            "tests/daily-ledger/daily_ledger_manifest_test.php",
+            "tests/daily-ledger/daily_ledger_routes_test.php",
+            "tests/daily-ledger/daily_ledger_handlers_test.php"
+        ],
+        "browser": [
+            "tests/browser/modules/daily-ledger/auth/login.spec.js",
+            "tests/browser/modules/daily-ledger/navigation/sidebar-navigation.spec.js",
+            "tests/browser/modules/daily-ledger/daily-ledger-contract-verification.spec.js"
+        ]
+    },
+    "compatibility": {
+        "migrated_from": null,
+        "minimum_workbench": "1.0.0"
+    }
+}

@@ -855,7 +855,7 @@ switch ($command) {
         out('    ' . green('workbench:benchmark') . ' [--json]  Run competitive quality gates');
         out('    ' . green('workbench:init') . ' <module> [--force]  Create/migrate the v1 test contract');
         out('    ' . green('workbench:validate') . ' <module> [--json] Validate test contract claims');
-        out('    ' . green('workbench:doctor') . ' <module> [--json]   Run the pre-browser release gate');
+        out('    ' . green('workbench:doctor') . ' <module> [--url=] [--user=] [--pass=] [--json]   Run the pre-browser release gate with optional env readiness');
         out('    ' . green('workbench:run') . ' <module> [--gate=...] Record a gated run');
         out('    ' . green('workbench:explain') . ' <run-id> [--json] Explain a durable run');
         out('');
@@ -5071,7 +5071,11 @@ MD;
             $result = match ($command) {
                 'workbench:init' => $service->initialize($subject, hasFlag('--force')),
                 'workbench:validate' => $service->validate($subject),
-                'workbench:doctor' => $service->doctor($subject),
+                'workbench:doctor' => $service->doctor($subject, [
+                    'base_url' => getFlagValue('--url=') ?? '',
+                    'admin_user' => getFlagValue('--user=') ?? '',
+                    'admin_pass' => getFlagValue('--pass=') ?? '',
+                ]),
                 'workbench:run' => $service->run($subject, getFlagValue('--gate=') ?? 'critical'),
                 'workbench:explain' => $service->explain($subject),
             };
@@ -5083,6 +5087,7 @@ MD;
                 out('  Status: ' . (($result['ok'] ?? (($result['outcome'] ?? '') !== 'blocked')) ? green('PASS') : red('BLOCKED')));
                 if (isset($result['path'])) out('  Contract: ' . $result['path']);
                 if (isset($result['run_id'])) out('  Run: ' . $result['run_id']);
+                if (isset($result['env_ready'])) out('  Env ready: ' . ($result['env_ready'] ? green('YES') : red('NO — set --url/--user/--pass or env vars')));
                 if (isset($result['summary'])) out('  ' . $result['summary']);
                 foreach (($result['errors'] ?? $result['causes'] ?? []) as $error) out('  ' . red('✗') . ' ' . ($error['message'] ?? json_encode($error)));
                 out('');

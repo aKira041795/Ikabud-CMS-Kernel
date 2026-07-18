@@ -39,12 +39,41 @@ final class WorkbenchContractService
     }
 
     /** @return array<string,mixed> */
-    public function doctor(string $moduleId): array
+    /**
+     * @param array<string,string> $envConfig Optional: base_url, admin_user, admin_pass
+     * @return array<string,mixed>
+     */
+    public function doctor(string $moduleId, array $envConfig = []): array
     {
         try {
             $report = $this->validate($moduleId);
             $report['stage'] = 'preflight';
             $report['browser_execution_allowed'] = $report['ok'];
+
+            // ── Environment readiness check ──
+            $baseUrl = trim((string)($envConfig['base_url'] ?? getenv('TEST_BASE_URL') ?: ''));
+            $adminUser = trim((string)($envConfig['admin_user'] ?? getenv('TEST_ADMIN_USER') ?: ''));
+            $adminPass = trim((string)($envConfig['admin_pass'] ?? getenv('TEST_ADMIN_PASS') ?: ''));
+
+            $envReady = $baseUrl !== '' && $adminUser !== '' && $adminPass !== '';
+            $report['env_ready'] = $envReady;
+            $report['env'] = [
+                'base_url' => $baseUrl !== '' ? $baseUrl : null,
+                'admin_user' => $adminUser !== '' ? $adminUser : null,
+                'admin_pass_set' => $adminPass !== '',
+            ];
+
+            if (!$envReady) {
+                $missing = [];
+                if ($baseUrl === '') $missing[] = 'base_url (--url or TEST_BASE_URL)';
+                if ($adminUser === '') $missing[] = 'admin_user (--user or TEST_ADMIN_USER)';
+                if ($adminPass === '') $missing[] = 'admin_pass (--pass or TEST_ADMIN_PASS)';
+                $report['warnings'][] = [
+                    'code' => 'env-not-ready',
+                    'message' => 'Browser tests unavailable — missing: ' . implode(', ', $missing),
+                ];
+            }
+
             return $report;
         } catch (\Throwable $e) {
             return [
@@ -368,7 +397,7 @@ final class WorkbenchContractService
             'module' => $environment['ARK_MODULE'],
             'gate' => $environment['HYBRID_GATE'],
             'output_digest' => hash('sha256', $output),
-            'summary' => substr($output, -4000),
+            'summary' => mb_substr($output, -4000),
         ];
     }
 
