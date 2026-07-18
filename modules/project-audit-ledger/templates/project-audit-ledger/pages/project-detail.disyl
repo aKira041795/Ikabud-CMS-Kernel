@@ -34,32 +34,74 @@
   </div>
 
   <!-- Tab: Overview -->
-  <div x-show="tab==='overview'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 space-y-4">
-        {if mockup_url}
-        <div class="wb-panel p-6">
-            <h4 class="font-semibold text-gray-900 text-sm mb-3">🖼 Mockup / Reference Image</h4>
-            <img src="{mockup_url}" alt="Mockup" class="rounded-lg border border-gray-200 cursor-zoom-in" style="max-width:300px;max-height:200px;object-fit:cover;" onclick="openLightbox(this.src, 'Mockup Image')">
-        </div>
-        {/if}
+  <div x-show="tab==='overview'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <!-- Project Details -->
+    <div class="wb-panel p-6 min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">📋 Project Details</h4>
+        <dl class="space-y-2 text-sm">
+            <div><dt class="text-gray-500 text-xs">Job Order #</dt><dd class="font-medium text-gray-900 break-words">{project_overview.project.job_order_number|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Project Type</dt><dd class="text-gray-700 break-words">{project_overview.project.project_type|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Scope of Work</dt><dd class="text-gray-700 break-words">{project_overview.project.scope_of_work|default:'—'|replace:'_':' '}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Description</dt><dd class="text-gray-700 break-words">{project_overview.project.description|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Location</dt><dd class="text-gray-700 break-words">{project_overview.project.location|default:'—'}</dd></div>
+        </dl>
     </div>
-    <div class="wb-panel p-6">
-        <h3 class="font-semibold text-gray-900 mb-3">Financial Summary</h3>
-        <div class="space-y-2 text-sm">
-            <div class="flex justify-between"><span class="text-gray-700 font-semibold">Budget</span><span class="font-semibold text-gray-900">₱{budget.contract_amount|default:0|number_format:2}</span></div>
-            {if remaining_collectible > 0}
-            <div class="flex justify-between text-xs"><span class="text-gray-600">Remaining Collectible</span><span class="text-orange-500">₱{remaining_collectible|number_format:2}</span></div>
+    <!-- Client Details -->
+    <div class="wb-panel p-6 min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">👤 Client Details</h4>
+        <dl class="space-y-2 text-sm">
+            <div><dt class="text-gray-500 text-xs">Client Name</dt><dd class="font-medium text-gray-900 break-words">{project_overview.client.name|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Contact Person</dt><dd class="text-gray-700 break-words">{project_overview.client.contact_person|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Email</dt><dd class="break-words">{if project_overview.client.email}<a href="mailto:{project_overview.client.email}" class="text-blue-600">{project_overview.client.email}</a>{else}<span class="text-gray-700">—</span>{/if}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Phone</dt><dd class="text-gray-700 break-words">{project_overview.client.phone|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Address</dt><dd class="text-gray-700 break-words">{project_overview.client.address|default:'—'}</dd></div>
+        </dl>
+    </div>
+    <!-- Schedule & Assignment -->
+    <div class="wb-panel p-6 min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">📅 Schedule &amp; Assignment</h4>
+        <dl class="space-y-2 text-sm">
+            <div><dt class="text-gray-500 text-xs">Start Date</dt><dd class="text-gray-700">{project_overview.schedule.start_date|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Target Completion</dt><dd class="text-gray-700">{project_overview.schedule.target_completion_date|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Actual Completion</dt><dd class="text-gray-700">{project_overview.schedule.actual_completion_date|default:'—'}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Project Manager</dt><dd class="font-medium text-gray-900 break-words">{project_overview.schedule.project_manager|default:'—'}</dd></div>
+        </dl>
+    </div>
+    <!-- Payment Terms -->
+    <div class="wb-panel p-6 min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">💳 Payment Terms</h4>
+        <dl class="space-y-2 text-sm">
+            <div><dt class="text-gray-500 text-xs">Mode of Payment</dt><dd class="text-gray-700">{project_overview.payment.mode_of_payment|default:'—'|replace:'_':' '}</dd></div>
+            <div><dt class="text-gray-500 text-xs">Down Payment</dt><dd class="font-medium text-gray-900">{if project_overview.payment.down_payment !== null}₱{project_overview.payment.down_payment|number_format:2}{if project_overview.payment.down_payment_type} ({project_overview.payment.down_payment_type|replace:'_':' '}){/if}{else}—{/if}</dd></div>
+        </dl>
+    </div>
+    <!-- Installation & Fabrication -->
+    <div class="wb-panel p-6 min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">🔧 Installation &amp; Fabrication</h4>
+        <dl class="space-y-2 text-sm">
+            <div><dt class="text-gray-500 text-xs">Installation Included</dt><dd class="font-medium {if project_overview.installation.included}text-green-600{else}text-gray-500{/if}">{if project_overview.installation.included}Yes{else}No{/if}</dd></div>
+            {if project_overview.installation.included}
+            <div><dt class="text-gray-500 text-xs">Fabrication Team Lead</dt><dd class="text-gray-700">{project_overview.installation.team_lead|default:'—'}</dd></div>
             {/if}
-            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Collected</span><span class="font-medium text-green-600">{if profitability.total_collected|default:0 > 0}+₱{profitability.total_collected|number_format:2}{else}₱0.00{/if}</span></div>
-            {if project.fabrication_alloc_pct && project.fabrication_alloc_pct > 0}
-            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Fabrication</span><span class="font-medium text-indigo-600">−₱{fabrication_amount|number_format:2} ({project.fabrication_alloc_pct}%)</span></div>
-            {/if}
-            <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Spent</span><span class="font-medium text-yellow-600">−₱{costs.total_cost|default:0|number_format:2}</span></div>
-            <div class="border-t pt-2 flex justify-between"><span class="text-gray-700 font-medium">Net Profit</span><span class="font-medium {if net_profit >= 0}text-green-600{else}text-red-600{/if}">₱{net_profit|number_format:2}</span></div>
-            <div class="flex justify-between text-xs"><span class="text-gray-600">Amount Collectible</span><span class="{if remaining_collectible > 0}text-orange-500{else}text-green-600{/if}">₱{remaining_collectible|number_format:2}</span></div>
-        </div>
+        </dl>
+    </div>
+    <!-- Notes (conditional) -->
+    {if project_overview.notes}
+    <div class="wb-panel p-6 min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">📝 Notes</h4>
+        <p class="text-sm text-gray-700 whitespace-pre-wrap">{project_overview.notes}</p>
+    </div>
+    {/if}
+  </div>
+  <!-- Mockup Image (conditional, full width) -->
+  {if mockup_url}
+  <div x-show="tab==='overview'" class="mt-6">
+    <div class="wb-panel p-6 inline-block min-w-0">
+        <h4 class="font-semibold text-gray-900 text-sm mb-3">🖼 Mockup / Reference Image</h4>
+        <img src="{mockup_url}" alt="Mockup" class="rounded-lg border border-gray-200 cursor-zoom-in" style="max-width:300px;max-height:200px;object-fit:cover;" onclick="openLightbox(this.src, 'Mockup Image')">
     </div>
   </div>
+  {/if}
 
   <!-- Tab: Items -->
   <div x-show="tab==='items'" class="wb-panel p-6">
@@ -84,6 +126,23 @@
 
   <!-- Tab: Financials -->
   <div x-show="tab==='financials'" class="space-y-4 no-print">
+        <!-- Financial Summary -->
+        <div class="wb-panel p-6">
+            <h3 class="font-semibold text-gray-900 mb-3">Financial Summary</h3>
+            <div class="space-y-2 text-sm">
+                <div class="flex justify-between"><span class="text-gray-700 font-semibold">Budget</span><span class="font-semibold text-gray-900">₱{budget.contract_amount|default:0|number_format:2}</span></div>
+                {if remaining_collectible > 0}
+                <div class="flex justify-between text-xs"><span class="text-gray-600">Remaining Collectible</span><span class="text-orange-500">₱{remaining_collectible|number_format:2}</span></div>
+                {/if}
+                <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Collected</span><span class="font-medium text-green-600">{if profitability.total_collected|default:0 > 0}+₱{profitability.total_collected|number_format:2}{else}₱0.00{/if}</span></div>
+                {if project.fabrication_alloc_pct && project.fabrication_alloc_pct > 0}
+                <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Fabrication</span><span class="font-medium text-indigo-600">−₱{fabrication_amount|number_format:2} ({project.fabrication_alloc_pct}%)</span></div>
+                {/if}
+                <div class="flex justify-between"><span class="text-gray-600 pl-3">↳ Spent</span><span class="font-medium text-yellow-600">−₱{costs.total_cost|default:0|number_format:2}</span></div>
+                <div class="border-t pt-2 flex justify-between"><span class="text-gray-700 font-medium">Net Profit</span><span class="font-medium {if net_profit >= 0}text-green-600{else}text-red-600{/if}">₱{net_profit|number_format:2}</span></div>
+                <div class="flex justify-between text-xs"><span class="text-gray-600">Amount Collectible</span><span class="{if remaining_collectible > 0}text-orange-500{else}text-green-600{/if}">₱{remaining_collectible|number_format:2}</span></div>
+            </div>
+        </div>
         <div class="wb-panel p-6">
             <h4 class="font-semibold text-gray-900 text-sm mb-3">Collections ({collection_history|count})</h4>
             <div class="overflow-x-auto">

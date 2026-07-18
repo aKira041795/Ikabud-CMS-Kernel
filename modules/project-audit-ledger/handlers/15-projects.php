@@ -137,12 +137,47 @@ function palPageProjectDetail(array $rp = []): void
         $mockupUrl = '/admin/project-audit-ledger/attachments/' . $mRow['id'] . '/download';
     }
 
+    // Build project_overview view-data array from existing project result
+    $projectOverview = [
+        'client' => [
+            'name' => $project['client_name'] ?? null,
+            'contact_person' => $project['client_contact'] ?? null,
+            'email' => $project['client_email'] ?? null,
+            'phone' => $project['client_phone'] ?? null,
+            'address' => $project['client_address'] ?? null,
+        ],
+        'project' => [
+            'job_order_number' => $project['job_order_number'] ?? $project['project_id'] ?? null,
+            'project_type' => $project['project_type_name'] ?? null,
+            'scope_of_work' => $project['scope_of_work'] ?? null,
+            'description' => $project['description'] ?? null,
+            'location' => $project['location'] ?? null,
+        ],
+        'schedule' => [
+            'start_date' => $project['start_date'] ?? null,
+            'target_completion_date' => $project['target_completion_date'] ?? null,
+            'actual_completion_date' => $project['actual_completion_date'] ?? null,
+            'project_manager' => $project['project_manager'] ?? null,
+        ],
+        'payment' => [
+            'mode_of_payment' => $project['mode_of_payment'] ?? null,
+            'down_payment' => $project['down_payment'] ?? null,
+            'down_payment_type' => $project['down_payment_type'] ?? null,
+        ],
+        'installation' => [
+            'included' => !empty($project['with_installation']),
+            'team_lead' => $project['team_lead_name'] ?? null,
+        ],
+        'notes' => $project['notes'] ?? null,
+    ];
+
     $template = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
     palRender($template, [
         'current_user' => $user,
         'page_title' => 'JO: ' . ($project['title'] ?? 'Project'),
         'page_content' => 'project-detail',
         'project' => $project,
+        'project_overview' => $projectOverview,
         'costs' => $costs,
         'profitability' => $profitability,
         'budget' => $budget,
@@ -152,7 +187,6 @@ function palPageProjectDetail(array $rp = []): void
         'run_after_fab' => $runAfterFab,
         'run_after_spent' => $runAfterSpent,
         'remaining_collectible' => $remainingCollectible,
-        'net_profit' => $netProfit,
         'expense_history' => $expRows->fetchAll(PDO::FETCH_ASSOC),
         'collection_history' => $colRows->fetchAll(PDO::FETCH_ASSOC),
         'purchase_history' => $poRows->fetchAll(PDO::FETCH_ASSOC),

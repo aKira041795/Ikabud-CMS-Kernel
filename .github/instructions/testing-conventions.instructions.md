@@ -101,6 +101,26 @@ Auto-generates stub files: manifest contract, state machine, integration, and Pl
 ## Playwright Browser Tests
 Fixture at `tests/browser/WorkbenchFixture.js` — provides pre-authenticated page + component harnesses.
 
+### Entity-List Selector Gotcha (Module-Agnostic)
+`DefaultEntityRenderer` at `kernel/EntityContext/DefaultEntityRenderer.php:225` emits:
+- `data-wb-component="responsive-table"` when `use="workbench"` AND `view="table"` (most PAL list pages)
+- `data-wb-component="entity-list"` otherwise
+
+**Do NOT** use `[data-wb-component="entity-list"]` alone — it silently misses every PAL list page (renders as `responsive-table`).
+
+**Do** use a CSS union that matches both component types — this is **module-agnostic** and works for PAL, Guidance, WMS, EHR, or any module:
+```javascript
+await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]');
+
+const list = page.locator('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]');
+await expect(list.first()).toBeVisible();
+await expect(list.first()).toHaveAttribute('data-wb-entity');
+```
+
+The `data-wb-entity` value will be module-specific (e.g., `"pal_project"`, `"pal_expense"`, `"guidance_case"`)—assert on it only when testing a specific module.
+
+PAL credentials: `ADMIN_USER=pAladmin ADMIN_PASS=pal123456` (note capital A in `pAladmin`).
+
 ### Current Coverage Priorities
 1. Manifest-settings default contract tests across all settings-bearing modules
 2. Ecommerce storefront media tests (featured image, gallery fallback, placeholder)

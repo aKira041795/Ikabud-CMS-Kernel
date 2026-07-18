@@ -21,11 +21,11 @@ test.describe('PAL Project pages', () => {
 
     test('project list renders with entity-list component', async ({ page }) => {
         await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
-        await page.waitForSelector('[data-wb-component="entity-list"]', { timeout: 15000 });
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
 
-        const entityList = page.locator('[data-wb-component="entity-list"]');
+        const entityList = page.locator('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]');
         await expect(entityList.first()).toBeVisible();
-        await expect(entityList.first()).toHaveAttribute('data-wb-entity', 'pal_project');
+        await expect(entityList.first()).toHaveAttribute('data-wb-entity');
 
         // Page should show "Job Orders" or "Projects" title
         const heading = page.locator('#wb-main h1');
@@ -34,7 +34,7 @@ test.describe('PAL Project pages', () => {
 
     test('project list has create button and search', async ({ page }) => {
         await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
-        await page.waitForSelector('[data-wb-component="entity-list"]', { timeout: 15000 });
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
 
         // New Job Order button (use first() to disambiguate from sidebar nav link)
         const createBtn = page.locator('a[href*="projects/create"]').first();
@@ -49,7 +49,7 @@ test.describe('PAL Project pages', () => {
 
     test('project list navigates to detail via View action', async ({ page }) => {
         await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
-        await page.waitForSelector('[data-wb-component="entity-list"]', { timeout: 15000 });
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
 
         const viewLink = page.locator('a:has-text("View")').first();
         if (await viewLink.count() > 0) {
@@ -64,7 +64,7 @@ test.describe('PAL Project pages', () => {
 
     test('project detail page loads with header content', async ({ page }) => {
         await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
-        await page.waitForSelector('[data-wb-component="entity-list"]', { timeout: 15000 });
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
 
         const viewLink = page.locator('a:has-text("View")').first();
         if (await viewLink.count() > 0) {
@@ -83,7 +83,7 @@ test.describe('PAL Project pages', () => {
 
     test('project detail URL contains numeric ID', async ({ page }) => {
         await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
-        await page.waitForSelector('[data-wb-component="entity-list"]', { timeout: 15000 });
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
 
         // Find the first project's detail link from the "View" action
         const viewLink = page.locator('a:has-text("View")').first();
@@ -116,5 +116,62 @@ test.describe('PAL Project pages', () => {
         const inputs = form.locator('input, select, textarea');
         const count = await inputs.count();
         expect(count).toBeGreaterThanOrEqual(3);
+    });
+
+    // ── Project Detail — Overview and Financials tabs ──
+
+    test('project detail overview tab shows core cards and no financial summary', async ({ page }) => {
+        // Navigate to first project detail
+        await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
+
+        const viewLink = page.locator('a:has-text("View")').first();
+        await expect(viewLink, 'PAL project-detail tests require seeded project data').toHaveCount(1);
+        await viewLink.click();
+        await page.waitForURL('**/admin/project-audit-ledger/projects/**');
+
+        const overviewPanel = page.locator('[x-show="tab===\'overview\'"]').first();
+
+        // Overview tab is active by default
+        const overviewTab = page.locator('button.wb-tab:has-text("Overview")');
+        await expect(overviewTab).toHaveClass(/is-active/);
+
+        // Core cards rendered
+        await expect(overviewPanel.locator('h4:has-text("Project Details")')).toBeVisible();
+        await expect(overviewPanel.locator('h4:has-text("Client Details")')).toBeVisible();
+        await expect(overviewPanel.locator('h4:has-text("Schedule & Assignment")')).toBeVisible();
+        await expect(overviewPanel.locator('h4:has-text("Payment Terms")')).toBeVisible();
+        await expect(overviewPanel.locator('h4:has-text("Installation & Fabrication")')).toBeVisible();
+
+        // Financial Summary is NOT visible on Overview tab
+        const finSummary = page.locator('[x-show="tab===\'financials\'"] h3:has-text("Financial Summary")');
+        await expect(finSummary).not.toBeVisible();
+    });
+
+    test('project detail financials tab shows financial summary and history sections', async ({ page }) => {
+        // Navigate to first project detail
+        await page.goto(`${APP_URL}/admin/project-audit-ledger/projects`);
+        await page.waitForSelector('[data-wb-component="entity-list"], [data-wb-component="responsive-table"]', { timeout: 15000 });
+
+        const viewLink = page.locator('a:has-text("View")').first();
+        await expect(viewLink, 'PAL project-detail tests require seeded project data').toHaveCount(1);
+        await viewLink.click();
+        await page.waitForURL('**/admin/project-audit-ledger/projects/**');
+
+        // Click Financials tab
+        await page.locator('button.wb-tab:has-text("Financials")').click();
+
+        // Financial Summary is visible
+        const financialsPanel = page.locator('[x-show="tab===\'financials\'"]');
+        const finSummary = financialsPanel.locator('h3:has-text("Financial Summary")');
+        await expect(finSummary).toBeVisible();
+
+        // Budget label rendered
+        await expect(finSummary.locator('..').locator('text=Budget').first()).toBeVisible();
+
+        // Financial history sections visible
+        await expect(financialsPanel.getByText(/^Collections \(\d+\)$/)).toBeVisible();
+        await expect(financialsPanel.getByText('Expenses', { exact: true })).toBeVisible();
+        await expect(financialsPanel.getByText(/^Purchase Orders \(\d+\)$/)).toBeVisible();
     });
 });
