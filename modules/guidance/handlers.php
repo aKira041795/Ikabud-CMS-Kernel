@@ -1956,27 +1956,33 @@ function guidanceTransitionAppointmentStatus(
         }
     }
 
-    // Atomic conditional update: only if current status matches expected
-    $stmt = $db->prepare(
-        "UPDATE gm_appointments SET status = ?, last_modified_by = ?, updated_at = NOW() WHERE id = ? AND status = ?"
-    );
-    $stmt->execute([$target, $byUserId, $id, $curStatus]);
-    if ($stmt->rowCount() === 0) {
+    // Atomic conditional update + history in one transaction.
+    // If history recording fails, the status update is rolled back
+    // so the audit trail is never silently lost.
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare(
+            "UPDATE gm_appointments SET status = ?, last_modified_by = ?, updated_at = NOW() WHERE id = ? AND status = ?"
+        );
+        $stmt->execute([$target, $byUserId, $id, $curStatus]);
+        if ($stmt->rowCount() === 0) {
+            $db->rollBack();
+            return false;
+        }
+
+        $histStmt = $db->prepare(
+            "INSERT INTO gm_appointment_status_history (appointment_id, from_status, to_status, changed_by, created_at)
+             VALUES (?, ?, ?, ?, NOW())"
+        );
+        $histStmt->execute([$id, $curStatus, $target, $byUserId]);
+
+        $db->commit();
+        return true;
+    } catch (Throwable $e) {
+        $db->rollBack();
+        app()->log('Appointment transition history write failed: ' . $e->getMessage(), 'error');
         return false;
     }
-
-    // Record in status history
-    $histStmt = $db->prepare(
-        "INSERT INTO gm_appointment_status_history (appointment_id, from_status, to_status, changed_by, created_at)
-         VALUES (?, ?, ?, ?, NOW())"
-    );
-    try {
-        $histStmt->execute([$id, $curStatus, $target, $byUserId]);
-    } catch (Throwable $e) {
-        // History is best-effort — transition already succeeded
-    }
-
-    return true;
 }
 
 /**
