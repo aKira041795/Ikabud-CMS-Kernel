@@ -1,10 +1,17 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
+
 require_once __DIR__.'/harness/TestHarness.php';
+
 require_once __DIR__.'/../kernel/Workbench/Governance/WorkbenchRolloutPolicy.php';
+
 require_once __DIR__.'/../kernel/Workbench/Governance/WorkbenchMetrics.php';
+
 require_once __DIR__.'/../kernel/Workbench/Comprehension/Contracts/ModuleComprehensionProvider.php';
+
 require_once __DIR__.'/../kernel/Workbench/Comprehension/Contracts/EntityContract.php'; require_once __DIR__.'/../kernel/Workbench/Comprehension/Contracts/WorkflowContract.php'; require_once __DIR__.'/../kernel/Workbench/Comprehension/Contracts/ActionContract.php'; require_once __DIR__.'/../kernel/Workbench/Comprehension/Contracts/EffectContract.php'; require_once __DIR__.'/../kernel/Workbench/Comprehension/Contracts/SupportContracts.php';
+
 require_once __DIR__.'/../kernel/Workbench/Comprehension/PalComprehensionProvider.php'; require_once __DIR__.'/../kernel/Workbench/Comprehension/ComprehensionProviderRegistry.php';
 use Ikabud\Kernel\Workbench\Governance\WorkbenchRolloutPolicy; use Ikabud\Kernel\Workbench\Governance\WorkbenchMetrics; use Ikabud\Kernel\Workbench\Comprehension\ComprehensionProviderRegistry;
 $h=new TestHarness('workbench-phase6');

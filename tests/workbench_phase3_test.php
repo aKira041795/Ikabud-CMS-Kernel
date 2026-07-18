@@ -1,8 +1,13 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
+
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Issues/IssueLedger.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/AiContracts.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Analyzers/CaseMemory.php';
 use Ikabud\Kernel\Workbench\Issues\IssueLedger;
 use Ikabud\Kernel\Workbench\Comprehension\Analyzers\CaseMemory;

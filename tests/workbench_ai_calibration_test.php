@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
 
 /**
  * Priority 3 — AI Calibration Tests
@@ -9,8 +10,11 @@ declare(strict_types=1);
  * citation validity, target gates, reproducibility, and small-sample warnings.
  */
 
+
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Analyzers/PatternClassifier.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Benchmark/AiCalibrationBenchmark.php';
 
 use Ikabud\Kernel\Workbench\Comprehension\Analyzers\PatternClassifier;

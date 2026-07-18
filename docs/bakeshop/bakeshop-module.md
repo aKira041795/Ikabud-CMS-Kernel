@@ -29,10 +29,10 @@ Source: [modules/bakeshop/module.json](modules/bakeshop/module.json)
 | Field | Value |
 |---|---|
 | `auth_cookie` | `bakeshop_token` |
-| `owns_tables` | `bakeshop_users`, `bakeshop_branches`, `bakeshop_units`, `bakeshop_ingredients`, `bakeshop_products`, `bakeshop_product_recipe`, `bakeshop_deliveries`, `bakeshop_delivery_items`, `bakeshop_production_runs`, `bakeshop_production_items` |
+| `owns_tables` | 14 tables: `bakeshop_users`, `bakeshop_password_resets`, `bakeshop_branches`, `bakeshop_units`, `bakeshop_ingredients`, `bakeshop_products`, `bakeshop_product_recipe`, `bakeshop_deliveries`, `bakeshop_delivery_items`, `bakeshop_branch_product_targets`, `bakeshop_production_runs`, `bakeshop_production_items`, `bakeshop_inventory_adjustments`, `bakeshop_product_allocations` |
 | `reads_tables` | `bakeshop_ingredient_usage` (view), `audit_logs` |
-| `events` | `bakeshop.{branch,delivery,production,product,ingredient}.created`, `bakeshop.recipe.saved` |
-| `settings_fields` | `usage_decimal_places`, `print_template`, `role_permissions` |
+| `events` | 12 domain events covering branch, delivery, production, product, ingredient, unit, recipe, and adjustment lifecycle |
+| `settings_fields` | 10 fields: `store_name`, `store_description`, `store_logo_url`, `usage_decimal_places`, `default_dr_coverage_days`, `product_recipe_status`, `production_recipe_mode`, `print_template`, `suggested_reorder_days`, `role_permissions` |
 
 ### Capabilities
 
@@ -52,7 +52,7 @@ Capability policy restricts `kernel.auth.authenticate@1` callers to `bakeshop` a
 
 ## Database Architecture
 
-Schema is shipped as five migrations under [modules/bakeshop/database/migrations/](modules/bakeshop/database/migrations) and applied per-tenant via `php ikabud tenant:migrate <tenant>` or the provisioning flow:
+Schema is shipped as 17 migrations under [modules/bakeshop/database/migrations/](modules/bakeshop/database/migrations) and applied per-tenant via `php ikabud tenant:migrate <tenant>` or the provisioning flow:
 
 | Migration | Purpose |
 |---|---|
@@ -62,6 +62,17 @@ Schema is shipped as five migrations under [modules/bakeshop/database/migrations
 | `003_bakeshop_bootstrap_admin.sql` | Inserts the `bakeshopadmin` placeholder when no admin exists. |
 | `004_bakeshop_user_token_version.sql` | Adds `token_version` to `bakeshop_users` for invalidation on password change (uses `DO 0` / `SELECT 1`-free no-op pattern). |
 | `005_bakeshop_bootstrap_password_reset.sql` | Forces the legacy bootstrap password to the reset marker so the public login path can never accept it. |
+| `006_bakeshop_password_resets.sql` | Creates `bakeshop_password_resets` for self-service password reset tokens. |
+| `007_bakeshop_delivery_item_cost_basis.sql` | Adds cost-basis tracking to delivery items. |
+| `008_bakeshop_production_voiding.sql` | Adds void columns to production runs and rebuilds usage view to exclude voided runs. |
+| `009_bakeshop_delivery_coverage.sql` | Adds delivery coverage days and DR projection support. |
+| `010_bakeshop_branch_product_targets.sql` | Creates `bakeshop_branch_product_targets` for per-branch product targets. |
+| `011_bakeshop_ingredient_pack.sql` | Adds ingredient pack unit support. |
+| `012_bakeshop_inventory_adjustments_and_reorder.sql` | Creates inventory adjustments table and reorder support. |
+| `013_bakeshop_product_allocations.sql` | Creates product allocations table. |
+| `014_bakeshop_production_day_fraction.sql` | Adds day-fraction tracking to production runs. |
+| `015_bakeshop_delivery_item_product.sql` | Adds product reference to delivery items. |
+| `016_bakeshop_username_case_sensitive.sql` | Makes username column case-sensitive for lookups. |
 
 **Important:** there is **no public bootstrap-password setup page**. The placeholder password hash (`!bakeshop-bootstrap-password-reset-required!`) cannot match any input — the only way to obtain a usable first admin is the trusted provisioning path (CLI or admin recovery).
 
@@ -75,18 +86,51 @@ Source: [modules/bakeshop/routes.php](modules/bakeshop/routes.php)
 - `GET /bakeshop/login`, `GET /bakeshop/forgot-password`, `GET /bakeshop/reset-password`
 - `GET /bakeshop`, `GET /admin/bakeshop` (supervisor home)
 - `GET /admin/bakeshop/{branches,catalog,ingredients,deliveries,production,usage,history,users,account,settings}`
-- `GET /admin/bakeshop/print`, `GET /bakeshop/print` (print summary)
+- `GET /admin/bakeshop/{print,ledger,coverage}` (reports)
+- `GET /admin/bakeshop/coverage/{print,csv}`, `GET /admin/bakeshop/print/dr-projection`
+- `GET /bakeshop/print`, `GET /bakeshop/print/dr-projection` (public print surfaces)
 
 ### API (JSON)
 - Auth: `POST /bakeshop/auth/login`, `POST /api/v1/bakeshop/auth/login`, `POST /api/v1/bakeshop/auth/forgot-password`, `POST /api/v1/bakeshop/auth/reset-password`, `POST /bakeshop/logout`
 - Account: `POST /api/v1/bakeshop/account/password`
 - Users: `GET|POST /api/v1/bakeshop/users`, `POST /api/v1/bakeshop/users/{id}`, `POST /api/v1/bakeshop/users/{id}/delete`
-- Settings: `POST /api/v1/bakeshop/settings/permissions`, `POST /api/v1/bakeshop/settings/display`
-- Domain CRUD: branches, products, ingredients, recipes, deliveries, production runs (index + store + status/delete)
-- Usage report: `GET /api/v1/bakeshop/usage`
+- Settings: `POST /api/v1/bakeshop/settings/{permissions,display,logo}`
+- Domain CRUD: branches, products, ingredients, recipes, deliveries, production runs (index + store + status/delete/void/batch-delete)
+- Product targets: `GET|POST /api/v1/bakeshop/product-targets`, `POST .../product-targets/delete`
+- Allocations: `GET|POST /api/v1/bakeshop/allocations`, `POST .../allocations/delete`
+- Adjustments: `GET|POST /api/v1/bakeshop/adjustments`, `POST .../adjustments/delete`
+- Reports: `GET /api/v1/bakeshop/usage`, `GET /api/v1/bakeshop/reports/{dr-projection,suggested-reorder,product-coverage}`
+- Import: `GET .../import/template` for products, recipes, production; `POST .../import` for products, recipes, production
 - Health: `GET /api/v1/bakeshop/health`
 
 All admin handlers go through `bakeshopResponseGuard()` for consistent 403/422/500 JSON responses and CSRF enforcement via `bakeshopEnforceCsrf()`.
+
+---
+
+## Domain Events vs Audit Log
+
+The Bakeshop module uses two separate systems for event recording:
+
+1. **Domain events** (`events[]` in `module.json` + `app()->events()->fire()`): fired for lifecycle actions that external modules or integrations may want to subscribe to. Currently 12 declared events:
+   - `bakeshop.branch.created`
+   - `bakeshop.delivery.created`
+   - `bakeshop.production.created`, `bakeshop.production.updated`, `bakeshop.production.voided`
+   - `bakeshop.product.created`, `bakeshop.product.deleted`
+   - `bakeshop.ingredient.created`, `bakeshop.ingredient.deleted`
+   - `bakeshop.unit.created`
+   - `bakeshop.recipe.saved`
+   - `bakeshop.adjustment.created`
+
+2. **Audit log** (`bakeshopAudit()` → `kernel.audit.record@1`): records every significant state change for the Activity History page, including actions that do NOT fire domain events. Audit-only actions include:
+   - Branch archive/restore, delivery delete, recipe delete, adjustment delete
+   - Product target create/update/delete, allocation create/delete
+   - Production void/update (audited AND declared as domain events)
+   - User create/update/deactivate/password-change
+   - Settings role-permission changes, ingredient/product status changes
+
+**Rule**: An action is declared in `events[]` if and only if it fires via `app()->events()->fire()`. Audit-only actions (those that only call `bakeshopAudit()`) are NOT declared as domain events — they are internal history records visible in the Activity History page but not subscribed to by external modules. The exception is production lifecycle events (`updated`, `voided`) which are both audited and declared as domain-significant events for potential external integration.
+
+---
 
 ---
 

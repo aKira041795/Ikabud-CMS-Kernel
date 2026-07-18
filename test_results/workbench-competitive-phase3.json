@@ -1,14 +1,14 @@
 {
     "suite": "workbench-competitive-phase3",
-    "started": "2026-07-16 22:49:49",
-    "finished": "2026-07-16 22:49:49",
-    "elapsed_ms": 70,
+    "started": "2026-07-18 13:12:17",
+    "finished": "2026-07-18 13:12:17",
+    "elapsed_ms": 76.2,
     "summary": {
-        "passed": 20,
+        "passed": 25,
         "failed": 0,
         "skipped": 0,
-        "total": 20,
-        "assertions": 20,
+        "total": 25,
+        "assertions": 25,
         "exit_code": 0
     },
     "source_fingerprints": [],
@@ -46,112 +46,147 @@
             "label": "guidance provider is discoverable",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.3
         },
         {
             "section": "",
             "label": "guidance declares routes",
             "status": "pass",
             "detail": "",
-            "time": 1.2
+            "time": 1.6
         },
         {
             "section": "",
             "label": "guidance declares invariants",
             "status": "pass",
             "detail": "",
-            "time": 1.3
+            "time": 1.7
         },
         {
             "section": "",
             "label": "guidance declares scenarios",
             "status": "pass",
             "detail": "",
-            "time": 1.3
+            "time": 1.7
         },
         {
             "section": "",
             "label": "wms provider is discoverable",
             "status": "pass",
             "detail": "",
-            "time": 1.3
+            "time": 1.8
         },
         {
             "section": "",
             "label": "wms declares routes",
             "status": "pass",
             "detail": "",
-            "time": 2.1
+            "time": 3.1
         },
         {
             "section": "",
             "label": "wms declares invariants",
             "status": "pass",
             "detail": "",
-            "time": 2.1
+            "time": 3.1
         },
         {
             "section": "",
             "label": "wms declares scenarios",
             "status": "pass",
             "detail": "",
-            "time": 2.1
+            "time": 3.1
         },
         {
             "section": "",
             "label": "ehr provider is discoverable",
             "status": "pass",
             "detail": "",
-            "time": 8
+            "time": 10.3
         },
         {
             "section": "",
             "label": "ehr declares routes",
             "status": "pass",
             "detail": "",
-            "time": 15.3
+            "time": 18.7
         },
         {
             "section": "",
             "label": "ehr declares invariants",
             "status": "pass",
             "detail": "",
-            "time": 15.4
+            "time": 18.8
         },
         {
             "section": "",
             "label": "ehr declares scenarios",
             "status": "pass",
             "detail": "",
-            "time": 15.4
+            "time": 18.8
         },
         {
             "section": "",
             "label": "convention providers appear in registry inventory",
             "status": "pass",
             "detail": "",
-            "time": 68.5
+            "time": 73.9
         },
         {
             "section": "",
             "label": "WMS exposes action/effect chains",
             "status": "pass",
             "detail": "",
-            "time": 69.7
+            "time": 74.8
         },
         {
             "section": "",
             "label": "EHR authority invariant is declared",
             "status": "pass",
             "detail": "",
-            "time": 70
+            "time": 75
         },
         {
             "section": "",
             "label": "EHR privacy invariant is declared",
             "status": "pass",
             "detail": "",
-            "time": 70
+            "time": 75
+        },
+        {
+            "section": "",
+            "label": "Guidance declares an independent showcase scenario",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "Guidance showcase is a real contract-owned browser target",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "Guidance declares governed browser timeout and correlation evidence",
+            "status": "pass",
+            "detail": "",
+            "time": 76.2
+        },
+        {
+            "section": "",
+            "label": "Guidance browser adapter defaults to the shared Kernel host",
+            "status": "pass",
+            "detail": "",
+            "time": 76.2
+        },
+        {
+            "section": "",
+            "label": "Guidance browser proof traverses all scenario pages, not only the manifest root",
+            "status": "pass",
+            "detail": "",
+            "time": 76.2
         }
     ],
     "gaps": []

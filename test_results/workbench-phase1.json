@@ -1,7 +1,7 @@
 {
     "suite": "workbench-phase1",
-    "started": "2026-07-16 16:15:37",
-    "finished": "2026-07-16 16:15:37",
+    "started": "2026-07-18 13:12:15",
+    "finished": "2026-07-18 13:12:15",
     "elapsed_ms": 0.7,
     "summary": {
         "passed": 10,
@@ -46,14 +46,14 @@
             "label": "node merge preserves adjacency",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Canonical graph invariants",
             "label": "canonical graph validates",
             "status": "pass",
             "detail": "",
-            "time": 0
+            "time": 0.1
         },
         {
             "section": "Canonical graph invariants",

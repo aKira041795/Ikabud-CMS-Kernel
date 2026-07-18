@@ -1,7 +1,7 @@
 {
     "suite": "workbench-phase5",
-    "started": "2026-07-16 16:15:37",
-    "finished": "2026-07-16 16:15:37",
+    "started": "2026-07-18 13:12:15",
+    "finished": "2026-07-18 13:12:15",
     "elapsed_ms": 1.3,
     "summary": {
         "passed": 7,
@@ -25,7 +25,7 @@
             "label": "every node has stable identity and type",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Clear canonical map",
@@ -53,14 +53,14 @@
             "label": "AI provider policy controls exist",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         },
         {
             "section": "Workbench experience",
             "label": "process map API is registered",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0.2
         }
     ],
     "gaps": []

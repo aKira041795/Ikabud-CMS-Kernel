@@ -1,0 +1,1559 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "bakeshop",
+        "version": "1.0.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/admin/bakeshop",
+                "/admin/bakeshop/account",
+                "/admin/bakeshop/branches",
+                "/admin/bakeshop/catalog",
+                "/admin/bakeshop/coverage",
+                "/admin/bakeshop/coverage/csv",
+                "/admin/bakeshop/coverage/print",
+                "/admin/bakeshop/deliveries",
+                "/admin/bakeshop/history",
+                "/admin/bakeshop/ingredients",
+                "/admin/bakeshop/ledger",
+                "/admin/bakeshop/print",
+                "/admin/bakeshop/print/dr-projection",
+                "/admin/bakeshop/production",
+                "/admin/bakeshop/settings",
+                "/admin/bakeshop/usage",
+                "/admin/bakeshop/users",
+                "/api/v1/bakeshop/adjustments",
+                "/api/v1/bakeshop/allocations",
+                "/api/v1/bakeshop/branches",
+                "/api/v1/bakeshop/deliveries",
+                "/api/v1/bakeshop/health",
+                "/api/v1/bakeshop/ingredients",
+                "/api/v1/bakeshop/product-targets",
+                "/api/v1/bakeshop/production",
+                "/api/v1/bakeshop/production/import/template",
+                "/api/v1/bakeshop/products",
+                "/api/v1/bakeshop/products/import/template",
+                "/api/v1/bakeshop/recipes",
+                "/api/v1/bakeshop/recipes/import/template",
+                "/api/v1/bakeshop/reports/dr-projection",
+                "/api/v1/bakeshop/reports/product-coverage",
+                "/api/v1/bakeshop/reports/suggested-reorder",
+                "/api/v1/bakeshop/units",
+                "/api/v1/bakeshop/usage",
+                "/api/v1/bakeshop/users",
+                "/bakeshop",
+                "/bakeshop/forgot-password",
+                "/bakeshop/login",
+                "/bakeshop/print",
+                "/bakeshop/print/dr-projection",
+                "/bakeshop/reset-password"
+            ],
+            "POST": [
+                "/admin/bakeshop/ledger",
+                "/api/v1/bakeshop/account/password",
+                "/api/v1/bakeshop/adjustments",
+                "/api/v1/bakeshop/adjustments/delete",
+                "/api/v1/bakeshop/allocations",
+                "/api/v1/bakeshop/allocations/delete",
+                "/api/v1/bakeshop/auth/forgot-password",
+                "/api/v1/bakeshop/auth/login",
+                "/api/v1/bakeshop/auth/reset-password",
+                "/api/v1/bakeshop/branches",
+                "/api/v1/bakeshop/branches/{id}/status",
+                "/api/v1/bakeshop/deliveries",
+                "/api/v1/bakeshop/deliveries/batch-delete",
+                "/api/v1/bakeshop/deliveries/delete",
+                "/api/v1/bakeshop/ingredients",
+                "/api/v1/bakeshop/ingredients/batch-delete",
+                "/api/v1/bakeshop/ingredients/delete",
+                "/api/v1/bakeshop/ingredients/{id}/status",
+                "/api/v1/bakeshop/product-targets",
+                "/api/v1/bakeshop/product-targets/delete",
+                "/api/v1/bakeshop/production",
+                "/api/v1/bakeshop/production/delete",
+                "/api/v1/bakeshop/production/import",
+                "/api/v1/bakeshop/production/void",
+                "/api/v1/bakeshop/products",
+                "/api/v1/bakeshop/products/batch-delete",
+                "/api/v1/bakeshop/products/delete",
+                "/api/v1/bakeshop/products/import",
+                "/api/v1/bakeshop/products/{id}/status",
+                "/api/v1/bakeshop/recipes",
+                "/api/v1/bakeshop/recipes/delete",
+                "/api/v1/bakeshop/recipes/import",
+                "/api/v1/bakeshop/settings/display",
+                "/api/v1/bakeshop/settings/logo",
+                "/api/v1/bakeshop/settings/permissions",
+                "/api/v1/bakeshop/units",
+                "/api/v1/bakeshop/users",
+                "/api/v1/bakeshop/users/{id}",
+                "/api/v1/bakeshop/users/{id}/delete",
+                "/bakeshop/auth/login",
+                "/bakeshop/logout"
+            ],
+            "PUT": [],
+            "PATCH": [],
+            "DELETE": []
+        },
+        "navigation_dependencies": [],
+        "tables": [
+            "bakeshop_users",
+            "bakeshop_password_resets",
+            "bakeshop_branches",
+            "bakeshop_units",
+            "bakeshop_ingredients",
+            "bakeshop_products",
+            "bakeshop_product_recipe",
+            "bakeshop_deliveries",
+            "bakeshop_delivery_items",
+            "bakeshop_branch_product_targets",
+            "bakeshop_production_runs",
+            "bakeshop_production_items",
+            "bakeshop_inventory_adjustments",
+            "bakeshop_product_allocations"
+        ],
+        "capabilities": [
+            "bakeshop.ingredient.usage.read@1",
+            "bakeshop.manage@1",
+            "bakeshop.product.read@1",
+            "bakeshop.read@1",
+            "entity.get.bakeshop_product@1",
+            "entity.list.bakeshop_product@1",
+            "kernel.auth.authenticate@1"
+        ],
+        "events": [
+            "bakeshop.branch.created",
+            "bakeshop.delivery.created",
+            "bakeshop.production.created",
+            "bakeshop.production.updated",
+            "bakeshop.production.voided",
+            "bakeshop.product.created",
+            "bakeshop.product.deleted",
+            "bakeshop.ingredient.created",
+            "bakeshop.ingredient.deleted",
+            "bakeshop.unit.created",
+            "bakeshop.recipe.saved",
+            "bakeshop.adjustment.created"
+        ]
+    },
+    "actors": [
+        {
+            "id": "admin",
+            "capabilities": []
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "records are scoped to the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "page-admin-bakeshop",
+            "family": "module-page",
+            "route": "/admin/bakeshop",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-account",
+            "family": "module-page",
+            "route": "/admin/bakeshop/account",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-branches",
+            "family": "module-page",
+            "route": "/admin/bakeshop/branches",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-catalog",
+            "family": "module-page",
+            "route": "/admin/bakeshop/catalog",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-coverage",
+            "family": "module-page",
+            "route": "/admin/bakeshop/coverage",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-coverage-csv",
+            "family": "module-page",
+            "route": "/admin/bakeshop/coverage/csv",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-coverage-print",
+            "family": "module-page",
+            "route": "/admin/bakeshop/coverage/print",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-deliveries",
+            "family": "module-page",
+            "route": "/admin/bakeshop/deliveries",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-history",
+            "family": "module-page",
+            "route": "/admin/bakeshop/history",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-ingredients",
+            "family": "module-page",
+            "route": "/admin/bakeshop/ingredients",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-ledger",
+            "family": "module-page",
+            "route": "/admin/bakeshop/ledger",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-print",
+            "family": "module-page",
+            "route": "/admin/bakeshop/print",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-print-dr-projection",
+            "family": "module-page",
+            "route": "/admin/bakeshop/print/dr-projection",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-production",
+            "family": "module-page",
+            "route": "/admin/bakeshop/production",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-settings",
+            "family": "module-page",
+            "route": "/admin/bakeshop/settings",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-usage",
+            "family": "module-page",
+            "route": "/admin/bakeshop/usage",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-admin-bakeshop-users",
+            "family": "module-page",
+            "route": "/admin/bakeshop/users",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-bakeshop",
+            "family": "module-page",
+            "route": "/bakeshop",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-bakeshop-forgot-password",
+            "family": "module-page",
+            "route": "/bakeshop/forgot-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-bakeshop-login",
+            "family": "module-page",
+            "route": "/bakeshop/login",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-bakeshop-print",
+            "family": "module-page",
+            "route": "/bakeshop/print",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-bakeshop-print-dr-projection",
+            "family": "module-page",
+            "route": "/bakeshop/print/dr-projection",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        },
+        {
+            "id": "page-bakeshop-reset-password",
+            "family": "module-page",
+            "route": "/bakeshop/reset-password",
+            "roles": [
+                "admin"
+            ],
+            "required_components": []
+        }
+    ],
+    "workflows": [],
+    "actions": [
+        {
+            "id": "action-admin-bakeshop-ledger",
+            "route": "/admin/bakeshop/ledger",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-account-password",
+            "route": "/api/v1/bakeshop/account/password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-adjustments",
+            "route": "/api/v1/bakeshop/adjustments",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-adjustments-delete",
+            "route": "/api/v1/bakeshop/adjustments/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-allocations",
+            "route": "/api/v1/bakeshop/allocations",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-allocations-delete",
+            "route": "/api/v1/bakeshop/allocations/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-auth-forgot-password",
+            "route": "/api/v1/bakeshop/auth/forgot-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-auth-login",
+            "route": "/api/v1/bakeshop/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-auth-reset-password",
+            "route": "/api/v1/bakeshop/auth/reset-password",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-branches",
+            "route": "/api/v1/bakeshop/branches",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-branches-item-status",
+            "route": "/api/v1/bakeshop/branches/{id}/status",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-deliveries",
+            "route": "/api/v1/bakeshop/deliveries",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-deliveries-batch-delete",
+            "route": "/api/v1/bakeshop/deliveries/batch-delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-deliveries-delete",
+            "route": "/api/v1/bakeshop/deliveries/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-ingredients",
+            "route": "/api/v1/bakeshop/ingredients",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-ingredients-batch-delete",
+            "route": "/api/v1/bakeshop/ingredients/batch-delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-ingredients-delete",
+            "route": "/api/v1/bakeshop/ingredients/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-ingredients-item-status",
+            "route": "/api/v1/bakeshop/ingredients/{id}/status",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-product-targets",
+            "route": "/api/v1/bakeshop/product-targets",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-product-targets-delete",
+            "route": "/api/v1/bakeshop/product-targets/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-production",
+            "route": "/api/v1/bakeshop/production",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-production-delete",
+            "route": "/api/v1/bakeshop/production/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-production-import",
+            "route": "/api/v1/bakeshop/production/import",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-production-void",
+            "route": "/api/v1/bakeshop/production/void",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-products",
+            "route": "/api/v1/bakeshop/products",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-products-batch-delete",
+            "route": "/api/v1/bakeshop/products/batch-delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-products-delete",
+            "route": "/api/v1/bakeshop/products/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-products-import",
+            "route": "/api/v1/bakeshop/products/import",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-products-item-status",
+            "route": "/api/v1/bakeshop/products/{id}/status",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-recipes",
+            "route": "/api/v1/bakeshop/recipes",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-recipes-delete",
+            "route": "/api/v1/bakeshop/recipes/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-recipes-import",
+            "route": "/api/v1/bakeshop/recipes/import",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-settings-display",
+            "route": "/api/v1/bakeshop/settings/display",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-settings-logo",
+            "route": "/api/v1/bakeshop/settings/logo",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-settings-permissions",
+            "route": "/api/v1/bakeshop/settings/permissions",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-units",
+            "route": "/api/v1/bakeshop/units",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-users",
+            "route": "/api/v1/bakeshop/users",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-users-item",
+            "route": "/api/v1/bakeshop/users/{id}",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-api-v1-bakeshop-users-item-delete",
+            "route": "/api/v1/bakeshop/users/{id}/delete",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-bakeshop-auth-login",
+            "route": "/bakeshop/auth/login",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        },
+        {
+            "id": "action-bakeshop-logout",
+            "route": "/bakeshop/logout",
+            "method": "POST",
+            "requires": {
+                "authenticated": true,
+                "tenant_scoped": true
+            },
+            "effects": [
+                {
+                    "step": "http.request",
+                    "category": "http"
+                },
+                {
+                    "step": "authorization.checked",
+                    "category": "capability"
+                },
+                {
+                    "step": "state.changed-or-rejected",
+                    "category": "service"
+                },
+                {
+                    "step": "http.response",
+                    "category": "http"
+                }
+            ]
+        }
+    ],
+    "invariants": [
+        {
+            "id": "navigation-routes-resolve",
+            "severity": "critical",
+            "scope": "navigation",
+            "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        }
+    ],
+    "scenarios": [
+        {
+            "id": "navigation-smoke",
+            "description": "Owned pages resolve for declared actors and tenants",
+            "actions": []
+        }
+    ],
+    "environments": {
+        "browsers": [
+            "chromium"
+        ],
+        "viewports": [
+            "desktop",
+            "mobile"
+        ]
+    },
+    "evidence": {
+        "required_identity_fields": [
+            "module",
+            "action",
+            "step",
+            "tenant",
+            "role",
+            "environment",
+            "outcome"
+        ],
+        "outcomes": [
+            "passed",
+            "failed",
+            "blocked",
+            "skipped",
+            "censored"
+        ]
+    },
+    "gates": {
+        "required": [
+            "contract",
+            "routes",
+            "ui-smoke"
+        ],
+        "release_blocker_severities": [
+            "critical",
+            "major"
+        ]
+    },
+    "test_files": {
+        "php": [
+            "tests/bakeshop_admin_mutation_test.php",
+            "tests/bakeshop_csv_import_test.php",
+            "tests/bakeshop_display_settings_save_test.php",
+            "tests/bakeshop_dr_projection_integration_test.php",
+            "tests/bakeshop_dr_projection_print_test.php",
+            "tests/bakeshop_history_delete_test.php",
+            "tests/bakeshop_history_page_test.php",
+            "tests/bakeshop_history_permission_test.php",
+            "tests/bakeshop_julies_fixture_import_test.php",
+            "tests/bakeshop_manukan_process_test.php",
+            "tests/bakeshop_module_test.php",
+            "tests/bakeshop_password_reset_test.php",
+            "tests/bakeshop_permission_denial_test.php",
+            "tests/bakeshop_permissions_test.php",
+            "tests/bakeshop_print_summary_test.php",
+            "tests/bakeshop_product_recipe_toggle_test.php",
+            "tests/bakeshop_recipe_mutation_test.php",
+            "tests/bakeshop_role_permissions_save_test.php",
+            "tests/bakeshop_store_logo_upload_test.php",
+            "tests/bakeshop_supervisor_dr_workflow_render_test.php",
+            "tests/bakeshop_supervisor_settings_panel_test.php",
+            "tests/bakeshop_usage_integration_test.php",
+            "tests/bakeshop_user_management_test.php"
+        ],
+        "browser": []
+    },
+    "compatibility": {
+        "migrated_from": null,
+        "minimum_workbench": "1.0.0"
+    }
+}

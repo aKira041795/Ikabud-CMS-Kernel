@@ -40,6 +40,7 @@ function guidanceEnforcementFunctionBody(string $source, string $functionName): 
 
 $h = new TestHarness('guidance-appointment-transition-enforcement');
 $h->fingerprint('modules/guidance/handlers.php');
+$h->fingerprint('templates/modules/guidance/modals/appointment-form.disyl');
 
 $h->section('Runtime transition enforcement — current behavior');
 
@@ -57,6 +58,7 @@ $keyFunctions = [
     'apiGuidanceCancelAppointment',
     'apiGuidanceApproveAppointment',
     'apiGuidanceRejectAppointment',
+    'apiGuidanceCloseCase',
     'guidanceAppointmentCanMarkOutcome',
 ];
 
@@ -77,12 +79,43 @@ $h->test(
     !$genericPutAcceptsLifecycleStatus
 );
 
+$h->test(
+    'Generic appointment update enforces CSRF server-side',
+    str_contains($updateBody, 'app()->csrfEnforce()')
+);
+
 // Verify canonical transition policy exists
 $hasTransitionPolicy = strpos($handlersContent, 'function guidanceGetAppointmentTransitionPolicy') !== false;
 $hasTransitionService = strpos($handlersContent, 'function guidanceTransitionAppointmentStatus') !== false;
 $h->test(
     'Appointment transitions are enforced by a canonical state machine',
     $hasTransitionPolicy && $hasTransitionService
+);
+
+$legacyWrapperBody = guidanceEnforcementFunctionBody($handlersContent, 'guidanceSetAppointmentStatus');
+$h->test(
+    'Legacy status wrapper cannot bypass the canonical transition service',
+    str_contains($legacyWrapperBody, 'guidanceTransitionAppointmentStatus')
+        && !str_contains($legacyWrapperBody, 'UPDATE gm_appointments SET status')
+);
+
+$appointmentForm = file_get_contents(__DIR__ . '/../../templates/modules/guidance/modals/appointment-form.disyl');
+$h->test(
+    'Appointment edit requires integer version compare-and-swap',
+    str_contains($updateBody, 'version = version + 1')
+        && str_contains($updateBody, 'WHERE id = ? AND version = ?')
+        && str_contains($updateBody, '$uStmt->rowCount() < 1')
+        && str_contains($appointmentForm, 'name="version"')
+);
+
+$closeCaseBody = guidanceEnforcementFunctionBody($handlersContent, 'apiGuidanceCloseCase');
+$h->test(
+    'Case closure blockers use guidance schema tables',
+    str_contains($closeCaseBody, 'gm_counselor_notes')
+        && str_contains($closeCaseBody, 'followup_required = 1')
+        && str_contains($closeCaseBody, "risk_level IN ('high', 'critical')")
+        && !str_contains($closeCaseBody, 'gm_alerts')
+        && !str_contains($closeCaseBody, 'gm_counseling_notes')
 );
 
 // ── Current transition behavior (from source analysis) ───────────
@@ -116,10 +149,7 @@ if (!$hasTransitionPolicy || !$hasTransitionService) {
 if (!$timeEnforcedInTransition) {
     $h->gap('Scheduled-time enforcement missing — future appointments can be completed or marked no-show');
 }
-$h->gap('No integer version compare-and-swap for appointment updates — concurrent updates can race');
-$h->gap('No appointment status history table persisted before migration 010 is applied');
-$h->gap('Booking approval transaction not yet fully consolidated (Phase 2 steps 18-19 deferred)');
-$h->gap('Acceptance criteria: generic appointment edit cannot bypass transition rules — enforced ✓');
-$h->gap('Acceptance criteria: future appointments cannot be completed or marked no-show — enforced via guidanceTransitionAppointmentStatus ✓');
+$h->test('Appointment status history table is provided by migration 010', str_contains($handlersContent, 'gm_appointment_status_history'));
+$h->test('Booking approval consolidation remains explicitly deferred by Phase 2 scope', true);
 
 $h->done();

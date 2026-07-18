@@ -1,14 +1,14 @@
 {
     "suite": "workbench-competitive-phase2",
-    "started": "2026-07-16 22:49:49",
-    "finished": "2026-07-16 22:49:49",
-    "elapsed_ms": 15.8,
+    "started": "2026-07-18 13:12:16",
+    "finished": "2026-07-18 13:12:17",
+    "elapsed_ms": 1108.1,
     "summary": {
-        "passed": 14,
+        "passed": 24,
         "failed": 0,
         "skipped": 0,
-        "total": 14,
-        "assertions": 14,
+        "total": 24,
+        "assertions": 24,
         "exit_code": 0
     },
     "source_fingerprints": [],
@@ -18,98 +18,168 @@
             "label": "uses v1 schema identity",
             "status": "pass",
             "detail": "",
-            "time": 2.9
+            "time": 2.2
         },
         {
             "section": "",
             "label": "legacy migration is deterministic",
             "status": "pass",
             "detail": "",
-            "time": 3.8
+            "time": 2.8
         },
         {
             "section": "",
             "label": "contract covers generic module semantics",
             "status": "pass",
             "detail": "",
-            "time": 3.8
+            "time": 2.8
         },
         {
             "section": "",
             "label": "censored evidence is preserved",
             "status": "pass",
             "detail": "",
-            "time": 3.9
+            "time": 2.8
         },
         {
             "section": "",
             "label": "invalid identity fails before browser execution",
             "status": "pass",
             "detail": "",
-            "time": 10.6
+            "time": 6.4
         },
         {
             "section": "",
             "label": "compatibility report is machine-readable",
             "status": "pass",
             "detail": "",
-            "time": 10.7
+            "time": 6.4
         },
         {
             "section": "",
             "label": "migration has no PAL assumptions",
             "status": "pass",
             "detail": "",
-            "time": 11.7
+            "time": 7
         },
         {
             "section": "",
             "label": "generic routes are discovered",
             "status": "pass",
             "detail": "",
-            "time": 11.8
+            "time": 7
         },
         {
             "section": "",
             "label": "init writes canonical contract",
             "status": "pass",
             "detail": "",
-            "time": 12.6
+            "time": 7.6
         },
         {
             "section": "",
             "label": "doctor permits valid contract",
             "status": "pass",
             "detail": "",
-            "time": 13
+            "time": 8.1
         },
         {
             "section": "",
             "label": "invalid contract blocks browser startup",
             "status": "pass",
             "detail": "",
-            "time": 14.1
+            "time": 10.9
         },
         {
             "section": "",
             "label": "blocked run has explicit outcome",
             "status": "pass",
             "detail": "",
-            "time": 14.2
+            "time": 11
         },
         {
             "section": "",
             "label": "blocked run remains explainable",
             "status": "pass",
             "detail": "",
-            "time": 14.5
+            "time": 11.3
         },
         {
             "section": "",
             "label": "valid run executes its declared test plan",
             "status": "pass",
             "detail": "",
-            "time": 15.7
+            "time": 13
+        },
+        {
+            "section": "",
+            "label": "valid browser plan starts",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "canonical run ID propagates to browser execution",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "canonical module identity propagates to browser execution",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "hybrid gate propagates to browser execution",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "browser process receives both canonical and compatibility module variables",
+            "status": "pass",
+            "detail": "",
+            "time": 76.1
+        },
+        {
+            "section": "",
+            "label": "timed-out browser run is interrupted by the gate",
+            "status": "pass",
+            "detail": "",
+            "time": 1107.6
+        },
+        {
+            "section": "",
+            "label": "browser timeout is explicit",
+            "status": "pass",
+            "detail": "",
+            "time": 1107.8
+        },
+        {
+            "section": "",
+            "label": "timeout uses the standard exit code",
+            "status": "pass",
+            "detail": "",
+            "time": 1107.8
+        },
+        {
+            "section": "",
+            "label": "timeout kills the process without waiting for natural completion",
+            "status": "pass",
+            "detail": "",
+            "time": 1107.8
+        },
+        {
+            "section": "",
+            "label": "timeout remains explainable from durable run evidence",
+            "status": "pass",
+            "detail": "",
+            "time": 1108.1
         }
     ],
     "gaps": []

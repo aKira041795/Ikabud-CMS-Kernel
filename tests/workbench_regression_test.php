@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
 
 /**
  * Priority 5 — Release and Regression Discipline Tests
@@ -15,15 +16,25 @@ declare(strict_types=1);
  *   7. Regression reproduction for confirmed critical issues
  */
 
+
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/AI/WorkbenchAiAnalyzer.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Runs/RunProvenance.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Runs/RunExporter.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Runs/RunRepository.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/ScenarioFixtureDeclaration.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/PrerequisiteClassifier.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/FixtureCleanupPolicy.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/RouteTraversalResolver.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Issues/IssueCardRenderer.php';
 
 use Ikabud\Kernel\Workbench\AI\WorkbenchAiAnalyzer;

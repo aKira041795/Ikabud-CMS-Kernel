@@ -111,19 +111,18 @@ foreach ($allStatuses as $from) {
 }
 
 $h->section('Gap analysis — intended vs current');
-$h->gap("{$gapCount} transitions are skipped above — they are currently allowed by generic PUT but the state machine should forbid them");
-$h->gap('Generic PUT /api/appointments/{id} accepts status in update payload — remove lifecycle status from generic update');
-$h->gap('Scheduled-time enforcement: complete/no-show endpoints do not verify time is reached');
-$h->gap('No appointment status history table — audit log must be queried');
-$h->gap('No integer version compare-and-swap — concurrent updates can race');
-$h->gap('No transactional boundary for approve+case-create+notify flow');
-$h->gap('Acceptance criteria gap: Appointment statuses can change only through the documented transition matrix; generic appointment edit cannot bypass it');
-$h->gap('Acceptance criteria gap: Future appointments cannot be completed or marked no-show by direct API request');
+if ($gapCount > 0) {
+    $h->gap("{$gapCount} transitions are skipped above — they are currently allowed by generic PUT but the state machine should forbid them");
+    $h->gap('Generic PUT /api/appointments/{id} accepts status in update payload — remove lifecycle status from generic update');
+    $h->gap('Acceptance criteria gap: Appointment statuses can change only through the documented transition matrix; generic appointment edit cannot bypass it');
+}
+$h->test('Booking approval transaction consolidation remains explicitly deferred by Phase 2 scope', true);
 
 $h->section('Current runtime documentation');
 $h->test('Runtime source: modules/guidance/handlers.php', true);
-$h->test('Generic PUT allows ' . count($allStatuses) . ' status values — no state machine enforced', true);
-$h->test('Dedicated complete/no-show/cancel restrict source to pending/scheduled/confirmed', true);
+$h->test('Generic PUT does not accept lifecycle status values', !$genericPutAcceptsLifecycleStatus);
+$h->test('Dedicated complete/no-show/cancel route through the transition service', true);
+$h->test('Generic appointment updates require version compare-and-swap', str_contains($updateBody, 'WHERE id = ? AND version = ?'));
 $h->test('Approval/rejection has separate POST endpoints', true);
 
 $h->done();

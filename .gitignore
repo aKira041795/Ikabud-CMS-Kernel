@@ -64,7 +64,9 @@ vendor/
 .vscode/
 .windsurf/
 *.zip
+test_results/
 test_results/evidence/*
+test_results/*.json
 test_results/browser/runs/
 # Comprehension engine runtime artifacts (generated, not source)
 /storage/private/comprehension/history/

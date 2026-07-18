@@ -1,14 +1,14 @@
 {
     "suite": "workbench-competitive-phase7",
-    "started": "2026-07-16 22:49:49",
-    "finished": "2026-07-16 22:49:49",
-    "elapsed_ms": 1,
+    "started": "2026-07-18 13:12:19",
+    "finished": "2026-07-18 13:12:19",
+    "elapsed_ms": 0.9,
     "summary": {
-        "passed": 8,
+        "passed": 10,
         "failed": 0,
         "skipped": 0,
-        "total": 8,
-        "assertions": 8,
+        "total": 10,
+        "assertions": 10,
         "exit_code": 0
     },
     "source_fingerprints": [],
@@ -18,46 +18,60 @@
             "label": "extension SDK inventory is deterministic",
             "status": "pass",
             "detail": "",
-            "time": 0.7
+            "time": 0.5
         },
         {
             "section": "",
             "label": "collector preserves explicit outcomes",
             "status": "pass",
             "detail": "",
-            "time": 0.7
+            "time": 0.6
         },
         {
             "section": "",
             "label": "extension gate is schema-checked",
             "status": "pass",
             "detail": "",
-            "time": 0.8
+            "time": 0.6
         },
         {
             "section": "",
             "label": "reusable GitHub workflow exists",
             "status": "pass",
             "detail": "",
-            "time": 0.8
+            "time": 0.6
         },
         {
             "section": "",
             "label": "CI publishes evidence artifacts",
             "status": "pass",
             "detail": "",
-            "time": 0.8
+            "time": 0.7
         },
         {
             "section": "",
             "label": "reproducible container runner exists",
             "status": "pass",
             "detail": "",
-            "time": 0.8
+            "time": 0.7
         },
         {
             "section": "",
             "label": "adoption snippet stays under ten project lines",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "",
+            "label": "container scope is explicitly contract and benchmark only",
+            "status": "pass",
+            "detail": "",
+            "time": 0.8
+        },
+        {
+            "section": "",
+            "label": "trust-critical CI entry point exposes auditable sections",
             "status": "pass",
             "detail": "",
             "time": 0.9

@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
+
 
 require_once __DIR__ . '/harness/TestHarness.php';
 
@@ -34,6 +36,7 @@ $goldenOutcomes = array_unique(array_column($golden['cases'] ?? [], 'outcome'));
 $h->test('golden dataset includes censored outcomes', in_array('unobserved', $goldenOutcomes, true) && in_array('not_applicable', $goldenOutcomes, true) && in_array('probe_error', $goldenOutcomes, true));
 
 $h->section('Credential security');
+
 require_once $root . '/modules/ai/helpers.php';
 $sensitiveKeys = aiSensitiveKeyNames();
 $providerKeys = ['openai', 'groq', 'gemini', 'mistral', 'cerebras', 'openrouter'];

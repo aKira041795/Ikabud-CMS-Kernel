@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
 
 /**
  * Priority 2 — Governed Scenario Coverage Tests
@@ -9,10 +10,15 @@ declare(strict_types=1);
  * route traversal resolution, and fixture cleanup policy.
  */
 
+
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/ScenarioFixtureDeclaration.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/PrerequisiteClassifier.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/FixtureCleanupPolicy.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/RouteTraversalResolver.php';
 
 use Ikabud\Kernel\Workbench\Scenario\ScenarioFixtureDeclaration;

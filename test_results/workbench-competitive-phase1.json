@@ -1,8 +1,8 @@
 {
     "suite": "workbench-competitive-phase1",
-    "started": "2026-07-16 22:49:49",
-    "finished": "2026-07-16 22:49:49",
-    "elapsed_ms": 62.5,
+    "started": "2026-07-18 13:12:16",
+    "finished": "2026-07-18 13:12:16",
+    "elapsed_ms": 19.4,
     "summary": {
         "passed": 12,
         "failed": 0,
@@ -25,7 +25,7 @@
             "label": "corpus spans PAL Guidance WMS and EHR",
             "status": "pass",
             "detail": "",
-            "time": 0.1
+            "time": 0
         },
         {
             "section": "Competitive corpus",
@@ -39,63 +39,63 @@
             "label": "all critical golden defects are detected",
             "status": "pass",
             "detail": "",
-            "time": 46.3
+            "time": 11.6
         },
         {
             "section": "Real deterministic diagnosis",
             "label": "root cause top three accuracy meets gate",
             "status": "pass",
             "detail": "",
-            "time": 46.3
+            "time": 11.6
         },
         {
             "section": "Real deterministic diagnosis",
             "label": "false positive rate meets gate",
             "status": "pass",
             "detail": "",
-            "time": 46.3
+            "time": 11.6
         },
         {
             "section": "Real deterministic diagnosis",
             "label": "all observations have complete identity",
             "status": "pass",
             "detail": "",
-            "time": 46.3
+            "time": 11.6
         },
         {
             "section": "Real deterministic diagnosis",
             "label": "all competitive gates pass",
             "status": "pass",
             "detail": "",
-            "time": 46.3
+            "time": 11.7
         },
         {
             "section": "Real deterministic diagnosis",
             "label": "recorded inputs produce identical deterministic digest",
             "status": "pass",
             "detail": "",
-            "time": 60.4
+            "time": 18.1
         },
         {
             "section": "Real deterministic diagnosis",
             "label": "ARK diagnosis improves on plain outcome baseline",
             "status": "pass",
             "detail": "",
-            "time": 60.4
+            "time": 18.1
         },
         {
             "section": "Versioned schemas",
             "label": "competitive-benchmark-corpus.v1.schema.json is valid JSON",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Versioned schemas",
             "label": "competitive-benchmark-report.v1.schema.json is valid JSON",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.2
         }
     ],
     "gaps": []

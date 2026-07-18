@@ -1,8 +1,11 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
+
 
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/AI/WorkbenchAiAnalyzer.php';
 
 use Ikabud\Kernel\Workbench\AI\WorkbenchAiAnalyzer;

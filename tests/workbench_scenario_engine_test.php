@@ -1,8 +1,11 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
+
 
 require_once __DIR__ . '/../kernel/Workbench/Scenario/ScenarioEngine.php';
+
 require_once __DIR__ . '/../modules/project-audit-ledger/testing/ScenarioCapabilityProvider.php';
 
 use Ikabud\Kernel\Workbench\Scenario\CapabilityScenarioDataProvider;

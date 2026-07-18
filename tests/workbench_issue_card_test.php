@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
 
 /**
  * Priority 4 — Actionable Issue Card Tests
@@ -14,9 +15,13 @@ declare(strict_types=1);
  *   - JSON, JUnit, and SARIF exports
  */
 
+
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Issues/IssueCardRenderer.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Runs/RunExporter.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Scenario/PrerequisiteClassifier.php';
 
 use Ikabud\Kernel\Workbench\Issues\IssueCardRenderer;

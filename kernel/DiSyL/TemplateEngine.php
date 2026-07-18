@@ -4165,31 +4165,109 @@ class TemplateEngine
         $maxIterations = 20;
         $iteration = 0;
 
-        while ($iteration < $maxIterations && preg_match('/\{include\s+"([^"]+)"/', $content)) {
-            // Block include: {include "name" ...} ... {/include}
-            $content = preg_replace_callback(
-                '/\{include\s+"([^"]+)"((?:\s+[^}]*?)?)\s*\}\s*((?:(?!\{include\s).)*?)\s*\{\/include\}/s',
-                function ($match) use ($context) {
-                    return $this->processIncludeTag($match[1], $match[2], $context, $match[3] ?? null);
-                },
-                $content,
-                1
-            );
-
-            // Self-closing include: {include "name" ...} (no matching {/include})
-            $content = preg_replace_callback(
-                '/\{include\s+"([^"]+)"((?:\s+[^}]*?)?)\s*\/?\s*\}/',
-                function ($match) use ($context) {
-                    return $this->processIncludeTag($match[1], $match[2], $context, null);
-                },
-                $content,
-                1
-            );
-
+        while ($iteration < $maxIterations) {
+            $result = $this->processNextInclude($content, $context);
+            if ($result === null) {
+                break;
+            }
+            $content = $result;
             $iteration++;
         }
 
         return $content;
+    }
+
+    /**
+     * Find and process the next {include ...} tag in content, using depth-aware
+     * brace matching so nested {k: v} map literals in params are handled correctly.
+     * Returns modified content, or null if no include tag is found.
+     */
+    private function processNextInclude(string $content, array $context): ?string
+    {
+        $len = strlen($content);
+        $pos = 0;
+
+        while ($pos < $len) {
+            // Look for {include "..."
+            if ($pos + 9 > $len) break;
+
+            $brace = strpos($content, '{include ', $pos);
+            if ($brace === false) {
+                return null;
+            }
+
+            // Find the opening quote after {include "
+            $q1 = strpos($content, '"', $brace + 9);
+            if ($q1 === false || $q1 >= $len) {
+                $pos = $brace + 1;
+                continue;
+            }
+
+            // Find the closing quote and extract template name
+            $q2 = strpos($content, '"', $q1 + 1);
+            if ($q2 === false) {
+                $pos = $brace + 1;
+                continue;
+            }
+
+            $templateName = substr($content, $q1 + 1, $q2 - $q1 - 1);
+
+            // Now find the matching closing } with depth-aware scanning
+            // (params may contain nested {k: v} map literals)
+            $scan = $q2 + 1;
+            $depth = 1; // we're already inside the opening { of {include
+
+            // First, check if this is a block include by scanning for {/include}
+            // We need to find the proper closing } first, then see if {/include} follows
+            $tagClose = $brace + 1; // position after the opening {
+            $tagDepth = 1;
+
+            while ($tagClose < $len && $tagDepth > 0) {
+                $ch = $content[$tagClose];
+                if ($ch === '{') {
+                    $tagDepth++;
+                } elseif ($ch === '}') {
+                    $tagDepth--;
+                }
+                $tagClose++;
+            }
+
+            if ($tagDepth !== 0) {
+                $pos = $brace + 1;
+                continue;
+            }
+
+            $paramsEnd = $tagClose - 1; // position of matching }
+            $paramsStr = substr($content, $q2 + 1, $paramsEnd - $q2 - 1);
+
+            // Check if {/include} follows the closing } (with optional whitespace)
+            $restStart = $tagClose;
+            while ($restStart < $len && ($content[$restStart] === ' ' || $content[$restStart] === "\t" || $content[$restStart] === "\n" || $content[$restStart] === "\r")) {
+                $restStart++;
+            }
+            $isBlock = false;
+            $bodyContent = null;
+            $blockEnd = -1;
+
+            if (substr($content, $restStart, 10) === '{/include}') {
+                $isBlock = false; // empty block body
+                $blockEnd = $restStart + 10;
+            } elseif (preg_match('/^((?:(?!\{include\s|\{\/include\}).)*?)\s*\{\/include\}/s', substr($content, $restStart), $bm)) {
+                $isBlock = true;
+                $bodyContent = $bm[1];
+                $blockEnd = $restStart + strlen($bm[0]);
+            }
+
+            $includeResult = $this->processIncludeTag($templateName, $paramsStr, $context, $bodyContent);
+
+            // Replace from the opening { to the end of the include tag (or block)
+            $replaceEnd = $isBlock ? $blockEnd : $tagClose;
+            $content = substr_replace($content, $includeResult, $brace, $replaceEnd - $brace);
+
+            return $content;
+        }
+
+        return null;
     }
 
     /**
@@ -4249,16 +4327,36 @@ class TemplateEngine
 
         $result = [];
 
-        // with: {...} syntax
-        if (preg_match('/^with:?\s*(\{[^}]*\})/', $paramsStr, $m)) {
-            $result = $this->parseInlineObject($m[1], $context);
-            // Also check for key=value params after the with: block
-            $rest = trim(substr($paramsStr, strlen($m[0])));
-            if ($rest !== '') {
-                $kv = $this->parseKeyValueParams($rest, $context);
-                $result = array_merge($result, $kv);
+        // with: {...} syntax — use depth-aware brace matching for nested maps
+        if (preg_match('/^with:?\s*(\{)/', $paramsStr, $m)) {
+            $objStart = strpos($paramsStr, $m[1]);
+            if ($objStart !== false) {
+                $len = strlen($paramsStr);
+                $depth = 0;
+                $objEnd = -1;
+                for ($i = $objStart; $i < $len; $i++) {
+                    if ($paramsStr[$i] === '{') {
+                        $depth++;
+                    } elseif ($paramsStr[$i] === '}') {
+                        $depth--;
+                        if ($depth === 0) {
+                            $objEnd = $i + 1;
+                            break;
+                        }
+                    }
+                }
+                if ($objEnd > 0) {
+                    $objectStr = substr($paramsStr, $objStart, $objEnd - $objStart);
+                    $result = $this->parseInlineObject($objectStr, $context);
+                    // Also check for key=value params after the with: block
+                    $rest = trim(substr($paramsStr, $objEnd));
+                    if ($rest !== '') {
+                        $kv = $this->parseKeyValueParams($rest, $context);
+                        $result = array_merge($result, $kv);
+                    }
+                    return $result;
+                }
             }
-            return $result;
         }
 
         // key=value syntax only

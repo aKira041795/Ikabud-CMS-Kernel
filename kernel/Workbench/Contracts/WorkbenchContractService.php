@@ -189,7 +189,8 @@ final class WorkbenchContractService
             $this->projectRoot . '/storage/workbench/runs/' . $runId . '.json'
         );
         $errors = $report['preflight']['errors'] ?? [];
-        if ($errors === [] && ($report['outcome'] ?? '') === 'failed') {
+        $nonPassed = in_array(($report['outcome'] ?? ''), ['failed', 'interrupted', 'blocked'], true);
+        if ($errors === [] && $nonPassed) {
             foreach ((array) ($report['executions'] ?? []) as $execution) {
                 if (($execution['exit_code'] ?? 0) !== 0 || !empty($execution['timed_out'])) {
                     $errors[] = [
@@ -206,9 +207,12 @@ final class WorkbenchContractService
             'run_id' => $runId,
             'module' => $report['module'] ?? '',
             'outcome' => $report['outcome'] ?? 'unknown',
-            'summary' => $errors === []
-                ? 'Contract run passed.'
-                : 'Contract run was blocked or failed.',
+            'summary' => match ($report['outcome'] ?? '') {
+                'passed' => 'Contract run passed.',
+                'interrupted' => 'Contract run was interrupted (timeout or external kill).',
+                'blocked' => 'Contract run was blocked by preflight.',
+                default => 'Contract run failed.',
+            },
             'causes' => $errors,
             'next_command' => 'php ikabud workbench:doctor ' . ($report['module'] ?? ''),
         ];

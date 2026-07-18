@@ -22,7 +22,7 @@ function bakeshopPageCatalog(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         $user = bakeshopCurrentUser('bakeshop.read');
-        echo bakeshopRenderSupervisorWorkspace($user, 'catalog', 'catalog', 'Products', 'Define finished goods first, then maintain each product\'s recipe lines in the same work area.');
+        echo bakeshopRenderSupervisorWorkspace($user, 'catalog', 'catalog', 'Products', 'Set up ingredients first, then define finished products and their recipe lines in the same work area.');
     });
 }
 
@@ -46,7 +46,7 @@ function bakeshopPageProduction(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         $user = bakeshopCurrentUser('bakeshop.read');
-        echo bakeshopRenderSupervisorWorkspace($user, 'production', 'production', 'Baking Log', 'Record what was baked, then review saved batches by branch, item, and time.');
+        echo bakeshopRenderSupervisorWorkspace($user, 'production', 'production', 'Production Runs', 'Record what was produced, then review saved batches by branch, item, and time.');
     });
 }
 
@@ -106,6 +106,17 @@ function bakeshopAuditHistoryActionLabel(string $action): string
         'bakeshop.user.updated' => 'Staff Account Updated',
         'bakeshop.user.deactivated' => 'Staff Account Deactivated',
         'bakeshop.user.password_changed' => 'Staff Password Changed',
+        'bakeshop.product_target.created' => 'Product Target Set',
+        'bakeshop.product_target.updated' => 'Product Target Updated',
+        'bakeshop.product_target.deleted' => 'Product Target Removed',
+        'bakeshop.allocation.created' => 'Product Allocation Created',
+        'bakeshop.allocation.deleted' => 'Product Allocation Removed',
+        'bakeshop.adjustment.created' => 'Inventory Adjustment Created',
+        'bakeshop.adjustment.deleted' => 'Inventory Adjustment Deleted',
+        'bakeshop.product.deleted' => 'Product Deleted',
+        'bakeshop.ingredient.deleted' => 'Ingredient Deleted',
+        'bakeshop.recipe.deleted' => 'Recipe Line Deleted',
+        'bakeshop.unit.created' => 'Unit Created',
     ];
 
     if (isset($map[$action])) {
@@ -128,6 +139,10 @@ function bakeshopAuditHistoryEntityLabel(?string $entityType, ?string $entityId)
         'bakeshop_deliveries' => 'Delivery',
         'bakeshop_production_runs' => 'Production Run',
         'bakeshop_users' => 'Staff Account',
+        'bakeshop_branch_product_targets' => 'Product Target',
+        'bakeshop_inventory_adjustments' => 'Inventory Adjustment',
+        'bakeshop_product_allocations' => 'Product Allocation',
+        'bakeshop_units' => 'Unit',
     ];
 
     $label = $map[$entityType ?? ''] ?? 'Audit Event';

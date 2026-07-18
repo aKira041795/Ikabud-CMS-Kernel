@@ -1,14 +1,25 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../bootstrap.php';
+
 require_once __DIR__ . '/harness/TestHarness.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/ModuleComprehensionProvider.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/EntityContract.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/WorkflowContract.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/ActionContract.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/EffectContract.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/Contracts/SupportContracts.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Comprehension/PalComprehensionProvider.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Graph/ModuleGraph.php';
+
 require_once __DIR__ . '/../kernel/Workbench/Graph/GraphBuilder.php';
 use Ikabud\Kernel\Workbench\Comprehension\PalComprehensionProvider;
 use Ikabud\Kernel\Workbench\Graph\GraphBuilder;

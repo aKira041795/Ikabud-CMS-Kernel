@@ -64,6 +64,36 @@ bt('module.json lists bootstrap password reset migration', in_array('database/mi
 bt('module.json lists password reset token migration', in_array('database/migrations/006_bakeshop_password_resets.sql', $manifest['migrations'] ?? [], true));
 bt('module.json lists delivery cost basis migration', in_array('database/migrations/007_bakeshop_delivery_item_cost_basis.sql', $manifest['migrations'] ?? [], true));
 bt('module.json lists production voiding migration', in_array('database/migrations/008_bakeshop_production_voiding.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists delivery source migration', in_array('database/migrations/002_bakeshop_delivery_source.sql', $manifest['migrations'] ?? [], true));
+bt('module.json lists username case-sensitive migration', in_array('database/migrations/016_bakeshop_username_case_sensitive.sql', $manifest['migrations'] ?? [], true));
+
+// Verify every .sql file in the migrations directory is declared in module.json
+$migrationDir = BASE_PATH . '/modules/bakeshop/database/migrations';
+$onDiskMigrations = glob($migrationDir . '/*.sql');
+$declaredMigrations = $manifest['migrations'] ?? [];
+$unexpectedOnDisk = [];
+foreach ($onDiskMigrations as $diskPath) {
+    $relativePath = 'database/migrations/' . basename($diskPath);
+    if (!in_array($relativePath, $declaredMigrations, true)) {
+        $unexpectedOnDisk[] = $relativePath;
+    }
+}
+bt('every migration on disk is declared in module.json', $unexpectedOnDisk === [], implode(', ', $unexpectedOnDisk));
+
+// Verify every declared migration file exists on disk
+$missingFromDisk = [];
+foreach ($declaredMigrations as $declaredPath) {
+    if (!is_file(BASE_PATH . '/modules/bakeshop/' . $declaredPath)) {
+        $missingFromDisk[] = $declaredPath;
+    }
+}
+bt('every declared migration exists on disk', $missingFromDisk === [], implode(', ', $missingFromDisk));
+
+// New event declarations
+bt('product deleted event declared', in_array('bakeshop.product.deleted', $manifest['events'] ?? [], true));
+bt('ingredient deleted event declared', in_array('bakeshop.ingredient.deleted', $manifest['events'] ?? [], true));
+bt('unit created event declared', in_array('bakeshop.unit.created', $manifest['events'] ?? [], true));
+bt('adjustment created event declared', in_array('bakeshop.adjustment.created', $manifest['events'] ?? [], true));
 
 echo "\n── Discovery ──\n";
 $all = discoverModules();
@@ -106,6 +136,45 @@ bt('recipe delete API route declared', ($routes['POST']['/api/v1/bakeshop/recipe
 bt('delivery delete API route declared', ($routes['POST']['/api/v1/bakeshop/deliveries/delete'] ?? '') === 'bakeshop:bakeshopApiDeliveriesDelete');
 bt('production void API route declared', ($routes['POST']['/api/v1/bakeshop/production/void'] ?? '') === 'bakeshop:bakeshopApiProductionVoid');
 bt('production delete API route aliases void handler', ($routes['POST']['/api/v1/bakeshop/production/delete'] ?? '') === 'bakeshop:bakeshopApiProductionDelete');
+
+// Under-tested route surfaces — pages
+bt('ingredients page route declared', ($routes['GET']['/admin/bakeshop/ingredients'] ?? '') === 'bakeshop:bakeshopPageIngredients');
+bt('product ledger page route declared', ($routes['GET']['/admin/bakeshop/ledger'] ?? '') === 'bakeshop:bakeshopPageProductLedger');
+bt('product coverage page route declared', ($routes['GET']['/admin/bakeshop/coverage'] ?? '') === 'bakeshop:bakeshopPageProductCoverage');
+bt('coverage print page route declared', ($routes['GET']['/admin/bakeshop/coverage/print'] ?? '') === 'bakeshop:bakeshopPagePrintCoverage');
+bt('coverage CSV route declared', ($routes['GET']['/admin/bakeshop/coverage/csv'] ?? '') === 'bakeshop:bakeshopApiCoverageCsv');
+bt('print summary page route declared', ($routes['GET']['/admin/bakeshop/print'] ?? '') === 'bakeshop:bakeshopPagePrintSummary');
+bt('DR projection print route declared', ($routes['GET']['/admin/bakeshop/print/dr-projection'] ?? '') === 'bakeshop:bakeshopPagePrintDrProjection');
+
+// Under-tested route surfaces — APIs
+bt('health API route declared', ($routes['GET']['/api/v1/bakeshop/health'] ?? '') === 'bakeshop:bakeshopApiHealth');
+bt('product targets API route declared', ($routes['GET']['/api/v1/bakeshop/product-targets'] ?? '') === 'bakeshop:bakeshopApiProductTargetsIndex');
+bt('DR projection API route declared', ($routes['GET']['/api/v1/bakeshop/reports/dr-projection'] ?? '') === 'bakeshop:bakeshopApiDrProjectionIndex');
+bt('suggested reorder API route declared', ($routes['GET']['/api/v1/bakeshop/reports/suggested-reorder'] ?? '') === 'bakeshop:bakeshopApiSuggestedReorderIndex');
+bt('product coverage API route declared', ($routes['GET']['/api/v1/bakeshop/reports/product-coverage'] ?? '') === 'bakeshop:bakeshopApiProductCoverage');
+bt('allocations API route declared', ($routes['GET']['/api/v1/bakeshop/allocations'] ?? '') === 'bakeshop:bakeshopApiAllocationsIndex');
+bt('adjustments API route declared', ($routes['GET']['/api/v1/bakeshop/adjustments'] ?? '') === 'bakeshop:bakeshopApiAdjustmentsIndex');
+bt('product import template route declared', ($routes['GET']['/api/v1/bakeshop/products/import/template'] ?? '') === 'bakeshop:bakeshopApiProductsImportTemplate');
+bt('recipe import template route declared', ($routes['GET']['/api/v1/bakeshop/recipes/import/template'] ?? '') === 'bakeshop:bakeshopApiRecipesImportTemplate');
+bt('production import template route declared', ($routes['GET']['/api/v1/bakeshop/production/import/template'] ?? '') === 'bakeshop:bakeshopApiProductionImportTemplate');
+
+// Under-tested route surfaces — POST
+bt('product targets store route declared', ($routes['POST']['/api/v1/bakeshop/product-targets'] ?? '') === 'bakeshop:bakeshopApiProductTargetsStore');
+bt('product targets delete route declared', ($routes['POST']['/api/v1/bakeshop/product-targets/delete'] ?? '') === 'bakeshop:bakeshopApiProductTargetsDelete');
+bt('products batch-delete route declared', ($routes['POST']['/api/v1/bakeshop/products/batch-delete'] ?? '') === 'bakeshop:bakeshopApiProductsBatchDelete');
+bt('products delete route declared', ($routes['POST']['/api/v1/bakeshop/products/delete'] ?? '') === 'bakeshop:bakeshopApiProductsDelete');
+bt('ingredients batch-delete route declared', ($routes['POST']['/api/v1/bakeshop/ingredients/batch-delete'] ?? '') === 'bakeshop:bakeshopApiIngredientsBatchDelete');
+bt('ingredients delete route declared', ($routes['POST']['/api/v1/bakeshop/ingredients/delete'] ?? '') === 'bakeshop:bakeshopApiIngredientsDelete');
+bt('deliveries batch-delete route declared', ($routes['POST']['/api/v1/bakeshop/deliveries/batch-delete'] ?? '') === 'bakeshop:bakeshopApiDeliveriesBatchDelete');
+bt('logo upload route declared', ($routes['POST']['/api/v1/bakeshop/settings/logo'] ?? '') === 'bakeshop:bakeshopApiSettingsUploadLogo');
+bt('allocations store route declared', ($routes['POST']['/api/v1/bakeshop/allocations'] ?? '') === 'bakeshop:bakeshopApiAllocationsStore');
+bt('allocations delete route declared', ($routes['POST']['/api/v1/bakeshop/allocations/delete'] ?? '') === 'bakeshop:bakeshopApiAllocationsDelete');
+bt('adjustments store route declared', ($routes['POST']['/api/v1/bakeshop/adjustments'] ?? '') === 'bakeshop:bakeshopApiAdjustmentsStore');
+bt('adjustments delete route declared', ($routes['POST']['/api/v1/bakeshop/adjustments/delete'] ?? '') === 'bakeshop:bakeshopApiAdjustmentsDelete');
+bt('production import route declared', ($routes['POST']['/api/v1/bakeshop/production/import'] ?? '') === 'bakeshop:bakeshopApiProductionImport');
+bt('products import route declared', ($routes['POST']['/api/v1/bakeshop/products/import'] ?? '') === 'bakeshop:bakeshopApiProductsImport');
+bt('recipes import route declared', ($routes['POST']['/api/v1/bakeshop/recipes/import'] ?? '') === 'bakeshop:bakeshopApiRecipesImport');
+bt('delivery store route declared', ($routes['POST']['/api/v1/bakeshop/deliveries'] ?? '') === 'bakeshop:bakeshopApiDeliveriesStore');
 
 echo "\n── Helpers ──\n";
 $helpersFile = BASE_PATH . '/modules/bakeshop/helpers.php';
@@ -281,6 +350,50 @@ try {
 } catch (Throwable $e) {
     bt('supervisor template renders in bakeshop shell', false, $e->getMessage());
 }
+
+echo "\n── Sidebar Link Coverage ──\n";
+// Verify every internal bakeshop sidebar link resolves to a registered GET route
+// Check the rendered supervisor HTML for sidebar navigation links
+$getRoutes = array_keys($routes['GET'] ?? []);
+
+// Known sidebar links that should be rendered in the bakeshop shell
+$sidebarLinks = [
+    '/admin/bakeshop' => 'dashboard',
+    '/admin/bakeshop/branches' => 'branches',
+    '/admin/bakeshop/catalog' => 'catalog',
+    '/admin/bakeshop/ingredients' => 'ingredients',
+    '/admin/bakeshop/deliveries' => 'deliveries',
+    '/admin/bakeshop/production' => 'production',
+    '/admin/bakeshop/usage' => 'usage',
+    '/admin/bakeshop/history' => 'history',
+    '/admin/bakeshop/users' => 'users',
+    '/admin/bakeshop/account' => 'account',
+    '/admin/bakeshop/settings' => 'settings',
+    '/admin/bakeshop/print' => 'print summary',
+    '/admin/bakeshop/ledger' => 'product ledger',
+    '/admin/bakeshop/coverage' => 'product coverage',
+];
+$sidebarLinkFailures = [];
+foreach ($sidebarLinks as $link => $label) {
+    $found = false;
+    foreach ($getRoutes as $getRoute) {
+        if ($getRoute === $link || (str_ends_with($getRoute, '}') && str_starts_with($link, rtrim($getRoute, '}')))) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {
+        $sidebarLinkFailures[] = "{$link} ({$label})";
+    }
+}
+bt('every sidebar link resolves to a registered GET route', $sidebarLinkFailures === [], implode(', ', $sidebarLinkFailures));
+
+// Check rendered supervisor HTML for sidebar navigation presence
+bt('supervisor template renders sidebar navigation links', str_contains($shellHtml, 'bakeshop-nav') || str_contains($shellHtml, 'sidebar-nav') || str_contains($shellHtml, 'bakeshop-sidebar'));
+bt('supervisor template references branches in navigation', str_contains($shellHtml, 'branches') || str_contains($shellHtml, 'Branches'));
+bt('supervisor template references catalog in navigation', str_contains($shellHtml, 'catalog') || str_contains($shellHtml, 'Products'));
+bt('supervisor template references production in navigation', str_contains($shellHtml, 'production') || str_contains($shellHtml, 'Production'));
+bt('supervisor template references usage in navigation', str_contains($shellHtml, 'usage') || str_contains($shellHtml, 'Usage'));
 
 echo "\n── Migration ──\n";
 $migrationPath = BASE_PATH . '/modules/bakeshop/database/migrations/001_bakeshop_core.sql';

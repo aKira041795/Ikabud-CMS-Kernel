@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/harness/TestHarness.php';
 require_once __DIR__ . '/../kernel/Workbench/Contracts/WorkbenchTestContract.php';
 require_once __DIR__ . '/../kernel/Workbench/Contracts/WorkbenchTestContractMigrator.php';
@@ -164,7 +165,7 @@ $contract['environments']['timeout_seconds']['browser'] = 1;
 file_put_contents($contractPath, WorkbenchTestContract::encode($contract));
 $timeoutRun = $service->run('inventory');
 $timeoutExecution = $timeoutRun['executions'][0];
-$h->assertSame('failed', $timeoutRun['outcome'], 'timed-out browser run fails its gate');
+$h->assertSame('interrupted', $timeoutRun['outcome'], 'timed-out browser run is interrupted by the gate');
 $h->test('browser timeout is explicit', $timeoutExecution['timed_out']);
 $h->assertSame(124, $timeoutExecution['exit_code'], 'timeout uses the standard exit code');
 $h->test(

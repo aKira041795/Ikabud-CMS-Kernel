@@ -1269,14 +1269,33 @@ function apiGuidanceCloseCase(array $params = []): void
         return;
     }
 
-    // Block closure if unresolved alerts exist
-    $alertStmt = $db->prepare(
-        "SELECT COUNT(*) FROM gm_alerts WHERE case_id = ? AND resolved_at IS NULL"
+    // Block closure if documented session notes still require follow-up.
+    $followupStmt = $db->prepare(
+        "SELECT COUNT(*) FROM gm_counselor_notes\n"
+        . "WHERE case_id = ? AND followup_required = 1"
     );
-    $alertStmt->execute([$caseId]);
-    if ((int)$alertStmt->fetchColumn() > 0) {
+    $followupStmt->execute([$caseId]);
+    if ((int)$followupStmt->fetchColumn() > 0) {
         http_response_code(409);
-        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cannot close — unresolved alerts exist. Resolve them first.', 'type' => 'error']]));
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cannot close — unresolved follow-ups exist. Resolve them first.', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+
+    // Block closure while high-risk notes remain unresolved by follow-up documentation.
+    $criticalStmt = $db->prepare(
+        "SELECT COUNT(*) FROM gm_counselor_notes n\n"
+        . "WHERE n.case_id = ? AND n.risk_level IN ('high', 'critical')\n"
+        . "AND NOT EXISTS (\n"
+        . "    SELECT 1 FROM gm_counselor_notes r\n"
+        . "    WHERE r.case_id = n.case_id AND r.id > n.id\n"
+        . "    AND (r.risk_level NOT IN ('high', 'critical') OR r.action_taken IS NOT NULL OR r.observation_recommendation IS NOT NULL)\n"
+        . ")"
+    );
+    $criticalStmt->execute([$caseId]);
+    if ((int)$criticalStmt->fetchColumn() > 0) {
+        http_response_code(409);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cannot close — unresolved high-risk notes exist. Document the resolution first.', 'type' => 'error']]));
         echo '';
         return;
     }
@@ -1284,7 +1303,7 @@ function apiGuidanceCloseCase(array $params = []): void
     // Block closure if completed appointments lack counseling notes
     $undocumentedStmt = $db->prepare(
         "SELECT COUNT(*) FROM gm_appointments a\n"
-        . "LEFT JOIN gm_counseling_notes n ON n.appointment_id = a.id AND n.deleted_at IS NULL\n"
+        . "LEFT JOIN gm_counselor_notes n ON n.appointment_id = a.id\n"
         . "WHERE a.case_id = ? AND a.status = 'completed' AND n.id IS NULL"
     );
     $undocumentedStmt->execute([$caseId]);
@@ -1597,6 +1616,7 @@ function guidanceNormalizeNoteSessionType(?string $value, string $default = 'wal
 function apiGuidanceCreateAppointment(): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = (string)($user['role'] ?? '');
     $isCounselor = $role === 'counselor';
     $userId = (int)($user['id'] ?? 0);
@@ -1731,6 +1751,7 @@ function apiGuidanceCreateAppointment(): void
 function apiGuidanceUpdateAppointment(array $params = []): void
 {
     $user = guidanceRequireStaff(['admin', 'supervisor', 'counselor']);
+    app()->csrfEnforce();
     $role = (string)($user['role'] ?? '');
     $isCounselor = $role === 'counselor';
     $userId = (int)($user['id'] ?? 0);
@@ -1751,7 +1772,7 @@ function apiGuidanceUpdateAppointment(array $params = []): void
     }
 
     $db = guidanceDb();
-    $stmt = $db->prepare("SELECT id, counselor_id, appointment_type, appointment_type_id, duration_minutes FROM gm_appointments WHERE id = ? LIMIT 1");
+    $stmt = $db->prepare("SELECT id, counselor_id, appointment_type, appointment_type_id, duration_minutes, version FROM gm_appointments WHERE id = ? LIMIT 1");
     $stmt->execute([$id]);
     $existing = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($existing)) {
@@ -1763,6 +1784,14 @@ function apiGuidanceUpdateAppointment(array $params = []): void
     if ($isCounselor && (int)($existing['counselor_id'] ?? 0) !== $userId) {
         http_response_code(403);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Access denied', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+
+    $expectedVersion = (int)($input['version'] ?? $input['expected_version'] ?? 0);
+    if ($expectedVersion < 1) {
+        http_response_code(422);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Appointment version is required. Refresh and try again.', 'type' => 'error']]));
         echo '';
         return;
     }
@@ -1857,11 +1886,18 @@ function apiGuidanceUpdateAppointment(array $params = []): void
             $notes,
             $location,
         ];
-        $sql .= ", last_modified_by = ?, updated_at = NOW() WHERE id = ?";
+        $sql .= ", last_modified_by = ?, updated_at = NOW(), version = version + 1 WHERE id = ? AND version = ?";
         $vals[] = $userId;
         $vals[] = $id;
+        $vals[] = $expectedVersion;
         $uStmt = $db->prepare($sql);
         $uStmt->execute($vals);
+        if ($uStmt->rowCount() < 1) {
+            http_response_code(409);
+            header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Appointment was changed by someone else. Refresh and try again.', 'type' => 'error']]));
+            echo '';
+            return;
+        }
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Appointment updated', 'type' => 'success'], 'refreshAppointments' => true, 'refreshAppointmentsCalendar' => true]));
         echo '';
     } catch (Throwable $e) {
@@ -2050,9 +2086,7 @@ function guidanceSetAppointmentStatus(\Ikabud\Kernel\Contracts\DatabaseContract 
             return false;
         }
     }
-    $stmt = $db->prepare("UPDATE gm_appointments SET status = ?, last_modified_by = ?, updated_at = NOW() WHERE id = ?");
-    $stmt->execute([$newStatus, $byUserId, $id]);
-    return true;
+    return guidanceTransitionAppointmentStatus($db, $id, $newStatus, $byUserId);
 }
 
 function apiGuidanceCompleteAppointment(array $params = []): void

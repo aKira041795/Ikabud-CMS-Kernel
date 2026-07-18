@@ -26,6 +26,7 @@
     ],
     "migrations": [
         "database/migrations/001_bakeshop_core.sql",
+        "database/migrations/002_bakeshop_delivery_source.sql",
         "database/migrations/002_bakeshop_users.sql",
         "database/migrations/003_bakeshop_bootstrap_admin.sql",
         "database/migrations/004_bakeshop_user_token_version.sql",
@@ -39,7 +40,8 @@
         "database/migrations/012_bakeshop_inventory_adjustments_and_reorder.sql",
         "database/migrations/013_bakeshop_product_allocations.sql",
         "database/migrations/014_bakeshop_production_day_fraction.sql",
-        "database/migrations/015_bakeshop_delivery_item_product.sql"
+        "database/migrations/015_bakeshop_delivery_item_product.sql",
+        "database/migrations/016_bakeshop_username_case_sensitive.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -137,8 +139,12 @@
         "bakeshop.production.updated",
         "bakeshop.production.voided",
         "bakeshop.product.created",
+        "bakeshop.product.deleted",
         "bakeshop.ingredient.created",
-        "bakeshop.recipe.saved"
+        "bakeshop.ingredient.deleted",
+        "bakeshop.unit.created",
+        "bakeshop.recipe.saved",
+        "bakeshop.adjustment.created"
     ],
     "settings_fields": [
         {
