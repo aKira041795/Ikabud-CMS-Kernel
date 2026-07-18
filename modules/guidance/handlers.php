@@ -1255,6 +1255,20 @@ function apiGuidanceCloseCase(array $params = []): void
         return;
     }
 
+    // Block closure if active future appointments exist
+    $futureStmt = $db->prepare(
+        "SELECT COUNT(*) FROM gm_appointments\n"
+        . "WHERE case_id = ? AND scheduled_date > CURDATE()\n"
+        . "AND status IN ('pending', 'requested', 'confirmed', 'scheduled', 'rescheduled')"
+    );
+    $futureStmt->execute([$caseId]);
+    if ((int)$futureStmt->fetchColumn() > 0) {
+        http_response_code(409);
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Cannot close — active future appointments exist. Cancel or complete them first.', 'type' => 'error']]));
+        echo '';
+        return;
+    }
+
     try {
         $db->beginTransaction();
         $updateStmt = $db->prepare('UPDATE gm_cases SET status = ?, resolution_summary = ?, closed_at = NOW(), closed_by = ?, last_modified_by = ?, updated_at = NOW(), version = version + 1 WHERE id = ?');
@@ -1731,10 +1745,7 @@ function apiGuidanceUpdateAppointment(array $params = []): void
     $notes = (string)($input['notes'] ?? '');
     $notes = guidanceEditorSanitizeHtml(guidanceEditorNormalizeHtml($notes, 'guidance.session'), 'guidance.session');
     $location = (string)($input['location'] ?? '');
-    $status = trim((string)($input['status'] ?? ''));
-    if ($status !== '' && !in_array($status, ['pending', 'requested', 'confirmed', 'scheduled', 'rescheduled', 'completed', 'cancelled', 'no_show', 'rejected', 'waitlist'], true)) {
-        $status = '';
-    }
+    // Status changes are NOT accepted via generic update — use dedicated transition endpoints
 
     if ($caseId < 1 || $date === '' || $time === '') {
         http_response_code(422);
@@ -1812,10 +1823,6 @@ function apiGuidanceUpdateAppointment(array $params = []): void
             $notes,
             $location,
         ];
-        if ($status !== '') {
-            $sql .= ", status = ?";
-            $vals[] = $status;
-        }
         $sql .= ", last_modified_by = ?, updated_at = NOW() WHERE id = ?";
         $vals[] = $userId;
         $vals[] = $id;
@@ -1868,6 +1875,114 @@ function apiGuidanceAppointmentsCalendar(): void
     echo json_encode(['ok' => true, 'month' => $month, 'appointments' => $rows]);
 }
 
+/**
+ * Appointment transition policy — canonical state machine.
+ *
+ * Every appointment status change must go through this function or one
+ * of the named transition helpers.  Generic PUT /api/appointments/{id}
+ * no longer accepts a status field.
+ *
+ * Transitions:
+ *   pending, requested → confirmed (approve)
+ *   pending, requested → rejected  (reject, reason required)
+ *   confirmed, scheduled, rescheduled → completed (after scheduled time)
+ *   confirmed, scheduled, rescheduled → no_show   (after scheduled time)
+ *   pending, requested, confirmed, scheduled, rescheduled → cancelled (reason required)
+ *   confirmed → scheduled (schedule)
+ *   confirmed, scheduled → rescheduled (reschedule, slot validation)
+ *   waitlist → confirmed, cancelled
+ *   terminal: completed, cancelled, no_show, rejected — no outgoing transitions
+ */
+function guidanceGetAppointmentTransitionPolicy(): array
+{
+    return [
+        'pending'      => ['confirmed' => true, 'cancelled' => true, 'rejected' => true],
+        'requested'    => ['confirmed' => true, 'cancelled' => true, 'rejected' => true],
+        'confirmed'    => ['scheduled' => true, 'rescheduled' => true, 'completed' => true, 'no_show' => true, 'cancelled' => true],
+        'scheduled'    => ['rescheduled' => true, 'completed' => true, 'no_show' => true, 'cancelled' => true],
+        'rescheduled'  => ['completed' => true, 'no_show' => true, 'cancelled' => true],
+        'completed'    => [],
+        'cancelled'    => [],
+        'no_show'      => [],
+        'rejected'     => [],
+        'waitlist'     => ['confirmed' => true, 'cancelled' => true],
+    ];
+}
+
+/**
+ * Execute a validated appointment status transition.
+ *
+ * Checks:
+ *  - Target status is valid
+ *  - Transition is allowed per the policy
+ *  - Scheduled-time enforcement for completed/no_show
+ *  - Records the old→new status in gm_appointment_status_history
+ *  - Uses an atomic conditional UPDATE on the expected current status
+ */
+function guidanceTransitionAppointmentStatus(
+    \Ikabud\Kernel\Contracts\DatabaseContract $db,
+    int $id,
+    string $newStatus,
+    int $byUserId
+): bool {
+    $policy = guidanceGetAppointmentTransitionPolicy();
+
+    $stmt = $db->prepare("SELECT status, scheduled_date, scheduled_time FROM gm_appointments WHERE id = ? LIMIT 1 FOR UPDATE");
+    $stmt->execute([$id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return false;
+    }
+    $curStatus = strtolower(trim((string)$row['status']));
+    $date = (string)$row['scheduled_date'];
+    $time = (string)$row['scheduled_time'];
+
+    // Validate target status
+    $target = strtolower(trim($newStatus));
+    if (!isset($policy[$target])) {
+        return false;
+    }
+
+    // Validate transition is allowed
+    $allowedTargets = $policy[$curStatus] ?? [];
+    if (!isset($allowedTargets[$target])) {
+        return false;
+    }
+
+    // Scheduled-time enforcement for completed and no_show
+    if (in_array($target, ['completed', 'no_show'], true)) {
+        if (!guidanceAppointmentScheduledAtReached($date, $time)) {
+            return false;
+        }
+    }
+
+    // Atomic conditional update: only if current status matches expected
+    $stmt = $db->prepare(
+        "UPDATE gm_appointments SET status = ?, last_modified_by = ?, updated_at = NOW() WHERE id = ? AND status = ?"
+    );
+    $stmt->execute([$target, $byUserId, $id, $curStatus]);
+    if ($stmt->rowCount() === 0) {
+        return false;
+    }
+
+    // Record in status history
+    $histStmt = $db->prepare(
+        "INSERT INTO gm_appointment_status_history (appointment_id, from_status, to_status, changed_by, created_at)
+         VALUES (?, ?, ?, ?, NOW())"
+    );
+    try {
+        $histStmt->execute([$id, $curStatus, $target, $byUserId]);
+    } catch (Throwable $e) {
+        // History is best-effort — transition already succeeded
+    }
+
+    return true;
+}
+
+/**
+ * Legacy wrapper — retained for internal callers that pass allowed-statuses.
+ * Prefer guidanceTransitionAppointmentStatus for new code paths.
+ */
 function guidanceSetAppointmentStatus(\Ikabud\Kernel\Contracts\DatabaseContract $db, int $id, string $newStatus, int $byUserId, array $allowedStatuses = []): bool
 {
     if (!empty($allowedStatuses)) {
@@ -1904,7 +2019,7 @@ function apiGuidanceCompleteAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'completed', $userId, ['pending', 'scheduled', 'confirmed']);
+    $ok = guidanceTransitionAppointmentStatus($db, $id, 'completed', $userId);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -1937,7 +2052,7 @@ function apiGuidanceNoShowAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'no_show', $userId, ['pending', 'scheduled', 'confirmed']);
+    $ok = guidanceTransitionAppointmentStatus($db, $id, 'no_show', $userId);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -1970,7 +2085,7 @@ function apiGuidanceCancelAppointment(array $params = []): void
         }
     }
 
-    $ok = guidanceSetAppointmentStatus($db, $id, 'cancelled', $userId, ['pending', 'scheduled', 'confirmed']);
+    $ok = guidanceTransitionAppointmentStatus($db, $id, 'cancelled', $userId);
     if (!$ok) {
         http_response_code(422);
         header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Invalid status transition', 'type' => 'error']]));
@@ -12750,7 +12865,7 @@ function apiGuidanceApproveAppointment(array $params): void
     }
 
     $db = guidanceDb();
-    $stmt = $db->prepare('SELECT * FROM gm_appointments WHERE id = :id LIMIT 1');
+    $stmt = $db->prepare('SELECT * FROM gm_appointments WHERE id = :id LIMIT 1 FOR UPDATE');
     $stmt->execute([':id' => $apptId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!is_array($row)) {
@@ -12804,12 +12919,14 @@ function apiGuidanceApproveAppointment(array $params): void
             }
         }
 
-        $upd = $db->prepare(
-            "UPDATE gm_appointments\n"
-            . "SET status = 'confirmed', approved_at = NOW(), approved_by = :uid, rejected_at = NULL, rejected_by = NULL, rejection_reason = NULL\n"
-            . "WHERE id = :id"
-        );
-        $upd->execute([':uid' => $userId, ':id' => $apptId]);
+        if (!guidanceTransitionAppointmentStatus($db, $apptId, 'confirmed', $userId)) {
+            throw new RuntimeException('Transition to confirmed failed');
+        }
+
+        // Set approval metadata
+        $db->prepare(
+            "UPDATE gm_appointments SET approved_at = NOW(), approved_by = :uid, rejected_at = NULL, rejected_by = NULL, rejection_reason = NULL WHERE id = :id"
+        )->execute([':uid' => $userId, ':id' => $apptId]);
 
         if ($startedTransaction) {
             $db->commit();
@@ -12892,7 +13009,7 @@ function apiGuidanceRejectAppointment(array $params): void
     $db = guidanceDb();
     $stmt = $db->prepare(
         "SELECT id, counselor_id, status, case_id, student_name, student_email, scheduled_date, scheduled_time, location\n"
-        . "FROM gm_appointments WHERE id = :id LIMIT 1"
+        . "FROM gm_appointments WHERE id = :id LIMIT 1 FOR UPDATE"
     );
     $stmt->execute([':id' => $apptId]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -12918,12 +13035,17 @@ function apiGuidanceRejectAppointment(array $params): void
         return;
     }
 
-    $upd = $db->prepare(
-        "UPDATE gm_appointments\n"
-        . "SET status = 'rejected', rejected_at = NOW(), rejected_by = :uid, rejection_reason = :reason\n"
-        . "WHERE id = :id"
-    );
-    $upd->execute([':uid' => $userId, ':reason' => $reason !== '' ? $reason : null, ':id' => $apptId]);
+    if (!guidanceTransitionAppointmentStatus($db, $apptId, 'rejected', $userId)) {
+        header('Content-Type: application/json');
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => 'Transition to rejected failed']);
+        return;
+    }
+
+    // Persist rejection metadata
+    $db->prepare(
+        "UPDATE gm_appointments SET rejected_at = NOW(), rejected_by = :uid, rejection_reason = :reason WHERE id = :id"
+    )->execute([':uid' => $userId, ':reason' => $reason !== '' ? $reason : null, ':id' => $apptId]);
 
     try {
         guidanceSendAppointmentTemplateEmail('booking_rejected', trim((string)($row['student_email'] ?? '')), [

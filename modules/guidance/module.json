@@ -80,6 +80,7 @@
         "gm_tracker_students",
         "gm_tracker_submissions",
         "gm_tracker_custom_fields",
+        "gm_appointment_status_history",
         "gm_migrations"
     ],
     "reads_tables": [
@@ -101,7 +102,8 @@
         "migrations/006_guidance_case_refactor.sql",
         "migrations/007_guidance_case_mse.sql",
         "migrations/008_guidance_form_fields_required_fix.sql",
-        "migrations/009_guidance_unique_active_student_email.sql"
+        "migrations/009_guidance_unique_active_student_email.sql",
+        "migrations/010_guidance_appointment_status_history.sql"
     ],
     "seeds": [
         "seeds/001_guidance_baseline.sql"

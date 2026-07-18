@@ -232,7 +232,8 @@
             "gm_tracker_students",
             "gm_tracker_submissions",
             "gm_tracker_custom_fields",
-            "gm_migrations"
+            "gm_migrations",
+            "gm_appointment_status_history"
         ],
         "capabilities": [
             "entity.get.guidance_appointment@1",
@@ -251,7 +252,23 @@
     "actors": [
         {
             "id": "admin",
-            "capabilities": []
+            "capabilities": [],
+            "description": "Full system access: cases, appointments, users, colleges, settings, reports, trackers, modules, all administration"
+        },
+        {
+            "id": "supervisor",
+            "capabilities": [],
+            "description": "Operational oversight: cases, appointments, calendar, reports, college/team views, alerts"
+        },
+        {
+            "id": "counselor",
+            "capabilities": [],
+            "description": "Assigned caseload only: own cases, appointments, calendar, profile"
+        },
+        {
+            "id": "guest",
+            "capabilities": [],
+            "description": "Unauthenticated: public booking, login, password reset"
         }
     ],
     "tenancy": {
@@ -266,7 +283,9 @@
             "family": "module-page",
             "route": "/admin/guidance",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -275,7 +294,8 @@
             "family": "module-page",
             "route": "/admin/guidance/alerts",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
@@ -284,7 +304,9 @@
             "family": "module-page",
             "route": "/admin/guidance/appointments",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -293,7 +315,9 @@
             "family": "module-page",
             "route": "/admin/guidance/calendar",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -302,7 +326,9 @@
             "family": "module-page",
             "route": "/admin/guidance/cases",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -311,7 +337,9 @@
             "family": "module-page",
             "route": "/admin/guidance/cases/new",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -320,7 +348,9 @@
             "family": "module-page",
             "route": "/admin/guidance/cases/{id}",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -347,7 +377,10 @@
             "family": "module-page",
             "route": "/admin/guidance/forgot-password",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor",
+                "guest"
             ],
             "required_components": []
         },
@@ -365,7 +398,10 @@
             "family": "module-page",
             "route": "/admin/guidance/login",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor",
+                "guest"
             ],
             "required_components": []
         },
@@ -374,130 +410,157 @@
             "family": "module-page",
             "route": "/admin/guidance/logout",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-alerts",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/alerts",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-appointments",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/appointments",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-appointments-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/appointments/new",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-appointments-item",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/appointments/{id}",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-appointments-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/appointments/{id}/edit",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-calendar",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/calendar",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/cases",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/cases/new",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases-item",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/cases/{id}",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases-item-documents-upload",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/cases/{id}/documents/upload",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/cases/{id}/edit",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases-item-notes-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/cases/{id}/notes/new",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-cases-item-notes-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/cases/{id}/notes/{noteId}/edit",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-colleges",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/colleges",
             "roles": [
                 "admin"
@@ -506,7 +569,7 @@
         },
         {
             "id": "page-admin-guidance-pages-colleges-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/colleges/new",
             "roles": [
                 "admin"
@@ -515,7 +578,7 @@
         },
         {
             "id": "page-admin-guidance-pages-colleges-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/colleges/{id}/edit",
             "roles": [
                 "admin"
@@ -524,16 +587,18 @@
         },
         {
             "id": "page-admin-guidance-pages-dashboard",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/dashboard",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-email-templates",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/email-templates",
             "roles": [
                 "admin"
@@ -542,7 +607,7 @@
         },
         {
             "id": "page-admin-guidance-pages-form-settings",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/form-settings",
             "roles": [
                 "admin"
@@ -551,34 +616,39 @@
         },
         {
             "id": "page-admin-guidance-pages-profile",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/profile",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-reports",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/reports",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-session-records",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/session-records",
             "roles": [
-                "admin"
+                "admin",
+                "counselor",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-settings",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/settings",
             "roles": [
                 "admin"
@@ -587,7 +657,7 @@
         },
         {
             "id": "page-admin-guidance-pages-settings-modules",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/settings/modules",
             "roles": [
                 "admin"
@@ -596,79 +666,87 @@
         },
         {
             "id": "page-admin-guidance-pages-trackers",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/trackers",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/trackers/new",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-item",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/trackers/{id}",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/trackers/{id}/edit",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-item-items-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/trackers/{id}/items/new",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-item-items-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/trackers/{id}/items/{itemId}/edit",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-item-students-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/trackers/{id}/students/new",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-trackers-item-students-item",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/trackers/{id}/students/{studentId}",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-pages-users",
-            "family": "module-page",
+            "family": "htmx-fragment",
             "route": "/admin/guidance/pages/users",
             "roles": [
                 "admin"
@@ -677,7 +755,7 @@
         },
         {
             "id": "page-admin-guidance-pages-users-new",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/users/new",
             "roles": [
                 "admin"
@@ -686,7 +764,7 @@
         },
         {
             "id": "page-admin-guidance-pages-users-item-edit",
-            "family": "module-page",
+            "family": "modal-fragment",
             "route": "/admin/guidance/pages/users/{id}/edit",
             "roles": [
                 "admin"
@@ -698,7 +776,9 @@
             "family": "module-page",
             "route": "/admin/guidance/profile",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -707,25 +787,28 @@
             "family": "module-page",
             "route": "/admin/guidance/reports",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-reports-appointments-docx",
-            "family": "module-page",
+            "family": "download",
             "route": "/admin/guidance/reports/appointments/docx",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
         {
             "id": "page-admin-guidance-reports-cases-item-docx",
-            "family": "module-page",
+            "family": "download",
             "route": "/admin/guidance/reports/cases/{id}/docx",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
@@ -734,7 +817,10 @@
             "family": "module-page",
             "route": "/admin/guidance/reset-password",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor",
+                "guest"
             ],
             "required_components": []
         },
@@ -743,7 +829,9 @@
             "family": "module-page",
             "route": "/admin/guidance/session-records",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor"
             ],
             "required_components": []
         },
@@ -761,7 +849,8 @@
             "family": "module-page",
             "route": "/admin/guidance/trackers",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
@@ -770,7 +859,8 @@
             "family": "module-page",
             "route": "/admin/guidance/trackers/{id}",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor"
             ],
             "required_components": []
         },
@@ -788,7 +878,7 @@
             "family": "module-page",
             "route": "/guidance/book",
             "roles": [
-                "admin"
+                "guest"
             ],
             "required_components": []
         },
@@ -797,7 +887,7 @@
             "family": "module-page",
             "route": "/guidance/forgot-password",
             "roles": [
-                "admin"
+                "guest"
             ],
             "required_components": []
         },
@@ -806,7 +896,7 @@
             "family": "module-page",
             "route": "/guidance/login",
             "roles": [
-                "admin"
+                "guest"
             ],
             "required_components": []
         },
@@ -815,7 +905,10 @@
             "family": "module-page",
             "route": "/guidance/logout",
             "roles": [
-                "admin"
+                "admin",
+                "supervisor",
+                "counselor",
+                "guest"
             ],
             "required_components": []
         },
@@ -824,7 +917,7 @@
             "family": "module-page",
             "route": "/guidance/reset-password",
             "roles": [
-                "admin"
+                "guest"
             ],
             "required_components": []
         }
@@ -1052,8 +1145,8 @@
             "route": "/admin/guidance/api/auth/forgot-password",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1079,8 +1172,8 @@
             "route": "/admin/guidance/api/auth/login",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1106,8 +1199,8 @@
             "route": "/admin/guidance/api/auth/resend-otp",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1133,8 +1226,8 @@
             "route": "/admin/guidance/api/auth/reset-password",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1160,8 +1253,8 @@
             "route": "/admin/guidance/api/auth/verify-otp",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1835,17 +1928,13 @@
             "route": "/api/v1/guidance/auth/forgot-password",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
                     "step": "http.request",
                     "category": "http"
-                },
-                {
-                    "step": "authorization.checked",
-                    "category": "capability"
                 },
                 {
                     "step": "state.changed-or-rejected",
@@ -1862,8 +1951,8 @@
             "route": "/api/v1/guidance/auth/reset-password",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1889,8 +1978,8 @@
             "route": "/guidance/api/auth/forgot-password",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1916,8 +2005,8 @@
             "route": "/guidance/api/auth/login",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1943,8 +2032,8 @@
             "route": "/guidance/api/auth/resend-otp",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1970,8 +2059,8 @@
             "route": "/guidance/api/auth/reset-password",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -1997,8 +2086,8 @@
             "route": "/guidance/api/auth/verify-otp",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -2024,8 +2113,8 @@
             "route": "/guidance/auth/login",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -2051,8 +2140,8 @@
             "route": "/guidance/book/api/booking",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -2078,8 +2167,8 @@
             "route": "/guidance/book/api/resend-otp",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -2105,8 +2194,8 @@
             "route": "/guidance/book/api/verify-otp",
             "method": "POST",
             "requires": {
-                "authenticated": true,
-                "tenant_scoped": true
+                "authenticated": false,
+                "tenant_scoped": false
             },
             "effects": [
                 {
@@ -2134,6 +2223,18 @@
             "severity": "critical",
             "scope": "navigation",
             "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route."
+        },
+        {
+            "id": "appointment-transition-enforced",
+            "severity": "critical",
+            "scope": "lifecycle",
+            "description": "Appointment status changes must go through the documented transition matrix; generic PUT /api/appointments/{id} currently accepts status bypassing all transition rules."
+        },
+        {
+            "id": "appointment-scheduled-time-enforced",
+            "severity": "critical",
+            "scope": "lifecycle",
+            "description": "Future appointments must not be completable or marked no-show; complete/no-show endpoints do not verify scheduled time has been reached."
         }
     ],
     "scenarios": [
@@ -2158,6 +2259,80 @@
                 "responsive-viewport",
                 "run-correlation"
             ]
+        },
+        {
+            "id": "guidance-route-resolution",
+            "description": "Every guidance:* route handler resolves from handlers.php; no file in the repo imports from the unused handlers/ split directory",
+            "actions": []
+        },
+        {
+            "id": "guidance-appointment-state-machine",
+            "description": "Exhaustive N\u00d7N transition matrix documenting intended vs current appointment status transitions",
+            "php_tests": [
+                "tests/guidance/guidance_state_machine_test.php",
+                "tests/guidance/guidance_appointment_transition_enforcement_test.php"
+            ]
+        },
+        {
+            "id": "guidance-public-booking",
+            "description": "Guest books appointment: details, slot, review, OTP enabled/disabled, pending confirmation, duplicate/retry",
+            "actions": [
+                "action-guidance-book-api-booking",
+                "action-guidance-book-api-verify-otp",
+                "action-guidance-book-api-resend-otp",
+                "action-guidance-api-auth-login",
+                "action-guidance-api-auth-forgot-password",
+                "action-guidance-api-auth-reset-password"
+            ]
+        },
+        {
+            "id": "guidance-staff-approval",
+            "description": "Staff reviews pending request, approves/rejects, creates/reuses case, notification state verified",
+            "actions": [
+                "action-admin-guidance-api-appointments-item-approve",
+                "action-admin-guidance-api-appointments-item-reject",
+                "action-admin-guidance-api-cases",
+                "action-admin-guidance-api-notifications-read"
+            ]
+        },
+        {
+            "id": "guidance-encounter-workflow",
+            "description": "Counselor opens assigned student, schedules appointment, completes after scheduled time, finalizes encounter, sets follow-up, verifies Clinical Records",
+            "actions": [
+                "action-admin-guidance-api-appointments",
+                "action-admin-guidance-api-appointments-item-complete",
+                "action-admin-guidance-api-cases-item-notes"
+            ]
+        },
+        {
+            "id": "guidance-no-show-cancel",
+            "description": "No-show and cancellation remain in Appointments/Outcomes; no clinical record is created",
+            "actions": [
+                "action-admin-guidance-api-appointments-item-no-show",
+                "action-admin-guidance-api-appointments-item-cancel"
+            ]
+        },
+        {
+            "id": "guidance-case-closure",
+            "description": "Closure modal shows blockers, authorized override with reason, closed state read-only, reopen requires reason",
+            "actions": [
+                "action-admin-guidance-api-cases-item-close",
+                "action-admin-guidance-api-cases-item-reopen"
+            ]
+        },
+        {
+            "id": "guidance-role-scoping",
+            "description": "Role-aware navigation for counselor, supervisor, and admin; cross-counselor access denied",
+            "actions": [
+                "action-admin-guidance-api-appointments",
+                "action-admin-guidance-api-cases",
+                "action-admin-guidance-api-users"
+            ]
+        },
+        {
+            "id": "guidance-mobile-navigation",
+            "description": "Desktop and mobile navigation, tables, modals, student tabs preserve state under HTMX navigation",
+            "actions": []
         }
     ],
     "environments": {
@@ -2205,9 +2380,17 @@
         ]
     },
     "test_files": {
-        "php": [],
+        "php": [
+            "tests/guidance/guidance_route_resolution_test.php",
+            "tests/guidance/guidance_state_machine_test.php",
+            "tests/guidance/guidance_appointment_transition_enforcement_test.php",
+            "tests/guidance/guidance_integration_test.php",
+            "tests/guidance/manifest_test.php"
+        ],
         "browser": [
-            "tests/browser/modules/guidance/showcase.spec.js"
+            "tests/browser/modules/guidance/showcase.spec.js",
+            "tests/browser/modules/guidance/pages/dashboard.spec.js",
+            "tests/browser/modules/guidance/workflows/navigation.spec.js"
         ]
     },
     "compatibility": {
