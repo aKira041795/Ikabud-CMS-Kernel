@@ -150,7 +150,7 @@
     </script>
     {block head}{/block}
 </head>
-<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }">
+<body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
 
     <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
 

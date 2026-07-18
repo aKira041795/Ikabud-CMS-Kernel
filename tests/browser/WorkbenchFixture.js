@@ -323,8 +323,8 @@ function createWorkbenchTest(config) {
 //   ADMIN_USER=xxx ADMIN_PASS=xxx
 var pal = createWorkbenchTest({
     appUrl: process.env.APP_URL || 'http://palsystem.test',
-    loginPath: '/project-audit-ledger/login',
-    landingPath: '/admin/project-audit-ledger',
+    loginPath: process.env.LOGIN_PATH || '/project-audit-ledger/login',
+    landingPath: process.env.LANDING_PATH || '/admin/project-audit-ledger',
     adminUser: process.env.ADMIN_USER,
     adminPass: process.env.ADMIN_PASS,
 });
