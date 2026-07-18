@@ -70,6 +70,35 @@ test('Groups index renders controlled database error state',
     str_contains($groupsHandler, "Attendance groups are unavailable")
     && str_contains($groupsHandler, "awGroupLogFailure('index'"),
     'Groups index should not expose raw tenant DB failures as HTTP 500');
+$groupService = file_get_contents($basePath . '/modules/attendance-wage/services/AttendanceGroupService.php') ?: '';
+test('Group attendance service scopes attendance rows by tenant',
+    str_contains($groupService, 'AND ar.tenant_id = :tid'),
+    'Group attendance reads must scope attendance_records.tenant_id');
+
+$moduleHandlers = file_get_contents($basePath . '/modules/attendance-wage/handlers.php') ?: '';
+test('AW module loads shared helpers before route handlers',
+    str_contains($moduleHandlers, "require_once __DIR__ . '/helpers.php';"),
+    'Team-lead OTP handlers require aw_db() from shared helpers');
+$awHelpers = file_get_contents($basePath . '/modules/attendance-wage/helpers.php') ?: '';
+test('AW database helper resolves tenant on demand',
+    str_contains($awHelpers, 'function aw_tenant_id(): int')
+    && str_contains($awHelpers, '->tenant()->resolve('),
+    'Public Attendance & Wage endpoints must resolve host/default tenant before tenant DB access');
+
+$teamLeadHandler = file_get_contents($basePath . '/modules/attendance-wage/handlers/150-team-lead.php') ?: '';
+$sendEmailPos = strpos($teamLeadHandler, 'sendEmail($email');
+$pendingOtpPos = strpos($teamLeadHandler, '$_SESSION[\'tl_pending_otp_hash\']');
+test('Team-lead OTP uses signed token (no session OTP storage)',
+    str_contains($teamLeadHandler, "tl_sign([") && str_contains($teamLeadHandler, "'token' => \$token"),
+    'OTP hash must travel in a signed token, not PHP session');
+test('Team-lead OTP lookup uses resolved tenant helper',
+    str_contains($teamLeadHandler, '$tenantId = aw_tenant_id();')
+    && !str_contains($teamLeadHandler, "':tid' => (string)(app()->tenant()->current() ?? '')"),
+    'Team-lead OTP lookup must not compare attendance_groups.tenant_id against an unresolved empty tenant');
+test('Team-lead OTP send does not falsely advance unlinked emails',
+    str_contains($teamLeadHandler, "No active attendance group is linked to this email.")
+    && !str_contains($teamLeadHandler, "If your email is registered as a team lead"),
+    'Unlinked team-lead emails must fail at send-otp instead of advancing to verify-otp without a session');
 
 // ────────────────────────────────────────────────────────────────────
 echo "\n2. Template coverage for page routes\n";

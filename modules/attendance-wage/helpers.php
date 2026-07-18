@@ -140,9 +140,25 @@ function aw_cap_kernel_auth_authenticate_1(mixed $payload, string $capabilityId 
     }
 }
 
+function aw_tenant_id(): int
+{
+    $tenantId = \app()->tenant()->current();
+    if ($tenantId === null || $tenantId <= 0) {
+        $tenantId = \app()->tenant()->resolve(\app()->user());
+    }
+
+    return (int)($tenantId ?? 0);
+}
+
 function aw_db(): \PDO
 {
-    return \app()->dbForTenant((int)(\app()->tenant()->current() ?? 0));
+    $tenantId = aw_tenant_id();
+    $db = $tenantId > 0 ? \app()->dbForTenant($tenantId) : \app()->db();
+    if (!$db instanceof \PDO) {
+        throw new \RuntimeException('Attendance & Wage tenant database is unavailable.');
+    }
+
+    return $db;
 }
 
 function aw_allowedSort(mixed $payload, string $default, array $allowed): string
@@ -718,6 +734,11 @@ function aw_nightShiftOverlap(\DateTime $ci, \DateTime $co): float {
     $ns=(clone $ci)->setTime(22,0,0); $ne=(clone $ci)->setTime(6,0,0)->modify('+1 day');
     if($co<=$ns||$ci>=$ne)return 0.0; $os=max($ci,$ns); $oe=min($co,$ne); return ($oe->getTimestamp()-$os->getTimestamp())/3600.0;
 }
+function aw_effectiveDailyRate(array $row): float
+{
+    return (float)(((float)($row['daily_rate'] ?? 0)) ?: ((float)($row['basic_salary'] ?? 0)) ?: 0);
+}
+
 function aw_effectiveHourlyRate(array $profile): float {
     $settings = aw_payrollSettings();
     $hoursPerDay = (float)($settings['working_hours_per_day'] ?? $profile['max_daily_hours'] ?? 8);

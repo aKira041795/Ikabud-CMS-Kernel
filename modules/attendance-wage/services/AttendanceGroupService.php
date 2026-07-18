@@ -198,12 +198,14 @@ class AttendanceGroupService
             SELECT 
                 ar.attendance_id,
                 ar.clock_in, ar.clock_out,
+                ar.location_in, ar.location_out,
                 TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) AS minutes_worked,
                 ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60.0, 2) AS hours_worked,
                 ar.status,
                 ar.created_at,
                 CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, '')) AS employee_name,
-                ep.position, ep.employee_number, ep.profile_id
+                ep.position, ep.employee_number, ep.profile_id, ep.salary_type,
+                ep.daily_rate, ep.basic_salary, ep.hourly_rate
             FROM attendance_records ar
             JOIN attendance_group_members gm ON ar.user_id = (
                 SELECT au.id FROM attendance_wage_users au 
@@ -214,6 +216,7 @@ class AttendanceGroupService
             JOIN employee_profiles ep ON gm.profile_id = ep.profile_id AND gm.tenant_id = ep.tenant_id
             WHERE gm.group_id = :gid 
               AND gm.tenant_id = :tid
+              AND ar.tenant_id = :tid2
               AND ar.clock_in >= :df 
               AND ar.clock_in <= :dt
             ORDER BY ar.clock_in DESC
@@ -221,6 +224,7 @@ class AttendanceGroupService
         $stmt->execute([
             ':gid' => $groupId,
             ':tid' => $this->tenantId,
+            ':tid2' => $this->tenantId,
             ':df' => $dateFrom . ' 00:00:00',
             ':dt' => $dateTo . ' 23:59:59',
         ]);

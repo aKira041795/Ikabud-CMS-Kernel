@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{page_title} — ZAP Attendance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- Top bar -->
+    <header class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <div>
+            <h1 class="text-lg font-bold text-gray-900">{group.name}</h1>
+            <p class="text-xs text-gray-500">{date_from} – {date_to}</p>
+        </div>
+        <a href="/attendance-wage/team-lead/logout" class="text-sm text-red-600 hover:text-red-800 font-medium">Sign Out</a>
+    </header>
+
+    <main class="max-w-6xl mx-auto p-4 space-y-4">
+        <!-- Salary Summary -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Salary Estimate</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-xs">
+                            <th class="text-left py-2 px-3">Employee</th>
+                            <th class="text-center py-2 px-3">Type</th>
+                            <th class="text-center py-2 px-3">Days</th>
+                            <th class="text-right py-2 px-3">Hours</th>
+                            <th class="text-right py-2 px-3">Estimated Pay</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for pid, es in employee_summary}
+                        <tr class="border-b border-gray-200">
+                            <td class="py-2 px-3 font-medium">{es.name}</td>
+                            <td class="py-2 px-3 text-center text-xs">{es.salary_type}</td>
+                            <td class="py-2 px-3 text-center">{es.days_worked}</td>
+                            <td class="py-2 px-3 text-right">{es.total_hours|round:1}</td>
+                            <td class="py-2 px-3 text-right font-semibold">₱{es.computed_salary|number_format:2}</td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Filter -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+            <form method="GET" class="flex gap-3 items-end">
+                <input type="hidden" name="t" value="{auth_token}">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">From</label>
+                    <input type="date" name="date_from" value="{date_from}" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">To</label>
+                    <input type="date" name="date_to" value="{date_to}" class="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                </div>
+                <div>
+                    <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Filter</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Attendance Table -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Attendance Records</h3>
+            {if attendance|count > 0}
+            {set total_hours = 0}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-800 text-white text-xs">
+                            <th class="text-left py-2 px-3">Employee</th>
+                            <th class="text-left py-2 px-3">Date</th>
+                            <th class="text-center py-2 px-3">Clock In</th>
+                            <th class="text-center py-2 px-3">Clock Out</th>
+                            <th class="text-right py-2 px-3">Hours</th>
+                            <th class="text-left py-2 px-3">Location In</th>
+                            <th class="text-left py-2 px-3">Location Out</th>
+                            <th class="text-center py-2 px-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for a in attendance}
+                        {set total_hours = total_hours + a.hours_worked}
+                        <tr class="border-b border-gray-200">
+                            <td class="py-2 px-3 text-sm">{a.employee_name}<br><span class="text-xs text-gray-500">{a.position|default:''}{if a.salary_type} · {a.salary_type}{/if}</span></td>
+                            <td class="py-2 px-3 text-xs">{a.clock_in|substr:0:10}</td>
+                            <td class="py-2 px-3 text-xs text-center">{a.clock_in|substr:11:8}</td>
+                            <td class="py-2 px-3 text-xs text-center">{if a.clock_out}{a.clock_out|substr:11:8}{else}—{/if}</td>
+                            <td class="py-2 px-3 text-xs text-right font-medium">{a.hours_worked|default:0}</td>
+                            <td class="py-2 px-3 text-xs text-gray-600">{a.location_in|default:'—'}</td>
+                            <td class="py-2 px-3 text-xs text-gray-600">{a.location_out|default:'—'}</td>
+                            <td class="py-2 px-3 text-center">
+                                <span class="inline-flex px-1.5 py-0.5 rounded-full text-xs font-medium {if a.status=='completed'}bg-green-100 text-green-700{elseif a.status=='active'}bg-yellow-100 text-yellow-700{else}bg-gray-100 text-gray-600{/if}">{a.status|default:'active'}</span>
+                            </td>
+                        </tr>
+                        {/for}
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-gray-50 border-t-2 border-gray-300 font-semibold text-xs">
+                            <td class="py-2 px-3" colspan="4">Total · {attendance|count} records</td>
+                            <td class="py-2 px-3 text-right">{total_hours|round:2}</td>
+                            <td class="py-2 px-3" colspan="3"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {else}
+            <div class="p-6 text-center text-gray-600 text-sm">No attendance records found for this period.</div>
+            {/if}
+        </div>
+    </main>
+</body>
+</html>

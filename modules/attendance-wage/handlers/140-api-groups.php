@@ -109,11 +109,50 @@ function awPageAttendanceGroupView(array $rp = []): void
     $dateTo = $_GET['date_to'] ?? date('Y-m-t');
     $attendance = $svc->getGroupAttendance($groupId, $dateFrom, $dateTo);
 
+    // Compute per-employee salary summary (simple: daily_rate × days_worked)
+    $employeeSummary = [];
+    foreach ($attendance as $row) {
+        $pid = $row['profile_id'];
+        if (!isset($employeeSummary[$pid])) {
+            $employeeSummary[$pid] = [
+                'name' => $row['employee_name'],
+                'salary_type' => $row['salary_type'] ?? 'daily',
+                'daily_rate' => (float)(($row['daily_rate'] ?? 0) ?: ($row['basic_salary'] ?? 0) ?: 0),
+                'hourly_rate' => (float)(($row['hourly_rate'] ?? 0) ?: 0),
+                'total_hours' => 0,
+                'days' => [],
+            ];
+        }
+        $employeeSummary[$pid]['total_hours'] += (float)($row['hours_worked'] ?? 0);
+        $d = substr($row['clock_in'] ?? '', 0, 10);
+        if ($d !== '') {
+            $employeeSummary[$pid]['days'][$d] = true;
+        }
+    }
+
+    // Compute simple salary per employee
+    foreach ($employeeSummary as $pid => &$es) {
+        $daysWorked = count($es['days']);
+        $es['days_worked'] = $daysWorked;
+        if ($es['salary_type'] === 'hourly') {
+            $rate = $es['hourly_rate'] > 0 ? $es['hourly_rate'] : ($es['daily_rate'] / 8);
+            $es['computed_salary'] = round($es['total_hours'] * $rate, 2);
+        } elseif ($es['salary_type'] === 'fixed') {
+            $workingDays = aw_workingDaysInPeriod($dateFrom, $dateTo);
+            $dailyEquivalent = $workingDays > 0 ? $es['daily_rate'] / $workingDays : $es['daily_rate'];
+            $es['computed_salary'] = round($dailyEquivalent * max(1, $daysWorked), 2);
+        } else {
+            $es['computed_salary'] = round($es['daily_rate'] * max(1, $daysWorked), 2);
+        }
+    }
+    unset($es);
+
     echo app()->render('modules/attendance-wage/wage/groups/view', [
         'page_title' => 'Group: ' . $group['name'],
         'active_nav' => 'groups',
         'group' => $group,
         'attendance' => $attendance,
+        'employee_summary' => $employeeSummary,
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
         'current_user_role' => $user['role'] ?? '',

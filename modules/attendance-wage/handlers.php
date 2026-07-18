@@ -27,6 +27,7 @@ use Ikabud\Kernel\Contracts\ModuleContext;
 
 // ── Bootstrap helpers ──
 require_once __DIR__ . '/handlers/00-bootstrap.php';
+require_once __DIR__ . '/helpers.php';
 
 // ── Entity view contracts (rich action support for {ikb_entity_list}) ──
 require_once __DIR__ . '/helpers/entity-views.php';
@@ -79,6 +80,7 @@ require_once __DIR__ . '/handlers/90-api-cash-advances.php';
 require_once __DIR__ . '/handlers/100-api-holidays.php';
 require_once __DIR__ . '/handlers/110-api-schedules.php';
 require_once __DIR__ . '/handlers/140-api-groups.php';
+require_once __DIR__ . '/handlers/150-team-lead.php';
 require_once __DIR__ . '/handlers/110-api-reports.php';
 require_once __DIR__ . '/handlers/120-api-locations.php';
 

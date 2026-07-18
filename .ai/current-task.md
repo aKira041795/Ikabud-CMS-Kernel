@@ -194,3 +194,83 @@ php ikabud workbench:doctor project-audit-ledger                       PASS ✅
 | Email-based bridge fragile if PAL team-lead email changes | Medium |
 | No end-to-end payroll runtime test | Medium |
 | `module.json` formatting-only diff lines | Low |
+
+## Developer Review
+
+**Date:** 2026-07-18
+**Scope:** `/review` for `POST /api/v1/attendance/team-lead/send-otp` returning HTTP 500.
+
+### Findings Corrected
+
+- **P1 — OTP endpoint fataled before DB lookup:** `modules/attendance-wage/handlers.php` loaded route handlers without `modules/attendance-wage/helpers.php`, so `attendanceApiTeamLeadSendOtp()` failed with `Call to undefined function aw_db()`. Added the shared helper include before route handler loading.
+- **P1 — Strict-type email template crash:** `attendanceApiTeamLeadSendOtp()` passed `null, null` to `buildEmailTemplate(string, string, string, string)` from a `strict_types=1` file. Replaced those arguments with empty strings.
+- **P1 — False-success email delivery:** OTP send ignored `sendEmail()` returning `false`. The handler now throws and returns the existing controlled JSON error when email delivery fails.
+- **P1 — Shared attendance read missed `attendance_records.tenant_id`:** `AttendanceGroupService::getGroupAttendance()` scoped groups and members by tenant but not attendance rows. Added `AND ar.tenant_id = :tid`.
+- **P1 — Missing regression coverage:** Added contract assertions for AW helper loading and group attendance row tenant scoping.
+
+### Findings Rejected
+
+- No root `AGENTS.md` exists in this checkout; `.github/AGENTS.md` was read as the available repo agent instruction source.
+- CSRF was not added to this public OTP request because it is a login-style unauthenticated endpoint; abuse protection remains a release risk.
+
+### Tests Run
+
+```bash
+php -l modules/attendance-wage/handlers.php
+php -l modules/attendance-wage/handlers/150-team-lead.php
+php -l modules/attendance-wage/services/AttendanceGroupService.php
+php -l tests/attendance_wage_contract_parity_test.php
+php tests/attendance_wage_contract_parity_test.php
+php tests/pal_attendance_bridge_test.php
+php tests/attendance_wage_smoke_test.php
+php ikabud workbench:doctor attendance-wage
+curl -i --max-time 20 -X POST -F 'email=juan.luna@zap-arts.com' http://zapattendance.test/api/v1/attendance/team-lead/send-otp
+```
+
+### Test Results
+
+- Syntax checks passed.
+- `attendance_wage_contract_parity_test.php`: `34/34 passed`.
+- `pal_attendance_bridge_test.php`: `40/40 passed`.
+- `attendance_wage_smoke_test.php`: `104/104 passed`.
+- `workbench:doctor attendance-wage`: `PASS`; env readiness still reports `NO` without browser credentials/env vars.
+- OTP endpoint smoke returned `HTTP/1.1 200 OK` with JSON success/generic message, not 500.
+
+### Remaining Release Risks
+
+- OTP send has no rate limit, so email enumeration resistance exists but mail-abuse throttling is still missing.
+- The smoke POST exercised the non-disclosing response path; live SMTP delivery for a confirmed mapped email should still be verified from the browser/session path.
+- Email-based team-lead bridge remains fragile until a stable `pal_team_lead_id` bridge is introduced.
+
+
+### Verify OTP Review
+
+**Date:** 2026-07-18  
+**Scope:** `/review team-lead:91` for `POST /api/v1/attendance/team-lead/verify-otp` returning HTTP 422.
+
+#### Findings Corrected
+
+- **P1 — Public team-lead OTP lookup used unresolved tenant state:** `send-otp` compared `attendance_groups.tenant_id` against `app()->tenant()->current()` even when no authenticated request had resolved the host tenant yet. Added `aw_tenant_id()` and made `aw_db()` resolve the host/default tenant on demand.
+- **P1 — Unlinked emails falsely advanced to verify:** `send-otp` returned `ok: true` when no active group matched the email, so the browser showed the code form without a `tl_pending_email` session. It now returns controlled HTTP 422 and keeps the user on the email step.
+- **P1 — Pending OTP session could survive failed email delivery:** `attendanceApiTeamLeadSendOtp()` wrote `tl_pending_*` session values and closed the session before `sendEmail()` completed. OTP state is now persisted only after `sendEmail()` succeeds.
+- Added contract assertions for tenant-on-demand resolution, resolved tenant use in the team-lead OTP lookup, no false-success for unlinked emails, and storing OTP state only after email delivery succeeds.
+
+#### Findings Rejected
+
+- A verify request without the preceding OTP-send session must remain 422; changing that would weaken the OTP flow.
+- `team-lead-login.disyl:91` appends the expected `code` field; the browser field name was not the defect.
+
+#### Tests Run
+
+- `php -l modules/attendance-wage/helpers.php`
+- `php -l modules/attendance-wage/handlers/150-team-lead.php`
+- `php -l tests/attendance_wage_contract_parity_test.php`
+- `php tests/attendance_wage_contract_parity_test.php` — `38/38 passed`
+- Live `send-otp` for `juan.luna@zap-arts.com`: HTTP 422 with `No active attendance group is linked to this email.` instead of false success.
+- Live `send-otp` for an unlinked email: HTTP 422 with the same controlled error.
+
+#### Remaining Release Risks
+
+- End-to-end verification with a real active group bridge and the same browser session still requires the emailed six-digit code.
+- `juan.luna@zap-arts.com` is not currently linked to an active Attendance & Wage group in tenant `441` as served by `zapattendance.test`.
+- OTP abuse throttling and stable team-lead bridge identity remain open risks documented above.

@@ -102,6 +102,7 @@ $handlerFiles = [
     '30-pages-wage.php', '40-api-employees.php', '50-api-periods.php', '60-api-computations.php',
     '70-api-adjustments.php', '80-api-deductions.php', '90-api-cash-advances.php',
     '100-api-holidays.php', '110-api-schedules.php', '110-api-reports.php', '120-api-locations.php',
+    '130-api-kiosk.php', '140-api-groups.php', '150-team-lead.php',
 ];
 foreach ($handlerFiles as $hf) {
     $path = $handlerDir . '/' . $hf;
@@ -117,6 +118,7 @@ echo "\n8. Template coverage\n";
 $tplBase = $basePath . '/templates/modules/attendance-wage';
 $expectedTemplates = [
     'layouts/admin.disyl', 'auth/login.disyl', 'auth/forgot-password.disyl', 'auth/reset-password.disyl',
+    'auth/team-lead-login.disyl', 'auth/team-lead-dashboard.disyl',
     'attendance/clock.disyl', 'attendance/history.disyl', 'attendance/report.disyl',
     'wage/dashboard.disyl', 'wage/employees/index.disyl', 'wage/employees/form.disyl',
     'wage/periods/index.disyl', 'wage/periods/form.disyl', 'wage/computations/index.disyl',
