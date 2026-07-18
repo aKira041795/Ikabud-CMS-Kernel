@@ -1,3 +1,7 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+
+{block main}
+<div class="px-6 py-8">
 <div class="max-w-2xl" x-data="groupForm()">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <h2 class="font-semibold text-gray-900 mb-4">{is_edit ? 'Edit Group' : 'Create Attendance Group'}</h2>
@@ -88,3 +92,5 @@ function submitGroupForm(form) {
     return false;
 }
 </script>
+</div>
+{/block}

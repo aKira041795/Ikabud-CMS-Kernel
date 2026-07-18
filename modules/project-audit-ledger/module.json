@@ -13,6 +13,7 @@
             "settings-materials": "/admin/project-audit-ledger/settings",
             "settings-overview": "/admin/project-audit-ledger/settings",
             "settings-suppliers": "/admin/project-audit-ledger/settings",
+            "team-lead-attendance": "/admin/project-audit-ledger/team-lead/attendance",
             "team-lead-ca-form": "/admin/project-audit-ledger/team-lead/cash-advances/create",
             "team-lead-ca-list": "/admin/project-audit-ledger/team-lead/cash-advances",
             "team-lead-dashboard": "/admin/project-audit-ledger/team-lead"
@@ -116,25 +117,33 @@
             {
                 "id": "workbench.scenario.describe@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Describe PAL-owned scenario and domain data contracts"
             },
             {
                 "id": "workbench.scenario.seed@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Prepare PAL-owned isolated scenario data"
             },
             {
                 "id": "workbench.scenario.verify@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Verify PAL scenario data and drift"
             },
             {
                 "id": "workbench.scenario.cleanup@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Clean PAL-owned isolated scenario data"
             },
             {
@@ -731,67 +740,183 @@
     "nav": [
         {
             "label": "Overview",
-            "roles": ["admin", "supervisor", "encoder"],
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ],
             "children": [
-                {"label": "Dashboard", "url": "/admin/project-audit-ledger", "icon": "clipboard-list"},
-                {"label": "New Job Order", "url": "/admin/project-audit-ledger/projects/create", "icon": "plus-circle"}
+                {
+                    "label": "Dashboard",
+                    "url": "/admin/project-audit-ledger",
+                    "icon": "clipboard-list"
+                },
+                {
+                    "label": "New Job Order",
+                    "url": "/admin/project-audit-ledger/projects/create",
+                    "icon": "plus-circle"
+                }
             ]
         },
         {
             "label": "Job Orders",
-            "roles": ["admin", "supervisor", "encoder"],
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ],
             "children": [
-                {"label": "All Job Orders", "url": "/admin/project-audit-ledger/projects", "icon": "folder"},
-                {"label": "Clients", "url": "/admin/project-audit-ledger/clients", "icon": "user"},
-                {"label": "Suppliers", "url": "/admin/project-audit-ledger/suppliers", "icon": "truck"}
+                {
+                    "label": "All Job Orders",
+                    "url": "/admin/project-audit-ledger/projects",
+                    "icon": "folder"
+                },
+                {
+                    "label": "Clients",
+                    "url": "/admin/project-audit-ledger/clients",
+                    "icon": "user"
+                },
+                {
+                    "label": "Suppliers",
+                    "url": "/admin/project-audit-ledger/suppliers",
+                    "icon": "truck"
+                }
             ]
         },
         {
             "label": "Sales & Billing",
-            "roles": ["admin", "supervisor", "encoder"],
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ],
             "children": [
-                {"label": "Sales Invoices", "url": "/admin/project-audit-ledger/sales", "icon": "dollar-sign"},
-                {"label": "Collections", "url": "/admin/project-audit-ledger/collections", "icon": "credit-card"},
-                {"label": "Quotations", "url": "/admin/project-audit-ledger/quotations", "icon": "file-text"},
-                {"label": "BOM", "url": "/admin/project-audit-ledger/bom", "icon": "clipboard"}
+                {
+                    "label": "Sales Invoices",
+                    "url": "/admin/project-audit-ledger/sales",
+                    "icon": "dollar-sign"
+                },
+                {
+                    "label": "Collections",
+                    "url": "/admin/project-audit-ledger/collections",
+                    "icon": "credit-card"
+                },
+                {
+                    "label": "Quotations",
+                    "url": "/admin/project-audit-ledger/quotations",
+                    "icon": "file-text"
+                },
+                {
+                    "label": "BOM",
+                    "url": "/admin/project-audit-ledger/bom",
+                    "icon": "clipboard"
+                }
             ]
         },
         {
             "label": "Inventory & Procurement",
-            "roles": ["admin", "supervisor", "encoder"],
+            "roles": [
+                "admin",
+                "supervisor",
+                "encoder"
+            ],
             "children": [
-                {"label": "Inventory", "url": "/admin/project-audit-ledger/inventory", "icon": "package"},
-                {"label": "Stock Movements", "url": "/admin/project-audit-ledger/inventory/movements", "icon": "shuffle"},
-                {"label": "Purchases", "url": "/admin/project-audit-ledger/purchases", "icon": "shopping-cart"},
-                {"label": "Issuances", "url": "/admin/project-audit-ledger/issuances", "icon": "send"},
-                {"label": "Returns", "url": "/admin/project-audit-ledger/issuances/returns", "icon": "corner-up-left"},
-                {"label": "Expenses", "url": "/admin/project-audit-ledger/expenses", "icon": "credit-card"}
+                {
+                    "label": "Inventory",
+                    "url": "/admin/project-audit-ledger/inventory",
+                    "icon": "package"
+                },
+                {
+                    "label": "Stock Movements",
+                    "url": "/admin/project-audit-ledger/inventory/movements",
+                    "icon": "shuffle"
+                },
+                {
+                    "label": "Purchases",
+                    "url": "/admin/project-audit-ledger/purchases",
+                    "icon": "shopping-cart"
+                },
+                {
+                    "label": "Issuances",
+                    "url": "/admin/project-audit-ledger/issuances",
+                    "icon": "send"
+                },
+                {
+                    "label": "Returns",
+                    "url": "/admin/project-audit-ledger/issuances/returns",
+                    "icon": "corner-up-left"
+                },
+                {
+                    "label": "Expenses",
+                    "url": "/admin/project-audit-ledger/expenses",
+                    "icon": "credit-card"
+                }
             ]
         },
         {
             "label": "Operations",
-            "roles": ["admin", "supervisor"],
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
             "children": [
-                {"label": "Fabrication", "url": "/admin/project-audit-ledger/fabrication/allocations", "icon": "wrench"},
-                {"label": "Mobilization", "url": "/admin/project-audit-ledger/mobilization", "icon": "truck"},
-                {"label": "Cash Advances", "url": "/admin/project-audit-ledger/cash-advances", "icon": "banknote"}
+                {
+                    "label": "Fabrication",
+                    "url": "/admin/project-audit-ledger/fabrication/allocations",
+                    "icon": "wrench"
+                },
+                {
+                    "label": "Mobilization",
+                    "url": "/admin/project-audit-ledger/mobilization",
+                    "icon": "truck"
+                },
+                {
+                    "label": "Cash Advances",
+                    "url": "/admin/project-audit-ledger/cash-advances",
+                    "icon": "banknote"
+                }
             ]
         },
         {
             "label": "Oversight",
-            "roles": ["admin", "supervisor"],
+            "roles": [
+                "admin",
+                "supervisor"
+            ],
             "children": [
-                {"label": "Approvals", "url": "/admin/project-audit-ledger/approvals", "icon": "check-circle"},
-                {"label": "Reports", "url": "/admin/project-audit-ledger/reports", "icon": "bar-chart"},
-                {"label": "Audit Trail", "url": "/admin/project-audit-ledger/audit-trail", "icon": "search"}
+                {
+                    "label": "Approvals",
+                    "url": "/admin/project-audit-ledger/approvals",
+                    "icon": "check-circle"
+                },
+                {
+                    "label": "Reports",
+                    "url": "/admin/project-audit-ledger/reports",
+                    "icon": "bar-chart"
+                },
+                {
+                    "label": "Audit Trail",
+                    "url": "/admin/project-audit-ledger/audit-trail",
+                    "icon": "search"
+                }
             ]
         },
         {
             "label": "Administration",
-            "roles": ["admin"],
+            "roles": [
+                "admin"
+            ],
             "children": [
-                {"label": "Settings", "url": "/admin/project-audit-ledger/settings", "icon": "settings"},
-                {"label": "Users", "url": "/admin/project-audit-ledger/users", "icon": "users"}
+                {
+                    "label": "Settings",
+                    "url": "/admin/project-audit-ledger/settings",
+                    "icon": "settings"
+                },
+                {
+                    "label": "Users",
+                    "url": "/admin/project-audit-ledger/users",
+                    "icon": "users"
+                }
             ]
         }
     ]

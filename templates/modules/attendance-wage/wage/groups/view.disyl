@@ -1,3 +1,7 @@
+{extends "modules/attendance-wage/layouts/admin.disyl"}
+
+{block main}
+<div class="px-6 py-8">
 <div class="max-w-6xl">
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
     <div class="flex justify-between items-start mb-4">
@@ -12,6 +16,7 @@
         <div class="flex gap-2">
             <a href="/admin/wage/groups" class="px-3 py-1.5 bg-gray-200 text-gray-700 text-sm rounded-lg hover:bg-gray-300">← Back</a>
             <a href="/admin/wage/groups/{group.group_id}/edit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Edit</a>
+            <button onclick="toggleGroup({group.group_id})" class="px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200">{if group.is_active}Deactivate{else}Reactivate{/if}</button>
         </div>
     </div>
 
@@ -100,3 +105,20 @@
     {/if}
 </div>
 </div>
+</div>
+<script>
+function toggleGroup(id) {
+    if (!confirm('Toggle this group active/inactive?')) return;
+    var csrf = document.querySelector('input[name=_csrf_token]');
+    var fd = new FormData();
+    if (csrf) fd.append('_csrf_token', csrf.value);
+    fetch('/api/v1/wage/groups/' + id + '/toggle', { method: 'POST', body: fd })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) { showToast('Group updated.', 'success'); setTimeout(function(){ location.reload(); }, 400); }
+            else { showToast(d.error || 'Failed.', 'error'); }
+        })
+        .catch(function(){ showToast('Request failed.', 'error'); });
+}
+</script>
+{/block}

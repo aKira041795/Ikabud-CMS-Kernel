@@ -7,6 +7,17 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <script src="/admin/assets/js/ikb-inline-edit.js"></script>
+    <script>
+        window.showToast = function(msg, type) {
+            type = type || 'success';
+            var bg = type === 'error' ? '#dc2626' : type === 'warning' ? '#d97706' : '#059669';
+            var toast = document.createElement('div');
+            toast.textContent = msg;
+            toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:'+bg+';color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:opacity .3s';
+            document.body.appendChild(toast);
+            setTimeout(function(){ toast.style.opacity='0'; setTimeout(function(){ toast.remove(); }, 300); }, 3000);
+        };
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>
@@ -42,6 +53,7 @@
             {call navLink("📊", "Dashboard", "/admin/wage", "dashboard")}
             {call navLink("🕐", "Attendance", "/admin/attendance", "attendance")}
             {call navLink("👥", "Employees", "/admin/wage/employees", "employees")}
+            {call navLink("👪", "Teams", "/admin/wage/groups", "groups")}
             {call navLink("📅", "Payroll Periods", "/admin/wage/periods", "periods")}
             {call navLink("💵", "Computations", "/admin/wage/computations", "computations")}
             {call navLink("🔧", "Adjustments", "/admin/wage/adjustments", "adjustments")}

@@ -15,8 +15,12 @@ class AttendanceGroupService
         $this->userId = $userId;
     }
 
-    public function list(): array
+    public function list(bool $includeInactive = false): array
     {
+        $where = 'g.tenant_id = :tid';
+        if (!$includeInactive) {
+            $where .= ' AND g.is_active = 1';
+        }
         $stmt = $this->db->prepare("
             SELECT g.*, 
                    CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, '')) AS leader_name,
@@ -24,7 +28,7 @@ class AttendanceGroupService
                    (SELECT COUNT(*) FROM attendance_group_members gm WHERE gm.group_id = g.group_id AND gm.tenant_id = g.tenant_id) AS member_count
             FROM attendance_groups g
             LEFT JOIN employee_profiles ep ON g.leader_profile_id = ep.profile_id AND g.tenant_id = ep.tenant_id
-            WHERE g.tenant_id = :tid AND g.is_active = 1
+            WHERE {$where}
             ORDER BY g.name ASC
         ");
         $stmt->execute([':tid' => $this->tenantId]);
@@ -192,7 +196,7 @@ class AttendanceGroupService
     {
         $stmt = $this->db->prepare("
             SELECT 
-                ar.id,
+                ar.attendance_id,
                 ar.clock_in, ar.clock_out,
                 TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) AS minutes_worked,
                 ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60.0, 2) AS hours_worked,

@@ -428,6 +428,14 @@ function palPageTeamLeadAttendance(): void
     $dateFrom = $_GET['date_from'] ?? date('Y-m-01');
     $dateTo = $_GET['date_to'] ?? date('Y-m-t');
 
+    // Validate date format — fall back to defaults on invalid input
+    if (!DateTime::createFromFormat('Y-m-d', $dateFrom)) {
+        $dateFrom = date('Y-m-01');
+    }
+    if (!DateTime::createFromFormat('Y-m-d', $dateTo)) {
+        $dateTo = date('Y-m-t');
+    }
+
     // Query attendance via reads_tables bridge
     // Bridge: attendance_groups.pal_team_lead_email = tl.email
     // Then join through group_members → attendance_records
@@ -435,10 +443,12 @@ function palPageTeamLeadAttendance(): void
     $groups = [];
 
     try {
-        // Get groups this team lead owns (via pal_team_lead_email bridge)
+        // Get groups this team lead owns (via pal_team_lead_email bridge, case-insensitive).
+        // NOTE: LOWER() on the column prevents MySQL 5.7 index usage on idx_ag_pal_bridge
+        // (no functional indexes before 8.0.13). Acceptable for small group tables (< ~100 rows).
         $grpStmt = $db->prepare("
             SELECT group_id, name FROM attendance_groups
-            WHERE pal_team_lead_email = :email AND tenant_id = :tid AND is_active = 1
+            WHERE LOWER(pal_team_lead_email) = LOWER(:email) AND tenant_id = :tid AND is_active = 1
         ");
         $grpStmt->execute([':email' => $tlEmail, ':tid' => $tid]);
         $groups = $grpStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -459,23 +469,24 @@ function palPageTeamLeadAttendance(): void
 
             $sql = "
                 SELECT 
-                    ar.id, ar.clock_in, ar.clock_out,
+                    ar.attendance_id, ar.clock_in, ar.clock_out,
                     ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60.0, 2) AS hours_worked,
                     ar.status,
-                    CONCAT(COALESCE(ep.first_name, ''), ' ', COALESCE(ep.last_name, '')) AS employee_name,
+                    CONCAT_WS(' ', NULLIF(ep.first_name, ''), NULLIF(ep.last_name, '')) AS employee_name,
                     ep.position, ep.employee_number, ep.profile_id,
                     ag.name AS group_name
                 FROM attendance_records ar
                 JOIN attendance_group_members agm ON ar.user_id = (
                     SELECT au.id FROM attendance_wage_users au
-                    JOIN employee_profiles ep2 ON au.id = ep2.user_id
-                    WHERE ep2.profile_id = agm.profile_id AND ep2.tenant_id = agm.tenant_id
+                    JOIN employee_profiles ep2 ON au.id = ep2.user_id AND ep2.tenant_id = agm.tenant_id
+                    WHERE ep2.profile_id = agm.profile_id
                     LIMIT 1
                 )
                 JOIN employee_profiles ep ON agm.profile_id = ep.profile_id AND agm.tenant_id = ep.tenant_id
                 JOIN attendance_groups ag ON agm.group_id = ag.group_id AND agm.tenant_id = ag.tenant_id
                 WHERE agm.group_id IN (" . implode(',', $namedPlaceholders) . ")
                   AND agm.tenant_id = :tid2
+                  AND ar.tenant_id = :tid2
                   AND ar.clock_in >= :df
                   AND ar.clock_in <= :dt
                 ORDER BY ar.clock_in DESC
@@ -487,7 +498,14 @@ function palPageTeamLeadAttendance(): void
             $attendance = $attStmt->fetchAll(PDO::FETCH_ASSOC);
         }
     } catch (Throwable $e) {
-        // Tables may not exist yet or no group configured
+        // Table missing (42S02) or column missing (42S22) are expected when
+        // Attendance & Wage migrations haven't been applied yet.
+        // Log everything else for observability.
+        $code = $e->getCode();
+        $isMissingObject = ($code === '42S02' || $code === '42S22');
+        if (!$isMissingObject && function_exists('write_log')) {
+            write_log('pal_attendance_bridge: ' . $e->getMessage(), 'error');
+        }
         $attendance = [];
     }
 

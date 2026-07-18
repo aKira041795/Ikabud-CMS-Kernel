@@ -536,12 +536,16 @@ function aw_computeSalary(int $userId, int $periodId, int $computedBy): array
         'status' => 'computed', 'computed_by' => $computedBy, 'computation_date' => date('Y-m-d H:i:s'),
     ];
 
-    $s = $db->prepare('SELECT computation_id FROM salary_computations WHERE employee_profile_id=:eid AND payroll_period_id=:pid LIMIT 1');
-    $s->execute([':eid'=>$profile['profile_id'], ':pid'=>$periodId]); $existing = $s->fetchColumn();
+    $s = $db->prepare('SELECT computation_id, status FROM salary_computations WHERE employee_profile_id=:eid AND payroll_period_id=:pid LIMIT 1');
+    $s->execute([':eid'=>$profile['profile_id'], ':pid'=>$periodId]); $existing = $s->fetch(\PDO::FETCH_ASSOC);
     if ($existing) {
+        // Prevent overwriting approved or paid computations
+        if (in_array($existing['status'] ?? '', ['approved', 'paid'], true)) {
+            throw new \RuntimeException('Cannot recompute an approved or paid salary computation. Create an adjustment or reversal instead.');
+        }
         $sets = implode(', ', array_map(fn($k) => "`$k`=:$k", array_keys($data)));
-        $db->prepare("UPDATE salary_computations SET {$sets} WHERE computation_id=:cid")->execute(array_merge($data, [':cid'=>(int)$existing]));
-        return array_merge(['ok' => true, 'computation_id'=>(int)$existing, 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
+        $db->prepare("UPDATE salary_computations SET {$sets} WHERE computation_id=:cid")->execute(array_merge($data, [':cid'=>(int)$existing['computation_id']]));
+        return array_merge(['ok' => true, 'computation_id'=>(int)$existing['computation_id'], 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
     }
     $cols = implode(', ', array_keys($data)); $vals = ':'.implode(', :', array_keys($data));
     $db->prepare("INSERT INTO salary_computations ({$cols}) VALUES ({$vals})")->execute($data);
@@ -576,6 +580,7 @@ function aw_computeSimpleSalary(array $profile, int $periodId, int $computedBy):
         $thirteenthMonth = round($gross / 12, 2);
         $gross += $thirteenthMonth;
     }
+    $totDed = $benefits['sss']['employee'] + $benefits['philhealth']['employee'] + $benefits['pagibig']['employee'];
     $tax = aw_calculateTax($gross, $totDed, $profile);
     $totDed += $tax;
     $netPay = $gross - $totDed;
@@ -599,12 +604,16 @@ function aw_computeSimpleSalary(array $profile, int $periodId, int $computedBy):
         'status' => 'computed', 'computed_by' => $computedBy, 'computation_date' => date('Y-m-d H:i:s'),
     ];
 
-    $s = $db->prepare('SELECT computation_id FROM salary_computations WHERE employee_profile_id=:eid AND payroll_period_id=:pid LIMIT 1');
-    $s->execute([':eid'=>$profile['profile_id'], ':pid'=>$periodId]); $existing = $s->fetchColumn();
+    $s = $db->prepare('SELECT computation_id, status FROM salary_computations WHERE employee_profile_id=:eid AND payroll_period_id=:pid LIMIT 1');
+    $s->execute([':eid'=>$profile['profile_id'], ':pid'=>$periodId]); $existing = $s->fetch(\PDO::FETCH_ASSOC);
     if ($existing) {
+        // Prevent overwriting approved or paid computations
+        if (in_array($existing['status'] ?? '', ['approved', 'paid'], true)) {
+            throw new \RuntimeException('Cannot recompute an approved or paid salary computation. Create an adjustment or reversal instead.');
+        }
         $sets = implode(', ', array_map(fn($k) => "`$k`=:$k", array_keys($data)));
-        $db->prepare("UPDATE salary_computations SET {$sets} WHERE computation_id=:cid")->execute(array_merge($data, [':cid'=>(int)$existing]));
-        return array_merge(['ok' => true, 'computation_id'=>(int)$existing, 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
+        $db->prepare("UPDATE salary_computations SET {$sets} WHERE computation_id=:cid")->execute(array_merge($data, [':cid'=>(int)$existing['computation_id']]));
+        return array_merge(['ok' => true, 'computation_id'=>(int)$existing['computation_id'], 'gross_pay' => $gross, 'total_deductions' => $totDed, 'net_pay' => $netPay], $data);
     }
     $cols = implode(', ', array_keys($data)); $vals = ':'.implode(', :', array_keys($data));
     $db->prepare("INSERT INTO salary_computations ({$cols}) VALUES ({$vals})")->execute($data);

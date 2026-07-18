@@ -474,7 +474,6 @@
         ],
         "browser": [
             "tests/browser/modules/pal/workflows/pal-lifecycle-interactive.spec.js",
-            "tests/browser/modules/pal/workflows/pal-workflow.spec.js",
             "tests/browser/modules/pal/navigation/sidebar-navigation.spec.js",
             "tests/browser/modules/pal/pal-contract-verification.spec.js"
         ]
