@@ -1980,15 +1980,19 @@ function guidanceTransitionAppointmentStatus(
         }
     }
 
-    // Open transaction BEFORE acquiring FOR UPDATE lock so the
-    // row lock is held for the full duration of the atomic block.
-    $db->beginTransaction();
+    // Transaction management: only begin if not already in a caller-owned transaction.
+    // This allows safe nesting when callers (e.g. apiGuidanceApproveAppointment) wrap
+    // multiple operations in their own transaction.
+    $ownsTransaction = !$db->inTransaction();
+    if ($ownsTransaction) {
+        $db->beginTransaction();
+    }
     try {
         $stmt = $db->prepare("SELECT status FROM gm_appointments WHERE id = ? LIMIT 1 FOR UPDATE");
         $stmt->execute([$id]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
-            $db->rollBack();
+            if ($ownsTransaction) { $db->rollBack(); }
             return false;
         }
         $curStatus = strtolower(trim((string)$row['status']));
@@ -1996,7 +2000,7 @@ function guidanceTransitionAppointmentStatus(
         // Validate transition is allowed
         $allowedTargets = $policy[$curStatus] ?? [];
         if (!isset($allowedTargets[$target])) {
-            $db->rollBack();
+            if ($ownsTransaction) { $db->rollBack(); }
             return false;
         }
 
@@ -2006,21 +2010,27 @@ function guidanceTransitionAppointmentStatus(
         );
         $stmt->execute([$target, $byUserId, $id, $curStatus]);
         if ($stmt->rowCount() === 0) {
-            $db->rollBack();
+            if ($ownsTransaction) { $db->rollBack(); }
             return false;
         }
 
-        // Status history — must succeed; rolls back the UPDATE on failure
+        // Status history — must succeed; rolls back the UPDATE on failure.
+        // If called within an outer transaction, the caller's commit/rollback
+        // governs the entire unit of work.
         $histStmt = $db->prepare(
             "INSERT INTO gm_appointment_status_history (appointment_id, from_status, to_status, changed_by, created_at)
              VALUES (?, ?, ?, ?, NOW())"
         );
         $histStmt->execute([$id, $curStatus, $target, $byUserId]);
 
-        $db->commit();
+        if ($ownsTransaction) {
+            $db->commit();
+        }
         return true;
     } catch (Throwable $e) {
-        $db->rollBack();
+        if ($ownsTransaction && $db->inTransaction()) {
+            $db->rollBack();
+        }
         app()->log('Appointment transition failed: ' . $e->getMessage(), 'error');
         return false;
     }

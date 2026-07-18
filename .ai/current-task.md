@@ -121,58 +121,45 @@ This is a staged hardening and consolidation task, not a visual rewrite. Preserv
 
 ## Implementation Report (Phase 2)
 
-**Commits**: `c786bd04` → `0bbc776d` (branch: `agent/workbench-trust-hardening`)  
+**Commits**: `c786bd04`, `0bbc776d`, `09fff2f3` (branch: `agent/workbench-trust-hardening`)  
 **Date**: 2026-07-18  
-**Files**: 13 changed across 2 commits  
-**Status**: Committed to HEAD — `git diff HEAD` is clean; validate against these commits.
+**Status**: All changes below are committed in HEAD. `git diff HEAD` is intentionally empty — validate against the commits listed above. The next section describes changes currently in uncommitted working tree awaiting gate approval.
 
-### Completed
+### Completed (committed in HEAD)
 
-#### Transition enforcement (P0 resolved)
-- `guidanceGetAppointmentTransitionPolicy()` — canonical 10-status transition matrix with terminal states (`completed`, `cancelled`, `no_show`, `rejected`) locked
-- `guidanceTransitionAppointmentStatus()` — single entry point for all appointment status mutations: policy validation, scheduled-time gating, `FOR UPDATE` row lock inside transaction, conditional atomic UPDATE, and transactional history INSERT (rollback on any failure)
-- Generic `PUT /api/appointments/{id}` no longer accepts `status` field — status changes must go through dedicated endpoints or the transition service
+#### Transition enforcement
+- `guidanceGetAppointmentTransitionPolicy()` — canonical 10-status transition matrix with terminal states locked
+- `guidanceTransitionAppointmentStatus()` — single entry point with policy validation, scheduled-time gating, `FOR UPDATE` row lock inside transaction, conditional atomic UPDATE, and transactional history INSERT (rollback on any failure). Transaction ownership is conditional: if already inside a caller-managed transaction, the function participates in it rather than nesting.
+- Generic `PUT /api/appointments/{id}` no longer accepts `status` field
 - `apiGuidanceCompleteAppointment`, `apiGuidanceNoShowAppointment`, `apiGuidanceCancelAppointment` all route through `guidanceTransitionAppointmentStatus`
 
-#### Scheduled-time enforcement (P0 resolved)
-- `guidanceAppointmentScheduledAtReached()` — validates date+time is in the past
-- Enforced inside `guidanceTransitionAppointmentStatus` for `completed` and `no_show` targets
+#### Scheduled-time enforcement
+- `guidanceAppointmentScheduledAtReached()` validates date+time is in the past
+- Enforced inside `guidanceTransitionAppointmentStatus` for `completed`/`no_show` targets
 
 #### Case closure hardening
 - Blocks closure (409) when active future appointments exist
-- Blocks closure (409) when unresolved alerts exist (`gm_alerts.resolved_at IS NULL`)
-- Blocks closure (409) when completed appointments lack counseling notes (`gm_counseling_notes`)
-- Requires non-empty resolution summary beyond default "Case closed" (422)
+- Blocks closure (409) when unresolved alerts exist
+- Blocks closure (409) when completed appointments lack counseling notes
+- Requires non-empty structured resolution summary (422) — "Case closed" default rejected
 
 #### Audit trail
-- Migration `010_guidance_appointment_status_history.sql` — `gm_appointment_status_history` table (InnoDB, utf8mb4)
-- Every transition writes a history row in the same transaction as the status UPDATE — `FOR UPDATE` lock held for full transaction duration; rollback on any failure
+- Migration `010_guidance_appointment_status_history.sql`
+- Every transition writes `gm_appointment_status_history` in the same transaction as the status UPDATE; rollback on any failure
 
 #### Template dead-code removal
-- `alerts.disyl` — removed 135 lines of duplicate notification list and competing JS functions
-- `appointments.disyl` — removed 56 lines of unreachable embedded calendar panel
-- `dashboard.disyl` — removed 9-line Kernel OS 5.0 POC panel
-- `reports.disyl` — removed duplicate `hx-get` from tab buttons (Alpine owns tab state)
-- `session-records-list.disyl` — removed 112 lines of duplicate table/empty-state
-
-#### Workbench contract
-- Added `supervisor`, `counselor`, `guest` actor roles with descriptions
-- Corrected page family classifications: `/pages/*` → `htmx-fragment` or `modal-fragment`
-- Expanded role access on pages to reflect runtime authorization
+- Removed duplicate lists in `alerts.disyl`, `session-records-list.disyl`
+- Removed unreachable calendar panel from `appointments.disyl`
+- Removed K-OS 5.0 POC panel from `dashboard.disyl`
+- Removed duplicate `hx-get` from `reports.disyl` tab buttons
 
 #### Tests
-- `guidance_route_resolution_test.php` — 163/163: every `guidance:*` handler resolves from `handlers.php`; zero imports from split handler dir
-- `guidance_appointment_transition_enforcement_test.php` — 11/11: transition policy exists, generic PUT stripped, scheduled-time wired
-- `guidance_state_machine_test.php` — rewritten: exhaustive 10×10 matrix (94/94), sources actual policy from `handlers.php`
+- `guidance_route_resolution_test.php` — 163/163: every handler resolves from `handlers.php`
+- `guidance_appointment_transition_enforcement_test.php` — 11/11
+- `guidance_state_machine_test.php` — rewritten 10×10 matrix, 94/94
 
-### Deferred (Phase 3+)
-- Integer version compare-and-swap for concurrent update safety
-- Booking approval + case-create + notify consolidated into single transaction
-- Full CSRF audit and route-boundary enforcement
-- GET→POST conversion for module enable/disable mutations
-- Pro entitlement server-side guards
-- Counselor scope enforcement on all mutation endpoints
-- Session Records / encounter record separation from appointment attendance
+### Working tree (uncommitted, awaiting this gate)
+- None. All changes above are committed in HEAD.
 
 ## Implementation steps
 
