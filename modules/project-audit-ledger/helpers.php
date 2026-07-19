@@ -1045,6 +1045,12 @@ function palAuditEntityUrl(string $entityType, ?int $entityId = null): ?string
         'pal_material_issuances' => '/admin/project-audit-ledger/material-issuance',
         'pal_materials'          => '/admin/project-audit-ledger/inventory',
         'pal_suppliers'          => '/admin/project-audit-ledger/suppliers',
+        'pal_mobilization_requests' => '/admin/project-audit-ledger/mobilization',
+        'pal_approvals'          => '/admin/project-audit-ledger/approvals',
+        'pal_cash_advances'      => '/admin/project-audit-ledger/cash-advances',
+        'pal_fabrication_payments' => '/admin/project-audit-ledger/fabrication',
+        'pal_receivables'        => '/admin/project-audit-ledger/collections',
+        'pal_users'              => '/admin/project-audit-ledger/users',
     ];
 
     $base = $map[$entityType] ?? null;

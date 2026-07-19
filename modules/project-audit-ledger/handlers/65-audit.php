@@ -37,7 +37,7 @@ function palPageAuditTrail(): void
         if (empty($ids)) continue;
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
         $nameCol = match ($table) {
-            'pal_projects' => 'title',
+            'pal_projects', 'project' => 'title',
             'pal_clients' => 'name',
             'pal_suppliers' => 'name',
             'pal_materials' => 'name',
@@ -57,6 +57,11 @@ function palPageAuditTrail(): void
             'pal_attachments' => 'original_filename',
             'pal_report_exports' => 'id',
             'pal_settings' => 'id',
+            'pal_mobilization_requests', 'mobilization' => 'purpose',
+            'pal_approvals' => 'entity_type',
+            'pal_users' => 'full_name',
+            'pal_receivables' => 'id',
+            'pal_cash_advances' => 'id',
             default => null,
         };
         if ($nameCol === null) continue;
