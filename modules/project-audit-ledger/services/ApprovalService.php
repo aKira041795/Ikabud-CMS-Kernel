@@ -231,7 +231,7 @@ class palApprovalService
 
             case 'mobilization':
                 $stmt = $this->db->prepare(
-                    "SELECT mr.id, mr.amount, mr.request_number AS entity_label,
+                    "SELECT mr.id, mr.amount, COALESCE(mr.purpose, 'Mobilization Request') AS entity_label,
                             p.title AS project_title, p.id AS project_id
                      FROM pal_mobilization_requests mr
                      LEFT JOIN pal_projects p ON mr.project_id = p.id

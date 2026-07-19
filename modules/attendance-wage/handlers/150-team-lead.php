@@ -283,6 +283,28 @@ function attendancePageTeamLeadDashboard(): void
         }
     }
 
+    // Resolve PAL tenant base URL (cross-tenant: AW→PAL)
+    // Looks up the PAL tenant by its entry module and constructs an absolute URL
+    // so the team lead lands in the PAL tenant context, not AW.
+    $palBaseUrl = '';
+    try {
+        $cp = app()->controlDb();
+        $palDomain = $cp->query(
+            "SELECT td.domain FROM kernel_tenant_domains td
+             JOIN kernel_tenants t ON td.tenant_id = t.id
+             WHERE t.entry_module_id = 'project-audit-ledger' AND t.status = 'active'
+             ORDER BY td.id LIMIT 1"
+        )->fetchColumn();
+        if ($palDomain) {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $palBaseUrl = $scheme . '://' . $palDomain;
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('aw_team_lead_dashboard: PAL domain lookup failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+
     echo app()->render('modules/attendance-wage/auth/team-lead-dashboard', [
         'page_title' => 'Team: ' . $groupName,
         'group' => $group,
@@ -292,7 +314,8 @@ function attendancePageTeamLeadDashboard(): void
         'date_to' => $dateTo,
         'auth_token' => $token,
         'delegation_token' => $delegationToken,
-        'pal_mobilize_url' => '/admin/project-audit-ledger/team-lead/mobilization/create'
+        'pal_mobilize_url' => ($palBaseUrl !== '' ? $palBaseUrl : '')
+            . '/admin/project-audit-ledger/team-lead/mobilization/create'
             . '?attendance_group_id=' . $groupId
             . '&date_from=' . urlencode($dateFrom)
             . '&date_to=' . urlencode($dateTo)

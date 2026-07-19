@@ -45,12 +45,9 @@ function palPageProjectForm(array $rp = []): void
     $teamLeads = $s3->fetchAll(PDO::FETCH_ASSOC);
 
     // Auto-provision AW team leads into PAL dropdown.
-    // Reads attendance_groups from the AW tenant (which may differ from PAL tenant).
-    // Falls back to PAL tenant if AW tables aren't found, or if no AW tenant is configured.
+    // Uses shared AW tenant resolver (auto-discovers or reads aw_tenant_id setting).
     try {
-        // Determine the AW tenant: check module settings, then try current tenant
-        $moduleSettings = function_exists('getModuleSettings') ? getModuleSettings('project-audit-ledger') : [];
-        $awTenantId = !empty($moduleSettings['aw_tenant_id']) ? (int)$moduleSettings['aw_tenant_id'] : $tid;
+        $awTenantId = function_exists('palResolveAwTenantId') ? palResolveAwTenantId() : $tid;
 
         $awDb = $awTenantId > 0 ? app()->dbForTenant($awTenantId) : $db;
         if ($awDb !== null && $awDb !== $db) {
@@ -58,7 +55,7 @@ function palPageProjectForm(array $rp = []): void
             $awDb->query("SELECT 1 FROM attendance_groups LIMIT 0");
         }
 
-        $awTls = $awDb->query("
+        $awStmt = $awDb->prepare("
             SELECT DISTINCT LOWER(ag.pal_team_lead_email) AS email,
                    COALESCE(
                        CONCAT_WS(' ', NULLIF(ep.first_name,''), NULLIF(ep.last_name,'')),
@@ -67,11 +64,13 @@ function palPageProjectForm(array $rp = []): void
             FROM attendance_groups ag
             LEFT JOIN employee_profiles ep ON ag.leader_profile_id = ep.profile_id
                 AND ag.tenant_id = ep.tenant_id
-            WHERE ag.tenant_id = {$awTenantId}
+            WHERE ag.tenant_id = :awtid
               AND ag.is_active = 1
               AND ag.pal_team_lead_email IS NOT NULL
               AND ag.pal_team_lead_email != ''
-        ")->fetchAll(\PDO::FETCH_ASSOC);
+        ");
+        $awStmt->execute([':awtid' => $awTenantId]);
+        $awTls = $awStmt->fetchAll(\PDO::FETCH_ASSOC);
 
         $existingEmails = array_map('strtolower', array_column($teamLeads, 'email'));
         foreach ($awTls as $aw) {

@@ -1,0 +1,100 @@
+{* Mobilization Request Detail — admin view *}
+{set _dh_title = 'Mobilization #' ~ request.id}
+{set _dh_subtitle = request.project_title|default:request.purpose|default:''}
+{set _dh_status = request.status|default:'pending'}
+
+{set _dh_actions_raw = '<a href="/admin/project-audit-ledger/mobilization" class="wb-btn wb-btn--secondary wb-btn--sm">Back to List</a>'}
+
+{if request.status|default:'pending' == 'pending'}
+    {set _dh_actions_raw = _dh_actions_raw ~ ' <button onclick="submitMobilizationDecision(event)" data-action="/api/v1/project-audit-ledger/mobilization/' ~ request.id ~ '/approve" data-confirm="Approve this mobilization request?" class="wb-btn wb-btn--success wb-btn--sm">Approve</button>'}
+    {set _dh_actions_raw = _dh_actions_raw ~ ' <button onclick="submitMobilizationDecision(event)" data-action="/api/v1/project-audit-ledger/mobilization/' ~ request.id ~ '/reject" data-confirm="Reject this mobilization request?" class="wb-btn wb-btn--danger wb-btn--sm">Reject</button>'}
+{elseif request.status|default:'' == 'approved'}
+    {set _dh_actions_raw = _dh_actions_raw ~ ' <button onclick="submitMobilizationDecision(event)" data-action="/api/v1/project-audit-ledger/mobilization/' ~ request.id ~ '/disburse" data-confirm="Mark as disbursed?" class="wb-btn wb-btn--primary wb-btn--sm">Mark Disbursed</button>'}
+{/if}
+
+{include "workbench:detail_header" title=_dh_title|default:'' subtitle=_dh_subtitle|default:'' status_badge=_dh_status|default:'' actions=_dh_actions_raw|default:''|raw}
+
+<div class="wb-panel p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-1">Request Details</h3>
+        <dl class="divide-y divide-gray-100">
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Request ID</dt><dd class="text-sm font-medium">MOB-{request.id}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Status</dt><dd class="text-sm font-medium"><span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium {if request.status|default:'pending' == 'approved'}bg-green-100 text-green-700{elseif request.status|default:'' == 'rejected'}bg-red-100 text-red-700{elseif request.status|default:'' == 'disbursed'}bg-blue-100 text-blue-700{elseif request.status|default:'' == 'voided'}bg-gray-100 text-gray-600{else}bg-amber-100 text-amber-700{/if}">{request.status|default:'pending'}</span></dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Amount</dt><dd class="text-sm font-medium">₱{request.amount|number_format:2}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Purpose</dt><dd class="text-sm font-medium">{request.purpose|default:'—'}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Request Date</dt><dd class="text-sm font-medium">{request.request_date|default:'—'}</dd></div>
+            {if request.description|default:'' != ''}
+            <div class="py-2"><dt class="text-sm text-gray-600 mb-1">Description</dt><dd class="text-sm">{request.description|nl2br}</dd></div>
+            {/if}
+        </dl>
+    </div>
+    <div>
+        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-1">Related</h3>
+        <dl class="divide-y divide-gray-100">
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Team Lead</dt><dd class="text-sm font-medium">{request.team_lead_name|default:'—'}</dd></div>
+            {if request.project_title|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Project</dt><dd class="text-sm font-medium"><a href="/admin/project-audit-ledger/projects/{request.project_id}" class="text-blue-600 hover:underline">{request.project_title}</a>{if request.job_order_number|default:'' != ''} <span class="text-gray-400">({request.job_order_number})</span>{/if}</dd></div>
+            {/if}
+            {if request.approval_id|default:0 > 0}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Approval ID</dt><dd class="text-sm font-medium">APR-{request.approval_id}</dd></div>
+            {/if}
+            {if request.approved_at|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Approved At</dt><dd class="text-sm font-medium">{request.approved_at}</dd></div>
+            {/if}
+            {if request.disbursed_at|default:'' != ''}
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Disbursed At</dt><dd class="text-sm font-medium">{request.disbursed_at}</dd></div>
+            {/if}
+        </dl>
+
+        {if request.attendance_group_id|default:0 > 0}
+        <h3 class="text-sm font-semibold text-gray-500 uppercase mt-4 mb-1">Attendance Context</h3>
+        <dl class="divide-y divide-gray-100">
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Group</dt><dd class="text-sm font-medium">{request.attendance_group_name|default:request.attendance_group_id}</dd></div>
+            <div class="py-2 flex justify-between"><dt class="text-sm text-gray-600">Date Range</dt><dd class="text-sm font-medium">{request.attendance_date_from|default:'—'} to {request.attendance_date_to|default:'—'}</dd></div>
+        </dl>
+        {/if}
+    </div>
+</div>
+
+{if request.notes|default:'' != ''}
+<div class="wb-panel p-6 mt-4">
+    <h3 class="text-sm font-semibold text-gray-500 uppercase mb-1">Notes</h3>
+    <p class="text-sm text-gray-700">{request.notes|nl2br}</p>
+</div>
+{/if}
+
+<script>
+function submitMobilizationDecision(event) {
+    event.preventDefault();
+    var button = event.currentTarget;
+    var action = button.getAttribute('data-action') || '';
+    var message = button.getAttribute('data-confirm') || 'Continue?';
+    if (!action || !window.confirm(message)) return false;
+
+    var formData = new FormData();
+    var csrf = document.querySelector('input[name="_token"]');
+    if (csrf) formData.append('_token', csrf.value);
+
+    button.disabled = true;
+    fetch(action, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+    }).then(function(response) {
+        return response.json().then(function(data) {
+            return { ok: response.ok && data.ok, data: data };
+        });
+    }).then(function(result) {
+        if (result.ok) {
+            window.location.reload();
+            return;
+        }
+        button.disabled = false;
+        alert(result.data && result.data.error ? result.data.error : 'Action failed.');
+    }).catch(function() {
+        button.disabled = false;
+        alert('Action failed.');
+    });
+    return false;
+}
+</script>

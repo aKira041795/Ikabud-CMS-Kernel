@@ -3,6 +3,137 @@
 declare(strict_types=1);
 
 /**
+ * Resolve the AW tenant ID for capability calls.
+ *
+ * Priority:
+ *   1. Explicit `aw_tenant_id` in PAL module settings (admin override).
+ *   2. Auto-discover: scan all active tenants for `attendance_groups` table.
+ *   3. Fall back to current PAL tenant.
+ *
+ * Result is cached in-process to avoid repeated tenant-DB scans.
+ */
+function palResolveAwTenantId(): int
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $tid = (int)(app()->tenant()->current() ?? 0);
+
+    // 1. Explicit setting
+    try {
+        $settings = function_exists('getModuleSettings') ? getModuleSettings('project-audit-ledger') : [];
+        $awTid = !empty($settings['aw_tenant_id']) ? (int)$settings['aw_tenant_id'] : 0;
+        if ($awTid > 0) {
+            $cached = $awTid;
+            return $cached;
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('palResolveAwTenantId: getModuleSettings failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+
+    // 2. Auto-discover: find a tenant that has attendance_groups with team lead data
+    try {
+        $cp = app()->controlDb(); // control-plane DB (not tenant DB)
+        $tenants = $cp->query("SELECT id FROM kernel_tenants WHERE status = 'active' ORDER BY id")->fetchAll(\PDO::FETCH_COLUMN);
+        foreach ($tenants as $candidateTid) {
+            $candidateTid = (int)$candidateTid;
+            if ($candidateTid <= 0) continue;
+            try {
+                $cdb = app()->dbForTenant($candidateTid);
+                if (!$cdb) continue;
+                // Check for actual team-lead data, not just empty table
+                $hasData = $cdb->query(
+                    "SELECT 1 FROM attendance_groups WHERE pal_team_lead_email IS NOT NULL AND pal_team_lead_email != '' AND is_active = 1 LIMIT 1"
+                )->fetchColumn();
+                if ($hasData) {
+                    if (function_exists('write_log')) {
+                        write_log("palResolveAwTenantId: auto-discovered AW tenant {$candidateTid}", 'info');
+                    }
+                    $cached = $candidateTid;
+                    return $cached;
+                }
+            } catch (\Throwable) {
+                // This tenant doesn't have AW tables — try next
+                continue;
+            }
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('palResolveAwTenantId: auto-discover scan failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+
+    // 3. Fallback
+    if (function_exists('write_log')) {
+        write_log('palResolveAwTenantId: no AW tenant found, falling back to PAL tenant ' . $tid, 'warning');
+    }
+    $cached = $tid;
+    return $cached;
+}
+
+/**
+ * Auto-provision a team lead in PAL from AW attendance_groups.
+ * Called when a team lead authenticates via delegation but doesn't yet exist
+ * in pal_team_leads. Reads name from employee_profiles (leader_profile_id)
+ * and email from attendance_groups.pal_team_lead_email.
+ *
+ * Returns the pal_team_leads row (existing or newly created), or null on failure.
+ */
+function palAutoProvisionTeamLead(string $email): ?array
+{
+    $db = palDb();
+    $tid = (int)(app()->tenant()->current() ?? 0);
+
+    // Already exists?
+    $stmt = $db->prepare("SELECT id, name, email FROM pal_team_leads WHERE email = :email AND tenant_id = :tid AND is_active = 1 LIMIT 1");
+    $stmt->execute([':email' => $email, ':tid' => $tid]);
+    $existing = $stmt->fetch(\PDO::FETCH_ASSOC);
+    if ($existing) {
+        return ['team_lead_id' => (int)$existing['id'], 'name' => $existing['name'], 'email' => $existing['email'], 'role' => 'team_lead', 'source' => 'pal-team-lead'];
+    }
+
+    // Look up name from AW
+    $displayName = $email;
+    try {
+        $awTid = palResolveAwTenantId();
+        $awDb = app()->dbForTenant($awTid);
+        if ($awDb) {
+            $awInfo = $awDb->prepare("
+                SELECT COALESCE(CONCAT_WS(' ', NULLIF(ep.first_name,''), NULLIF(ep.last_name,'')), ag.pal_team_lead_email) AS full_name
+                FROM attendance_groups ag
+                LEFT JOIN employee_profiles ep ON ag.leader_profile_id = ep.profile_id AND ag.tenant_id = ep.tenant_id
+                WHERE LOWER(ag.pal_team_lead_email) = :email AND ag.tenant_id = :awtid AND ag.is_active = 1
+                LIMIT 1
+            ");
+            $awInfo->execute([':email' => strtolower($email), ':awtid' => $awTid]);
+            $name = $awInfo->fetchColumn();
+            if ($name && $name !== '') {
+                $displayName = $name;
+            }
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('palAutoProvisionTeamLead: AW name lookup failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+
+    // Insert
+    $db->prepare("INSERT INTO pal_team_leads (tenant_id, name, email, is_active, created_at) VALUES (:tid, :name, :email, 1, NOW())")
+       ->execute([':tid' => $tid, ':name' => $displayName, ':email' => $email]);
+    $newId = (int)$db->lastInsertId();
+
+    if (function_exists('write_log')) {
+        write_log("palAutoProvisionTeamLead: created team_lead id={$newId} email={$email}", 'info');
+    }
+
+    return ['team_lead_id' => $newId, 'name' => $displayName, 'email' => $email, 'role' => 'team_lead', 'source' => 'pal-team-lead'];
+}
+
+/**
  * Team Lead Dashboard
  * GET /admin/project-audit-ledger/team-lead
  */
@@ -291,8 +422,9 @@ function palPageTeamLeadMobilizationForm(): void
         $dTo = \DateTime::createFromFormat('Y-m-d', $attDateTo);
         if ($dFrom && $dTo) {
             try {
+                $awTid = palResolveAwTenantId();
                 $result = app()->cap()->call('attendance_wage.team_attendance.summary@1', [
-                    'tenant_id' => (string)$tid,
+                    'tenant_id' => (string)$awTid,
                     'team_lead_email' => $tlEmail,
                     'date_from' => $attDateFrom,
                     'date_to' => $attDateTo,
@@ -304,6 +436,9 @@ function palPageTeamLeadMobilizationForm(): void
 
                 if (is_array($result) && !empty($result['ok'])) {
                     $attendanceSummary = $result;
+                } elseif (function_exists('write_log')) {
+                    $errMsg = is_array($result) ? ($result['error'] ?? 'unknown') : 'non-array response';
+                    write_log('pal_mob_form: AW capability returned not-ok (aw_tenant=' . $awTid . ', group=' . $attGroupId . '): ' . $errMsg, 'warning');
                 }
             } catch (\Throwable $e) {
                 if (function_exists('write_log')) {
@@ -336,6 +471,8 @@ function palPageTeamLeadMobilizationForm(): void
  */
 function palApiTeamLeadMobilizationStore(): void
 {
+    $tid = 0;
+    $tlEmail = '';
     try {
         $tl = palTeamLeadGuard();
         $db = palDb();
@@ -370,8 +507,9 @@ function palApiTeamLeadMobilizationStore(): void
             }
 
             try {
+                $awTid = palResolveAwTenantId();
                 $result = app()->cap()->call('attendance_wage.team_attendance.summary@1', [
-                    'tenant_id' => (string)$tid,
+                    'tenant_id' => (string)$awTid,
                     'team_lead_email' => $tlEmail,
                     'date_from' => $attDateFrom,
                     'date_to' => $attDateTo,
@@ -383,6 +521,9 @@ function palApiTeamLeadMobilizationStore(): void
 
                 if (!is_array($result) || empty($result['ok'])) {
                     $errMsg = is_array($result) ? ($result['error'] ?? 'Attendance data unavailable') : 'Invalid capability response';
+                    if (function_exists('write_log')) {
+                        write_log('pal_mob_store: AW revalidation failed (aw_tenant=' . $awTid . ', pal_tenant=' . $tid . ', tl=' . hash('sha256', $tlEmail) . ', group=' . $attGroupId . '): ' . $errMsg, 'error');
+                    }
                     palJsonError($errMsg);
                     return;
                 }
@@ -397,6 +538,9 @@ function palApiTeamLeadMobilizationStore(): void
                     }
                 }
                 if (!$groupMatch) {
+                    if (function_exists('write_log')) {
+                        write_log('pal_mob_store: group auth mismatch (aw_tenant=' . $awTid . ', pal_tenant=' . $tid . ', tl=' . hash('sha256', $tlEmail) . ', group=' . $attGroupId . ')', 'warning');
+                    }
                     palJsonError('You are not authorized to request mobilization for this attendance group.');
                     return;
                 }
@@ -412,7 +556,7 @@ function palApiTeamLeadMobilizationStore(): void
                 $capabilityProvider = 'attendance_wage.team_attendance.summary@1';
             } catch (\Throwable $e) {
                 if (function_exists('write_log')) {
-                    write_log('pal_mob_store: capability revalidation failed: ' . $e->getMessage(), 'error');
+                    write_log('pal_mob_store: capability revalidation exception (pal_tenant=' . $tid . ', tl=' . hash('sha256', $tlEmail) . ', group=' . $attGroupId . '): ' . $e->getMessage(), 'error');
                 }
                 palJsonError('Unable to verify attendance data. Please try again.');
                 return;
@@ -439,6 +583,10 @@ function palApiTeamLeadMobilizationStore(): void
             // Create approval record
             $approvalId = palCreateApproval('mobilization', $mobId, 0, 'pending', 'pending_approval');
 
+            // Write approval_id back to the mobilization request for traceability
+            $updApproval = $db->prepare("UPDATE pal_mobilization_requests SET approval_id = :aid WHERE id = :id AND tenant_id = :tid");
+            $updApproval->execute([':aid' => $approvalId, ':id' => $mobId, ':tid' => $tid]);
+
             $db->commit();
 
             palAudit('pal.mobilization.requested', 0, 'pal_mobilization_requests', (string)$mobId,
@@ -449,6 +597,7 @@ function palApiTeamLeadMobilizationStore(): void
                     'attendance_date_from' => $attDateFrom,
                     'attendance_date_to' => $attDateTo,
                     'evidence_hash' => $attendanceEvidenceHash,
+                    'approval_id' => $approvalId,
                 ]);
             palFireEvent('pal.mobilization.requested', ['mobilization_id' => $mobId, 'amount' => $amount]);
 
@@ -456,9 +605,15 @@ function palApiTeamLeadMobilizationStore(): void
             echo json_encode(['ok' => true, 'id' => $mobId]);
         } catch (Throwable $e) {
             $db->rollBack();
-            throw $e;
+            if (function_exists('write_log')) {
+                write_log('pal_mob_store: DB transaction failed (pal_tenant=' . $tid . ', tl=' . hash('sha256', $tlEmail) . ', amount=' . $amount . '): ' . $e->getMessage(), 'error');
+            }
+            palJsonError('Failed to save mobilization request. Please try again.');
         }
     } catch (Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('pal_mob_store: unexpected error (pal_tenant=' . $tid . '): ' . $e->getMessage(), 'error');
+        }
         palJsonError('Failed to submit request.');
     }
 }
@@ -466,17 +621,35 @@ function palApiTeamLeadMobilizationStore(): void
 /**
  * API: Admin approves mobilization
  * POST /api/v1/project-audit-ledger/mobilization/{id}/approve
+ *
+ * Updates both pal_mobilization_requests and the linked pal_approvals row.
  */
 function palApiMobilizationApprove(array $rp = []): void
 {
     $u = palCurrentUser(['admin', 'supervisor']);
+    palEnforceCsrf();
     $id = (int)($rp['id'] ?? $_GET['id'] ?? 0);
     if ($id <= 0) { palJsonError('Invalid ID.'); return; }
 
     $db = palDb();
     $tid = (int)(app()->tenant()->current() ?? 0);
-    $stmt = $db->prepare("UPDATE pal_mobilization_requests SET status = 'approved', approved_by = :ub, approved_at = NOW() WHERE id = :id AND tenant_id = :tid");
-    $stmt->execute([':id' => $id, ':tid' => $tid, ':ub' => (int)$u['id']]);
+
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare("UPDATE pal_mobilization_requests SET status = 'approved', approved_by = :ub, approved_at = NOW() WHERE id = :id AND tenant_id = :tid AND status = 'pending'");
+        $stmt->execute([':id' => $id, ':tid' => $tid, ':ub' => (int)$u['id']]);
+        if ($stmt->rowCount() === 0) { $db->rollBack(); palJsonError('Request not found or already decided.'); return; }
+
+        // Update the linked pal_approvals row
+        palMobilizationSyncApproval($db, $tid, $id, 'approved', (int)$u['id']);
+
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        if (function_exists('write_log')) { write_log('pal_mob_approve: ' . $e->getMessage(), 'error'); }
+        palJsonError('Failed to approve request.');
+        return;
+    }
 
     palAudit('pal.mobilization.approved', (int)$u['id'], 'pal_mobilization_requests', (string)$id, null, []);
     palFireEvent('pal.mobilization.approved', ['mobilization_id' => $id]);
@@ -488,17 +661,35 @@ function palApiMobilizationApprove(array $rp = []): void
 /**
  * API: Admin rejects mobilization
  * POST /api/v1/project-audit-ledger/mobilization/{id}/reject
+ *
+ * Updates both pal_mobilization_requests and the linked pal_approvals row.
  */
 function palApiMobilizationReject(array $rp = []): void
 {
     $u = palCurrentUser(['admin', 'supervisor']);
+    palEnforceCsrf();
     $id = (int)($rp['id'] ?? $_GET['id'] ?? 0);
     if ($id <= 0) { palJsonError('Invalid ID.'); return; }
 
     $db = palDb();
     $tid = (int)(app()->tenant()->current() ?? 0);
-    $stmt = $db->prepare("UPDATE pal_mobilization_requests SET status = 'rejected' WHERE id = :id AND tenant_id = :tid");
-    $stmt->execute([':id' => $id, ':tid' => $tid]);
+
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare("UPDATE pal_mobilization_requests SET status = 'rejected' WHERE id = :id AND tenant_id = :tid AND status = 'pending'");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        if ($stmt->rowCount() === 0) { $db->rollBack(); palJsonError('Request not found or already decided.'); return; }
+
+        // Update the linked pal_approvals row
+        palMobilizationSyncApproval($db, $tid, $id, 'rejected', (int)$u['id']);
+
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        if (function_exists('write_log')) { write_log('pal_mob_reject: ' . $e->getMessage(), 'error'); }
+        palJsonError('Failed to reject request.');
+        return;
+    }
 
     palAudit('pal.mobilization.rejected', (int)$u['id'], 'pal_mobilization_requests', (string)$id, null, []);
     palFireEvent('pal.mobilization.rejected', ['mobilization_id' => $id]);
@@ -510,23 +701,72 @@ function palApiMobilizationReject(array $rp = []): void
 /**
  * API: Admin marks mobilization as disbursed
  * POST /api/v1/project-audit-ledger/mobilization/{id}/disburse
+ *
+ * Updates both pal_mobilization_requests and the linked pal_approvals row.
  */
 function palApiMobilizationDisburse(array $rp = []): void
 {
     $u = palCurrentUser(['admin']);
+    palEnforceCsrf();
     $id = (int)($rp['id'] ?? $_GET['id'] ?? 0);
     if ($id <= 0) { palJsonError('Invalid ID.'); return; }
 
     $db = palDb();
     $tid = (int)(app()->tenant()->current() ?? 0);
-    $stmt = $db->prepare("UPDATE pal_mobilization_requests SET status = 'disbursed', disbursed_at = NOW() WHERE id = :id AND tenant_id = :tid");
-    $stmt->execute([':id' => $id, ':tid' => $tid]);
+
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare("UPDATE pal_mobilization_requests SET status = 'disbursed', disbursed_at = NOW() WHERE id = :id AND tenant_id = :tid AND status = 'approved'");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        if ($stmt->rowCount() === 0) { $db->rollBack(); palJsonError('Request not found, not yet approved, or already disbursed.'); return; }
+
+        // Disbursement is a post-approval action — does not change the approval decision.
+        // The pal_approvals row stays as 'approved'.
+
+        $db->commit();
+    } catch (Throwable $e) {
+        $db->rollBack();
+        if (function_exists('write_log')) { write_log('pal_mob_disburse: ' . $e->getMessage(), 'error'); }
+        palJsonError('Failed to mark as disbursed.');
+        return;
+    }
 
     palAudit('pal.mobilization.disbursed', (int)$u['id'], 'pal_mobilization_requests', (string)$id, null, []);
     palFireEvent('pal.mobilization.disbursed', ['mobilization_id' => $id]);
 
     header('Content-Type: application/json');
     echo json_encode(['ok' => true]);
+}
+
+/**
+ * Sync pal_approvals row for a mobilization request decision.
+ * Finds the pending approval linked via approval_id or entity_type+entity_id
+ * and updates its decision.
+ */
+function palMobilizationSyncApproval(PDO $db, int $tenantId, int $mobId, string $decision, int $reviewerId): void
+{
+    // Try via approval_id link first
+    $mob = $db->prepare("SELECT approval_id FROM pal_mobilization_requests WHERE id = :id AND tenant_id = :tid");
+    $mob->execute([':id' => $mobId, ':tid' => $tenantId]);
+    $approvalId = $mob->fetchColumn();
+
+    if ($approvalId && (int)$approvalId > 0) {
+        $upd = $db->prepare("UPDATE pal_approvals SET decision = :dec, reviewer_id = :rv, decision_date = NOW() WHERE id = :id AND tenant_id = :tid AND decision = 'pending'");
+        $upd->execute([':dec' => $decision, ':rv' => $reviewerId, ':id' => (int)$approvalId, ':tid' => $tenantId]);
+    } else {
+        // Fallback: find by entity_type + entity_id
+        $upd = $db->prepare("UPDATE pal_approvals SET decision = :dec, reviewer_id = :rv, decision_date = NOW() WHERE entity_type = 'mobilization' AND entity_id = :eid AND tenant_id = :tid AND decision = 'pending'");
+        $upd->execute([':dec' => $decision, ':rv' => $reviewerId, ':eid' => $mobId, ':tid' => $tenantId]);
+    }
+
+    if (function_exists('write_log')) {
+        $affected = $upd->rowCount();
+        write_log("pal_mob_sync_approval: mob={$mobId} decision={$decision} approvals_updated={$affected}", 'info');
+    }
+
+    // Do NOT throw — the request status update should persist even if the
+    // approval row was already decided (e.g. via the centralized approval queue).
+    // A warning is logged above for diagnostics.
 }
 
 // ── Admin Mobilization List ──
@@ -543,6 +783,58 @@ function palPageMobilizationList(): void
         'current_user' => $u,
         'page_title' => 'Mobilization Requests',
         'page_content' => 'mobilization-list',
+    ]);
+}
+
+/**
+ * Admin: Mobilization detail page
+ * GET /admin/project-audit-ledger/mobilization/{id}
+ */
+function palPageMobilizationDetail(array $rp = []): void
+{
+    $u = palCurrentUser(['admin', 'supervisor']);
+    $id = (int)($rp['id'] ?? 0);
+    if ($id <= 0) { echo 'Invalid ID.'; return; }
+
+    $db = palDb();
+    $tid = (int)(app()->tenant()->current() ?? 0);
+
+    $stmt = $db->prepare("
+        SELECT mr.*, tl.name AS team_lead_name, tl.email AS team_lead_email,
+               p.title AS project_title, p.job_order_number
+        FROM pal_mobilization_requests mr
+        LEFT JOIN pal_team_leads tl ON mr.team_lead_id = tl.id
+        LEFT JOIN pal_projects p ON mr.project_id = p.id
+        WHERE mr.id = :id AND mr.tenant_id = :tid
+    ");
+    $stmt->execute([':id' => $id, ':tid' => $tid]);
+    $request = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$request) { echo 'Mobilization request not found.'; return; }
+
+    // Resolve attendance group name from AW tenant
+    $request['attendance_group_name'] = null;
+    if (!empty($request['attendance_group_id'])) {
+        try {
+            $awTid = palResolveAwTenantId();
+            $gnDb = ($awTid > 0) ? app()->dbForTenant($awTid) : null;
+            if ($gnDb) {
+                $name = $gnDb->query(
+                    "SELECT name FROM attendance_groups WHERE group_id = " . (int)$request['attendance_group_id'] . " AND tenant_id = " . $awTid . " LIMIT 1"
+                )->fetchColumn();
+                if ($name && is_string($name) && $name !== '') {
+                    $request['attendance_group_name'] = $name;
+                }
+            }
+        } catch (\Throwable) {}
+    }
+
+    $t = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
+    palRender($t, [
+        'current_user' => $u,
+        'page_title' => 'MOB-' . str_pad((string)$id, 3, '0', STR_PAD_LEFT),
+        'page_content' => 'mobilization-detail',
+        'request' => $request,
     ]);
 }
 
@@ -579,9 +871,11 @@ function palPageTeamLeadAttendance(): void
     $employeeSummary = [];
     $totals = ['total_hours' => 0, 'total_computed_wages' => 0, 'record_count' => 0];
 
+    $awTid = palResolveAwTenantId();
+
     try {
         $result = app()->cap()->call('attendance_wage.team_attendance.summary@1', [
-            'tenant_id' => (string)$tid,
+            'tenant_id' => (string)$awTid,
             'team_lead_email' => $tlEmail,
             'date_from' => $dateFrom,
             'date_to' => $dateTo,

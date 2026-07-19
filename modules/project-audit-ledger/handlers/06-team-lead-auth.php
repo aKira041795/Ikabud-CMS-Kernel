@@ -469,21 +469,26 @@ function palTeamLeadFromEmail(string $email): ?array
     // Auto-create if no existing record (lazy provisioning via delegation bridge)
     if (!$row) {
         try {
-            // Look up the employee's real name from AW via the attendance_groups bridge.
-            // Route: pal_team_lead_email → leader_profile_id → employee_profiles.name.
-            // (PAL has reads_tables access to all three tables.)
+            // Look up the employee's real name from AW via the shared resolver.
             $displayName = $email;
             try {
-                $awName = $db->query("
+                $awTid = function_exists('palResolveAwTenantId') ? palResolveAwTenantId() : $tid;
+                $awDb = app()->dbForTenant($awTid);
+                if ($awDb && $awDb !== $db) {
+                    $awDb->query("SELECT 1 FROM attendance_groups LIMIT 0");
+                }
+                $awNameStmt = ($awDb ?? $db)->prepare("
                     SELECT CONCAT_WS(' ', NULLIF(ep.first_name,''), NULLIF(ep.last_name,'')) AS full_name
                     FROM attendance_groups ag
                     JOIN employee_profiles ep ON ag.leader_profile_id = ep.profile_id
                         AND ag.tenant_id = ep.tenant_id
-                    WHERE LOWER(ag.pal_team_lead_email) = LOWER(" . $db->quote($email) . ")
-                      AND ag.tenant_id = {$tid}
+                    WHERE LOWER(ag.pal_team_lead_email) = LOWER(:email)
+                      AND ag.tenant_id = :awtid
                       AND ag.is_active = 1
                     LIMIT 1
-                ")->fetch(\PDO::FETCH_ASSOC);
+                ");
+                $awNameStmt->execute([':email' => $email, ':awtid' => $awTid]);
+                $awName = $awNameStmt->fetch(\PDO::FETCH_ASSOC);
                 if ($awName && !empty($awName['full_name'])) {
                     $displayName = trim($awName['full_name']);
                 }
@@ -605,8 +610,20 @@ function palTeamLeadGuard(): array
                 $email = $result['identity_email'] ?? '';
                 $tokenTenantId = (string)($result['tenant_id'] ?? '');
                 $currentTenantId = (string)(app()->tenant()->current() ?? '');
-                if ($email !== '' && $tokenTenantId !== '' && $currentTenantId !== '' && $tokenTenantId === $currentTenantId) {
+
+                // Accept delegation when:
+                //   a) Tenant matches exactly (same-tenant deployment), OR
+                //   b) Token tenant is the resolved AW tenant (cross-tenant: AW→PAL)
+                $tokenTenantOk = ($tokenTenantId !== '' && $currentTenantId !== '')
+                    && ($tokenTenantId === $currentTenantId
+                        || (function_exists('palResolveAwTenantId') && (string)palResolveAwTenantId() === $tokenTenantId));
+
+                if ($email !== '' && $tokenTenantOk) {
                     $tl = palTeamLeadFromEmail($email);
+                    // Auto-provision if team lead doesn't exist in PAL yet
+                    if (!$tl && function_exists('palAutoProvisionTeamLead')) {
+                        $tl = palAutoProvisionTeamLead($email);
+                    }
                     if ($tl) {
                         // Strip _dgt from the current URL to avoid leaking the token
                         // in browser history / referrer headers on subsequent navigation.

@@ -75,6 +75,7 @@ return [
         '/admin/project-audit-ledger/quotations/{id}/edit' => 'project-audit-ledger:palPageQuotationForm',
         '/admin/project-audit-ledger/quotations/{id}' => 'project-audit-ledger:palPageQuotationDetail',
         '/admin/project-audit-ledger/mobilization' => 'project-audit-ledger:palPageMobilizationList',
+        '/admin/project-audit-ledger/mobilization/{id}' => 'project-audit-ledger:palPageMobilizationDetail',
         '/admin/project-audit-ledger/reports' => 'project-audit-ledger:palPageReportsCenter',
         '/admin/project-audit-ledger/bom' => 'project-audit-ledger:palPageBillOfMaterials',
         '/api/v1/project-audit-ledger/bom/export' => 'project-audit-ledger:palApiBomExport',
