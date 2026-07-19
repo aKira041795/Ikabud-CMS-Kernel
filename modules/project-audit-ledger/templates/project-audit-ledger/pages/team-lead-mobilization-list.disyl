@@ -19,6 +19,7 @@
             </tr>
         </thead>
         <tbody>
+            {if requests|count > 0}
             {for r in requests}
             <tr class="border-b border-gray-100 {if r.status=='approved'}bg-green-50{elseif r.status=='disbursed'}bg-blue-50{elseif r.status=='rejected'}bg-red-50{/if}">
                 <td class="py-2 px-3 text-xs text-gray-600">{r.request_date|default:r.created_at}</td>
@@ -29,9 +30,10 @@
                 </td>
                 <td class="py-2 px-3 text-xs text-gray-500">{r.purpose|default:'—'}</td>
             </tr>
+            {/for}
             {else}
             <tr><td colspan="5" class="py-6 text-center text-gray-600 text-sm">No mobilization requests found.</td></tr>
-            {/for}
+            {/if}
         </tbody>
     </table>
 </div>

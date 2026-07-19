@@ -330,3 +330,174 @@ Notes:
 - Browser validation was not run in this implementation pass; the focused PHP/source checks cover the traced loader and wiring regressions.
 - `storage/logs/error.log` still contains earlier exploratory command-line fatals from this session, including missing capability and `TenantResolver::setCurrent()` calls. No new failing test output was observed in the final log tail.
 - Existing unrelated dirty/generated files were left untouched.
+
+## Developer Review (Round 3 — host-bound DB fix + team-lead rehydration, 2026-07-19)
+
+### Findings corrected
+
+No P0 or P1 regressions found. All changes are correct and within scope.
+
+### Findings reviewed and confirmed as correct
+
+1. **`palTenantId()` + `palDb()` — host-bound DB fix (P0 root cause).**
+   - `palTenantId()` resolves the true PAL tenant through session, current-tenant-with-entry-module check, and control-plane `entry_module_id = 'project-audit-ledger'` query. Falls back to `app()->tenant()->current()` only as last resort.
+   - `palDb()` calls `app()->dbForTenant($tenantId)` directly, bypassing the host-bound `palCtx()->db()` which was serving `zapattendance` (tenant 441) shadow tables.
+   - Kernel boundary: uses `app()->tenant()->setTenantId()` and `app()->dbForTenant()` — both are proper kernel APIs, no boundary violation.
+   - Tenant isolation: PAL tables are only read from the resolved PAL tenant DB. No cross-tenant data leakage risk.
+
+2. **Team-lead cookie rehydration by email (P1 fix).**
+   - `palTeamLeadFromCookie()` now calls `palTeamLeadFromEmail()` when email is present in the cookie payload, resolving the team lead record against PAL tables instead of trusting stale cookie fields.
+   - `palTeamLeadFromEmail()` now includes `tenant_id` in its return array for both session-cookie and response-signing paths.
+   - Project count query no longer filters by status — all assigned projects are counted regardless of workflow state.
+
+3. **Mobilization pending count uses `pal_approvals.decision`.**
+   - Team-lead dashboard pending count now coalesces `a.decision` with `mr.status` via `COALESCE(a.decision, mr.status) = 'pending'`. This correctly counts requests whose approval has not yet been decided, even if the direct mobilization endpoint changed `mr.status`.
+   - Mobilization list also reads `COALESCE(a.decision, mr.status) AS status` so the team-lead view reflects the approval decision.
+
+4. **Project required on team-lead CA and mobilization forms.**
+   - Templates: `select name="project_id"` now has `required` attribute. Labels changed from "— Select (optional) —" to "— Select project —".
+   - API: both `palApiTeamLeadCashAdvanceStore()` and `palApiTeamLeadMobilizationStore()` now reject `$projectId === null` with "Project is required." before the amount check. Existing project-assignment validation (`SELECT 1 FROM pal_projects WHERE ...`) still runs afterward.
+
+5. **Empty-state template fix.**
+   - `team-lead-mobilization-list.disyl`: `{if requests|count > 0}` wraps the `{for}` loop; `{else}` block renders "No mobilization requests found." outside the loop. Same fix applied to `team-lead-attendance.disyl`.
+   - Previously the `{else}` was inside the `{for}`, causing "No records found" to render once per iteration when the array was non-empty but iteration produced no output — incorrect DiSyL control flow.
+
+### Findings rejected and why
+
+- **`palTenantId()` fallback risk (P2):** The final fallback `return (int)(app()->tenant()->current() ?? 0)` could theoretically return the wrong tenant ID if all prior resolution steps fail. However, steps 1-3 cover all normal cases (session user, host-based PAL tenant, control-plane lookup). Rejected as a theoretical edge case not observed in practice.
+- **Source-level test only (P2):** `pal_jo_view_wiring_test.php` uses `str_contains()` on source files rather than runtime assertions. This was the intended design — it locks the contract that the source contains specific patterns. Runtime integration tests cover the actual behavior. Not a regression.
+
+### Tests run
+
+| Test | Result |
+|---|---|
+| `php -l` (all 4 changed PHP files) | 0 errors |
+| `php tests/pal_jo_view_wiring_test.php` | 52 passed, 0 failed |
+| `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php` | 34 passed, 0 failed |
+| `git diff --check` | Clean |
+
+### Files with stray/artifact changes (do not commit)
+
+These files appear in `git status` as untracked or modified but are not part of this fix:
+
+| File | Nature |
+|---|---|
+| `-b` | Stray curl cookie jar |
+| `public/opcache-reset.php` | Local dev utility |
+| `public/uploads/pal/502/logo-502.jpg` | Test upload image |
+| `storage/private/comprehension/ai-cache/*.json` | AI inference cache |
+| `storage/private/workbench/metrics.json` | Workbench metrics drift |
+| `test_results/browser/*` | Prior browser test run artifacts |
+
+### Remaining release risks
+
+- Browser validation was not run. The task calls for Playwright workflows covering AW→PAL mobilization and JO-create→dashboard→approval→audit. These remain pending.
+- If another PAL tenant (beyond 502) is added, `palTenantId()` will pick the first active PAL tenant via the control-plane query — correct for single-PAL-tenant deployments, but would need refinement for multi-PAL-tenant setups.
+- `storage/logs/error.log` contains pre-existing CLI fatals from earlier exploratory commands in this session. These are not caused by the current changes but should be cleared before next deployment validation.
+
+## Follow-up Implementation Report
+
+Implemented after browser-visible inconsistencies were reported:
+
+- Added `palTenantId()` and changed `palDb()` to open `app()->dbForTenant($tenantId)` for the resolved active `project-audit-ledger` tenant instead of reusing the host-bound module context DB.
+- Fixed cross-domain PAL team-lead pages served from `zapattendance.test` so PAL-owned data comes from `palsystem` tenant `502`, not `zapattendance` tenant `441`.
+- Rehydrated team-lead cookie sessions by email through `palTeamLeadFromEmail()` so duplicate/shadow `zapattendance.pal_team_leads` rows cannot drive PAL project and mobilization queries.
+- Removed status filters from team-lead assigned-project dropdown loaders; assignment is now based on `pal_projects.fabrication_team_lead_id = pal_team_leads.id` plus tenant match.
+- Required project selection for team-lead Cash Advance and Mobilization request forms in both UI and API validation.
+- Updated team-lead mobilization list and dashboard pending count to use `pal_approvals.decision` when present via `COALESCE(a.decision, mr.status)`.
+- Fixed `team-lead-mobilization-list.disyl` and `team-lead-attendance.disyl` empty-state rendering so “No records found” appears only when the list is empty, not after every row.
+- Cleared stale compiled team-lead DiSyL templates; `storage/cache/compiled/Template_team_lead_*` was verified empty afterward.
+
+Live relationship checks:
+
+- `zapattendance` is tenant `441`; `palsystem` is tenant `502`.
+- Starting from forced tenant `441`, PAL now resolves to tenant `502` and reads database `palsystem`.
+- PAL team lead email `noah2.omamalin@gmail.com` resolves to PAL team lead id `3`, name `Noah Omamalin`.
+- Assigned project `JO-20260719-0001` / `Lighted signs` is linked through `pal_projects.fabrication_team_lead_id = 3`.
+- Existing mobilization display statuses resolve as `approved`, `approved`, `rejected` from `pal_approvals.decision`.
+- Existing old mobilization rows have no linked project because they were created while project selection was optional; new requests now reject missing `project_id`.
+
+Follow-up validation:
+
+- Passed `php -l modules/project-audit-ledger/helpers.php`.
+- Passed `php -l modules/project-audit-ledger/handlers/06-team-lead-auth.php`.
+- Passed `php -l modules/project-audit-ledger/handlers/53-team-lead.php`.
+- Passed `php tests/pal_jo_view_wiring_test.php` with `52 passed, 0 failed`.
+- Passed `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php` with `34 passed, 0 failed`.
+- Passed `git diff --check`.
+
+## Developer Review (Round 4 — stale team-lead cookie fallback, 2026-07-19)
+
+### Findings corrected
+
+1. **P1 — Legacy team-lead cookies could still render stale identity data.**
+   - Finding: `palTeamLeadFromCookie()` rehydrated cookie payloads by email when email was present, but still trusted legacy identity-only cookies when email was missing.
+   - Impact: A browser with an older `pal_tl_token` could continue showing stale team lead name/id such as `Noki Omamalin`, causing dashboard counts, assigned projects, dropdown options, mobilization rows, and attendance bridge calls to be scoped to the wrong PAL team lead.
+   - Fix: Removed the identity-only fallback. Team-lead cookie sessions now fail closed unless they can be rehydrated from the PAL database by email.
+   - Regression coverage: Added `tests/pal_jo_view_wiring_test.php` assertion that legacy identity-only team-lead tokens are rejected.
+
+### Findings reviewed and retained
+
+1. **PAL tenant routing remains correct for the cross-domain team-lead portal.**
+   - `palDb()` still resolves the active `project-audit-ledger` tenant and opens that tenant database directly with `app()->dbForTenant($tenantId)`.
+   - This keeps PAL-owned tables on `palsystem` even when the request host starts from `zapattendance.test`.
+
+2. **Project dropdowns remain required and assignment-scoped.**
+   - Team-lead cash advance and mobilization form selects still use `required`.
+   - Both submit APIs still reject missing `project_id` and validate `pal_projects.fabrication_team_lead_id = :tlid`.
+
+3. **Mobilization status display remains approval-aware.**
+   - Team-lead dashboard and mobilization list still use `COALESCE(a.decision, mr.status)` so approved/rejected approvals are not shown as pending.
+
+4. **False empty states remain fixed in list templates.**
+   - Mobilization and attendance empty-state rows are outside their `{for}` loops.
+
+### Tests run
+
+| Test | Result |
+|---|---|
+| `php -l modules/project-audit-ledger/handlers/06-team-lead-auth.php` | 0 errors |
+| `php tests/pal_jo_view_wiring_test.php` | 53 passed, 0 failed |
+| `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php` | 34 passed, 0 failed |
+| `git diff --check` | Clean |
+
+### Runtime cache actions
+
+- Ran `curl -sS http://zapattendance.test/opcache-reset.php`; output confirmed `OPcache cleared`.
+- `storage/cache/disyl` was absent, so no DiSyL compiled files were present to clear in that path.
+
+### Remaining risks
+
+- Existing mobilization rows created before project selection was required may still display a blank project because those rows have `project_id = NULL`; code now prevents new blank-project requests.
+- A browser holding a legacy identity-only `pal_tl_token` will be forced back through team-lead auth after this fix. That is intentional because the old token cannot be safely mapped to PAL truth without an email.
+
+## Follow-up Fix — Team-lead logout redirect (2026-07-19)
+
+- Changed `palApiTeamLeadLogout()` to clear `pal_tl_token` and redirect to `external_base_url() . '/project-audit-ledger/team-lead/login'` instead of returning raw JSON.
+- This keeps logout on the current request origin, so logging out from `zapattendance.test` returns to the Zap Attendance team-lead login URL dynamically.
+- Added `tests/pal_jo_view_wiring_test.php` coverage to reject the raw JSON logout response and require the current-host redirect.
+
+Validation:
+
+- Passed `php -l modules/project-audit-ledger/handlers/06-team-lead-auth.php`.
+- Passed `php tests/pal_jo_view_wiring_test.php` with `54 passed, 0 failed`.
+- Passed `git diff --check`.
+- Reset PHP OPcache through `http://zapattendance.test/opcache-reset.php`.
+
+## Follow-up Fix — Host-aware auth redirects (2026-07-19)
+
+- Kept PAL admin login on `palsystem.test`; `http://palsystem.test/project-audit-ledger/login` is correct for the PAL admin app.
+- Changed team-lead auth guard and OTP verify redirects to use `external_base_url()` so Zap Attendance team-lead flows stay on `zapattendance.test`.
+- Changed stale PAL session rejection to use `external_base_url()` instead of static `palBaseUrl()` so cross-host requests are not forced to the configured PAL base URL.
+- Added regression coverage for current-host team-lead auth redirects and stale-session redirects.
+
+Validation:
+
+- Passed `php -l modules/project-audit-ledger/helpers.php`.
+- Passed `php -l modules/project-audit-ledger/handlers/06-team-lead-auth.php`.
+- Passed `php tests/pal_jo_view_wiring_test.php` with `56 passed, 0 failed`.
+- Passed `git diff --check`.
+- Reset PHP OPcache through both `http://zapattendance.test/opcache-reset.php` and `http://palsystem.test/opcache-reset.php`.
+- Confirmed unauthenticated redirect targets:
+  - `http://zapattendance.test/admin/project-audit-ledger/team-lead` -> `http://zapattendance.test/project-audit-ledger/team-lead/login`
+  - `http://palsystem.test/admin/project-audit-ledger` -> `http://palsystem.test/project-audit-ledger/login`

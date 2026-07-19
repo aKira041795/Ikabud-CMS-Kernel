@@ -41,6 +41,13 @@ ok(str_contains($helpers, 'pr.job_order_number'), 'Purchase entity capability ex
 ok(str_contains($helpers, 'p.job_order_number FROM pal_mobilization_requests'), 'Mobilization entity capability exposes linked JO number');
 ok(str_contains($helpers, "'project'                => '/admin/project-audit-ledger/projects'"), 'Audit URL helper links project alias rows');
 ok(str_contains($helpers, "'mobilization'           => '/admin/project-audit-ledger/mobilization'"), 'Audit URL helper links mobilization alias rows');
+ok(str_contains($helpers, 'function palTenantId(): int'), 'PAL has a tenant resolver for cross-domain team-lead portal requests');
+ok(str_contains($helpers, "entry_module_id = 'project-audit-ledger'"), 'PAL tenant resolver uses control-plane module ownership, not table existence');
+ok(str_contains($helpers, 'app()->tenant()->setTenantId($tenantId)'), 'PAL database helper switches to the resolved PAL tenant');
+ok(str_contains($helpers, 'app()->dbForTenant($tenantId)'), 'PAL database helper opens the resolved PAL tenant database directly');
+ok(!str_contains($helpers, 'return palCtx()->db();'), 'PAL database helper does not reuse host-bound module context DB');
+ok(str_contains($helpers, "'pal_receivables'"), 'PAL database helper declares pal_receivables');
+ok(str_contains($helpers, "'pal_receivable_payments'"), 'PAL database helper declares pal_receivable_payments');
 
 ok(str_contains($dashboardVm, "status IN ('approved','started','ongoing')"), 'Dashboard active count uses live JO statuses');
 ok(str_contains($dashboardVm, 'job_order_number, title, status'), 'Dashboard recent projects loader exposes JO number');
@@ -49,6 +56,17 @@ ok(str_contains($approvalService, "approved_by = :rv, approved_at = NOW()"), 'Ce
 ok(str_contains($teamLead, "throw new RuntimeException('No pending mobilization approval row was updated.')"), 'Direct mobilization approval rolls back on missing approval sync');
 ok(!str_contains($teamLead, "WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid\n          AND status IN"), 'Team lead project dropdowns include all assigned projects regardless of status');
 ok(str_contains($teamLead, 'SELECT 1 FROM pal_projects WHERE id = :pid AND tenant_id = :tid AND fabrication_team_lead_id = :tlid LIMIT 1'), 'Team lead request APIs validate selected project assignment');
+ok(str_contains($teamLead, 'COALESCE(a.decision, mr.status) AS status'), 'Team lead mobilization list displays approval decision when available');
+ok(str_contains($teamLead, "COALESCE(a.decision, mr.status) = 'pending'"), 'Team lead dashboard pending count follows approval decision state');
+ok(str_contains($teamLead, 'if ($projectId === null) { palJsonError(\'Project is required.\'); return; }'), 'Team lead request APIs require project selection');
+$teamLeadAuth = src('modules/project-audit-ledger/handlers/06-team-lead-auth.php');
+ok(str_contains($teamLeadAuth, '$teamLead = palTeamLeadFromEmail($email);'), 'Team lead cookie sessions rehydrate against PAL by email');
+ok(str_contains($teamLeadAuth, 'return null;') && !str_contains($teamLeadAuth, "'team_lead_id' => (int)(\$data['team_lead_id'] ?? 0)"), 'Team lead cookie sessions reject legacy identity-only tokens');
+ok(str_contains($teamLeadAuth, "app()->redirect(external_base_url() . '/project-audit-ledger/team-lead/login');") && !str_contains($teamLeadAuth, "echo json_encode(['ok' => true]);"), 'Team lead logout redirects to the current host login page');
+ok(str_contains($teamLeadAuth, '$base = external_base_url();'), 'Team lead auth guard redirects to the current host login page');
+ok(str_contains($teamLeadAuth, '\'tenant_id\' => $tid'), 'Team lead sessions carry the resolved PAL tenant id');
+ok(!str_contains($teamLeadAuth, "WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid\n          AND status IN"), 'Team lead session project counts include all assigned projects');
+ok(str_contains($helpers, "app()->redirect(external_base_url() . '/project-audit-ledger/login');"), 'PAL stale-session rejection redirects to the current host login page');
 ok(str_contains($audit, "\$lookupTable = match (\$table)"), 'Audit trail resolves project/mobilization aliases through real PAL tables');
 
 $selectorHandlers = [
@@ -82,6 +100,10 @@ $templates = [
 foreach ($templates as $path) {
     ok(str_contains(src($path), 'job_order_number'), "{$path} displays JO number when project context is shown");
 }
+ok(str_contains(src('modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-ca-form.disyl'), 'name="project_id" x-model="project_id" class="wb-select" required'), 'Team lead cash advance form requires project selection');
+ok(str_contains(src('modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-mobilization-form.disyl'), 'name="project_id" x-model="project_id" class="wb-select" required'), 'Team lead mobilization form requires project selection');
+ok(str_contains(src('modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-mobilization-list.disyl'), '{if requests|count > 0}'), 'Team lead mobilization list empty state is outside the row loop');
+ok(str_contains(src('modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-attendance.disyl'), '{if attendance|count > 0}'), 'Team lead attendance empty state is outside the row loop');
 
 ok(str_contains(src('modules/project-audit-ledger/helpers/views/pal_project.disyl'), 'job_order_number'), 'Project entity view prefers JO number');
 ok(str_contains(src('modules/project-audit-ledger/helpers/views/pal_purchase.disyl'), 'project_title'), 'Purchase entity view shows project context');

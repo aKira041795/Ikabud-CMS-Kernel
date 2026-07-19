@@ -172,8 +172,11 @@ function palPageTeamLeadDashboard(): void
     $pendingCount = (int)$pendStmt->fetchColumn();
 
     $mobStmt = $db->prepare("
-        SELECT COUNT(*) FROM pal_mobilization_requests
-        WHERE team_lead_id = :tlid AND tenant_id = :tid AND status = 'pending'
+        SELECT COUNT(*)
+        FROM pal_mobilization_requests mr
+        LEFT JOIN pal_approvals a ON a.id = mr.approval_id AND a.tenant_id = mr.tenant_id
+        WHERE mr.team_lead_id = :tlid AND mr.tenant_id = :tid
+          AND COALESCE(a.decision, mr.status) = 'pending'
     ");
     $mobStmt->execute([':tlid' => $tlId, ':tid' => $tid]);
     $pendingCount += (int)$mobStmt->fetchColumn();
@@ -318,6 +321,7 @@ function palApiTeamLeadCashAdvanceStore(): void
         $description = $_POST['description'] ?? null;
 
         if ($amount <= 0) { palJsonError('Amount is required.'); return; }
+        if ($projectId === null) { palJsonError('Project is required.'); return; }
         if ($projectId !== null) {
             $projectCheck = $db->prepare("SELECT 1 FROM pal_projects WHERE id = :pid AND tenant_id = :tid AND fabrication_team_lead_id = :tlid LIMIT 1");
             $projectCheck->execute([':pid' => $projectId, ':tid' => $tid, ':tlid' => $tlId]);
@@ -369,9 +373,11 @@ function palPageTeamLeadMobilization(): void
     $tlId = (int)$tl['team_lead_id'];
 
     $stmt = $db->prepare("
-        SELECT mr.*, p.title AS project_title, p.job_order_number
+        SELECT mr.*, p.title AS project_title, p.job_order_number,
+               COALESCE(a.decision, mr.status) AS status
         FROM pal_mobilization_requests mr
         LEFT JOIN pal_projects p ON mr.project_id = p.id AND p.tenant_id = mr.tenant_id
+        LEFT JOIN pal_approvals a ON a.id = mr.approval_id AND a.tenant_id = mr.tenant_id
         WHERE mr.team_lead_id = :tlid AND mr.tenant_id = :tid
         ORDER BY mr.created_at DESC
         LIMIT 50
@@ -495,6 +501,7 @@ function palApiTeamLeadMobilizationStore(): void
         $attDateTo = $_POST['attendance_date_to'] ?? '';
 
         if ($amount <= 0) { palJsonError('Amount is required.'); return; }
+        if ($projectId === null) { palJsonError('Project is required.'); return; }
         if ($projectId !== null) {
             $projectCheck = $db->prepare("SELECT 1 FROM pal_projects WHERE id = :pid AND tenant_id = :tid AND fabrication_team_lead_id = :tlid LIMIT 1");
             $projectCheck->execute([':pid' => $projectId, ':tid' => $tid, ':tlid' => $tlId]);

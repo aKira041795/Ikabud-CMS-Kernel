@@ -8,9 +8,9 @@
             <input type="number" step="0.01" name="amount" required min="1" x-model="amount" class="wb-input" placeholder="0.00">
         </div>
         <div>
-            <label class="wb-label">Project</label>
-            <select name="project_id" x-model="project_id" class="wb-select">
-                <option value="">— Select (optional) —</option>
+            <label class="wb-label wb-label--required">Project</label>
+            <select name="project_id" x-model="project_id" class="wb-select" required>
+                <option value="">— Select project —</option>
                 {for p in projects}
                 <option value="{p.id}">{p.title}{if p.job_order_number} [{p.job_order_number}]{/if}</option>
                 {/for}

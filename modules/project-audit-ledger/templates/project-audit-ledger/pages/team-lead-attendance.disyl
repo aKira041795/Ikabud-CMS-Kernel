@@ -81,6 +81,7 @@
             </tr>
         </thead>
         <tbody>
+            {if attendance|count > 0}
             {for a in attendance}
             <tr class="border-b border-gray-100" data-wb-row="attendance" data-wb-id="{a.attendance_id}">
                 <td class="py-2 px-3 text-sm" data-wb-cell="employee_name">{a.employee_name}<br><span class="text-xs text-gray-500">{a.position|default:''}</span></td>
@@ -93,9 +94,10 @@
                 </td>
                 <td class="py-2 px-3 text-xs text-gray-500" data-wb-cell="group">{a.group_name|default:'—'}</td>
             </tr>
+            {/for}
             {else}
             <tr><td colspan="7" class="py-6 text-center text-gray-600 text-sm" data-wb-empty="attendance">No attendance records found for this period.</td></tr>
-            {/for}
+            {/if}
         </tbody>
         </table>
     </div>

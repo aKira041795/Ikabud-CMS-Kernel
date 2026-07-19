@@ -80,7 +80,7 @@ function palPageTeamLeadOtpVerify(): void
 {
     $ticket = $_GET['ticket'] ?? '';
     if (!$ticket) {
-        app()->redirect(palBaseUrl() . '/project-audit-ledger/team-lead/login');
+        app()->redirect(external_base_url() . '/project-audit-ledger/team-lead/login');
         return;
     }
     // Read ticket to show masked email
@@ -365,8 +365,7 @@ function palApiTeamLeadOtpResend(): void
 function palApiTeamLeadLogout(): void
 {
     setcookie('pal_tl_token', '', time() - 3600, '/');
-    header('Content-Type: application/json');
-    echo json_encode(['ok' => true]);
+    app()->redirect(external_base_url() . '/project-audit-ledger/team-lead/login');
 }
 
 // ── OTP Utility Functions ──
@@ -425,13 +424,16 @@ function palTeamLeadFromCookie(): ?array
         if (($data['role'] ?? '') !== 'team_lead') return null;
         if (isset($data['exp']) && $data['exp'] < time()) return null;
 
-        return [
-            'team_lead_id' => (int)($data['team_lead_id'] ?? 0),
-            'name' => $data['name'] ?? '',
-            'email' => $data['email'] ?? '',
-            'role' => 'team_lead',
-            'source' => 'pal-team-lead',
-        ];
+        $email = trim((string)($data['email'] ?? ''));
+        if ($email !== '') {
+            $teamLead = palTeamLeadFromEmail($email);
+            if ($teamLead !== null) {
+                return $teamLead;
+            }
+            return null;
+        }
+
+        return null;
     } catch (Throwable) {
         return null;
     }
@@ -530,7 +532,6 @@ function palTeamLeadFromEmail(string $email): ?array
     $projStmt = $db->prepare("
         SELECT COUNT(*) FROM pal_projects
         WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid
-          AND status IN ('pending','approved','started','ongoing')
     ");
     $projStmt->execute([':tlid' => $row['id'], ':tid' => $tid]);
 
@@ -543,6 +544,7 @@ function palTeamLeadFromEmail(string $email): ?array
         'role' => 'team_lead',
         'source' => 'pal-team-lead',
         'project_count' => (int)$projStmt->fetchColumn(),
+        'tenant_id' => $tid,
         'exp' => time() + $sessionTtl,
     ];
 
@@ -560,6 +562,7 @@ function palTeamLeadFromEmail(string $email): ?array
         'email' => $row['email'],
         'role' => 'team_lead',
         'source' => 'pal-team-lead',
+        'tenant_id' => $tid,
     ];
 }
 
@@ -646,7 +649,7 @@ function palTeamLeadGuard(): array
     }
 
     // 3. Redirect to login (existing fallback)
-    $base = palBaseUrl();
+    $base = external_base_url();
     header('Location: ' . $base . '/project-audit-ledger/team-lead/login');
     exit;
 }

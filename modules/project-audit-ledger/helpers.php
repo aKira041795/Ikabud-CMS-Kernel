@@ -744,48 +744,77 @@ function palCtx(): \Ikabud\Kernel\Contracts\ModuleContext
     return $ctx;
 }
 
+function palTenantId(): int
+{
+    $sessionUser = $_SESSION['pal_user'] ?? null;
+    if (is_array($sessionUser) && !empty($sessionUser['tenant_id'])) {
+        return (int)$sessionUser['tenant_id'];
+    }
+
+    try {
+        $currentTid = (int)(app()->tenant()->current() ?? 0);
+        if ($currentTid > 0) {
+            $entryModule = app()->controlDb()
+                ->prepare("SELECT entry_module_id FROM kernel_tenants WHERE id = :id AND status = 'active' LIMIT 1");
+            $entryModule->execute([':id' => $currentTid]);
+            if ((string)$entryModule->fetchColumn() === 'project-audit-ledger') {
+                return $currentTid;
+            }
+        }
+    } catch (Throwable) {
+    }
+
+    try {
+        $tenantId = app()->controlDb()->query("SELECT id FROM kernel_tenants WHERE entry_module_id = 'project-audit-ledger' AND status = 'active' ORDER BY id LIMIT 1")->fetchColumn();
+        if ($tenantId !== false && (int)$tenantId > 0) {
+            return (int)$tenantId;
+        }
+    } catch (Throwable) {
+    }
+
+    return (int)(app()->tenant()->current() ?? 0);
+}
+
 function palDb(): Ikabud\Kernel\Contracts\ModuleDB
 {
     // Auth-owned module: force tenant context to match the authenticated user.
     // Overrides host-based tenant resolution so queries always hit the correct
     // tenant database regardless of the request host.
-    $sessionUser = $_SESSION['pal_user'] ?? null;
-    if (is_array($sessionUser) && !empty($sessionUser['tenant_id'])) {
-        $userTid = (int)$sessionUser['tenant_id'];
-        $currentTid = app()->tenant()->current();
-        if ($currentTid === null || $currentTid !== $userTid) {
-            app()->tenant()->setTenantId($userTid);
-        }
+    $tenantId = palTenantId();
+    $currentTid = app()->tenant()->current();
+    if ($tenantId > 0 && ($currentTid === null || (int)$currentTid !== $tenantId)) {
+        app()->tenant()->setTenantId($tenantId);
     }
-    try {
-        return palCtx()->db();
-    } catch (Throwable $e) {
-        // Fallback: module context not available (test/CLI context).
-        // Return a properly configured ModuleDB so palAudit() and other
-        // helpers don't crash. Table lists mirror module.json declarations.
+    $pdo = null;
+    if ($tenantId > 0) {
+        $pdo = app()->dbForTenant($tenantId);
+    }
+    if (!$pdo instanceof PDO) {
         $pdo = app()->db();
-        return new Ikabud\Kernel\Contracts\ModuleDB(
-            $pdo,
-            'project-audit-ledger',
-            [   // owns_tables
-                'pal_users', 'pal_password_resets', 'pal_projects', 'pal_project_items',
-                'pal_project_types', 'pal_clients', 'pal_suppliers', 'pal_materials',
-                'pal_material_categories', 'pal_units', 'pal_inventory_locations',
-                'pal_inventory_movements', 'pal_inventory_balances', 'pal_purchases',
-                'pal_purchase_items', 'pal_material_issuances', 'pal_material_issuance_items',
-                'pal_material_returns', 'pal_expenses', 'pal_expense_categories',
-                'pal_sales', 'pal_sale_items', 'pal_collections', 'pal_fabrication_allocations',
-                'pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_team_leads',
-                'pal_approvals', 'pal_attachments', 'pal_audit_logs', 'pal_report_exports',
-                'pal_settings', 'pal_quotations', 'pal_quotation_items', 'pal_cash_advances',
-                'pal_otp_codes', 'pal_mobilization_requests',
-            ],
-            [   // reads_tables
-                'audit_logs', 'attendance_groups', 'attendance_group_members',
-                'attendance_wage_users', 'employee_profiles', 'attendance_records',
-            ]
-        );
     }
+
+    return new Ikabud\Kernel\Contracts\ModuleDB(
+        $pdo,
+        'project-audit-ledger',
+        [   // owns_tables
+            'pal_users', 'pal_password_resets', 'pal_projects', 'pal_project_items',
+            'pal_project_types', 'pal_clients', 'pal_suppliers', 'pal_materials',
+            'pal_material_categories', 'pal_units', 'pal_inventory_locations',
+            'pal_inventory_movements', 'pal_inventory_balances', 'pal_purchases',
+            'pal_purchase_items', 'pal_material_issuances', 'pal_material_issuance_items',
+            'pal_material_returns', 'pal_expenses', 'pal_expense_categories',
+            'pal_sales', 'pal_sale_items', 'pal_collections', 'pal_fabrication_allocations',
+            'pal_fabrication_weekly_dues', 'pal_fabrication_payments', 'pal_team_leads',
+            'pal_approvals', 'pal_attachments', 'pal_audit_logs', 'pal_report_exports',
+            'pal_settings', 'pal_quotations', 'pal_quotation_items', 'pal_cash_advances',
+            'pal_otp_codes', 'pal_mobilization_requests',
+            'pal_receivables', 'pal_receivable_payments',
+        ],
+        [   // reads_tables
+            'audit_logs', 'attendance_groups', 'attendance_group_members',
+            'attendance_wage_users', 'employee_profiles', 'attendance_records',
+        ]
+    );
 }
 
 /**
@@ -1169,7 +1198,7 @@ function palRejectStaleSession(): void
 {
     palClearAuthCookie();
     unset($_SESSION['pal_user']);
-    app()->redirect(palBaseUrl() . '/project-audit-ledger/login');
+    app()->redirect(external_base_url() . '/project-audit-ledger/login');
 }
 
 // ── New Capability Handlers (Quotations, Sale Items, Cash Advances) ──
