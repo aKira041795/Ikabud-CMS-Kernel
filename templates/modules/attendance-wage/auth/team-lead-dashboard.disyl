@@ -46,9 +46,9 @@
             </div>
         </div>
 
-        <!-- Filter -->
+        <!-- Filter + Actions -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-            <form method="GET" class="flex gap-3 items-end">
+            <form method="GET" class="flex gap-3 items-end flex-wrap">
                 <input type="hidden" name="t" value="{auth_token}">
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">From</label>
@@ -61,6 +61,18 @@
                 <div>
                     <button type="submit" class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Filter</button>
                 </div>
+                {if employee_summary|count > 0}
+                <div class="ml-auto">
+                    <a href="{pal_mobilize_url}"
+                       class="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 inline-flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Request Mobilization
+                    </a>
+                    {if !delegation_token}
+                    <span class="text-xs text-amber-600 ml-1" title="PAL authentication required">⚠</span>
+                    {/if}
+                </div>
+                {/if}
             </form>
         </div>
 

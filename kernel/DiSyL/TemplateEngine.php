@@ -122,6 +122,10 @@ class TemplateEngine
     public function addComponentDirectory(string $namespace, string $dir): void
     {
         $this->componentDirs[$namespace] = rtrim($dir, '/');
+        // Keep compiled cache in sync for include-path mtime tracking
+        if ($this->compiledCache !== null) {
+            $this->compiledCache->addComponentDirectory($namespace, rtrim($dir, '/'));
+        }
     }
 
     /**
@@ -193,6 +197,10 @@ class TemplateEngine
                         $this->cacheDir . '/compiled',
                         $this->debug
                     );
+                    // Register component directories for include-path mtime tracking
+                    foreach ($this->componentDirs as $ns => $dir) {
+                        $this->compiledCache->addComponentDirectory($ns, $dir);
+                    }
                 } catch (\Throwable $e) {
                     // Pipeline not ready (missing v4 Parser, etc.) — stay interpreted
                     $this->compiledMode = false;

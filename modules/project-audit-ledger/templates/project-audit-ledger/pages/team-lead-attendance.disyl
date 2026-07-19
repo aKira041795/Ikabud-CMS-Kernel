@@ -10,6 +10,12 @@
     <div>
         <button type="submit" class="wb-btn wb-btn--primary wb-btn--sm" data-wb-action="filter">Filter</button>
     </div>
+    {if employee_summary|count > 0}
+    <div class="ml-auto">
+        <a href="/admin/project-audit-ledger/team-lead/mobilization/create?attendance_group_id={groups.0.group_id}&date_from={date_from}&date_to={date_to}"
+           class="wb-btn wb-btn--primary wb-btn--sm" data-wb-action="request-mobilization">+ Request Mobilization</a>
+    </div>
+    {/if}
 </form>
 
 {if groups|count > 0}
@@ -17,6 +23,46 @@
     {for g in groups}
     <span class="inline-flex items-center px-2 py-1 rounded bg-blue-100 text-blue-700 text-xs font-medium mr-2" data-wb-tag="group">{g.name}</span>
     {/for}
+</div>
+{/if}
+
+<!-- Salary/Wage Summary from AW capability -->
+{if employee_summary|count > 0}
+<div class="mb-4" data-wb-region="attendance-salary-summary">
+    <div class="wb-panel p-4">
+        <h3 class="text-sm font-semibold text-gray-800 mb-2">Wage Estimate</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-100 text-xs">
+                        <th class="text-left py-1.5 px-2">Employee</th>
+                        <th class="text-center py-1.5 px-2">Type</th>
+                        <th class="text-center py-1.5 px-2">Days</th>
+                        <th class="text-right py-1.5 px-2">Hours</th>
+                        <th class="text-right py-1.5 px-2">Est. Pay</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {for es in employee_summary}
+                    <tr class="border-b border-gray-100">
+                        <td class="py-1.5 px-2 font-medium text-xs">{es.name}</td>
+                        <td class="py-1.5 px-2 text-center text-xs">{es.salary_type}</td>
+                        <td class="py-1.5 px-2 text-center text-xs">{es.days_worked}</td>
+                        <td class="py-1.5 px-2 text-right text-xs">{es.total_hours|round:1}</td>
+                        <td class="py-1.5 px-2 text-right text-xs font-semibold">₱{es.computed_salary|number_format:2}</td>
+                    </tr>
+                    {/for}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-gray-50 font-semibold text-xs">
+                        <td class="py-1.5 px-2" colspan="3">Totals &middot; {totals.record_count} records</td>
+                        <td class="py-1.5 px-2 text-right">{totals.total_hours|round:1}</td>
+                        <td class="py-1.5 px-2 text-right">₱{totals.total_computed_wages|number_format:2}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
 </div>
 {/if}
 

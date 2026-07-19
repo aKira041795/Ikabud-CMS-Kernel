@@ -168,7 +168,10 @@
                     "employee_profiles",
                     "attendance_records"
                 ],
-                "contract": "read-only bridge via pal_team_lead_email on attendance_groups"
+                "contract": "capability bridge via attendance_wage.team_attendance.summary@1",
+                "capabilities": [
+                    "attendance_wage.team_attendance.summary@1"
+                ]
             }
         ]
     },

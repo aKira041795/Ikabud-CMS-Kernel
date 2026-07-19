@@ -16,7 +16,10 @@
             "team-lead-attendance": "/admin/project-audit-ledger/team-lead/attendance",
             "team-lead-ca-form": "/admin/project-audit-ledger/team-lead/cash-advances/create",
             "team-lead-ca-list": "/admin/project-audit-ledger/team-lead/cash-advances",
-            "team-lead-dashboard": "/admin/project-audit-ledger/team-lead"
+            "team-lead-dashboard": "/admin/project-audit-ledger/team-lead",
+            "team-lead-mobilization": "/admin/project-audit-ledger/team-lead/mobilization",
+            "team-lead-mobilization-form": "/admin/project-audit-ledger/team-lead/mobilization/create",
+            "mobilization-list": "/admin/project-audit-ledger/mobilization"
         }
     },
     "description": "Project costing, inventory, fabrication dues, sales, and audit management for construction, fabrication, signage, and installation businesses.",
@@ -103,7 +106,9 @@
         "database/migrations/016_pal_unique_business_numbers.sql",
         "database/migrations/017_pal_client_snapshot.sql",
         "database/migrations/018_pal_receivables.sql",
-        "database/migrations/019_pal_allocation_idempotency.sql"
+        "database/migrations/019_pal_allocation_idempotency.sql",
+        "database/migrations/020_pal_username_case_sensitive.sql",
+        "database/migrations/021_pal_mobilization_attendance_snapshot.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -605,7 +610,8 @@
         ],
         "depends": [
             "kernel.audit.record@1",
-            "kernel.auth.user@1"
+            "kernel.auth.user@1",
+            "attendance_wage.team_attendance.summary@1"
         ],
         "policy": {
             "capabilities": {

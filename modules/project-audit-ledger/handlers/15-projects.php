@@ -43,6 +43,56 @@ function palPageProjectForm(array $rp = []): void
     $s3 = $db->prepare('SELECT id, name FROM pal_team_leads WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
     $s3->execute([':tid' => $tid]);
     $teamLeads = $s3->fetchAll(PDO::FETCH_ASSOC);
+
+    // Auto-provision AW team leads into PAL dropdown.
+    // Reads attendance_groups from the AW tenant (which may differ from PAL tenant).
+    // Falls back to PAL tenant if AW tables aren't found, or if no AW tenant is configured.
+    try {
+        // Determine the AW tenant: check module settings, then try current tenant
+        $moduleSettings = function_exists('getModuleSettings') ? getModuleSettings('project-audit-ledger') : [];
+        $awTenantId = !empty($moduleSettings['aw_tenant_id']) ? (int)$moduleSettings['aw_tenant_id'] : $tid;
+
+        $awDb = $awTenantId > 0 ? app()->dbForTenant($awTenantId) : $db;
+        if ($awDb !== null && $awDb !== $db) {
+            // Verify AW tables exist on the target tenant
+            $awDb->query("SELECT 1 FROM attendance_groups LIMIT 0");
+        }
+
+        $awTls = $awDb->query("
+            SELECT DISTINCT LOWER(ag.pal_team_lead_email) AS email,
+                   COALESCE(
+                       CONCAT_WS(' ', NULLIF(ep.first_name,''), NULLIF(ep.last_name,'')),
+                       ag.pal_team_lead_email
+                   ) AS full_name
+            FROM attendance_groups ag
+            LEFT JOIN employee_profiles ep ON ag.leader_profile_id = ep.profile_id
+                AND ag.tenant_id = ep.tenant_id
+            WHERE ag.tenant_id = {$awTenantId}
+              AND ag.is_active = 1
+              AND ag.pal_team_lead_email IS NOT NULL
+              AND ag.pal_team_lead_email != ''
+        ")->fetchAll(\PDO::FETCH_ASSOC);
+
+        $existingEmails = array_map('strtolower', array_column($teamLeads, 'email'));
+        foreach ($awTls as $aw) {
+            $email = $aw['email'];
+            if ($email === '' || in_array($email, $existingEmails, true)) continue;
+            $displayName = !empty($aw['full_name']) ? trim($aw['full_name']) : $email;
+            $db->prepare("
+                INSERT IGNORE INTO pal_team_leads (tenant_id, name, email, is_active, created_at)
+                VALUES (:tid, :name, :email, 1, NOW())
+            ")->execute([':tid' => $tid, ':name' => $displayName, ':email' => $email]);
+        }
+
+        // Re-fetch to include newly created records
+        $s3->execute([':tid' => $tid]);
+        $teamLeads = $s3->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        // AW tables may not exist on target tenant — gracefully continue
+        if (function_exists('write_log')) {
+            write_log('palPageProjectForm: AW team lead sync skipped: ' . $e->getMessage(), 'info');
+        }
+    }
     $s4 = $db->prepare("SELECT m.id, m.name, m.material_code, m.price_per_unit, m.price_per_sqft, 
                                m.default_width, m.default_height, mc.name AS category_name
                         FROM pal_materials m 
@@ -275,6 +325,7 @@ function palApiProjectUpdate(array $rp = []): void
         palEnforceCsrf();
 
         $id = (int)($rp['id'] ?? $_GET['id'] ?? $_POST['id'] ?? 0);
+
         $newStatus = $_POST['status'] ?? null;
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
 

@@ -1,8 +1,36 @@
 <div class="max-w-lg">
 <div class="wb-panel p-6" x-data="{ amount: 0, purpose: '', description: '', project_id: '' }">
     <h2 class="font-semibold text-gray-900 mb-4">Request Mobilization</h2>
+
+    {if attendance_summary}
+    <!-- Attendance evidence summary -->
+    <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+        <h3 class="font-semibold text-blue-900 mb-2">Attendance Context</h3>
+        <p class="text-blue-700 text-xs mb-1">
+            Period: {attendance_date_from} – {attendance_date_to}
+        </p>
+        <p class="text-blue-700 text-xs mb-1">
+            Records: {attendance_summary.totals.record_count} &middot;
+            Hours: {attendance_summary.totals.total_hours|round:1} &middot;
+            Est. Wages: ₱{attendance_summary.totals.total_computed_wages|number_format:2}
+        </p>
+        {if attendance_summary.groups|count > 0}
+        <p class="text-blue-700 text-xs">
+            {for g in attendance_summary.groups}
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-200 text-blue-800 text-xs font-medium mr-1">{g.name}</span>
+            {/for}
+        </p>
+        {/if}
+    </div>
+    {/if}
+
     <form onsubmit="return submitMobRequest(this)" action="/api/v1/project-audit-ledger/tl/mobilization" method="POST" class="wb-form-surface">
         {csrf_field | raw}
+        {if attendance_group_id}
+        <input type="hidden" name="attendance_group_id" value="{attendance_group_id}">
+        <input type="hidden" name="attendance_date_from" value="{attendance_date_from}">
+        <input type="hidden" name="attendance_date_to" value="{attendance_date_to}">
+        {/if}
         <div>
             <label class="wb-label wb-label--required">Amount</label>
             <input type="number" step="0.01" name="amount" required min="1" x-model="amount" class="wb-input" placeholder="0.00">

@@ -19,7 +19,7 @@
         </div>
     </div>
     <div class="wb-jo-form-card">
-    <form onsubmit="return ajaxSubmit(this, '{if is_edit}JO updated{else}JO created{/if}')" action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="wb-form-surface">
+    <form action="/api/v1/project-audit-ledger/projects{if is_edit}{if project.id}/{project.id}{/if}{/if}" method="POST" class="wb-form-surface">
         {csrf_field | raw}
         {if is_edit}<input type="hidden" name="_project_numeric_id" value="{project.id}">{/if}
         <!-- ── Section 1: Customer ── -->
@@ -78,7 +78,7 @@
             <div x-show="joType==='items'"><label class="wb-label">Other Charges</label><input type="number" step="0.01" name="other_charges" value="{project.other_charges|default:0}" class="wb-input"></div>
             <div><label class="wb-label">Mode of Payment</label><select name="mode_of_payment" class="wb-select"><option value="">—</option><option value="cash"{if project.mode_of_payment=='cash'} selected{/if}>Cash</option><option value="check"{if project.mode_of_payment=='check'} selected{/if}>Check</option><option value="bank_transfer"{if project.mode_of_payment=='bank_transfer'} selected{/if}>Bank Transfer</option><option value="gcash"{if project.mode_of_payment=='gcash'} selected{/if}>Gcash</option></select></div>
             <div><label class="wb-label">Down Payment</label><input type="number" step="0.01" name="down_payment" value="{project.down_payment|default:''}" class="wb-input"></div>
-            <div><label class="wb-label">With Installation</label><label class="wb-choice" :class="hasInstallation ? 'is-active' : ''"><input type="checkbox" name="with_installation" value="1" x-model="hasInstallation"> <span>Yes</span></label></div>
+            <div><label class="wb-label">With Installation</label><label class="wb-choice" :class="hasInstallation ? 'is-active' : ''"><input type="hidden" name="with_installation" x-init="$el.value = hasInstallation ? 1 : 0" value="0"><input type="checkbox" x-model="hasInstallation" @change="$el.previousElementSibling.value = $el.checked ? 1 : 0" value="1"> <span>Yes</span></label></div>
         </div></div>
 
         <!-- ── Section 4: Installation & Fabrication ── -->
@@ -99,7 +99,7 @@
             <template x-if="hasInstallation">
             <div><label class="wb-label">Allocation %</label><input type="number" step="0.01" name="fabrication_alloc_pct" value="{project.fabrication_alloc_pct|default:25}" class="wb-input"><p class="text-xs text-gray-600 mt-1">% of basis amount allocated to fabrication</p></div>
             </template>
-            <input type="hidden" name="_jo_type" x-bind:value="joType">
+            <input type="hidden" name="_jo_type" value="{project.jo_type|default:'items'}" x-bind:value="joType">
         </div>
         </div>
 
@@ -206,6 +206,46 @@
         </div>
     </form>
 </div></div>
+
+<script>
+(function() {
+    var form = document.querySelector('form.wb-form-surface');
+    if (!form) return;
+
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        var fd = new FormData(form);
+        var successMsg = document.querySelector('input[name="_project_numeric_id"]') ? 'JO updated' : 'JO created';
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body: fd,
+        }).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function(res) {
+            if (res.ok) {
+                // Show feedback even if workbench toast system is unavailable
+                try { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: successMsg, type: 'success' } })); } catch(ignored) {}
+                if (res.redirect) { window.location.href = res.redirect; }
+                else { setTimeout(function() { window.location.reload(); }, 800); }
+            } else {
+                var errMsg = res.error || 'Save failed';
+                try { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: errMsg, type: 'error' } })); } catch(ignored) {}
+                alert(errMsg);
+            }
+        }).catch(function(err) {
+            var msg = 'Network error — check your connection and try again.';
+            try { window.dispatchEvent(new CustomEvent('cms-toast', { detail: { message: msg, type: 'error' } })); } catch(ignored) {}
+            alert(msg);
+            console.error('JO form submit failed:', err);
+        });
+    }, { once: false });
+})();
+</script>
 
   <!-- ── RIGHT: Sticky Summary (desktop only) ── -->
   <div class="wb-jo-aside">

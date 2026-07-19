@@ -27,6 +27,9 @@
             <p class="text-xs text-gray-500 mb-4">A 6-digit code will be sent to your email.</p>
             <form onsubmit="return requestOtp(this)" class="wb-form-surface">
                 {csrf_field | raw}
+                {if redirect}
+                <input type="hidden" name="redirect" value="{redirect}">
+                {/if}
                 <div>
                     <label class="wb-label" for="tl-email">Email Address</label>
                     <input type="email" name="email" required autocomplete="email" placeholder="team.lead@zap-arts.com" class="wb-input" id="tl-email">

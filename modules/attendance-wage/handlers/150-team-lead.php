@@ -204,6 +204,16 @@ function attendancePageTeamLeadDashboard(): void
     $db = aw_db();
     $tenantId = (string)(app()->tenant()->current() ?? '');
 
+    // Parse date range from query params — defaults to current month
+    $dateFrom = $_GET['date_from'] ?? date('Y-m-01');
+    $dateTo = $_GET['date_to'] ?? date('Y-m-t');
+    if (!\DateTime::createFromFormat('Y-m-d', $dateFrom)) {
+        $dateFrom = date('Y-m-01');
+    }
+    if (!\DateTime::createFromFormat('Y-m-d', $dateTo)) {
+        $dateTo = date('Y-m-t');
+    }
+
     require_once __DIR__ . '/../services/AttendanceGroupService.php';
     $svc = new AttendanceGroupService($db, (string)$tenantId, 0);
     $group = $svc->get($groupId);
@@ -215,6 +225,9 @@ function attendancePageTeamLeadDashboard(): void
         ]);
         return;
     }
+
+    // Fetch attendance via the group service (same bridge query PAL uses)
+    $attendance = $svc->getGroupAttendance($groupId, $dateFrom, $dateTo);
 
     // Use separate file for salary calc — busts stale OPcache
     require_once __DIR__ . '/tl-salary-helpers.php';
@@ -245,6 +258,31 @@ function attendancePageTeamLeadDashboard(): void
     }
     unset($es);
 
+    // Issue a kernel delegation token so the team lead can cross into PAL
+    // without a second OTP. The token is scoped to this tenant, email, purpose,
+    // and expires in 5 minutes.
+    $delegationToken = '';
+    try {
+        $delegationResult = app()->cap()->call('kernel.auth.delegate@1', [
+            'from_module' => 'attendance-wage',
+            'to_module' => 'project-audit-ledger',
+            'identity_email' => $email,
+            'tenant_id' => $tenantId,
+            'purpose' => 'mobilization',
+            'ttl_seconds' => 300,
+        ], [
+            'caller' => ['module' => 'attendance-wage'],
+            'mode' => 'first',
+        ]);
+        if (is_array($delegationResult) && !empty($delegationResult['ok'])) {
+            $delegationToken = $delegationResult['delegation_token'] ?? '';
+        }
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('aw_team_lead_dashboard: delegation token issue failed: ' . $e->getMessage(), 'warning');
+        }
+    }
+
     echo app()->render('modules/attendance-wage/auth/team-lead-dashboard', [
         'page_title' => 'Team: ' . $groupName,
         'group' => $group,
@@ -253,6 +291,12 @@ function attendancePageTeamLeadDashboard(): void
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
         'auth_token' => $token,
+        'delegation_token' => $delegationToken,
+        'pal_mobilize_url' => '/admin/project-audit-ledger/team-lead/mobilization/create'
+            . '?attendance_group_id=' . $groupId
+            . '&date_from=' . urlencode($dateFrom)
+            . '&date_to=' . urlencode($dateTo)
+            . ($delegationToken !== '' ? '&_dgt=' . urlencode($delegationToken) : ''),
     ]);
 }
 

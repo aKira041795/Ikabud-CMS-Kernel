@@ -221,6 +221,10 @@ if (file_exists($tpl)) {
     test('Has <table> tag', str_contains($c, '<table'));
     test('Has </table> tag', str_contains($c, '</table>'));
     test('Has status color classes', str_contains($c, 'bg-green-100') && str_contains($c, 'bg-yellow-100'));
+    test('Has wage estimate section', str_contains($c, 'Wage Estimate'));
+    test('Has employee_summary loop', str_contains($c, 'employee_summary'));
+    test('Has totals display', str_contains($c, 'totals.'));
+    test('Has Request Mobilization link', str_contains($c, 'Request Mobilization') || str_contains($c, 'mobilization/create'));
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -259,6 +263,24 @@ test('AW workbench contract declares shared_with PAL',
         return false;
     })());
 
+// Check capability bridge contract
+$awShared = [];
+foreach (($awWb['ownership']['shared_with'] ?? []) as $s) {
+    if (($s['module'] ?? '') === 'project-audit-ledger') {
+        $awShared = $s;
+        break;
+    }
+}
+test('AW shared_with PAL uses capability bridge',
+    str_contains($awShared['contract'] ?? '', 'capability bridge')
+    || str_contains($awShared['contract'] ?? '', 'attendance_wage.team_attendance.summary@1'));
+
+// Check PAL capability dependency in workbench contract
+$palManifest = json_decode(file_get_contents($basePath . '/modules/project-audit-ledger/module.json'), true);
+$palDepends = $palManifest['capabilities']['depends'] ?? [];
+test('PAL depends on AW team_attendance.summary capability',
+    in_array('attendance_wage.team_attendance.summary@1', $palDepends, true));
+
 // PAL reads_tables contract
 $palReads = $palManifest['reads_tables'] ?? [];
 foreach (['attendance_groups','attendance_group_members','attendance_wage_users','employee_profiles','attendance_records'] as $t) {
@@ -270,14 +292,45 @@ test('PAL does NOT own attendance_groups', !in_array('attendance_groups', $palOw
 test('PAL does NOT own attendance_records', !in_array('attendance_records', $palOwns));
 
 // ────────────────────────────────────────────────────────────────────
-echo "\n9. Bridge query source audit\n";
+echo "\n9. Capability bridge source audit\n";
 
 $src = file_get_contents($basePath . '/modules/project-audit-ledger/handlers/53-team-lead.php');
-test('Uses ar.attendance_id (not ar.id)', str_contains($src, 'ar.attendance_id'));
-test('Uses LOWER() for email comparison', str_contains($src, 'LOWER(pal_team_lead_email)') && str_contains($src, 'LOWER(:email)'));
-test('Filters by is_active = 1', str_contains($src, 'is_active = 1'));
-test('Scopes ar.tenant_id', str_contains($src, 'ar.tenant_id = :tid2'));
-test('Uses CONCAT with NULLIF for names', str_contains($src, 'NULLIF') && str_contains($src, 'CONCAT'));
+test('PAL attendance uses app()->cap()->call()',
+    str_contains($src, "app()->cap()->call('attendance_wage.team_attendance.summary@1'"));
+test('PAL attendance references AW capability ID',
+    str_contains($src, 'attendance_wage.team_attendance.summary@1'));
+test('PAL attendance passes caller metadata',
+    str_contains($src, "'caller' => ['module' => 'project-audit-ledger']"));
+test('PAL attendance handles capability ok=false',
+    str_contains($src, "ok']"));
+
+$awHelpersSrc = file_get_contents($basePath . '/modules/attendance-wage/helpers.php');
+test('AW capability handler exists',
+    str_contains($awHelpersSrc, 'aw_cap_team_attendance_summary_1'));
+test('AW capability handler registered in map',
+    str_contains($awHelpersSrc, "'attendance_wage.team_attendance.summary@1' => 'aw_cap_team_attendance_summary_1'"));
+test('AW capability uses AttendanceGroupService',
+    str_contains($awHelpersSrc, 'AttendanceGroupService'));
+test('AW capability uses tl_computeSalary',
+    str_contains($awHelpersSrc, 'tl_computeSalary'));
+test('AW capability returns evidence with provider',
+    str_contains($awHelpersSrc, "'provider' => 'attendance-wage'"));
+test('AW capability returns evidence with version',
+    str_contains($awHelpersSrc, "'version' => '1'"));
+
+// Verify PAL mobilization store revalidates via capability
+$palStoreSql = file_get_contents($basePath . '/modules/project-audit-ledger/handlers/53-team-lead.php');
+test('PAL mobilization store revalidates via capability',
+    str_contains($palStoreSql, "attendance_wage.team_attendance.summary@1"));
+
+// Verify AW team-lead dashboard calls getGroupAttendance
+$awTlSrc = file_get_contents($basePath . '/modules/attendance-wage/handlers/150-team-lead.php');
+test('AW team-lead dashboard calls getGroupAttendance()',
+    str_contains($awTlSrc, 'getGroupAttendance('));
+test('AW team-lead dashboard parses date_from',
+    str_contains($awTlSrc, "dateFrom = \$_GET['date_from']"));
+test('AW team-lead dashboard parses date_to',
+    str_contains($awTlSrc, "dateTo = \$_GET['date_to']"));
 
 // ────────────────────────────────────────────────────────────────────
 echo "\n" . str_repeat('=', 60) . "\n";

@@ -83,6 +83,14 @@
                 "description": "Full administrative access: settings, benefits rates, holidays, all data"
             },
             {
+                "id": "attendance_wage.team_attendance.summary@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Team attendance summary bridge for PAL mobilization: groups, attendance rows, per-member wage summary, totals, evidence metadata"
+            },
+            {
                 "id": "entity.list.attendance_record@1",
                 "priority": 50,
                 "modes": [

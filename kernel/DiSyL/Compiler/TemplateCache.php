@@ -25,6 +25,9 @@ class TemplateCache
     
     /** @var array<string, CompiledTemplate> In-memory cache */
     private array $loaded = [];
+
+    /** @var array<string, string> Component namespace → directory path */
+    private array $componentDirs = [];
     
     public function __construct(string $cacheDir, bool $debug = false)
     {
@@ -160,30 +163,49 @@ class TemplateCache
         // than the cache, recompile. This ensures layout changes propagate
         // to child templates without manual cache clearing.
         $source = @file_get_contents($templatePath);
-        if ($source !== false && preg_match('/\{extends\s+"([^"]+)"\s*\}/', $source, $m)) {
-            $parentPath = $this->resolveExtendsPath($templatePath, $m[1]);
-            if ($parentPath !== null && file_exists($parentPath)) {
-                if (filemtime($parentPath) > filemtime($cachePath)) {
-                    return true;
-                }
-                // Also check if the parent itself extends further (recursive scan).
-                // Limit depth to avoid infinite loops on circular extends.
-                $depth = 0;
-                $currentPath = $parentPath;
-                while ($depth < 10) {
-                    $depth++;
-                    $parentSource = @file_get_contents($currentPath);
-                    if ($parentSource === false || !preg_match('/\{extends\s+"([^"]+)"\s*\}/', $parentSource, $pm)) {
-                        break;
-                    }
-                    $grandparentPath = $this->resolveExtendsPath($currentPath, $pm[1]);
-                    if ($grandparentPath === null || !file_exists($grandparentPath)) {
-                        break;
-                    }
-                    if (filemtime($grandparentPath) > filemtime($cachePath)) {
+        if ($source !== false) {
+            // {extends} chain
+            if (preg_match('/\{extends\s+"([^"]+)"\s*\}/', $source, $m)) {
+                $parentPath = $this->resolveExtendsPath($templatePath, $m[1]);
+                if ($parentPath !== null && file_exists($parentPath)) {
+                    if (filemtime($parentPath) > filemtime($cachePath)) {
                         return true;
                     }
-                    $currentPath = $grandparentPath;
+                    // Also check if the parent itself extends further (recursive scan).
+                    // Limit depth to avoid infinite loops on circular extends.
+                    $depth = 0;
+                    $currentPath = $parentPath;
+                    while ($depth < 10) {
+                        $depth++;
+                        $parentSource = @file_get_contents($currentPath);
+                        if ($parentSource === false || !preg_match('/\{extends\s+"([^"]+)"\s*\}/', $parentSource, $pm)) {
+                            break;
+                        }
+                        $grandparentPath = $this->resolveExtendsPath($currentPath, $pm[1]);
+                        if ($grandparentPath === null || !file_exists($grandparentPath)) {
+                            break;
+                        }
+                        if (filemtime($grandparentPath) > filemtime($cachePath)) {
+                            return true;
+                        }
+                        $currentPath = $grandparentPath;
+                    }
+                }
+            }
+
+            // {include ...} directives — if any included template is newer than
+            // the cache, recompile. This ensures edits to partials/page templates
+            // propagate without manual cache clearing.
+            // Matches: {include "path"} and {include "ns:path"}
+            if (preg_match_all('/\{include\s+"([^"]+)"[^}]*\}/', $source, $includes)) {
+                $dir = dirname($templatePath);
+                foreach ($includes[1] as $incTarget) {
+                    $incPath = $this->resolveIncludePath($dir, $incTarget);
+                    if ($incPath !== null && file_exists($incPath)) {
+                        if (filemtime($incPath) > filemtime($cachePath)) {
+                            return true;
+                        }
+                    }
                 }
             }
         }
@@ -209,6 +231,66 @@ class TemplateCache
         // Resolve relative to the child template's directory
         $dir = dirname($childPath);
         $candidate = $dir . '/' . $extendsTarget;
+        if (file_exists($candidate)) {
+            return realpath($candidate) ?: $candidate;
+        }
+        return null;
+    }
+
+    /**
+     * Resolve an {include} path relative to the parent template's directory.
+     * Handles the same path forms as resolveExtendsPath plus namespaced
+     * component references (e.g. "workbench:app_shell").
+     *
+     * Component namespace dirs can be registered via addComponentDirectory().
+     */
+    private function resolveIncludePath(string $parentDir, string $includeTarget): ?string
+    {
+        if (str_starts_with($includeTarget, '/')) {
+            $candidate = $includeTarget;
+            if (file_exists($candidate)) {
+                return realpath($candidate) ?: $candidate;
+            }
+            return null;
+        }
+        if (str_starts_with($includeTarget, '_cms_active_theme/') && function_exists('cmsResolveThemeTemplateAliasPath')) {
+            $resolved = cmsResolveThemeTemplateAliasPath($includeTarget);
+            if ($resolved !== '' && file_exists($resolved)) {
+                return realpath($resolved) ?: $resolved;
+            }
+            return null;
+        }
+        // Namespaced component: "workbench:app_shell" → component dir + name.disyl
+        if (preg_match('/^([a-z][a-z0-9_-]*):(.+)$/', $includeTarget, $nsMatch)) {
+            $namespace = $nsMatch[1];
+            $name = $nsMatch[2];
+            if (isset($this->componentDirs[$namespace])) {
+                $candidate = $this->componentDirs[$namespace] . '/' . $name;
+                if (pathinfo($candidate, PATHINFO_EXTENSION) !== 'disyl') {
+                    $candidate .= '.disyl';
+                }
+                if (file_exists($candidate)) {
+                    return realpath($candidate) ?: $candidate;
+                }
+            }
+            return null;
+        }
+        // Module alias: "modules/cms/..." — resolve relative to BASE_PATH
+        if (str_starts_with($includeTarget, 'modules/') && defined('BASE_PATH')) {
+            $candidate = BASE_PATH . '/' . $includeTarget;
+            if (pathinfo($candidate, PATHINFO_EXTENSION) !== 'disyl') {
+                $candidate .= '.disyl';
+            }
+            if (file_exists($candidate)) {
+                return realpath($candidate) ?: $candidate;
+            }
+            return null;
+        }
+        // Relative path (resolve relative to parent template's directory)
+        $candidate = $parentDir . '/' . $includeTarget;
+        if (pathinfo($candidate, PATHINFO_EXTENSION) !== 'disyl') {
+            $candidate .= '.disyl';
+        }
         if (file_exists($candidate)) {
             return realpath($candidate) ?: $candidate;
         }
@@ -442,6 +524,15 @@ class TemplateCache
         }
 
         return $removed;
+    }
+
+    /**
+     * Register a component directory for namespace resolution in include paths.
+     * Enables {include "workbench:app_shell"} mtime tracking in needsRecompile().
+     */
+    public function addComponentDirectory(string $namespace, string $dir): void
+    {
+        $this->componentDirs[$namespace] = rtrim($dir, '/');
     }
 
     /**

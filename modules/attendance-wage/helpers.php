@@ -43,6 +43,8 @@ function attendance_wage_capability_handlers(): array
         'attendance_wage.manage@1'           => 'aw_cap_manage_1',
         'attendance_wage.approve@1'          => 'aw_cap_approve_1',
         'attendance_wage.admin@1'            => 'aw_cap_admin_1',
+        // Team attendance bridge capability (used by PAL for mobilization)
+        'attendance_wage.team_attendance.summary@1' => 'aw_cap_team_attendance_summary_1',
         // Entity list handlers
         'entity.list.attendance_record@1'    => 'aw_cap_entity_list_attendance_record_1',
         'entity.list.employee_profile@1'     => 'aw_cap_entity_list_employee_profile_1',
@@ -65,10 +67,6 @@ function attendance_wage_capability_handlers(): array
         'entity.list.office_location@1'      => 'aw_cap_entity_list_office_location_1',
         'attendance.record.hours.update@1'   => 'aw_cap_attendance_hours_update_1',
         'entity.get.office_location@1'       => 'aw_cap_entity_get_office_location_1',
-        'attendance_wage.read@1'             => 'aw_cap_read_1',
-        'attendance_wage.manage@1'           => 'aw_cap_manage_1',
-        'attendance_wage.approve@1'          => 'aw_cap_approve_1',
-        'attendance_wage.admin@1'            => 'aw_cap_admin_1',
     ];
 }
 
@@ -447,6 +445,155 @@ function aw_cap_entity_get_cash_advance_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT ca.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name FROM cash_advances ca LEFT JOIN employee_profiles ep ON ep.user_id = ca.user_id WHERE ca.advance_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
 function aw_cap_entity_get_employee_schedule_1(mixed $payload): array
 { $id=(int)($payload['id']??0); if($id<=0)return[]; $db=aw_db(); $s=$db->prepare("SELECT es.*, CONCAT_WS(' ', ep.first_name, ep.middle_name, ep.last_name, ep.suffix) AS employee_name, ep.position, ep.department FROM employee_schedules es JOIN employee_profiles ep ON ep.user_id = es.user_id WHERE es.schedule_id=:id LIMIT 1"); $s->execute([':id'=>$id]); $r=$s->fetch(\PDO::FETCH_ASSOC); return is_array($r)?$r:[]; }
+
+// ── Team Attendance Summary capability (bridge for PAL mobilization) ──
+
+/**
+ * Capability: attendance_wage.team_attendance.summary@1
+ *
+ * Returns active groups, member attendance rows, per-member wage summary,
+ * total hours, total computed wages, and evidence metadata for a team lead.
+ *
+ * Payload:
+ *   - tenant_id (int)       — required; tenant scope
+ *   - team_lead_email (string) — required (case-insensitive match against pal_team_lead_email)
+ *   - date_from (string)    — required; Y-m-d
+ *   - date_to (string)      — required; Y-m-d
+ *   - group_id (int|null)   — optional; if provided, only return data for that group
+ *
+ * Returns:
+ *   - groups: array of {group_id, name}
+ *   - attendance: array of attendance rows (per getGroupAttendance)
+ *   - employee_summary: array keyed by profile_id with {name, salary_type, days_worked, total_hours, computed_salary}
+ *   - totals: {total_hours, total_computed_wages, record_count}
+ *   - evidence: {group_ids[], date_from, date_to, generated_at, provider: "attendance-wage", version: "1"}
+ */
+function aw_cap_team_attendance_summary_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    $tenantId = (string)($payload['tenant_id'] ?? '');
+    $email = trim(strtolower((string)($payload['team_lead_email'] ?? '')));
+    $dateFrom = (string)($payload['date_from'] ?? '');
+    $dateTo = (string)($payload['date_to'] ?? '');
+    $groupId = isset($payload['group_id']) ? (int)$payload['group_id'] : null;
+
+    if ($tenantId === '' || $email === '' || $dateFrom === '' || $dateTo === '') {
+        return ['ok' => false, 'error' => 'Missing required parameters: tenant_id, team_lead_email, date_from, date_to.'];
+    }
+
+    // Validate date format
+    $dFrom = \DateTime::createFromFormat('Y-m-d', $dateFrom);
+    $dTo = \DateTime::createFromFormat('Y-m-d', $dateTo);
+    if (!$dFrom || !$dTo) {
+        return ['ok' => false, 'error' => 'Invalid date format. Expected Y-m-d.'];
+    }
+
+    try {
+        // Use the tenant's own DB for AW data
+        $tenantIdInt = (int)$tenantId;
+        $db = $tenantIdInt > 0 ? app()->dbForTenant($tenantIdInt) : app()->db();
+        if (!$db instanceof \PDO) {
+            return ['ok' => false, 'error' => 'Tenant database unavailable.'];
+        }
+
+        // Load the group service + salary helpers
+        if (!class_exists('AttendanceGroupService')) {
+            require_once __DIR__ . '/services/AttendanceGroupService.php';
+        }
+        if (!function_exists('tl_computeSalary')) {
+            require_once __DIR__ . '/handlers/tl-salary-helpers.php';
+        }
+
+        $svc = new \AttendanceGroupService($db, $tenantId, 0);
+
+        // Find active groups for this team lead email
+        $stmt = $db->prepare("
+            SELECT group_id, name, pal_team_lead_email FROM attendance_groups
+            WHERE LOWER(pal_team_lead_email) = :email AND tenant_id = :tid AND is_active = 1
+        ");
+        $stmt->execute([':email' => $email, ':tid' => $tenantId]);
+        $groups = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        // If a specific group_id was requested, filter to only that group
+        if ($groupId !== null && $groupId > 0) {
+            $groups = array_values(array_filter($groups, fn($g) => (int)$g['group_id'] === $groupId));
+        }
+
+        if (empty($groups)) {
+            return ['ok' => false, 'error' => 'No active attendance groups found for this team lead email.'];
+        }
+
+        // Collect attendance for all groups
+        $attendance = [];
+        foreach ($groups as $g) {
+            $rows = $svc->getGroupAttendance((int)$g['group_id'], $dateFrom, $dateTo);
+            // Attach group_name for identification
+            foreach ($rows as &$row) {
+                $row['group_name'] = $g['name'];
+            }
+            unset($row);
+            $attendance = array_merge($attendance, $rows);
+        }
+
+        // Compute per-employee salary summary
+        $employeeSummary = [];
+        foreach ($attendance as $row) {
+            $pid = $row['profile_id'];
+            if (!isset($employeeSummary[$pid])) {
+                $employeeSummary[$pid] = [
+                    'name' => $row['employee_name'],
+                    'salary_type' => $row['salary_type'] ?? 'daily',
+                    'daily_rate' => tl_effectiveDailyRate($row),
+                    'hourly_rate' => (float)($row['hourly_rate'] ?? 0),
+                    'total_hours' => 0,
+                    'days' => [],
+                ];
+            }
+            $employeeSummary[$pid]['total_hours'] += (float)($row['hours_worked'] ?? 0);
+            $d = substr($row['clock_in'] ?? '', 0, 10);
+            if ($d !== '') {
+                $employeeSummary[$pid]['days'][$d] = true;
+            }
+        }
+        foreach ($employeeSummary as $pid => &$es) {
+            $es['days_worked'] = count($es['days']);
+            $es['computed_salary'] = tl_computeSalary($es, $dateFrom, $dateTo);
+            // Remove internal 'days' map from output
+            unset($es['days']);
+        }
+        unset($es);
+
+        $totalHours = array_sum(array_column($attendance, 'hours_worked'));
+        $totalWages = array_sum(array_column($employeeSummary, 'computed_salary'));
+        $groupIds = array_column($groups, 'group_id');
+
+        $evidence = [
+            'group_ids' => $groupIds,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'generated_at' => date('Y-m-d H:i:s'),
+            'provider' => 'attendance-wage',
+            'version' => '1',
+        ];
+
+        return [
+            'ok' => true,
+            'groups' => $groups,
+            'attendance' => $attendance,
+            'employee_summary' => array_values($employeeSummary),
+            'totals' => [
+                'total_hours' => round($totalHours, 2),
+                'total_computed_wages' => round($totalWages, 2),
+                'record_count' => count($attendance),
+            ],
+            'evidence' => $evidence,
+        ];
+    } catch (\Throwable $e) {
+        if (function_exists('write_log')) {
+            write_log('aw_cap_team_attendance_summary_1: ' . $e->getMessage(), 'error');
+        }
+        return ['ok' => false, 'error' => 'Failed to retrieve team attendance summary.'];
+    }
+}
 
 // ── Core salary computation (ported from CI) ──
 

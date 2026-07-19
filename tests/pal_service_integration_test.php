@@ -115,6 +115,57 @@ foreach ($svcClasses as $cls) {
     ok(class_exists($cls), "Class {$cls} exists");
 }
 
+// ── 4. JO Edit Regression ─────────────────────────────────────────
+echo "\n=== JO Edit Regression ===\n";
+$projectId = null;
+try {
+    $suffix = (string)time();
+    $insert = $db->prepare("
+        INSERT INTO pal_projects (
+            tenant_id, project_id, job_order_number, jo_type, title,
+            contract_amount, estimated_cost, status, with_installation, created_by
+        ) VALUES (
+            :tenant_id, :project_id, :job_order_number, 'items', :title,
+            100.00, 0.00, 'draft', 1, 1
+        )
+    ");
+    $insert->execute([
+        ':tenant_id' => 502,
+        ':project_id' => 'TEST-JO-EDIT-' . $suffix,
+        ':job_order_number' => 'TEST-JO-EDIT-' . $suffix,
+        ':title' => 'JO Edit Regression Seed',
+    ]);
+    $projectId = (int)$db->lastInsertId();
+
+    $svc = new palProjectService(palDb(), 502, 1);
+    $updated = $svc->update($projectId, [
+        '_jo_type' => '',
+        'title' => 'JO Edit Regression Updated',
+        'status' => 'draft',
+        'with_installation' => '1',
+        'contract_amount' => '',
+        'installation_charge' => '5',
+        'mobilization_charge' => '7',
+        'other_charges' => '',
+    ]);
+
+    $check = $db->prepare('SELECT title, jo_type, with_installation FROM pal_projects WHERE id = :id AND tenant_id = 502');
+    $check->execute([':id' => $projectId]);
+    $row = $check->fetch(PDO::FETCH_ASSOC);
+
+    ok($updated === true, 'JO edit update reports changed row');
+    ok(($row['title'] ?? '') === 'JO Edit Regression Updated', 'JO edit updates title');
+    ok(($row['jo_type'] ?? '') === 'items', 'JO edit preserves stored type when _jo_type is empty');
+    ok((int)($row['with_installation'] ?? 0) === 1, 'JO edit preserves installation flag from form post');
+} catch (Throwable $e) {
+    ok(false, 'JO edit handles empty _jo_type: ' . $e->getMessage());
+} finally {
+    if ($projectId !== null) {
+        $db->prepare('DELETE FROM pal_project_items WHERE project_id = :id AND tenant_id = 502')->execute([':id' => $projectId]);
+        $db->prepare('DELETE FROM pal_projects WHERE id = :id AND tenant_id = 502')->execute([':id' => $projectId]);
+    }
+}
+
 // ── 6. Routes Are Registered ──────────────────────────────────────
 echo "\n=== Routes ===\n";
 $routesFile = __DIR__ . '/../modules/project-audit-ledger/routes.php';

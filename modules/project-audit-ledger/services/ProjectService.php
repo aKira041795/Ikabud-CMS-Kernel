@@ -106,7 +106,7 @@ class palProjectService
         }
 
         // Determine JO type: 'items' (quotation) or 'contract' (contracted amount)
-        $joType = $data['_jo_type'] ?? (empty($data['items']) ? 'contract' : 'items');
+        $joType = $this->normalizeJoType($data['_jo_type'] ?? $data['jo_type'] ?? null, empty($data['items']) ? 'contract' : 'items');
         $withInstallation = !empty($data['with_installation']) ? 1 : 0;
 
         // Items are always saved (BOM / material tracking)
@@ -238,9 +238,13 @@ class palProjectService
             $this->guardNotPaid($id);
         }
 
-        // Map form field _jo_type to DB column jo_type
-        if (isset($data['_jo_type'])) {
-            $data['jo_type'] = $data['_jo_type'];
+        // Map form field _jo_type to DB column jo_type.
+        $joType = $this->normalizeJoType(
+            $data['_jo_type'] ?? $data['jo_type'] ?? null,
+            $project['jo_type'] ?? (isset($data['items']) ? 'items' : 'contract')
+        );
+        if (array_key_exists('_jo_type', $data) || array_key_exists('jo_type', $data)) {
+            $data['jo_type'] = $joType;
         }
 
         foreach ([
@@ -263,7 +267,7 @@ class palProjectService
                 // Null empty decimal fields (MySQL strict mode rejects '' for DECIMAL)
                 if (in_array($field, ['down_payment', 'fabrication_alloc_pct', 'fabrication_alloc_fixed', 'estimated_cost', 'contract_amount', 'installation_charge', 'mobilization_charge', 'other_charges'], true)) {
                     if ($val === '' || $val === null) {
-                        $val = null;
+                        $val = in_array($field, ['contract_amount', 'estimated_cost', 'installation_charge', 'mobilization_charge', 'other_charges'], true) ? 0 : null;
                     } else {
                         $val = (float)$val;
                     }
@@ -280,27 +284,28 @@ class palProjectService
                     if (array_key_exists('fabrication_team_lead_id', $data)) {
                         $fields[] = 'fabrication_team_lead_id = :_fab_tlid';
                         $params[':_fab_tlid'] = null;
+                        unset($data['fabrication_team_lead_id']);
                     }
                     if (array_key_exists('fabrication_alloc_pct', $data)) {
                         $fields[] = 'fabrication_alloc_pct = :_fab_pct';
                         $params[':_fab_pct'] = null;
+                        unset($data['fabrication_alloc_pct']);
                     }
                     if (array_key_exists('fabrication_alloc_basis', $data)) {
                         $fields[] = 'fabrication_alloc_basis = :_fab_basis';
                         $params[':_fab_basis'] = null;
+                        unset($data['fabrication_alloc_basis']);
                     }
                     if (array_key_exists('fabrication_alloc_fixed', $data)) {
                         $fields[] = 'fabrication_alloc_fixed = :_fab_fixed';
                         $params[':_fab_fixed'] = null;
+                        unset($data['fabrication_alloc_fixed']);
                     }
                 }
                 $fields[] = "{$field} = :{$field}";
                 $params[":{$field}"] = $val;
             }
         }
-
-        // Determine JO type from form or stored data
-        $joType = $data['_jo_type'] ?? $project['jo_type'] ?? (isset($data['items']) ? 'items' : 'contract');
 
         if ($joType === 'contract') {
             // Contracted amount: zero out charges
@@ -455,7 +460,7 @@ class palProjectService
         $nonTextFields = [
             // ENUMs
             'scope_of_work', 'mode_of_payment', 'down_payment_type', 'fabrication_alloc_basis',
-            'project_type_id', 'status',
+            'project_type_id', 'status', 'jo_type',
             // Decimals
             'contract_amount', 'estimated_cost', 'installation_charge', 'mobilization_charge',
             'other_charges', 'down_payment', 'fabrication_alloc_pct', 'fabrication_alloc_fixed',
@@ -463,7 +468,7 @@ class palProjectService
             // Dates
             'start_date', 'target_completion_date', 'actual_completion_date',
             // Ints
-            'fabrication_team_lead_id',
+            'fabrication_team_lead_id', 'with_installation',
         ];
         foreach ($nonTextFields as $field) {
             if (array_key_exists($field, $data) && $data[$field] === '') {
@@ -487,6 +492,16 @@ class palProjectService
         if (isset($data['estimated_cost']) && $data['estimated_cost'] < 0) {
             throw new InvalidArgumentException('Estimated cost cannot be negative.');
         }
+    }
+
+    private function normalizeJoType(mixed $value, ?string $fallback = 'items'): string
+    {
+        $value = is_string($value) ? trim($value) : '';
+        if (in_array($value, ['items', 'contract'], true)) {
+            return $value;
+        }
+
+        return in_array($fallback, ['items', 'contract'], true) ? (string)$fallback : 'items';
     }
 
     private function saveItems(int $projectId, array $items): void

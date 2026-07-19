@@ -256,6 +256,11 @@ function palPageTeamLeadMobilization(): void
 /**
  * Team Lead Mobilization Form
  * GET /admin/project-audit-ledger/team-lead/mobilization/create
+ *
+ * Accepts optional attendance context from AW team-lead dashboard:
+ *   ?attendance_group_id={}&date_from={}&date_to={}
+ * When present, calls AW capability for wage/evidence summary to display
+ * alongside the amount/purpose form fields.
  */
 function palPageTeamLeadMobilizationForm(): void
 {
@@ -263,6 +268,7 @@ function palPageTeamLeadMobilizationForm(): void
     $db = palDb();
     $tid = (int)(app()->tenant()->current() ?? 0);
     $tlId = (int)$tl['team_lead_id'];
+    $tlEmail = $tl['email'] ?? '';
 
     $projects = $db->prepare("
         SELECT id, title, job_order_number
@@ -273,6 +279,40 @@ function palPageTeamLeadMobilizationForm(): void
     ");
     $projects->execute([':tlid' => $tlId, ':tid' => $tid]);
 
+    // Attendance context from AW dashboard (optional)
+    $attGroupId = !empty($_GET['attendance_group_id']) ? (int)$_GET['attendance_group_id'] : null;
+    $attDateFrom = $_GET['date_from'] ?? '';
+    $attDateTo = $_GET['date_to'] ?? '';
+    $attendanceSummary = null;
+
+    if ($attGroupId !== null && $attGroupId > 0 && $attDateFrom !== '' && $attDateTo !== '') {
+        // Validate date format
+        $dFrom = \DateTime::createFromFormat('Y-m-d', $attDateFrom);
+        $dTo = \DateTime::createFromFormat('Y-m-d', $attDateTo);
+        if ($dFrom && $dTo) {
+            try {
+                $result = app()->cap()->call('attendance_wage.team_attendance.summary@1', [
+                    'tenant_id' => (string)$tid,
+                    'team_lead_email' => $tlEmail,
+                    'date_from' => $attDateFrom,
+                    'date_to' => $attDateTo,
+                    'group_id' => $attGroupId,
+                ], [
+                    'caller' => ['module' => 'project-audit-ledger'],
+                    'mode' => 'first',
+                ]);
+
+                if (is_array($result) && !empty($result['ok'])) {
+                    $attendanceSummary = $result;
+                }
+            } catch (\Throwable $e) {
+                if (function_exists('write_log')) {
+                    write_log('pal_mob_form: capability call failed: ' . $e->getMessage(), 'warning');
+                }
+            }
+        }
+    }
+
     $t = __DIR__ . '/../templates/project-audit-ledger/team-lead-shell.disyl';
     palRender($t, [
         'current_user' => $tl,
@@ -280,12 +320,19 @@ function palPageTeamLeadMobilizationForm(): void
         'page_title' => 'Request Mobilization',
         'page_content' => 'team-lead-mobilization-form',
         'projects' => $projects->fetchAll(PDO::FETCH_ASSOC),
+        'attendance_group_id' => $attGroupId,
+        'attendance_date_from' => $attDateFrom,
+        'attendance_date_to' => $attDateTo,
+        'attendance_summary' => $attendanceSummary,
     ]);
 }
 
 /**
  * API: Team Lead submits mobilization request
  * POST /api/v1/project-audit-ledger/tl/mobilization
+ *
+ * Revalidates AW attendance summary server-side before creating the request.
+ * Persists the attendance/wage snapshot with the mobilization record.
  */
 function palApiTeamLeadMobilizationStore(): void
 {
@@ -294,19 +341,99 @@ function palApiTeamLeadMobilizationStore(): void
         $db = palDb();
         $tid = (int)(app()->tenant()->current() ?? 0);
         $tlId = (int)$tl['team_lead_id'];
+        $tlEmail = $tl['email'] ?? '';
 
         $amount = (float)($_POST['amount'] ?? 0);
         $projectId = !empty($_POST['project_id']) ? (int)$_POST['project_id'] : null;
         $purpose = $_POST['purpose'] ?? null;
         $description = $_POST['description'] ?? null;
 
+        // Attendance context from form (carried from AW dashboard)
+        $attGroupId = !empty($_POST['attendance_group_id']) ? (int)$_POST['attendance_group_id'] : null;
+        $attDateFrom = $_POST['attendance_date_from'] ?? '';
+        $attDateTo = $_POST['attendance_date_to'] ?? '';
+
         if ($amount <= 0) { palJsonError('Amount is required.'); return; }
+
+        // If attendance context was provided, revalidate via AW capability server-side
+        $attendanceSummaryJson = null;
+        $attendanceEvidenceHash = null;
+        $capabilityProvider = null;
+
+        if ($attGroupId !== null && $attGroupId > 0 && $attDateFrom !== '' && $attDateTo !== '') {
+            // Validate date format
+            $dFrom = \DateTime::createFromFormat('Y-m-d', $attDateFrom);
+            $dTo = \DateTime::createFromFormat('Y-m-d', $attDateTo);
+            if (!$dFrom || !$dTo) {
+                palJsonError('Invalid attendance date range.');
+                return;
+            }
+
+            try {
+                $result = app()->cap()->call('attendance_wage.team_attendance.summary@1', [
+                    'tenant_id' => (string)$tid,
+                    'team_lead_email' => $tlEmail,
+                    'date_from' => $attDateFrom,
+                    'date_to' => $attDateTo,
+                    'group_id' => $attGroupId,
+                ], [
+                    'caller' => ['module' => 'project-audit-ledger'],
+                    'mode' => 'first',
+                ]);
+
+                if (!is_array($result) || empty($result['ok'])) {
+                    $errMsg = is_array($result) ? ($result['error'] ?? 'Attendance data unavailable') : 'Invalid capability response';
+                    palJsonError($errMsg);
+                    return;
+                }
+
+                // Verify the team lead is authorized for this group
+                $groups = $result['groups'] ?? [];
+                $groupMatch = false;
+                foreach ($groups as $g) {
+                    if ((int)$g['group_id'] === $attGroupId) {
+                        $groupMatch = true;
+                        break;
+                    }
+                }
+                if (!$groupMatch) {
+                    palJsonError('You are not authorized to request mobilization for this attendance group.');
+                    return;
+                }
+
+                // Store the snapshot
+                $attendanceSummaryJson = json_encode([
+                    'groups' => $result['groups'] ?? [],
+                    'employee_summary' => $result['employee_summary'] ?? [],
+                    'totals' => $result['totals'] ?? [],
+                    'evidence' => $result['evidence'] ?? [],
+                ]);
+                $attendanceEvidenceHash = hash('sha256', $attendanceSummaryJson);
+                $capabilityProvider = 'attendance_wage.team_attendance.summary@1';
+            } catch (\Throwable $e) {
+                if (function_exists('write_log')) {
+                    write_log('pal_mob_store: capability revalidation failed: ' . $e->getMessage(), 'error');
+                }
+                palJsonError('Unable to verify attendance data. Please try again.');
+                return;
+            }
+        }
 
         $db->beginTransaction();
         try {
-            $stmt = $db->prepare("INSERT INTO pal_mobilization_requests (tenant_id, team_lead_id, project_id, amount, request_date, purpose, description, status, created_by)
-                                  VALUES (:t, :tl, :pj, :amt, CURDATE(), :pur, :desc, 'pending', :cb)");
-            $stmt->execute([':t' => $tid, ':tl' => $tlId, ':pj' => $projectId, ':amt' => $amount, ':pur' => $purpose, ':desc' => $description, ':cb' => 0]);
+            $stmt = $db->prepare("INSERT INTO pal_mobilization_requests
+                (tenant_id, team_lead_id, project_id, attendance_group_id, attendance_date_from, attendance_date_to,
+                 attendance_summary_json, attendance_evidence_hash, attendance_capability_provider,
+                 amount, request_date, purpose, description, status, created_by)
+                VALUES (:t, :tl, :pj, :agid, :adf, :adt, :asj, :aeh, :acp, :amt, CURDATE(), :pur, :desc, 'pending', :cb)");
+            $stmt->execute([
+                ':t' => $tid, ':tl' => $tlId, ':pj' => $projectId,
+                ':agid' => $attGroupId, ':adf' => $attDateFrom !== '' ? $attDateFrom : null,
+                ':adt' => $attDateTo !== '' ? $attDateTo : null,
+                ':asj' => $attendanceSummaryJson, ':aeh' => $attendanceEvidenceHash,
+                ':acp' => $capabilityProvider,
+                ':amt' => $amount, ':pur' => $purpose, ':desc' => $description, ':cb' => 0,
+            ]);
             $mobId = (int)$db->lastInsertId();
 
             // Create approval record
@@ -315,7 +442,14 @@ function palApiTeamLeadMobilizationStore(): void
             $db->commit();
 
             palAudit('pal.mobilization.requested', 0, 'pal_mobilization_requests', (string)$mobId,
-                null, ['amount' => $amount, 'team_lead_id' => $tlId]);
+                null, [
+                    'amount' => $amount,
+                    'team_lead_id' => $tlId,
+                    'attendance_group_id' => $attGroupId,
+                    'attendance_date_from' => $attDateFrom,
+                    'attendance_date_to' => $attDateTo,
+                    'evidence_hash' => $attendanceEvidenceHash,
+                ]);
             palFireEvent('pal.mobilization.requested', ['mobilization_id' => $mobId, 'amount' => $amount]);
 
             header('Content-Type: application/json');
@@ -417,11 +551,14 @@ function palPageMobilizationList(): void
 /**
  * Team Lead Attendance View
  * GET /admin/project-audit-ledger/team-lead/attendance
+ *
+ * Uses the AW capability attendance_wage.team_attendance.summary@1
+ * instead of direct AW table SQL. Falls back to empty state when
+ * capability is unavailable (AW migrations not applied, groups not configured, etc.)
  */
 function palPageTeamLeadAttendance(): void
 {
     $tl = palTeamLeadGuard();
-    $db = palDb();
     $tid = (int)(app()->tenant()->current() ?? 0);
     $tlEmail = $tl['email'] ?? '';
 
@@ -436,77 +573,42 @@ function palPageTeamLeadAttendance(): void
         $dateTo = date('Y-m-t');
     }
 
-    // Query attendance via reads_tables bridge
-    // Bridge: attendance_groups.pal_team_lead_email = tl.email
-    // Then join through group_members → attendance_records
+    // Call AW capability for team attendance summary
     $attendance = [];
     $groups = [];
+    $employeeSummary = [];
+    $totals = ['total_hours' => 0, 'total_computed_wages' => 0, 'record_count' => 0];
 
     try {
-        // Get groups this team lead owns (via pal_team_lead_email bridge, case-insensitive).
-        // NOTE: LOWER() on the column prevents MySQL 5.7 index usage on idx_ag_pal_bridge
-        // (no functional indexes before 8.0.13). Acceptable for small group tables (< ~100 rows).
-        $grpStmt = $db->prepare("
-            SELECT group_id, name FROM attendance_groups
-            WHERE LOWER(pal_team_lead_email) = LOWER(:email) AND tenant_id = :tid AND is_active = 1
-        ");
-        $grpStmt->execute([':email' => $tlEmail, ':tid' => $tid]);
-        $groups = $grpStmt->fetchAll(PDO::FETCH_ASSOC);
+        $result = app()->cap()->call('attendance_wage.team_attendance.summary@1', [
+            'tenant_id' => (string)$tid,
+            'team_lead_email' => $tlEmail,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ], [
+            'caller' => ['module' => 'project-audit-ledger'],
+            'mode' => 'first',
+        ]);
 
-        if (!empty($groups)) {
-            $groupIds = array_column($groups, 'group_id');
-
-            $namedParams = [];
-            $namedPlaceholders = [];
-            foreach ($groupIds as $i => $gid) {
-                $pname = ':gid' . $i;
-                $namedPlaceholders[] = $pname;
-                $namedParams[$pname] = $gid;
+        if (is_array($result) && !empty($result['ok'])) {
+            $groups = $result['groups'] ?? [];
+            $attendance = $result['attendance'] ?? [];
+            $employeeSummary = $result['employee_summary'] ?? [];
+            $totals = $result['totals'] ?? $totals;
+        } else {
+            // Controlled unavailable state — capability returned ok=false (e.g. no groups, missing migrations)
+            if (function_exists('write_log')) {
+                $errMsg = is_array($result) ? ($result['error'] ?? 'unknown') : 'non-array result';
+                write_log('pal_attendance_bridge: capability returned unavailable: ' . $errMsg, 'info');
             }
-            $namedParams[':tid2'] = $tid;
-            $namedParams[':df'] = $dateFrom . ' 00:00:00';
-            $namedParams[':dt'] = $dateTo . ' 23:59:59';
-
-            $sql = "
-                SELECT 
-                    ar.attendance_id, ar.clock_in, ar.clock_out,
-                    ROUND(TIMESTAMPDIFF(MINUTE, ar.clock_in, ar.clock_out) / 60.0, 2) AS hours_worked,
-                    ar.status,
-                    CONCAT_WS(' ', NULLIF(ep.first_name, ''), NULLIF(ep.last_name, '')) AS employee_name,
-                    ep.position, ep.employee_number, ep.profile_id,
-                    ag.name AS group_name
-                FROM attendance_records ar
-                JOIN attendance_group_members agm ON ar.user_id = (
-                    SELECT au.id FROM attendance_wage_users au
-                    JOIN employee_profiles ep2 ON au.id = ep2.user_id AND ep2.tenant_id = agm.tenant_id
-                    WHERE ep2.profile_id = agm.profile_id
-                    LIMIT 1
-                )
-                JOIN employee_profiles ep ON agm.profile_id = ep.profile_id AND agm.tenant_id = ep.tenant_id
-                JOIN attendance_groups ag ON agm.group_id = ag.group_id AND agm.tenant_id = ag.tenant_id
-                WHERE agm.group_id IN (" . implode(',', $namedPlaceholders) . ")
-                  AND agm.tenant_id = :tid2
-                  AND ar.tenant_id = :tid2
-                  AND ar.clock_in >= :df
-                  AND ar.clock_in <= :dt
-                ORDER BY ar.clock_in DESC
-                LIMIT 200
-            ";
-
-            $attStmt = $db->prepare($sql);
-            $attStmt->execute($namedParams);
-            $attendance = $attStmt->fetchAll(PDO::FETCH_ASSOC);
         }
-    } catch (Throwable $e) {
-        // Table missing (42S02) or column missing (42S22) are expected when
-        // Attendance & Wage migrations haven't been applied yet.
-        // Log everything else for observability.
-        $code = $e->getCode();
-        $isMissingObject = ($code === '42S02' || $code === '42S22');
-        if (!$isMissingObject && function_exists('write_log')) {
-            write_log('pal_attendance_bridge: ' . $e->getMessage(), 'error');
+    } catch (\Throwable $e) {
+        // Capability not registered or provider threw — controlled fallback
+        if (function_exists('write_log')) {
+            write_log('pal_attendance_bridge: capability call failed: ' . $e->getMessage(), 'warning');
         }
         $attendance = [];
+        $groups = [];
     }
 
     $t = __DIR__ . '/../templates/project-audit-ledger/team-lead-shell.disyl';
@@ -517,6 +619,8 @@ function palPageTeamLeadAttendance(): void
         'page_content' => 'team-lead-attendance',
         'groups' => $groups,
         'attendance' => $attendance,
+        'employee_summary' => $employeeSummary,
+        'totals' => $totals,
         'date_from' => $dateFrom,
         'date_to' => $dateTo,
     ]);

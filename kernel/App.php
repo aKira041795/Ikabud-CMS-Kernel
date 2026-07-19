@@ -288,6 +288,176 @@ final class App
             ],
         ]]));
 
+        // kernel.auth.delegate@1 (first):
+        // Issues a kernel-signed delegation JWT for cross-module identity transfer.
+        // Payload: {from_module: string, to_module: string, identity_email: string,
+        //           tenant_id: string|int, purpose: string, ttl_seconds?: int}
+        // Return: {ok: bool, delegation_token?: string, error?: string}
+        $caps->register('kernel.auth.delegate@1', 'kernel', function ($payload): array {
+            if (!is_array($payload)) {
+                return ['ok' => false, 'error' => 'Invalid payload.'];
+            }
+
+            $fromModule = trim((string)($payload['from_module'] ?? ''));
+            $toModule = trim((string)($payload['to_module'] ?? ''));
+            $identityEmail = trim(strtolower((string)($payload['identity_email'] ?? '')));
+            $tenantId = (string)($payload['tenant_id'] ?? '');
+            $purpose = trim((string)($payload['purpose'] ?? ''));
+            $ttl = isset($payload['ttl_seconds']) ? (int)$payload['ttl_seconds'] : 300;
+
+            if ($fromModule === '' || $toModule === '' || $identityEmail === ''
+                || $tenantId === '' || $purpose === '') {
+                return ['ok' => false, 'error' => 'Missing required parameters: from_module, to_module, identity_email, tenant_id, purpose.'];
+            }
+
+            if ($fromModule === $toModule) {
+                return ['ok' => false, 'error' => 'from_module and to_module must differ.'];
+            }
+
+            $ttl = max(30, min($ttl, 3600)); // clamp 30s–1h
+
+            try {
+                // Create a JWT instance with the delegation-specific TTL
+                // (the singleton jwt() has a fixed 86400s default expiration).
+                $delegationJwt = new JWT(null, $ttl);
+                $token = $delegationJwt->generate([
+                    'sub' => 'delegation:' . $fromModule . '->' . $toModule,
+                    'del_from_module' => $fromModule,
+                    'del_to_module' => $toModule,
+                    'del_email' => $identityEmail,
+                    'del_tenant' => $tenantId,
+                    'del_purpose' => $purpose,
+                ]);
+
+                // Audit the delegation issuance
+                try {
+                    $this->capabilities()->call('kernel.audit.record@1', [
+                        'module' => 'kernel',
+                        'action' => 'auth.delegate.issued',
+                        'entity_type' => 'delegation',
+                        'new_data' => [
+                            'from_module' => $fromModule,
+                            'to_module' => $toModule,
+                            'identity_email' => $identityEmail,
+                            'tenant_id' => $tenantId,
+                            'purpose' => $purpose,
+                            'ttl' => $ttl,
+                        ],
+                    ], ['caller' => ['module' => 'kernel'], 'mode' => 'first']);
+                } catch (\Throwable) {
+                    // Audit is best-effort
+                }
+
+                return ['ok' => true, 'delegation_token' => $token];
+            } catch (\Throwable $e) {
+                $this->log('kernel.auth.delegate@1 failed: ' . $e->getMessage(), 'error');
+                return ['ok' => false, 'error' => 'Failed to issue delegation token.'];
+            }
+        }, 1000, ['first'], $kernelCapabilityMeta('kernel.auth.delegate@1', ['schema' => [
+            'input' => [
+                'type' => 'object',
+                'required' => ['from_module', 'to_module', 'identity_email', 'tenant_id', 'purpose'],
+                'properties' => [
+                    'from_module' => ['type' => 'string'],
+                    'to_module' => ['type' => 'string'],
+                    'identity_email' => ['type' => 'string'],
+                    'tenant_id' => ['type' => 'string'],
+                    'purpose' => ['type' => 'string'],
+                    'ttl_seconds' => ['type' => 'integer'],
+                ],
+            ],
+            'output' => [
+                'type' => 'object',
+                'required' => ['ok'],
+                'properties' => [
+                    'ok' => ['type' => 'boolean'],
+                    'delegation_token' => ['type' => 'string'],
+                    'error' => ['type' => 'string'],
+                ],
+            ],
+        ]]));
+
+        // kernel.auth.validate_delegate@1 (first):
+        // Validates a kernel-signed delegation JWT.
+        // Payload: {delegation_token: string, expected_module?: string, expected_purpose?: string}
+        // Return: {valid: bool, identity_email?: string, from_module?: string, tenant_id?: string, error?: string}
+        $caps->register('kernel.auth.validate_delegate@1', 'kernel', function ($payload): array {
+            if (!is_array($payload)) {
+                return ['valid' => false, 'error' => 'Invalid payload.'];
+            }
+
+            $token = trim((string)($payload['delegation_token'] ?? ''));
+            $expectedModule = isset($payload['expected_module']) ? trim((string)$payload['expected_module']) : '';
+            $expectedPurpose = isset($payload['expected_purpose']) ? trim((string)$payload['expected_purpose']) : '';
+
+            if ($token === '') {
+                return ['valid' => false, 'error' => 'Missing delegation_token.'];
+            }
+
+            try {
+                $data = $this->jwt()->verify($token);
+                if (!is_array($data)) {
+                    return ['valid' => false, 'error' => 'Invalid delegation token.'];
+                }
+
+                // Verify this is a delegation token (check for delegation-specific claims)
+                $fromModule = (string)($data['del_from_module'] ?? '');
+                $toModule = (string)($data['del_to_module'] ?? '');
+                if ($fromModule === '' || $toModule === '') {
+                    return ['valid' => false, 'error' => 'Token is not a delegation token.'];
+                }
+
+                // Verify subject pattern
+                $sub = (string)($data['sub'] ?? '');
+                if (!str_starts_with($sub, 'delegation:')) {
+                    return ['valid' => false, 'error' => 'Invalid delegation subject.'];
+                }
+
+                // Optional: verify target module
+                if ($expectedModule !== '' && $toModule !== $expectedModule) {
+                    return ['valid' => false, 'error' => 'Delegation token is not intended for this module.'];
+                }
+
+                // Optional: verify purpose
+                $purpose = (string)($data['del_purpose'] ?? '');
+                if ($expectedPurpose !== '' && $purpose !== $expectedPurpose) {
+                    return ['valid' => false, 'error' => 'Delegation token purpose mismatch.'];
+                }
+
+                return [
+                    'valid' => true,
+                    'identity_email' => (string)($data['del_email'] ?? ''),
+                    'from_module' => $fromModule,
+                    'to_module' => $toModule,
+                    'tenant_id' => (string)($data['del_tenant'] ?? ''),
+                    'purpose' => $purpose,
+                ];
+            } catch (\Throwable $e) {
+                return ['valid' => false, 'error' => 'Token validation failed: ' . $e->getMessage()];
+            }
+        }, 1000, ['first'], $kernelCapabilityMeta('kernel.auth.validate_delegate@1', ['schema' => [
+            'input' => [
+                'type' => 'object',
+                'required' => ['delegation_token'],
+                'properties' => [
+                    'delegation_token' => ['type' => 'string'],
+                    'expected_module' => ['type' => 'string'],
+                    'expected_purpose' => ['type' => 'string'],
+                ],
+            ],
+            'output' => [
+                'type' => 'object',
+                'required' => ['valid'],
+                'properties' => [
+                    'valid' => ['type' => 'boolean'],
+                    'identity_email' => ['type' => 'string'],
+                    'from_module' => ['type' => 'string'],
+                    'tenant_id' => ['type' => 'string'],
+                    'error' => ['type' => 'string'],
+                ],
+            ],
+        ]]));
+
         // kernel.render.context@1 (first):
         // Payload: {template?: string}
         // Return: base render context (same shape as App::render builds before caller overrides)

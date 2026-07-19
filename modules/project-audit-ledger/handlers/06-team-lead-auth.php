@@ -63,8 +63,17 @@ function palOtpSendEmail(string $email, string $code, int $ttl): bool
 
 function palPageTeamLeadLogin(): void
 {
+    $redirect = $_GET['redirect'] ?? '';
+    // Validate that redirect is a local absolute path (no open redirect).
+    // Reject: empty, not starting with /, or protocol-relative // prefix.
+    if ($redirect === '' || $redirect[0] !== '/' || str_starts_with($redirect, '//')) {
+        $redirect = '';
+    }
     $t = __DIR__ . '/../templates/project-audit-ledger/team-lead-login.disyl';
-    echo app()->render($t, ['page_title' => 'Team Lead Login']);
+    echo app()->render($t, [
+        'page_title' => 'Team Lead Login',
+        'redirect' => $redirect,
+    ]);
 }
 
 function palPageTeamLeadOtpVerify(): void
@@ -99,6 +108,12 @@ function palApiTeamLeadOtpRequest(): void
 {
     try {
         $email = trim($_POST['email'] ?? '');
+        $redirect = $_POST['redirect'] ?? '';
+        // Validate redirect is a local absolute path (no open redirect).
+        // Reject: empty, not starting with /, or protocol-relative // prefix.
+        if ($redirect === '' || $redirect[0] !== '/' || str_starts_with($redirect, '//')) {
+            $redirect = '';
+        }
 
         // Validate email
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -152,6 +167,7 @@ function palApiTeamLeadOtpRequest(): void
             'email' => $email,
             'team_lead_id' => (int)$teamLead['id'],
             'masked_email' => palOtpMaskedEmail($email),
+            'redirect' => $redirect,
         ], $ttl);
 
         header('Content-Type: application/json');
@@ -261,7 +277,7 @@ function palApiTeamLeadOtpVerify(): void
         ];
 
         // Encode JWT (using existing kernel helper)
-        $token = app()->jwt()->encode($session);
+        $token = app()->jwt()->generate($session);
 
         // Set cookie
         $cookieName = 'pal_tl_token';
@@ -273,7 +289,7 @@ function palApiTeamLeadOtpVerify(): void
         header('Content-Type: application/json');
         echo json_encode([
             'ok' => true,
-            'redirect' => '/admin/project-audit-ledger/team-lead',
+            'redirect' => $ticketData['redirect'] ?: '/admin/project-audit-ledger/team-lead',
             'token' => $token,
         ]);
     } catch (Throwable $e) {
@@ -363,13 +379,13 @@ function palOtpCreateTicket(string $kind, array $payload, int $ttl): string
         'iat' => time(),
         'exp' => time() + $ttl,
     ];
-    return app()->jwt()->encode($jwtPayload);
+    return app()->jwt()->generate($jwtPayload);
 }
 
 function palOtpReadTicket(string $token, string $expectedKind): ?array
 {
     try {
-        $data = app()->jwt()->decode($token);
+        $data = app()->jwt()->verify($token);
         if (!is_array($data)) return null;
         if (($data['kind'] ?? '') !== $expectedKind) return null;
         if (($data['module'] ?? '') !== 'project-audit-ledger') return null;
@@ -403,7 +419,7 @@ function palTeamLeadFromCookie(): ?array
     if (!$token) return null;
 
     try {
-        $data = app()->jwt()->decode($token);
+        $data = app()->jwt()->verify($token);
         if (!is_array($data)) return null;
         if (($data['source'] ?? '') !== 'pal-team-lead') return null;
         if (($data['role'] ?? '') !== 'team_lead') return null;
@@ -422,15 +438,198 @@ function palTeamLeadFromCookie(): ?array
 }
 
 /**
- * Guard: require team lead session, redirect to login if absent
+ * Look up a PAL team lead by email, auto-creating a minimal record
+ * if one doesn't exist. Only called after kernel delegation token
+ * validation succeeds, so the email identity is trusted.
+ *
+ * Returns a session-shaped array, or null if the PAL team lead
+ * table doesn't exist yet (migration not applied).
+ */
+function palTeamLeadFromEmail(string $email): ?array
+{
+    $db = palDb();
+    $tid = (int)(app()->tenant()->current() ?? 0);
+
+    // Check if pal_team_leads table exists yet
+    try {
+        $db->query("SELECT 1 FROM pal_team_leads LIMIT 0");
+    } catch (\Throwable) {
+        return null; // Migration not applied — controlled unavailable
+    }
+
+    // Look up existing active team lead (case-insensitive, consistent with AW bridge)
+    $stmt = $db->prepare("
+        SELECT id, name, email FROM pal_team_leads
+        WHERE LOWER(email) = LOWER(:email) AND tenant_id = :tid AND is_active = 1
+        LIMIT 1
+    ");
+    $stmt->execute([':email' => $email, ':tid' => $tid]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Auto-create if no existing record (lazy provisioning via delegation bridge)
+    if (!$row) {
+        try {
+            // Look up the employee's real name from AW via the attendance_groups bridge.
+            // Route: pal_team_lead_email → leader_profile_id → employee_profiles.name.
+            // (PAL has reads_tables access to all three tables.)
+            $displayName = $email;
+            try {
+                $awName = $db->query("
+                    SELECT CONCAT_WS(' ', NULLIF(ep.first_name,''), NULLIF(ep.last_name,'')) AS full_name
+                    FROM attendance_groups ag
+                    JOIN employee_profiles ep ON ag.leader_profile_id = ep.profile_id
+                        AND ag.tenant_id = ep.tenant_id
+                    WHERE LOWER(ag.pal_team_lead_email) = LOWER(" . $db->quote($email) . ")
+                      AND ag.tenant_id = {$tid}
+                      AND ag.is_active = 1
+                    LIMIT 1
+                ")->fetch(\PDO::FETCH_ASSOC);
+                if ($awName && !empty($awName['full_name'])) {
+                    $displayName = trim($awName['full_name']);
+                }
+            } catch (\Throwable) {
+                // AW tables may not exist yet — use email as fallback
+            }
+
+            $insertStmt = $db->prepare("
+                INSERT INTO pal_team_leads (tenant_id, name, email, is_active, created_at)
+                VALUES (:tid, :name, :email, 1, NOW())
+            ");
+            $insertStmt->execute([
+                ':tid' => $tid,
+                ':name' => $displayName,
+                ':email' => $email,
+            ]);
+            $newId = (int)$db->lastInsertId();
+
+            // Audit the auto-creation
+            if (function_exists('palAudit')) {
+                palAudit('pal.team_lead.auto_created', 0, 'pal_team_leads', (string)$newId,
+                    null, ['email' => $email, 'source' => 'delegation_bridge']);
+            }
+
+            $row = [
+                'id' => $newId,
+                'name' => $displayName,
+                'email' => $email,
+            ];
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('palTeamLeadFromEmail: auto-create failed: ' . $e->getMessage(), 'error');
+            }
+            return null;
+        }
+    }
+
+    // Count associated projects
+    $projStmt = $db->prepare("
+        SELECT COUNT(*) FROM pal_projects
+        WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid
+          AND status IN ('pending','approved','started','ongoing')
+    ");
+    $projStmt->execute([':tlid' => $row['id'], ':tid' => $tid]);
+
+    $sessionTtl = palOtpSessionTtlHours() * 3600;
+    $session = [
+        'sub' => 'tl-' . $row['id'],
+        'team_lead_id' => (int)$row['id'],
+        'name' => $row['name'],
+        'email' => $row['email'],
+        'role' => 'team_lead',
+        'source' => 'pal-team-lead',
+        'project_count' => (int)$projStmt->fetchColumn(),
+        'exp' => time() + $sessionTtl,
+    ];
+
+    // Issue PAL auth cookie so subsequent requests don't re-delegate
+    $token = app()->jwt()->generate($session);
+    $cookieName = 'pal_tl_token';
+    $cookiePath = '/';
+    $cookieDomain = '';
+    $secure = !empty($_SERVER['HTTPS']);
+    setcookie($cookieName, $token, time() + $sessionTtl, $cookiePath, $cookieDomain, $secure, true);
+
+    return [
+        'team_lead_id' => (int)$row['id'],
+        'name' => $row['name'],
+        'email' => $row['email'],
+        'role' => 'team_lead',
+        'source' => 'pal-team-lead',
+    ];
+}
+
+function palStripDelegationTokenFromUri(string $uri): string
+{
+    $parts = parse_url($uri);
+    $path = (string)($parts['path'] ?? '/');
+    $query = [];
+    if (!empty($parts['query'])) {
+        parse_str($parts['query'], $query);
+        unset($query['_dgt']);
+    }
+
+    $clean = $path;
+    if (!empty($query)) {
+        $clean .= '?' . http_build_query($query);
+    }
+    if (!empty($parts['fragment'])) {
+        $clean .= '#' . $parts['fragment'];
+    }
+
+    return $clean;
+}
+
+/**
+ * Guard: require team lead session, accept delegation token, redirect to login if absent
  */
 function palTeamLeadGuard(): array
 {
+    // 1. Try PAL cookie first (existing behavior)
     $tl = palTeamLeadFromCookie();
-    if (!$tl) {
-        $base = palBaseUrl();
-        header('Location: ' . $base . '/project-audit-ledger/team-lead/login');
-        exit;
+    if ($tl) return $tl;
+
+    // 2. Try kernel delegation token (cross-module identity bridge)
+    $delegationToken = $_GET['_dgt'] ?? '';
+    if ($delegationToken !== '') {
+        try {
+            $result = app()->cap()->call('kernel.auth.validate_delegate@1', [
+                'delegation_token' => $delegationToken,
+                'expected_module' => 'project-audit-ledger',
+                'expected_purpose' => 'mobilization',
+            ], [
+                'caller' => ['module' => 'project-audit-ledger'],
+                'mode' => 'first',
+            ]);
+
+            if (is_array($result) && !empty($result['valid'])) {
+                $email = $result['identity_email'] ?? '';
+                $tokenTenantId = (string)($result['tenant_id'] ?? '');
+                $currentTenantId = (string)(app()->tenant()->current() ?? '');
+                if ($email !== '' && $tokenTenantId !== '' && $currentTenantId !== '' && $tokenTenantId === $currentTenantId) {
+                    $tl = palTeamLeadFromEmail($email);
+                    if ($tl) {
+                        // Strip _dgt from the current URL to avoid leaking the token
+                        // in browser history / referrer headers on subsequent navigation.
+                        $cleanUri = palStripDelegationTokenFromUri($_SERVER['REQUEST_URI'] ?? '/');
+                        if ($cleanUri !== ($_SERVER['REQUEST_URI'] ?? '')) {
+                            header('Location: ' . $cleanUri);
+                            exit;
+                        }
+                        return $tl;
+                    }
+                } elseif (function_exists('write_log')) {
+                    write_log('pal_team_lead_guard: delegation tenant mismatch or missing identity', 'warning');
+                }
+            }
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('pal_team_lead_guard: delegation validation failed: ' . $e->getMessage(), 'warning');
+            }
+        }
     }
-    return $tl;
+
+    // 3. Redirect to login (existing fallback)
+    $base = palBaseUrl();
+    header('Location: ' . $base . '/project-audit-ledger/team-lead/login');
+    exit;
 }

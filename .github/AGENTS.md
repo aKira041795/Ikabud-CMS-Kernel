@@ -53,6 +53,15 @@ This file defines the available custom agents, their assigned models, and delega
 4. **Sequential chaining for dependent tasks** — Explore → analyze → implement (each in its own isolated session) kept the orchestrator's context clean.
 5. **Compressed reading** — Agents that used lean-ctx compressed modes (auto, signatures, map) returned denser, more useful results.
 
+### Root-Cause Analysis (mandatory for all fix-oriented agents)
+When fixing issues, **always find the root cause before applying a patch**. Do not fix symptoms — trace the problem to its origin.
+
+1. **Reproduce the issue** — Read error logs (`storage/logs/app.log`, `storage/logs/error.log`), reproduce the failing scenario, confirm the exact failure point
+2. **Trace upstream** — Follow the call chain, data flow, or execution path backward from the failure point to find what caused it
+3. **Identify the root** — Ask "why" at least 3 times: Why did this fail? Why was that condition met? Why was that value wrong?
+4. **Fix the root, not the symptom** — Apply the fix at the source of the problem, not at the point where it surfaced
+5. **Verify the fix chain** — Confirm the fix propagates correctly to all downstream consumers; check that no other symptoms from the same root cause remain
+
 ### What needed fixing
 1. **Empty agent returns** — Complex prompts with too many sub-requests caused some agents to return empty results. **Fix**: Keep subagent prompts to 1-2 specific tasks. Break larger analyses into multiple smaller delegations.
 2. **File changes without reporting** — Some edit-capable agents modified files but didn't report what they changed. **Fix**: Always instruct agents to "Return a summary of what you changed with file:line refs."
