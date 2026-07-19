@@ -192,7 +192,7 @@
             <div class="wb-list-card__item">
                 <div class="wb-list-card__item-main">
                     <a href="/admin/project-audit-ledger/projects/{p.id}" class="wb-list-card__item-title hover:text-blue-600">{p.title}</a>
-                    <p class="wb-list-card__item-sub">{p.project_id} · {p.created_at|default:'—'}</p>
+                    <p class="wb-list-card__item-sub">{p.job_order_number|default:p.project_id} · {p.created_at|default:'—'}</p>
                 </div>
                 {include "project-audit-ledger/components/pal_status_badge" _sb_status=p.status}
             </div>

@@ -36,6 +36,11 @@ function palPageAuditTrail(): void
         $ids = array_filter($ids, fn($v) => $v > 0);
         if (empty($ids)) continue;
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $lookupTable = match ($table) {
+            'project' => 'pal_projects',
+            'mobilization' => 'pal_mobilization_requests',
+            default => $table,
+        };
         $nameCol = match ($table) {
             'pal_projects', 'project' => 'title',
             'pal_clients' => 'name',
@@ -66,11 +71,12 @@ function palPageAuditTrail(): void
         };
         if ($nameCol === null) continue;
         try {
-            $stmt = $db->prepare("SELECT id, {$nameCol} AS name FROM {$table} WHERE id IN ({$placeholders}) AND tenant_id = ?");
+            $stmt = $db->prepare("SELECT id, {$nameCol} AS name FROM {$lookupTable} WHERE id IN ({$placeholders}) AND tenant_id = ?");
             $params = array_merge($ids, [$tid]);
             $stmt->execute($params);
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $entityNames[$table . ':' . $row['id']] = $row['name'];
+                $entityNames[$lookupTable . ':' . $row['id']] = $row['name'];
             }
         } catch (Throwable) {
             // Table may not exist or other transient error — skip gracefully

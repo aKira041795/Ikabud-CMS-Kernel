@@ -193,6 +193,14 @@ ok(
     isset($routes['GET']['/api/v1/project-audit-ledger/bom/export']),
     'BOM export anchor uses a registered GET route'
 );
+ok(
+    palAuditEntityUrl('pal_projects', '42') === '/admin/project-audit-ledger/projects/42',
+    'Audit entity URLs accept string entity IDs from audit logs'
+);
+ok(
+    palAuditEntityUrl('pal_projects', 'project:42') === '/admin/project-audit-ledger/projects',
+    'Audit entity URLs ignore nonnumeric entity IDs without throwing'
+);
 
 // Check no duplicate keys (the logout fix)
 $getKeys = array_keys($routes['GET']);

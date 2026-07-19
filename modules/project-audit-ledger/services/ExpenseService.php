@@ -51,12 +51,12 @@ class palExpenseService
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
-        $sql = "SELECT e.*, ec.name AS category_name, p.title AS project_title,
+        $sql = "SELECT e.*, ec.name AS category_name, p.title AS project_title, p.job_order_number,
                        s.name AS supplier_name
                 FROM pal_expenses e
-                LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id
-                LEFT JOIN pal_projects p ON e.project_id = p.id
-                LEFT JOIN pal_suppliers s ON e.supplier_id = s.id
+                LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id AND ec.tenant_id = e.tenant_id
+                LEFT JOIN pal_projects p ON e.project_id = p.id AND p.tenant_id = e.tenant_id
+                LEFT JOIN pal_suppliers s ON e.supplier_id = s.id AND s.tenant_id = e.tenant_id
                 WHERE {$whereClause}
                 ORDER BY e.expense_date DESC, e.created_at DESC
                 LIMIT :limit OFFSET :offset";
@@ -73,12 +73,12 @@ class palExpenseService
 
     public function get(int $id): ?array
     {
-        $sql = "SELECT e.*, ec.name AS category_name, p.title AS project_title,
+        $sql = "SELECT e.*, ec.name AS category_name, p.title AS project_title, p.job_order_number,
                        s.name AS supplier_name
                 FROM pal_expenses e
-                LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id
-                LEFT JOIN pal_projects p ON e.project_id = p.id
-                LEFT JOIN pal_suppliers s ON e.supplier_id = s.id
+                LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id AND ec.tenant_id = e.tenant_id
+                LEFT JOIN pal_projects p ON e.project_id = p.id AND p.tenant_id = e.tenant_id
+                LEFT JOIN pal_suppliers s ON e.supplier_id = s.id AND s.tenant_id = e.tenant_id
                 WHERE e.id = :id AND e.tenant_id = :tenant_id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tenant_id' => $this->tenantId]);

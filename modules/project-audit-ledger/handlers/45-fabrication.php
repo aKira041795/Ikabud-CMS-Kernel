@@ -96,7 +96,7 @@ function palPageFabricationPaymentForm(): void {
     $db = palDb();
     $tid = (int)($u['tenant_id'] ?? 0);
 
-    $proj = $db->prepare("SELECT p.id, p.title, p.fabrication_alloc_pct, p.contract_amount, fa.id AS alloc_id, fa.calculated_amount FROM pal_projects p LEFT JOIN pal_fabrication_allocations fa ON fa.project_id = p.id WHERE p.tenant_id = :tid AND p.fabrication_alloc_pct > 0 AND fa.id IS NOT NULL ORDER BY p.title");
+    $proj = $db->prepare("SELECT p.id, p.title, p.job_order_number, p.fabrication_alloc_pct, p.contract_amount, fa.id AS alloc_id, fa.calculated_amount FROM pal_projects p LEFT JOIN pal_fabrication_allocations fa ON fa.project_id = p.id AND fa.tenant_id = p.tenant_id WHERE p.tenant_id = :tid AND p.fabrication_alloc_pct > 0 AND fa.id IS NOT NULL ORDER BY p.title");
     $proj->execute([':tid' => $tid]);
 
     $leads = $db->prepare("SELECT id, name FROM pal_team_leads WHERE tenant_id = :tid AND is_active = 1 ORDER BY name");

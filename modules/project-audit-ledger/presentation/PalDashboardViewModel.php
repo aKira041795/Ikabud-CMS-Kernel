@@ -61,7 +61,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     private static function projectPipeline(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
         $active = $db->prepare(
-            "SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','in_progress')"
+            "SELECT COUNT(*) FROM pal_projects WHERE tenant_id = :tid AND status IN ('approved','started','ongoing')"
         );
         $active->execute([':tid' => $tenantId]);
 
@@ -237,7 +237,7 @@ final readonly class PalDashboardViewModel implements TemplateViewModel
     private static function recentProjects(\Ikabud\Kernel\Contracts\ModuleDB $db, int $tenantId): array
     {
         $stmt = $db->prepare(
-            "SELECT id, project_id, title, status, created_at
+            "SELECT id, project_id, job_order_number, title, status, created_at
              FROM pal_projects WHERE tenant_id = :tid
              ORDER BY created_at DESC LIMIT 10"
         );

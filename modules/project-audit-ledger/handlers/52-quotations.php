@@ -21,7 +21,7 @@ function palPageQuotationDetail(array $rp = []): void
     $tid = (int)($u['tenant_id'] ?? 0);
     $clients = $db->prepare("SELECT id, name FROM pal_clients WHERE tenant_id = :tid AND is_active = 1 ORDER BY name");
     $clients->execute([':tid' => $tid]);
-    $projects = $db->prepare("SELECT id, title FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
+    $projects = $db->prepare("SELECT id, title, job_order_number FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
     $projects->execute([':tid' => $tid]);
 
     $t = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';
@@ -51,7 +51,7 @@ function palPageQuotationForm(array $rp = []): void
     $clients = $db->prepare("SELECT id, name FROM pal_clients WHERE tenant_id = :tid AND is_active = 1 ORDER BY name");
     $clients->execute([':tid' => $tid]);
 
-    $projects = $db->prepare("SELECT id, title FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
+    $projects = $db->prepare("SELECT id, title, job_order_number FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
     $projects->execute([':tid' => $tid]);
 
     $materials = $db->prepare("SELECT m.id, m.name, m.material_code, m.price_per_unit, m.price_per_sqft, 

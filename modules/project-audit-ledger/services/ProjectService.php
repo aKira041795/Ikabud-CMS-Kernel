@@ -67,13 +67,13 @@ class palProjectService
     public function get(int $id): ?array
     {
         $sql = "SELECT p.*, c.name AS client_name, c.contact_person AS client_contact,
-                       c.email AS client_email, c.phone AS client_phone, c.address AS client_address,
-                       pt.name AS project_type_name, tl.name AS team_lead_name
-                FROM pal_projects p
-                LEFT JOIN pal_clients c ON p.client_id = c.id
-                LEFT JOIN pal_project_types pt ON p.project_type_id = pt.id
-                LEFT JOIN pal_team_leads tl ON p.fabrication_team_lead_id = tl.id
-                WHERE p.id = :id AND p.tenant_id = :tenant_id";
+                        c.email AS client_email, c.phone AS client_phone, c.address AS client_address,
+                        pt.name AS project_type_name, tl.name AS team_lead_name
+                 FROM pal_projects p
+                 LEFT JOIN pal_clients c ON p.client_id = c.id AND c.tenant_id = p.tenant_id
+                 LEFT JOIN pal_project_types pt ON p.project_type_id = pt.id AND pt.tenant_id = p.tenant_id
+                 LEFT JOIN pal_team_leads tl ON p.fabrication_team_lead_id = tl.id AND tl.tenant_id = p.tenant_id
+                 WHERE p.id = :id AND p.tenant_id = :tenant_id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tenant_id' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);

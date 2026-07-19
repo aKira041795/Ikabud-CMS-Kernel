@@ -16,7 +16,7 @@ function palPageCashAdvanceForm(): void
     $tid = (int)($u['tenant_id'] ?? 0);
     $teamLeads = $db->prepare("SELECT id, name FROM pal_team_leads WHERE tenant_id = :tid AND is_active = 1 ORDER BY name");
     $teamLeads->execute([':tid' => $tid]);
-    $projects = $db->prepare("SELECT id, title FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
+    $projects = $db->prepare("SELECT id, title, job_order_number FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
     $projects->execute([':tid' => $tid]);
 
     $t = __DIR__ . '/../templates/project-audit-ledger/shell.disyl';

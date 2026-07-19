@@ -8,7 +8,7 @@
             <select name="project_id" onchange="this.form.submit()" class="wb-select">
                 <option value="">— Select a project —</option>
                 {for p in projects}
-                <option value="{p.id}"{if selected_project.id==p.id} selected{/if}>{p.title}</option>
+                <option value="{p.id}"{if selected_project.id==p.id} selected{/if}>{if p.job_order_number}{p.job_order_number} — {/if}{p.title}</option>
                 {/for}
             </select>
         </div>

@@ -151,7 +151,6 @@ function palPageTeamLeadDashboard(): void
                COALESCE((SELECT SUM(fa.approved_amount) FROM pal_fabrication_allocations fa WHERE fa.project_id = p.id AND fa.tenant_id = p.tenant_id), 0) AS fab_dispensed
         FROM pal_projects p
         WHERE p.fabrication_team_lead_id = :tlid AND p.tenant_id = :tid
-          AND p.status IN ('pending','approved','started','ongoing','completed')
         ORDER BY p.created_at DESC
         LIMIT 20
     ");
@@ -211,7 +210,6 @@ function palPageTeamLeadFabrication(): void
                COALESCE((SELECT SUM(fa.approved_amount) FROM pal_fabrication_allocations fa WHERE fa.project_id = p.id AND fa.tenant_id = p.tenant_id), 0) AS total_dispensed
         FROM pal_projects p
         WHERE p.fabrication_team_lead_id = :tlid AND p.tenant_id = :tid
-          AND p.status IN ('pending','approved','started','ongoing')
         ORDER BY p.created_at DESC
     ");
     $projStmt->execute([':tlid' => $tlId, ':tid' => $tid]);
@@ -289,7 +287,6 @@ function palPageTeamLeadCashAdvanceForm(): void
         SELECT id, title, job_order_number
         FROM pal_projects
         WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid
-          AND status IN ('pending','approved','started','ongoing')
         ORDER BY title
     ");
     $projects->execute([':tlid' => $tlId, ':tid' => $tid]);
@@ -321,6 +318,14 @@ function palApiTeamLeadCashAdvanceStore(): void
         $description = $_POST['description'] ?? null;
 
         if ($amount <= 0) { palJsonError('Amount is required.'); return; }
+        if ($projectId !== null) {
+            $projectCheck = $db->prepare("SELECT 1 FROM pal_projects WHERE id = :pid AND tenant_id = :tid AND fabrication_team_lead_id = :tlid LIMIT 1");
+            $projectCheck->execute([':pid' => $projectId, ':tid' => $tid, ':tlid' => $tlId]);
+            if (!$projectCheck->fetchColumn()) {
+                palJsonError('Selected project is not assigned to you.');
+                return;
+            }
+        }
 
         $db->beginTransaction();
         try {
@@ -364,9 +369,9 @@ function palPageTeamLeadMobilization(): void
     $tlId = (int)$tl['team_lead_id'];
 
     $stmt = $db->prepare("
-        SELECT mr.*, p.title AS project_title
+        SELECT mr.*, p.title AS project_title, p.job_order_number
         FROM pal_mobilization_requests mr
-        LEFT JOIN pal_projects p ON mr.project_id = p.id
+        LEFT JOIN pal_projects p ON mr.project_id = p.id AND p.tenant_id = mr.tenant_id
         WHERE mr.team_lead_id = :tlid AND mr.tenant_id = :tid
         ORDER BY mr.created_at DESC
         LIMIT 50
@@ -405,7 +410,6 @@ function palPageTeamLeadMobilizationForm(): void
         SELECT id, title, job_order_number
         FROM pal_projects
         WHERE fabrication_team_lead_id = :tlid AND tenant_id = :tid
-          AND status IN ('pending','approved','started','ongoing')
         ORDER BY title
     ");
     $projects->execute([':tlid' => $tlId, ':tid' => $tid]);
@@ -491,6 +495,14 @@ function palApiTeamLeadMobilizationStore(): void
         $attDateTo = $_POST['attendance_date_to'] ?? '';
 
         if ($amount <= 0) { palJsonError('Amount is required.'); return; }
+        if ($projectId !== null) {
+            $projectCheck = $db->prepare("SELECT 1 FROM pal_projects WHERE id = :pid AND tenant_id = :tid AND fabrication_team_lead_id = :tlid LIMIT 1");
+            $projectCheck->execute([':pid' => $projectId, ':tid' => $tid, ':tlid' => $tlId]);
+            if (!$projectCheck->fetchColumn()) {
+                palJsonError('Selected project is not assigned to you.');
+                return;
+            }
+        }
 
         // If attendance context was provided, revalidate via AW capability server-side
         $attendanceSummaryJson = null;
@@ -759,14 +771,13 @@ function palMobilizationSyncApproval(PDO $db, int $tenantId, int $mobId, string 
         $upd->execute([':dec' => $decision, ':rv' => $reviewerId, ':eid' => $mobId, ':tid' => $tenantId]);
     }
 
+    $affected = $upd->rowCount();
     if (function_exists('write_log')) {
-        $affected = $upd->rowCount();
         write_log("pal_mob_sync_approval: mob={$mobId} decision={$decision} approvals_updated={$affected}", 'info');
     }
-
-    // Do NOT throw — the request status update should persist even if the
-    // approval row was already decided (e.g. via the centralized approval queue).
-    // A warning is logged above for diagnostics.
+    if ($affected === 0) {
+        throw new RuntimeException('No pending mobilization approval row was updated.');
+    }
 }
 
 // ── Admin Mobilization List ──

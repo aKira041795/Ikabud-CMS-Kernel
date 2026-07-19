@@ -27,7 +27,7 @@ function palPageExpenseForm(array $rp = []): void
     $tid = (int)($user['tenant_id'] ?? 0);
     $cats = $db->prepare('SELECT id, name FROM pal_expense_categories WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
     $cats->execute([':tid' => $tid]);
-    $projects = $db->prepare('SELECT id, title FROM pal_projects WHERE tenant_id = :tid ORDER BY title LIMIT 200');
+    $projects = $db->prepare('SELECT id, title, job_order_number FROM pal_projects WHERE tenant_id = :tid ORDER BY title LIMIT 200');
     $projects->execute([':tid' => $tid]);
     $suppliers = $db->prepare('SELECT id, name FROM pal_suppliers WHERE tenant_id = :tid AND is_active = 1 ORDER BY name');
     $suppliers->execute([':tid' => $tid]);

@@ -22,7 +22,7 @@ class palSalesService
         if (!empty($filters['project_id'])) { $where[] = 's.project_id = :pid'; $params[':pid'] = (int)$filters['project_id']; }
         if (!empty($filters['status'])) { $where[] = 's.status = :st'; $params[':st'] = $filters['status']; }
         $w = implode(' AND ', $where);
-        $sql = "SELECT s.*, p.title AS project_title, COALESCE(s.client_name, c.name) AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE {$w} ORDER BY s.created_at DESC LIMIT 50";
+        $sql = "SELECT s.*, p.title AS project_title, p.job_order_number, COALESCE(s.client_name, c.name) AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id AND p.tenant_id = s.tenant_id LEFT JOIN pal_clients c ON s.client_id = c.id AND c.tenant_id = s.tenant_id WHERE {$w} ORDER BY s.created_at DESC LIMIT 50";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -30,7 +30,7 @@ class palSalesService
 
     public function get(int $id): ?array
     {
-        $sql = "SELECT s.*, p.title AS project_title, COALESCE(s.client_name, c.name) AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE s.id = :id AND s.tenant_id = :tid";
+        $sql = "SELECT s.*, p.title AS project_title, p.job_order_number, COALESCE(s.client_name, c.name) AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id AND p.tenant_id = s.tenant_id LEFT JOIN pal_clients c ON s.client_id = c.id AND c.tenant_id = s.tenant_id WHERE s.id = :id AND s.tenant_id = :tid";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tid' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);

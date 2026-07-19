@@ -13,7 +13,7 @@ function palPageBillOfMaterials(): void
     $tid = (int)($u['tenant_id'] ?? 0);
     $projectId = (int)($_GET['project_id'] ?? 0);
 
-    $projects = $db->prepare("SELECT id, title FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
+    $projects = $db->prepare("SELECT id, title, job_order_number FROM pal_projects WHERE tenant_id = :tid ORDER BY title");
     $projects->execute([':tid' => $tid]);
 
     $bom = [];
@@ -101,7 +101,7 @@ function palApiBomExport(): void
         return;
     }
 
-    $pjStmt = $db->prepare("SELECT title FROM pal_projects WHERE id = :id AND tenant_id = :tid");
+    $pjStmt = $db->prepare("SELECT title, job_order_number FROM pal_projects WHERE id = :id AND tenant_id = :tid");
     $pjStmt->execute([':id' => $projectId, ':tid' => $tid]);
     $project = $pjStmt->fetch(PDO::FETCH_ASSOC);
     if (!$project) { palJsonError('Project not found.'); return; }
@@ -138,7 +138,8 @@ function palApiBomExport(): void
     $rows = $bom->fetchAll(PDO::FETCH_ASSOC);
 
     header('Content-Type: text/csv; charset=utf-8');
-    header('Content-Disposition: attachment; filename="bom-' . sanitizeFilename($project['title']) . '.csv"');
+    $filenameName = !empty($project['job_order_number']) ? $project['job_order_number'] : $project['title'];
+    header('Content-Disposition: attachment; filename="bom-' . sanitizeFilename($filenameName) . '.csv"');
     $out = fopen('php://output', 'w');
     fputcsv($out, ['Material', 'Category', 'Particulars', 'Width', 'Height', 'UOM', 'QTY', 'Price/Unit', 'Price/SqFt', 'Total', 'Source']);
     foreach ($rows as $r) {

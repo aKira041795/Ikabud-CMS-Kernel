@@ -7,8 +7,8 @@
         <!-- Invoice Selection -->
         <div class="wb-form-section space-y-3">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice Reference</h3>
-            <div><label class="wb-label">Project Filter</label><select id="col-project" class="wb-select" onchange="var pid=this.value;var sel=document.getElementById('col-sale');var opts=sel.querySelectorAll('option');opts.forEach(function(o){if(o.dataset.pid){o.style.display=(!pid||o.dataset.pid===pid)?'':'none';}});sel.value='';"><option value="">— All Projects —</option>{for p in projects}<option value="{p.id}">{p.title}</option>{/for}</select></div>
-            <div><label class="wb-label">Invoice *</label><select name="sales_id" id="col-sale" required class="wb-select"><option value="">— Select Invoice —</option>{for s in sales}<option value="{s.id}" data-pid="{s.project_id}">{s.sales_number|default:'INV#'~s.id} — {s.client_name|default:'—'} — Net: ₱{s.net_amount|number_format:2} — Due: ₱{(s.net_amount - s.collected_amt)|number_format:2}</option>{/for}</select></div>
+            <div><label class="wb-label">Project Filter</label><select id="col-project" class="wb-select" onchange="var pid=this.value;var sel=document.getElementById('col-sale');var opts=sel.querySelectorAll('option');opts.forEach(function(o){if(o.dataset.pid){o.style.display=(!pid||o.dataset.pid===pid)?'':'none';}});sel.value='';"><option value="">— All Projects —</option>{for p in projects}<option value="{p.id}">{if p.job_order_number}{p.job_order_number} — {/if}{p.title}</option>{/for}</select></div>
+            <div><label class="wb-label">Invoice *</label><select name="sales_id" id="col-sale" required class="wb-select"><option value="">— Select Invoice —</option>{for s in sales}<option value="{s.id}" data-pid="{s.project_id}">{s.sales_number|default:'INV#'~s.id} — {s.job_order_number|default:s.project_title|default:'No JO'} — {s.client_name|default:'—'} — Total: ₱{s.invoice_total|number_format:2} — Due: ₱{(s.invoice_total - s.collected_amt)|number_format:2}</option>{/for}</select></div>
         </div>
 
         <!-- Payment Details -->

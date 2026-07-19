@@ -1,6 +1,7 @@
 {ikb_entity_view name="pal_purchase" view="table"}
     {field name="purchase_number" type="string"}
     {field name="supplier_name" type="string"}
+    {field name="project_title" type="string"}
     {field name="total_amount" type="number" renderer="money:2"}
     {field name="status" type="enum" renderer="badge:{draft|gray|pending|amber|approved|green|received|blue|cancelled|red}"}
     {field name="purchase_date" type="date" renderer="datetime:date"}

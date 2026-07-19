@@ -2,345 +2,331 @@
 
 ## Objective
 
-Trace and fix the Attendance & Wage to Project Audit Ledger mobilization request flow where a team lead submits a mobilization request from the AW attendance context, but no pending mobilization request is visible in PAL admin.
+Audit and fix Project Audit Ledger view wiring so every PAL page, form, table, entity list, dashboard widget, approval card, and team-lead view that depends on a newly created Job Order displays true persisted data from the same JO record and its linked lifecycle records.
 
-The implementation must make the end-to-end path observable and reliable:
+The source event is JO create:
 
-1. AW team lead attendance dashboard launches the PAL mobilization form with delegation and attendance context.
-2. PAL team lead session accepts the delegated AW identity only when tenant, purpose, and email are valid.
-3. PAL mobilization form revalidates the AW attendance/wage summary and persists a `pal_mobilization_requests` row.
-4. PAL creates and links a pending `pal_approvals` row for that request.
-5. PAL admin can see the request in both `/admin/project-audit-ledger/mobilization` and `/admin/project-audit-ledger/approvals`.
+1. Admin/encoder submits `/admin/project-audit-ledger/projects/create`.
+2. `palApiProjectStore()` persists `pal_projects` and `pal_project_items`.
+3. The user is redirected to `/admin/project-audit-ledger/projects/{id}`.
+4. Every related view that should reflect the new JO must show it through real loaders, not cached, placeholder, stale, or disconnected display data.
+
+The second required trace is mobilization approval:
+
+1. A team lead creates a mobilization request linked to a JO.
+2. Admin/supervisor approves it from either the centralized approval queue or the mobilization detail action.
+3. Every related view must reflect the approved status, project linkage, amount, approval decision, audit trail, and any dashboard/report totals that should change.
 
 ## Existing behavior
 
-AW does not own or store mobilization requests. In `modules/attendance-wage/handlers/150-team-lead.php`, `attendancePageTeamLeadDashboard()` only computes attendance/wage context, issues a `kernel.auth.delegate@1` token with purpose `mobilization`, and renders a PAL URL:
+JO creation currently flows through:
 
-- `/admin/project-audit-ledger/team-lead/mobilization/create`
-- query params: `attendance_group_id`, `date_from`, `date_to`, optional `_dgt`
+- `modules/project-audit-ledger/routes.php`
+  - `GET /admin/project-audit-ledger/projects/create` -> `palPageProjectForm`
+  - `POST /api/v1/project-audit-ledger/projects` -> `palApiProjectStore`
+  - `GET /admin/project-audit-ledger/projects/{id}` -> `palPageProjectDetail`
+  - `GET /admin/project-audit-ledger/projects` -> `palPageProjectList`
+- `modules/project-audit-ledger/handlers/15-projects.php`
+  - `palPageProjectList()` renders `projects-list.disyl`.
+  - `palPageProjectForm()` loads clients, project types, team leads, materials, optional mockup attachment, then renders `project-form.disyl`.
+  - `palApiProjectStore()` creates the JO with `palProjectService::create()`, optionally applies workflow status, creates a project approval for non-admin pending submissions, relinks mockup attachments, audits `pal.project.created`, then returns `redirect = /admin/project-audit-ledger/projects/{id}`.
+  - `palPageProjectDetail()` reloads the JO with `palProjectService::get()`, cost/profitability/budget services, expense history, collection history, purchase history, attachments, PO images, and renders `project-detail.disyl`.
+- `modules/project-audit-ledger/services/ProjectService.php`
+  - `create()` writes `pal_projects`, saves `pal_project_items`, syncs inline client data, fires `pal.project.created`.
+  - `list()` reads `pal_projects` for API list consumers.
+  - `get()` reads the JO, client, project type, team lead, and line items.
+- `modules/project-audit-ledger/helpers.php`
+  - `pal_cap_entity_list_project_1()` backs `projects-list.disyl` through `{ikb_entity_list source="pal_project" ...}`.
+  - `pal_cap_entity_get_project_1()` is the entity-get capability for JO data.
+  - Other entity list/get capabilities join `pal_projects` by `project_id` and must display the JO title/number consistently.
+- `modules/project-audit-ledger/presentation/PalDashboardViewModel.php`
+  - Dashboard totals, status breakdown, recent projects, financials, pending approvals, and audit-derived recent activity all depend directly or indirectly on JO rows.
 
-PAL owns mobilization persistence and approval:
+Mobilization approval currently flows through:
 
-- `modules/project-audit-ledger/routes.php` registers the team-lead form at `/admin/project-audit-ledger/team-lead/mobilization/create`, the submit API at `/api/v1/project-audit-ledger/tl/mobilization`, the admin list at `/admin/project-audit-ledger/mobilization`, and approval APIs under `/api/v1/project-audit-ledger/mobilization/{id}/...`.
-- `modules/project-audit-ledger/handlers/53-team-lead.php::palPageTeamLeadMobilizationForm()` loads active PAL projects for the team lead and optionally calls `attendance_wage.team_attendance.summary@1`.
-- `palApiTeamLeadMobilizationStore()` inserts into `pal_mobilization_requests`, stores the AW attendance evidence snapshot when context exists, then calls `palCreateApproval('mobilization', ...)`.
-- `palPageMobilizationList()` renders `mobilization-list.disyl`, which delegates data loading to `entity.list.pal_mobilization@1`.
-- `modules/project-audit-ledger/helpers.php::pal_cap_entity_list_mobilization_1()` lists `pal_mobilization_requests` for the current tenant.
-- `modules/project-audit-ledger/services/ApprovalService.php` supports `entity_type = mobilization` and maps it to `pal_mobilization_requests`.
+- `GET /admin/project-audit-ledger/team-lead/mobilization/create` -> `palPageTeamLeadMobilizationForm`
+  - Loads selectable projects for the team lead from `pal_projects` where `fabrication_team_lead_id = team_lead_id` and status is in `pending`, `approved`, `started`, `ongoing`.
+- `POST /api/v1/project-audit-ledger/tl/mobilization` -> `palApiTeamLeadMobilizationStore`
+  - Revalidates AW attendance context when supplied.
+  - Inserts `pal_mobilization_requests`.
+  - Creates `pal_approvals` with `entity_type = mobilization`.
+  - Writes `approval_id` back to the mobilization request.
+  - Audits and fires `pal.mobilization.requested`.
+- `GET /admin/project-audit-ledger/mobilization` -> `palPageMobilizationList`
+  - Renders `{ikb_entity_list source="pal_mobilization" ...}` backed by `pal_cap_entity_list_mobilization_1()`.
+- `GET /admin/project-audit-ledger/mobilization/{id}` -> `palPageMobilizationDetail`
+  - Loads the request, team lead, linked JO title/number, and attendance group name.
+- `GET /admin/project-audit-ledger/approvals` -> `palPageApprovalQueue`
+  - Uses `palApprovalService::pendingListEnriched()` and `recentListEnriched()`.
+- `POST /api/v1/project-audit-ledger/approvals/{id}/decide` -> `palApiApprovalDecide`
+  - Uses centralized `palApprovalService::decide()`.
+- Direct mobilization endpoints also exist:
+  - `/api/v1/project-audit-ledger/mobilization/{id}/approve`
+  - `/api/v1/project-audit-ledger/mobilization/{id}/reject`
+  - `/api/v1/project-audit-ledger/mobilization/{id}/disburse`
 
-Observed architectural gaps and likely failure points:
+Known audit targets from inspection:
 
-- The submit API catches all top-level exceptions and returns a generic `Failed to submit request.`, so users may believe a request was submitted even when the DB insert failed.
-- The insert depends on migration `021_pal_mobilization_attendance_snapshot.sql`; if the live PAL DB has not applied the attendance snapshot columns, the insert will fail before any admin row exists.
-- PAL passes the current PAL tenant ID into the AW attendance summary capability. If AW attendance groups live under a different AW tenant, summary revalidation fails and no PAL request is created.
-- `pal_mobilization_requests.approval_id` exists but the current store path does not write the created approval ID back to the request row, weakening traceability between the admin request list and approval queue.
-- Admin mobilization list has only a list route. `helpers/views/pal_mobilization.disyl` links to `/admin/project-audit-ledger/mobilization/{id}`, but no matching GET detail route exists.
-- Admin approval decision through `palApiApprovalDecide()` updates the target entity status, but the direct mobilization approve/reject/disburse endpoints update only `pal_mobilization_requests`; they do not decide or reconcile the corresponding `pal_approvals` record.
+- `PalDashboardViewModel::projectPipeline()` counts active projects using `status IN ('approved','in_progress')`, while JO/project routes and form logic use statuses such as `started` and `ongoing`; verify dashboard active counts are truthful after JO create/status changes.
+- `pal_cap_entity_list_project_1()` lists `project_id` and `title` but not `job_order_number`; views that label records as Job Orders must display the real JO number where expected.
+- `pal_cap_entity_list_purchase_1()` does not expose `project_title`, while purchase detail joins the project; purchase list may be disconnected from JO context.
+- Mobilization approval through centralized approvals and direct mobilization endpoints must not leave `pal_mobilization_requests`, `pal_approvals`, `approval-queue.disyl`, `mobilization-list.disyl`, `mobilization-detail.disyl`, audit trail, and dashboard pending approvals out of sync.
 
 ## Architectural constraints
 
-- PAL remains the source of truth for mobilization requests, approval records, request status, and disbursement state.
-- AW remains the source of truth for attendance groups, attendance rows, and wage evidence; PAL must consume AW data through `attendance_wage.team_attendance.summary@1`, not by copying AW domain ownership into PAL.
-- The AW to PAL handoff must use the existing kernel delegation capability and must preserve `purpose = mobilization`, tenant validation, and email matching.
-- Tenant handling must be explicit. If PAL tenant and AW tenant can differ, PAL mobilization must use configured AW tenant context for AW capability calls while storing the request under the PAL tenant.
-- Request submission must not report success unless both `pal_mobilization_requests` and `pal_approvals` changes commit.
-- Approval visibility must be driven by concrete PAL rows, not by transient AW request state.
-- Do not bypass `palTeamLeadGuard()`, `palCurrentUser()`, CSRF enforcement, or centralized `palApprovalService` behavior.
+- PAL owns JO/project, mobilization, approval, sales, collections, expenses, purchases, fabrication, inventory, audit, reports, and dashboard display data.
+- Attendance & Wage remains the source of truth for attendance/wage evidence; PAL may consume it through capabilities but must not duplicate AW table ownership.
+- Receivables are JO-linked; do not introduce free-standing receivable creation outside the JO/invoice lifecycle.
+- A view is correct only if it reads persisted tenant-scoped data through the appropriate service, handler query, or capability. Template-only changes are not enough unless the loader already exposes the correct fields.
+- Entity list templates backed by `{ikb_entity_list ...}` must be fixed at their `entity.list.*` capability or entity-view definition when data is missing.
+- Admin views, team-lead views, print/email templates, dashboards, reports, and audit trails must agree on identifiers: `pal_projects.id`, `project_id`, `job_order_number`, title, client, team lead, status, contract amount, and linked entity IDs.
+- Keep tenant filters on every query and join. Joined project data must not leak across tenants.
+- Do not bypass `palCurrentUser()`, `palTeamLeadGuard()`, CSRF enforcement, `palApprovalService`, or the capability bus.
+- Do not create duplicate display-only state to make one page look correct.
 
 ## Files likely affected
 
-- `modules/attendance-wage/handlers/150-team-lead.php`
-  - Confirm the AW dashboard URL, delegation payload, and displayed request action semantics.
-- `templates/modules/attendance-wage/auth/team-lead-dashboard.disyl`
-  - Ensure the button text makes clear that the team lead is moving into PAL to submit the request.
-- `modules/project-audit-ledger/handlers/06-team-lead-auth.php`
-  - Verify delegated AW identity, tenant, purpose, and email are accepted correctly for mobilization.
-- `modules/project-audit-ledger/handlers/53-team-lead.php`
-  - Primary fix surface for mobilization form context, submit API, approval linking, direct approval endpoints, admin detail page if needed, and error logging.
-- `modules/project-audit-ledger/helpers.php`
-  - Update `pal_cap_entity_list_mobilization_1()` if admin list filtering, evidence fields, or joins need correction.
-- `modules/project-audit-ledger/services/ApprovalService.php`
-  - Ensure approval queue enrichment and decision behavior fully support mobilization rows.
+JO create and core project data:
+
 - `modules/project-audit-ledger/routes.php`
-  - Add missing admin mobilization detail route if retaining the entity view action.
-- `modules/project-audit-ledger/templates/project-audit-ledger/pages/mobilization-list.disyl`
-  - Ensure empty state and list behavior make failed/no-data cases clear.
-- `modules/project-audit-ledger/helpers/views/pal_mobilization.disyl`
-  - Align row actions with registered routes.
-- `modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-mobilization-form.disyl`
-  - Ensure submit failures show the actual server error and do not look like success.
-- `modules/project-audit-ledger/templates/project-audit-ledger/pages/approval-queue.disyl`
-  - Verify mobilization approvals display enough context to identify the request.
-- `modules/project-audit-ledger/database/migrations/021_pal_mobilization_attendance_snapshot.sql`
-  - Confirm it is applied in the live PAL tenant database; do not add a duplicate migration unless schema drift requires one.
+- `modules/project-audit-ledger/handlers/15-projects.php`
+- `modules/project-audit-ledger/services/ProjectService.php`
+- `modules/project-audit-ledger/services/ProjectCostService.php`
+- `modules/project-audit-ledger/services/JobOrderWorkflow.php`
+- `modules/project-audit-ledger/helpers.php`
+- `modules/project-audit-ledger/helpers/views/pal_project.disyl`
+- `modules/project-audit-ledger/templates/project-audit-ledger/pages/project-form.disyl`
+- `modules/project-audit-ledger/templates/project-audit-ledger/pages/projects-list.disyl`
+- `modules/project-audit-ledger/templates/project-audit-ledger/pages/project-detail.disyl`
+- `modules/project-audit-ledger/templates/project-audit-ledger/prints/project-print.disyl`
+- `modules/project-audit-ledger/templates/project-audit-ledger/_email_job_order.disyl`
+
+Views that must update when JO is created:
+
+- Dashboard:
+  - `modules/project-audit-ledger/handlers/10-dashboard.php`
+  - `modules/project-audit-ledger/presentation/PalDashboardViewModel.php`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/dashboard.disyl`
+- Approval queue and audit trail:
+  - `modules/project-audit-ledger/handlers/55-approvals.php`
+  - `modules/project-audit-ledger/services/ApprovalService.php`
+  - `modules/project-audit-ledger/handlers/65-audit.php`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/approval-queue.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/audit-trail.disyl`
+- Team lead and mobilization:
+  - `modules/project-audit-ledger/handlers/53-team-lead.php`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-dashboard.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-mobilization-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-mobilization-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/mobilization-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/mobilization-detail.disyl`
+  - `modules/project-audit-ledger/helpers/views/pal_mobilization.disyl`
+- Cash advances:
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/cash-advance-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/cash-advances-list.disyl`
+  - related handlers in `modules/project-audit-ledger/handlers/53-team-lead.php`
+- Fabrication:
+  - `modules/project-audit-ledger/handlers/45-fabrication.php`
+  - `modules/project-audit-ledger/services/FabricationService.php`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-allocations.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-dues.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-payments.disyl`
+- Sales, receivables, and collections:
+  - `modules/project-audit-ledger/handlers/50-sales.php`
+  - `modules/project-audit-ledger/services/ReceivableService.php`
+  - `modules/project-audit-ledger/services/PaymentService.php`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/sales-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/sales-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/sales-detail.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/collections-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/collection-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/collections-detail.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/prints/invoice-print.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/_email_invoice.disyl`
+- Expenses, purchases, material issuance, material returns, BOM, reports:
+  - `modules/project-audit-ledger/handlers/25-expenses.php`
+  - `modules/project-audit-ledger/handlers/30-purchases.php`
+  - `modules/project-audit-ledger/handlers/40-issuance.php`
+  - `modules/project-audit-ledger/handlers/60-reports.php`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/expense-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/expenses-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/expense-detail.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/purchase-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/purchases-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/purchase-detail.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/issuance-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/issuance-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/issuance-detail.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/material-return-form.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/material-return-list.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/bill-of-materials.disyl`
+  - `modules/project-audit-ledger/templates/project-audit-ledger/pages/reports-center.disyl`
+
+Tests likely affected:
+
+- `tests/pal_service_integration_test.php`
 - `tests/pal_mobilization_attendance_capability_test.php`
-  - Extend coverage for end-to-end request creation and approval visibility.
 - `tests/pal_attendance_bridge_test.php`
-  - Verify AW attendance summary tenant/email/group handling used by mobilization.
-- `tests/kernel_auth_delegation_test.php`
-  - Keep delegation purpose and tenant validation covered.
-- Browser coverage under `tests/browser/modules/pal/workflows/`
-  - Add or extend a workflow from AW attendance context to PAL request submit to admin visibility.
+- `tests/pal_mobilization_fix_verification_test.php`
+- Add a focused JO view wiring test if no existing test covers this exact matrix.
+- Browser tests under `tests/browser/modules/pal/workflows/`.
 
 ## Implementation steps
 
-1. Reproduce and classify the failure.
-   - Use the live PAL tenant (`PAL_TENANT_ID=502`, database `palsystem`) and the reported path.
-   - Confirm whether the AW click reaches PAL form, whether the PAL submit API returns `ok: true`, whether `pal_mobilization_requests` gets a row, and whether `pal_approvals` gets a matching pending row.
-   - Check `storage/logs/app.log` and `storage/logs/error.log` immediately after submit.
+1. Build a JO dependency matrix before editing.
+   - Start at `palApiProjectStore()` and `palProjectService::create()`.
+   - Record every persisted field created or updated: `pal_projects`, `pal_project_items`, inline `pal_clients` sync, `pal_attachments`, optional `pal_approvals`, `pal_audit_logs`, and domain event payload.
+   - For each field, map all views that display it.
+   - Store the matrix in `.ai/current-task.md` under an implementation report section or in a small test fixture comment if the later workflow prefers code evidence.
 
-2. Verify live schema before changing behavior.
-   - Confirm `pal_mobilization_requests` has the migration 021 columns: `attendance_group_id`, `attendance_date_from`, `attendance_date_to`, `attendance_summary_json`, `attendance_evidence_hash`, `attendance_capability_provider`.
-   - If missing, apply the existing migration through the repo migration runner path rather than editing insert SQL around the schema.
+2. Audit all root views that must update immediately after JO create.
+   - Dashboard: totals, status breakdown, recent projects, pending approval count/items, audit recent activity, contract value, fabrication budget.
+   - JO list: row appears with true JO number/title/client/status/contract amount/dates.
+   - JO detail: overview, items, client, schedule, payment terms, installation/team lead, mockup, financial tabs, related history.
+   - JO print and JO email: same persisted JO fields as detail.
+   - Approval queue: pending project approval appears only when workflow creates one; admin auto-approved JO must not show a fake pending item.
+   - Audit trail: `pal.project.created` appears and links back to the JO detail.
 
-3. Make AW-to-PAL tenant mapping explicit.
-   - Identify whether AW attendance data is expected in the same tenant as PAL or in a configured AW tenant.
-   - If different tenants are supported, centralize PAL's AW tenant resolution for mobilization and attendance summary calls.
-   - Use PAL tenant for PAL request/approval rows, and AW tenant for `attendance_wage.team_attendance.summary@1` payload.
+3. Audit forms that should offer the newly created JO as selectable context.
+   - Team-lead mobilization form project dropdown.
+   - Cash advance form project dropdown.
+   - Expense form project selector.
+   - Purchase form project selector.
+   - Sales/invoice form project selector.
+   - Collection form project context where applicable.
+   - Material issuance form project selector.
+   - Material return form project context where applicable.
+   - Fabrication allocation/payment/dues flows.
+   - BOM and reports filters if they allow JO/project selection.
 
-4. Harden PAL mobilization submit diagnostics.
-   - In `palApiTeamLeadMobilizationStore()`, log structured failure context without leaking sensitive data: PAL tenant, resolved AW tenant, team lead ID/email hash, attendance group ID, date range, route, and exception class/message.
-   - Preserve user-safe JSON error messages, but return specific controlled errors for missing attendance groups, invalid tenant mapping, missing schema, and authorization mismatch.
+4. Audit tables/detail views that should show linked JO data after downstream records are created.
+   - Expenses list/detail and JO detail expense history.
+   - Purchases list/detail and JO detail purchase history.
+   - Sales list/detail, receivables, collections list/detail, invoice print/email, and JO detail collection history.
+   - Material issuance list/detail and material return list/detail.
+   - Fabrication allocations, weekly dues, and payments.
+   - Cash advances and mobilization requests.
+   - Approval queue and recent decisions for every JO-linked entity type.
+   - Audit trail for every JO-linked action.
 
-5. Guarantee atomic request and approval persistence.
-   - Keep request insert and approval creation in one transaction.
-   - After `palCreateApproval('mobilization', ...)`, write the created approval ID into `pal_mobilization_requests.approval_id`.
-   - If approval creation fails, roll back the request insert.
+5. Fix data loaders at the source.
+   - If a template lacks a field, first update the handler/service/capability/query that should expose it.
+   - For `{ikb_entity_list ...}` views, update the matching `pal_cap_entity_list_*` function or entity view definition.
+   - Ensure list and detail loaders expose `project_id`, `job_order_number`, `project_title`, `client_name`, `team_lead_name`, `status`, amount fields, and created/decision dates where the template needs them.
+   - Keep display labels consistent: JO-facing UI should prefer `job_order_number`, with `project_id` as secondary/internal project code when both exist.
 
-6. Align admin visibility surfaces.
-   - Ensure `entity.list.pal_mobilization@1` returns newly inserted pending rows for the current PAL tenant.
-   - Include enough fields for admin review: team lead, project, amount, purpose, status, request date, attendance group/date/evidence hash when available.
-   - Either add `/admin/project-audit-ledger/mobilization/{id}` detail route/page or remove/change the view action to a registered route.
+6. Trace mobilization request approval as its own display update chain.
+   - Create or seed a mobilization request linked to the JO.
+   - Confirm the team-lead mobilization list shows the request with the linked JO.
+   - Confirm admin mobilization list and detail show the same request, team lead, JO number/title, amount, attendance context, and `approval_id`.
+   - Approve through `/api/v1/project-audit-ledger/approvals/{id}/decide`.
+   - Confirm `pal_mobilization_requests.status`, `pal_approvals.decision`, approval queue pending/recent lists, mobilization list/detail, audit trail, and dashboard pending approval count all update.
+   - Repeat or source-check the direct mobilization approve/reject endpoints and ensure they cannot diverge from centralized approval behavior.
 
-7. Reconcile direct mobilization endpoints with centralized approvals.
-   - Prefer admin decisions through `palApiApprovalDecide()` for approval queue consistency.
-   - If direct approve/reject endpoints remain, update or decide the matching `pal_approvals` row in the same transaction, or clearly remove them from UI surfaces so there is only one approval path.
+7. Normalize status semantics across views.
+   - Enumerate valid JO statuses from schema/workflow/form/service.
+   - Fix any dashboard/report/list logic that uses stale status names.
+   - Verify newly created admin-approved, draft, and pending JOs land in the correct counts and tables.
 
-8. Make UI states truthful.
-   - AW dashboard button should communicate "Request in PAL" or equivalent, not imply AW already submitted the request.
-   - PAL form must show failure details from the submit API and leave the user on the form when no row was created.
-   - PAL admin empty state should remain true only when no `pal_mobilization_requests` rows exist for the PAL tenant.
+8. Add focused automated coverage.
+   - Prefer one integration test that creates a JO, then asserts all critical loaders return true data.
+   - Add or extend mobilization approval coverage to assert all critical loaders update after approval.
+   - Add route/template assertions for any fixed view links.
+   - Add browser coverage only for the critical user-facing path if the environment supports it.
 
 ## Acceptance criteria
 
-- From AW team lead attendance context, clicking Request Mobilization opens the PAL team lead mobilization form with the expected attendance group and date range.
-- Submitting a valid PAL mobilization request returns JSON `ok: true`.
-- A row exists in `pal_mobilization_requests` under the PAL tenant with:
-  - matching team lead,
-  - requested amount and purpose,
-  - `status = pending`,
-  - attendance group/date context when launched from AW,
-  - non-empty evidence hash when AW summary was available,
-  - non-null `approval_id`.
-- A matching pending `pal_approvals` row exists with `entity_type = mobilization` and `entity_id = pal_mobilization_requests.id`.
-- `/admin/project-audit-ledger/mobilization` shows the newly submitted request for PAL admin/supervisor.
-- `/admin/project-audit-ledger/approvals` shows the matching pending mobilization approval with amount/project/team-lead context.
-- Approving or rejecting through the approval queue updates both the `pal_approvals` decision and `pal_mobilization_requests.status`.
-- If schema, tenant mapping, delegation, or AW summary validation fails, the user sees a controlled error and no partial request row is committed.
+- Creating a JO returns JSON `ok: true` with a redirect to the persisted JO detail route.
+- The JO exists in `pal_projects` with correct tenant, JO number, title, client, project type, team lead, status, contract amount, payment, installation, schedule, and notes.
+- JO line items exist in `pal_project_items` and render on the JO detail items tab.
+- The JO appears on `/admin/project-audit-ledger/projects` with real persisted values, including the correct JO number where the UI labels the row as a Job Order.
+- `/admin/project-audit-ledger/projects/{id}` renders persisted data across overview, items, financials, docs, and related history sections.
+- `/admin/project-audit-ledger/projects/{id}/print` and JO email output use the same persisted JO identity and financial fields.
+- Dashboard project totals, recent projects, status breakdown, contract value, fabrication budget, and pending approvals reflect the new JO according to its actual status.
+- If JO creation creates a pending project approval, `/admin/project-audit-ledger/approvals` shows it with linked JO title/number and amount; if admin auto-approves, no fake pending approval appears.
+- `/admin/project-audit-ledger/audit-trail` shows `pal.project.created` and links to the JO detail page without 500 errors.
+- Every JO-linked form that should allow selecting the JO includes the newly created JO when its status and team-lead assignment make it eligible.
+- Creating downstream records linked to the JO causes their list/detail pages and the JO detail related-history sections to show the same persisted linkage.
+- Team-lead mobilization request creation linked to the JO appears in team-lead list, admin mobilization list, admin mobilization detail, approval queue, audit trail, and dashboard pending approval count.
+- Approving a mobilization request updates `pal_mobilization_requests`, `pal_approvals`, approval pending/recent displays, mobilization admin/team-lead displays, audit trail, and dashboard pending approval count.
+- All affected views remain tenant-scoped and do not show records from another tenant.
 
 ## Required tests
 
+- Syntax:
+  - `php -l` on every changed PHP file.
 - Focused PHP/integration:
-  - `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php`
-  - Extend this test to assert request insert, `approval_id` linkage, approval queue visibility, and approval decision status update.
-- Attendance bridge:
-  - `PAL_TENANT_ID=502 php tests/pal_attendance_bridge_test.php`
-  - Add coverage for same-tenant and configured-AW-tenant payload behavior if cross-tenant AW data is supported.
-- Delegation:
-  - `php tests/kernel_auth_delegation_test.php`
-  - Keep coverage for `purpose = mobilization`, tenant mismatch rejection, and email identity preservation.
-- PAL service smoke:
   - `PAL_TENANT_ID=502 php tests/pal_service_integration_test.php`
-  - Add route assertions for any new mobilization detail route.
-- Browser workflow:
-  - Add or extend a focused Playwright workflow that logs in through the AW team-lead attendance context, follows the PAL mobilization link, submits a request, then logs in as PAL admin and verifies the request in `/admin/project-audit-ledger/mobilization` and `/admin/project-audit-ledger/approvals`.
+  - `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php`
+  - `PAL_TENANT_ID=502 php tests/pal_attendance_bridge_test.php`
+  - `php tests/kernel_auth_delegation_test.php` if delegation or team-lead mobilization is touched.
+- New or extended JO view wiring test:
+  - Create a JO with line items, client, team lead, installation/fabrication data, payment terms, and a status that exercises approval behavior.
+  - Assert service/API/entity capability/dashboard/approval/audit loaders all expose the same JO identity and true values.
+  - Assert all project selectors that should include the JO do include it under the correct eligibility rules.
+- New or extended mobilization approval display test:
+  - Create a JO assigned to a team lead.
+  - Create a mobilization request linked to that JO.
+  - Approve it through centralized approval decision.
+  - Assert mobilization list/detail, approval recent decisions, dashboard pending count, and audit trail all reflect the transition.
+- Browser coverage when feasible:
+  - Create JO through the form.
+  - Verify redirect/detail.
+  - Visit dashboard, projects list, approval queue, audit trail, team-lead mobilization form, and admin mobilization list/detail.
+  - Verify visible data matches the JO and mobilization records.
 - Always run:
-  - `php -l` on changed PHP files.
   - `git diff --check`.
 
 Do not run the full suite unless a later workflow explicitly requests it.
 
 ## Risks
 
-- A live DB missing migration 021 will make the current insert fail even if code is otherwise correct.
-- Cross-tenant AW/PAL deployments can fail silently unless the AW tenant is resolved explicitly before calling the AW capability.
-- Direct approval endpoints and centralized approval queue can drift if both remain active without shared transaction logic.
-- Generic JSON errors can make a failed insert look like a successful request from the user's point of view.
-- Generated browser artifacts under `test_results/` should not be committed as part of the fix unless the release workflow requires them.
+- Some views use entity-list capabilities while others use direct SQL; fixing only one loader will leave divergent displays.
+- Status names may be inconsistent across workflow, dashboard, selectors, and reports.
+- JO number and internal project code can be confused; display rules must be explicit.
+- Team-lead project selectors intentionally filter by `fabrication_team_lead_id` and status; do not treat absent rows as a bug until eligibility is verified.
+- Mobilization can be approved through more than one endpoint; state can drift if direct endpoints and centralized approval service do not share behavior.
+- Browser-visible correctness may be masked by DiSyL compiled template cache; clear cache or use the repo's no-cache path when validating templates.
+- Generated browser artifacts under `test_results/` should not be committed unless a release workflow requires them.
 
 ## Forbidden changes
 
-- Do not move mobilization request ownership into Attendance & Wage.
-- Do not copy AW attendance rows into PAL beyond the compact evidence snapshot already designed for `pal_mobilization_requests`.
-- Do not bypass the capability bus with direct PAL SQL reads of AW-owned tables in the PAL submit path.
-- Do not relax delegation purpose, tenant, or email validation to make the flow pass.
-- Do not create a second approval system separate from `pal_approvals` and `palApprovalService`.
-- Do not add broad production debug dumps or log raw delegation tokens, OTPs, cookies, CSRF tokens, or full attendance payloads.
-- Do not edit unrelated PAL, AW, Workbench, or generated artifact files while implementing this task.
+- Do not edit production code outside PAL or AW unless a traced dependency proves it is necessary.
+- Do not move PAL-owned JO, mobilization, approval, receivable, collection, or audit state into another module.
+- Do not create placeholder rows or view-only caches to make tables look updated.
+- Do not bypass tenant filters, auth guards, CSRF checks, `palApprovalService`, or capability bus contracts.
+- Do not relax AW delegation or attendance validation while tracing mobilization.
+- Do not make receivables free-standing; receivables must remain JO/invoice-linked.
+- Do not replace focused verification with broad full-suite runs.
+- Do not commit generated artifacts, compiled template cache, or unrelated formatting churn.
 
 ## Implementation Report
 
-### Files changed
+Implemented:
 
-| File | Change | Purpose |
-|---|---|---|
-| `modules/project-audit-ledger/handlers/53-team-lead.php` | +180 lines | Core fixes: AW tenant resolver, approval_id write-back, approval sync, detail handler, structured logging, error hardening |
-| `modules/project-audit-ledger/routes.php` | +1 line | Added `/admin/project-audit-ledger/mobilization/{id}` GET route |
-| `modules/project-audit-ledger/services/ApprovalService.php` | 2 lines changed | Fixed nonexistent `request_number` column → `COALESCE(mr.purpose, 'Mobilization Request')` |
-| `modules/project-audit-ledger/templates/project-audit-ledger/pages/mobilization-detail.disyl` | New file | Admin mobilization detail page with status badge, attendance context, approval_id, evidence hash |
-| `tests/pal_mobilization_fix_verification_test.php` | New file | 27 assertions covering all fix surfaces (source-level verification) |
+- Added JO number and project context to PAL project, expense, purchase, sales, collections, fabrication due, cash advance, and mobilization entity loaders.
+- Tenant-scoped PAL joins that were previously joining clients, project types, team leads, suppliers, categories, sales, or projects by id only.
+- Updated JO-linked project selectors across expense, purchase, issuance, material return, sales, collections, quotations, cash advances, BOM, and fabrication payment forms to load and display persisted `job_order_number`.
+- Updated dashboard active-project status logic and recent project display so JO rows use real workflow statuses and JO identity.
+- Updated table view configs for projects, expenses, purchases, and mobilization so linked project or JO context is visible in list views.
+- Updated centralized mobilization approval to stamp `approved_by` and `approved_at` on `pal_mobilization_requests`, matching the direct mobilization approval path.
+- Hardened direct mobilization approval sync so a missing pending approval row fails the transaction instead of leaving mobilization and approval displays divergent.
+- Fixed audit-trail entity alias resolution for approval audit rows that use `project` or `mobilization` entity types.
+- Added `tests/pal_jo_view_wiring_test.php` to lock JO display wiring, tenant-scoped joins, dashboard status logic, selector JO exposure, mobilization approval stamping, direct approval sync failure behavior, and audit alias resolution.
 
-### Fixes applied
+Validation:
 
-1. **AW-to-PAL tenant mapping** — Added `palResolveAwTenantId()` helper that reads `aw_tenant_id` from PAL module settings (`getModuleSettings('project-audit-ledger')`), falling back to current PAL tenant. Applied to all three AW capability call sites: `palPageTeamLeadMobilizationForm()`, `palApiTeamLeadMobilizationStore()`, and `palPageTeamLeadAttendance()`. This mirrors the existing pattern in `15-projects.php`.
+- Passed PHP syntax checks for all changed PHP files and the new test file.
+- Passed `php tests/pal_jo_view_wiring_test.php`.
+- Passed `PAL_TENANT_ID=502 php tests/pal_service_integration_test.php`.
+- Passed `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php`.
+- Passed `PAL_TENANT_ID=502 php tests/pal_attendance_bridge_test.php`.
+- Passed `php tests/pal_mobilization_fix_verification_test.php`.
+- Passed `php tests/kernel_auth_delegation_test.php`.
+- Passed `git diff --check`.
 
-2. **approval_id write-back** — After `palCreateApproval()` returns the approval ID, the store handler now executes `UPDATE pal_mobilization_requests SET approval_id = :aid WHERE id = :id` within the same transaction. This makes the request→approval link bidirectional and visible in admin views.
+Notes:
 
-3. **Approval sync for direct endpoints** — Added `palMobilizationSyncApproval()` helper that updates the matching `pal_approvals` row (tried via `approval_id` link first, falls back to `entity_type + entity_id`). Called from `palApiMobilizationApprove()`, `palApiMobilizationReject()`, and `palApiMobilizationDisburse()` within transactions. All three direct endpoints now use `beginTransaction()`/`commit()`/`rollBack()`.
-
-4. **Structured logging** — Replaced generic "Failed to submit request." with context-rich log entries including: PAL tenant, AW tenant, hashed team lead email, attendance group ID, date range, and exception class/message. AW revalidation failures, DB transaction failures, and unexpected errors are all logged separately.
-
-5. **ApprovalService query fix** — Changed `mr.request_number AS entity_label` (nonexistent column) to `COALESCE(mr.purpose, 'Mobilization Request') AS entity_label` in `fetchEntityDetails()`. This was a latent bug that would cause the approval queue to fail when displaying mobilization entries.
-
-6. **Admin detail route** — Added `GET /admin/project-audit-ledger/mobilization/{id}` → `palPageMobilizationDetail` with a full detail template showing: request details (ID, status, amount, purpose, date, description), related entities (team lead, project, approval_id), attendance context (group ID, date range, evidence hash, capability provider), and action buttons (approve/reject for pending, disburse for approved).
-
-7. **Error hardening** — DB transaction failures now return "Failed to save mobilization request. Please try again." instead of the generic top-level catch-all. The top-level catch still exists as a safety net but now logs structured context before returning.
-
-### Tests run
-
-| Test | Results |
-|---|---|
-| `pal_mobilization_attendance_capability_test.php` | 34/34 passed |
-| `pal_attendance_bridge_test.php` | 55/55 passed |
-| `pal_service_integration_test.php` | 63/63 passed |
-| `pal_mobilization_fix_verification_test.php` (new) | 27/27 passed |
-| `php -l` syntax check (all changed files) | 0 errors |
-| `git diff --check` (whitespace) | Clean |
-
-### Acceptance criteria verification
-
-| # | Criterion | Status |
-|---|---|---|
-| 1 | AW→PAL delegation opens form with attendance context | ✅ Existing `palTeamLeadGuard()` delegation + `palPageTeamLeadMobilizationForm()` query params |
-| 2 | Submit returns `ok: true` | ✅ `palApiTeamLeadMobilizationStore()` returns JSON with `ok` and `id` |
-| 3 | Row in `pal_mobilization_requests` with all fields including `approval_id` | ✅ `approval_id` now written back via UPDATE after insert |
-| 4 | Matching pending `pal_approvals` row | ✅ `palCreateApproval('mobilization', ...)` creates it |
-| 5 | Admin mobilization list shows request | ✅ `palPageMobilizationList()` → entity list |
-| 6 | Approval queue shows mobilization with context | ✅ `ApprovalService` query fixed (no more `request_number`) |
-| 7 | Approve/reject updates both tables | ✅ Direct endpoints call `palMobilizationSyncApproval()`; centralized `decide()` handles both |
-| 8 | Validation failures → controlled error, no partial commit | ✅ Transactions, structured logging, specific error messages |
-
-### Deviations
-
-- None. All changes follow the task file's architectural constraints exactly.
-
-### Remaining risks
-
-1. **Live DB migration 021** — If the live PAL tenant database (`palsystem`) hasn't applied migration 021, the `attendance_group_id` and related columns won't exist. The insert will fail with a controlled error (logged). Admin should verify `php ikabud tenant:migrate <pal_tenant> project-audit-ledger` has been run.
-
-2. **AW tenant configuration** — `palResolveAwTenantId()` reads `aw_tenant_id` from PAL module settings. If this setting hasn't been configured and AW data lives in a different tenant, the AW capability call will target the PAL tenant and return "No active attendance groups found." Admin should set `aw_tenant_id` in PAL settings to the AW tenant ID (e.g., `zapattendance`).
-
-3. **Browser testing** — The task calls for Playwright browser workflow tests. These were not run as they require a running web server and browser environment. The PHP-level fixes are verified through integration tests.
-
-4. **Template cache** — If `DISYL_COMPILED_MODE=true`, the new `mobilization-detail.disyl` template may need a cache clear or `?disyl_nocache=1` for first use.
-
-## Developer Review
-
-### Findings corrected
-
-1. **P1: Direct mobilization admin endpoints lacked CSRF enforcement.**
-   - Added `palEnforceCsrf()` to `palApiMobilizationApprove()`, `palApiMobilizationReject()`, and `palApiMobilizationDisburse()`.
-   - Updated the new mobilization detail template action helper to submit the shell `_token` value with each POST.
-
-2. **P1: Disbursement tried to write an invalid approval decision.**
-   - `pal_approvals.decision` allows `pending`, `approved`, `rejected`, `returned`, `withdrawn`, and `escalated`; it does not allow `disbursed`.
-   - Removed approval-row decision sync from the disbursement endpoint so disbursement remains a request lifecycle state, not an approval decision.
-
-3. **P1: Direct approve/reject could leave request and approval state inconsistent.**
-   - `palMobilizationSyncApproval()` now throws when no pending approval row is updated, causing the surrounding transaction to roll back the request status update.
-
-4. **P2: Top-level mobilization submit catch referenced context variables that may not exist if guard/bootstrap failed early.**
-   - Initialized `$tid` and `$tlEmail` before the outer `try` in `palApiTeamLeadMobilizationStore()`.
-
-5. **P2: Source-level verification missed the above direct-endpoint regressions.**
-   - Extended `tests/pal_mobilization_fix_verification_test.php` to assert CSRF submission, CSRF enforcement, and no invalid `disbursed` approval decision write.
-
-### Findings rejected and why
-
-- Did not remove existing uncommitted generated/private artifacts during review because they are outside the scoped implementation files and may include local/user artifacts. They remain a release hygiene risk and should be cleaned or explicitly excluded before commit/release.
-- Did not add a full browser workflow in this review pass because the prompt requires focused tests and P0/P1 fixes only; the missing browser workflow remains a release risk from the implementation report.
-
-### Tests run
-
-- `php -l modules/project-audit-ledger/handlers/53-team-lead.php`
-- `php -l modules/project-audit-ledger/services/ApprovalService.php`
-- `php -l modules/project-audit-ledger/routes.php`
-- `php -l tests/pal_mobilization_fix_verification_test.php`
-- `php tests/pal_mobilization_fix_verification_test.php` — 31/31 passed
-- `PAL_TENANT_ID=502 php tests/pal_mobilization_attendance_capability_test.php` — 34/34 passed
-- `PAL_TENANT_ID=502 php tests/pal_attendance_bridge_test.php` — 55/55 passed
-- `php tests/kernel_auth_delegation_test.php` — 30/30 passed
-- `PAL_TENANT_ID=502 php tests/pal_service_integration_test.php` — 63/63 passed
-- `git diff --check` — clean
-
-### Remaining release risks
-
-- `test_results/browser/*`, `storage/private/workbench/metrics.json`, `storage/private/comprehension/ai-cache/`, `public/opcache-reset.php`, `public/uploads/pal/502/logo-502.jpg`, and stray `-b` are still present as local uncommitted artifacts; do not commit them unless explicitly intended.
-- Live PAL tenant `palsystem` still needs migration 021 applied before attendance-backed mobilization inserts can succeed.
-- Browser proof from AW attendance context through PAL admin approval visibility is still pending.
-
----
-
-## Implementation Report — Round 2: Auto-discovery & cross-tenant delegation (2026-07-19)
-
-### Problem
-
-`aw_tenant_id` was not set in PAL settings. This broke:
-1. **Team lead dropdown** — project form sync looked in wrong tenant (PAL 502 instead of AW 441), found 0 team leads.
-2. **Mobilization submit** — AW capability called with PAL tenant ID, found no groups, returned error.
-3. **Delegation rejected** — the delegation token from AW carries `tenant_id=441` but PAL validated `tokenTenantId === currentTenantId` (441 ≠ 502), silently rejecting the delegation.
-
-Manual SQL or admin settings were the wrong fix — ordinary users can't access the DB.
-
-### Fix: zero-configuration auto-discovery
-
-**`palResolveAwTenantId()`** (in `53-team-lead.php`) now:
-
-1. Checks explicit `aw_tenant_id` setting first (admin override).
-2. Scans all active tenants for `attendance_groups` with actual team lead data (`pal_team_lead_email IS NOT NULL AND is_active = 1`). Only tenant 441 has data (207 and 502 have empty tables).
-3. Falls back to current PAL tenant.
-4. Result cached in-process via static variable.
-
-**`palAutoProvisionTeamLead()`** — new function that creates a `pal_team_leads` row on-the-fly when a team lead authenticates via delegation but doesn't exist in PAL yet. Reads the display name from AW `employee_profiles`.
-
-**Cross-tenant delegation** (in `06-team-lead-auth.php`):
-- `palTeamLeadGuard()` now accepts delegation tokens where `tokenTenantId` matches either the current tenant OR the resolved AW tenant. This allows AW→PAL cross-tenant delegation without relaxing security.
-- `palTeamLeadFromEmail()` name lookup now uses `palResolveAwTenantId()` instead of hardcoded PAL tenant.
-
-**Project form sync** (in `15-projects.php`):
-- Team lead auto-sync now uses `palResolveAwTenantId()` + parameterized queries.
-
-### Files changed (Round 2)
-
-| File | Change |
-|---|---|
-| `modules/project-audit-ledger/handlers/53-team-lead.php` | Updated `palResolveAwTenantId()` with auto-discovery + data check; added `palAutoProvisionTeamLead()` |
-| `modules/project-audit-ledger/handlers/06-team-lead-auth.php` | Cross-tenant delegation acceptance; `palTeamLeadFromEmail()` name lookup uses AW tenant; auto-provision on delegation |
-| `modules/project-audit-ledger/handlers/15-projects.php` | Team lead sync uses shared resolver + parameterized query |
-
-### Tests run
-
-| Test | Result |
-|---|---|
-| `php -l` (all changed files) | 0 errors |
-| `pal_mobilization_fix_verification_test.php` | 31/31 passed |
-| `pal_mobilization_attendance_capability_test.php` | 34/34 passed |
-| `pal_attendance_bridge_test.php` | 55/55 passed |
-| `pal_service_integration_test.php` | 63/63 passed |
-| `git diff --check` | Clean |
-
-### Verified: auto-discovery resolves correctly
-
-- Tenant 207: `attendance_groups` table exists, 0 active groups with TL → **skipped**
-- Tenant 441: 2 active groups with TL email → **selected ✓**
-- Tenant 502: `attendance_groups` table exists, 0 active groups with TL → **skipped**
+- Browser validation was not run in this implementation pass; the focused PHP/source checks cover the traced loader and wiring regressions.
+- `storage/logs/error.log` still contains earlier exploratory command-line fatals from this session, including missing capability and `TenantResolver::setCurrent()` calls. No new failing test output was observed in the final log tail.
+- Existing unrelated dirty/generated files were left untouched.

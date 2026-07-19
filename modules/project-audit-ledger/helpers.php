@@ -239,7 +239,7 @@ function pal_cap_entity_list_project_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT p.id, p.project_id, p.title, p.contract_amount, p.status, p.start_date, p.target_completion_date, p.created_at, c.name AS client_name FROM pal_projects p LEFT JOIN pal_clients c ON p.client_id = c.id WHERE p.tenant_id = :tid ORDER BY {$sortField} {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT p.id, p.project_id, p.job_order_number, p.title, p.contract_amount, p.status, p.start_date, p.target_completion_date, p.created_at, c.name AS client_name FROM pal_projects p LEFT JOIN pal_clients c ON p.client_id = c.id AND c.tenant_id = p.tenant_id WHERE p.tenant_id = :tid ORDER BY {$sortField} {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -256,7 +256,7 @@ function pal_cap_entity_get_project_1(array $args): array
         $db = palDb();
         $id = (int)($args['id'] ?? 0);
         $tid = (int)(app()->tenant()->current() ?? 0);
-        $stmt = $db->prepare("SELECT p.*, c.name AS client_name, pt.name AS project_type_name, tl.name AS team_lead_name FROM pal_projects p LEFT JOIN pal_clients c ON p.client_id = c.id LEFT JOIN pal_project_types pt ON p.project_type_id = pt.id LEFT JOIN pal_team_leads tl ON p.fabrication_team_lead_id = tl.id WHERE p.id = :id AND p.tenant_id = :tid");
+        $stmt = $db->prepare("SELECT p.*, c.name AS client_name, pt.name AS project_type_name, tl.name AS team_lead_name FROM pal_projects p LEFT JOIN pal_clients c ON p.client_id = c.id AND c.tenant_id = p.tenant_id LEFT JOIN pal_project_types pt ON p.project_type_id = pt.id AND pt.tenant_id = p.tenant_id LEFT JOIN pal_team_leads tl ON p.fabrication_team_lead_id = tl.id AND tl.tenant_id = p.tenant_id WHERE p.id = :id AND p.tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $tid]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
@@ -291,7 +291,7 @@ function pal_cap_entity_list_expense_1(array $args): array
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
-        $stmt = $db->prepare("SELECT e.id, e.project_id, e.expense_number, e.expense_date, e.description, e.amount, e.status, e.created_at, ec.name AS category_name FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id WHERE {$where} ORDER BY e.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT e.id, e.project_id, e.expense_number, e.expense_date, e.description, e.amount, e.status, e.created_at, ec.name AS category_name, p.title AS project_title, p.job_order_number FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id AND ec.tenant_id = e.tenant_id LEFT JOIN pal_projects p ON e.project_id = p.id AND p.tenant_id = e.tenant_id WHERE {$where} ORDER BY e.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -310,7 +310,7 @@ function pal_cap_entity_get_expense_1(array $args): array
         $db = palDb();
         $id = (int)($args['id'] ?? 0);
         $tid = (int)(app()->tenant()->current() ?? 0);
-        $stmt = $db->prepare("SELECT e.*, ec.name AS category_name, p.title AS project_title FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id LEFT JOIN pal_projects p ON e.project_id = p.id WHERE e.id = :id AND e.tenant_id = :tid");
+        $stmt = $db->prepare("SELECT e.*, ec.name AS category_name, p.title AS project_title, p.job_order_number FROM pal_expenses e LEFT JOIN pal_expense_categories ec ON e.category_id = ec.id AND ec.tenant_id = e.tenant_id LEFT JOIN pal_projects p ON e.project_id = p.id AND p.tenant_id = e.tenant_id WHERE e.id = :id AND e.tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $tid]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
@@ -373,7 +373,7 @@ function pal_cap_entity_list_purchase_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT p.id, p.purchase_number, p.total_amount, p.status, p.purchase_date, p.created_at, s.name AS supplier_name FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id WHERE p.tenant_id = :tid ORDER BY p.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT p.id, p.project_id, p.purchase_number, p.total_amount, p.status, p.purchase_date, p.created_at, s.name AS supplier_name, pr.title AS project_title, pr.job_order_number FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id AND s.tenant_id = p.tenant_id LEFT JOIN pal_projects pr ON p.project_id = pr.id AND pr.tenant_id = p.tenant_id WHERE p.tenant_id = :tid ORDER BY p.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -390,7 +390,7 @@ function pal_cap_entity_get_purchase_1(array $args): array
         $db = palDb();
         $id = (int)($args['id'] ?? 0);
         $tid = (int)(app()->tenant()->current() ?? 0);
-        $stmt = $db->prepare("SELECT p.*, s.name AS supplier_name, pr.title AS project_title FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id LEFT JOIN pal_projects pr ON p.project_id = pr.id WHERE p.id = :id AND p.tenant_id = :tid");
+        $stmt = $db->prepare("SELECT p.*, s.name AS supplier_name, pr.title AS project_title, pr.job_order_number FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id AND s.tenant_id = p.tenant_id LEFT JOIN pal_projects pr ON p.project_id = pr.id AND pr.tenant_id = p.tenant_id WHERE p.id = :id AND p.tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $tid]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
@@ -413,7 +413,7 @@ function pal_cap_entity_list_sale_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT s.id, s.sales_number, s.gross_amount, s.discount_amount, s.tax_amount, s.net_amount, s.invoice_number, s.status, s.sales_date, s.created_at, p.title AS project_title, c.name AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE s.tenant_id = :tid ORDER BY s.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT s.id, s.sales_number, s.gross_amount, s.discount_amount, s.tax_amount, s.net_amount, s.invoice_number, s.status, s.sales_date, s.created_at, p.title AS project_title, p.job_order_number, c.name AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id AND p.tenant_id = s.tenant_id LEFT JOIN pal_clients c ON s.client_id = c.id AND c.tenant_id = s.tenant_id WHERE s.tenant_id = :tid ORDER BY s.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -430,7 +430,7 @@ function pal_cap_entity_get_sale_1(array $args): array
         $db = palDb();
         $id = (int)($args['id'] ?? 0);
         $tid = (int)(app()->tenant()->current() ?? 0);
-        $stmt = $db->prepare("SELECT s.*, p.title AS project_title, c.name AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id LEFT JOIN pal_clients c ON s.client_id = c.id WHERE s.id = :id AND s.tenant_id = :tid");
+        $stmt = $db->prepare("SELECT s.*, p.title AS project_title, p.job_order_number, c.name AS client_name FROM pal_sales s LEFT JOIN pal_projects p ON s.project_id = p.id AND p.tenant_id = s.tenant_id LEFT JOIN pal_clients c ON s.client_id = c.id AND c.tenant_id = s.tenant_id WHERE s.id = :id AND s.tenant_id = :tid");
         $stmt->execute([':id' => $id, ':tid' => $tid]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ? ['ok' => true, 'data' => $row] : ['ok' => false, 'error' => 'Not found.'];
@@ -453,7 +453,7 @@ function pal_cap_entity_list_collection_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT c.id, c.collection_number, c.amount, c.payment_method, c.reference_number, c.status, c.payment_date, c.created_at, COALESCE(s.invoice_number, s.sales_number) AS sales_number, p.title AS project_title, cl.name AS client_name FROM pal_collections c LEFT JOIN pal_sales s ON c.sales_id = s.id LEFT JOIN pal_projects p ON c.project_id = p.id LEFT JOIN pal_clients cl ON c.client_id = cl.id WHERE c.tenant_id = :tid ORDER BY c.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT c.id, c.collection_number, c.amount, c.payment_method, c.reference_number, c.status, c.payment_date, c.created_at, COALESCE(s.invoice_number, s.sales_number) AS sales_number, p.title AS project_title, p.job_order_number, cl.name AS client_name FROM pal_collections c LEFT JOIN pal_sales s ON c.sales_id = s.id AND s.tenant_id = c.tenant_id LEFT JOIN pal_projects p ON c.project_id = p.id AND p.tenant_id = c.tenant_id LEFT JOIN pal_clients cl ON c.client_id = cl.id AND cl.tenant_id = c.tenant_id WHERE c.tenant_id = :tid ORDER BY c.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -478,7 +478,7 @@ function pal_cap_entity_list_fabrication_due_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT d.id, d.due_date, d.amount_due, d.paid_amount, d.status, d.created_at, p.title AS project_title FROM pal_fabrication_weekly_dues d LEFT JOIN pal_projects p ON d.project_id = p.id WHERE d.tenant_id = :tid ORDER BY d.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT d.id, d.project_id, d.due_date, d.amount_due, d.paid_amount, d.status, d.created_at, p.title AS project_title, p.job_order_number FROM pal_fabrication_weekly_dues d LEFT JOIN pal_projects p ON d.project_id = p.id AND p.tenant_id = d.tenant_id WHERE d.tenant_id = :tid ORDER BY d.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -1009,7 +1009,7 @@ function palFireEvent(string $event, array $payload = []): void
  * Usage: palEntityUrl('expense', 42) → '/admin/project-audit-ledger/expenses/42'
  *        palEntityUrl('expense')     → '/admin/project-audit-ledger/expenses'
  */
-function palEntityUrl(string $entityType, ?int $entityId = null): ?string
+function palEntityUrl(string $entityType, int|string|null $entityId = null): ?string
 {
     $map = [
         'expense'             => '/admin/project-audit-ledger/expenses',
@@ -1019,6 +1019,7 @@ function palEntityUrl(string $entityType, ?int $entityId = null): ?string
         'fabrication_payment' => '/admin/project-audit-ledger/fabrication',
         'cash_advance'        => '/admin/project-audit-ledger/cash-advances',
         'mobilization'        => '/admin/project-audit-ledger/mobilization',
+        'project'             => '/admin/project-audit-ledger/projects',
     ];
 
     $base = $map[$entityType] ?? null;
@@ -1026,17 +1027,20 @@ function palEntityUrl(string $entityType, ?int $entityId = null): ?string
         return null;
     }
 
-    return $entityId !== null ? "{$base}/{$entityId}" : $base;
+    $id = palNormalizeEntityUrlId($entityId);
+
+    return $id !== null ? "{$base}/{$id}" : $base;
 }
 
 /**
  * Maps an audit-log entity_type (prefixed with 'pal_') to an admin URL.
  * Covers the pal_audit_logs table which uses 'pal_projects', 'pal_expenses', etc.
  */
-function palAuditEntityUrl(string $entityType, ?int $entityId = null): ?string
+function palAuditEntityUrl(string $entityType, int|string|null $entityId = null): ?string
 {
     $map = [
         'pal_projects'           => '/admin/project-audit-ledger/projects',
+        'project'                => '/admin/project-audit-ledger/projects',
         'pal_clients'            => '/admin/project-audit-ledger/clients',
         'pal_expenses'           => '/admin/project-audit-ledger/expenses',
         'pal_purchases'          => '/admin/project-audit-ledger/purchases',
@@ -1046,6 +1050,7 @@ function palAuditEntityUrl(string $entityType, ?int $entityId = null): ?string
         'pal_materials'          => '/admin/project-audit-ledger/inventory',
         'pal_suppliers'          => '/admin/project-audit-ledger/suppliers',
         'pal_mobilization_requests' => '/admin/project-audit-ledger/mobilization',
+        'mobilization'           => '/admin/project-audit-ledger/mobilization',
         'pal_approvals'          => '/admin/project-audit-ledger/approvals',
         'pal_cash_advances'      => '/admin/project-audit-ledger/cash-advances',
         'pal_fabrication_payments' => '/admin/project-audit-ledger/fabrication',
@@ -1058,7 +1063,24 @@ function palAuditEntityUrl(string $entityType, ?int $entityId = null): ?string
         return null;
     }
 
-    return $entityId !== null ? "{$base}/{$entityId}" : $base;
+    $id = palNormalizeEntityUrlId($entityId);
+
+    return $id !== null ? "{$base}/{$id}" : $base;
+}
+
+function palNormalizeEntityUrlId(int|string|null $entityId): ?int
+{
+    if ($entityId === null || $entityId === '') {
+        return null;
+    }
+
+    if (is_string($entityId) && !ctype_digit($entityId)) {
+        return null;
+    }
+
+    $id = (int)$entityId;
+
+    return $id > 0 ? $id : null;
 }
 
 /**
@@ -1325,7 +1347,7 @@ function pal_cap_entity_list_cash_advance_1(array $args): array
         $countStmt->execute($params);
         $total = (int)$countStmt->fetchColumn();
 
-        $stmt = $db->prepare("SELECT ca.*, tl.name AS team_lead_name, p.title AS project_title FROM pal_cash_advances ca LEFT JOIN pal_team_leads tl ON ca.team_lead_id = tl.id LEFT JOIN pal_projects p ON ca.project_id = p.id WHERE {$where} ORDER BY ca.advance_date {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT ca.*, tl.name AS team_lead_name, p.title AS project_title, p.job_order_number FROM pal_cash_advances ca LEFT JOIN pal_team_leads tl ON ca.team_lead_id = tl.id AND tl.tenant_id = ca.tenant_id LEFT JOIN pal_projects p ON ca.project_id = p.id AND p.tenant_id = ca.tenant_id WHERE {$where} ORDER BY ca.advance_date {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);
@@ -1352,7 +1374,7 @@ function pal_cap_entity_list_mobilization_1(array $args): array
         $count->execute([':tid' => $tid]);
         $total = (int)$count->fetchColumn();
 
-        $stmt = $db->prepare("SELECT mr.*, tl.name AS team_lead_name, p.title AS project_title FROM pal_mobilization_requests mr LEFT JOIN pal_team_leads tl ON mr.team_lead_id = tl.id LEFT JOIN pal_projects p ON mr.project_id = p.id WHERE mr.tenant_id = :tid ORDER BY mr.created_at {$sortDir} LIMIT :lim OFFSET :off");
+        $stmt = $db->prepare("SELECT mr.*, tl.name AS team_lead_name, p.title AS project_title, p.job_order_number FROM pal_mobilization_requests mr LEFT JOIN pal_team_leads tl ON mr.team_lead_id = tl.id AND tl.tenant_id = mr.tenant_id LEFT JOIN pal_projects p ON mr.project_id = p.id AND p.tenant_id = mr.tenant_id WHERE mr.tenant_id = :tid ORDER BY mr.created_at {$sortDir} LIMIT :lim OFFSET :off");
         $stmt->bindValue(':tid', $tid, PDO::PARAM_INT);
         $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
         $stmt->bindValue(':off', $offset, PDO::PARAM_INT);

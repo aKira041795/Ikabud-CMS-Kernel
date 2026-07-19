@@ -22,7 +22,7 @@ class palPurchaseService
         if (!empty($filters['status'])) { $where[] = 'p.status = :status'; $params[':status'] = $filters['status']; }
         if (!empty($filters['supplier_id'])) { $where[] = 'p.supplier_id = :supplier_id'; $params[':supplier_id'] = (int)$filters['supplier_id']; }
         $w = implode(' AND ', $where);
-        $sql = "SELECT p.*, s.name AS supplier_name, pr.title AS project_title, (SELECT COUNT(*) FROM pal_purchase_items pi WHERE pi.purchase_id = p.id) AS item_count FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id LEFT JOIN pal_projects pr ON p.project_id = pr.id WHERE {$w} ORDER BY p.created_at DESC LIMIT 50";
+        $sql = "SELECT p.*, s.name AS supplier_name, pr.title AS project_title, pr.job_order_number, (SELECT COUNT(*) FROM pal_purchase_items pi WHERE pi.purchase_id = p.id) AS item_count FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id AND s.tenant_id = p.tenant_id LEFT JOIN pal_projects pr ON p.project_id = pr.id AND pr.tenant_id = p.tenant_id WHERE {$w} ORDER BY p.created_at DESC LIMIT 50";
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -30,7 +30,7 @@ class palPurchaseService
 
     public function get(int $id): ?array
     {
-        $sql = "SELECT p.*, s.name AS supplier_name, pr.title AS project_title FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id LEFT JOIN pal_projects pr ON p.project_id = pr.id WHERE p.id = :id AND p.tenant_id = :tenant_id";
+        $sql = "SELECT p.*, s.name AS supplier_name, pr.title AS project_title, pr.job_order_number FROM pal_purchases p LEFT JOIN pal_suppliers s ON p.supplier_id = s.id AND s.tenant_id = p.tenant_id LEFT JOIN pal_projects pr ON p.project_id = pr.id AND pr.tenant_id = p.tenant_id WHERE p.id = :id AND p.tenant_id = :tenant_id";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id, ':tenant_id' => $this->tenantId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);

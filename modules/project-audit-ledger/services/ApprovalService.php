@@ -299,10 +299,22 @@ class palApprovalService
             // 2. Update target entity status
             $table = self::TABLES[$entityType] ?? null;
             if ($table) {
-                $eUpd = $this->db->prepare(
-                    "UPDATE {$table} SET status = :st WHERE id = :eid AND tenant_id = :tid"
-                );
-                $eUpd->execute([':st' => $newStatus, ':eid' => $entityId, ':tid' => $this->tenantId]);
+                if ($entityType === 'mobilization' && $decision === 'approved') {
+                    $eUpd = $this->db->prepare(
+                        "UPDATE {$table} SET status = :st, approved_by = :rv, approved_at = NOW() WHERE id = :eid AND tenant_id = :tid"
+                    );
+                    $eUpd->execute([
+                        ':st' => $newStatus,
+                        ':rv' => $this->userId,
+                        ':eid' => $entityId,
+                        ':tid' => $this->tenantId,
+                    ]);
+                } else {
+                    $eUpd = $this->db->prepare(
+                        "UPDATE {$table} SET status = :st WHERE id = :eid AND tenant_id = :tid"
+                    );
+                    $eUpd->execute([':st' => $newStatus, ':eid' => $entityId, ':tid' => $this->tenantId]);
+                }
             }
 
             // 3. Post-approval side effects (stock movements, cost updates)

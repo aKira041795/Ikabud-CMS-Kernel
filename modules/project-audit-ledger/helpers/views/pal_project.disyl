@@ -1,5 +1,6 @@
 {ikb_entity_view name="pal_project" view="table"}
-    {field name="project_id" type="string"}
+    {field name="job_order_number" type="string"}
+    {field name="project_id" type="string" visible="false"}
     {field name="title" type="string"}
     {field name="client_name" type="string"}
     {field name="contract_amount" type="number" renderer="money:2"}
