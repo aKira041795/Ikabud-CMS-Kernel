@@ -99,14 +99,28 @@ When sending a task to any agent, ALWAYS include:
 
 When the orchestrator receives a request, it should:
 
-1. **Classify** the task type (review, explain, write, test, refactor, explore, or code)
-2. **Check if research-heavy** (5+ files needed) → delegate to **Explore** first (Gemini's 1M context)
-3. **Check whether tool restrictions block the task** — if the task needs terminal commands (e.g. running `php ikabud`), delegate to an agent with `execute` tools (Test Writer) or do it directly. Read-only agents (Code Reviewer, Explore, Pattern Explainer) cannot run commands.
-4. **Delegate** to the appropriate agent — subagents run in isolated sessions with their own token budget
-5. **Await result** — agents return structured output, not files (unless they have edit permissions)
-6. **Verify agent returned output** — if empty, invoke the Empty/Stale Agent Return Recovery Protocol instead of proceeding blindly
-7. **Act on output** — the orchestrator implements changes based on agent findings if needed
-8. **Verify** — check logs, run `php -l`, validate results
+1. **Classify** the task type (review, explain, write, test, refactor, explore, debug, or code)
+2. **If the task is a runtime bug report** ("data not saved", "form doesn't work", "button does nothing") → follow the **Debug-First Protocol** (below) BEFORE reading code or delegating
+3. **Check if research-heavy** (5+ files needed) → delegate to **Explore** first (Gemini's 1M context)
+4. **Check whether tool restrictions block the task** — if the task needs terminal commands (e.g. running `php ikabud`), delegate to an agent with `execute` tools (Test Writer) or do it directly. Read-only agents (Code Reviewer, Explore, Pattern Explainer) cannot run commands.
+5. **Delegate** to the appropriate agent — subagents run in isolated sessions with their own token budget
+6. **Await result** — agents return structured output, not files (unless they have edit permissions)
+7. **Verify agent returned output** — if empty, invoke the Empty/Stale Agent Return Recovery Protocol instead of proceeding blindly
+8. **Act on output** — the orchestrator implements changes based on agent findings if needed
+9. **Verify** — check logs, run `php -l`, validate results
+
+### Debug-First Protocol (mandatory for runtime bug reports)
+
+When the task is a runtime bug report, do NOT read source code or delegate until you have:
+
+1. **Reproduced** — asked the user for exact URL, steps, what they saw vs expected
+2. **Checked both logs** — `storage/logs/app.log` AND `storage/logs/error.log`
+3. **Narrowed the layer** — JS frontend? HTTP routing? PHP handler? SQL? Based on log evidence and user's description
+4. **Isolated with a direct test** — a one-line PHP CLI call that tests the suspect function directly
+
+Only AFTER these four steps, proceed to read code and make changes. See `.github/skills/runtime-debug-workflow/SKILL.md` for the full protocol.
+
+**Anti-pattern**: Reading 500+ lines of backend PHP code for a JS/frontend symptom. If the user says "no toast appears" and "page reloads", the problem is in the browser, not in `ProjectService::update()`.
 
 ### Delegation priority
 For tasks that span multiple categories, delegate in this order:

@@ -16,6 +16,7 @@ return [
         '/admin/project-audit-ledger/projects/create' => 'project-audit-ledger:palPageProjectForm',
         '/admin/project-audit-ledger/projects/{id}/edit' => 'project-audit-ledger:palPageProjectForm',
         '/admin/project-audit-ledger/projects/{id}' => 'project-audit-ledger:palPageProjectDetail',
+        '/admin/project-audit-ledger/projects/{id}/print' => 'project-audit-ledger:palPageProjectPrint',
         '/api/v1/project-audit-ledger/projects' => 'project-audit-ledger:palApiProjectList',
         '/api/v1/project-audit-ledger/projects/{id}/cost' => 'project-audit-ledger:palApiProjectCost',
         '/api/v1/project-audit-ledger/projects/{id}/items' => 'project-audit-ledger:palApiProjectItems',

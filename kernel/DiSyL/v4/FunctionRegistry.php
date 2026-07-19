@@ -5,8 +5,10 @@
  * Provides a safe, whitelisted set of built-in functions that can be called
  * from Disyl templates via the function-call syntax: funcname(arg1, arg2, ...).
  *
- * Only functions registered here are reachable from templates — unknown names
- * return null rather than executing arbitrary PHP.
+ * Registered functions take precedence. For any name NOT in the registry,
+ * the registry falls back to PHP's function_exists() — so module-level
+ * helper functions (e.g. palEntityLabel, palEntityUrl) are automatically
+ * callable from templates without per-function registration.
  *
  * @package Ikabud\Kernel\DiSyL\v4
  */
@@ -21,27 +23,32 @@ final class FunctionRegistry
     private static bool $initialized = false;
 
     /**
-     * Return true if $name is a known, callable function.
+     * Return true if $name is a known, callable function (registered or PHP built-in).
      */
     public static function has(string $name): bool
     {
         self::init();
-        return isset(self::$functions[$name]);
+        return isset(self::$functions[$name]) || function_exists($name);
     }
 
     /**
      * Call the registered function $name with $args.
-     * Returns null for unknown function names (safe no-op).
+     * Falls back to PHP function_exists() for module-level helpers
+     * that don't need explicit registration.
      *
      * @param mixed[] $args
      */
     public static function call(string $name, array $args): mixed
     {
         self::init();
-        if (!isset(self::$functions[$name])) {
-            return null;
+        if (isset(self::$functions[$name])) {
+            return (self::$functions[$name])(...$args);
         }
-        return (self::$functions[$name])(...$args);
+        // Fallback: resolve any PHP function by name (module helpers)
+        if (function_exists($name)) {
+            return $name(...$args);
+        }
+        return null;
     }
 
     /**

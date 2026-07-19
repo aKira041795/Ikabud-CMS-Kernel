@@ -4,9 +4,14 @@
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
-    <p>Hi {client_name|escape:'html'},</p>
-    <p>Here is the summary of your Job Order with <strong>{company_name|escape:'html'}</strong>.</p>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f9fafb;">
+    <div style="background:#fff;border-radius:8px;padding:24px;border:1px solid #e5e7eb;">
+    <div style="border-bottom:2px solid #1e40af;padding-bottom:12px;margin-bottom:16px;">
+        <h2 style="margin:0;color:#1e40af;">{company_name|escape:'html'}</h2>
+        <p style="margin:4px 0 0 0;font-size:13px;color:#6b7280;">Job Order Summary</p>
+    </div>
+    <p>Dear {client_name|escape:'html'},</p>
+    <p>Thank you for choosing <strong>{company_name|escape:'html'}</strong>. Here is the summary of your Job Order:</p>
 
     <table style="width:100%;border-collapse:collapse;margin:16px 0;">
         <tr><td style="padding:4px 12px;font-weight:bold;color:#374151;">JO Number:</td><td style="padding:4px 12px;">{jo_number|escape:'html'}</td></tr>
@@ -45,12 +50,14 @@
     {/if}
 
     {if mockup_url|default:''}
-        <div style="margin-top:20px;">
-            <p><strong>Design Mockup:</strong></p>
-            <p><a href="{mockup_url|escape:'html'}" style="display:inline-block;padding:10px 20px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;text-decoration:none;color:#374151;font-size:14px;">🖼 View Design Mockup →</a></p>
+        <div style="margin-top:20px; padding:16px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px;">
+            <p style="margin:0 0 12px 0; font-weight:bold; color:#374151; font-size:14px;">🖼 Design Mockup</p>
+            <img src="{mockup_url|escape:'html'}" alt="Design Mockup" style="max-width:100%; max-height:500px; object-fit:contain; border-radius:4px; border:1px solid #e5e7eb;">
+            <p style="margin:8px 0 0 0; font-size:12px; color:#6b7280;">If the image doesn't display, <a href="{mockup_url|escape:'html'}" style="color:#2563eb;">click here to view or download</a>.</p>
         </div>
     {/if}
 
     <p style="margin-top:20px;color:#6b7280;font-size:12px;">This is an automated message from {company_name|escape:'html'}. For inquiries, please contact us directly.</p>
+    </div>
 </body>
 </html>

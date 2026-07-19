@@ -1,0 +1,195 @@
+<div class="print-only" style="font-family: Arial, sans-serif; max-width: 210mm; margin: 0 auto; padding: 20px; color: #333;">
+    <!-- Header: Logo + Company Info -->
+    <div style="display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #1e40af; padding-bottom: 15px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            {if pal_logo_path|default:''}
+            <img src="/{pal_logo_path}" style="max-height: 70px; max-width: 120px; object-fit: contain;">
+            {/if}
+            <div>
+                <h1 style="margin: 0; font-size: 22px; color: #1e40af;">JOB ORDER</h1>
+                <p style="margin: 2px 0; font-size: 14px; font-weight: bold; color: #333;">{settings.company_name|default:'ZAP-ARTS Signage & Printing Solutions'}</p>
+                {if settings.company_address}<p style="margin: 2px 0; font-size: 11px; color: #666;">{settings.company_address}</p>{/if}
+                <p style="margin: 2px 0; font-size: 11px; color: #666;">
+                    {if settings.company_phone}📞 {settings.company_phone}{/if}
+                    {if settings.company_phone && settings.company_email} &nbsp;|&nbsp; {/if}
+                    {if settings.company_email}✉ {settings.company_email}{/if}
+                </p>
+            </div>
+        </div>
+        <div style="text-align: right; min-width: 200px;">
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px 14px;">
+                <p style="margin: 1px 0; font-size: 12px;"><strong>JO #:</strong> {project.job_order_number|default:project.project_id|default:'—'}</p>
+                <p style="margin: 1px 0; font-size: 12px;"><strong>Date:</strong> {project.start_date|default:project.created_at|default:'—'}</p>
+                <p style="margin: 1px 0; font-size: 12px;"><strong>Status:</strong> {project.status|default:'draft'|replace:'_':' '|capitalize}</p>
+                <p style="margin: 1px 0; font-size: 12px;"><strong>Type:</strong> {project.jo_type|default:'items'|capitalize}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client + Project Info -->
+    <table style="width: 100%; font-size: 12px; margin-bottom: 20px;">
+        <tr>
+            <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase;">👤 Client Information</p>
+                    <p style="margin: 2px 0;"><strong>{project.client_name|default:'—'}</strong></p>
+                    {if project.client_contact}<p style="margin: 2px 0;">Contact: {project.client_contact}</p>{/if}
+                    {if project.client_email}<p style="margin: 2px 0;">Email: {project.client_email}</p>{/if}
+                    {if project.client_phone}<p style="margin: 2px 0;">Phone: {project.client_phone}</p>{/if}
+                    {if project.client_address}<p style="margin: 2px 0; font-size: 10px; color: #666;">{project.client_address}</p>{/if}
+                </div>
+            </td>
+            <td style="width: 50%; vertical-align: top; padding-left: 10px;">
+                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase;">📋 Project Details</p>
+                    <p style="margin: 2px 0;"><strong>Title:</strong> {project.title|default:'—'}</p>
+                    {if project.scope_of_work}<p style="margin: 2px 0;"><strong>Scope:</strong> {project.scope_of_work|replace:'_':' '|capitalize}</p>{/if}
+                    {if project.project_type_name}<p style="margin: 2px 0;"><strong>Type:</strong> {project.project_type_name}</p>{/if}
+                    {if project.location}<p style="margin: 2px 0;"><strong>Location:</strong> {project.location}</p>{/if}
+                    {if project.target_completion_date}<p style="margin: 2px 0;"><strong>Target:</strong> {project.target_completion_date}</p>{/if}
+                    {if project.project_manager}<p style="margin: 2px 0;"><strong>Manager:</strong> {project.project_manager}</p>{/if}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Payment + Installation Info -->
+    <table style="width: 100%; font-size: 12px; margin-bottom: 20px;">
+        <tr>
+            <td style="width: 50%; vertical-align: top; padding-right: 10px;">
+                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase;">💳 Payment Terms</p>
+                    <p style="margin: 2px 0;"><strong>Contract Amount:</strong> <span style="font-size: 14px; font-weight: bold; color: #059669;">₱{project.contract_amount|default:0|number_format:2}</span></p>
+                    {if project.mode_of_payment}<p style="margin: 2px 0;"><strong>Mode:</strong> {project.mode_of_payment|replace:'_':' '|capitalize}</p>{/if}
+                    {if project.down_payment > 0}<p style="margin: 2px 0;"><strong>Down Payment:</strong> ₱{project.down_payment|number_format:2} {if project.down_payment_type}({project.down_payment_type|replace:'_':' '}){/if}</p>{/if}
+                </div>
+            </td>
+            <td style="width: 50%; vertical-align: top; padding-left: 10px;">
+                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 6px 0; font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase;">🔧 Installation</p>
+                    <p style="margin: 2px 0;"><strong>Installation:</strong> {if project.with_installation}Yes{else}No{/if}</p>
+                    {if project.with_installation && project.team_lead_name}<p style="margin: 2px 0;"><strong>Team Lead:</strong> {project.team_lead_name}</p>{/if}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Mockup Image -->
+    {if mockup_url}
+    <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px;">
+        <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: bold; color: #6b7280; text-transform: uppercase;">🖼 Design Mockup</p>
+        <img src="{mockup_url}" style="max-width: 100%; max-height: 400px; object-fit: contain; border-radius: 4px;" alt="Project Mockup">
+    </div>
+    {/if}
+
+    <!-- Line Items -->
+    {if project.items && project.items|count > 0}
+    <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 15px;">
+        <thead>
+            <tr style="background-color: #1e40af; color: #fff;">
+                <th style="padding: 7px 10px; text-align: left; border: 1px solid #1e40af;">#</th>
+                <th style="padding: 7px 10px; text-align: left; border: 1px solid #1e40af;">Material / Particulars</th>
+                <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">W×H</th>
+                <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">Unit</th>
+                <th style="padding: 7px 10px; text-align: center; border: 1px solid #1e40af;">QTY</th>
+                <th style="padding: 7px 10px; text-align: right; border: 1px solid #1e40af;">Unit Price</th>
+                <th style="padding: 7px 10px; text-align: right; border: 1px solid #1e40af;">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {for item in project.items}
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.sort_order|default:item_index+1}</td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb;">
+                    <strong>{item.material_name|default:item.particulars}</strong>
+                    {if item.material_name && item.particulars}<br><span style="color: #6b7280; font-size: 10px;">{item.particulars}</span>{/if}
+                    {if item.material_code}<br><span style="color: #9ca3af; font-size: 9px;">Code: {item.material_code}</span>{/if}
+                </td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{if item.width && item.height}{item.width}×{item.height}{else}—{/if}</td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.uom|default:'—'}</td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: center;">{item.quantity|default:1}</td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: right;">{if item.price_per_unit > 0}₱{item.price_per_unit|number_format:2}{else}—{/if}</td>
+                <td style="padding: 5px 10px; border: 1px solid #e5e7eb; text-align: right; font-weight: bold;">₱{item.line_total|number_format:2}</td>
+            </tr>
+            {/for}
+        </tbody>
+    </table>
+    {/if}
+
+    <!-- Charges Breakdown -->
+    <table style="width: 100%; font-size: 12px; margin-bottom: 20px;">
+        <tr>
+            <td style="width: 50%; vertical-align: top;">
+                {if project.notes}
+                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 4px; border: 1px solid #e5e7eb;">
+                    <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase;">📝 Notes</p>
+                    <p style="margin: 2px 0; font-size: 11px; white-space: pre-wrap;">{project.notes}</p>
+                </div>
+                {/if}
+                {if project.description}
+                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 4px; border: 1px solid #e5e7eb; margin-top: 10px;">
+                    <p style="margin: 0 0 4px 0; font-size: 11px; font-weight: bold; color: #6b7280; text-transform: uppercase;">📄 Description</p>
+                    <p style="margin: 2px 0; font-size: 11px; white-space: pre-wrap;">{project.description}</p>
+                </div>
+                {/if}
+            </td>
+            <td style="width: 50%; vertical-align: top;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-left: 20px;">
+                    <tr style="font-weight: bold; font-size: 14px;">
+                        <td style="padding: 6px 10px; text-align: right; border-top: 2px solid #1e40af; color: #1e40af;">CONTRACT TOTAL:</td>
+                        <td style="padding: 6px 10px; text-align: right; border-top: 2px solid #1e40af; color: #1e40af;">₱{project.contract_amount|default:0|number_format:2}</td>
+                    </tr>
+                    {if project.installation_charge|default:0 > 0}
+                    <tr><td style="padding: 3px 10px; text-align: right; color: #6b7280;">Installation:</td><td style="padding: 3px 10px; text-align: right;">₱{project.installation_charge|number_format:2}</td></tr>
+                    {/if}
+                    {if project.mobilization_charge|default:0 > 0}
+                    <tr><td style="padding: 3px 10px; text-align: right; color: #6b7280;">Mobilization:</td><td style="padding: 3px 10px; text-align: right;">₱{project.mobilization_charge|number_format:2}</td></tr>
+                    {/if}
+                    {if project.other_charges|default:0 > 0}
+                    <tr><td style="padding: 3px 10px; text-align: right; color: #6b7280;">Other Charges:</td><td style="padding: 3px 10px; text-align: right;">₱{project.other_charges|number_format:2}</td></tr>
+                    {/if}
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Signatures -->
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #d1d5db; font-size: 11px;">
+        <table style="width: 100%;">
+            <tr>
+                <td style="width: 33%; text-align: center;">
+                    <p style="margin-bottom: 40px;">______________________________</p>
+                    <p><strong>Prepared By</strong></p>
+                    <p style="color: #6b7280;">{prepared_by|default:project.project_manager|default:'—'}</p>
+                </td>
+                <td style="width: 33%; text-align: center;">
+                    <p style="margin-bottom: 40px;">______________________________</p>
+                    <p><strong>Client Signature</strong></p>
+                </td>
+                <td style="width: 33%; text-align: center;">
+                    <p style="margin-bottom: 40px;">______________________________</p>
+                    <p><strong>Date Received</strong></p>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top: 15px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #e5e7eb; padding-top: 10px;">
+        <p>{settings.company_name|default:'ZAP-ARTS Signage & Printing Solutions'}</p>
+        {if settings.company_address}<p>{settings.company_address}</p>{/if}
+        {if settings.company_phone || settings.company_email}<p>{if settings.company_phone}Tel: {settings.company_phone}{/if}{if settings.company_phone && settings.company_email} | {/if}{if settings.company_email}Email: {settings.company_email}{/if}</p>{/if}
+        <p style="margin-top: 4px;">JO #{project.job_order_number|default:project.project_id|default:'—'} — {project.title|default:'Untitled'}</p>
+    </div>
+</div>
+
+<style>
+    @media print {
+        body { margin: 0; padding: 0; }
+        .no-print { display: none !important; }
+        .print-only { max-width: 100%; }
+    }
+    @media screen {
+        .print-only { border: 1px dashed #ccc; padding: 20px; background: #fff; max-width: 210mm; margin: 0 auto; }
+    }
+</style>

@@ -1,5 +1,5 @@
 {!-- Expose available entity fields for frontend features --}
-<div data-ikb-entity-fields="{keyof pal_project}" class="print-hidden" aria-hidden="true" style="display:none"></div>
+<div data-ikb-entity-fields="" class="print-hidden" aria-hidden="true" style="display:none"></div>
 {set _dh_title = project.project_id|default:project.title}
 {set _dh_subtitle = project.client_name|default:''}
 {set _dh_status = project.status|default:'draft'}
@@ -7,9 +7,19 @@
 {set _dh_collected = profitability.total_collected|default:0}
 {set _dh_outstanding = remaining_collectible|default:0}
 {set _dh_target_date = project.target_completion_date|default:''}
-{set _dh_actions = '<div class="wb-detail-actions"><a href="/admin/project-audit-ledger/projects" class="wb-btn wb-btn--secondary wb-btn--sm">← Back</a> <a href="/admin/project-audit-ledger/projects/' ~ project.id ~ '/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a>'}
-{if project.jo_type == 'items'}{set _dh_actions = _dh_actions ~ ' <button onclick="sendProjectEmail(' ~ project.id ~ ')" class="wb-btn wb-btn--success wb-btn--sm">📧 Send Quotation</button>'}{/if}
-{set _dh_actions = _dh_actions ~ ' <button onclick="window.print()" class="wb-btn wb-btn--outline wb-btn--sm">🖨 Print</button></div>'}
+<div class="wb-detail-actions">
+    <a href="/admin/project-audit-ledger/projects" class="wb-btn wb-btn--secondary wb-btn--sm">← Back</a>
+    <a href="/admin/project-audit-ledger/projects/{project.id}/edit" class="wb-btn wb-btn--primary wb-btn--sm">Edit</a>
+    {if project.status == 'pending'}
+        <button onclick="approveProject({project.id})" class="wb-btn wb-btn--success wb-btn--sm">✓ Approve</button>
+        <button onclick="rejectProject({project.id})" class="wb-btn wb-btn--danger wb-btn--sm">✗ Reject</button>
+    {/if}
+    {if project.client_email}
+        <button onclick="sendProjectEmail({project.id})" class="wb-btn wb-btn--success wb-btn--sm">📧 Email Client</button>
+    {/if}
+    <a href="/admin/project-audit-ledger/projects/{project.id}/print" target="_blank" class="wb-btn wb-btn--outline wb-btn--sm">🖨 Print</a>
+</div>
+
 {include "workbench:detail_header"
     title=_dh_title|default:''
     subtitle=_dh_subtitle|default:''
@@ -216,7 +226,7 @@ function sendProjectEmail(id) {
     var csrf = document.querySelector('input[name="_token"]');
     var fd = new FormData();
     if (csrf) fd.append('_token', csrf.value);
-    fetch(window.PalRoutes.action('project.email', id), { method: 'POST', body: fd })
+    fetch('/api/v1/project-audit-ledger/projects/' + id + '/email', { method: 'POST', body: fd })
     .then(function(r){ return r.json(); })
     .then(function(d){
         if (d.ok) {
@@ -230,5 +240,37 @@ function sendProjectEmail(id) {
         showToast('Network error', 'error');
         if (btn) { btn.disabled = false; btn.textContent = orig; }
     });
+}
+
+function approveProject(id) {
+    if (!confirm('Approve this Job Order?')) return;
+    var csrf = document.querySelector('input[name="_token"]');
+    var fd = new FormData();
+    fd.append('status', 'approved');
+    if (csrf) fd.append('_token', csrf.value);
+    fetch('/api/v1/project-audit-ledger/projects/' + id + '/status', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.ok) { showToast('Job Order approved'); setTimeout(function(){ location.reload(); }, 800); }
+        else { showToast(d.error || 'Failed', 'error'); }
+    })
+    .catch(function(){ showToast('Network error', 'error'); });
+}
+
+function rejectProject(id) {
+    var reason = prompt('Reason for rejection:');
+    if (reason === null) return; // cancelled
+    var csrf = document.querySelector('input[name="_token"]');
+    var fd = new FormData();
+    fd.append('status', 'draft');
+    fd.append('rejection_reason', reason);
+    if (csrf) fd.append('_token', csrf.value);
+    fetch('/api/v1/project-audit-ledger/projects/' + id + '/status', { method: 'POST', body: fd })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.ok) { showToast('Job Order returned to draft'); setTimeout(function(){ location.reload(); }, 800); }
+        else { showToast(d.error || 'Failed', 'error'); }
+    })
+    .catch(function(){ showToast('Network error', 'error'); });
 }
 </script>

@@ -106,6 +106,49 @@ class palApprovalService
     }
 
     /**
+     * Enriched recent decisions list — same entity enrichment as pending,
+     * so templates can show project links and titles for decided items.
+     */
+    public function recentListEnriched(): array
+    {
+        $stmt = $this->db->prepare(
+            "SELECT a.*, u.full_name AS reviewer_name
+             FROM pal_approvals a
+             LEFT JOIN pal_users u ON a.reviewer_id = u.id
+             WHERE a.tenant_id = :tid AND a.decision != 'pending'
+             ORDER BY a.decision_date DESC
+             LIMIT 20"
+        );
+        $stmt->execute([':tid' => $this->tenantId]);
+        $recent = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($recent)) {
+            return [];
+        }
+
+        $byType = [];
+        foreach ($recent as $a) {
+            $byType[$a['entity_type']][] = (int)$a['entity_id'];
+        }
+
+        $lookups = [];
+        foreach ($byType as $type => $ids) {
+            $lookups[$type] = $this->fetchEntityDetails($type, $ids);
+        }
+
+        $enriched = [];
+        foreach ($recent as $a) {
+            $eid = (int)$a['entity_id'];
+            $detail = $lookups[$a['entity_type']][$eid] ?? [];
+            $a['project_title'] = $detail['project_title'] ?? null;
+            $a['project_id'] = $detail['project_id'] ?? null;
+            $enriched[] = $a;
+        }
+
+        return $enriched;
+    }
+
+    /**
      * Batch-fetch entity details for a given entity type and set of IDs.
      * Returns array keyed by entity_id with amount, project_title, project_id, entity_label.
      */
@@ -117,6 +160,15 @@ class palApprovalService
         $params = array_merge([$this->tenantId], $ids);
 
         switch ($entityType) {
+            case 'project':
+                $stmt = $this->db->prepare(
+                    "SELECT p.id, p.contract_amount AS amount, p.title AS project_title, p.id AS project_id,
+                            p.job_order_number AS entity_label
+                     FROM pal_projects p
+                     WHERE p.tenant_id = ? AND p.id IN ({$placeholders})"
+                );
+                break;
+
             case 'expense':
                 $stmt = $this->db->prepare(
                     "SELECT e.id, e.amount, e.description AS entity_label,

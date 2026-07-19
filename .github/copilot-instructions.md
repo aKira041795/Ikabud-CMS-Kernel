@@ -102,6 +102,34 @@ Capabilities must be designed before routes. Declare `capabilities.exposes`/`cap
 - Check **both** logs (app + error) on every debugging session, every test/build run, and every bug reproduction — not just one.
 - Use request-id-aware traces (`X-Request-Id`, `request_id()`) when correlating API failures.
 
+## Debug-first rule for runtime bugs (mandatory — do NOT skip)
+
+When a user reports a runtime issue ("data not saved", "form doesn't work", "button does nothing", "page shows wrong data"), follow this protocol **before making any code changes**:
+
+1. **Reproduce first** — Do not read code or theorize. Ask the user what exact steps they took, what they saw, and what they expected. If possible, have them reproduce while you watch logs.
+
+2. **Gather runtime evidence** — Check BOTH log files. Clear logs, have the user reproduce, check logs again. For frontend issues, ask the user to check browser DevTools Console and Network tab.
+
+3. **Narrow the failure point** — Before touching any code, determine which layer failed:
+   - Did the request reach the server? (check access logs, app.log)
+   - Did the PHP handler execute? (add temporary `write_log()` if needed)
+   - Did `$_POST` contain the expected data? (log `array_keys($_POST)`, `count($_POST)`)
+   - Did the response reach the browser? (check Network tab status + body)
+   - Is there a JS error? (browser Console)
+
+4. **Prove the fix with a direct test** — Before changing production code, write a one-line PHP test that calls the suspect function directly. If it works in CLI but not via HTTP, the problem is in the HTTP/JS layer, not the PHP logic.
+
+5. **Fix the root cause, not the symptom** — Once the failure point is identified, trace upstream to find what caused it. Apply the minimal fix at the source.
+
+6. **Verify** — After the fix, have the user reproduce again and confirm the issue is resolved. Check both logs for new errors.
+
+**Anti-patterns that waste time** (learned 2026-07-19):
+- ❌ Reading 500+ lines of PHP backend code when the symptom is a JS/frontend issue
+- ❌ Making speculative code changes across multiple files without confirming the failure point
+- ❌ Analyzing CSRF managers, input parsers, and route matchers when the form never reaches the server
+- ❌ Rewriting the form submission JS without first checking if the original JS is even being called
+- ❌ Fixing edge-case data integrity bugs (duplicate column assignments) that have nothing to do with the reported symptom
+
 ## EHR product review stance
 - Review the EHR as **one product, not as isolated pages**. When changing or critiquing any EHR module, consider the patient/visit spine, the shell layout archetypes, persistent context, role-aware nav, and clinical safety UX as defined in [docs/ehr/system-design-and-architecture-plan.md](../docs/ehr/system-design-and-architecture-plan.md).
 - Page-level changes that conflict with the system design plan should either be aligned to it or call out the deviation explicitly.

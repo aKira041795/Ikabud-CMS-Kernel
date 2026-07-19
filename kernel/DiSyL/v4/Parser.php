@@ -297,6 +297,11 @@ final class Parser
             return true;
         }
 
+        // Function call: {funcname(args)} or {funcname(args) | filter}
+        if (preg_match('/^[a-zA-Z_]\w*\s*\(/', $baseExpr)) {
+            return true;
+        }
+
         return preg_match('/^[a-zA-Z_][\w.]*$/', $baseExpr) === 1;
     }
 

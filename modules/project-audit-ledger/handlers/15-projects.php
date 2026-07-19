@@ -280,11 +280,16 @@ function palApiProjectStore(): void
 
         // If submitted with status, run workflow + create approval
         $newStatus = $_POST['status'] ?? null;
+        // Admin auto-approve: skip workflow + approval when admin submits their own JO
+        $isAdmin = ($user['role'] ?? '') === 'admin';
+        if ($isAdmin && $newStatus === 'pending') {
+            $newStatus = 'approved';
+        }
         if ($newStatus && $newStatus !== 'draft') {
             try {
                 $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
                 $wf->apply($id, $newStatus);
-                if ($newStatus === 'pending') {
+                if ($newStatus === 'pending' && !$isAdmin) {
                     palCreateApproval('project', $id, (int)$user['id'], 'draft', 'pending_approval');
                 }
             } catch (\Throwable $e) {
@@ -329,6 +334,13 @@ function palApiProjectUpdate(array $rp = []): void
         $newStatus = $_POST['status'] ?? null;
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
 
+        // Admin auto-approve: skip workflow + approval when admin submits their own JO
+        $isAdmin = ($user['role'] ?? '') === 'admin';
+        if ($isAdmin && $newStatus === 'pending') {
+            $newStatus = 'approved';
+            $_POST['status'] = 'approved';
+        }
+
         // Get current status before update for workflow detection
         $project = $svc->get($id);
         $oldStatus = $project ? ($project['status'] ?? '') : '';
@@ -342,7 +354,8 @@ function palApiProjectUpdate(array $rp = []): void
                 $wf->apply($id, $newStatus);
 
                 // Create approval record for status transitions that need review
-                if ($newStatus === 'pending') {
+                // Skip for admins — their submissions are auto-approved
+                if ($newStatus === 'pending' && !$isAdmin) {
                     palCreateApproval('project', $id, (int)$user['id'], $oldStatus, 'pending_approval');
                 }
             } catch (\Throwable $e) {
@@ -484,7 +497,7 @@ function palApiProjectSendEmail(array $rp = []): void
         $mockupStmt->execute([':tid' => $tid, ':eid' => $id]);
         $mockup = $mockupStmt->fetch(PDO::FETCH_ASSOC);
         if ($mockup) {
-            $mockupUrl = '/admin/project-audit-ledger/attachments/' . $mockup['id'] . '/download';
+            $mockupUrl = palBaseUrl() . '/admin/project-audit-ledger/attachments/' . $mockup['id'] . '/download';
         }
 
         // Render email via DiSyL template
@@ -545,4 +558,40 @@ function palApiProjectItems(array $rp = []): void
             'client_id' => $project['client_id'] ?? null,
         ]);
     });
+}
+
+/**
+ * Page: Project Print View
+ */
+function palPageProjectPrint(array $rp = []): void
+{
+    $user = palCurrentUser();
+    $id = (int)($rp['id'] ?? $_GET['id'] ?? 0);
+    if ($id <= 0) { echo 'Invalid project ID.'; return; }
+
+    $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+    $project = $svc->get($id);
+    if (!$project) { echo 'Project not found.'; return; }
+
+    $db = palDb();
+    $tid = (int)($user['tenant_id'] ?? 0);
+    $settings = palSettings();
+
+    // Mockup URL (absolute for print)
+    $mockupUrl = '';
+    $mStmt = $db->prepare("SELECT id, file_path FROM pal_attachments WHERE tenant_id = :tid AND entity_type = 'project' AND entity_id = :eid AND description = 'Mockup image' ORDER BY created_at DESC LIMIT 1");
+    $mStmt->execute([':tid' => $tid, ':eid' => $id]);
+    $mRow = $mStmt->fetch(PDO::FETCH_ASSOC);
+    if ($mRow) {
+        $mockupUrl = palBaseUrl() . '/admin/project-audit-ledger/attachments/' . $mRow['id'] . '/download';
+    }
+
+    $tpl = __DIR__ . '/../templates/project-audit-ledger/prints/project-print.disyl';
+    echo app()->render($tpl, [
+        'project' => $project,
+        'settings' => $settings,
+        'mockup_url' => $mockupUrl,
+        'pal_logo_path' => $settings['logo_path'] ?? '',
+        'prepared_by' => $user['full_name'] ?? $user['username'] ?? '',
+    ]);
 }

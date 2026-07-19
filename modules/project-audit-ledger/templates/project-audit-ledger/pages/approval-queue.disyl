@@ -9,7 +9,8 @@
                     <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{palEntityLabel(a.entity_type)}</span>
                     {if a.project_title}<span class="text-xs text-gray-500">{a.project_title}</span>{/if}
                 </div>
-                <p class="wb-list-card__item-title">{if eurl}<a href="{eurl}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
+                <p class="wb-list-card__item-title">{if eurl}<a href="{eurl}" class="text-blue-600 hover:text-blue-800">{if a.project_title}{a.project_title}{else}{a.entity_type|capitalize} #{a.entity_id}{/if}</a>{else}{if a.project_title}{a.project_title}{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}{/if}</p>
+                {if a.project_id}<a href="/admin/project-audit-ledger/projects/{a.project_id}" class="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 mt-0.5">📋 View Project</a>{/if}
                 <p class="wb-list-card__item-sub">{a.submitted_at} by {a.submitter_name|default:'—'}</p>
                 {if a.amount|default:0 > 0}<p class="text-sm font-semibold text-gray-800 mt-1">₱{a.amount|number_format:2}</p>{/if}
                 {if a.notes}<p class="text-xs text-gray-500 mt-1 italic">"{a.notes}"</p>{/if}
@@ -33,7 +34,8 @@
                 <div class="flex items-center gap-2 mb-0.5">
                     <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">{palEntityLabel(a.entity_type)}</span>
                 </div>
-                <p class="wb-list-card__item-title">{if eurl2}<a href="{eurl2}" class="text-blue-600 hover:text-blue-800">{a.entity_type|capitalize} #{a.entity_id}</a>{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}</p>
+                <p class="wb-list-card__item-title">{if eurl2}<a href="{eurl2}" class="text-blue-600 hover:text-blue-800">{if a.project_title}{a.project_title}{else}{a.entity_type|capitalize} #{a.entity_id}{/if}</a>{else}{if a.project_title}{a.project_title}{else}{a.entity_type|capitalize|default:'Request'} #{a.entity_id}{/if}{/if}</p>
+                {if a.project_id}<a href="/admin/project-audit-ledger/projects/{a.project_id}" class="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 mt-0.5">📋 View Project</a>{/if}
                 <p class="wb-list-card__item-sub">{a.decision_date} by {a.reviewer_name|default:'—'}</p>
             </div>
             {include "project-audit-ledger/components/pal_status_badge" _sb_status=a.decision}
