@@ -1,18 +1,22 @@
 {
-  "run_id": "20260716090733-049d3b76",
+  "run_id": "20260719052333-44f8224f",
+  "module": "",
+  "gate": "critical",
   "commit": "",
-  "started": "2026-07-16T09:07:37.908Z",
-  "finished": "2026-07-16T09:09:32.424Z",
+  "started": "2026-07-19T05:23:10.005Z",
+  "finished": "2026-07-19T05:23:33.685Z",
   "suites": {
-    "hybrid-analysis--chromium": {
+    "modules-pal-workflows-pal-jo-form-semantic--chromium": {
       "passed": 1,
       "failed": 0,
       "skipped": 0,
+      "timed_out": 0,
+      "interrupted": 0,
       "total": 1,
       "gaps": 0,
       "fingerprints": 0,
-      "finished": "2026-07-16T09:09:32.424Z"
+      "finished": "2026-07-19T05:23:33.685Z"
     }
   },
-  "fingerprint_mode": "off"
+  "fingerprint_mode": "check"
 }

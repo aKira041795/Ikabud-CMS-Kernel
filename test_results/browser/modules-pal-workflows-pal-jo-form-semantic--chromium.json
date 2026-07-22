@@ -1,7 +1,7 @@
 {
   "suite": "modules-pal-workflows-pal-jo-form-semantic--chromium",
-  "started": "2026-07-16T05:28:17.871Z",
-  "finished": "2026-07-16T05:28:41.187Z",
+  "started": "2026-07-19T05:23:33.422Z",
+  "finished": "2026-07-19T05:23:33.685Z",
   "summary": {
     "passed": 1,
     "failed": 0,
@@ -15,7 +15,7 @@
     {
       "test": "JO form: line items & button flow",
       "status": "passed",
-      "duration": 15690,
+      "duration": 19594,
       "detail": ""
     }
   ],

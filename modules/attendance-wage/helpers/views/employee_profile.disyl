@@ -6,9 +6,9 @@
     {field name="hourly_rate"        type="number" renderer="money"}
     {field name="daily_rate"         type="number" renderer="money"}
     {field name="id" type="number" visible="false"}
-    {action name="view"   url="{base_url}/admin/wage/employees/{id}/view"   method="GET"  label="View"}
-    {action name="edit"   url="{base_url}/admin/wage/employees/{id}"        method="GET"  label="Edit"}
-    {action name="delete" url="{base_url}/admin/wage/employees/{id}/delete" method="POST" label="Delete" confirm="Delete this employee?"}
+    {action name="view"   url="{base_url}/admin/wage/employees/{id}/view"   method="get"  label="View"}
+    {action name="edit"   url="{base_url}/admin/wage/employees/{id}"        method="get"  label="Edit"}
+    {action name="delete" url="{base_url}/admin/wage/employees/{id}/delete" method="post" label="Delete" confirm="Delete this employee?"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="employee_profile" view="detailed"}
