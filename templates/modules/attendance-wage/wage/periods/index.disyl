@@ -5,17 +5,6 @@
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">💵 Prepare Payroll</h1>
 
     </div>
-    {if success}
-    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
-        <span class="text-lg">✅</span> {success}
-    </div>
-    {/if}
-    {if error}
-    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
-        <span class="text-lg">❌</span> {error}
-    </div>
-    {/if}
-
     {if pending_adjustments.count > 0}
     <div class="mb-6 px-5 py-4 bg-amber-50 border border-amber-200 rounded-xl text-sm flex items-center justify-between flex-wrap gap-3">
         <div class="flex items-center gap-3">

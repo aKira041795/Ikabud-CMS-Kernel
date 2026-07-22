@@ -1,0 +1,235 @@
+{
+    "id": "academic-similarity-semantic-service",
+    "type": "service-module",
+    "name": "Academic Similarity Semantic Service (Python)",
+    "version": "1.0.0",
+    "description": "Provider-neutral semantic comparison service for the Academic Integrity & Similarity module. Exposes academic_similarity.semantic.compare@1 through the ServiceProxy wire protocol. Accepts segment payloads, returns similarity vectors with model/version metadata. Disabled by default — exact and near-exact matching work without it.",
+    "author": "Ikabud Kernel Team",
+    "service": {
+        "endpoint": "http://127.0.0.1:9003",
+        "protocol": "http+json",
+        "health_check": "/health",
+        "timeout_ms": 30000,
+        "retry": {
+            "max_attempts": 2,
+            "backoff_ms": 1000,
+            "backoff_multiplier": 1.5
+        },
+        "circuit_breaker": {
+            "failure_threshold": 3,
+            "cooldown_seconds": 30,
+            "half_open_max_requests": 1
+        },
+        "auth": {
+            "type": "signed_token",
+            "token_env": "SEMANTIC_SERVICE_TOKEN"
+        }
+    },
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "academic_similarity.semantic.compare@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "description": "Compare submission segments against source segments using semantic (embedding-based) similarity. Returns per-segment similarity scores with model/version metadata. Disabled by default — requires plan with semantic_enabled=1 and admin setting semantic_match_enabled=1.",
+                "schema": {
+                    "input": {
+                        "type": "object",
+                        "required": [
+                            "submission_segments",
+                            "source_segments"
+                        ],
+                        "properties": {
+                            "submission_segments": {
+                                "type": "array",
+                                "description": "Text segments from the submission to compare"
+                            },
+                            "source_segments": {
+                                "type": "array",
+                                "description": "Text segments from source documents to compare against"
+                            },
+                            "model_profile": {
+                                "type": "object",
+                                "properties": {
+                                    "provider": {
+                                        "type": "string"
+                                    },
+                                    "model_name": {
+                                        "type": "string"
+                                    },
+                                    "threshold": {
+                                        "type": "number"
+                                    }
+                                },
+                                "description": "Optional model profile override"
+                            },
+                            "tenant_id": {
+                                "type": "string"
+                            },
+                            "institution_id": {
+                                "type": "integer"
+                            }
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "comparisons": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "submission_segment_index": {
+                                            "type": "integer"
+                                        },
+                                        "source_segment_index": {
+                                            "type": "integer"
+                                        },
+                                        "similarity_score": {
+                                            "type": "number"
+                                        },
+                                        "above_threshold": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                }
+                            },
+                            "model": {
+                                "type": "object",
+                                "properties": {
+                                    "provider": {
+                                        "type": "string"
+                                    },
+                                    "model_name": {
+                                        "type": "string"
+                                    },
+                                    "model_version": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "summary": {
+                                "type": "object",
+                                "properties": {
+                                    "total_comparisons": {
+                                        "type": "integer"
+                                    },
+                                    "above_threshold_count": {
+                                        "type": "integer"
+                                    },
+                                    "average_similarity": {
+                                        "type": "number"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.semantic.health@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "description": "Health check for the semantic service. Returns service status, version, loaded model info, and recent error count.",
+                "schema": {
+                    "input": {
+                        "type": "object"
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "ok": {
+                                "type": "boolean"
+                            },
+                            "service": {
+                                "type": "string"
+                            },
+                            "version": {
+                                "type": "string"
+                            },
+                            "model": {
+                                "type": "object"
+                            },
+                            "uptime_seconds": {
+                                "type": "number"
+                            },
+                            "recent_errors": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "policy": {
+            "default": {
+                "allow_callers": [
+                    "academic-similarity",
+                    "kernel"
+                ]
+            }
+        }
+    },
+    "settings_fields": [
+        {
+            "key": "service_endpoint",
+            "type": "text",
+            "label": "Service Endpoint",
+            "default": "http://127.0.0.1:9003",
+            "description": "HTTP base URL used by the kernel ServiceProxy"
+        },
+        {
+            "key": "semantic_embedding_backend",
+            "type": "select",
+            "label": "Embedding Backend",
+            "default": "token_overlap",
+            "options": [
+                {"value": "token_overlap", "label": "Token overlap"},
+                {"value": "tfidf", "label": "TF-IDF cosine"},
+                {"value": "sentence_transformers", "label": "Sentence transformers"},
+                {"value": "groq", "label": "Groq LLM judge"}
+            ]
+        },
+        {
+            "key": "semantic_model_name",
+            "type": "text",
+            "label": "Model Name",
+            "default": "token_overlap"
+        },
+        {
+            "key": "semantic_default_threshold",
+            "type": "number",
+            "label": "Default Threshold",
+            "default": "0.70"
+        },
+        {
+            "key": "semantic_service_token_env",
+            "type": "text",
+            "label": "Token Environment Variable",
+            "default": "SEMANTIC_SERVICE_TOKEN"
+        },
+        {
+            "key": "semantic_external_api_key_env",
+            "type": "text",
+            "label": "External API Key Environment Variable",
+            "default": "SEMANTIC_API_KEY"
+        },
+        {
+            "key": "semantic_request_timeout_ms",
+            "type": "number",
+            "label": "Request Timeout (ms)",
+            "default": "30000"
+        }
+    ],
+    "events": [],
+    "depends": [],
+    "owns_tables": [],
+    "reads_tables": [],
+    "requires_kernel": "6.0.0",
+    "routes": [],
+    "entity_sources": {}
+}

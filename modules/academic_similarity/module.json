@@ -1,0 +1,417 @@
+{
+    "id": "academic-similarity",
+    "name": "Academic Integrity & Similarity",
+    "version": "1.0.0",
+    "description": "Secure academic document submission, deterministic exact and near-exact similarity detection, offset-accurate highlights, reviewer exclusions, reproducible reports, and audit history with tenant isolation.",
+    "author": "Ikabud Kernel Team",
+    "depends": [
+        "cms"
+    ],
+    "requires_tables": [],
+    "owns_tables": [
+        "ac_similarity_institutions",
+        "ac_similarity_plans",
+        "ac_similarity_subscriptions",
+        "ac_similarity_usage_counters",
+        "ac_similarity_collections",
+        "ac_similarity_sources",
+        "ac_similarity_submissions",
+        "ac_similarity_files",
+        "ac_similarity_text_versions",
+        "ac_similarity_segments",
+        "ac_similarity_fingerprints",
+        "ac_similarity_candidate_sources",
+        "ac_similarity_matches",
+        "ac_similarity_match_evidence",
+        "ac_similarity_exclusions",
+        "ac_similarity_reviews",
+        "ac_similarity_reports",
+        "ac_similarity_processing_jobs",
+        "ac_similarity_model_profiles",
+        "ac_similarity_integrations",
+        "ac_similarity_retention_policies",
+        "ac_similarity_audit_events",
+        "ac_similarity_settings"
+    ],
+    "reads_tables": [
+        "audit_logs"
+    ],
+    "migrations": [
+        "migrations/001_academic_similarity_schema.sql",
+        "migrations/002_academic_similarity_seed_plans.sql"
+    ],
+    "routes": true,
+    "settings": [],
+    "hooks": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "academic_similarity.submit@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Submit a document for similarity checking",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "institution_id": {
+                            "type": "integer"
+                        },
+                        "submission_title": {
+                            "type": "string"
+                        },
+                        "file_content": {
+                            "type": "string",
+                            "description": "Base64-encoded file content"
+                        },
+                        "filename": {
+                            "type": "string"
+                        },
+                        "source_type": {
+                            "type": "string",
+                            "enum": [
+                                "upload",
+                                "pasted"
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.check@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Check a submission's similarity against sources",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.match.exact@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Run exact-match comparison for a submission",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.match.near@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Run near-exact-match comparison for a submission",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.report.view@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "View similarity report",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.review.exclude@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Exclude a match from similarity scoring",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "match_id": {
+                            "type": "integer"
+                        },
+                        "reason": {
+                            "type": "string"
+                        },
+                        "note": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            {
+                "id": "academic_similarity.semantic.compare@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Optional semantic similarity comparison (fallback handler — actual dispatch goes to ServiceProxy when the Python service-module is enabled)",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "model_profile_id": {
+                            "type": "integer"
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1"
+        ]
+    },
+    "events": {
+        "emits": [
+            "academic_similarity.submission.created",
+            "academic_similarity.submission.processed",
+            "academic_similarity.report.generated",
+            "academic_similarity.review.excluded",
+            "academic_similarity.quota.warning",
+            "academic_similarity.quota.exhausted"
+        ]
+    },
+    "settings_fields": [
+        {
+            "key": "enabled",
+            "type": "checkbox",
+            "label": "Enable Academic Similarity",
+            "default": "1",
+            "description": "Master switch for the similarity module"
+        },
+        {
+            "key": "exact_match_enabled",
+            "type": "checkbox",
+            "label": "Enable Exact Matching",
+            "default": "1"
+        },
+        {
+            "key": "near_match_enabled",
+            "type": "checkbox",
+            "label": "Enable Near-Exact Matching",
+            "default": "1"
+        },
+        {
+            "key": "semantic_match_enabled",
+            "type": "checkbox",
+            "label": "Enable Semantic Matching",
+            "default": "0",
+            "description": "Requires external semantic service module"
+        },
+        {
+            "key": "semantic_provider",
+            "type": "select",
+            "label": "Semantic Provider",
+            "default": "token_overlap",
+            "options": [
+                {"value": "token_overlap", "label": "Token overlap"},
+                {"value": "tfidf", "label": "TF-IDF cosine"},
+                {"value": "sentence_transformers", "label": "Sentence transformers"},
+                {"value": "groq", "label": "Groq LLM judge"}
+            ]
+        },
+        {
+            "key": "semantic_model_name",
+            "type": "text",
+            "label": "Semantic Model Name",
+            "default": "token_overlap"
+        },
+        {
+            "key": "semantic_service_endpoint",
+            "type": "text",
+            "label": "Python Service Endpoint",
+            "default": "http://127.0.0.1:9003",
+            "description": "Base URL for the Python semantic service"
+        },
+        {
+            "key": "semantic_service_token_env",
+            "type": "text",
+            "label": "Service Token Environment Variable",
+            "default": "SEMANTIC_SERVICE_TOKEN",
+            "description": "Environment variable containing the ServiceProxy bearer token"
+        },
+        {
+            "key": "semantic_external_api_key_env",
+            "type": "text",
+            "label": "External AI API Key Environment Variable",
+            "default": "SEMANTIC_API_KEY",
+            "description": "Environment variable reserved for hosted embedding providers"
+        },
+        {
+            "key": "semantic_similarity_threshold",
+            "type": "number",
+            "label": "Semantic Threshold",
+            "default": "0.70"
+        },
+        {
+            "key": "semantic_max_segments",
+            "type": "number",
+            "label": "Semantic Max Segments",
+            "default": "500"
+        },
+        {
+            "key": "semantic_payload_policy",
+            "type": "select",
+            "label": "Semantic Payload Policy",
+            "default": "segments_only",
+            "options": [
+                {"value": "segments_only", "label": "Segments only"},
+                {"value": "redacted_segments", "label": "Redacted segments"}
+            ]
+        },
+        {
+            "key": "semantic_health_visible",
+            "type": "checkbox",
+            "label": "Show Semantic Health",
+            "default": "1"
+        },
+        {
+            "key": "cms_public_submission_enabled",
+            "type": "checkbox",
+            "label": "Enable CMS Public Submission",
+            "default": "1"
+        },
+        {
+            "key": "cms_submission_shortcode",
+            "type": "text",
+            "label": "CMS Submission Shortcode",
+            "default": "academic_similarity_submission"
+        },
+        {
+            "key": "cms_builder_block_enabled",
+            "type": "checkbox",
+            "label": "Enable CMS Builder Block",
+            "default": "1"
+        },
+        {
+            "key": "cms_default_submission_title",
+            "type": "text",
+            "label": "Default CMS Submission Title",
+            "default": "Submit Document for Similarity Check"
+        },
+        {
+            "key": "min_word_count",
+            "type": "number",
+            "label": "Minimum Word Count",
+            "default": "20",
+            "description": "Submissions below this word count are not processed"
+        },
+        {
+            "key": "max_word_count",
+            "type": "number",
+            "label": "Maximum Word Count",
+            "default": "50000",
+            "description": "Submissions above this word count are rejected"
+        },
+        {
+            "key": "max_file_size_mb",
+            "type": "number",
+            "label": "Max File Size (MB)",
+            "default": "20"
+        },
+        {
+            "key": "fingerprint_shingle_size",
+            "type": "number",
+            "label": "Shingle Size (words)",
+            "default": "5"
+        },
+        {
+            "key": "near_match_threshold",
+            "type": "number",
+            "label": "Near-Match Threshold (0.0-1.0)",
+            "default": "0.8"
+        },
+        {
+            "key": "retention_days",
+            "type": "number",
+            "label": "Default Retention Days",
+            "default": "365"
+        },
+        {
+            "key": "allowed_extensions",
+            "type": "text",
+            "label": "Allowed File Extensions",
+            "default": "docx,pdf,txt"
+        }
+    ],
+    "nav": [
+        {
+            "label": "Similarity Dashboard",
+            "url": "/admin/academic-similarity",
+            "icon": "search",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Submissions",
+            "url": "/admin/academic-similarity/submissions",
+            "icon": "document",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Sources",
+            "url": "/admin/academic-similarity/sources",
+            "icon": "library",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Collections",
+            "url": "/admin/academic-similarity/collections",
+            "icon": "folder",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Reports",
+            "url": "/admin/academic-similarity/reports",
+            "icon": "chart",
+            "roles": [
+                "admin"
+            ]
+        },
+        {
+            "label": "Settings",
+            "url": "/admin/academic-similarity/settings",
+            "icon": "settings",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

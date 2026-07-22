@@ -1,0 +1,142 @@
+{extends "modules/academic-similarity/layouts/admin"}
+
+{block "title"}Report Detail{/block}
+
+{block "content"}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <a href="/admin/academic-similarity/reports" class="text-brand-600 hover:text-brand-900 text-sm">&larr; Back to Reports</a>
+        </div>
+        <div class="flex gap-3">
+            <a href="/admin/academic-similarity/reports/{report.report_id}/download" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Download</a>
+            <a href="/admin/academic-similarity/submissions/{report.submission_id}" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">View Submission</a>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-4">Similarity Report</h1>
+        <p class="text-gray-500 mb-6">for <strong>{report.submission_title}</strong> by {report.author_name}</p>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="bg-gray-50 rounded-lg p-4 text-center border border-gray-200">
+                <p class="text-3xl font-bold text-gray-900">{report.raw_similarity_score}{if report.raw_similarity_score !== null}%{/if}</p>
+                <p class="text-xs text-gray-500 uppercase mt-1">Raw Score</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 text-center border border-green-200">
+                <p class="text-3xl font-bold text-green-700">{report.adjusted_similarity_score}{if report.adjusted_similarity_score !== null}%{/if}</p>
+                <p class="text-xs text-green-600 uppercase mt-1">Adjusted Score</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-4 text-center border border-blue-200">
+                <p class="text-3xl font-bold text-blue-700">{report.match_count|default:0}</p>
+                <p class="text-xs text-blue-600 uppercase mt-1">Total Matches</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center border border-purple-200">
+                <p class="text-3xl font-bold text-purple-700">{report.source_count|default:0}</p>
+                <p class="text-xs text-purple-600 uppercase mt-1">Sources</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 text-sm">
+            <div><span class="text-gray-500">Submission ID</span><p class="font-semibold">{report.submission_id}</p></div>
+            <div><span class="text-gray-500">Word Count</span><p class="font-semibold">{report.word_count|default:0}</p></div>
+            <div><span class="text-gray-500">Generated</span><p class="font-semibold">{report.generated_at}</p></div>
+        </div>
+    </div>
+
+    {if report.summary}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Summary</h2>
+        <p class="text-gray-700">{report.summary}</p>
+    </div>
+    {/if}
+
+    {if matched_passages|count > 0}
+    <div class="bg-white rounded-lg shadow border border-gray-200 mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Matched Passages ({matched_passages|count})</h2>
+        </div>
+        <div class="divide-y divide-gray-200">
+            {for passage in matched_passages}
+            <div class="p-6 {if passage.is_excluded}opacity-50{/if}">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {if passage.match_type == 'exact'}bg-red-100 text-red-800
+                            {else if passage.match_type == 'similar'}bg-yellow-100 text-yellow-800
+                            {else}bg-blue-100 text-blue-800{/if}">
+                            {passage.match_type}
+                        </span>
+                        <span class="ml-2 text-sm text-gray-500">{(passage.match_confidence * 100)|round}% confidence</span>
+                    </div>
+                    {if !passage.is_excluded}
+                    <button onclick="excludeMatch({passage.id})" class="text-red-600 hover:text-red-900 text-sm">Exclude</button>
+                    {/if}
+                </div>
+
+                {if passage.source_title}
+                <p class="text-sm text-gray-500 mb-2">
+                    Source: <strong>{passage.source_title}</strong>
+                    {if passage.source_author} by {passage.source_author}{/if}
+                </p>
+                {/if}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-red-50 border border-red-200 rounded p-3">
+                        <p class="text-xs text-red-600 uppercase font-medium mb-1">Submission Text</p>
+                        <p class="text-sm text-gray-800">{passage.submission_text}</p>
+                        <p class="text-xs text-gray-400 mt-1">Lines {passage.submission_line_start}–{passage.submission_line_end}</p>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 rounded p-3">
+                        <p class="text-xs text-blue-600 uppercase font-medium mb-1">Source Text</p>
+                        <p class="text-sm text-gray-800">{passage.source_text}</p>
+                        <p class="text-xs text-gray-400 mt-1">Lines {passage.source_line_start}–{passage.source_line_end}</p>
+                    </div>
+                </div>
+
+                <div class="mt-2 flex gap-2">
+                    {if passage.highlight_labels|count > 0}
+                    {for label in passage.highlight_labels}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">{label}</span>
+                    {/for}
+                    {/if}
+                </div>
+            </div>
+            {/for}
+        </div>
+    </div>
+    {/if}
+
+    {if source_breakdown|count > 0}
+    <div class="bg-white rounded-lg shadow border border-gray-200">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Source Breakdown</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50">
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Source</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Type</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Matches</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Matched Words</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Contribution</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {for source in source_breakdown}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium text-gray-900">{source.source_title}</td>
+                        <td class="px-6 py-4"><span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{source.source_type}</span></td>
+                        <td class="px-6 py-4 text-gray-500">{source.match_count}</td>
+                        <td class="px-6 py-4 text-gray-500">{source.matched_word_count}</td>
+                        <td class="px-6 py-4">{source.contribution_percentage}%</td>
+                    </tr>
+                    {/for}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {/if}
+</div>
+{/block}

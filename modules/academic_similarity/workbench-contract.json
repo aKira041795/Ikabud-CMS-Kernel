@@ -1,0 +1,182 @@
+{
+    "schema": "ark.workbench-test-contract.v1",
+    "contract_version": "1.0.0",
+    "module": {
+        "id": "academic-similarity",
+        "version": "1.0.0",
+        "application_profile": "ark.workbench"
+    },
+    "ownership": {
+        "routes": {
+            "GET": [
+                "/admin/academic-similarity",
+                "/admin/academic-similarity/settings",
+                "/admin/academic-similarity/settings/semantic",
+                "/admin/academic-similarity/settings/cms",
+                "/admin/academic-similarity/submissions",
+                "/admin/academic-similarity/reports"
+            ],
+            "POST": [
+                "/admin/academic-similarity/settings",
+                "/api/v1/academic-similarity/public/submit",
+                "/api/v1/academic-similarity/submissions/{id}/process"
+            ],
+            "PUT": [],
+            "PATCH": [],
+            "DELETE": []
+        },
+        "navigation_dependencies": [
+            "cms.sidebar.similarity",
+            "cms.admin.return-link"
+        ],
+        "tables": [
+            "ac_similarity_settings",
+            "ac_similarity_submissions",
+            "ac_similarity_processing_jobs",
+            "ac_similarity_reports",
+            "ac_similarity_model_profiles"
+        ],
+        "capabilities": [
+            "academic_similarity.submit@1",
+            "academic_similarity.check@1",
+            "academic_similarity.semantic.compare@1"
+        ],
+        "events": [
+            "academic_similarity.submission.created",
+            "academic_similarity.submission.processed",
+            "academic_similarity.report.generated"
+        ]
+    },
+    "actors": [
+        {
+            "id": "cms-admin",
+            "capabilities": [
+                "configure-semantic-provider",
+                "review-submissions",
+                "return-to-cms-admin"
+            ],
+            "description": "CMS administrator managing AISS settings and reports"
+        },
+        {
+            "id": "public-submitter",
+            "capabilities": [
+                "submit-public-document"
+            ],
+            "description": "Unauthenticated CMS page visitor submitting text for similarity review"
+        }
+    ],
+    "tenancy": {
+        "mode": "tenant",
+        "isolation_invariants": [
+            "AISS settings, submissions, jobs, reports, and institutions are scoped to the active tenant",
+            "public CMS submissions resolve only an active institution in the active tenant"
+        ]
+    },
+    "pages": [
+        {
+            "id": "page-similarity-dashboard",
+            "family": "module-admin",
+            "route": "/admin/academic-similarity",
+            "roles": ["admin"],
+            "required_components": ["app-shell", "sidebar", "dashboard-stats"]
+        },
+        {
+            "id": "page-semantic-settings",
+            "family": "module-settings",
+            "route": "/admin/academic-similarity/settings/semantic",
+            "roles": ["admin"],
+            "required_components": ["app-shell", "settings-form", "semantic-provider-config"]
+        },
+        {
+            "id": "page-cms-public-checker",
+            "family": "cms-public-page",
+            "route": "/cms/page/ai-similarity-checker",
+            "roles": ["public"],
+            "required_components": ["cms-page", "similarity-submission-form"]
+        }
+    ],
+    "workflows": [
+        {
+            "id": "configure-provider-neutral-semantic-matching",
+            "entry": "/admin/academic-similarity/settings/semantic",
+            "actors": ["cms-admin"],
+            "assertions": [
+                "provider, model name, endpoint, token env var, external API key env var, threshold, max segments, and payload policy are configurable",
+                "raw API keys are not stored in the dashboard"
+            ]
+        },
+        {
+            "id": "cms-public-submission-to-report",
+            "entry": "/cms/page/ai-similarity-checker",
+            "actors": ["public-submitter"],
+            "assertions": [
+                "public submission can omit institution_id when one active tenant institution is configured",
+                "processing includes semantic_match before score and report",
+                "completed reports mark submissions processed"
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "id": "save-semantic-settings",
+            "route": "/admin/academic-similarity/settings",
+            "method": "POST"
+        },
+        {
+            "id": "submit-public-document",
+            "route": "/api/v1/academic-similarity/public/submit",
+            "method": "POST"
+        },
+        {
+            "id": "process-submission",
+            "route": "/api/v1/academic-similarity/submissions/{id}/process",
+            "method": "POST"
+        }
+    ],
+    "invariants": [
+        {
+            "id": "semantic-config-provider-neutral",
+            "assertion": "semantic configuration stores provider/model/endpoint/env-var names, not provider-specific secrets"
+        },
+        {
+            "id": "semantic-stage-before-score",
+            "assertion": "semantic_match executes before score and report stages"
+        },
+        {
+            "id": "cms-admin-return-navigation",
+            "assertion": "Similarity sidebar includes a return path to CMS admin"
+        }
+    ],
+    "scenarios": [
+        {
+            "id": "semantic-config-and-cms-submit",
+            "workflow": "cms-public-submission-to-report",
+            "fixtures": ["aiss.test", "cmsadmin", "active-aiss-institution"],
+            "expected_outcome": "processed report"
+        }
+    ],
+    "environments": {
+        "requires_browser": false,
+        "timeout_seconds": {
+            "php": 300,
+            "browser": 900
+        }
+    },
+    "evidence": {
+        "required_identity_fields": ["module", "action", "step", "tenant", "role", "environment", "outcome"],
+        "outcomes": ["passed", "failed", "blocked", "censored"]
+    },
+    "gates": {
+        "critical": [
+            "php tests/academic_similarity_cms_configuration_test.php",
+            "python3 -m unittest tests.test_semantic_service"
+        ]
+    },
+    "test_files": {
+        "php": [
+            "tests/academic_similarity_cms_configuration_test.php",
+            "tests/academic_similarity_semantic_capability_contract_test.php"
+        ],
+        "browser": []
+    }
+}

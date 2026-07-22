@@ -1,0 +1,12 @@
+# Academic Similarity Semantic Service — Python dependencies
+#
+# Backends (choose one or more):
+#   token_overlap (default)    — zero dependencies, included in stdlib
+#   tfidf                      — requires: scikit-learn>=1.0.0 (optional, has built-in fallback)
+#   sentence_transformers      — requires: sentence-transformers>=2.2.0, torch>=1.10.0
+#
+# Install minimal:  pip install -r requirements.txt
+# Install full:     pip install -r requirements.txt scikit-learn sentence-transformers torch
+
+# No hard dependencies for the default token_overlap backend.
+# The service runs on Python 3.9+ stdlib only.

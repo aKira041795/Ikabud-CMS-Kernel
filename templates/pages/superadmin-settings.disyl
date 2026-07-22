@@ -386,12 +386,57 @@
         {/foreach}
     </div>
     {/if}
+
+    {if other_modules | count > 0}
+    <div class="mt-6 border border-gray-200 rounded-lg overflow-hidden">
+        <button type="button" @click="otherModulesExpanded = !otherModulesExpanded"
+                class="w-full flex items-center justify-between gap-3 px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
+            <div class="flex items-center gap-2">
+                <span class="font-semibold text-sm text-slate-800">Other Available Modules</span>
+                <span class="text-xs text-gray-500">({other_module_count})</span>
+            </div>
+            <span class="text-xs text-gray-500">Toggle to show modules not specifically scoped to this tenant's entry module</span>
+            <span class="w-2 h-2 border-r-2 border-b-2 border-current transition-transform duration-150"
+                  :class="otherModulesExpanded ? 'rotate-45 -mt-0.5' : '-rotate-45 mt-0.5'"></span>
+        </button>
+        <div x-show="otherModulesExpanded" x-collapse>
+            <div class="grid gap-4 p-3">
+                {foreach other_modules as mod}
+                <div class="bg-white border border-gray-200 rounded-lg overflow-hidden transition-opacity"
+                     :class="{'opacity-65': !moduleStates['{mod.id}']?.enabled}">
+                    <div class="flex items-center justify-between gap-3 px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            {if tenant_db_ok}
+                            <label class="relative inline-flex items-center cursor-pointer" title="{if mod.is_enabled}Disable{else}Enable{/if} {mod.name}">
+                                <input type="checkbox" class="sr-only peer"
+                                       :checked="moduleStates['{mod.id}']?.enabled"
+                                       @change="toggleModule('{mod.id}', $event.target.checked)">
+                                <div class="w-[38px] h-[22px] bg-gray-300 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[3px] after:left-[3px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                            {/if}
+                            <div>
+                                <span class="text-sm font-bold text-slate-800">{mod.name}</span>
+                                <span class="text-xs text-gray-500 ml-2">v{mod.version}</span>
+                            </div>
+                        </div>
+                        <span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">Not provisioned</span>
+                    </div>
+                    {if mod.description}
+                    <div class="text-xs text-gray-500 px-4 pb-3">{mod.description}</div>
+                    {/if}
+                </div>
+                {/foreach}
+            </div>
+        </div>
+    </div>
+    {/if}
 </div>
 
 <script>
 function superadminSettings() {
     return {
         csrf: '{csrf_token}',
+        otherModulesExpanded: false,
         multiTenant: {if multi_tenant}true{else}false{/if},
         selectedTenantId: {selected_tenant_id},
         panelStorageKey: 'superadmin-feature-settings:panels:' + ({selected_tenant_id} || 'global'),

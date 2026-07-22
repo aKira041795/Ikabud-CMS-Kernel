@@ -7,17 +7,6 @@
         <a href="/admin/wage/locations/create" class="inline-flex items-center px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">+ Add Location</a>
     </div>
 
-    {if success}
-    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
-        <span class="text-lg">✅</span> {success}
-    </div>
-    {/if}
-    {if error}
-    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
-        <span class="text-lg">❌</span> {error}
-    </div>
-    {/if}
-
     {ikb_entity_list source="office_location" view="table" use="tailwind" limit="50" empty="No office locations configured yet." /}
 </div>
 {/block}

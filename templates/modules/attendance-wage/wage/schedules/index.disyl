@@ -5,16 +5,6 @@
         <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">🌋 Schedules</h1>
         <button onclick="toggleScheduleForm()" class="inline-flex items-center px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-lg transition-colors shadow-sm">+ Add Schedule</button>
     </div>
-    {if success}
-    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
-        <span class="text-lg">✅</span> {success}
-    </div>
-    {/if}
-    {if error}
-    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
-        <span class="text-lg">✌</span> {error}
-    </div>
-    {/if}
     <div id="scheduleForm" class="hidden mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
         <form method="post" action="/api/v1/wage/schedules" class="space-y-5">
             <input type="hidden" name="_token" value="{csrf_token}">

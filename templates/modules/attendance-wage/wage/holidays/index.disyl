@@ -36,16 +36,6 @@
         </form>
         {/if}
     </div>
-    {if success}
-    <div class="mb-6 px-5 py-4 bg-green-50 border border-green-200 rounded-xl text-sm font-medium text-green-700 flex items-center gap-3">
-        <span class="text-lg">✅</span> {success}
-    </div>
-    {/if}
-    {if error}
-    <div class="mb-6 px-5 py-4 bg-red-50 border border-red-200 rounded-xl text-sm font-medium text-red-700 flex items-center gap-3">
-        <span class="text-lg">❌</span> {error}
-    </div>
-    {/if}
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         {ikb_entity_list source="holiday" view="table" use="tailwind" limit="30" empty="No holidays configured." search="true" search-placeholder="Search holidays..." /}
     </div>

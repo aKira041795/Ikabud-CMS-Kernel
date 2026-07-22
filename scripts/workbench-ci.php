@@ -11,6 +11,7 @@ require_once $root . '/kernel/Workbench/Contracts/WorkbenchTestContractValidator
 require_once $root . '/kernel/Workbench/Contracts/WorkbenchContractService.php';
 require_once $root . '/kernel/Workbench/Benchmark/CompetitiveBenchmark.php';
 require_once $root . '/kernel/Workbench/Comprehension/Analyzers/PatternClassifier.php';
+require_once $root . '/kernel/Workbench/Runs/RunProvenance.php';
 require_once $root . '/kernel/Workbench/Benchmark/CompetitiveBenchmarkRunner.php';
 
 use Ikabud\Kernel\Workbench\Benchmark\CompetitiveBenchmarkRunner;

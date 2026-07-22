@@ -12,12 +12,6 @@
         <a href="/admin/wage/groups/create" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">+ New Group</a>
     </div>
 
-    {if error}
-    <div class="mb-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-        {error}
-    </div>
-    {/if}
-
     {if groups|count > 0}
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {for g in groups}

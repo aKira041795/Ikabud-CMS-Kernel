@@ -76,3 +76,4 @@ test_results/browser/runs/
 /test_results/ai/runs/
 /storage/workbench/ci/
 /storage/workbench/runs/
+/storage/academic_similarity/

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{block "title"}Academic Similarity{/block} — Similarity Check</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <div class="flex-shrink-0 flex items-center">
+                        <a href="/admin/academic-similarity" class="text-xl font-bold text-gray-900">Similarity Check</a>
+                    </div>
+                    <div class="ml-10 flex items-center space-x-4">
+                        <a href="/admin/academic-similarity" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'dashboard'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Dashboard</a>
+                        <a href="/admin/academic-similarity/submissions" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'submissions'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Submissions</a>
+                        <a href="/admin/academic-similarity/sources" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'sources'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Sources</a>
+                        <a href="/admin/academic-similarity/collections" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'collections'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Collections</a>
+                        <a href="/admin/academic-similarity/reports" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'reports'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Reports</a>
+                        <a href="/admin/academic-similarity/settings" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'settings'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Settings</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <main>
+        {block "content"}{/block}
+    </main>
+</body>
+</html>

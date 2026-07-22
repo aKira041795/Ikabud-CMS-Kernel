@@ -415,17 +415,23 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
     }
 
     $moduleList = [];
+    $otherModuleList = [];
     foreach ($allModules as $m) {
+        // Skip service-modules in the settings UI — they are managed by the kernel
+        $moduleType = trim((string)($m['type'] ?? 'php-module'));
+        if ($moduleType === 'service-module') {
+            continue;
+        }
+
         $moduleId = (string)($m['id'] ?? '');
         if ($moduleId === '') {
             continue;
         }
 
-        // In multi-tenant mode, check if module is relevant for the selected tenant
+        // Determine relevance: in multi-tenant mode, non-relevant modules go to other list
+        $isRelevant = true;
         if ($multiTenant && $selectedTenantId !== null && is_array($tenantRelevantModules)) {
-            if (!isset($tenantRelevantModules[$moduleId])) {
-                continue;
-            }
+            $isRelevant = isset($tenantRelevantModules[$moduleId]);
         }
 
         $enablement = superadminModuleEnablementState($moduleId, $multiTenant ? $selectedTenantId : null);
@@ -526,7 +532,7 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
             }
         }
 
-        $moduleList[] = [
+        $entry = [
             'id' => $moduleId,
             'name' => $m['name'] ?? $moduleId,
             'version' => $m['version'] ?? '0.0.0',
@@ -549,6 +555,12 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
             'has_tenant_override' => !empty($enablement['has_tenant_override']),
             'has_global_flag' => !empty($enablement['has_global_flag']),
         ];
+
+        if ($isRelevant) {
+            $moduleList[] = $entry;
+        } else {
+            $otherModuleList[] = $entry;
+        }
     }
 
     // Build tenant list for template (pre-compute selected flag)
@@ -585,6 +597,8 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
                 ['label' => 'Feature Settings'],
             ],
             'modules' => $moduleList,
+            'other_modules' => $otherModuleList,
+            'other_module_count' => count($otherModuleList),
             'catalog_entries' => $catalogEntries,
             'catalog_pending_count' => count(array_filter($catalogEntries, static fn(array $entry): bool => (string)($entry['approval_status'] ?? '') === 'pending')),
             'access_requests' => $accessRequests,

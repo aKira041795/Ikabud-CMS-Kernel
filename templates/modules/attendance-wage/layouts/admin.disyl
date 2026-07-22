@@ -7,16 +7,167 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
     <script src="/admin/assets/js/ikb-inline-edit.js"></script>
+    <style>
+        .aw-toast-stack {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            z-index: 9999;
+            display: flex;
+            width: min(420px, calc(100vw - 32px));
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: none;
+        }
+        .aw-toast {
+            pointer-events: auto;
+            position: relative;
+            display: grid;
+            grid-template-columns: 36px 1fr 28px;
+            gap: 12px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            border-left-width: 4px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.98);
+            padding: 14px 12px 14px 14px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.08);
+            color: #111827;
+            opacity: 0;
+            transform: translateY(-8px) scale(0.98);
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+        .aw-toast.is-visible { opacity: 1; transform: translateY(0) scale(1); }
+        .aw-toast.is-leaving { opacity: 0; transform: translateY(-6px) scale(0.98); }
+        .aw-toast--success { border-left-color: #059669; }
+        .aw-toast--error { border-left-color: #dc2626; }
+        .aw-toast--warning { border-left-color: #d97706; }
+        .aw-toast--info { border-left-color: #2563eb; }
+        .aw-toast__icon {
+            display: inline-flex;
+            height: 36px;
+            width: 36px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            font-size: 16px;
+            font-weight: 800;
+        }
+        .aw-toast--success .aw-toast__icon { background: #ecfdf5; color: #047857; }
+        .aw-toast--error .aw-toast__icon { background: #fef2f2; color: #b91c1c; }
+        .aw-toast--warning .aw-toast__icon { background: #fffbeb; color: #b45309; }
+        .aw-toast--info .aw-toast__icon { background: #eff6ff; color: #1d4ed8; }
+        .aw-toast__title {
+            margin: 0;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+            color: #111827;
+        }
+        .aw-toast__message {
+            margin: 2px 0 0;
+            font-size: 13px;
+            line-height: 1.45;
+            color: #4b5563;
+            word-break: break-word;
+        }
+        .aw-toast__close {
+            display: inline-flex;
+            height: 28px;
+            width: 28px;
+            align-items: center;
+            justify-content: center;
+            border: 0;
+            border-radius: 8px;
+            background: transparent;
+            color: #9ca3af;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+        .aw-toast__close:hover { background: #f3f4f6; color: #374151; }
+        .aw-toast__bar {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            height: 3px;
+            width: 100%;
+            transform-origin: left;
+            animation: awToastBar 4.8s linear forwards;
+        }
+        .aw-toast--success .aw-toast__bar { background: #10b981; }
+        .aw-toast--error .aw-toast__bar { background: #ef4444; }
+        .aw-toast--warning .aw-toast__bar { background: #f59e0b; }
+        .aw-toast--info .aw-toast__bar { background: #3b82f6; }
+        @keyframes awToastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+    </style>
     <script>
-        window.showToast = function(msg, type) {
-            type = type || 'success';
-            var bg = type === 'error' ? '#dc2626' : type === 'warning' ? '#d97706' : '#059669';
-            var toast = document.createElement('div');
-            toast.textContent = msg;
-            toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:'+bg+';color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:opacity .3s';
-            document.body.appendChild(toast);
-            setTimeout(function(){ toast.style.opacity='0'; setTimeout(function(){ toast.remove(); }, 300); }, 3000);
+        window.showToast = function(message, type, title) {
+            var text = String(message || '').trim();
+            if (!text) return;
+            type = ['success', 'error', 'warning', 'info'].indexOf(type) >= 0 ? type : 'success';
+            var defaults = {
+                success: ['Done', '✓'],
+                error: ['Needs attention', '!'],
+                warning: ['Check this', '!'],
+                info: ['Notice', 'i']
+            };
+            var stack = document.getElementById('aw-toast-stack');
+            if (!stack) {
+                stack = document.createElement('div');
+                stack.id = 'aw-toast-stack';
+                stack.className = 'aw-toast-stack';
+                stack.setAttribute('aria-live', 'polite');
+                stack.setAttribute('aria-atomic', 'false');
+                document.body.appendChild(stack);
+            }
+            var toast = document.createElement('section');
+            toast.className = 'aw-toast aw-toast--' + type;
+            toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+
+            var icon = document.createElement('div');
+            icon.className = 'aw-toast__icon';
+            icon.textContent = defaults[type][1];
+
+            var body = document.createElement('div');
+            var heading = document.createElement('p');
+            heading.className = 'aw-toast__title';
+            heading.textContent = title || defaults[type][0];
+            var copy = document.createElement('p');
+            copy.className = 'aw-toast__message';
+            copy.textContent = text;
+            body.appendChild(heading);
+            body.appendChild(copy);
+
+            var close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'aw-toast__close';
+            close.setAttribute('aria-label', 'Dismiss notification');
+            close.innerHTML = '&times;';
+
+            var bar = document.createElement('div');
+            bar.className = 'aw-toast__bar';
+
+            toast.appendChild(icon);
+            toast.appendChild(body);
+            toast.appendChild(close);
+            toast.appendChild(bar);
+            stack.appendChild(toast);
+
+            var dismiss = function() {
+                toast.classList.add('is-leaving');
+                setTimeout(function(){ toast.remove(); }, 180);
+            };
+            close.addEventListener('click', dismiss);
+            requestAnimationFrame(function(){ toast.classList.add('is-visible'); });
+            setTimeout(dismiss, 5000);
         };
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('template[data-aw-toast]').forEach(function(node) {
+                window.showToast(node.content.textContent, node.getAttribute('data-type') || 'info', node.getAttribute('data-title') || '');
+                node.remove();
+            });
+        });
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -34,6 +185,11 @@
     </script>
 </head>
 <body class="bg-gray-50 min-h-screen flex">
+    <div id="aw-toast-stack" class="aw-toast-stack" aria-live="polite" aria-atomic="false"></div>
+    {if success}<template data-aw-toast data-type="success" data-title="Saved">{success}</template>{/if}
+    {if message}<template data-aw-toast data-type="info" data-title="Notice">{message}</template>{/if}
+    {if warning}<template data-aw-toast data-type="warning" data-title="Check this">{warning}</template>{/if}
+    {if error}<template data-aw-toast data-type="error" data-title="Unable to complete">{error}</template>{/if}
     <!-- Sidebar -->
     <aside class="w-64 bg-brand-950 text-brand-100 flex flex-col flex-shrink-0 min-h-screen fixed inset-y-0 left-0 z-40">
         <div class="px-6 py-5 border-b border-brand-800">
