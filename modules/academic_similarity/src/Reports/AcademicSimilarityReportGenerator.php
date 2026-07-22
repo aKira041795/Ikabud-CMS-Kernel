@@ -77,9 +77,13 @@ class AcademicSimilarityReportGenerator
     }
 
     /**
-     * Build HTML report content.
+     * Build HTML report content, optionally with highlight spans.
+     *
+     * @param array $reportData
+     * @param array|null $highlightData Optional {spans, stats, legend, highlighted_html, source_panels}
+     * @return string
      */
-    public function buildHtml(array $reportData): string
+    public function buildHtml(array $reportData, ?array $highlightData = null): string
     {
         $submission = $reportData['submission'] ?? [];
         $scores = $reportData['scores'] ?? [];
@@ -105,6 +109,22 @@ class AcademicSimilarityReportGenerator
         $html .= '.match-source h3{margin:0 0 .5rem}';
         $html .= '.highlight{padding:.25rem .5rem;background:#fff3cd;border-radius:3px}';
         $html .= '.footer{margin-top:3rem;font-size:.75rem;color:#999;border-top:1px solid #eee;padding-top:1rem}';
+
+        // Highlight styles
+        $html .= '.hl-exact{background:#fecaca;border-bottom:2px solid #dc2626}';
+        $html .= '.hl-near{background:#fed7aa;border-bottom:2px solid #ea580c}';
+        $html .= '.hl-semantic{background:#fef08a;border-bottom:2px solid #ca8a04}';
+        $html .= '.hl-quote{background:#bfdbfe;border-bottom:2px solid #2563eb}';
+        $html .= '.hl-excluded{background:#e5e7eb;border-bottom:2px solid #9ca3af;text-decoration:line-through;opacity:.6}';
+        $html .= '.hl-stat{background:#ddd6fe;border-bottom:2px solid #7c3aed}';
+        $html .= '.hl-span{cursor:pointer;border-radius:2px;padding:0 1px}';
+        $html .= '.hl-text{line-height:1.8}';
+        $html .= '.hl-legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1rem;padding:8px;background:#f9fafb;border-radius:6px}';
+        $html .= '.hl-legend-item{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:4px;font-size:12px}';
+        $html .= '.hl-legend-swatch{display:inline-block;width:14px;height:14px;border-radius:3px}';
+        $html .= '.hl-source-panel{border:1px solid #e0e0e0;border-radius:8px;margin-top:1rem;overflow:hidden}';
+        $html .= '.hl-source-panel h3{margin:0;padding:.75rem 1rem;background:#f5f5f5;font-size:.875rem}';
+        $html .= '.hl-source-panel .hl-text{padding:1rem}';
         $html .= '</style></head><body>';
 
         $html .= '<h1>Similarity Report</h1>';
@@ -126,6 +146,36 @@ class AcademicSimilarityReportGenerator
 
         // Match count
         $html .= '<p>Found <strong>' . count($matches) . '</strong> matched passage(s) across <strong>' . count($sourceBreakdown) . '</strong> source(s).</p>';
+
+        // Legend
+        if ($highlightData !== null && !empty($highlightData['legend'])) {
+            $html .= '<div class="hl-legend">';
+            foreach ($highlightData['legend'] as $entry) {
+                $html .= '<div class="hl-legend-item">';
+                $html .= '<span class="hl-legend-swatch ' . htmlspecialchars($entry['css'], ENT_QUOTES, 'UTF-8') . '"></span>';
+                $html .= htmlspecialchars($entry['label'], ENT_QUOTES, 'UTF-8');
+                $html .= ' <span style="color:#999">(' . (int)$entry['count'] . ')</span>';
+                $html .= '</div>';
+            }
+            $html .= '</div>';
+        }
+
+        // Highlighted submission text
+        if ($highlightData !== null && !empty($highlightData['highlighted_html'])) {
+            $html .= '<h2>Highlighted Submission</h2>';
+            $html .= '<div class="hl-text">' . $highlightData['highlighted_html'] . '</div>';
+        }
+
+        // Source panels
+        if ($highlightData !== null && !empty($highlightData['source_panels'])) {
+            $html .= '<h2>Source Comparisons</h2>';
+            foreach ($highlightData['source_panels'] as $panel) {
+                $html .= '<div class="hl-source-panel">';
+                $html .= '<h3>' . htmlspecialchars($panel['title'], ENT_QUOTES, 'UTF-8') . '</h3>';
+                $html .= '<div class="hl-text">' . $panel['html'] . '</div>';
+                $html .= '</div>';
+            }
+        }
 
         // Source breakdown
         foreach ($sourceBreakdown as $sid => $sb) {

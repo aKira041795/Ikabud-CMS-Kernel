@@ -179,17 +179,85 @@ function pageReportDetail(array $params = []): void
         return;
     }
 
+    $submissionId = (int)$report['submission_id'];
     $submissionRepo = new \AcademicSimilaritySubmissionRepository($tenantId);
-    $submission = $submissionRepo->findById($report['submission_id']);
+    $submission = $submissionRepo->findById($submissionId);
 
     $matchRepo = new \AcademicSimilarityMatchRepository($tenantId);
-    $matches = $matchRepo->findBySubmissionId($report['submission_id']);
+    $matches = $matchRepo->findBySubmissionId($submissionId);
+
+    // Build evidence map
+    $evidenceMap = [];
+    foreach ($matches as $match) {
+        $evidenceMap[(int)$match['id']] = $matchRepo->getEvidence((int)$match['id']);
+    }
+
+    // Build source cache for titles
+    $sourceRepo = new \AcademicSimilaritySourceRepository($tenantId);
+    $sourceCache = [];
+    foreach ($matches as $match) {
+        $sid = (int)$match['source_id'];
+        if ($sid > 0 && !isset($sourceCache[$sid])) {
+            $src = $sourceRepo->findById($sid);
+            if ($src) {
+                $sourceCache[$sid] = $src;
+            }
+        }
+    }
+
+    // Load text for highlighted rendering
+    $submissionText = '';
+    $sourceTexts = [];
+    try {
+        $tvStmt = academic_similarity_db()->prepare(
+            "SELECT extracted_text FROM ac_similarity_text_versions WHERE submission_id = :sid AND tenant_id = :tid AND text_type = 'submission' ORDER BY id DESC LIMIT 1"
+        );
+        $tvStmt->execute([':sid' => $submissionId, ':tid' => $tenantId]);
+        $tv = $tvStmt->fetch(\PDO::FETCH_ASSOC);
+        $submissionText = $tv['extracted_text'] ?? '';
+
+        // Load source texts
+        foreach ($sourceCache as $sid => $src) {
+            $sStmt = academic_similarity_db()->prepare(
+                "SELECT extracted_text FROM ac_similarity_text_versions WHERE source_id = :sid AND tenant_id = :tid AND text_type = 'source' ORDER BY id DESC LIMIT 1"
+            );
+            $sStmt->execute([':sid' => $sid, ':tid' => $tenantId]);
+            $sTv = $sStmt->fetch(\PDO::FETCH_ASSOC);
+            if ($sTv) {
+                $sourceTexts[$sid] = $sTv['extracted_text'];
+            }
+        }
+    } catch (\Throwable $e) {
+        write_log('Failed to load text versions for report ' . $reportId . ': ' . $e->getMessage());
+    }
+
+    // Build highlights
+    $highlightService = new \AcademicSimilarityHighlightService($tenantId);
+    $highlightData = $highlightService->buildSpans($submissionId, $matches, $evidenceMap, $submission, $sourceCache);
+    $spans = $highlightData['spans'];
+    $highlightStats = $highlightData['stats'];
+    $legend = $highlightData['legend'];
+
+    // Render highlighted submission text
+    $highlightedHtml = $highlightService->renderHighlightedText($submissionText, $spans);
+
+    // Render source panels
+    $sourcePanels = $highlightService->renderSourcePanels($spans, $sourceTexts);
+
+    // Build matched_passages for template
+    $matchedPassages = $highlightService->assembleMatchedPassages($spans, $matches, $evidenceMap);
 
     echo $ctx->render('academic_similarity/reports/detail', [
-        'report' => $report,
-        'submission' => $submission,
-        'matches' => $matches,
-        'active_nav' => 'reports',
+        'report'               => $report,
+        'submission'           => $submission,
+        'matches'              => $matches,
+        'matched_passages'     => $matchedPassages,
+        'highlighted_html'     => $highlightedHtml,
+        'highlight_stats'      => $highlightStats,
+        'highlight_legend'     => $legend,
+        'source_panels'        => $sourcePanels,
+        'evidence_by_match'    => $evidenceMap,
+        'active_nav'           => 'reports',
     ]);
 }
 

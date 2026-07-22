@@ -33,6 +33,8 @@ declare(strict_types=1);
         '/ValueObjects/AcademicSimilaritySegment.php',
         '/ValueObjects/AcademicSimilarityFingerprint.php',
         '/ValueObjects/AcademicSimilarityMatchResult.php',
+        '/ValueObjects/AcademicSimilarityHighlightSpan.php',
+        '/Services/AcademicSimilarityHighlightService.php',
         '/Jobs/AcademicSimilarityProcessJob.php',
         '/Reports/AcademicSimilarityReportGenerator.php',
         '/Policies/AcademicSimilarityTenantPolicy.php',
