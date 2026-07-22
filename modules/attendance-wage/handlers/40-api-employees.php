@@ -264,6 +264,49 @@ function aw_saveEmployeePhoto(array $file): ?string
         : null;
 }
 
+function wageApiEmployeeDelete(array $params = []): void
+{
+    attendanceWageGuard('attendance_wage.admin@1');
+    $id = (int)($params['id'] ?? $_POST['id'] ?? 0);
+    $isFormPost = $_SERVER['REQUEST_METHOD'] === 'POST' && !str_contains($_SERVER['CONTENT_TYPE'] ?? '', 'application/json');
+    $base = awBaseUrl();
+
+    if ($id <= 0) {
+        $msg = 'Missing employee ID.';
+        if ($isFormPost) { header('Location: ' . $base . '/admin/wage/employees?error=' . urlencode($msg)); exit; }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $msg]);
+        return;
+    }
+
+    try {
+        $db = aw_db();
+        $tid = app()->tenant()->current() ?? '';
+        $stmt = $db->prepare("SELECT profile_id FROM employee_profiles WHERE profile_id = :id AND tenant_id = :tid");
+        $stmt->execute([':id' => $id, ':tid' => $tid]);
+        if (!$stmt->fetch()) {
+            $msg = 'Employee not found.';
+            if ($isFormPost) { header('Location: ' . $base . '/admin/wage/employees?error=' . urlencode($msg)); exit; }
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => $msg]);
+            return;
+        }
+        // Soft delete: mark as inactive instead of hard delete to preserve payroll history
+        $db->prepare("UPDATE employee_profiles SET is_active = 0 WHERE profile_id = :id AND tenant_id = :tid")
+           ->execute([':id' => $id, ':tid' => $tid]);
+        if ($isFormPost) {
+            header('Location: ' . $base . '/admin/wage/employees?success=' . urlencode('Employee deactivated.'));
+            exit;
+        }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => true, 'message' => 'Employee deactivated']);
+    } catch (\Throwable $e) {
+        if ($isFormPost) { header('Location: ' . $base . '/admin/wage/employees?error=' . urlencode($e->getMessage())); exit; }
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
 /**
  * Save a base64-encoded employee photo and return its URL.
  */

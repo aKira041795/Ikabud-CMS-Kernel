@@ -296,6 +296,19 @@ function wagePageComputations(array $params = []): void
     ]);
 }
 
+function wagePageComputationDetail(array $params = []): void
+{
+    attendanceWageGuard();
+    $computationId = (int)($params['id'] ?? 0);
+    if ($computationId <= 0) {
+        header('Location: ' . awBaseUrl() . '/admin/wage/computations');
+        exit;
+    }
+    // Redirect to payslip page which renders the full detail
+    header('Location: ' . awBaseUrl() . '/admin/wage/payslip/' . $computationId);
+    exit;
+}
+
 function wagePageAdjustments(array $params = []): void
 {
     attendanceWageGuard();

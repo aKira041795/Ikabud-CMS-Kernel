@@ -5,8 +5,8 @@
     {field name="status" type="enum" renderer="badge:{draft|gray|open|blue|processing|amber|closed|green}"}
     {field name="total_net_pay" type="number" renderer="money:2"}
     {field name="id" type="number" visible="false"}
-    {action name="edit" url="{base_url}/admin/wage/payroll/{id}" label="Edit"}
-    {action name="process" url="{base_url}/admin/wage/payroll/{id}/process" label="Process" method="post"}
+    {action name="edit" url="{base_url}/admin/wage/periods/{id}/edit" label="Edit"}
+    {action name="process" url="{base_url}/admin/wage/periods/{id}/process" label="Process" method="post"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="payroll_period" view="compact"}
@@ -20,5 +20,5 @@
     {field name="start_date" type="date" renderer="datetime:date"}
     {field name="total_net_pay" type="number" renderer="money:2"}
     {field name="id" type="number" visible="false"}
-    {action name="edit" url="{base_url}/admin/wage/payroll/{id}" label="Edit"}
+    {action name="edit" url="{base_url}/admin/wage/periods/{id}/edit" label="Edit"}
 {/ikb_entity_view}
