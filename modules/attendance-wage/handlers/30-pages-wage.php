@@ -98,9 +98,26 @@ function wagePageEmployees(array $params = []): void
 {
     attendanceWageGuard();
     $user = attendanceWageUser();
+    $employeeTab = (string)($_GET['tab'] ?? 'active');
+    if (!in_array($employeeTab, ['active', 'deactivated'], true)) {
+        $employeeTab = 'active';
+    }
+    $activeCount = 0;
+    $deactivatedCount = 0;
+    try {
+        $db = aw_db();
+        $activeCount = (int)$db->query('SELECT COUNT(*) FROM employee_profiles WHERE is_active = 1')->fetchColumn();
+        $deactivatedCount = (int)$db->query('SELECT COUNT(*) FROM employee_profiles WHERE is_active = 0')->fetchColumn();
+    } catch (\Throwable $e) {
+        $activeCount = 0;
+        $deactivatedCount = 0;
+    }
     echo app()->render('modules/attendance-wage/wage/employees/index', [
         'success' => $_GET['success'] ?? '',
         'error' => $_GET['error'] ?? '',
+        'employee_tab' => $employeeTab,
+        'active_employee_count' => $activeCount,
+        'deactivated_employee_count' => $deactivatedCount,
         'active_nav'        => 'employees',
         'current_user_role' => $user['role'] ?? '',
     ]);
@@ -721,4 +738,3 @@ function wagePageProfile(array $params = []): void
         'user_role'         => $dbUser['role'] ?? '',
     ]);
 }
-

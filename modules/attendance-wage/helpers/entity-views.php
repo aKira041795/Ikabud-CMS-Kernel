@@ -113,15 +113,34 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'key_field' => 'id',
         'fields' => [
             'first_name', 'last_name', 'position', 'department', 'salary_type',
-            'employment_status', 'hire_date',
+            'account_status', 'employment_status', 'hire_date',
         ],
-        'actions' => ['view', 'edit'],
+        'actions' => ['view', 'edit', 'delete', 'activate'],
         'action_urls' => [
-            'view' => '/admin/wage/employees/{id}/view',
-            'edit' => '/admin/wage/employees/{id}',
+            'view'     => '/admin/wage/employees/{id}/view',
+            'edit'     => '/admin/wage/employees/{id}',
+            'delete'   => '/admin/wage/employees/{id}/delete',
+            'activate' => '/admin/wage/employees/{id}/activate',
+        ],
+        'action_methods' => [
+            'delete'   => 'post',
+            'activate' => 'post',
+        ],
+        'action_labels' => [
+            'delete'   => 'Delete',
+            'activate' => 'Activate',
+        ],
+        'action_confirm' => [
+            'delete'   => 'Deactivate this employee?',
+            'activate' => 'Activate this employee?',
+        ],
+        'action_show_if' => [
+            'delete'   => 'account_status == "active"',
+            'activate' => 'account_status == "deactivated"',
         ],
         'renderers' => [
             'salary_type'          => 'badge:{"hourly":"Hourly|gray","daily":"Daily|blue","monthly":"Monthly|purple","fixed":"Fixed|amber"}',
+            'account_status'       => 'badge:{"active":"Active|green","deactivated":"Deactivated|gray"}',
             'employment_status'    => 'badge:{"regular":"Regular|green","probationary":"Probationary|amber","contractual":"Contractual|blue","part_time":"Part-Time|gray"}',
             'hire_date'            => 'datetime:date',
             'overtime_allowed'     => 'badge:{"1":"Yes|green","0":"No|gray"}',

@@ -1,14 +1,16 @@
 {ikb_entity_view name="employee_profile" view="table"}
     {field name="first_name"         type="string" renderer="text"}
     {field name="last_name"          type="string" renderer="text"}
-    {field name="salary_type"        type="enum"   renderer="badge:{hourly|Daily}"}
-    {field name="employment_status"  type="enum"   renderer="badge:{regular|Regular|green}"}
+    {field name="salary_type"        type="enum"   renderer="badge:{&quot;hourly&quot;:&quot;Hourly|gray&quot;,&quot;daily&quot;:&quot;Daily|blue&quot;,&quot;monthly&quot;:&quot;Monthly|purple&quot;,&quot;fixed&quot;:&quot;Fixed|amber&quot;}"}
+    {field name="account_status"     type="enum"   renderer="badge:{&quot;active&quot;:&quot;Active|green&quot;,&quot;deactivated&quot;:&quot;Deactivated|gray&quot;}"}
+    {field name="employment_status"  type="enum"   renderer="badge:{&quot;regular&quot;:&quot;Regular|green&quot;,&quot;probationary&quot;:&quot;Probationary|amber&quot;,&quot;contractual&quot;:&quot;Contractual|blue&quot;,&quot;part_time&quot;:&quot;Part-Time|gray&quot;,&quot;terminated&quot;:&quot;Terminated|red&quot;}"}
     {field name="hourly_rate"        type="number" renderer="money"}
     {field name="daily_rate"         type="number" renderer="money"}
     {field name="id" type="number" visible="false"}
     {action name="view"   url="{base_url}/admin/wage/employees/{id}/view"   method="get"  label="View"}
     {action name="edit"   url="{base_url}/admin/wage/employees/{id}"        method="get"  label="Edit"}
-    {action name="delete" url="{base_url}/admin/wage/employees/{id}/delete" method="post" label="Delete" confirm="Delete this employee?"}
+    {action name="delete" url="{base_url}/admin/wage/employees/{id}/delete" method="post" label="Delete" confirm="Deactivate this employee?" show_if="account_status == &quot;active&quot;"}
+    {action name="activate" url="{base_url}/admin/wage/employees/{id}/activate" method="post" label="Activate" confirm="Activate this employee?" show_if="account_status == &quot;deactivated&quot;"}
 {/ikb_entity_view}
 
 {ikb_entity_view name="employee_profile" view="detailed"}
@@ -17,8 +19,8 @@
     {field name="last_name"          type="string" renderer="text"}
     {field name="email"              type="string" renderer="text"}
     {field name="phone"              type="string" renderer="text"}
-    {field name="salary_type"        type="enum"   renderer="badge:{hourly|Daily}"}
-    {field name="employment_status"  type="enum"   renderer="badge:{regular|Regular|green}"}
+    {field name="salary_type"        type="enum"   renderer="badge:{&quot;hourly&quot;:&quot;Hourly|gray&quot;,&quot;daily&quot;:&quot;Daily|blue&quot;,&quot;monthly&quot;:&quot;Monthly|purple&quot;,&quot;fixed&quot;:&quot;Fixed|amber&quot;}"}
+    {field name="employment_status"  type="enum"   renderer="badge:{&quot;regular&quot;:&quot;Regular|green&quot;,&quot;probationary&quot;:&quot;Probationary|amber&quot;,&quot;contractual&quot;:&quot;Contractual|blue&quot;,&quot;part_time&quot;:&quot;Part-Time|gray&quot;,&quot;terminated&quot;:&quot;Terminated|red&quot;}"}
     {field name="hourly_rate"        type="number" renderer="money"}
     {field name="daily_rate"         type="number" renderer="money"}
     {field name="tax_exemption_status" type="string" renderer="text"}

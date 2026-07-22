@@ -72,7 +72,7 @@ $view = [
     'fields' => ['name', 'status'],
     'view' => 'table',
     'actions' => ['archive'],
-    'action_methods' => ['archive' => 'post'],
+    'action_methods' => ['archive' => 'POST'],
     'action_labels' => ['archive' => 'Archive Row'],
     'action_confirm' => ['archive' => 'Archive this row?'],
     'renderers' => [
@@ -81,12 +81,14 @@ $view = [
     ],
 ];
 
-$html = $renderer->renderList($rows, $view, ['source' => 'test_entity.all', 'view' => 'table']);
+$html = $renderer->renderList($rows, $view, ['source' => 'test_entity.all', 'view' => 'table', 'row-click' => '/rows/{id}']);
 
 t('renderList returns HTML', $html !== '');
 t('renders table view', str_contains($html, '<table class="w-full text-sm">'));
 t('renders POST form', str_contains($html, '<form method="post"'));
 t('renders one POST form per row', substr_count($html, '<form method="post"') === 2, 'count=' . substr_count($html, '<form method="post"'));
+t('normalizes uppercase POST action method', !str_contains($html, '<a href="?id=7&amp;action=archive'));
+t('row click ignores interactive controls', str_contains($html, 'event.target.closest') && str_contains($html, 'button'));
 t('renders hidden id input for first row', str_contains($html, '<input type="hidden" name="id" value="7">'));
 t('renders hidden id input for second row', str_contains($html, '<input type="hidden" name="id" value="8">'));
 t('renders hidden scalar row input: name', str_contains($html, '<input type="hidden" name="name" value="Alpha">'));

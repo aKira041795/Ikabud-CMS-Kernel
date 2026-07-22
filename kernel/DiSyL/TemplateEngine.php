@@ -7636,7 +7636,7 @@ class TemplateEngine
         $attrs = [];
         preg_match_all('/([\w-]+)="([^"]*)"/', $str, $matches, PREG_SET_ORDER);
         foreach ($matches as $m) {
-            $attrs[$m[1]] = $m[2];
+            $attrs[$m[1]] = html_entity_decode($m[2], ENT_QUOTES, 'UTF-8');
         }
         return $attrs;
     }

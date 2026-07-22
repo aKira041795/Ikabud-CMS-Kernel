@@ -17,8 +17,26 @@
         <span class="text-lg">❌</span> {error}
     </div>
     {/if}
+    <div class="mb-4 border-b border-gray-200">
+        <nav class="-mb-px flex gap-6" aria-label="Employee account status">
+            <a href="/admin/wage/employees"
+               class="inline-flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold transition-colors {if employee_tab == 'active'}border-brand-600 text-brand-700{else}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{/if}">
+                Active
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{active_employee_count|default:0}</span>
+            </a>
+            <a href="/admin/wage/employees?tab=deactivated"
+               class="inline-flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-semibold transition-colors {if employee_tab == 'deactivated'}border-brand-600 text-brand-700{else}border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700{/if}">
+                Deactivated
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">{deactivated_employee_count|default:0}</span>
+            </a>
+        </nav>
+    </div>
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        {if employee_tab == 'deactivated'}
+        {ikb_entity_list source="employee_profile.deactivated" view="table" use="tailwind" limit="25" empty="No deactivated employee accounts." search="true" search-placeholder="Search deactivated employees..." row-click="/admin/wage/employees/{id}/view" /}
+        {else}
         {ikb_entity_list source="employee_profile.all" view="table" use="tailwind" limit="25" empty="No employee profiles yet." search="true" search-placeholder="Search employees..." row-click="/admin/wage/employees/{id}/view" /}
+        {/if}
     </div>
 </div>
 {/block}

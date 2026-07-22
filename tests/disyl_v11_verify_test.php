@@ -104,8 +104,10 @@ $e11->enableStrictMode(true);
 $viewConfig = '{ikb_entity_view name="test_entity" view="table"}
     {field name="first_name" type="string" renderer="text"}
     {field name="last_name"  type="string" renderer="text"}
+    {field name="account_status" type="enum" renderer="badge:{&quot;active&quot;:&quot;Active|green&quot;,&quot;deactivated&quot;:&quot;Deactivated|gray&quot;}"}
     {action name="view" url="/test/{id}" method="GET" label="View"}
     {action name="edit" url="/test/{id}" method="POST" label="Edit" confirm="Edit this?"}
+    {action name="activate" url="/test/{id}/activate" method="POST" label="Activate" show_if="account_status == &quot;deactivated&quot;"}
 {/ikb_entity_view}';
 $output = $e11->renderString($viewConfig, []);
 vt('ikb_entity_view produces no output', $output === '', 'got: ' . substr($output, 0, 100));
@@ -117,10 +119,12 @@ if (class_exists($resolverClass)) {
     $contract = $resolver->viewContract('test_entity', 'table');
     vt('entity view contract registered', is_array($contract), 'got: ' . gettype($contract));
     vt('entity view has fields', isset($contract['fields']) && is_array($contract['fields']));
-    vt('entity view fields count', count($contract['fields'] ?? []) === 2, 'got: ' . (count($contract['fields'] ?? [])));
+    vt('entity view fields count', count($contract['fields'] ?? []) === 3, 'got: ' . (count($contract['fields'] ?? [])));
     vt('entity view has actions', !empty($contract['actions']), 'got: ' . implode(',', $contract['actions'] ?? ['none']));
 vt('entity view has action_urls', isset($contract['action_urls']['view']) && str_contains($contract['action_urls']['view'], '{id}'));
 vt('entity view has action_labels', isset($contract['action_labels']['edit']) && $contract['action_labels']['edit'] === 'Edit');
+vt('entity view decodes renderer attrs', ($contract['renderers']['account_status'] ?? '') === 'badge:{"active":"Active|green","deactivated":"Deactivated|gray"}');
+vt('entity view decodes action show_if attrs', ($contract['action_show_if']['activate'] ?? '') === 'account_status == "deactivated"');
 } else {
     echo "  (EntityViewResolver not available — skipping contract assertions)\n";
 }

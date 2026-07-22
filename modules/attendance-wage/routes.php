@@ -97,6 +97,7 @@ return [
         '/api/v1/wage/employees'             => 'attendance-wage:wageApiEmployeeCreate',
         '/api/v1/wage/employees/{id}'        => 'attendance-wage:wageApiEmployeeUpdate',
         '/admin/wage/employees/{id}/delete'  => 'attendance-wage:wageApiEmployeeDelete',
+        '/admin/wage/employees/{id}/activate' => 'attendance-wage:wageApiEmployeeActivate',
         '/api/v1/wage/groups'                => 'attendance-wage:awApiGroupStore',
         '/api/v1/wage/groups/{id}'           => 'attendance-wage:awApiGroupUpdate',
         '/api/v1/wage/groups/{id}/toggle'    => 'attendance-wage:awApiGroupToggle',

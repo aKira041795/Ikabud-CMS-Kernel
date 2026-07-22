@@ -88,7 +88,7 @@ function aw_userHasRole(array $roles): bool
 function aw_csrfGuard(): void
 {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        app()->csrfEnforce();
+        csrfEnforceFromJwt('attendance_wage_token');
     }
 }
 
@@ -189,6 +189,9 @@ function aw_cap_entity_list_attendance_record_1(mixed $payload, string $capabili
 
 function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
+    $qualifier = (string)($payload['qualifier'] ?? '');
+    $activeWhere = $qualifier === 'deactivated' ? 'is_active = 0' : 'is_active = 1';
+
     return \Ikabud\Kernel\EntityContext\EntityListQuery::run(
         aw_db(),
         'employee_profiles',
@@ -203,10 +206,11 @@ function aw_cap_entity_list_employee_profile_1(mixed $payload, string $capabilit
             'salary_type'       => 'salary_type',
             'basic_salary'      => 'basic_salary',
             'employment_status' => 'employment_status',
+            'account_status'    => "CASE WHEN is_active = 1 THEN 'active' ELSE 'deactivated' END",
             'hire_date'         => 'hire_date',
         ],
         $payload,
-        'is_active = 1'
+        $activeWhere
     );
 }
 

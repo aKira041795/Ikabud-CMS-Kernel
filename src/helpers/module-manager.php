@@ -1785,7 +1785,11 @@ function executeModuleHandler(string $handler, array $params = []): void
                 'is_login' => $isModuleLogin,
             ]);
         }
-        app()->csrfEnforce();
+        if ($moduleCookieName !== '' && kernelCookie($moduleCookieName) !== '' && function_exists('csrfEnforceFromJwt')) {
+            csrfEnforceFromJwt($moduleCookieName);
+        } else {
+            app()->csrfEnforce();
+        }
     }
 
     // ── Default anti-spam gate for public module web APIs ─────────────

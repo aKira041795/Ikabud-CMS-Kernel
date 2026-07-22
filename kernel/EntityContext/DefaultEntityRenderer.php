@@ -635,7 +635,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                 ? $this->renderWithRowContext($ctx->actionUrls[$action], $ctx->row, $this->renderContext)
                 : "?id={$safeId}&amp;action={$action}";
 
-            $method = $ctx->actionMethods[$action] ?? 'get';
+            $method = strtolower((string)($ctx->actionMethods[$action] ?? 'get'));
 
             if ($method === 'post') {
                 $confirmMsg = $ctx->actionConfirm[$action] ?? '';
@@ -923,11 +923,13 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $url = preg_replace('#(?<!:)//+#', '/', $url);
         $safeUrl = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
 
+        $interactiveGuard = "if(event.target.closest('a,button,input,select,textarea,[role=\"button\"],[data-wb-stop-row-click]')) return; ";
+        $safeJsUrl = htmlspecialchars(json_encode($url), ENT_QUOTES, 'UTF-8');
         if ($target !== '') {
-            $safeTarget = htmlspecialchars($target, ENT_QUOTES, 'UTF-8');
-            $attrs = ' onclick="window.open(\'' . $safeUrl . '\',\'' . $safeTarget . '\')" style="cursor:pointer"';
+            $safeJsTarget = htmlspecialchars(json_encode($target), ENT_QUOTES, 'UTF-8');
+            $attrs = ' onclick="' . htmlspecialchars($interactiveGuard, ENT_QUOTES, 'UTF-8') . 'window.open(' . $safeJsUrl . ',' . $safeJsTarget . ')" style="cursor:pointer"';
         } else {
-            $attrs = ' onclick="window.location.href=\'' . $safeUrl . '\'" style="cursor:pointer"';
+            $attrs = ' onclick="' . htmlspecialchars($interactiveGuard, ENT_QUOTES, 'UTF-8') . 'window.location.href=' . $safeJsUrl . '" style="cursor:pointer"';
         }
 
         return [
