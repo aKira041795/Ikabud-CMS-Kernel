@@ -38,7 +38,8 @@
     ],
     "migrations": [
         "migrations/001_academic_similarity_schema.sql",
-        "migrations/002_academic_similarity_seed_plans.sql"
+        "migrations/002_academic_similarity_seed_plans.sql",
+        "migrations/005_academic_similarity_public_results.sql"
     ],
     "routes": true,
     "settings": [],
@@ -318,6 +319,45 @@
             "type": "text",
             "label": "Default CMS Submission Title",
             "default": "Submit Document for Similarity Check"
+        },
+        {
+            "key": "public_results_enabled",
+            "type": "checkbox",
+            "label": "Enable Public Results History",
+            "default": "1",
+            "description": "Show submission history and stats to logged-in CMS users"
+        },
+        {
+            "key": "public_results_recent_limit",
+            "type": "number",
+            "label": "Recent Results Limit",
+            "default": "10",
+            "description": "Number of recent submissions shown in user history"
+        },
+        {
+            "key": "public_results_show_scores",
+            "type": "checkbox",
+            "label": "Show Scores in Public Results",
+            "default": "1"
+        },
+        {
+            "key": "public_results_show_match_count",
+            "type": "checkbox",
+            "label": "Show Match Count in Public Results",
+            "default": "1"
+        },
+        {
+            "key": "public_results_show_report_links",
+            "type": "checkbox",
+            "label": "Show Report Links in Public Results",
+            "default": "1"
+        },
+        {
+            "key": "public_results_allow_anonymous",
+            "type": "checkbox",
+            "label": "Allow Anonymous Submissions",
+            "default": "1",
+            "description": "When disabled, only logged-in users can submit documents"
         },
         {
             "key": "min_word_count",

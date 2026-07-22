@@ -35,6 +35,7 @@ declare(strict_types=1);
         '/ValueObjects/AcademicSimilarityMatchResult.php',
         '/ValueObjects/AcademicSimilarityHighlightSpan.php',
         '/Services/AcademicSimilarityHighlightService.php',
+        '/Services/AcademicSimilarityUserResultService.php',
         '/Jobs/AcademicSimilarityProcessJob.php',
         '/Reports/AcademicSimilarityReportGenerator.php',
         '/Policies/AcademicSimilarityTenantPolicy.php',
@@ -104,6 +105,12 @@ function academic_similarity_get_settings(string $tenantId): array
         'near_match_threshold' => '0.8',
         'retention_days' => '365',
         'allowed_extensions' => 'docx,pdf,txt',
+        'public_results_enabled' => '1',
+        'public_results_recent_limit' => '10',
+        'public_results_show_scores' => '1',
+        'public_results_show_match_count' => '1',
+        'public_results_show_report_links' => '1',
+        'public_results_allow_anonymous' => '1',
     ];
 
     $db = academic_similarity_db();
@@ -132,6 +139,9 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'min_word_count', 'max_word_count', 'max_file_size_mb', 'max_upload_size',
         'allowed_file_types', 'fingerprint_shingle_size', 'near_match_threshold',
         'retention_days', 'allowed_extensions',
+        'public_results_enabled', 'public_results_recent_limit',
+        'public_results_show_scores', 'public_results_show_match_count',
+        'public_results_show_report_links', 'public_results_allow_anonymous',
     ];
 
     $db = academic_similarity_db();

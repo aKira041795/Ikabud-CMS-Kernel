@@ -44,13 +44,15 @@ class AcademicSimilaritySubmissionRepository
     }
 
     public function create(array $data): int {
-        $stmt = $this->db->prepare("INSERT INTO ac_similarity_submissions (tenant_id, institution_id, submission_title, author_name, author_identifier, source_type, original_filename, storage_path, storage_name, mime_type, file_size_bytes, word_count, page_count, checksum_sha256, text_hash_sha256, idempotency_key) VALUES (:tid, :iid, :title, :author, :author_id, :src_type, :filename, :stg_path, :stg_name, :mime, :size, :wcount, :pcount, :csum, :thash, :ikey)");
+        $stmt = $this->db->prepare("INSERT INTO ac_similarity_submissions (tenant_id, institution_id, submission_title, author_name, author_identifier, submitter_user_id, submitter_source, source_type, original_filename, storage_path, storage_name, mime_type, file_size_bytes, word_count, page_count, checksum_sha256, text_hash_sha256, idempotency_key) VALUES (:tid, :iid, :title, :author, :author_id, :suid, :ssrc, :src_type, :filename, :stg_path, :stg_name, :mime, :size, :wcount, :pcount, :csum, :thash, :ikey)");
         $stmt->execute([
             ':tid' => $this->tenantId,
             ':iid' => (int)($data['institution_id'] ?? 0),
             ':title' => $data['submission_title'] ?? '',
             ':author' => $data['author_name'] ?? '',
             ':author_id' => $data['author_identifier'] ?? '',
+            ':suid' => (int)($data['submitter_user_id'] ?? 0),
+            ':ssrc' => (string)($data['submitter_source'] ?? ''),
             ':src_type' => $data['source_type'] ?? 'upload',
             ':filename' => $data['original_filename'] ?? '',
             ':stg_path' => $data['storage_path'] ?? '',
@@ -64,6 +66,13 @@ class AcademicSimilaritySubmissionRepository
             ':ikey' => $data['idempotency_key'] ?? '',
         ]);
         return (int)$this->db->lastInsertId();
+    }
+
+    public function findBySubmitterUser(int $submitterUserId, int $page = 1, int $perPage = 25): array {
+        $offset = ($page - 1) * $perPage;
+        $stmt = $this->db->prepare("SELECT * FROM ac_similarity_submissions WHERE tenant_id = :tid AND submitter_user_id = :uid ORDER BY created_at DESC LIMIT {$perPage} OFFSET {$offset}");
+        $stmt->execute([':tid' => $this->tenantId, ':uid' => $submitterUserId]);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
     public function updateStatus(int $id, string $status, string $error = ''): void {

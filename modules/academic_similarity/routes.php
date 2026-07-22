@@ -7,6 +7,8 @@
 return [
     'GET' => [
         '/admin/academic-similarity'                              => 'academic-similarity:pageDashboard',
+        '/api/v1/academic-similarity/public/results'              => 'academic-similarity:apiPublicResults',
+        '/api/v1/academic-similarity/public/reports/{submission_id}' => 'academic-similarity:apiPublicReportSummary',
         '/admin/academic-similarity/submissions'                  => 'academic-similarity:pageSubmissions',
         '/admin/academic-similarity/submissions/{id}'             => 'academic-similarity:pageSubmissionDetail',
         '/admin/academic-similarity/sources'                      => 'academic-similarity:pageSources',

@@ -145,6 +145,8 @@ class AcademicSimilaritySubmissionService
             'submission_title' => $submissionTitle,
             'author_name' => $input['author_name'] ?? '',
             'author_identifier' => $input['author_identifier'] ?? '',
+            'submitter_user_id' => (int)($input['submitter_user_id'] ?? 0),
+            'submitter_source' => (string)($input['submitter_source'] ?? ''),
             'source_type' => $sourceType,
             'original_filename' => $fileData['original_filename'],
             'storage_path' => $fileData['storage_path'],

@@ -566,6 +566,20 @@ function apiPublicSubmit(array $params = []): void
         $input['source_type'] = !empty($input['file']) ? 'upload' : 'pasted';
     }
 
+    // Attach submitter identity if logged in
+    $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+    if ($submitterUserId > 0) {
+        $input['submitter_user_id'] = $submitterUserId;
+        $input['submitter_source'] = \AcademicSimilarityUserResultService::getCurrentUserSource();
+        // If the user is logged in but didn't provide author_name, use their name
+        if (empty($input['author_name'])) {
+            $user = \AcademicSimilarityUserResultService::getCurrentUser();
+            if ($user !== null) {
+                $input['author_name'] = (string)($user['name'] ?? $user['username'] ?? '');
+            }
+        }
+    }
+
     try {
         $institutionId = (int)($input['institution_id'] ?? 0);
         if ($institutionId <= 0) {
@@ -588,10 +602,160 @@ function apiPublicSubmit(array $params = []): void
             return;
         }
         http_response_code(201);
+        // Return submitter info for UI
+        $result['submitter_user_id'] = $submitterUserId;
         echo json_encode($result);
     } catch (\Throwable $e) {
         write_log('Public submission failed: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Internal error processing submission']);
+    }
+}
+
+function apiPublicResults(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+
+    if ($submitterUserId <= 0) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Authentication required to view results']);
+        return;
+    }
+
+    $settings = academic_similarity_get_settings($tenantId);
+    if (($settings['public_results_enabled'] ?? '1') !== '1') {
+        http_response_code(403);
+        echo json_encode(['ok' => false, 'error' => 'Public results are disabled']);
+        return;
+    }
+
+    $limit = max(1, min(50, (int)($settings['public_results_recent_limit'] ?? 10)));
+
+    try {
+        $service = new \AcademicSimilarityUserResultService($tenantId);
+        $stats = $service->getSummaryStats($submitterUserId);
+        $recent = $service->getRecentSubmissions($submitterUserId, $limit);
+
+        $showScores = ($settings['public_results_show_scores'] ?? '1') === '1';
+        $showMatchCount = ($settings['public_results_show_match_count'] ?? '1') === '1';
+        $showReportLinks = ($settings['public_results_show_report_links'] ?? '1') === '1';
+
+        // Strip admin-only fields from recent results
+        $safeRecent = [];
+        foreach ($recent as $row) {
+            $entry = [
+                'id' => (int)$row['id'],
+                'submission_title' => $row['submission_title'] ?? '',
+                'status' => $row['status'] ?? 'pending',
+                'submitted_at' => $row['submitted_at'] ?? '',
+                'processed_at' => $row['processed_at'] ?? null,
+                'word_count' => (int)($row['word_count'] ?? 0),
+            ];
+            if ($showScores) {
+                $entry['raw_similarity_score'] = $row['raw_similarity_score'] !== null ? (float)$row['raw_similarity_score'] : null;
+                $entry['adjusted_similarity_score'] = $row['adjusted_similarity_score'] !== null ? (float)$row['adjusted_similarity_score'] : null;
+            }
+            if ($showMatchCount) {
+                $entry['matched_word_count'] = (int)($row['matched_word_count'] ?? 0);
+                $entry['total_eligible_words'] = (int)($row['total_eligible_words'] ?? 0);
+            }
+            if ($showReportLinks && !empty($row['report_id'])) {
+                $entry['report_id'] = (int)$row['report_id'];
+            }
+            if ($row['status'] === 'failed') {
+                $entry['error'] = 'Processing encountered an issue. Contact support if this persists.';
+            }
+            $safeRecent[] = $entry;
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'stats' => $stats,
+            'recent' => $safeRecent,
+            'show_scores' => $showScores,
+            'show_match_count' => $showMatchCount,
+            'show_report_links' => $showReportLinks,
+        ]);
+    } catch (\Throwable $e) {
+        write_log('Public results failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to load results']);
+    }
+}
+
+function apiPublicReportSummary(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['submission_id'] ?? 0);
+    $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+
+    if ($submitterUserId <= 0) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Authentication required']);
+        return;
+    }
+
+    if ($submissionId <= 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Invalid submission ID']);
+        return;
+    }
+
+    try {
+        $service = new \AcademicSimilarityUserResultService($tenantId);
+        $summary = $service->getReportSummary($submissionId, $submitterUserId);
+
+        if ($summary === null) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Report not found or access denied']);
+            return;
+        }
+
+        // Build safe output
+        $settings = academic_similarity_get_settings($tenantId);
+        $showScores = ($settings['public_results_show_scores'] ?? '1') === '1';
+
+        $output = [
+            'ok' => true,
+            'submission' => [
+                'id' => (int)$summary['id'],
+                'submission_title' => $summary['submission_title'] ?? '',
+                'author_name' => $summary['author_name'] ?? '',
+                'status' => $summary['status'] ?? '',
+                'submitted_at' => $summary['submitted_at'] ?? '',
+                'processed_at' => $summary['processed_at'] ?? null,
+                'word_count' => (int)($summary['word_count'] ?? 0),
+            ],
+        ];
+
+        if ($showScores) {
+            $output['submission']['raw_similarity_score'] = $summary['raw_similarity_score'] !== null ? (float)$summary['raw_similarity_score'] : null;
+            $output['submission']['adjusted_similarity_score'] = $summary['adjusted_similarity_score'] !== null ? (float)$summary['adjusted_similarity_score'] : null;
+            $output['submission']['matched_word_count'] = (int)($summary['matched_word_count'] ?? 0);
+            $output['submission']['total_eligible_words'] = (int)($summary['total_eligible_words'] ?? 0);
+        }
+
+        if (!empty($summary['report_id'])) {
+            $output['report'] = [
+                'id' => (int)$summary['report_id'],
+                'generated_at' => $summary['report_generated_at'] ?? null,
+                'total_matches' => (int)($summary['total_matches'] ?? 0),
+            ];
+            if ($showScores) {
+                $output['report']['raw_score'] = $summary['raw_score'] !== null ? (float)$summary['raw_score'] : null;
+                $output['report']['adjusted_score'] = $summary['report_adjusted_score'] !== null ? (float)$summary['report_adjusted_score'] : null;
+            }
+        }
+
+        echo json_encode($output);
+    } catch (\Throwable $e) {
+        write_log('Public report summary failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to load report']);
     }
 }
