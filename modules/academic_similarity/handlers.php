@@ -91,11 +91,17 @@ function pageSubmissionDetail(array $params = []): void
         write_log('Failed to load internet check status for submission ' . $submissionId . ': ' . $e->getMessage());
     }
 
+    // Read redirect-feedback query params set by apiProcessSubmission / apiRunInternetCheck
+    $internetCheckQuery = (string)($_GET['internet_check'] ?? '');
+    $processQuery = (string)($_GET['process'] ?? '');
+
     echo $ctx->render('academic_similarity/submissions/detail', [
         'submission' => $submission,
         'matches' => $matches,
         'report' => $report,
         'internet_run' => $internetRun ?? [],
+        'internet_check_query' => $internetCheckQuery,
+        'process_query' => $processQuery,
         'internet_check_enabled' => (academic_similarity_get_settings($tenantId)['internet_check_enabled'] ?? '0') === '1',
         'active_nav' => 'submissions',
         'csrf_token' => app()->csrfToken() ?? '',

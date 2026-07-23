@@ -425,6 +425,7 @@ function academic_similarity_capability_handlers(): array
         'academic_similarity.report.view@1'  => 'ac_sim_cap_report_view_1',
         'academic_similarity.review.exclude@1' => 'ac_sim_cap_review_exclude_1',
         'academic_similarity.semantic.compare@1' => 'ac_sim_cap_semantic_compare_1',
+        'academic_similarity.internet.discover@1' => 'ac_sim_cap_internet_discover_1',
     ];
 }
 
@@ -506,6 +507,25 @@ function ac_sim_cap_semantic_compare_1(mixed $payload, string $capabilityId = ''
     // If this handler is reached (service module disabled), semantic matching
     // is not available — return a clear error instead of silent false success.
     return ['ok' => false, 'error' => 'Semantic comparison service is not available. Enable the academic-similarity-semantic-service module.'];
+}
+
+function ac_sim_cap_internet_discover_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    // Default fallback handler registered at priority 50.
+    // An external provider module (e.g. a search-engine integration) can
+    // register at a higher priority to supply real internet discovery.
+    //
+    // When this handler is reached, return empty candidates — the
+    // InternetCheckService will skip the check with a disclosure.
+    // If seed_urls are configured, they are handled directly in
+    // AcademicSimilarityInternetDiscoveryService::discover() before
+    // the capability call, so this handler is only reached when
+    // provider='capability' and no seed URLs are set.
+    return [
+        'ok' => true,
+        'candidates' => [],
+        'disclosure' => 'No internet discovery provider is configured. Enable a provider module or configure seed URLs in settings.',
+    ];
 }
 
 // ── CMS Admin Nav Injection ──────────────────────────────────────

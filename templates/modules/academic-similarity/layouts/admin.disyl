@@ -32,5 +32,6 @@
     <main>
         {block "content"}{/block}
     </main>
+    {block "scripts"}{/block}
 </body>
 </html>

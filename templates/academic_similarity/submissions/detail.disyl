@@ -9,6 +9,26 @@
         <a href="/admin/academic-similarity/submissions" class="text-brand-600 hover:text-brand-900 text-sm">&larr; Back to Submissions</a>
     </div>
 
+    {if internet_check_query == 'failed'}
+    <div class="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-900 px-4 py-3 text-sm">
+        <strong>Internet check failed.</strong> The internet search could not complete. Check the error log for details or try again.
+    </div>
+    {else if internet_check_query != ''}
+    <div class="mb-6 rounded-lg border border-green-200 bg-green-50 text-green-900 px-4 py-3 text-sm">
+        Internet check completed with status: <strong>{internet_check_query}</strong>.
+    </div>
+    {/if}
+
+    {if process_query == 'failed'}
+    <div class="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-900 px-4 py-3 text-sm">
+        <strong>Processing failed.</strong> The similarity analysis could not complete. Check the error details below or try again.
+    </div>
+    {else if process_query == 'processed'}
+    <div class="mb-6 rounded-lg border border-green-200 bg-green-50 text-green-900 px-4 py-3 text-sm">
+        Submission processed successfully.
+    </div>
+    {/if}
+
     <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
         <div class="flex justify-between items-start">
             <div>
@@ -126,4 +146,31 @@
     </div>
     {/if}
 </div>
+{/block}
+
+{block "scripts"}
+<script>
+function excludeMatch(matchId) {
+    if (!confirm('Exclude this match from the similarity score?')) return;
+    fetch('/api/v1/academic-similarity/reviews/' + matchId + '/exclude', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        },
+        body: '_token=' + encodeURIComponent('{csrf_token}')
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            location.reload();
+        } else {
+            alert('Failed to exclude match: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(function(e) {
+        alert('Network error: ' + e.message);
+    });
+}
+</script>
 {/block}

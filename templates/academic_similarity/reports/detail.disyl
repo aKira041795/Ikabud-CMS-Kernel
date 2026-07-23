@@ -182,3 +182,30 @@
     {/if}
 </div>
 {/block}
+
+{block "scripts"}
+<script>
+function excludeMatch(matchId) {
+    if (!confirm('Exclude this match from the similarity score?')) return;
+    fetch('/api/v1/academic-similarity/reviews/' + matchId + '/exclude', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        },
+        body: '_token=' + encodeURIComponent('{csrf_token}')
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            location.reload();
+        } else {
+            alert('Failed to exclude match: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(function(e) {
+        alert('Network error: ' + e.message);
+    });
+}
+</script>
+{/block}
