@@ -183,13 +183,6 @@
     </div>
     {/if}
 
-    {if highlighted_html}
-    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-3">Highlighted Submission</h2>
-        <div class="prose max-w-none text-sm leading-7">{highlighted_html|raw}</div>
-    </div>
-    {/if}
-
     {if internet_sources|count > 0}
     <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-3">Internet Source Coverage</h2>

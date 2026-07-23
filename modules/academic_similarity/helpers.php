@@ -3,7 +3,14 @@ declare(strict_types=1);
 
 /**
  * Academic Similarity — helpers, capability handlers, and bootstrap.
+ *
+ * Settings default version — bump this whenever the $defaults array in
+ * academic_similarity_get_settings() changes meaningfully. The migration
+ * 008_academic_similarity_reconcile_settings.sql stores this version in
+ * each tenant's `_defaults_version` setting so stale tenants can be
+ * detected automatically.
  */
+define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '008');
 
 // ── Auto-load module services ────────────────────────────────────
 (function (): void {
@@ -149,6 +156,18 @@ function academic_similarity_get_settings(string $tenantId): array
     }
 
     $settings = array_merge($defaults, $stored);
+
+    // Detect stale defaults version — log once per request per tenant
+    $storedVersion = (string)($stored['_defaults_version'] ?? '000');
+    if ($storedVersion !== ACADEMIC_SIMILARITY_DEFAULTS_VERSION) {
+        if (function_exists('write_log')) {
+            write_log(
+                "AISS settings for tenant {$tenantId} are stale (stored={$storedVersion}, code=" . ACADEMIC_SIMILARITY_DEFAULTS_VERSION . "). Run migration 008 or re-save settings to reconcile.",
+                'warning',
+                ['tenant_id' => $tenantId, 'stored_version' => $storedVersion, 'code_version' => ACADEMIC_SIMILARITY_DEFAULTS_VERSION]
+            );
+        }
+    }
     $settings = academic_similarity_decrypt_sensitive_settings($settings);
     foreach ([
         'semantic_external_api_key_env' => ['secret' => 'semantic_external_api_key', 'default' => 'SEMANTIC_API_KEY'],
@@ -201,6 +220,7 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'internet_check_store_retrieved_text', 'internet_check_seed_urls',
         'internet_check_disclosure_visible',
         'report_ai_narrative_enabled',
+        '_defaults_version',
     ];
 
     $existing = academic_similarity_get_raw_settings($tenantId);

@@ -43,7 +43,8 @@
         "migrations/002_academic_similarity_seed_plans.sql",
         "migrations/005_academic_similarity_public_results.sql",
         "migrations/006_academic_similarity_internet_sources.sql",
-        "migrations/007_academic_similarity_ai_report_narrative.sql"
+        "migrations/007_academic_similarity_ai_report_narrative.sql",
+        "migrations/008_academic_similarity_reconcile_settings.sql"
     ],
     "routes": true,
     "settings": [],
@@ -303,7 +304,7 @@
             "key": "semantic_similarity_threshold",
             "type": "number",
             "label": "Semantic Threshold",
-            "default": "0.70"
+            "default": "0.15"
         },
         {
             "key": "semantic_max_segments",

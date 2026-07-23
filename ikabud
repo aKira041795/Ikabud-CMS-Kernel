@@ -2829,6 +2829,74 @@ switch ($command) {
         }
         out('');
 
+        // ── 7. Module-specific integration checks ─────────────────
+        if ($moduleId === 'academic-similarity') {
+            out('  ' . bold('Integration Checks (AISS)'));
+
+            // 7a. Settings defaults version
+            $codeVersion = defined('ACADEMIC_SIMILARITY_DEFAULTS_VERSION') ? ACADEMIC_SIMILARITY_DEFAULTS_VERSION : 'unknown';
+            $storedVersion = '(not loaded)';
+            try {
+                $settings = function_exists('academic_similarity_get_settings')
+                    ? academic_similarity_get_settings((string)(app()->tenant()->current() ?? ''))
+                    : [];
+                $storedVersion = (string)($settings['_defaults_version'] ?? '(missing)');
+            } catch (\Throwable $e) {
+                $storedVersion = '(error: ' . $e->getMessage() . ')';
+            }
+            $settingsOk = $storedVersion === $codeVersion || str_contains($storedVersion, $codeVersion);
+            out('    ' . ($settingsOk ? green('✓') : yellow('⚠')) . ' settings defaults version — code=' . cyan($codeVersion) . ' stored=' . cyan($storedVersion)
+                . ($settingsOk ? '' : ' — run migration 008 or re-save settings'));
+
+            // 7b. Semantic service reachability
+            $serviceOk = false;
+            try {
+                $endpoint = (string)($settings['semantic_service_endpoint'] ?? 'http://127.0.0.1:9003');
+                $healthUrl = rtrim($endpoint, '/') . '/health';
+                $ctx = stream_context_create(['http' => ['method' => 'GET', 'timeout' => 3, 'header' => "Accept: application/json\r\n"]]);
+                $resp = @file_get_contents($healthUrl, false, $ctx);
+                $healthData = is_string($resp) ? json_decode($resp, true) : null;
+                $serviceOk = !empty($healthData['ok']);
+                $serviceBackend = $healthData['data']['model']['backend'] ?? 'unknown';
+                $serviceVersion = $healthData['data']['version'] ?? 'unknown';
+                out('    ' . ($serviceOk ? green('✓') : yellow('⚠')) . ' semantic service at ' . cyan($endpoint)
+                    . ($serviceOk ? ' — backend=' . cyan($serviceBackend) . ' version=' . cyan($serviceVersion) : ' — unreachable'));
+            } catch (\Throwable $e) {
+                out('    ' . yellow('⚠') . ' semantic service at ' . cyan($endpoint ?? '?') . ' — check failed: ' . $e->getMessage());
+            }
+
+            // 7c. Semantic match enabled
+            $semEnabled = ($settings['semantic_match_enabled'] ?? '0') === '1';
+            out('    ' . ($semEnabled ? green('✓') : yellow('⚠')) . ' semantic_match_enabled=' . cyan($settings['semantic_match_enabled'] ?? '0')
+                . ($semEnabled ? '' : ' — AI matching is disabled, enable in Settings → Semantic Matching'));
+
+            // 7d. Threshold sanity
+            $threshold = (float)($settings['semantic_similarity_threshold'] ?? 0.70);
+            $thresholdOk = $threshold <= 0.3;
+            out('    ' . ($thresholdOk ? green('✓') : yellow('⚠')) . ' semantic_similarity_threshold=' . cyan((string)$threshold)
+                . ($thresholdOk ? '' : ' — values above 0.30 may miss topic-level similarity'));
+
+            // 7e. Internet check provider
+            $icp = (string)($settings['internet_check_provider'] ?? 'not set');
+            $icpOk = $icp === 'seed_urls';
+            out('    ' . ($icpOk ? green('✓') : yellow('⚠')) . ' internet_check_provider=' . cyan($icp)
+                . ($icpOk ? '' : ' — seed_urls recommended for zero-config internet checking'));
+
+            // 7f. Capability bus check
+            try {
+                $healthCap = app()->capabilities()->has('academic_similarity.semantic.health@1');
+                $compareCap = app()->capabilities()->has('academic_similarity.semantic.compare@1');
+                $capsOk = $healthCap && $compareCap;
+                out('    ' . ($capsOk ? green('✓') : yellow('⚠')) . ' capability bus — health=' . cyan($healthCap ? 'registered' : 'missing')
+                    . ' compare=' . cyan($compareCap ? 'registered' : 'missing')
+                    . ($capsOk ? '' : ' — run loadModuleRoutes or check service-module enablement'));
+            } catch (\Throwable $e) {
+                out('    ' . yellow('⚠') . ' capability bus check failed: ' . $e->getMessage());
+            }
+
+            out('');
+        }
+
         // ── Summary ───────────────────────────────────────────────
         if ($validateFails === 0) {
             out(green('  ✓ all checks passed'));
