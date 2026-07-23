@@ -53,9 +53,10 @@
         function show(msg, type) {
             b.className = 'px-5 py-3 rounded-lg shadow-lg text-sm font-medium ' + (type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white');
             b.textContent = msg;
+            t.style.display = 'block';
             t.className = 'fixed top-4 right-4 z-50 fade-in';
             setTimeout(function() { t.className = 'fixed top-4 right-4 z-50 fade-out'; }, 2800);
-            setTimeout(function() { t.className = 'fixed top-4 right-4 z-50'; t.style.display = 'none'; }, 3150);
+            setTimeout(function() { t.style.display = 'none'; }, 3150);
         }
         {if saved}
         show('Settings saved successfully.', 'success');

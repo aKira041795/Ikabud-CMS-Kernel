@@ -304,13 +304,8 @@ class AcademicSimilarityMatchingService
 
     /**
      * Load fingerprints for a given entity.
-     *
-     * @param int $entityId
-     * @param string $fingerprintType 'exact' or 'near'
-     * @param string $entityType 'submission' or 'source'
-     * @return array
      */
-    private function loadFingerprints(int $entityId, string $fingerprintType, string $entityType): array
+    public function loadFingerprints(int $entityId, string $fingerprintType, string $entityType): array
     {
         if ($entityType === 'submission') {
             $stmt = $this->db->prepare("
@@ -335,9 +330,11 @@ class AcademicSimilarityMatchingService
      *
      * @param array $subFps
      * @param string $fingerprintType
+     * @param int $minShared Minimum shared shingles to be considered a candidate (default 3 for short, 1 for medium+)
+     * @param int $maxCandidates Maximum candidate sources to return (0 = unlimited)
      * @return array<int, array>
      */
-    private function findCandidateSourcesFromFingerprints(array $subFps, string $fingerprintType): array
+    private function findCandidateSourcesFromFingerprints(array $subFps, string $fingerprintType, int $minShared = 1, int $maxCandidates = 5000): array
     {
         $hashes = array_unique(array_column($subFps, 'shingle_hash'));
 
@@ -345,40 +342,72 @@ class AcademicSimilarityMatchingService
             return [];
         }
 
-        // Build placeholder list for IN clause
-        $placeholders = [];
-        $params = [':tid' => $this->tenantId, ':ft' => $fingerprintType];
-        foreach ($hashes as $i => $hash) {
-            $key = ':h' . $i;
-            $placeholders[] = $key;
-            $params[$key] = $hash;
-        }
-
-        $inClause = implode(', ', $placeholders);
-
-        $stmt = $this->db->prepare("
-            SELECT source_id, COUNT(*) AS hit_count
-            FROM ac_similarity_fingerprints
-            WHERE shingle_hash IN ({$inClause})
-              AND fingerprint_type = :ft
-              AND source_id IS NOT NULL
-              AND tenant_id = :tid
-            GROUP BY source_id
-            ORDER BY hit_count DESC
-        ");
-        $stmt->execute($params);
-
+        // Process in chunks to avoid oversized queries
+        $hashChunks = array_chunk($hashes, 500);
         $candidates = [];
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $sid = (int)$row['source_id'];
-            $candidates[$sid] = [
-                'source_id' => $sid,
-                'fingerprint_hits' => (int)$row['hit_count'],
-                'match_confidence' => (int)$row['hit_count'] / max(1, count($subFps)),
-            ];
+
+        foreach ($hashChunks as $chunk) {
+            $placeholders = [];
+            $params = [':tid' => $this->tenantId, ':ft' => $fingerprintType];
+            foreach ($chunk as $i => $hash) {
+                $key = ':h' . $i;
+                $placeholders[] = $key;
+                $params[$key] = $hash;
+            }
+
+            $inClause = implode(', ', $placeholders);
+
+            $stmt = $this->db->prepare("
+                SELECT source_id, COUNT(*) AS hit_count
+                FROM ac_similarity_fingerprints
+                WHERE shingle_hash IN ({$inClause})
+                  AND fingerprint_type = :ft
+                  AND source_id IS NOT NULL
+                  AND tenant_id = :tid
+                GROUP BY source_id
+                HAVING hit_count >= :min_shingles
+                ORDER BY hit_count DESC
+                " . ($maxCandidates > 0 ? "LIMIT {$maxCandidates}" : "") . "
+            ");
+            $stmt->execute($params + [':min_shingles' => $minShared]);
+
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $sid = (int)$row['source_id'];
+                if (!isset($candidates[$sid])) {
+                    $candidates[$sid] = [
+                        'source_id' => $sid,
+                        'fingerprint_hits' => 0,
+                        'match_confidence' => 0.0,
+                    ];
+                }
+                $candidates[$sid]['fingerprint_hits'] += (int)$row['hit_count'];
+            }
         }
 
-        return $candidates;
+        // Calculate confidence scores
+        $totalSubFps = count($subFps);
+        foreach ($candidates as $sid => $info) {
+            $candidates[$sid]['match_confidence'] = $totalSubFps > 0
+                ? $info['fingerprint_hits'] / $totalSubFps
+                : 0.0;
+        }
+
+        // Sort by hit count descending, limit to max candidates
+        usort($candidates, function (array $a, array $b) {
+            return $b['fingerprint_hits'] - $a['fingerprint_hits'];
+        });
+
+        if ($maxCandidates > 0 && count($candidates) > $maxCandidates) {
+            $candidates = array_slice($candidates, 0, $maxCandidates);
+        }
+
+        // Re-index by source_id
+        $indexed = [];
+        foreach ($candidates as $c) {
+            $indexed[$c['source_id']] = $c;
+        }
+
+        return $indexed;
     }
 
     /**
@@ -411,14 +440,8 @@ class AcademicSimilarityMatchingService
 
     /**
      * Compare a submission to a specific source, finding contiguous word-match runs.
-     *
-     * @param int $submissionId
-     * @param int $sourceId
-     * @param array $subFps
-     * @param string $matchType
-     * @return AcademicSimilarityMatchResult[]
      */
-    private function compareSubmissionToSource(
+    public function compareSubmissionToSource(
         int $submissionId,
         int $sourceId,
         array $subFps,

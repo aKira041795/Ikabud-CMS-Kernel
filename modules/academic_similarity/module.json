@@ -44,7 +44,8 @@
         "migrations/005_academic_similarity_public_results.sql",
         "migrations/006_academic_similarity_internet_sources.sql",
         "migrations/007_academic_similarity_ai_report_narrative.sql",
-        "migrations/008_academic_similarity_reconcile_settings.sql"
+        "migrations/008_academic_similarity_reconcile_settings.sql",
+        "migrations/009_academic_similarity_multilayer_fingerprinting.sql"
     ],
     "routes": true,
     "settings": [],

@@ -6,6 +6,29 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <h1 class="text-2xl font-bold text-gray-900 mb-6">Academic Similarity Dashboard</h1>
 
+    {if total_sources|default:0 == 0 and total_submissions|default:0 == 0}
+    <div class="mb-8 rounded-lg border border-brand-200 bg-brand-50 px-6 py-5">
+        <h2 class="text-lg font-semibold text-brand-800 mb-2">Getting Started</h2>
+        <p class="text-sm text-brand-700 mb-4">The similarity checker compares student submissions against your institutional source documents. Here's how to get started:</p>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-brand-700">
+            <li><strong>Add sources</strong> — Upload or paste reference documents (articles, theses, books) that form your comparison corpus</li>
+            <li><strong>Organize sources</strong> — Group related sources into collections (optional, useful for larger repositories)</li>
+            <li><strong>Submit student work</strong> — Upload or paste student documents to check for similarity</li>
+            <li><strong>Review reports</strong> — View detailed similarity reports with exact and near-exact match highlighting</li>
+        </ol>
+        <div class="mt-4 flex gap-3">
+            <a href="/admin/academic-similarity/sources/new" class="inline-flex items-center rounded-lg bg-brand-600 text-white px-4 py-2 text-sm font-medium hover:bg-brand-700">Add Your First Source</a>
+            <a href="/admin/academic-similarity/submissions/new" class="inline-flex items-center rounded-lg border border-brand-300 bg-white text-brand-700 px-4 py-2 text-sm font-medium hover:bg-brand-50">Submit a Document</a>
+        </div>
+    </div>
+    {else if total_sources|default:0 == 0}
+    <div class="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+        No sources yet. <a href="/admin/academic-similarity/sources/new" class="underline font-medium">Add sources</a> to build your comparison corpus before submitting student work.
+    </div>
+    {/if}
+
+
+
     {if processed_now !== null}
     <div class="mb-6 rounded-lg border {if failed_now|default:0 > 0}border-yellow-200 bg-yellow-50 text-yellow-900{else}border-green-200 bg-green-50 text-green-900{/if} px-4 py-3 text-sm">
         Processed {processed_now|default:0} pending submission(s). Failed {failed_now|default:0}.

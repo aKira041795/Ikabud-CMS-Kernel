@@ -12,8 +12,8 @@
 
     <div class="bg-white rounded-lg shadow border border-gray-200">
         <div class="p-4 border-b border-gray-200">
-            <form method="GET" class="flex gap-4">
-                <input type="text" name="search" value="{search_query}" placeholder="Search by title or author..." class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <form method="GET" class="flex gap-4 flex-wrap">
+                <input type="text" name="search" value="{search_query}" placeholder="Search by title or author..." class="flex-1 min-w-[200px] rounded-lg border border-gray-300 px-3 py-2 text-sm">
                 <select name="type" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
                     <option value="">All Types</option>
                     <option value="article" {if current_type == 'article'}selected{/if}>Article</option>
@@ -21,6 +21,12 @@
                     <option value="thesis" {if current_type == 'thesis'}selected{/if}>Thesis</option>
                     <option value="web" {if current_type == 'web'}selected{/if}>Web</option>
                     <option value="other" {if current_type == 'other'}selected{/if}>Other</option>
+                </select>
+                <select name="collection_id" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="0">All Collections</option>
+                    {for col in collections}
+                    <option value="{col.collection_id}" {if current_collection_id == col.collection_id}selected{/if}>{col.collection_name}</option>
+                    {/for}
                 </select>
                 <button type="submit" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Filter</button>
             </form>

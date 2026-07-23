@@ -132,15 +132,31 @@ function pageSources(array $params = []): void
     academic_similarity_require_admin($ctx);
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
+    $search = trim((string)($_GET['search'] ?? ''));
+    $type = trim((string)($_GET['type'] ?? ''));
+    $collectionId = (int)($_GET['collection_id'] ?? 0);
+
     $repo = new \AcademicSimilaritySourceRepository($tenantId);
     $sources = array_map(static function (array $row): array {
         $row['source_id'] = $row['id'] ?? $row['source_id'] ?? 0;
         $row['author_name'] = $row['author'] ?? $row['author_name'] ?? '';
+        $row['collection_name'] = $row['collection_name'] ?? '';
         return $row;
-    }, $repo->search('', 1, 50));
+    }, $repo->search($search, 1, 50, $type, $collectionId));
+
+    $collectionRepo = new \AcademicSimilarityCollectionRepository($tenantId);
+    $collections = array_map(static function (array $row): array {
+        $row['collection_id'] = $row['id'] ?? $row['collection_id'] ?? 0;
+        $row['collection_name'] = $row['name'] ?? $row['collection_name'] ?? '';
+        return $row;
+    }, $collectionRepo->search('', 1, 100));
 
     echo $ctx->render('academic_similarity/sources/index', [
         'sources' => $sources,
+        'search_query' => $search,
+        'current_type' => $type,
+        'current_collection_id' => $collectionId,
+        'collections' => $collections,
         'active_nav' => 'sources',
     ]);
 }
@@ -187,9 +203,14 @@ function pageCollections(array $params = []): void
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $repo = new \AcademicSimilarityCollectionRepository($tenantId);
-    $collections = array_map(static function (array $row): array {
+    $db = academic_similarity_db();
+    $collections = array_map(static function (array $row) use ($db, $tenantId): array {
         $row['collection_id'] = $row['id'] ?? $row['collection_id'] ?? 0;
         $row['collection_name'] = $row['name'] ?? $row['collection_name'] ?? '';
+        // Count sources in this collection
+        $stmt = $db->prepare("SELECT COUNT(*) FROM ac_similarity_sources WHERE collection_id = :cid AND tenant_id = :tid");
+        $stmt->execute([':cid' => $row['collection_id'], ':tid' => $tenantId]);
+        $row['source_count'] = (int)$stmt->fetchColumn();
         return $row;
     }, $repo->search('', 1, 50));
 
@@ -433,6 +454,7 @@ function pageSettings(array $params = []): void
         'semantic_status' => $semanticStatus,
         'active_nav' => 'settings',
         'flash_error' => $flashError,
+        'saved' => (int)($_GET['saved'] ?? 0),
     ]);
 }
 
@@ -627,31 +649,40 @@ function apiCreateSource(array $params = []): void
         $input['file'] = $_FILES['file'];
     }
 
+    if ((int)($input['institution_id'] ?? 0) <= 0) {
+        $stmt = academic_similarity_db()->prepare("SELECT id FROM ac_similarity_institutions WHERE tenant_id = :tid AND is_active = 1 ORDER BY id ASC LIMIT 1");
+        $stmt->execute([':tid' => $tenantId]);
+        $input['institution_id'] = (int)($stmt->fetchColumn() ?: 0);
+    }
+
     try {
         $service = new \AcademicSimilaritySourceService($tenantId);
         $result = $service->create($input);
         if (!$result['ok']) {
-            http_response_code(422);
             if (!$wantsJson) {
+                http_response_code(302);
                 header('Location: /admin/academic-similarity/sources/new?error=' . rawurlencode((string)($result['error'] ?? 'Source creation failed')));
                 return;
             }
+            http_response_code(422);
             echo json_encode($result);
             return;
         }
-        http_response_code(201);
         if (!$wantsJson) {
+            http_response_code(302);
             header('Location: /admin/academic-similarity/sources?created=1');
             return;
         }
+        http_response_code(201);
         echo json_encode($result);
     } catch (\Throwable $e) {
         write_log('Source creation failed: ' . $e->getMessage());
-        http_response_code(500);
         if (!$wantsJson) {
+            http_response_code(302);
             header('Location: /admin/academic-similarity/sources/new?error=' . rawurlencode('Internal error creating source'));
             return;
         }
+        http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Internal error creating source']);
     }
 }
@@ -715,18 +746,20 @@ function apiCreateCollection(array $params = []): void
     try {
         $repo = new \AcademicSimilarityCollectionRepository($tenantId);
         $id = $repo->create($input['name'] ?? '', $input['description'] ?? '', (int)($input['institution_id'] ?? 0));
-        http_response_code(201);
         if (!$wantsJson) {
+            http_response_code(302);
             header('Location: /admin/academic-similarity/collections?created=1');
             return;
         }
+        http_response_code(201);
         echo json_encode(['ok' => true, 'id' => $id]);
     } catch (\Throwable $e) {
-        http_response_code(500);
         if (!$wantsJson) {
+            http_response_code(302);
             header('Location: /admin/academic-similarity/collections/new?error=' . rawurlencode($e->getMessage()));
             return;
         }
+        http_response_code(500);
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
 }

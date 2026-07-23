@@ -18,7 +18,31 @@ class AcademicSimilaritySourceRepository
         return $row ?: null;
     }
 
-    public function search(string $search = '', int $page = 1, int $perPage = 50): array {
+    public function search(string $search = '', int $page = 1, int $perPage = 50, string $type = '', int $collectionId = 0): array {
+        $conditions = ['s.tenant_id = :tid'];
+        $params = [':tid' => $this->tenantId];
+        if ($search !== '') {
+            $conditions[] = '(s.title LIKE :search OR s.author LIKE :search2 OR s.original_filename LIKE :search3)';
+            $params[':search'] = "%{$search}%";
+            $params[':search2'] = "%{$search}%";
+            $params[':search3'] = "%{$search}%";
+        }
+        if ($type !== '') {
+            $conditions[] = 's.source_type = :type';
+            $params[':type'] = $type;
+        }
+        if ($collectionId > 0) {
+            $conditions[] = 's.collection_id = :cid';
+            $params[':cid'] = $collectionId;
+        }
+        $where = implode(' AND ', $conditions);
+        $offset = ($page - 1) * $perPage;
+        $stmt = $this->db->prepare("SELECT s.*, c.name AS collection_name FROM ac_similarity_sources s LEFT JOIN ac_similarity_collections c ON s.collection_id = c.id WHERE {$where} ORDER BY s.created_at DESC LIMIT {$perPage} OFFSET {$offset}");
+        $stmt->execute($params);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    public function count(string $search = '', string $type = '', int $collectionId = 0): int {
         $conditions = ['tenant_id = :tid'];
         $params = [':tid' => $this->tenantId];
         if ($search !== '') {
@@ -27,21 +51,13 @@ class AcademicSimilaritySourceRepository
             $params[':search2'] = "%{$search}%";
             $params[':search3'] = "%{$search}%";
         }
-        $where = implode(' AND ', $conditions);
-        $offset = ($page - 1) * $perPage;
-        $stmt = $this->db->prepare("SELECT * FROM ac_similarity_sources WHERE {$where} ORDER BY created_at DESC LIMIT {$perPage} OFFSET {$offset}");
-        $stmt->execute($params);
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
-    }
-
-    public function count(string $search = ''): int {
-        $conditions = ['tenant_id = :tid'];
-        $params = [':tid' => $this->tenantId];
-        if ($search !== '') {
-            $conditions[] = '(title LIKE :search OR author LIKE :search2 OR original_filename LIKE :search3)';
-            $params[':search'] = "%{$search}%";
-            $params[':search2'] = "%{$search}%";
-            $params[':search3'] = "%{$search}%";
+        if ($type !== '') {
+            $conditions[] = 'source_type = :type';
+            $params[':type'] = $type;
+        }
+        if ($collectionId > 0) {
+            $conditions[] = 'collection_id = :cid';
+            $params[':cid'] = $collectionId;
         }
         $where = implode(' AND ', $conditions);
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM ac_similarity_sources WHERE {$where}");

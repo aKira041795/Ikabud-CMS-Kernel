@@ -5,6 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{block "title"}Academic Similarity{/block} — Similarity Check</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            200: '#bfdbfe',
+                            300: '#93c5fd',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <nav class="bg-white shadow-sm border-b border-gray-200">
@@ -21,8 +42,6 @@
                         <a href="/admin/academic-similarity/collections" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'collections'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Collections</a>
                         <a href="/admin/academic-similarity/reports" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'reports'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Reports</a>
                         <a href="/admin/academic-similarity/settings" class="px-3 py-2 rounded-md text-sm font-medium {if active_nav == 'settings'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Settings</a>
-                        <a href="/admin/academic-similarity/settings/semantic" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'semantic'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">Semantic</a>
-                        <a href="/admin/academic-similarity/settings/cms" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'cms'}bg-brand-50 text-brand-700{else}text-gray-500 hover:text-gray-700{/if}">CMS Flow</a>
                     </div>
                 </div>
                 <a href="/cms/admin" class="inline-flex w-fit items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Back to CMS Admin</a>

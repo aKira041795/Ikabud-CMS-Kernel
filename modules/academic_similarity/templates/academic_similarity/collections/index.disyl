@@ -17,7 +17,6 @@
                         <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Name</th>
                         <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Description</th>
                         <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Sources</th>
-                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Type</th>
                         <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Created</th>
                         <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
@@ -29,7 +28,6 @@
                         <td class="px-6 py-4 font-medium text-gray-900">{col.collection_name}</td>
                         <td class="px-6 py-4 text-gray-500 max-w-xs truncate">{col.description|default:—}</td>
                         <td class="px-6 py-4 text-gray-500">{col.source_count|default:0}</td>
-                        <td class="px-6 py-4"><span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">{col.collection_type|default:general}</span></td>
                         <td class="px-6 py-4 text-gray-500">{col.created_at}</td>
                         <td class="px-6 py-4">
                             <a href="/admin/academic-similarity/collections/{col.collection_id}" class="text-brand-600 hover:text-brand-900 font-medium mr-3">View</a>
@@ -40,7 +38,7 @@
                     {/for}
                     {else}
                     <tr>
-                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">No collections yet. <a href="/admin/academic-similarity/collections/new" class="text-brand-600 hover:underline">Create your first collection</a>.</td>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">No collections yet. <a href="/admin/academic-similarity/collections/new" class="text-brand-600 hover:underline">Create your first collection</a>.</td>
                     </tr>
                     {/if}
                 </tbody>

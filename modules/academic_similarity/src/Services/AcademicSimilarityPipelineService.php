@@ -708,8 +708,117 @@ class AcademicSimilarityPipelineService
             'semantic_match' => $this->runSemanticMatchStage($submissionId),
             'score' => $this->runScore($submissionId),
             'report' => $this->runReport($submissionId),
+            'recheck' => $this->runRecheck($submissionId, 0),
             default => throw new \RuntimeException("Unknown pipeline stage: {$stage}"),
         };
+    }
+
+    /**
+     * Incremental recheck: compare a processed submission against a single new source.
+     * Does NOT re-fingerprint or re-normalize the submission — only the new source
+     * is fingerprinted (if not already done) and compared.
+     *
+     * @param int $submissionId
+     * @param int $newSourceId
+     * @return array{ok: bool, matches_found: int, message: string}
+     */
+    public function runRecheck(int $submissionId, int $newSourceId): array
+    {
+        if ($newSourceId <= 0) {
+            return ['ok' => false, 'matches_found' => 0, 'message' => 'Valid source_id is required'];
+        }
+
+        $submission = $this->subRepo->findById($submissionId);
+        if ($submission === null) {
+            return ['ok' => false, 'matches_found' => 0, 'message' => "Submission #{$submissionId} not found"];
+        }
+
+        $source = $this->sourceRepo->findById($newSourceId);
+        if ($source === null) {
+            return ['ok' => false, 'matches_found' => 0, 'message' => "Source #{$newSourceId} not found"];
+        }
+
+        // Load submission fingerprints (exact type)
+        $matchingService = new AcademicSimilarityMatchingService($this->tenantId);
+        $subFps = $matchingService->loadFingerprints($submissionId, 'exact', 'submission');
+
+        if (empty($subFps)) {
+            return ['ok' => false, 'matches_found' => 0, 'message' => 'Submission has no fingerprints; run the full pipeline first'];
+        }
+
+        // Compare against the single new source
+        $sourceMatches = $matchingService->compareSubmissionToSource(
+            $submissionId,
+            $newSourceId,
+            $subFps,
+            'exact'
+        );
+
+        // Also try near-exact
+        $subNearFps = $matchingService->loadFingerprints($submissionId, 'near', 'submission');
+        if (!empty($subNearFps)) {
+            $nearMatches = $matchingService->compareSubmissionToSource(
+                $submissionId,
+                $newSourceId,
+                $subNearFps,
+                'near-exact'
+            );
+            $sourceMatches = array_merge($sourceMatches, $nearMatches);
+        }
+
+        if (empty($sourceMatches)) {
+            return ['ok' => true, 'matches_found' => 0, 'message' => 'No new matches found against source #' . $newSourceId];
+        }
+
+        // Resolve overlaps and store
+        $resolved = $matchingService->resolveOverlaps($sourceMatches);
+        $stored = $matchingService->storeMatches($resolved, $this->tenantId);
+
+        $sourceTitle = $source['title'] ?? 'unknown';
+        return [
+            'ok' => true,
+            'matches_found' => $stored,
+            'message' => "Found {$stored} new match(es) against source #{$newSourceId} ({$sourceTitle})",
+        ];
+    }
+
+    /**
+     * Recheck all processed submissions against a new source.
+     *
+     * @param int $newSourceId
+     * @return array{ok: bool, rechecked: int, total_matches: int, errors: array}
+     */
+    public function runRecheckAll(int $newSourceId): array
+    {
+        // Find all processed submissions
+        $stmt = $this->db->prepare("SELECT id FROM ac_similarity_submissions WHERE tenant_id = :tid AND status = 'processed'");
+        $stmt->execute([':tid' => $this->tenantId]);
+        $submissionIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+        $totalMatches = 0;
+        $rechecked = 0;
+        $errors = [];
+
+        foreach ($submissionIds as $sid) {
+            try {
+                $result = $this->runRecheck((int)$sid, $newSourceId);
+                if ($result['ok']) {
+                    $totalMatches += $result['matches_found'];
+                } else {
+                    $errors[] = "Submission #{$sid}: " . ($result['message'] ?? 'unknown error');
+                }
+                $rechecked++;
+            } catch (\Throwable $e) {
+                $errors[] = "Submission #{$sid}: " . $e->getMessage();
+            }
+        }
+
+        return [
+            'ok' => true,
+            'rechecked' => $rechecked,
+            'total_matches' => $totalMatches,
+            'errors' => $errors,
+        ];
     }
 
     private function runInternetDiscovery(int $submissionId): array

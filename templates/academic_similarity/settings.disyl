@@ -21,11 +21,18 @@
         </div>
     </div>
 
-    {if saved}
-    <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-        <p class="text-sm text-green-700">Settings saved successfully.</p>
+    <!-- Toast container -->
+    <div id="aiss-toast" class="fixed top-4 right-4 z-50" style="display:none">
+        <div id="aiss-toast-body" class="px-5 py-3 rounded-lg shadow-lg text-sm font-medium"></div>
     </div>
-    {/if}
+
+    <style>
+    #aiss-toast.show { display: block !important; }
+    #aiss-toast.fade-in { animation: aissToastIn 0.3s ease forwards; }
+    #aiss-toast.fade-out { animation: aissToastOut 0.3s ease forwards; }
+    @keyframes aissToastIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes aissToastOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-12px); } }
+    </style>
 
     <form id="aiss-settings-form" method="POST" action="/admin/academic-similarity/settings" class="space-y-6">
         <input type="hidden" name="_token" value="{csrf_token}">
@@ -301,4 +308,25 @@
         </div>
     </form>
 </div>
+
+<script>
+(function() {
+    var t = document.getElementById('aiss-toast');
+    var b = document.getElementById('aiss-toast-body');
+    function show(msg, type) {
+        b.className = 'px-5 py-3 rounded-lg shadow-lg text-sm font-medium ' + (type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white');
+        b.textContent = msg;
+        t.style.display = 'block';
+        t.className = 'fixed top-4 right-4 z-50 fade-in';
+        setTimeout(function() { t.className = 'fixed top-4 right-4 z-50 fade-out'; }, 2800);
+        setTimeout(function() { t.style.display = 'none'; }, 3150);
+    }
+    {if saved}
+    show('Settings saved successfully.', 'success');
+    {/if}
+    {if flash_error}
+    show('{flash_error|escape:js}', 'error');
+    {/if}
+})();
+</script>
 {/block}
