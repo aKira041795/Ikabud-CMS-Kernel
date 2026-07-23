@@ -9,6 +9,7 @@ class AcademicSimilarityReportService
     private AcademicSimilarityReportRepository $reportRepo;
     private AcademicSimilaritySubmissionRepository $submissionRepo;
     private AcademicSimilarityMatchRepository $matchRepo;
+    private AcademicSimilaritySourceRepository $sourceRepo;
     private AcademicSimilarityAuditRepository $auditRepo;
 
     public function __construct(string $tenantId)
@@ -18,6 +19,7 @@ class AcademicSimilarityReportService
         $this->reportRepo = new AcademicSimilarityReportRepository($tenantId);
         $this->submissionRepo = new AcademicSimilaritySubmissionRepository($tenantId);
         $this->matchRepo = new AcademicSimilarityMatchRepository($tenantId);
+        $this->sourceRepo = new AcademicSimilaritySourceRepository($tenantId);
         $this->auditRepo = new AcademicSimilarityAuditRepository($tenantId);
     }
 
@@ -302,9 +304,9 @@ class AcademicSimilarityReportService
             return;
         }
 
-        $format = $report['report_format'] ?? 'html';
+        $format = (string)($_GET['format'] ?? 'pdf');
 
-        if ($format === 'json' || (isset($_GET['format']) && $_GET['format'] === 'json')) {
+        if ($format === 'json') {
             header('Content-Type: application/json; charset=utf-8');
             header('Content-Disposition: attachment; filename="similarity-report-' . $reportId . '.json"');
 
@@ -327,15 +329,42 @@ class AcademicSimilarityReportService
             return;
         }
 
-        // Default: HTML output
-        header('Content-Type: text/html; charset=utf-8');
-
         $submission = $this->submissionRepo->findById((int)$report['submission_id']);
         $matches = $this->matchRepo->findBySubmissionId((int)$report['submission_id']);
+        $sourceCache = [];
+        $evidenceCache = [];
+        foreach ($matches as $match) {
+            $sourceId = (int)($match['source_id'] ?? 0);
+            if ($sourceId > 0 && !isset($sourceCache[$sourceId])) {
+                $sourceCache[$sourceId] = $this->sourceRepo->findById($sourceId) ?? [];
+            }
+            $matchId = (int)($match['id'] ?? 0);
+            if ($matchId > 0) {
+                $evidenceCache[$matchId] = $this->matchRepo->getEvidence($matchId);
+            }
+        }
+        $internetBySource = [];
+        try {
+            $internetBySource = (new AcademicSimilarityInternetSourceRepository($this->tenantId))->findBySourceIds(array_keys($sourceCache));
+        } catch (\Throwable $exception) {
+            if (function_exists('write_log')) {
+                write_log('warning', 'AISS internet source provenance unavailable for report export', [
+                    'report_id' => $reportId,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
 
         $title = htmlspecialchars($submission['submission_title'] ?? 'Similarity Report');
         $rawScore = isset($report['raw_score']) ? round((float)$report['raw_score'], 2) : 'N/A';
         $adjustedScore = isset($report['adjusted_score']) ? round((float)$report['adjusted_score'], 2) : 'N/A';
+
+        if ($format === 'html') {
+            header('Content-Type: text/html; charset=utf-8');
+            header('Content-Disposition: attachment; filename="similarity-report-' . $reportId . '.html"');
+        } else {
+            ob_start();
+        }
 
         echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' . $title . ' — Similarity Report</title>';
         echo '<style>
@@ -348,6 +377,15 @@ table{width:100%;border-collapse:collapse;margin:1rem 0;}
 th,td{text-align:left;padding:.5rem;border-bottom:1px solid #ddd;}
 th{background:#f5f5f5;}
 .match-excluded{color:#999;text-decoration:line-through;}
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin:1rem 0;}
+.summary div{border:1px solid #ddd;background:#f8f9fa;padding:.75rem;}
+.label{font-size:.75rem;color:#666;text-transform:uppercase;}
+.value{font-size:1.25rem;font-weight:bold;margin-top:.25rem;}
+.issue{page-break-inside:avoid;border:1px solid #ddd;margin:1rem 0;padding:1rem;border-radius:6px;}
+.issue h3{margin:.25rem 0 .75rem 0;}
+.issue-meta{color:#666;font-size:.85rem;margin-bottom:.75rem;}
+.excerpt{border-left:4px solid #c0392b;background:#fff5f5;padding:.75rem;margin:.5rem 0;white-space:pre-wrap;}
+.source-excerpt{border-left-color:#2563eb;background:#eff6ff;}
 .footer{color:#999;font-size:.85rem;border-top:1px solid #eee;padding-top:1rem;margin-top:2rem;}
 </style></head><body>';
         echo '<h1>Similarity Report: ' . htmlspecialchars($title) . '</h1>';
@@ -355,22 +393,74 @@ th{background:#f5f5f5;}
         echo 'Raw Score: <span class="raw">' . $rawScore . '%</span><br>';
         echo 'Adjusted Score: <span class="adjusted">' . $adjustedScore . '%</span>';
         echo '</div>';
+        echo '<div class="summary">';
+        echo '<div><span class="label">Matches</span><p class="value">' . (int)($report['total_matches'] ?? count($matches)) . '</p></div>';
+        echo '<div><span class="label">Matched Words</span><p class="value">' . (int)($report['matched_word_count'] ?? 0) . '</p></div>';
+        echo '<div><span class="label">Eligible Words</span><p class="value">' . (int)($report['total_eligible_words'] ?? ($submission['word_count'] ?? 0)) . '</p></div>';
+        echo '<div><span class="label">Excluded</span><p class="value">' . (int)($report['total_excluded'] ?? 0) . '</p></div>';
+        echo '</div>';
 
         echo '<table><thead><tr>
 <th>#</th><th>Source</th><th>Type</th><th>Confidence</th><th>Matched Words</th><th>Status</th>
 </tr></thead><tbody>';
         foreach ($matches as $i => $match) {
+            $sourceId = (int)($match['source_id'] ?? 0);
+            $source = $sourceCache[$sourceId] ?? [];
+            $sourceTitle = (string)($source['title'] ?? ('Source #' . $sourceId));
+            $internet = $internetBySource[$sourceId] ?? null;
             $class = ($match['is_excluded'] ?? 0) ? ' class="match-excluded"' : '';
             echo '<tr' . $class . '>';
             echo '<td>' . ($i + 1) . '</td>';
-            echo '<td>' . htmlspecialchars((string)($match['source_id'] ?? '')) . '</td>';
+            echo '<td>' . htmlspecialchars($sourceTitle) . ($internet ? '<br><small>Internet-discovered</small>' : '') . '</td>';
             echo '<td>' . htmlspecialchars($match['match_type'] ?? '') . '</td>';
-            echo '<td>' . htmlspecialchars((string)($match['match_confidence'] ?? '')) . '</td>';
+            echo '<td>' . round(((float)($match['match_confidence'] ?? 0)) * 100, 1) . '%</td>';
             echo '<td>' . (int)($match['matched_word_count'] ?? 0) . '</td>';
             echo '<td>' . (($match['is_excluded'] ?? 0) ? 'Excluded' : 'Active') . '</td>';
             echo '</tr>';
         }
         echo '</tbody></table>';
+
+        echo '<h2>Issue Passages</h2>';
+        if (empty($matches)) {
+            echo '<p>No matched passages were recorded for this report.</p>';
+        }
+        foreach ($matches as $i => $match) {
+            $matchId = (int)($match['id'] ?? 0);
+            $sourceId = (int)($match['source_id'] ?? 0);
+            $source = $sourceCache[$sourceId] ?? [];
+            $sourceTitle = (string)($source['title'] ?? ('Source #' . $sourceId));
+            $internet = $internetBySource[$sourceId] ?? null;
+            $evidenceRows = $evidenceCache[$matchId] ?? [];
+            echo '<div class="issue">';
+            echo '<h3>Issue ' . ($i + 1) . ': ' . htmlspecialchars(ucwords(str_replace('-', ' ', (string)($match['match_type'] ?? 'match')))) . '</h3>';
+            echo '<div class="issue-meta">Source: <strong>' . htmlspecialchars($sourceTitle) . '</strong>';
+            if (!empty($source['author'])) {
+                echo ' by ' . htmlspecialchars((string)$source['author']);
+            }
+            if ($internet) {
+                echo ' | Internet-discovered source';
+                if (!empty($internet['source_url'])) {
+                    echo '<br>URL: ' . htmlspecialchars((string)$internet['source_url']);
+                }
+                if (!empty($internet['retrieved_at'])) {
+                    echo '<br>Retrieved: ' . htmlspecialchars((string)$internet['retrieved_at']);
+                }
+            }
+            echo ' | Confidence: ' . round(((float)($match['match_confidence'] ?? 0)) * 100, 1) . '%';
+            echo ' | Matched words: ' . (int)($match['matched_word_count'] ?? 0);
+            echo (($match['is_excluded'] ?? 0) ? ' | Status: Excluded' : ' | Status: Active') . '</div>';
+
+            if (empty($evidenceRows)) {
+                echo '<p>No passage evidence was stored for this match.</p>';
+            }
+            foreach ($evidenceRows as $evidence) {
+                echo '<div class="label">Submission content with issue</div>';
+                echo '<div class="excerpt">' . nl2br(htmlspecialchars((string)($evidence['submission_segment_text'] ?? ''))) . '</div>';
+                echo '<div class="label">Matched source content</div>';
+                echo '<div class="excerpt source-excerpt">' . nl2br(htmlspecialchars((string)($evidence['source_segment_text'] ?? ''))) . '</div>';
+            }
+            echo '</div>';
+        }
 
         echo '<div class="footer">';
         echo 'Report ID: ' . $reportId . ' | ';
@@ -378,5 +468,16 @@ th{background:#f5f5f5;}
         echo 'Matched Words: ' . (int)($report['matched_word_count'] ?? 0) . ' / ' . (int)($report['total_eligible_words'] ?? 0);
         echo '</div>';
         echo '</body></html>';
+
+        if ($format !== 'html') {
+            $html = (string)ob_get_clean();
+            $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => false]);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+            header('Content-Type: application/pdf');
+            header('Content-Disposition: attachment; filename="similarity-report-' . $reportId . '.pdf"');
+            echo $dompdf->output();
+        }
     }
 }

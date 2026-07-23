@@ -9,7 +9,7 @@
             <a href="/admin/academic-similarity/reports" class="text-brand-600 hover:text-brand-900 text-sm">&larr; Back to Reports</a>
         </div>
         <div class="flex gap-3">
-            <a href="/admin/academic-similarity/reports/{report.report_id}/download" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Download</a>
+            <a href="/admin/academic-similarity/reports/{report.report_id}/download" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Download PDF</a>
             <a href="/admin/academic-similarity/submissions/{report.submission_id}" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">View Submission</a>
         </div>
     </div>
@@ -42,6 +42,16 @@
             <div><span class="text-gray-500">Submission ID</span><p class="font-semibold">{report.submission_id}</p></div>
             <div><span class="text-gray-500">Word Count</span><p class="font-semibold">{report.word_count|default:0}</p></div>
             <div><span class="text-gray-500">Generated</span><p class="font-semibold">{report.generated_at}</p></div>
+        </div>
+
+        <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+            <p class="font-semibold text-gray-900 mb-2">How to read this report</p>
+            <p>Raw score is the initial matched-text coverage. Adjusted score applies reviewer exclusions such as quotations, bibliography, or approved matches. Matched words show how much eligible text was tied to source evidence.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <div><span class="text-gray-500">Matched words</span><p class="font-semibold">{report.matched_word_count|default:0}</p></div>
+                <div><span class="text-gray-500">Eligible words</span><p class="font-semibold">{report.total_eligible_words|default:0}</p></div>
+                <div><span class="text-gray-500">Excluded matches</span><p class="font-semibold">{report.total_excluded|default:0}</p></div>
+            </div>
         </div>
     </div>
 
@@ -135,7 +145,11 @@
                 <p class="text-sm text-gray-500 mb-2">
                     Source: <strong>{passage.source_title}</strong>
                     {if passage.source_author} by {passage.source_author}{/if}
+                    {if passage.source_origin == 'internet'} · Internet-discovered source{/if}
                 </p>
+                {if passage.source_url}
+                <p class="text-xs text-blue-700 mb-2">Retrieved source: {passage.source_url}</p>
+                {/if}
                 {/if}
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -158,6 +172,34 @@
                     {/for}
                     {/if}
                 </div>
+            </div>
+            {/for}
+        </div>
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Matched Passages</h2>
+        <p class="text-sm text-gray-600">No passage-level evidence is available for this report. This usually means the submission processed with no detected matches, or the report was generated before match evidence/highlighting was populated. Reprocess the pending submission or regenerate the report after source indexing completes.</p>
+    </div>
+    {/if}
+
+    {if highlighted_html}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Highlighted Submission</h2>
+        <div class="prose max-w-none text-sm leading-7">{highlighted_html}</div>
+    </div>
+    {/if}
+
+    {if internet_sources|count > 0}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Internet Source Coverage</h2>
+        <p class="text-sm text-gray-600 mb-4">These matches came from bounded public-source retrieval. This is not a comprehensive internet search.</p>
+        <div class="space-y-3">
+            {for src in internet_sources}
+            <div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
+                <p class="font-semibold text-gray-900">{src.title|default:Internet Source}</p>
+                <p class="text-blue-700 break-all">{src.source_url}</p>
+                <p class="text-xs text-gray-500 mt-1">Provider {src.provider} · status {src.retrieval_status} · retrieved {src.retrieved_at}</p>
             </div>
             {/for}
         </div>

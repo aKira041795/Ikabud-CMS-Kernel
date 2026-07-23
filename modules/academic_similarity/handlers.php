@@ -23,6 +23,9 @@ function pageDashboard(array $params = []): void
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $stats = academic_similarity_dashboard_stats($tenantId);
+    $stats['csrf_token'] = app()->csrfToken() ?? '';
+    $stats['processed_now'] = isset($_GET['processed']) ? (int)$_GET['processed'] : null;
+    $stats['failed_now'] = isset($_GET['failed']) ? (int)$_GET['failed'] : null;
 
     echo $ctx->render('academic_similarity/dashboard', $stats);
 }
@@ -41,7 +44,10 @@ function pageSubmissions(array $params = []): void
     $perPage = 25;
 
     $repo = new \AcademicSimilaritySubmissionRepository($tenantId);
-    $submissions = $repo->search($institutionId, $status, $search, $page, $perPage);
+    $submissions = array_map(static function (array $row): array {
+        $row['submission_id'] = $row['id'] ?? $row['submission_id'] ?? 0;
+        return $row;
+    }, $repo->search($institutionId, $status, $search, $page, $perPage));
     $total = $repo->count($institutionId, $status, $search);
 
     echo $ctx->render('academic_similarity/submissions/index', [
@@ -53,6 +59,7 @@ function pageSubmissions(array $params = []): void
         'search_query' => $search,
         'institution_id' => $institutionId,
         'active_nav' => 'submissions',
+        'csrf_token' => app()->csrfToken() ?? '',
     ]);
 }
 
@@ -72,16 +79,26 @@ function pageSubmissionDetail(array $params = []): void
         echo $ctx->render('academic_similarity/not_found', ['resource' => 'Submission']);
         return;
     }
+    $submission['submission_id'] = $submission['id'] ?? $submissionId;
 
     $matchRepo = new \AcademicSimilarityMatchRepository($tenantId);
     $matches = $matchRepo->findBySubmissionId($submissionId);
     $report = \AcademicSimilarityReportService::getForSubmission($tenantId, $submissionId);
+    $internetRun = null;
+    try {
+        $internetRun = (new \AcademicSimilarityInternetCheckService($tenantId))->latestRun($submissionId);
+    } catch (\Throwable $e) {
+        write_log('Failed to load internet check status for submission ' . $submissionId . ': ' . $e->getMessage());
+    }
 
     echo $ctx->render('academic_similarity/submissions/detail', [
         'submission' => $submission,
         'matches' => $matches,
         'report' => $report,
+        'internet_run' => $internetRun ?? [],
+        'internet_check_enabled' => (academic_similarity_get_settings($tenantId)['internet_check_enabled'] ?? '0') === '1',
         'active_nav' => 'submissions',
+        'csrf_token' => app()->csrfToken() ?? '',
     ]);
 }
 
@@ -110,11 +127,49 @@ function pageSources(array $params = []): void
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $repo = new \AcademicSimilaritySourceRepository($tenantId);
-    $sources = $repo->search('', 1, 50);
+    $sources = array_map(static function (array $row): array {
+        $row['source_id'] = $row['id'] ?? $row['source_id'] ?? 0;
+        $row['author_name'] = $row['author'] ?? $row['author_name'] ?? '';
+        return $row;
+    }, $repo->search('', 1, 50));
 
     echo $ctx->render('academic_similarity/sources/index', [
         'sources' => $sources,
         'active_nav' => 'sources',
+    ]);
+}
+
+function pageSourceForm(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    academic_similarity_require_admin($ctx);
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $sourceId = (int)($params['id'] ?? ($_GET['id'] ?? 0));
+    $source = null;
+    if ($sourceId > 0) {
+        $source = (new \AcademicSimilaritySourceRepository($tenantId))->findById($sourceId);
+        if (!$source) {
+            http_response_code(404);
+            echo $ctx->render('academic_similarity/not_found', ['resource' => 'Source']);
+            return;
+        }
+    }
+
+    $collectionRepo = new \AcademicSimilarityCollectionRepository($tenantId);
+    $collections = array_map(static function (array $row): array {
+        $row['collection_id'] = $row['id'] ?? $row['collection_id'] ?? 0;
+        $row['collection_name'] = $row['name'] ?? $row['collection_name'] ?? '';
+        return $row;
+    }, $collectionRepo->search('', 1, 100));
+
+    echo $ctx->render('academic_similarity/sources/form', [
+        'source' => $source ?? [],
+        'collections' => $collections,
+        'csrf_token' => app()->csrfToken() ?? '',
+        'active_nav' => 'sources',
+        'error' => (string)($_GET['error'] ?? ''),
     ]);
 }
 
@@ -126,11 +181,44 @@ function pageCollections(array $params = []): void
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $repo = new \AcademicSimilarityCollectionRepository($tenantId);
-    $collections = $repo->search('', 1, 50);
+    $collections = array_map(static function (array $row): array {
+        $row['collection_id'] = $row['id'] ?? $row['collection_id'] ?? 0;
+        $row['collection_name'] = $row['name'] ?? $row['collection_name'] ?? '';
+        return $row;
+    }, $repo->search('', 1, 50));
 
     echo $ctx->render('academic_similarity/collections/index', [
         'collections' => $collections,
         'active_nav' => 'collections',
+        'csrf_token' => app()->csrfToken() ?? '',
+    ]);
+}
+
+function pageCollectionForm(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    academic_similarity_require_admin($ctx);
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $collectionId = (int)($params['id'] ?? ($_GET['id'] ?? 0));
+    $collection = null;
+    if ($collectionId > 0) {
+        $collection = (new \AcademicSimilarityCollectionRepository($tenantId))->findById($collectionId);
+        if (!$collection) {
+            http_response_code(404);
+            echo $ctx->render('academic_similarity/not_found', ['resource' => 'Collection']);
+            return;
+        }
+        $collection['collection_id'] = $collection['id'] ?? $collectionId;
+        $collection['collection_name'] = $collection['name'] ?? '';
+    }
+
+    echo $ctx->render('academic_similarity/collections/form', [
+        'collection' => $collection ?? [],
+        'csrf_token' => app()->csrfToken() ?? '',
+        'active_nav' => 'collections',
+        'error' => (string)($_GET['error'] ?? ''),
     ]);
 }
 
@@ -185,6 +273,15 @@ function pageReportDetail(array $params = []): void
 
     $matchRepo = new \AcademicSimilarityMatchRepository($tenantId);
     $matches = $matchRepo->findBySubmissionId($submissionId);
+    $report['report_id'] = $report['id'] ?? $reportId;
+    $report['submission_title'] = $submission['submission_title'] ?? 'Untitled submission';
+    $report['author_name'] = $submission['author_name'] ?? '';
+    $report['raw_similarity_score'] = $report['raw_score'] ?? null;
+    $report['adjusted_similarity_score'] = $report['adjusted_score'] ?? null;
+    $report['match_count'] = $report['total_matches'] ?? count($matches);
+    $report['source_count'] = count(array_unique(array_map(static fn(array $m): int => (int)($m['source_id'] ?? 0), $matches)));
+    $report['word_count'] = $submission['word_count'] ?? $report['total_eligible_words'] ?? 0;
+    $report['summary'] = $report['summary'] ?? '';
 
     // Build evidence map
     $evidenceMap = [];
@@ -203,6 +300,12 @@ function pageReportDetail(array $params = []): void
                 $sourceCache[$sid] = $src;
             }
         }
+    }
+    $internetBySource = [];
+    try {
+        $internetBySource = (new \AcademicSimilarityInternetSourceRepository($tenantId))->findBySourceIds(array_keys($sourceCache));
+    } catch (\Throwable $e) {
+        write_log('Failed to load internet provenance for report ' . $reportId . ': ' . $e->getMessage());
     }
 
     // Load text for highlighted rendering
@@ -246,6 +349,17 @@ function pageReportDetail(array $params = []): void
 
     // Build matched_passages for template
     $matchedPassages = $highlightService->assembleMatchedPassages($spans, $matches, $evidenceMap);
+    foreach ($matchedPassages as &$passage) {
+        $sourceId = (int)($passage['source_id'] ?? 0);
+        if ($sourceId > 0 && isset($internetBySource[$sourceId])) {
+            $passage['source_origin'] = 'internet';
+            $passage['source_url'] = $internetBySource[$sourceId]['source_url'] ?? '';
+            $passage['retrieved_at'] = $internetBySource[$sourceId]['retrieved_at'] ?? '';
+        } else {
+            $passage['source_origin'] = 'local';
+        }
+    }
+    unset($passage);
 
     echo $ctx->render('academic_similarity/reports/detail', [
         'report'               => $report,
@@ -256,6 +370,7 @@ function pageReportDetail(array $params = []): void
         'highlight_stats'      => $highlightStats,
         'highlight_legend'     => $legend,
         'source_panels'        => $sourcePanels,
+        'internet_sources'     => array_values($internetBySource),
         'evidence_by_match'    => $evidenceMap,
         'active_nav'           => 'reports',
     ]);
@@ -290,7 +405,7 @@ function pageSettings(array $params = []): void
     $settings = academic_similarity_get_settings($tenantId);
     $path = (string)($_SERVER['REQUEST_URI'] ?? '');
     $settingsSection = 'all';
-    foreach (['processing', 'reports', 'sources', 'semantic', 'cms'] as $section) {
+    foreach (['processing', 'reports', 'sources', 'semantic', 'internet', 'cms'] as $section) {
         if (str_contains($path, '/settings/' . $section)) {
             $settingsSection = $section;
             break;
@@ -321,6 +436,11 @@ function apiCreateSubmission(array $params = []): void
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
     if (isset($_FILES['file']) && is_array($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
         $input['file'] = $_FILES['file'];
+    }
+    if ((int)($input['institution_id'] ?? 0) <= 0) {
+        $stmt = academic_similarity_db()->prepare("SELECT id FROM ac_similarity_institutions WHERE tenant_id = :tid AND is_active = 1 ORDER BY id ASC LIMIT 1");
+        $stmt->execute([':tid' => $tenantId]);
+        $input['institution_id'] = (int)($stmt->fetchColumn() ?: 0);
     }
 
     try {
@@ -353,9 +473,21 @@ function apiCreateSubmission(array $params = []): void
 
 function apiProcessSubmission(array $params = []): void
 {
-    header('Content-Type: application/json');
+    $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+    $wantsJson = str_contains($accept, 'application/json');
+    if ($wantsJson) {
+        header('Content-Type: application/json');
+    }
     $ctx = module();
-    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    if (!$ctx) {
+        http_response_code(500);
+        if ($wantsJson) {
+            echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        } else {
+            echo 'Module context unavailable';
+        }
+        return;
+    }
     academic_similarity_require_admin($ctx);
     app()->csrfEnforce();
 
@@ -365,11 +497,59 @@ function apiProcessSubmission(array $params = []): void
     try {
         $pipeline = new \AcademicSimilarityPipelineService($tenantId);
         $result = $pipeline->processSubmission($submissionId);
+        if (!$wantsJson) {
+            $status = ($result['ok'] ?? false) ? 'processed' : 'failed';
+            header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?process=' . $status);
+            return;
+        }
         echo json_encode($result);
     } catch (\Throwable $e) {
         write_log('Processing failed: ' . $e->getMessage());
         http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Internal error processing submission']);
+        if ($wantsJson) {
+            echo json_encode(['ok' => false, 'error' => 'Internal error processing submission']);
+        } else {
+            header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?process=failed');
+        }
+    }
+}
+
+function apiRunInternetCheck(array $params = []): void
+{
+    $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+    $wantsJson = str_contains($accept, 'application/json');
+    if ($wantsJson) {
+        header('Content-Type: application/json');
+    }
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo $wantsJson ? json_encode(['ok' => false, 'error' => 'Module context unavailable']) : 'Module context unavailable';
+        return;
+    }
+    academic_similarity_require_admin($ctx);
+    app()->csrfEnforce();
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['id'] ?? 0);
+
+    try {
+        $service = new \AcademicSimilarityInternetCheckService($tenantId);
+        $result = $service->runForSubmission($submissionId, true);
+        if (!$wantsJson) {
+            $status = (string)($result['status'] ?? 'unknown');
+            header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?internet_check=' . rawurlencode($status));
+            return;
+        }
+        echo json_encode($result);
+    } catch (\Throwable $e) {
+        write_log('Internet check failed: ' . $e->getMessage());
+        http_response_code(500);
+        if ($wantsJson) {
+            echo json_encode(['ok' => false, 'error' => 'Internet check failed']);
+        } else {
+            header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?internet_check=failed');
+        }
     }
 }
 
@@ -385,8 +565,8 @@ function apiDeleteSubmission(array $params = []): void
     $submissionId = (int)($params['id'] ?? 0);
 
     try {
-        $repo = new \AcademicSimilaritySubmissionRepository($tenantId);
-        $repo->delete($submissionId);
+        $service = new \AcademicSimilaritySubmissionService($tenantId);
+        $service->delete($submissionId);
         echo json_encode(['ok' => true, 'message' => 'Submission deleted']);
     } catch (\Throwable $e) {
         http_response_code(500);
@@ -396,28 +576,47 @@ function apiDeleteSubmission(array $params = []): void
 
 function apiCreateSource(array $params = []): void
 {
-    header('Content-Type: application/json');
+    $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+    $wantsJson = str_contains($accept, 'application/json');
+    if ($wantsJson) {
+        header('Content-Type: application/json');
+    }
     $ctx = module();
-    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    if (!$ctx) { http_response_code(500); echo $wantsJson ? json_encode(['ok' => false, 'error' => 'Module context unavailable']) : 'Module context unavailable'; return; }
     academic_similarity_require_admin($ctx);
     app()->csrfEnforce();
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    if (isset($_FILES['file']) && is_array($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+        $input['file'] = $_FILES['file'];
+    }
 
     try {
         $service = new \AcademicSimilaritySourceService($tenantId);
         $result = $service->create($input);
         if (!$result['ok']) {
             http_response_code(422);
+            if (!$wantsJson) {
+                header('Location: /admin/academic-similarity/sources/new?error=' . rawurlencode((string)($result['error'] ?? 'Source creation failed')));
+                return;
+            }
             echo json_encode($result);
             return;
         }
         http_response_code(201);
+        if (!$wantsJson) {
+            header('Location: /admin/academic-similarity/sources?created=1');
+            return;
+        }
         echo json_encode($result);
     } catch (\Throwable $e) {
         write_log('Source creation failed: ' . $e->getMessage());
         http_response_code(500);
+        if (!$wantsJson) {
+            header('Location: /admin/academic-similarity/sources/new?error=' . rawurlencode('Internal error creating source'));
+            return;
+        }
         echo json_encode(['ok' => false, 'error' => 'Internal error creating source']);
     }
 }
@@ -460,22 +659,39 @@ function apiDeleteSource(array $params = []): void
 
 function apiCreateCollection(array $params = []): void
 {
-    header('Content-Type: application/json');
+    $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+    $wantsJson = str_contains($accept, 'application/json');
+    if ($wantsJson) {
+        header('Content-Type: application/json');
+    }
     $ctx = module();
-    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    if (!$ctx) { http_response_code(500); echo $wantsJson ? json_encode(['ok' => false, 'error' => 'Module context unavailable']) : 'Module context unavailable'; return; }
     academic_similarity_require_admin($ctx);
     app()->csrfEnforce();
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    if ((int)($input['institution_id'] ?? 0) <= 0) {
+        $stmt = academic_similarity_db()->prepare("SELECT id FROM ac_similarity_institutions WHERE tenant_id = :tid AND is_active = 1 ORDER BY id ASC LIMIT 1");
+        $stmt->execute([':tid' => $tenantId]);
+        $input['institution_id'] = (int)($stmt->fetchColumn() ?: 0);
+    }
 
     try {
         $repo = new \AcademicSimilarityCollectionRepository($tenantId);
         $id = $repo->create($input['name'] ?? '', $input['description'] ?? '', (int)($input['institution_id'] ?? 0));
         http_response_code(201);
+        if (!$wantsJson) {
+            header('Location: /admin/academic-similarity/collections?created=1');
+            return;
+        }
         echo json_encode(['ok' => true, 'id' => $id]);
     } catch (\Throwable $e) {
         http_response_code(500);
+        if (!$wantsJson) {
+            header('Location: /admin/academic-similarity/collections/new?error=' . rawurlencode($e->getMessage()));
+            return;
+        }
         echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
     }
 }
@@ -536,7 +752,8 @@ function apiSaveSettings(array $params = []): void
         'enabled', 'exact_match_enabled', 'near_match_enabled', 'semantic_match_enabled',
         'semantic_health_visible', 'cms_public_submission_enabled', 'cms_builder_block_enabled',
         'report_include_highlights', 'report_include_source_breakdown', 'auto_generate_reports',
-        'notify_on_completion',
+        'notify_on_completion', 'internet_check_enabled', 'internet_check_auto_run_when_no_sources',
+        'internet_check_allow_full_document_query', 'internet_check_store_retrieved_text',
     ] as $checkboxKey) {
         if (!array_key_exists($checkboxKey, $input)) {
             $input[$checkboxKey] = '0';
@@ -560,6 +777,7 @@ function apiSaveSettings(array $params = []): void
 function apiPublicSubmit(array $params = []): void
 {
     header('Content-Type: application/json');
+    app()->csrfEnforce();
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
 
@@ -808,8 +1026,11 @@ function apiPublicReportViewer(array $params = []): void
 
     try {
         $settings = academic_similarity_get_settings($tenantId);
+        $showScores = ($settings['public_results_show_scores'] ?? '1') === '1';
+        $showSourceNames = ($settings['public_report_show_source_names'] ?? '1') === '1';
+        $showFullDocument = ($settings['public_report_show_full_document'] ?? '1') === '1';
         $viewService = new \AcademicSimilarityPublicReportViewService($tenantId);
-        $view = $viewService->getView($submissionId, $submitterUserId);
+        $view = $viewService->getView($submissionId, $submitterUserId, $showSourceNames);
 
         if ($view === null) {
             http_response_code(404);
@@ -818,10 +1039,6 @@ function apiPublicReportViewer(array $params = []): void
         }
 
         // Apply settings-based visibility filters
-        $showScores = ($settings['public_results_show_scores'] ?? '1') === '1';
-        $showSourceNames = ($settings['public_report_show_source_names'] ?? '1') === '1';
-        $showFullDocument = ($settings['public_report_show_full_document'] ?? '1') === '1';
-
         $safeView = [
             'ok' => true,
             'submission' => $view['submission'],
@@ -871,8 +1088,16 @@ function apiPublicReportDownload(array $params = []): void
     }
 
     try {
+        $settings = academic_similarity_get_settings($tenantId);
+        if (($settings['public_report_download_enabled'] ?? '1') !== '1') {
+            http_response_code(403);
+            echo json_encode(['ok' => false, 'error' => 'Report download is disabled']);
+            return;
+        }
+        $showSourceNames = ($settings['public_report_show_source_names'] ?? '1') === '1';
+
         $viewService = new \AcademicSimilarityPublicReportViewService($tenantId);
-        $view = $viewService->getView($submissionId, $submitterUserId);
+        $view = $viewService->getView($submissionId, $submitterUserId, $showSourceNames);
 
         if ($view === null) {
             http_response_code(404);
@@ -885,9 +1110,6 @@ function apiPublicReportDownload(array $params = []): void
             echo json_encode(['ok' => false, 'error' => 'Report not yet available for this submission']);
             return;
         }
-
-        $settings = academic_similarity_get_settings($tenantId);
-        $showSourceNames = ($settings['public_report_show_source_names'] ?? '1') === '1';
 
         // Build safe public report using the report generator with redacted admin details
         $generator = new \AcademicSimilarityReportGenerator($tenantId);
@@ -924,6 +1146,10 @@ function apiPublicReportDownload(array $params = []): void
             if ($sid > 0 && !isset($sourceCache[$sid])) {
                 $src = $sourceRepo->findById($sid);
                 if ($src) {
+                    if (!$showSourceNames) {
+                        $src['title'] = 'Matched Source';
+                        $src['author'] = '';
+                    }
                     $sourceCache[$sid] = $src;
                 }
             }
@@ -984,9 +1210,21 @@ function apiPublicReportDownload(array $params = []): void
 
 function apiProcessAllPending(array $params = []): void
 {
-    header('Content-Type: application/json');
+    $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
+    $wantsJson = str_contains($accept, 'application/json');
+    if ($wantsJson) {
+        header('Content-Type: application/json');
+    }
     $ctx = module();
-    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    if (!$ctx) {
+        http_response_code(500);
+        if ($wantsJson) {
+            echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        } else {
+            echo 'Module context unavailable';
+        }
+        return;
+    }
     academic_similarity_require_admin($ctx);
     app()->csrfEnforce();
 
@@ -1001,6 +1239,10 @@ function apiProcessAllPending(array $params = []): void
         $pending = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
         if (empty($pending)) {
+            if (!$wantsJson) {
+                header('Location: /admin/academic-similarity?processed=0&failed=0');
+                return;
+            }
             echo json_encode(['ok' => true, 'processed' => 0, 'failed' => 0, 'message' => 'No pending submissions']);
             return;
         }
@@ -1026,6 +1268,11 @@ function apiProcessAllPending(array $params = []): void
             }
         }
 
+        if (!$wantsJson) {
+            header('Location: /admin/academic-similarity?processed=' . $processed . '&failed=' . $failed);
+            return;
+        }
+
         echo json_encode([
             'ok' => true,
             'processed' => $processed,
@@ -1036,6 +1283,10 @@ function apiProcessAllPending(array $params = []): void
     } catch (\Throwable $e) {
         write_log('Process all pending failed: ' . $e->getMessage());
         http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => 'Failed to process pending submissions']);
+        if ($wantsJson) {
+            echo json_encode(['ok' => false, 'error' => 'Failed to process pending submissions']);
+        } else {
+            header('Location: /admin/academic-similarity?processed=0&failed=1');
+        }
     }
 }

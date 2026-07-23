@@ -3,8 +3,15 @@
 {block "title"}Academic Similarity Dashboard{/block}
 
 {block "content"}
+
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <h1 class="text-2xl font-bold text-gray-900 mb-6">Academic Similarity Dashboard</h1>
+
+    {if processed_now !== null}
+    <div class="mb-6 rounded-lg border {if failed_now|default:0 > 0}border-yellow-200 bg-yellow-50 text-yellow-900{else}border-green-200 bg-green-50 text-green-900{/if} px-4 py-3 text-sm">
+        Processed {processed_now|default:0} pending submission(s). Failed {failed_now|default:0}.
+    </div>
+    {/if}
 
     <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <div class="bg-white rounded-lg shadow p-4 border border-gray-200">
@@ -14,6 +21,14 @@
         <div class="bg-white rounded-lg shadow p-4 border border-yellow-200">
             <p class="text-sm text-yellow-600 uppercase tracking-wide">Pending</p>
             <p class="text-3xl font-bold text-yellow-600">{pending_submissions|default:0}</p>
+            {if pending_submissions|default:0 > 0}
+            <form method="POST" action="/admin/academic-similarity/submissions/process-all-pending" class="mt-3">
+                <input type="hidden" name="_token" value="{csrf_token}">
+                <button type="submit" class="w-full text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 font-medium py-2 px-3 rounded-lg transition-colors">
+                    Process {pending_submissions} Pending
+                </button>
+            </form>
+            {/if}
         </div>
         <div class="bg-white rounded-lg shadow p-4 border border-green-200">
             <p class="text-sm text-green-600 uppercase tracking-wide">Processed</p>
@@ -61,7 +76,13 @@
                         <td class="px-6 py-4 text-gray-500">{sub.word_count|default:0}</td>
                         <td class="px-6 py-4 text-gray-500">{sub.created_at}</td>
                         <td class="px-6 py-4">
-                            <a href="/admin/academic-similarity/submissions/{sub.submission_id}" class="text-brand-600 hover:text-brand-900 font-medium">View</a>
+                            <a href="/admin/academic-similarity/submissions/{sub.submission_id}" class="text-brand-600 hover:text-brand-900 font-medium mr-3">View</a>
+                            {if sub.status == 'pending'}
+                            <form method="POST" action="/api/v1/academic-similarity/submissions/{sub.submission_id}/process" class="inline">
+                                <input type="hidden" name="_token" value="{csrf_token}">
+                                <button type="submit" class="text-yellow-700 hover:text-yellow-900 font-medium">Process</button>
+                            </form>
+                            {/if}
                         </td>
                     </tr>
                     {/for}

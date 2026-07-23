@@ -16,6 +16,7 @@
             <a href="/admin/academic-similarity/settings/reports" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'reports'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Reports</a>
             <a href="/admin/academic-similarity/settings/sources" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'sources'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Sources</a>
             <a href="/admin/academic-similarity/settings/semantic" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'semantic'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Semantic</a>
+            <a href="/admin/academic-similarity/settings/internet" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'internet'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Internet</a>
             <a href="/admin/academic-similarity/settings/cms" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'cms'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">CMS Flow</a>
         </div>
     </div>
@@ -191,6 +192,68 @@
                 <div>
                     <label for="retention_days" class="block text-sm font-medium text-gray-700 mb-1">Default Retention Days</label>
                     <input type="number" id="retention_days" name="retention_days" value="{settings.retention_days|default:365}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+            </div>
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'internet'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <div class="mb-4 flex flex-col gap-2">
+                <h2 class="text-lg font-semibold text-gray-900">AI Internet Check</h2>
+                <p class="text-sm text-gray-500">Opt-in bounded public source discovery. Results disclose provider limits and are not a comprehensive internet search.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_enabled" value="1" {if settings.internet_check_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable AI-assisted internet checking</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_auto_run_when_no_sources" value="1" {if settings.internet_check_auto_run_when_no_sources}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Auto-run when local indexed sources are unavailable</span>
+                </label>
+                <div>
+                    <label for="internet_check_provider" class="block text-sm font-medium text-gray-700 mb-1">Discovery Provider</label>
+                    <select id="internet_check_provider" name="internet_check_provider" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="capability" {if settings.internet_check_provider == 'capability'}selected{/if}>Provider capability</option>
+                        <option value="seed_urls" {if settings.internet_check_provider == 'seed_urls'}selected{/if}>Configured seed URLs</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="internet_check_api_key_env" class="block text-sm font-medium text-gray-700 mb-1">Provider API Key Env Var</label>
+                    <input type="text" id="internet_check_api_key_env" name="internet_check_api_key_env" value="{settings.internet_check_api_key_env|default:AISS_INTERNET_API_KEY}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_max_queries" class="block text-sm font-medium text-gray-700 mb-1">Max Queries</label>
+                    <input type="number" id="internet_check_max_queries" name="internet_check_max_queries" value="{settings.internet_check_max_queries|default:3}" min="1" max="10" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_max_sources" class="block text-sm font-medium text-gray-700 mb-1">Max Sources</label>
+                    <input type="number" id="internet_check_max_sources" name="internet_check_max_sources" value="{settings.internet_check_max_sources|default:5}" min="1" max="25" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_max_chars_per_source" class="block text-sm font-medium text-gray-700 mb-1">Max Retrieved Characters Per Source</label>
+                    <input type="number" id="internet_check_max_chars_per_source" name="internet_check_max_chars_per_source" value="{settings.internet_check_max_chars_per_source|default:12000}" min="1000" max="100000" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_payload_policy" class="block text-sm font-medium text-gray-700 mb-1">Payload Policy</label>
+                    <select id="internet_check_payload_policy" name="internet_check_payload_policy" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="snippets_only" {if settings.internet_check_payload_policy == 'snippets_only'}selected{/if}>Snippets only</option>
+                        <option value="phrases_only" {if settings.internet_check_payload_policy == 'phrases_only'}selected{/if}>Distinctive phrases only</option>
+                    </select>
+                </div>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_allow_full_document_query" value="1" {if settings.internet_check_allow_full_document_query}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Allow longer query text from documents</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_store_retrieved_text" value="1" {if settings.internet_check_store_retrieved_text}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Store bounded retrieved text for reproducible evidence</span>
+                </label>
+                <div class="md:col-span-2">
+                    <label for="internet_check_seed_urls" class="block text-sm font-medium text-gray-700 mb-1">Seed URLs</label>
+                    <textarea id="internet_check_seed_urls" name="internet_check_seed_urls" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{settings.internet_check_seed_urls}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">One URL per line or comma-separated. Used for deterministic testing or curated public-source providers.</p>
                 </div>
             </div>
         </section>

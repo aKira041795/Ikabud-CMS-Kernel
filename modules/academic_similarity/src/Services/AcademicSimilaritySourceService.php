@@ -295,7 +295,7 @@ class AcademicSimilaritySourceService
         $this->sourceRepo->delete($id);
     }
 
-    private function indexSourceText(int $sourceId, string $text, int $wordCount, string $mimeType): void
+    public function indexSourceText(int $sourceId, string $text, int $wordCount, string $mimeType): void
     {
         $normalizer = new AcademicSimilarityNormalizationService($this->tenantId);
         $normalized = $normalizer->normalize($text);

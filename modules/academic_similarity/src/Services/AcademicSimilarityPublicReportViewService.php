@@ -31,7 +31,7 @@ class AcademicSimilarityPublicReportViewService
      * Get the full public report view model for a submission owned by the user.
      * Returns null if the submission doesn't exist or doesn't belong to the user.
      */
-    public function getView(int $submissionId, int $submitterUserId): ?array
+    public function getView(int $submissionId, int $submitterUserId, bool $showSourceNames = true): ?array
     {
         if ($submissionId <= 0 || $submitterUserId <= 0) {
             return null;
@@ -61,6 +61,19 @@ class AcademicSimilarityPublicReportViewService
                     $sourceCache[$sid] = $src;
                 }
             }
+        }
+        $internetBySource = [];
+        try {
+            $internetBySource = (new AcademicSimilarityInternetSourceRepository($this->tenantId))->findBySourceIds(array_keys($sourceCache));
+        } catch (\Throwable $e) {
+            write_log('PublicReportViewService: failed to load internet provenance: ' . $e->getMessage());
+        }
+        if (!$showSourceNames) {
+            foreach ($sourceCache as &$src) {
+                $src['title'] = 'Matched Source';
+                $src['author'] = '';
+            }
+            unset($src);
         }
 
         // Build evidence map
@@ -105,6 +118,17 @@ class AcademicSimilarityPublicReportViewService
         $highlightedHtml = $highlightService->renderHighlightedText($submissionText, $spans);
         $sourcePanels = $highlightService->renderSourcePanels($spans, $sourceTexts);
         $matchedPassages = $highlightService->assembleMatchedPassages($spans, $matches, $evidenceMap);
+        foreach ($matchedPassages as &$passage) {
+            $sourceId = (int)($passage['source_id'] ?? 0);
+            if ($sourceId > 0 && isset($internetBySource[$sourceId])) {
+                $passage['source_origin'] = 'internet';
+                $passage['source_url'] = $showSourceNames ? (string)($internetBySource[$sourceId]['source_url'] ?? '') : '';
+                $passage['retrieved_at'] = (string)($internetBySource[$sourceId]['retrieved_at'] ?? '');
+            } else {
+                $passage['source_origin'] = 'local';
+            }
+        }
+        unset($passage);
 
         // Safe submission metadata
         $viewModel = [

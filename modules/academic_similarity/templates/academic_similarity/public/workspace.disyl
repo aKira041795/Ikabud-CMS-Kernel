@@ -126,6 +126,15 @@ var acSimWorkspaceState = {
     showFullDocument: true,
 };
 
+function acSimEscapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function acSimInitWorkspace() {
     document.getElementById('ac-sim-workspace-loading').style.display = 'block';
     document.getElementById('ac-sim-workspace-content').style.display = 'none';
@@ -165,11 +174,11 @@ function acSimRenderHistory() {
         html += '<div class="ac-sim-history-item p-3 ' + (isActive ? 'active' : '') + '" onclick="acSimOpenSubmission(' + s.id + ')" data-submission-id="' + s.id + '">';
         html += '<div class="flex justify-between items-start">';
         html += '<div class="flex-1 min-w-0">';
-        html += '<p class="font-medium text-gray-900 truncate">' + (s.submission_title || 'Untitled').substring(0, 50) + '</p>';
+        html += '<p class="font-medium text-gray-900 truncate">' + acSimEscapeHtml((s.submission_title || 'Untitled').substring(0, 50)) + '</p>';
         html += '<p class="text-xs text-gray-500 mt-0.5">' + (s.submitted_at || '').substring(0, 10) + '</p>';
         html += '</div>';
         html += '<div class="flex items-center gap-2 ml-2">';
-        html += '<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style="background:' + statusBg + ';color:' + statusColor + '">' + s.status + '</span>';
+        html += '<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style="background:' + statusBg + ';color:' + statusColor + '">' + acSimEscapeHtml(s.status || '') + '</span>';
         if (acSimWorkspaceState.showScores && s.adjusted_similarity_score !== null) {
             html += '<span class="text-sm font-semibold text-gray-700">' + Number(s.adjusted_similarity_score).toFixed(1) + '%</span>';
         }
@@ -198,7 +207,7 @@ function acSimOpenSubmission(submissionId) {
             acSimWorkspaceState.currentView = data;
             acSimRenderViewer(data);
         } else {
-            document.getElementById('ac-sim-viewer-content').innerHTML = '<p class="text-red-500">' + (data.error || 'Failed to load report') + '</p>';
+            document.getElementById('ac-sim-viewer-content').innerHTML = '<p class="text-red-500">' + acSimEscapeHtml(data.error || 'Failed to load report') + '</p>';
         }
     })
     .catch(function() {
@@ -266,7 +275,7 @@ function acSimRenderViewer(data) {
     } else if (sub.status === 'no_text') {
         viewerContent.innerHTML = '<p class="text-yellow-600">No text was extractable from this submission.</p>';
     } else {
-        viewerContent.innerHTML = '<p class="text-gray-500">' + (sub.submission_title ? 'Submission: ' + sub.submission_title : 'No document content available.') + '</p>';
+        viewerContent.innerHTML = '<p class="text-gray-500">' + (sub.submission_title ? 'Submission: ' + acSimEscapeHtml(sub.submission_title) : 'No document content available.') + '</p>';
     }
 
     // ── Highlight Legend ──
@@ -280,7 +289,7 @@ function acSimRenderViewer(data) {
             if (entry.count === 0) continue;
             legendHtml += '<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm">';
             legendHtml += '<span class="inline-block w-4 h-4 rounded ' + (entry.css || 'hl-exact') + '"></span>';
-            legendHtml += '<span class="font-medium text-gray-700">' + (entry.label || entry.type) + '</span>';
+            legendHtml += '<span class="font-medium text-gray-700">' + acSimEscapeHtml(entry.label || entry.type || '') + '</span>';
             legendHtml += '<span class="text-gray-400 text-xs">(' + entry.count + ')</span>';
             legendHtml += '</div>';
         }
@@ -303,7 +312,7 @@ function acSimRenderViewer(data) {
             filterHtml += '<label class="flex items-center gap-1.5 text-xs cursor-pointer">';
             filterHtml += '<input type="checkbox" class="hl-filter-checkbox rounded border-gray-300" data-type="' + entry.type + '" checked ' + (entry.count === 0 ? 'disabled' : '') + '>';
             filterHtml += '<span class="inline-block w-2.5 h-2.5 rounded ' + (entry.css || 'hl-exact') + '"></span>';
-            filterHtml += entry.label || entry.type;
+            filterHtml += acSimEscapeHtml(entry.label || entry.type || '');
             filterHtml += '</label>';
         }
         filterContainer.innerHTML = filterHtml;
@@ -371,7 +380,7 @@ function acSimRenderSidePanel(data) {
     for (var i = 0; i < sourcePanels.length; i++) {
         var panel = sourcePanels[i];
         html += '<div class="ac-sim-source-card bg-white border border-gray-200 rounded-lg p-3" data-source-card-id="' + (panel.source_id || i) + '">';
-        html += '<p class="font-semibold text-gray-900 text-xs truncate">' + (panel.title || 'Source') + '</p>';
+        html += '<p class="font-semibold text-gray-900 text-xs truncate">' + acSimEscapeHtml(panel.title || 'Source') + '</p>';
         if (panel.html) {
             html += '<div class="mt-1 text-xs text-gray-600 hl-text">' + panel.html + '</div>';
         }
@@ -386,9 +395,15 @@ function acSimRenderSidePanel(data) {
             var mp = matchedPassages[i];
             html += '<div class="bg-gray-50 rounded p-2 mb-2 text-xs border border-gray-100">';
             html += '<div class="flex items-center gap-1 mb-1">';
-            html += '<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">' + (mp.match_type || 'match') + '</span>';
+            html += '<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">' + acSimEscapeHtml(mp.match_type || 'match') + '</span>';
             html += '<span class="text-gray-400">' + Number((mp.match_confidence || 0) * 100).toFixed(0) + '%</span>';
+            if (mp.source_origin === 'internet') {
+                html += '<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Internet</span>';
+            }
             html += '</div>';
+            if (mp.source_url) {
+                html += '<p class="text-blue-700 truncate mb-1">' + acSimEscapeHtml(mp.source_url) + '</p>';
+            }
             if (mp.submission_text) {
                 html += '<p class="text-gray-600 truncate">"' + mp.submission_text.substring(0, 80) + '"</p>';
             }

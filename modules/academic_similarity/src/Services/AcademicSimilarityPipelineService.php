@@ -15,13 +15,14 @@ class AcademicSimilarityPipelineService
         'extract'          => 1,
         'normalize'        => 2,
         'segment'          => 3,
-        'fingerprint'      => 4,
-        'candidate_search' => 5,
-        'exact_match'      => 6,
-        'near_match'       => 7,
-        'semantic_match'   => 8,
-        'score'            => 9,
-        'report'           => 10,
+        'internet_discovery' => 4,
+        'fingerprint'      => 5,
+        'candidate_search' => 6,
+        'exact_match'      => 7,
+        'near_match'       => 8,
+        'semantic_match'   => 9,
+        'score'            => 10,
+        'report'           => 11,
     ];
 
     public function __construct(string $tenantId) {
@@ -47,6 +48,7 @@ class AcademicSimilarityPipelineService
             'extract',
             'normalize',
             'segment',
+            'internet_discovery',
             'fingerprint',
             'candidate_search',
             'exact_match',
@@ -688,6 +690,7 @@ class AcademicSimilarityPipelineService
             'extract' => $this->runExtract($submissionId),
             'normalize' => $this->runNormalize($submissionId),
             'segment' => $this->runSegment($submissionId),
+            'internet_discovery' => $this->runInternetDiscovery($submissionId),
             'fingerprint' => $this->runFingerprint($submissionId),
             'candidate_search' => $this->runCandidateSearch($submissionId),
             'exact_match' => $this->runExactMatchStage($submissionId),
@@ -697,6 +700,35 @@ class AcademicSimilarityPipelineService
             'report' => $this->runReport($submissionId),
             default => throw new \RuntimeException("Unknown pipeline stage: {$stage}"),
         };
+    }
+
+    private function runInternetDiscovery(int $submissionId): array
+    {
+        $settings = academic_similarity_get_settings($this->tenantId);
+        if (($settings['internet_check_enabled'] ?? '0') !== '1') {
+            return [
+                'ok' => true,
+                'internet_status' => 'skipped',
+                'reason' => 'Internet checking is disabled',
+                'disclosure' => 'Analysis is limited to tenant-indexed AISS sources.',
+            ];
+        }
+
+        if (($settings['internet_check_auto_run_when_no_sources'] ?? '0') !== '1') {
+            return ['ok' => true, 'internet_status' => 'skipped', 'reason' => 'Automatic internet checking is disabled'];
+        }
+
+        $service = new AcademicSimilarityInternetCheckService($this->tenantId);
+        $result = $service->runForSubmission($submissionId, false);
+        return [
+            'ok' => true,
+            'internet_status' => $result['status'] ?? 'unknown',
+            'search_run_id' => $result['search_run_id'] ?? null,
+            'candidate_count' => $result['candidate_count'] ?? 0,
+            'imported_count' => $result['imported_count'] ?? 0,
+            'disclosure' => $result['disclosure'] ?? null,
+            'error' => $result['error'] ?? null,
+        ];
     }
 
     /**

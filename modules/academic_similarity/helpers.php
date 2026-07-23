@@ -18,6 +18,8 @@ declare(strict_types=1);
         '/Repositories/AcademicSimilarityAuditRepository.php',
         '/Repositories/AcademicSimilarityProcessingJobRepository.php',
         '/Repositories/AcademicSimilarityUsageCounterRepository.php',
+        '/Repositories/AcademicSimilarityInternetSearchRunRepository.php',
+        '/Repositories/AcademicSimilarityInternetSourceRepository.php',
         '/Services/AcademicSimilaritySubmissionService.php',
         '/Services/AcademicSimilarityPipelineService.php',
         '/Services/AcademicSimilaritySourceService.php',
@@ -29,6 +31,9 @@ declare(strict_types=1);
         '/Services/AcademicSimilarityScoringService.php',
         '/Services/AcademicSimilarityQuotaService.php',
         '/Services/AcademicSimilaritySemanticService.php',
+        '/Services/AcademicSimilarityInternetDiscoveryService.php',
+        '/Services/AcademicSimilarityInternetSourceIngestionService.php',
+        '/Services/AcademicSimilarityInternetCheckService.php',
         '/ValueObjects/AcademicSimilarityNormalizedText.php',
         '/ValueObjects/AcademicSimilaritySegment.php',
         '/ValueObjects/AcademicSimilarityFingerprint.php',
@@ -118,6 +123,18 @@ function academic_similarity_get_settings(string $tenantId): array
         'public_report_show_source_names' => '1',
         'public_report_show_full_document' => '1',
         'public_report_default_mode' => 'workspace',
+        'internet_check_enabled' => '0',
+        'internet_check_provider' => 'capability',
+        'internet_check_api_key_env' => 'AISS_INTERNET_API_KEY',
+        'internet_check_max_queries' => '3',
+        'internet_check_max_sources' => '5',
+        'internet_check_max_chars_per_source' => '12000',
+        'internet_check_payload_policy' => 'snippets_only',
+        'internet_check_auto_run_when_no_sources' => '0',
+        'internet_check_allow_full_document_query' => '0',
+        'internet_check_store_retrieved_text' => '1',
+        'internet_check_seed_urls' => '',
+        'internet_check_disclosure_visible' => '1',
     ];
 
     $db = academic_similarity_db();
@@ -152,6 +169,12 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'public_report_workspace_enabled', 'public_report_download_enabled',
         'public_report_show_raw_score', 'public_report_show_source_names',
         'public_report_show_full_document', 'public_report_default_mode',
+        'internet_check_enabled', 'internet_check_provider', 'internet_check_api_key_env',
+        'internet_check_max_queries', 'internet_check_max_sources',
+        'internet_check_max_chars_per_source', 'internet_check_payload_policy',
+        'internet_check_auto_run_when_no_sources', 'internet_check_allow_full_document_query',
+        'internet_check_store_retrieved_text', 'internet_check_seed_urls',
+        'internet_check_disclosure_visible',
     ];
 
     $db = academic_similarity_db();
@@ -199,11 +222,11 @@ function academic_similarity_dashboard_stats(string $tenantId): array
         $stmt->execute([':tid' => $tenantId]);
         $stats['total_sources'] = (int)$stmt->fetchColumn();
 
-        $stmt = $db->prepare("SELECT COUNT(*) FROM ac_similarity_matches m JOIN ac_similarity_submissions s ON m.submission_id = s.submission_id WHERE s.tenant_id = :tid");
+        $stmt = $db->prepare("SELECT COUNT(*) FROM ac_similarity_matches m JOIN ac_similarity_submissions s ON m.submission_id = s.id WHERE s.tenant_id = :tid");
         $stmt->execute([':tid' => $tenantId]);
         $stats['total_matches'] = (int)$stmt->fetchColumn();
 
-        $stmt = $db->prepare("SELECT submission_id, submission_title, status, word_count, created_at FROM ac_similarity_submissions WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT 10");
+        $stmt = $db->prepare("SELECT id AS submission_id, submission_title, status, word_count, created_at FROM ac_similarity_submissions WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT 10");
         $stmt->execute([':tid' => $tenantId]);
         $stats['recent_submissions'] = $stmt->fetchAll(\PDO::FETCH_ASSOC);
     } catch (\Throwable $e) {

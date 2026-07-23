@@ -12,6 +12,12 @@ The primary matching engine uses deterministic exact and near-exact textual comp
 
 Sources are strictly scoped to the current tenant. An institution cannot search against another institution's document corpus or subscribe to a shared repository. Cross-tenant collection sharing would require changes to the tenant isolation model and is not on the MVP roadmap.
 
+## Internet-Assisted Checking Is Bounded
+
+Internet-assisted checking is opt-in and disabled by default. When enabled, AISS can generate bounded query seeds, call a configured discovery capability or curated seed URLs, retrieve limited public-source text, store provenance, and compare against the retrieved source segments. This does not mean AISS searches the entire internet. Reports must disclose provider, query/source limits, retrieval status, and partial failures.
+
+Groq or another AI provider can help with query/ranking/semantic comparison only after source evidence exists. AI output alone is not treated as plagiarism proof.
+
 ## No Learning Management System (LMS) Integration
 
 The module exposes its own submission API and admin UI but does not integrate with external LMS platforms such as Moodle, Canvas, or Blackboard. Submissions must be uploaded manually through the admin interface or via direct API calls. LMS webhook or LTI 1.3 integration is under consideration for a subsequent milestone.

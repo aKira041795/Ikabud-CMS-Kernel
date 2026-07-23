@@ -30,6 +30,8 @@
         "ac_similarity_model_profiles",
         "ac_similarity_integrations",
         "ac_similarity_retention_policies",
+        "ac_similarity_internet_search_runs",
+        "ac_similarity_internet_sources",
         "ac_similarity_audit_events",
         "ac_similarity_settings"
     ],
@@ -39,7 +41,8 @@
     "migrations": [
         "migrations/001_academic_similarity_schema.sql",
         "migrations/002_academic_similarity_seed_plans.sql",
-        "migrations/005_academic_similarity_public_results.sql"
+        "migrations/005_academic_similarity_public_results.sql",
+        "migrations/006_academic_similarity_internet_sources.sql"
     ],
     "routes": true,
     "settings": [],
@@ -313,6 +316,63 @@
             "type": "checkbox",
             "label": "Show Semantic Health",
             "default": "1"
+        },
+        {
+            "key": "internet_check_enabled",
+            "type": "checkbox",
+            "label": "Enable AI Internet Check",
+            "default": "0",
+            "description": "Opt-in bounded public source discovery; not a comprehensive internet search"
+        },
+        {
+            "key": "internet_check_provider",
+            "type": "select",
+            "label": "Internet Discovery Provider",
+            "default": "capability",
+            "options": [
+                {
+                    "value": "capability",
+                    "label": "Provider capability"
+                },
+                {
+                    "value": "seed_urls",
+                    "label": "Configured seed URLs"
+                }
+            ]
+        },
+        {
+            "key": "internet_check_api_key_env",
+            "type": "text",
+            "label": "Internet Provider API Key Environment Variable",
+            "default": "AISS_INTERNET_API_KEY"
+        },
+        {
+            "key": "internet_check_max_queries",
+            "type": "number",
+            "label": "Max Internet Queries",
+            "default": "3"
+        },
+        {
+            "key": "internet_check_max_sources",
+            "type": "number",
+            "label": "Max Internet Sources",
+            "default": "5"
+        },
+        {
+            "key": "internet_check_payload_policy",
+            "type": "select",
+            "label": "Internet Payload Policy",
+            "default": "snippets_only",
+            "options": [
+                {
+                    "value": "snippets_only",
+                    "label": "Snippets only"
+                },
+                {
+                    "value": "phrases_only",
+                    "label": "Distinctive phrases only"
+                }
+            ]
         },
         {
             "key": "cms_public_submission_enabled",

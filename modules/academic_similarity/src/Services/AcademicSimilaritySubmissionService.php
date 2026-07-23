@@ -172,6 +172,11 @@ class AcademicSimilaritySubmissionService
             $this->createTextVersion($submissionId, $extractedText, $wordCount, $fileData['mime_type'], $sourceType);
         } catch (\Throwable $e) {
             write_log('Failed to create text_version for submission ' . $submissionId . ': ' . $e->getMessage());
+            if ($sourceType === 'upload' && $fileData['storage_path'] !== '') {
+                $this->storage->deleteFile($fileData['storage_path']);
+            }
+            $this->submissionRepo->delete($submissionId);
+            return ['ok' => false, 'error' => 'Failed to persist extracted submission text'];
         }
 
         // 7. Queue processing job (starts with 'extract' stage)
@@ -249,20 +254,30 @@ class AcademicSimilaritySubmissionService
             }
         }
 
-        // Delete related text versions
-        try {
-            $stmt = $this->db->prepare("DELETE FROM ac_similarity_text_versions WHERE submission_id = :sid AND tenant_id = :tid");
-            $stmt->execute([':sid' => $id, ':tid' => $this->tenantId]);
-        } catch (\Throwable $e) {
-            write_log('Failed to delete text versions for submission ' . $id . ': ' . $e->getMessage());
-        }
+        // Delete related analysis records. The schema intentionally does not
+        // declare cascades, so cleanup must stay explicit and tenant-scoped.
+        $deleteStatements = [
+            "DELETE me FROM ac_similarity_match_evidence me INNER JOIN ac_similarity_matches m ON m.id = me.match_id AND m.tenant_id = me.tenant_id WHERE m.submission_id = :sid AND m.tenant_id = :tid",
+            "DELETE FROM ac_similarity_exclusions WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_reviews WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_reports WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_matches WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_candidate_sources WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_fingerprints WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_segments WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_files WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_text_versions WHERE submission_id = :sid AND tenant_id = :tid",
+            "DELETE FROM ac_similarity_processing_jobs WHERE submission_id = :sid AND tenant_id = :tid",
+        ];
 
-        // Delete related processing jobs
         try {
-            $stmt = $this->db->prepare("DELETE FROM ac_similarity_processing_jobs WHERE submission_id = :sid AND tenant_id = :tid");
-            $stmt->execute([':sid' => $id, ':tid' => $this->tenantId]);
+            foreach ($deleteStatements as $sql) {
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute([':sid' => $id, ':tid' => $this->tenantId]);
+            }
         } catch (\Throwable $e) {
-            write_log('Failed to delete processing jobs for submission ' . $id . ': ' . $e->getMessage());
+            write_log('Failed to delete related records for submission ' . $id . ': ' . $e->getMessage());
+            throw $e;
         }
 
         // Delete the submission record

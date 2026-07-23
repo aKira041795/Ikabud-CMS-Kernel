@@ -3,6 +3,7 @@
 {block "title"}Submissions{/block}
 
 {block "content"}
+
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-2xl font-bold text-gray-900">Submissions</h1>
@@ -57,6 +58,12 @@
                         <td class="px-6 py-4 text-gray-500">{sub.submitted_at}</td>
                         <td class="px-6 py-4">
                             <a href="/admin/academic-similarity/submissions/{sub.submission_id}" class="text-brand-600 hover:text-brand-900 font-medium mr-3">View</a>
+                            {if sub.status == 'pending'}
+                            <form method="POST" action="/api/v1/academic-similarity/submissions/{sub.submission_id}/process" class="inline">
+                                <input type="hidden" name="_token" value="{csrf_token}">
+                                <button type="submit" class="text-yellow-700 hover:text-yellow-900 font-medium mr-3">Process</button>
+                            </form>
+                            {/if}
                             <a href="/admin/academic-similarity/reports?submission_id={sub.submission_id}" class="text-brand-600 hover:text-brand-900 font-medium">Report</a>
                         </td>
                     </tr>
