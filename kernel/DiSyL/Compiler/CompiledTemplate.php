@@ -116,7 +116,7 @@ abstract class CompiledTemplate
      */
     protected function isTruthy(mixed $value): bool
     {
-        if ($value === null || $value === false || $value === '' || $value === 0) {
+        if ($value === null || $value === false || $value === '' || $value === 0 || $value === '0') {
             return false;
         }
         if (is_array($value) && count($value) === 0) {
