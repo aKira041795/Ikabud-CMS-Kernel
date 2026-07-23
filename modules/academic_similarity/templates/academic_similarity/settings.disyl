@@ -69,6 +69,27 @@
     <form id="aiss-settings-form" method="POST" action="/admin/academic-similarity/settings" class="space-y-6">
         <input type="hidden" name="_token" value="{csrf_token}">
         <input type="hidden" name="settings_section" value="{settings_section}">
+        <!-- Hidden fields ensure unchecked checkboxes send '0' -->
+        <input type="hidden" name="enabled" value="0">
+        <input type="hidden" name="exact_match_enabled" value="0">
+        <input type="hidden" name="near_match_enabled" value="0">
+        <input type="hidden" name="semantic_match_enabled" value="0">
+        <input type="hidden" name="semantic_health_visible" value="0">
+        <input type="hidden" name="report_include_highlights" value="0">
+        <input type="hidden" name="report_include_source_breakdown" value="0">
+        <input type="hidden" name="auto_generate_reports" value="0">
+        <input type="hidden" name="notify_on_completion" value="0">
+        <input type="hidden" name="internet_check_enabled" value="0">
+        <input type="hidden" name="internet_check_auto_run_when_no_sources" value="0">
+        <input type="hidden" name="internet_check_allow_full_document_query" value="0">
+        <input type="hidden" name="internet_check_store_retrieved_text" value="0">
+        <input type="hidden" name="cms_public_submission_enabled" value="0">
+        <input type="hidden" name="cms_builder_block_enabled" value="0">
+        <input type="hidden" name="public_report_workspace_enabled" value="0">
+        <input type="hidden" name="public_report_download_enabled" value="0">
+        <input type="hidden" name="public_report_show_raw_score" value="0">
+        <input type="hidden" name="public_report_show_source_names" value="0">
+        <input type="hidden" name="public_report_show_full_document" value="0">
 
         {if settings_section == 'all' or settings_section == 'processing'}
         <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
