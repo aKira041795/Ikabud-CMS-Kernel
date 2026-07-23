@@ -43,6 +43,16 @@
             <div><span class="text-gray-500">Generated</span><p class="font-semibold">{report.generated_at}</p></div>
         </div>
 
+        {if report_ai_narrative}
+        <div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm">
+            <p class="font-semibold text-blue-900 mb-1 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg>
+                AI Summary
+            </p>
+            <p class="text-blue-800">{report_ai_narrative|raw}</p>
+        </div>
+        {/if}
+
         <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
             <p class="font-semibold text-gray-900 mb-2">How to read this report</p>
             <p>Raw score is the initial matched-text coverage. Adjusted score applies reviewer exclusions such as quotations, bibliography, or approved matches. Matched words show how much eligible text was tied to source evidence.</p>
@@ -129,7 +139,7 @@
     {if highlighted_html}
     <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
         <h2 class="text-lg font-semibold text-gray-900 mb-3">Highlighted Submission</h2>
-        <div class="prose max-w-none text-sm leading-7">{highlighted_html}</div>
+        <div class="prose max-w-none text-sm leading-7">{highlighted_html|raw}</div>
     </div>
     {/if}
 

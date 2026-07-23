@@ -94,7 +94,7 @@ def _tfidf_vectorize(text: str, idf: dict | None = None) -> dict:
 # ── Backend: Token Overlap (default, zero-dependency) ─────────────
 
 
-def compare_token_overlap(segments_a: list[str], segments_b: list[str]) -> list[dict]:
+def compare_token_overlap(segments_a: list[str], segments_b: list[str], threshold: float = 0.70) -> list[dict]:
     """
     Compare segments using Jaccard similarity on word tokens.
     Deterministic, fast, zero dependencies. Good baseline for MVP.
@@ -111,7 +111,7 @@ def compare_token_overlap(segments_a: list[str], segments_b: list[str]) -> list[
                 "submission_segment_index": i,
                 "source_segment_index": j,
                 "similarity_score": round(score, 4),
-                "above_threshold": score >= 0.70,
+                "above_threshold": score >= threshold,
             })
 
     return comparisons
@@ -120,7 +120,7 @@ def compare_token_overlap(segments_a: list[str], segments_b: list[str]) -> list[
 # ── Backend: TF-IDF Cosine (requires scikit-learn or built-in fallback) ──
 
 
-def compare_tfidf(segments_a: list[str], segments_b: list[str]) -> list[dict]:
+def compare_tfidf(segments_a: list[str], segments_b: list[str], threshold: float = 0.70) -> list[dict]:
     """
     Compare segments using TF-IDF cosine similarity.
     Uses built-in TF-IDF if scikit-learn is not available.
@@ -153,7 +153,7 @@ def compare_tfidf(segments_a: list[str], segments_b: list[str]) -> list[dict]:
                     "submission_segment_index": i,
                     "source_segment_index": j,
                     "similarity_score": round(float(score), 4),
-                    "above_threshold": score >= 0.70,
+                    "above_threshold": score >= threshold,
                 })
 
         return comparisons
@@ -177,7 +177,7 @@ def _compare_tfidf_builtin(segments_a: list[str], segments_b: list[str]) -> list
                 "submission_segment_index": i,
                 "source_segment_index": j,
                 "similarity_score": round(score, 4),
-                "above_threshold": score >= 0.70,
+                "above_threshold": score >= threshold,
             })
 
     return comparisons
@@ -217,7 +217,7 @@ def compare_sentence_transformers(
                     "submission_segment_index": i,
                     "source_segment_index": j,
                     "similarity_score": round(score, 4),
-                    "above_threshold": score >= 0.70,
+                    "above_threshold": score >= threshold,
                 })
 
         return comparisons
@@ -318,7 +318,7 @@ def compare_groq(
                 "submission_segment_index": i,
                 "source_segment_index": j,
                 "similarity_score": round(score, 4),
-                "above_threshold": score >= 0.70,
+                "above_threshold": score >= threshold,
             })
 
     return comparisons
@@ -411,11 +411,11 @@ def handle_semantic_compare(payload: dict) -> dict:
     try:
         if backend_name in {"sentence_transformers", "groq"}:
             if backend_name == "groq":
-                comparisons = backend(submission_segments, source_segments, model_name, api_key)
+                comparisons = backend(submission_segments, source_segments, model_name, api_key, threshold)
             else:
-                comparisons = backend(submission_segments, source_segments, model_name)
+                comparisons = backend(submission_segments, source_segments, model_name, threshold)
         else:
-            comparisons = backend(submission_segments, source_segments)
+            comparisons = backend(submission_segments, source_segments, threshold)
     except Exception as e:
         _error_count += 1
         raise RuntimeError(f"Comparison failed: {e}") from e

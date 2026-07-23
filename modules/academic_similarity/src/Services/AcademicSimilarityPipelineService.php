@@ -615,6 +615,13 @@ class AcademicSimilarityPipelineService
 
             $reportId = (int)$this->db->lastInsertId();
 
+            // ── AI Report Narrative (non-blocking, best-effort) ──
+            $aiNarrative = $this->generateAiReportNarrative($submissionId, $reportData);
+            if ($aiNarrative !== null) {
+                $this->db->prepare("UPDATE ac_similarity_reports SET report_ai_narrative = :n WHERE id = :id")
+                    ->execute([':n' => $aiNarrative, ':id' => $reportId]);
+            }
+
             // Mark submission as processed
             $this->subRepo->updateStatus($submissionId, 'processed');
 
@@ -947,5 +954,59 @@ class AcademicSimilarityPipelineService
             'segments' => $segments,
             'texts' => array_map(static fn(array $row): string => (string)($row['normalized_content'] ?? ''), $segments),
         ];
+    }
+
+    /**
+     * Generate an AI-powered plain-language summary of the similarity report.
+     * Best-effort: returns null silently if AI is unavailable.
+     */
+    private function generateAiReportNarrative(int $submissionId, array $reportData): ?string
+    {
+        try {
+            $settings = academic_similarity_get_settings($this->tenantId);
+            if (($settings['report_ai_narrative_enabled'] ?? '1') !== '1') {
+                return null;
+            }
+            if (!app()->capabilities()->has('ai.text.generate@1')) {
+                return null;
+            }
+
+            $title = (string)($reportData['submission_title'] ?? 'Untitled');
+            // Sanitize: truncate and strip control characters to prevent prompt injection
+            $title = mb_substr(preg_replace('/[\x00-\x1f\x7f]/u', '', $title), 0, 200);
+            $rawScore = number_format((float)($reportData['raw_score'] ?? 0), 1);
+            $adjScore = number_format((float)($reportData['adjusted_score'] ?? 0), 1);
+            $matchCount = (int)($reportData['total_matches'] ?? 0);
+            $matchedWords = (int)($reportData['matched_word_count'] ?? 0);
+            $eligibleWords = (int)($reportData['total_eligible_words'] ?? 0);
+
+            $prompt = "Summarize this academic similarity report in 2-3 sentences for an integrity reviewer. "
+                . "Submission: \"{$title}\". "
+                . "Adjusted similarity score: {$adjScore}%. "
+                . "Matches found: {$matchCount}. "
+                . "Matched words: {$matchedWords} of {$eligibleWords} eligible words. "
+                . "Be factual and concise. Do not make judgments about intent.";
+
+            $result = app()->cap()->call('ai.text.generate@1', [
+                'messages' => [
+                    ['role' => 'system', 'content' => 'You are an academic integrity assistant. Write factual, concise summaries.'],
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'temperature' => 0.3,
+                'json' => false,
+                'timeout_ms' => 8000,
+            ], ['caller_module' => 'academic-similarity']);
+
+            if (!empty($result['ok']) && !empty($result['content'])) {
+                return trim((string)$result['content']);
+            }
+        } catch (\Throwable $e) {
+            // Silent fallback — AI narrative is optional
+            if (function_exists('write_log')) {
+                write_log('AISS AI report narrative generation failed: ' . $e->getMessage(), 'warning');
+            }
+        }
+
+        return null;
     }
 }

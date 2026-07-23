@@ -86,6 +86,34 @@
             }
           }
         }
+      },
+      {
+        "id": "ai.search.discover@1",
+        "priority": 50,
+        "modes": [
+          "first"
+        ],
+        "description": "AI-powered internet source discovery for similarity checking. Generates search queries from submission text and returns candidate URLs via configured search provider.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tenant_id": {
+              "type": "string"
+            },
+            "queries": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "max_sources": {
+              "type": "integer"
+            },
+            "payload_policy": {
+              "type": "string"
+            }
+          }
+        }
       }
     ],
     "depends": [],
@@ -110,6 +138,13 @@
             "kernel",
             "ai",
             "cms"
+          ]
+        },
+        "ai.search.discover@1": {
+          "allow_callers": [
+            "academic-similarity",
+            "ai",
+            "kernel"
           ]
         }
       }

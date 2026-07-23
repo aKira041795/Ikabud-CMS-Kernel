@@ -39,8 +39,11 @@ class AcademicSimilarityInternetCheckService
             return ['ok' => false, 'status' => 'failed', 'error' => 'Submission not found'];
         }
 
-        if (!$force && ($settings['internet_check_auto_run_when_no_sources'] ?? '0') === '1' && $this->indexedSourceCount() > 0) {
-            return ['ok' => true, 'status' => 'skipped', 'reason' => 'Indexed local sources are available'];
+        // Auto-run when enabled — always attempt internet discovery regardless
+        // of existing local sources. Local sources may be topically unrelated
+        // to the new submission (e.g., seed URLs for different subjects).
+        if (!$force && ($settings['internet_check_auto_run_when_no_sources'] ?? '0') !== '1') {
+            return ['ok' => true, 'status' => 'skipped', 'reason' => 'Auto-run disabled; only local sources were checked'];
         }
 
         $text = $this->loadSubmissionText($submissionId);

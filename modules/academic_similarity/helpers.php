@@ -82,14 +82,14 @@ function academic_similarity_get_settings(string $tenantId): array
         'enabled' => '1',
         'exact_match_enabled' => '1',
         'near_match_enabled' => '1',
-        'semantic_match_enabled' => '0',
+        'semantic_match_enabled' => '1',
         'semantic_provider' => 'token_overlap',
         'semantic_model_name' => 'token_overlap',
         'semantic_service_endpoint' => 'http://127.0.0.1:9003',
         'semantic_service_token_env' => 'SEMANTIC_SERVICE_TOKEN',
         'semantic_external_api_key_env' => 'SEMANTIC_API_KEY',
         'semantic_external_api_key' => '',
-        'semantic_similarity_threshold' => '0.70',
+        'semantic_similarity_threshold' => '0.15',
         'semantic_max_segments' => '500',
         'semantic_payload_policy' => 'segments_only',
         'semantic_health_visible' => '1',
@@ -137,6 +137,7 @@ function academic_similarity_get_settings(string $tenantId): array
         'internet_check_store_retrieved_text' => '1',
         'internet_check_seed_urls' => "https://en.wikipedia.org/wiki/Social_media\nhttps://en.wikipedia.org/wiki/Academic_achievement\nhttps://en.wikipedia.org/wiki/Digital_literacy\nhttps://en.wikipedia.org/wiki/Educational_technology\nhttps://en.wikipedia.org/wiki/Higher_education",
         'internet_check_disclosure_visible' => '1',
+        'report_ai_narrative_enabled' => '1',
     ];
 
     $db = academic_similarity_db();
@@ -199,6 +200,7 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'internet_check_auto_run_when_no_sources', 'internet_check_allow_full_document_query',
         'internet_check_store_retrieved_text', 'internet_check_seed_urls',
         'internet_check_disclosure_visible',
+        'report_ai_narrative_enabled',
     ];
 
     $existing = academic_similarity_get_raw_settings($tenantId);

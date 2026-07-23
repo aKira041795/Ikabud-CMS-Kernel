@@ -31,6 +31,14 @@ class AcademicSimilarityMatchingService
         // 2. Find candidate sources via matching fingerprints
         $candidates = $this->findCandidateSourcesFromFingerprints($subFps, 'exact');
 
+        // Also include internet-discovered sources (may have no fingerprint overlap
+        // with original text — different authors, same topic)
+        foreach ($this->findInternetDiscoveredSourceCandidates($submissionId) as $sid => $info) {
+            if (!isset($candidates[$sid])) {
+                $candidates[$sid] = $info;
+            }
+        }
+
         if (empty($candidates)) {
             return ['ok' => true, 'matches' => 0, 'match_results' => []];
         }
@@ -68,6 +76,12 @@ class AcademicSimilarityMatchingService
         }
 
         $candidates = $this->findCandidateSourcesFromFingerprints($subFps, 'near');
+
+        foreach ($this->findInternetDiscoveredSourceCandidates($submissionId) as $sid => $info) {
+            if (!isset($candidates[$sid])) {
+                $candidates[$sid] = $info;
+            }
+        }
 
         if (empty($candidates)) {
             return ['ok' => true, 'matches' => 0, 'match_results' => []];
@@ -126,6 +140,30 @@ class AcademicSimilarityMatchingService
                 'fingerprint_hits' => (int)$row['fingerprint_hits'],
                 'match_confidence' => (float)$row['match_confidence'],
             ];
+        }
+
+        // Include internet-discovered sources as candidates even without
+        // fingerprint hits — different authors writing about the same topic
+        // rarely share identical 5-word shingles.
+        $internetSources = $this->db->prepare("
+            SELECT s.id AS source_id
+            FROM ac_similarity_sources s
+            JOIN ac_similarity_internet_sources i ON i.source_id = s.id AND i.submission_id = :isub
+            WHERE s.tenant_id = :tid AND s.is_indexed = 1
+        ");
+        $internetSources->execute([
+            ':isub' => $submissionId,
+            ':tid' => $this->tenantId,
+        ]);
+        while ($row = $internetSources->fetch(\PDO::FETCH_ASSOC)) {
+            $sid = (int)$row['source_id'];
+            if (!isset($candidates[$sid])) {
+                $candidates[$sid] = [
+                    'source_id' => $sid,
+                    'fingerprint_hits' => 0,
+                    'match_confidence' => 0.0,
+                ];
+            }
         }
 
         return $candidates;
@@ -344,6 +382,34 @@ class AcademicSimilarityMatchingService
     }
 
     /**
+     * Load internet-discovered source IDs for a submission so they can be
+     * included as candidates even without fingerprint overlap.
+     *
+     * @return array<int, array{source_id: int, fingerprint_hits: int, match_confidence: float}>
+     */
+    private function findInternetDiscoveredSourceCandidates(int $submissionId): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT s.id AS source_id
+            FROM ac_similarity_sources s
+            JOIN ac_similarity_internet_sources i ON i.source_id = s.id AND i.submission_id = :sid
+            WHERE s.tenant_id = :tid AND s.is_indexed = 1
+        ");
+        $stmt->execute([':sid' => $submissionId, ':tid' => $this->tenantId]);
+
+        $candidates = [];
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $sid = (int)$row['source_id'];
+            $candidates[$sid] = [
+                'source_id' => $sid,
+                'fingerprint_hits' => 0,
+                'match_confidence' => 0.0,
+            ];
+        }
+        return $candidates;
+    }
+
+    /**
      * Compare a submission to a specific source, finding contiguous word-match runs.
      *
      * @param int $submissionId
@@ -375,6 +441,21 @@ class AcademicSimilarityMatchingService
             $srcByHash[$hash][] = $fp;
         }
 
+        // Find matching submission fingerprint positions and map to source positions
+        $subPositions = [];
+        foreach ($subFps as $fp) {
+            $hash = $fp['shingle_hash'];
+            if (isset($srcByHash[$hash])) {
+                $srcFp = $srcByHash[$hash][0];
+                $subPositions[(int)$fp['word_position']] = (int)$srcFp['word_position'];
+            }
+        }
+
+        // Fall back to text-level comparison for sources with no hash hits
+        if (empty($subPositions)) {
+            return $this->compareSubmissionToSourceByText($submissionId, $sourceId, $matchType);
+        }
+
         // Load segments for both sides to get normalized content
         $subSegments = $this->loadSegments($submissionId, 'submission');
         $srcSegments = $this->loadSegments($sourceId, 'source');
@@ -382,23 +463,6 @@ class AcademicSimilarityMatchingService
         // Build word-indexed segment content maps
         $subWords = $this->buildWordIndex($subSegments);
         $srcWords = $this->buildWordIndex($srcSegments);
-
-        // Find matching submission fingerprint positions and map to source positions
-        $subPositions = []; // submission word position -> source word position
-        foreach ($subFps as $fp) {
-            $hash = $fp['shingle_hash'];
-            if (isset($srcByHash[$hash])) {
-                // Take the first matching source fingerprint
-                $srcFp = $srcByHash[$hash][0];
-                $subWordPos = (int)$fp['word_position'];
-                $srcWordPos = (int)$srcFp['word_position'];
-                $subPositions[$subWordPos] = $srcWordPos;
-            }
-        }
-
-        if (empty($subPositions)) {
-            return [];
-        }
 
         // Sort submission positions
         ksort($subPositions);
@@ -534,5 +598,159 @@ class AcademicSimilarityMatchingService
     {
         $slice = array_slice($words, $start, $end - $start + 1);
         return implode(' ', $slice);
+    }
+
+    /**
+     * Text-level comparison fallback — used when fingerprint-based matching
+     * finds 0 hash hits (common for internet-discovered sources where the
+     * submission and source discuss the same topic in different words).
+     *
+     * Uses word-set Jaccard similarity on a sliding window to find regions
+     * of topical overlap. Much looser than exact hash matching but catches
+     * topic-level similarity that fingerprints miss.
+     *
+     * @return AcademicSimilarityMatchResult[]
+     */
+    private function compareSubmissionToSourceByText(
+        int $submissionId,
+        int $sourceId,
+        string $matchType
+    ): array {
+        // Load normalized text for both sides
+        $norm = new AcademicSimilarityNormalizationService($this->tenantId);
+
+        $subText = $this->loadEntityText($submissionId, 'submission');
+        $srcText = $this->loadEntityText($sourceId, 'source');
+
+        if ($subText === '' || $srcText === '') {
+            return [];
+        }
+
+        // Normalize for matching: lowercase + stemming + stop word removal
+        $subNorm = $norm->normalizeForMatching($subText);
+        $srcNorm = $norm->normalizeForMatching($srcText);
+
+        $subWords = explode(' ', $subNorm);
+        $srcWords = explode(' ', $srcNorm);
+
+        $subCount = count($subWords);
+        $srcCount = count($srcWords);
+
+        if ($subCount < 10 || $srcCount < 10) {
+            return [];
+        }
+
+        // Build source word set for fast Jaccard computation
+        $srcWordSet = array_flip($srcWords);
+        $srcSetSize = count($srcWordSet);
+
+        // Sliding window over submission: compute Jaccard similarity
+        // of each window against the entire source word set.
+        $windowSize = max(10, min(50, intdiv($subCount, 3)));
+        $threshold = 0.03; // 3% Jaccard — lenient for topic-level similarity between different authors
+        $matches = [];
+        $lastMatchEnd = -1;
+        $runStart = -1;
+        $runEnd = -1;
+        $runWords = 0;
+
+        for ($i = 0; $i <= $subCount - $windowSize; $i += max(1, intdiv($windowSize, 4))) {
+            $windowWords = array_slice($subWords, $i, $windowSize);
+            $windowSet = array_flip($windowWords);
+            $windowSize2 = count($windowSet);
+
+            // Intersection size
+            $intersection = 0;
+            foreach ($windowSet as $w => $_) {
+                if (isset($srcWordSet[$w])) {
+                    $intersection++;
+                }
+            }
+
+            $union = $windowSize2 + $srcSetSize - $intersection;
+            if ($union === 0) continue;
+            $jaccard = $intersection / $union;
+
+            if ($jaccard >= $threshold) {
+                $matchEnd = $i + $windowSize;
+                if ($i <= $lastMatchEnd + $windowSize) {
+                    // Extend current run
+                    $runEnd = $matchEnd;
+                    $runWords += $intersection;
+                } else {
+                    // Save previous run if it has enough words
+                    if ($runStart >= 0 && $runWords >= 3) {
+                        $matches[] = $this->buildTextMatchResult(
+                            $submissionId, $sourceId, $matchType,
+                            $runStart, $runEnd, $runWords, $subWords
+                        );
+                    }
+                    $runStart = $i;
+                    $runEnd = $matchEnd;
+                    $runWords = $intersection;
+                }
+                $lastMatchEnd = $matchEnd;
+            }
+        }
+
+        // Don't forget the last run
+        if ($runStart >= 0 && $runWords >= 3) {
+            $matches[] = $this->buildTextMatchResult(
+                $submissionId, $sourceId, $matchType,
+                $runStart, $runEnd, $runWords, $subWords
+            );
+        }
+
+        return $matches;
+    }
+
+    private function buildTextMatchResult(
+        int $submissionId, int $sourceId, string $matchType,
+        int $start, int $end, int $matchedWords, array $subWords
+    ): AcademicSimilarityMatchResult {
+        $evidence = [[
+            'submission_text' => implode(' ', array_slice($subWords, $start, $end - $start)),
+            'source_text' => '(text-level match)',
+            'submission_start_offset' => $start,
+            'submission_end_offset' => $end,
+            'source_start_offset' => 0,
+            'source_end_offset' => 0,
+        ]];
+
+        return new AcademicSimilarityMatchResult([
+            'submission_id' => $submissionId,
+            'source_id' => $sourceId,
+            'match_type' => $matchType,
+            'confidence' => 0.3,
+            'submission_segment_id' => null,
+            'source_segment_id' => null,
+            'matched_word_count' => $matchedWords,
+            'submission_word_range_start' => $start,
+            'submission_word_range_end' => $end,
+            'source_word_range_start' => 0,
+            'source_word_range_end' => 0,
+            'segment_match_count' => 1,
+            'evidence' => $evidence,
+        ]);
+    }
+
+    private function loadEntityText(int $entityId, string $entityType): string
+    {
+        if ($entityType === 'submission') {
+            $stmt = $this->db->prepare("
+                SELECT extracted_text FROM ac_similarity_text_versions
+                WHERE submission_id = :eid AND tenant_id = :tid AND text_type = 'submission'
+                ORDER BY id DESC LIMIT 1
+            ");
+        } else {
+            $stmt = $this->db->prepare("
+                SELECT extracted_text FROM ac_similarity_text_versions
+                WHERE source_id = :eid AND tenant_id = :tid AND text_type = 'source'
+                ORDER BY id DESC LIMIT 1
+            ");
+        }
+        $stmt->execute([':eid' => $entityId, ':tid' => $this->tenantId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row['extracted_text'] ?? '';
     }
 }

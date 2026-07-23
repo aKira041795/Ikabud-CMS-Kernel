@@ -378,6 +378,7 @@ function pageReportDetail(array $params = []): void
         'source_panels'        => $sourcePanels,
         'internet_sources'     => array_values($internetBySource),
         'evidence_by_match'    => $evidenceMap,
+        'report_ai_narrative'  => $report['report_ai_narrative'] ?? null,
         'active_nav'           => 'reports',
     ]);
 }

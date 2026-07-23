@@ -63,6 +63,36 @@ class AcademicSimilarityInternetDiscoveryService
             }
         }
 
+        if ($candidates === [] && $provider === 'ai') {
+            try {
+                $result = app()->cap()->call('ai.search.discover@1', [
+                    'tenant_id' => $this->tenantId,
+                    'queries' => $queries,
+                    'max_sources' => $maxSources,
+                    'payload_policy' => (string)($settings['internet_check_payload_policy'] ?? 'snippets_only'),
+                ], ['caller' => ['module' => 'academic-similarity']]);
+                if (is_array($result) && !empty($result['candidates']) && is_array($result['candidates'])) {
+                    foreach ($result['candidates'] as $idx => $candidate) {
+                        if (!is_array($candidate)) {
+                            continue;
+                        }
+                        $candidate['provider'] = (string)($candidate['provider'] ?? 'ai');
+                        $candidate['rank'] = (int)($candidate['rank'] ?? ($idx + 1));
+                        $candidate['query'] = (string)($candidate['query'] ?? ($queries[0] ?? ''));
+                        $candidates[] = $candidate;
+                        if (count($candidates) >= $maxSources) {
+                            break;
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // AI search unavailable — fall through silently, candidates stay empty
+                if (function_exists('write_log')) {
+                    write_log('AISS ai.search.discover@1 call failed: ' . $e->getMessage(), 'warning');
+                }
+            }
+        }
+
         if ($candidates === [] && $provider === 'capability') {
             try {
                 $result = app()->cap()->call('academic_similarity.internet.discover@1', [
@@ -97,6 +127,35 @@ class AcademicSimilarityInternetDiscoveryService
     {
         if (!preg_match('#^https?://#i', $url)) {
             return ['ok' => false, 'error' => 'Only http/https URLs are allowed'];
+        }
+
+        // ── Wikipedia: use the clean text API instead of scraping HTML ──
+        if (preg_match('#^https?://([a-z]+)\.wikipedia\.org/wiki/(.+)$#i', $url, $m)) {
+            $lang = $m[1];
+            $title = urldecode(str_replace('_', ' ', $m[2]));
+            $apiUrl = "https://{$lang}.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext&titles=" . rawurlencode($title) . "&format=json";
+            $apiCtx = stream_context_create([
+                'http' => [
+                    'method' => 'GET',
+                    'timeout' => 10,
+                    'header' => "User-Agent: AISS-InternetCheck/1.0\r\nAccept: application/json\r\n",
+                ],
+            ]);
+            $apiRaw = @file_get_contents($apiUrl, false, $apiCtx);
+            if (is_string($apiRaw)) {
+                $apiData = json_decode($apiRaw, true);
+                $pages = $apiData['query']['pages'] ?? [];
+                foreach ($pages as $page) {
+                    $extract = trim((string)($page['extract'] ?? ''));
+                    if ($extract !== '') {
+                        if ($maxChars > 0 && strlen($extract) > $maxChars) {
+                            $extract = substr($extract, 0, $maxChars);
+                        }
+                        return ['ok' => true, 'text' => $extract];
+                    }
+                }
+            }
+            // Fall through to generic HTML scraper if API fails
         }
 
         $context = stream_context_create([

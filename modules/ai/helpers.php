@@ -209,6 +209,7 @@ function ai_capability_handlers(): array
         'ai.capability.suggest@1' => 'ai_cap_ai_capability_suggest_1',
         'ai.text.generate@1' => 'ai_cap_ai_text_generate_1',
         'ai.explain@1' => 'ai_cap_ai_explain_1',
+        'ai.search.discover@1' => 'ai_cap_ai_search_discover_1',
     ];
 }
 
@@ -464,5 +465,29 @@ function ai_cap_ai_text_generate_1(mixed $payload, string $capabilityId = '', st
         'content' => (string)($out['content'] ?? ''),
         'provider' => (string)($out['provider'] ?? ($provider !== '' ? $provider : 'openai')),
         'model' => (string)($out['model'] ?? ''),
+    ];
+}
+
+function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    // Default handler for AI-powered internet source discovery.
+    // Uses the configured AI provider to generate search queries and
+    // attempts to find matching sources.
+    //
+    // Currently returns empty — a future implementation will call
+    // ai.text.generate@1 to refine queries, then search via configured
+    // provider's HTTP client. External modules can override at higher priority.
+    //
+    // For now, users should configure seed_urls in AISS settings for
+    // zero-config internet-assisted similarity checking.
+
+    if (!is_array($payload)) {
+        return ['ok' => false, 'candidates' => [], 'error' => 'Invalid payload'];
+    }
+
+    return [
+        'ok' => true,
+        'candidates' => [],
+        'disclosure' => 'AI-powered search is configured but the default handler does not perform live searches. Install a search provider (SerpAPI, Google CSE, Bing) or use seed URLs in AISS settings for internet-assisted checking.',
     ];
 }
