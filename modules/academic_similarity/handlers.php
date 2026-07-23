@@ -422,6 +422,27 @@ function pageSettings(array $params = []): void
     ]);
 }
 
+function apiSemanticHealth(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    try {
+        $semantic = new \AcademicSimilaritySemanticService($tenantId);
+        $institutionId = (int)($_GET['institution_id'] ?? 0);
+        $result = $semantic->isAvailable($institutionId);
+        echo json_encode([
+            'ok' => true,
+            'available' => $result['ok'] ?? false,
+            'gates' => $result['gates'] ?? [],
+            'error' => $result['error'] ?? null,
+        ]);
+    } catch (\Throwable $e) {
+        write_log('Semantic health check failed: ' . $e->getMessage());
+        echo json_encode(['ok' => false, 'available' => false, 'error' => 'Health check failed: ' . $e->getMessage()]);
+    }
+}
+
 // ── API handlers ─────────────────────────────────────────────────
 
 function apiCreateSubmission(array $params = []): void
@@ -754,6 +775,11 @@ function apiSaveSettings(array $params = []): void
         'report_include_highlights', 'report_include_source_breakdown', 'auto_generate_reports',
         'notify_on_completion', 'internet_check_enabled', 'internet_check_auto_run_when_no_sources',
         'internet_check_allow_full_document_query', 'internet_check_store_retrieved_text',
+        'public_results_enabled', 'public_results_show_scores', 'public_results_show_match_count',
+        'public_results_show_report_links', 'public_results_allow_anonymous',
+        'public_report_workspace_enabled', 'public_report_download_enabled',
+        'public_report_show_raw_score', 'public_report_show_source_names',
+        'public_report_show_full_document',
     ] as $checkboxKey) {
         if (!array_key_exists($checkboxKey, $input)) {
             $input[$checkboxKey] = '0';
@@ -764,7 +790,13 @@ function apiSaveSettings(array $params = []): void
         academic_similarity_save_settings($tenantId, $input);
         $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
         if (!str_contains($accept, 'application/json')) {
-            header('Location: /admin/academic-similarity/settings?saved=1');
+            $section = preg_replace('/[^a-z_]/', '', (string)($input['settings_section'] ?? ''));
+            $validSections = ['processing', 'reports', 'sources', 'semantic', 'internet', 'cms'];
+            $target = '/admin/academic-similarity/settings';
+            if (in_array($section, $validSections, true)) {
+                $target .= '/' . $section;
+            }
+            header('Location: ' . $target . '?saved=1');
             return;
         }
         echo json_encode(['ok' => true, 'message' => 'Settings saved']);
@@ -1233,7 +1265,7 @@ function apiProcessAllPending(array $params = []): void
     try {
         $db = academic_similarity_db();
         $stmt = $db->prepare(
-            "SELECT id FROM ac_similarity_submissions WHERE tenant_id = :tid AND status = 'pending' ORDER BY created_at ASC"
+            "SELECT id FROM ac_similarity_submissions WHERE tenant_id = :tid AND (status = 'pending' OR status = 'processing') ORDER BY created_at ASC"
         );
         $stmt->execute([':tid' => $tenantId]);
         $pending = $stmt->fetchAll(\PDO::FETCH_ASSOC);

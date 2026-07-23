@@ -110,6 +110,13 @@ class AcademicSimilaritySemanticService
                 $payload['model_profile']['threshold'] = (float)$options['threshold'];
             }
         }
+        if (($settings['semantic_provider'] ?? '') === 'groq') {
+            $apiKey = trim((string)($settings['semantic_external_api_key'] ?? ''));
+            if ($apiKey !== '') {
+                $payload['model_profile'] = $payload['model_profile'] ?? [];
+                $payload['model_profile']['api_key'] = $apiKey;
+            }
+        }
 
         // 5. Call the capability bus
         try {
@@ -188,15 +195,26 @@ class AcademicSimilaritySemanticService
             $gates['setting_enabled'] = false;
         }
 
-        // Gate 2: Capability registered (attempt health call as probe)
+        // Gate 2: Capability registered in the kernel registry
         try {
-            app()->cap()->call('academic_similarity.semantic.health@1', [], ['caller' => ['module' => 'academic-similarity']]);
-            $gates['capability_registered'] = true;
+            $gates['capability_registered'] = app()->capabilities()->has('academic_similarity.semantic.health@1')
+                && app()->capabilities()->has('academic_similarity.semantic.compare@1');
         } catch (\Throwable $e) {
             $gates['capability_registered'] = false;
         }
 
-        // Gate 3: Plan feature (if institution is known)
+        // Gate 3: Python service endpoint reachable through ServiceProxy
+        $gates['service_reachable'] = true;
+        if ($gates['capability_registered']) {
+            try {
+                $health = $this->health();
+                $gates['service_reachable'] = !empty($health['ok']);
+            } catch (\Throwable $e) {
+                $gates['service_reachable'] = false;
+            }
+        }
+
+        // Gate 4: Plan feature (if institution is known)
         $gates['plan_enabled'] = true;
         if ($institutionId > 0) {
             try {
@@ -216,6 +234,9 @@ class AcademicSimilaritySemanticService
         }
         if (!$gates['capability_registered']) {
             $errors[] = 'Semantic service capability is not registered';
+        }
+        if (!$gates['service_reachable']) {
+            $errors[] = 'Semantic Python service endpoint is not reachable';
         }
         if (!$gates['plan_enabled']) {
             $errors[] = 'Plan does not include semantic matching';

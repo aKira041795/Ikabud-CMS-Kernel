@@ -88,6 +88,7 @@ function academic_similarity_get_settings(string $tenantId): array
         'semantic_service_endpoint' => 'http://127.0.0.1:9003',
         'semantic_service_token_env' => 'SEMANTIC_SERVICE_TOKEN',
         'semantic_external_api_key_env' => 'SEMANTIC_API_KEY',
+        'semantic_external_api_key' => '',
         'semantic_similarity_threshold' => '0.70',
         'semantic_max_segments' => '500',
         'semantic_payload_policy' => 'segments_only',
@@ -126,6 +127,7 @@ function academic_similarity_get_settings(string $tenantId): array
         'internet_check_enabled' => '0',
         'internet_check_provider' => 'capability',
         'internet_check_api_key_env' => 'AISS_INTERNET_API_KEY',
+        'internet_check_api_key' => '',
         'internet_check_max_queries' => '3',
         'internet_check_max_sources' => '5',
         'internet_check_max_chars_per_source' => '12000',
@@ -145,7 +147,28 @@ function academic_similarity_get_settings(string $tenantId): array
         $stored[$row['setting_key']] = $row['setting_value'];
     }
 
-    return array_merge($defaults, $stored);
+    $settings = array_merge($defaults, $stored);
+    $settings = academic_similarity_decrypt_sensitive_settings($settings);
+    foreach ([
+        'semantic_external_api_key_env' => ['secret' => 'semantic_external_api_key', 'default' => 'SEMANTIC_API_KEY'],
+        'internet_check_api_key_env' => ['secret' => 'internet_check_api_key', 'default' => 'AISS_INTERNET_API_KEY'],
+    ] as $envKey => $secretSpec) {
+        $envValue = trim((string)($settings[$envKey] ?? ''));
+        $secretKey = $secretSpec['secret'];
+        if (academic_similarity_looks_like_secret($envValue)) {
+            if (trim((string)($settings[$secretKey] ?? '')) === '') {
+                $settings[$secretKey] = $envValue;
+            }
+            $settings[$envKey] = $secretSpec['default'];
+        }
+    }
+    foreach (academic_similarity_sensitive_setting_keys() as $secretKey) {
+        $value = trim((string)($settings[$secretKey] ?? ''));
+        $settings[$secretKey . '_configured'] = $value !== '' ? '1' : '0';
+        $settings[$secretKey . '_masked'] = $value !== '' ? ('***' . substr($value, -4)) : '';
+    }
+
+    return $settings;
 }
 
 function academic_similarity_save_settings(string $tenantId, array $input): void
@@ -153,7 +176,7 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
     $allowed = [
         'enabled', 'exact_match_enabled', 'near_match_enabled', 'semantic_match_enabled',
         'semantic_provider', 'semantic_model_name', 'semantic_service_endpoint',
-        'semantic_service_token_env', 'semantic_external_api_key_env',
+        'semantic_service_token_env', 'semantic_external_api_key_env', 'semantic_external_api_key',
         'semantic_similarity_threshold', 'semantic_max_segments',
         'semantic_payload_policy', 'semantic_health_visible',
         'cms_public_submission_enabled', 'cms_submission_shortcode', 'cms_builder_block_enabled',
@@ -170,12 +193,36 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'public_report_show_raw_score', 'public_report_show_source_names',
         'public_report_show_full_document', 'public_report_default_mode',
         'internet_check_enabled', 'internet_check_provider', 'internet_check_api_key_env',
+        'internet_check_api_key',
         'internet_check_max_queries', 'internet_check_max_sources',
         'internet_check_max_chars_per_source', 'internet_check_payload_policy',
         'internet_check_auto_run_when_no_sources', 'internet_check_allow_full_document_query',
         'internet_check_store_retrieved_text', 'internet_check_seed_urls',
         'internet_check_disclosure_visible',
     ];
+
+    $existing = academic_similarity_get_raw_settings($tenantId);
+    foreach ([
+        'semantic_external_api_key_env' => ['secret' => 'semantic_external_api_key', 'default' => 'SEMANTIC_API_KEY'],
+        'internet_check_api_key_env' => ['secret' => 'internet_check_api_key', 'default' => 'AISS_INTERNET_API_KEY'],
+    ] as $envKey => $secretSpec) {
+        $envValue = trim((string)($input[$envKey] ?? ''));
+        if (academic_similarity_looks_like_secret($envValue)) {
+            if (trim((string)($input[$secretSpec['secret']] ?? '')) === '') {
+                $input[$secretSpec['secret']] = $envValue;
+            }
+            $input[$envKey] = $secretSpec['default'];
+        }
+    }
+    foreach (academic_similarity_sensitive_setting_keys() as $secretKey) {
+        if (array_key_exists($secretKey, $input)) {
+            $secret = trim((string)$input[$secretKey]);
+            if ($secret === '' || str_starts_with($secret, '***')) {
+                unset($input[$secretKey]);
+            }
+        }
+    }
+    $input = academic_similarity_encrypt_sensitive_settings($input);
 
     $db = academic_similarity_db();
     $stmt = $db->prepare("
@@ -188,8 +235,122 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         if (!in_array($key, $allowed, true)) {
             continue;
         }
+        if (in_array($key, academic_similarity_sensitive_setting_keys(), true) && (string)$value === '') {
+            $value = (string)($existing[$key] ?? '');
+        }
         $stmt->execute([':tid' => $tenantId, ':key' => $key, ':val' => (string)$value]);
     }
+
+    academic_similarity_sync_semantic_service_module($input);
+}
+
+function academic_similarity_sync_semantic_service_module(array $settings): void
+{
+    if (($settings['semantic_match_enabled'] ?? null) !== '1') {
+        return;
+    }
+    if (!function_exists('moduleTenantSettingsTenantId') || !function_exists('enableModuleForTenant')) {
+        return;
+    }
+
+    $tenantId = moduleTenantSettingsTenantId();
+    if ($tenantId === null || $tenantId <= 0) {
+        return;
+    }
+
+    enableModuleForTenant('academic-similarity-semantic-service', (int)$tenantId);
+}
+
+function academic_similarity_looks_like_secret(string $value): bool
+{
+    $value = trim($value);
+    if ($value === '') {
+        return false;
+    }
+    if (preg_match('/^[A-Z][A-Z0-9_]*$/', $value) === 1) {
+        return false;
+    }
+    if (preg_match('/^(gsk_|sk-|sk_|xai-|AIza|ya29\\.)/i', $value) === 1) {
+        return true;
+    }
+    return strlen($value) >= 32 && preg_match('/[a-z]/', $value) === 1 && preg_match('/[A-Z]/', $value) === 1 && preg_match('/[0-9]/', $value) === 1;
+}
+
+function academic_similarity_get_raw_settings(string $tenantId): array
+{
+    $db = academic_similarity_db();
+    $stmt = $db->prepare("SELECT setting_key, setting_value FROM ac_similarity_settings WHERE tenant_id = :tid");
+    $stmt->execute([':tid' => $tenantId]);
+    $settings = [];
+    while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+        $settings[(string)$row['setting_key']] = (string)$row['setting_value'];
+    }
+    return $settings;
+}
+
+function academic_similarity_sensitive_setting_keys(): array
+{
+    return [
+        'semantic_external_api_key',
+        'internet_check_api_key',
+    ];
+}
+
+function academic_similarity_encrypt_sensitive_settings(array $settings): array
+{
+    foreach (academic_similarity_sensitive_setting_keys() as $key) {
+        if (!isset($settings[$key]) || !is_string($settings[$key]) || trim($settings[$key]) === '') {
+            continue;
+        }
+        $value = trim($settings[$key]);
+        $envelope = json_decode($value, true);
+        if (is_array($envelope) && isset($envelope['ciphertext'], $envelope['iv'], $envelope['tag'])) {
+            continue;
+        }
+        try {
+            $settings[$key] = json_encode((new \Ikabud\Kernel\Crypto())->encryptString($value), JSON_UNESCAPED_SLASHES);
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('AISS failed to encrypt sensitive setting', 'error', [
+                    'key' => $key,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $settings[$key] = '';
+        }
+    }
+    return $settings;
+}
+
+function academic_similarity_decrypt_sensitive_settings(array $settings): array
+{
+    foreach (academic_similarity_sensitive_setting_keys() as $key) {
+        $value = (string)($settings[$key] ?? '');
+        if ($value === '' || $value[0] !== '{') {
+            continue;
+        }
+        $envelope = json_decode($value, true);
+        if (!is_array($envelope) || !isset($envelope['ciphertext'], $envelope['iv'], $envelope['tag'])) {
+            continue;
+        }
+        try {
+            $settings[$key] = (new \Ikabud\Kernel\Crypto())->decryptString(
+                (string)$envelope['ciphertext'],
+                (string)$envelope['iv'],
+                (string)$envelope['tag'],
+                isset($envelope['key_id']) ? (string)$envelope['key_id'] : null
+            );
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log('AISS failed to decrypt sensitive setting', 'warning', [
+                    'key' => $key,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            $settings[$key] = '';
+        }
+    }
+    return $settings;
 }
 
 // ── Dashboard stats ──────────────────────────────────────────────

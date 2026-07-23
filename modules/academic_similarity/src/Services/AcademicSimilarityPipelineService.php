@@ -65,14 +65,17 @@ class AcademicSimilarityPipelineService
             $results[$stage] = $stageResult;
 
             if ($stageResult['status'] === 'failed') {
+                $error = "Pipeline failed at stage '{$stage}': " . ($stageResult['error'] ?? 'Unknown error');
+                $this->subRepo->updateStatus($submissionId, 'failed', $error);
                 return [
                     'ok' => false,
                     'stages' => $results,
-                    'error' => "Pipeline failed at stage '{$stage}': " . ($stageResult['error'] ?? 'Unknown error'),
+                    'error' => $error,
                 ];
             }
         }
 
+        $this->subRepo->updateStatus($submissionId, 'processed');
         return [
             'ok' => true,
             'stages' => $results,

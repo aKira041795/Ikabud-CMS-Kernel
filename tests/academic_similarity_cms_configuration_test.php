@@ -28,6 +28,7 @@ $reportService = file_get_contents($base . '/src/Services/AcademicSimilarityRepo
 $reportsView = file_get_contents($base . '/templates/academic_similarity/reports/index.disyl');
 $sourceService = file_get_contents($base . '/src/Services/AcademicSimilaritySourceService.php');
 $sourceRepository = file_get_contents($base . '/src/Repositories/AcademicSimilaritySourceRepository.php');
+$superadminHandlers = file_get_contents(__DIR__ . '/../src/http/superadmin-handlers.php');
 
 t('CMS nav hook registers Similarity section', str_contains($helpers, "cms.admin.nav_items") && str_contains($helpers, "'label'    => 'Similarity'"));
 t('CMS nav includes semantic configuration link', str_contains($helpers, '/admin/academic-similarity/settings/semantic'));
@@ -36,6 +37,7 @@ t('settings page route exists', str_contains($routes, "'/admin/academic-similari
 t('admin settings POST route exists', str_contains($routes, "'/admin/academic-similarity/settings'") && str_contains($routes, 'apiSaveSettings'));
 t('settings semantic subroute exists', str_contains($routes, '/admin/academic-similarity/settings/semantic'));
 t('settings CMS subroute exists', str_contains($routes, '/admin/academic-similarity/settings/cms'));
+t('settings subtab POST aliases exist', str_contains($routes, "'/admin/academic-similarity/settings/semantic'            => 'academic-similarity:apiSaveSettings'") && str_contains($routes, "'/admin/academic-similarity/settings/internet'            => 'academic-similarity:apiSaveSettings'") && str_contains($routes, "'/admin/academic-similarity/settings/cms'                 => 'academic-similarity:apiSaveSettings'"));
 t('new submission route exists', str_contains($routes, '/admin/academic-similarity/submissions/new'));
 t('upload view exists', file_exists($base . '/templates/academic_similarity/submissions/upload.disyl'));
 
@@ -45,11 +47,13 @@ t('settings template exposes provider', str_contains($settings, 'semantic_provid
 t('settings template exposes top save button', str_contains($settings, 'form="aiss-settings-form"') && str_contains($settings, 'Save Settings'));
 t('settings save button uses high contrast color', str_contains($settings, 'bg-emerald-600') && str_contains($settings, 'font-bold'));
 t('settings form has stable submit id', str_contains($settings, 'id="aiss-settings-form"'));
+t('settings form preserves active section', str_contains($settings, 'name="settings_section" value="{settings_section}"'));
 t('settings template exposes Groq provider option', str_contains($settings, 'value="groq"'));
 t('settings template exposes model name', str_contains($settings, 'semantic_model_name'));
 t('settings template exposes Python service endpoint', str_contains($settings, 'semantic_service_endpoint'));
 t('settings template exposes service token env var', str_contains($settings, 'semantic_service_token_env'));
 t('settings template exposes external AI API key env var', str_contains($settings, 'semantic_external_api_key_env'));
+t('settings template exposes encrypted semantic API key field', str_contains($settings, 'name="semantic_external_api_key"') && str_contains($settings, 'Stored encrypted at rest'));
 t('settings template exposes payload policy', str_contains($settings, 'semantic_payload_policy'));
 t('settings template exposes public shortcode toggle', str_contains($settings, 'cms_public_submission_enabled'));
 t('settings template exposes builder block toggle', str_contains($settings, 'cms_builder_block_enabled'));
@@ -57,12 +61,16 @@ t('global settings view is installed for runtime rendering', str_contains($globa
 t('global settings view exposes top save button', str_contains($globalSettings, 'form="aiss-settings-form"') && str_contains($globalSettings, 'Save Settings'));
 t('global settings save button uses high contrast color', str_contains($globalSettings, 'bg-emerald-600') && str_contains($globalSettings, 'font-bold'));
 t('global settings view form has stable submit id', str_contains($globalSettings, 'id="aiss-settings-form"'));
+t('global settings form preserves active section', str_contains($globalSettings, 'name="settings_section" value="{settings_section}"'));
 t('AISS manifest declares settings table ownership', str_contains($manifest, 'ac_similarity_settings'));
 t('AISS manifest exposes semantic provider setting', str_contains($manifest, '"key": "semantic_provider"'));
 t('AISS manifest exposes Groq provider option', str_contains($manifest, '"value": "groq"'));
 t('AISS manifest exposes semantic Python endpoint setting', str_contains($manifest, '"key": "semantic_service_endpoint"'));
 t('AISS manifest exposes semantic service token env setting', str_contains($manifest, '"key": "semantic_service_token_env"'));
+t('AISS manifest exposes encrypted semantic API key setting', str_contains($manifest, '"key": "semantic_external_api_key"') && str_contains($manifest, '"type": "password"'));
 t('AISS manifest exposes CMS shortcode setting', str_contains($manifest, '"key": "cms_submission_shortcode"'));
+t('AISS manifest exposes internet runtime settings used by CMS', str_contains($manifest, '"key": "internet_check_auto_run_when_no_sources"') && str_contains($manifest, '"key": "internet_check_max_chars_per_source"') && str_contains($manifest, '"key": "internet_check_seed_urls"'));
+t('AISS manifest exposes public report workspace settings used by CMS', str_contains($manifest, '"key": "public_report_workspace_enabled"') && str_contains($manifest, '"key": "public_report_download_enabled"') && str_contains($manifest, '"key": "public_report_show_source_names"'));
 t('semantic service manifest exposes endpoint configuration', str_contains($semanticManifest, '"key": "service_endpoint"'));
 t('semantic service manifest exposes backend configuration', str_contains($semanticManifest, '"key": "semantic_embedding_backend"'));
 t('semantic service manifest exposes external API key env setting', str_contains($semanticManifest, '"key": "semantic_external_api_key_env"'));
@@ -71,8 +79,18 @@ t('semantic service manifest exposes Groq backend option', str_contains($semanti
 t('settings defaults include semantic provider', str_contains($helpers, "'semantic_provider' => 'token_overlap'"));
 t('settings defaults include semantic service endpoint', str_contains($helpers, "'semantic_service_endpoint' => 'http://127.0.0.1:9003'"));
 t('settings allowlist includes semantic external API key env', str_contains($helpers, "'semantic_external_api_key_env'"));
+t('settings allowlist includes encrypted semantic API key', str_contains($helpers, "'semantic_external_api_key'"));
+t('settings helper encrypts AISS sensitive keys', str_contains($helpers, 'academic_similarity_encrypt_sensitive_settings') && str_contains($helpers, 'new \\Ikabud\\Kernel\\Crypto()'));
+t('settings helper converts misplaced API keys from env fields', str_contains($helpers, 'academic_similarity_looks_like_secret') && str_contains($helpers, "'semantic_external_api_key_env' => ['secret' => 'semantic_external_api_key'"));
 t('settings allowlist includes semantic max segments', str_contains($helpers, "'semantic_max_segments'"));
 t('settings allowlist includes CMS shortcode', str_contains($helpers, "'cms_submission_shortcode'"));
+t('settings save normalizes visible public report checkboxes', str_contains($handlers, "'public_report_workspace_enabled'") && str_contains($handlers, "'public_report_show_full_document'"));
+t('settings save redirects back to active settings tab', str_contains($handlers, '$validSections') && str_contains($handlers, "\$target .= '/' . \$section"));
+t('superadmin AISS feature save syncs runtime settings table', str_contains($superadminHandlers, 'superadminSyncAcademicSimilarityRuntimeSettings') && str_contains($superadminHandlers, 'ac_similarity_settings') && str_contains($superadminHandlers, "\$modId === 'academic-similarity'"));
+t('superadmin AISS secret save encrypts runtime keys', str_contains($superadminHandlers, 'semantic_external_api_key') && str_contains($superadminHandlers, 'encryptString($secret)'));
+t('settings save enables semantic service module when semantic matching is on', str_contains($helpers, 'academic_similarity_sync_semantic_service_module') && str_contains($helpers, "enableModuleForTenant('academic-similarity-semantic-service'"));
+t('superadmin AISS sync enables semantic service module when semantic matching is on', str_contains($superadminHandlers, "enableModuleForTenant('academic-similarity-semantic-service'"));
+t('semantic service passes encrypted admin key server-side', str_contains($pipeline, 'semantic_external_api_key') || str_contains(file_get_contents($base . '/src/Services/AcademicSimilaritySemanticService.php'), "'api_key'"));
 t('CMS shortcode renderer reads configured shortcode', str_contains($helpers, 'cms_submission_shortcode') && str_contains($helpers, 'preg_quote($shortcode'));
 t('CMS public form submits source_type', str_contains($helpers, 'name="source_type"') && str_contains($helpers, 'fd.set("source_type"'));
 t('CMS builder block honors enable setting', str_contains($helpers, 'cms_builder_block_enabled') && str_contains($helpers, "=== '1'"));

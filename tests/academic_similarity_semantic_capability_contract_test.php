@@ -78,6 +78,7 @@ $availability = $semService->isAvailable();
 t('isAvailable returns array with gates', isset($availability['gates']));
 t('isAvailable has setting_enabled gate', array_key_exists('setting_enabled', $availability['gates']));
 t('isAvailable has capability_registered gate', array_key_exists('capability_registered', $availability['gates']));
+t('isAvailable has service_reachable gate', array_key_exists('service_reachable', $availability['gates']));
 t('isAvailable has plan_enabled gate', array_key_exists('plan_enabled', $availability['gates']));
 
 // ── SemanticService::health() — offline behavior ──
@@ -160,6 +161,7 @@ t('app.py implements /health endpoint', str_contains($pythonApp, '/health'));
 t('app.py has capability handler map', str_contains($pythonApp, 'CAPABILITY_HANDLERS'));
 t('app.py has auth token validation', str_contains($pythonApp, 'AUTH_TOKEN'));
 t('app.py has semantic.compare@1 handler', str_contains($pythonApp, 'semantic.compare@1'));
+t('app.py accepts payload Groq API key', str_contains($pythonApp, 'model_profile.get("api_key"') && str_contains($pythonApp, 'api_key or os.environ.get("SEMANTIC_API_KEY")'));
 
 // ── Requirements File ──
 

@@ -31,11 +31,13 @@
             <div><span class="text-sm text-gray-500">Submitted</span><p class="font-semibold">{submission.submitted_at}</p></div>
         </div>
 
-        {if submission.status == 'pending'}
+        {if submission.status == 'pending' or submission.status == 'processing' or submission.status == 'failed'}
         <div class="mt-6">
             <form method="POST" action="/api/v1/academic-similarity/submissions/{submission.submission_id}/process">
                 <input type="hidden" name="_token" value="{csrf_token}">
-                <button type="submit" class="bg-brand-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">Process Submission</button>
+                <button type="submit" class="bg-brand-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">
+                    {if submission.status == 'processing'}Restart Processing{else}Process Submission{/if}
+                </button>
             </form>
         </div>
         {/if}

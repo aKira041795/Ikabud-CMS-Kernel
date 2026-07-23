@@ -29,6 +29,7 @@
 
     <form id="aiss-settings-form" method="POST" action="/admin/academic-similarity/settings" class="space-y-6">
         <input type="hidden" name="_token" value="{csrf_token}">
+        <input type="hidden" name="settings_section" value="{settings_section}">
 
         {if settings_section == 'all' or settings_section == 'processing'}
         <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
@@ -116,8 +117,13 @@
                 </div>
                 <div>
                     <label for="semantic_external_api_key_env" class="block text-sm font-medium text-gray-700 mb-1">External AI API Key Env Var</label>
-                    <input type="text" id="semantic_external_api_key_env" name="semantic_external_api_key_env" value="{settings.semantic_external_api_key_env|default:SEMANTIC_API_KEY}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                    <p class="mt-1 text-xs text-gray-500">Reserved for hosted embedding providers; local sentence-transformers does not need an external API key.</p>
+                    <input type="text" id="semantic_external_api_key_env" name="semantic_external_api_key_env" value="{settings.semantic_external_api_key_env|default:SEMANTIC_API_KEY}" placeholder="GROQ_API_KEY" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Optional fallback when no encrypted tenant key is saved.</p>
+                </div>
+                <div>
+                    <label for="semantic_external_api_key" class="block text-sm font-medium text-gray-700 mb-1">External AI API Key</label>
+                    <input type="password" id="semantic_external_api_key" name="semantic_external_api_key" value="" placeholder="{if settings.semantic_external_api_key_configured}Saved: {settings.semantic_external_api_key_masked}{else}Paste API key to save encrypted{/if}" autocomplete="new-password" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Stored encrypted at rest. Leave blank to keep the current key.</p>
                 </div>
                 <div>
                     <label for="semantic_similarity_threshold" class="block text-sm font-medium text-gray-700 mb-1">Semantic Threshold</label>
@@ -137,6 +143,41 @@
             </div>
             {if semantic_status.error}
             <p class="mt-4 text-sm text-yellow-700">{semantic_status.error}</p>
+            <div class="mt-4 flex items-center gap-3">
+                <button onclick="acSimTestSemantic()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">
+                    Test Connection
+                </button>
+                <span id="ac-sim-semantic-result" class="text-sm"></span>
+            </div>
+            <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800">
+                <p class="font-medium mb-1">To start the service:</p>
+                <code class="block bg-blue-100 px-2 py-1 rounded">cd modules/academic-similarity-semantic-service/service && python3 app.py</code>
+            </div>
+            <script>
+            function acSimTestSemantic() {
+                var btn = event.target;
+                var result = document.getElementById('ac-sim-semantic-result');
+                btn.disabled = true;
+                result.textContent = 'Testing...';
+                result.style.color = '#6b7280';
+                fetch('/api/v1/academic-similarity/semantic/health')
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.available) {
+                        result.textContent = '✅ Service is reachable';
+                        result.style.color = '#059669';
+                    } else {
+                        result.textContent = '❌ ' + (d.error || 'Not reachable');
+                        result.style.color = '#dc2626';
+                    }
+                })
+                .catch(function() {
+                    result.textContent = '❌ Connection failed';
+                    result.style.color = '#dc2626';
+                })
+                .finally(function() { btn.disabled = false; });
+            }
+            </script>
             {/if}
         </section>
         {/if}
@@ -221,7 +262,13 @@
                 </div>
                 <div>
                     <label for="internet_check_api_key_env" class="block text-sm font-medium text-gray-700 mb-1">Provider API Key Env Var</label>
-                    <input type="text" id="internet_check_api_key_env" name="internet_check_api_key_env" value="{settings.internet_check_api_key_env|default:AISS_INTERNET_API_KEY}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <input type="text" id="internet_check_api_key_env" name="internet_check_api_key_env" value="{settings.internet_check_api_key_env|default:AISS_INTERNET_API_KEY}" placeholder="GROQ_API_KEY" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Optional fallback when no encrypted tenant key is saved.</p>
+                </div>
+                <div>
+                    <label for="internet_check_api_key" class="block text-sm font-medium text-gray-700 mb-1">Internet Provider API Key</label>
+                    <input type="password" id="internet_check_api_key" name="internet_check_api_key" value="" placeholder="{if settings.internet_check_api_key_configured}Saved: {settings.internet_check_api_key_masked}{else}Paste API key to save encrypted{/if}" autocomplete="new-password" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Stored encrypted at rest. Leave blank to keep the current key.</p>
                 </div>
                 <div>
                     <label for="internet_check_max_queries" class="block text-sm font-medium text-gray-700 mb-1">Max Queries</label>
