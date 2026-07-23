@@ -4,12 +4,16 @@ declare(strict_types=1);
 class AcademicSimilarityMatchingService
 {
     private string $tenantId;
-    private \Ikabud\Kernel\Contracts\ModuleDB $db;
+    private ?\Ikabud\Kernel\Contracts\ModuleDB $db = null;
     private int $minMatchWordThreshold;
 
     public function __construct(string $tenantId, int $minMatchWordThreshold = 5) {
         $this->tenantId = $tenantId;
-        $this->db = academic_similarity_db();
+        try {
+            $this->db = academic_similarity_db();
+        } catch (\Throwable $e) {
+            $this->db = null;
+        }
         $this->minMatchWordThreshold = $minMatchWordThreshold;
     }
 
@@ -490,74 +494,220 @@ class AcademicSimilarityMatchingService
         // Sort submission positions
         ksort($subPositions);
 
-        // Merge contiguous runs
-        $runs = [];
-        $currentRun = null;
+        // Use Smith-Waterman local alignment for each fingerprint-hit region
+        $results = [];
+        $processed = []; // Track processed submission positions to avoid overlap
 
+        // Group positions into regions (a fingerprint hit cluster)
+        $regions = [];
+        $currentRegion = null;
         foreach ($subPositions as $subPos => $srcPos) {
-            if ($currentRun === null) {
-                $currentRun = ['sub_start' => $subPos, 'sub_end' => $subPos, 'src_start' => $srcPos, 'src_end' => $srcPos, 'length' => 1];
+            if ($currentRegion === null) {
+                $currentRegion = ['sub_start' => $subPos, 'sub_end' => $subPos, 'src_start' => $srcPos, 'src_end' => $srcPos];
             } else {
-                // Check if this position is contiguous with the current run
-                $expectedSub = $currentRun['sub_end'] + 1;
-                $expectedSrc = $currentRun['src_end'] + 1;
-
+                $expectedSub = $currentRegion['sub_end'] + 1;
+                $expectedSrc = $currentRegion['src_end'] + 1;
                 if ($subPos === $expectedSub && $srcPos === $expectedSrc) {
-                    $currentRun['sub_end'] = $subPos;
-                    $currentRun['src_end'] = $srcPos;
-                    $currentRun['length']++;
+                    $currentRegion['sub_end'] = $subPos;
+                    $currentRegion['src_end'] = $srcPos;
                 } else {
-                    // End current run, start new
-                    if ($currentRun['length'] >= $this->minMatchWordThreshold) {
-                        $runs[] = $currentRun;
-                    }
-                    $currentRun = ['sub_start' => $subPos, 'sub_end' => $subPos, 'src_start' => $srcPos, 'src_end' => $srcPos, 'length' => 1];
+                    $regions[] = $currentRegion;
+                    $currentRegion = ['sub_start' => $subPos, 'sub_end' => $subPos, 'src_start' => $srcPos, 'src_end' => $srcPos];
+                }
+            }
+        }
+        if ($currentRegion !== null) {
+            $regions[] = $currentRegion;
+        }
+
+        // Run Smith-Waterman on each region's window
+        $windowPadding = 200;
+        foreach ($regions as $region) {
+            $swResult = $this->smithWatermanAlignment(
+                $subWords, $srcWords,
+                $region,
+                $windowPadding
+            );
+
+            if ($swResult !== null && $swResult['length'] >= $this->minMatchWordThreshold) {
+                $subText = $this->extractWordRange($subWords, $swResult['sub_start'], $swResult['sub_end']);
+                $srcText = $this->extractWordRange($srcWords, $swResult['src_start'], $swResult['src_end']);
+
+                $evidence = [[
+                    'submission_text' => $subText,
+                    'source_text' => $srcText,
+                    'submission_start_offset' => $swResult['sub_start'],
+                    'submission_end_offset' => $swResult['sub_end'],
+                    'source_start_offset' => $swResult['src_start'],
+                    'source_end_offset' => $swResult['src_end'],
+                ]];
+
+                // Confidence from alignment quality
+                $alignmentQuality = $swResult['alignment_score'] / max(1, $swResult['max_possible_score']);
+                $confidence = min(1.0, max(0.1, $alignmentQuality));
+
+                $results[] = new AcademicSimilarityMatchResult([
+                    'submission_id' => $submissionId,
+                    'source_id' => $sourceId,
+                    'match_type' => $matchType,
+                    'confidence' => $confidence,
+                    'submission_segment_id' => null,
+                    'source_segment_id' => null,
+                    'matched_word_count' => $swResult['length'],
+                    'submission_word_range_start' => $swResult['sub_start'],
+                    'submission_word_range_end' => $swResult['sub_end'],
+                    'source_word_range_start' => $swResult['src_start'],
+                    'source_word_range_end' => $swResult['src_end'],
+                    'segment_match_count' => count($regions),
+                    'evidence' => $evidence,
+                    'gap_count' => $swResult['gaps'],
+                    'insertion_count' => $swResult['insertions'],
+                ]);
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Smith-Waterman local alignment on a ±window word range.
+     *
+     * Implements affine-gap Smith-Waterman to find the optimal local alignment
+     * between a submission word window and a source word window. Handles gaps,
+     * insertions, and transpositions naturally — replacing the old position-
+     * contiguity heuristic with proper sequence alignment.
+     *
+     * Scoring: match=+2, mismatch=-2, gap_open=-3, gap_extend=-1
+     *
+     * @param array $subWords Flat word index for submission
+     * @param array $srcWords Flat word index for source
+     * @param array $region ['sub_start','sub_end','src_start','src_end']
+     * @param int $padding Extra words to include on each side of the region
+     * @return array{sub_start: int, sub_end: int, src_start: int, src_end: int, length: int, alignment_score: float, max_possible_score: float, gaps: int, insertions: int}|null
+     */
+    public function smithWatermanAlignment(array $subWords, array $srcWords, array $region, int $padding = 200): ?array
+    {
+        $subTotal = count($subWords);
+        $srcTotal = count($srcWords);
+
+        // Extract windows with padding
+        $swStart = max(0, $region['sub_start'] - $padding);
+        $swEnd = min($subTotal - 1, $region['sub_end'] + $padding);
+        $srcWinStart = max(0, $region['src_start'] - $padding);
+        $srcWinEnd = min($srcTotal - 1, $region['src_end'] + $padding);
+
+        $windowA = array_slice($subWords, $swStart, $swEnd - $swStart + 1);
+        $windowB = array_slice($srcWords, $srcWinStart, $srcWinEnd - $srcWinStart + 1);
+
+        $lenA = count($windowA);
+        $lenB = count($windowB);
+
+        if ($lenA < 3 || $lenB < 3) {
+            return null;
+        }
+
+        // Smith-Waterman with affine gaps (Gotoh)
+        $matchScore = 2;
+        $mismatchScore = -2;
+        $gapOpen = -3;
+        $gapExtend = -1;
+
+        // DP matrices: H = main, E = gap in A, F = gap in B
+        $H = array_fill(0, $lenA + 1, array_fill(0, $lenB + 1, 0.0));
+        $E = array_fill(0, $lenA + 1, array_fill(0, $lenB + 1, 0.0));
+        $F = array_fill(0, $lenA + 1, array_fill(0, $lenB + 1, 0.0));
+
+        $maxScore = 0.0;
+        $maxI = 0;
+        $maxJ = 0;
+
+        for ($i = 1; $i <= $lenA; $i++) {
+            for ($j = 1; $j <= $lenB; $j++) {
+                // Match/mismatch score
+                $isMatch = ($windowA[$i - 1] === $windowB[$j - 1]);
+                $diagScore = $isMatch ? $matchScore : $mismatchScore;
+
+                // Gap in A (submission word missing in source)
+                $eOpen = $H[$i][$j - 1] + $gapOpen;
+                $eExt = $E[$i][$j - 1] + $gapExtend;
+                $E[$i][$j] = max($eOpen, $eExt);
+
+                // Gap in B (source word missing in submission = insertion)
+                $fOpen = $H[$i - 1][$j] + $gapOpen;
+                $fExt = $F[$i - 1][$j] + $gapExtend;
+                $F[$i][$j] = max($fOpen, $fExt);
+
+                // Main cell
+                $hDiag = $H[$i - 1][$j - 1] + $diagScore;
+                $hE = $E[$i][$j];
+                $hF = $F[$i][$j];
+                $H[$i][$j] = max(0.0, $hDiag, $hE, $hF);
+
+                if ($H[$i][$j] > $maxScore) {
+                    $maxScore = $H[$i][$j];
+                    $maxI = $i;
+                    $maxJ = $j;
                 }
             }
         }
 
-        // Don't forget the last run
-        if ($currentRun !== null && $currentRun['length'] >= $this->minMatchWordThreshold) {
-            $runs[] = $currentRun;
+        if ($maxScore <= 0) {
+            return null;
         }
 
-        // Convert runs to MatchResult objects
-        $results = [];
-        foreach ($runs as $run) {
-            // Build evidence
-            $evidence = [];
-            $subText = $this->extractWordRange($subWords, $run['sub_start'], $run['sub_end']);
-            $srcText = $this->extractWordRange($srcWords, $run['src_start'], $run['src_end']);
+        // Traceback
+        $i = $maxI;
+        $j = $maxJ;
+        $alignedLen = 0;
+        $gaps = 0;
+        $insertions = 0;
 
-            $evidence[] = [
-                'submission_text' => $subText,
-                'source_text' => $srcText,
-                'submission_start_offset' => $run['sub_start'],
-                'submission_end_offset' => $run['sub_end'],
-                'source_start_offset' => $run['src_start'],
-                'source_end_offset' => $run['src_end'],
-            ];
+        while ($i > 0 && $j > 0 && $H[$i][$j] > 0) {
+            $currentScore = $H[$i][$j];
 
-            $confidence = $run['length'] / max(1, $run['length'] + 1); // Higher confidence for longer runs
+            // Check which direction we came from
+            $fromDiag = $H[$i - 1][$j - 1];
+            $fromUp = $F[$i - 1][$j]; // Gap in B
+            $fromLeft = $E[$i][$j - 1]; // Gap in A
 
-            $results[] = new AcademicSimilarityMatchResult([
-                'submission_id' => $submissionId,
-                'source_id' => $sourceId,
-                'match_type' => $matchType,
-                'confidence' => min(1.0, $confidence + 0.5),
-                'submission_segment_id' => null,
-                'source_segment_id' => null,
-                'matched_word_count' => $run['length'],
-                'submission_word_range_start' => $run['sub_start'],
-                'submission_word_range_end' => $run['sub_end'],
-                'source_word_range_start' => $run['src_start'],
-                'source_word_range_end' => $run['src_end'],
-                'segment_match_count' => count($runs),
-                'evidence' => $evidence,
-            ]);
+            $isMatch = ($windowA[$i - 1] === $windowB[$j - 1]);
+            $diagExpected = $fromDiag + ($isMatch ? $matchScore : $mismatchScore);
+
+            if (abs($currentScore - $diagExpected) < 0.001) {
+                // Diagonal move (match or mismatch)
+                if (!$isMatch) {
+                    $gaps++;
+                }
+                $alignedLen++;
+                $i--;
+                $j--;
+            } elseif ($currentScore === $fromLeft + ($currentScore > $fromLeft ? $gapExtend : $gapOpen)) {
+                // Gap in A (insertion in submission)
+                $insertions++;
+                $j--;
+            } else {
+                // Gap in B (deletion in submission)
+                $gaps++;
+                $i--;
+            }
         }
 
-        return $results;
+        $alignedStartA = $i; // Position in window A where alignment starts
+        $alignedStartB = $j;
+
+        $maxPossibleScore = $alignedLen * $matchScore;
+
+        return [
+            'sub_start' => $swStart + $alignedStartA,
+            'sub_end' => $swStart + $maxI - 1,
+            'src_start' => $srcWinStart + $alignedStartB,
+            'src_end' => $srcWinStart + $maxJ - 1,
+            'length' => $alignedLen,
+            'alignment_score' => $maxScore,
+            'max_possible_score' => $maxPossibleScore > 0 ? $maxPossibleScore : 1.0,
+            'gaps' => $gaps,
+            'insertions' => $insertions,
+        ];
     }
 
     /**

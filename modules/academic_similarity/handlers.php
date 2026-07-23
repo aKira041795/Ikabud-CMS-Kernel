@@ -305,10 +305,42 @@ function pageReportDetail(array $params = []): void
     $report['author_name'] = $submission['author_name'] ?? '';
     $report['raw_similarity_score'] = $report['raw_score'] ?? null;
     $report['adjusted_similarity_score'] = $report['adjusted_score'] ?? null;
+    $report['weighted_raw_score'] = $report['weighted_raw_score'] ?? null;
+    $report['weighted_adjusted_score'] = $report['weighted_adjusted_score'] ?? null;
     $report['match_count'] = $report['total_matches'] ?? count($matches);
     $report['source_count'] = count(array_unique(array_map(static fn(array $m): int => (int)($m['source_id'] ?? 0), $matches)));
     $report['word_count'] = $submission['word_count'] ?? $report['total_eligible_words'] ?? 0;
     $report['summary'] = $report['summary'] ?? '';
+
+    // Build source breakdown with names
+    $scoringService = new \AcademicSimilarityScoringService($tenantId);
+    $matchResults = [];
+    foreach ($matches as $match) {
+        $evidence = $matchRepo->getEvidence((int)$match['id']);
+        $matchResults[] = new AcademicSimilarityMatchResult([
+            'submission_id' => (int)$match['submission_id'],
+            'source_id' => (int)$match['source_id'],
+            'match_type' => $match['match_type'],
+            'confidence' => (float)$match['match_confidence'],
+            'matched_word_count' => (int)$match['matched_word_count'],
+            'submission_word_range_start' => (int)$match['submission_word_range_start'],
+            'submission_word_range_end' => (int)$match['submission_word_range_end'],
+            'source_word_range_start' => (int)$match['source_word_range_start'],
+            'source_word_range_end' => (int)$match['source_word_range_end'],
+            'segment_match_count' => (int)$match['segment_match_count'],
+            'evidence' => $evidence,
+        ]);
+    }
+    $sourceBreakdown = $scoringService->buildSourceBreakdown($matchResults);
+    // Attach source names
+    foreach ($sourceBreakdown as &$sb) {
+        $sid = $sb['source_id'];
+        $sb['source_name'] = $sourceCache[$sid]['title'] ?? $sourceCache[$sid]['name'] ?? "Source #{$sid}";
+        $totalWords = $report['word_count'] > 0 ? $report['word_count'] : 1;
+        $sb['percentage'] = round(($sb['matched_words'] / $totalWords) * 100, 1);
+    }
+    unset($sb);
+    $report['source_breakdown'] = $sourceBreakdown;
 
     // Build evidence map
     $evidenceMap = [];
