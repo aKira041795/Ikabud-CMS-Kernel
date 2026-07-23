@@ -16,6 +16,7 @@
  *   php ikabud module:list               List all modules and their status
  *   php ikabud module:enable <id>        Enable a module
  *   php ikabud module:disable <id>       Disable a module
+ *   php ikabud module:status <id>        Show detailed module status and diagnostics
  *   php ikabud module:check-boundaries   Enforce module boundary rules
  *   php ikabud capability:validate       Validate capability versions and schemas
  *   php ikabud event:list                List registered event listeners
@@ -806,6 +807,7 @@ switch ($command) {
         out('    ' . green('module:list') . '                 List all modules');
         out('    ' . green('module:enable') . ' <id>          Enable a module');
         out('    ' . green('module:disable') . ' <id>         Disable a module');
+        out('    ' . green('module:status') . ' <id>        Show detailed module diagnostics');
         out('    ' . green('module:pack') . ' <id> [zip]     Create an installable module zip');
         out('    ' . green('module:uninstall') . ' <id>       Remove module files and disable it');
         out('    ' . green('module:validate') . ' <id>         Full compliance check (manifest, capabilities, routes, tables, migrations)');
@@ -3791,6 +3793,91 @@ MD;
         } else {
             disableModule($moduleId);
             out(yellow("  ✓ Module '{$moduleId}' disabled."));
+        }
+        break;
+
+    // ── module:status ─────────────────────────────────────────────
+    case 'module:status':
+        banner();
+        $moduleId = $params[0] ?? '';
+        if ($moduleId === '') {
+            out(red('  ✗ Module ID required.'));
+            out('  Usage: php ikabud module:status <module-id>');
+            exit(1);
+        }
+        $modules = discoverModules();
+        if (!isset($modules[$moduleId])) {
+            out(red("  ✗ Module '{$moduleId}' not found in discovery."));
+            out('  Run ' . green('php ikabud module:list') . ' to see available modules.');
+            exit(1);
+        }
+        $manifest = $modules[$moduleId];
+        $enabled = !empty($manifest['_enabled']);
+
+        out('  ' . bold('Module Status: ' . $moduleId));
+        out('  ' . str_repeat('─', 60));
+        out('  ' . bold('Name:      ') . ($manifest['name'] ?? '-'));
+        out('  ' . bold('Version:   ') . ($manifest['version'] ?? '-'));
+        out('  ' . bold('Path:      ') . ($manifest['_path'] ?? '-'));
+        out('  ' . bold('Enabled:   ') . ($enabled ? green('YES') : red('NO')));
+        out('  ' . bold('Depends:   ') . (empty($manifest['depends']) ? dim('(none)') : implode(', ', (array)$manifest['depends'])));
+        out('');
+
+        // Capability manifest validation
+        $capCheck = validateModuleCapabilities($manifest);
+        out('  ' . bold('Capability Manifest:'));
+        if (empty($capCheck['ok'])) {
+            out('    ' . red('✗ INVALID') . ' — ' . ($capCheck['error'] ?? 'unknown'));
+        } else {
+            out('    ' . green('✓ Valid'));
+            $exposes = $capCheck['exposes'] ?? [];
+            $depends = $capCheck['depends'] ?? [];
+            out('    ' . bold('Exposes: ') . (empty($exposes) ? dim('(none)') : ''));
+            foreach ($exposes as $exp) {
+                $capId = is_array($exp) ? ($exp['id'] ?? '?') : $exp;
+                out('      • ' . $capId);
+            }
+            out('    ' . bold('Depends: ') . (empty($depends) ? dim('(none)') : ''));
+            foreach ($depends as $dep) {
+                $satisfied = app()->capabilities()->has($dep);
+                out('      • ' . $dep . '  ' . ($satisfied ? green('✓ registered') : red('✗ not registered')));
+            }
+        }
+        out('');
+
+        // Check if skipped and why
+        $skipped = getSkippedModules();
+        if (isset($skipped[$moduleId])) {
+            $skip = $skipped[$moduleId];
+            out('  ' . red('✗ MODULE WAS SKIPPED'));
+            out('  ' . bold('  Reason:  ') . $skip['reason']);
+            if (!empty($skip['context'])) {
+                foreach ($skip['context'] as $k => $v) {
+                    $val = is_array($v) ? json_encode($v) : (string)$v;
+                    out('  ' . bold("  {$k}: ") . $val);
+                }
+            }
+        } elseif ($enabled) {
+            out('  ' . green('✓ Module loaded successfully (no skip recorded).'));
+        } else {
+            out('  ' . yellow('⚠ Module is disabled — enable with: php ikabud module:enable ' . $moduleId));
+        }
+        out('');
+
+        // Module-level migration status (if tenant context available)
+        try {
+            $runner = new MigrationRunner(app()->db());
+            $statuses = $runner->status($moduleId);
+            if (!empty($statuses)) {
+                out('  ' . bold('Migrations (global):'));
+                foreach ($statuses as $s) {
+                    $mark = ($s['applied'] ?? false) ? green('✓') : dim('○');
+                    out("    {$mark} {$s['migration']}");
+                }
+                out('');
+            }
+        } catch (\Throwable $e) {
+            // Non-fatal — migration check is best-effort
         }
         break;
 

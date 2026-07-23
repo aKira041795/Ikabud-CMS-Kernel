@@ -1,0 +1,374 @@
+{extends "modules/academic-similarity/layouts/admin"}
+
+{block "title"}Configuration{/block}
+
+{block "content"}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col gap-4 mb-6 md:flex-row md:items-center md:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Configuration</h1>
+            <p class="text-sm text-gray-500">Processing, reports, semantic matching, and CMS publishing flow.</p>
+        </div>
+        <button type="submit" form="aiss-settings-form" class="inline-flex w-fit items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm ring-1 ring-emerald-700 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">Save Settings</button>
+        <div class="flex flex-wrap gap-2">
+            <a href="/admin/academic-similarity/settings" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'all'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">All</a>
+            <a href="/admin/academic-similarity/settings/processing" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'processing'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Processing</a>
+            <a href="/admin/academic-similarity/settings/reports" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'reports'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Reports</a>
+            <a href="/admin/academic-similarity/settings/sources" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'sources'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Sources</a>
+            <a href="/admin/academic-similarity/settings/semantic" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'semantic'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Semantic</a>
+            <a href="/admin/academic-similarity/settings/internet" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'internet'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">Internet</a>
+            <a href="/admin/academic-similarity/settings/cms" class="px-3 py-2 rounded-md text-sm font-medium {if settings_section == 'cms'}bg-brand-600 text-white{else}bg-white border border-gray-200 text-gray-700{/if}">CMS Flow</a>
+        </div>
+    </div>
+
+    {if saved}
+    <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <p class="text-sm text-green-700">Settings saved successfully.</p>
+    </div>
+    {/if}
+
+    <form id="aiss-settings-form" method="POST" action="/admin/academic-similarity/settings" class="space-y-6">
+        <input type="hidden" name="_token" value="{csrf_token}">
+        <input type="hidden" name="settings_section" value="{settings_section}">
+
+        {if settings_section == 'all' or settings_section == 'processing'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Processing Configuration</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="enabled" value="1" {if settings.enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable Academic Similarity</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="exact_match_enabled" value="1" {if settings.exact_match_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable exact matching</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="near_match_enabled" value="1" {if settings.near_match_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable near-exact matching</span>
+                </label>
+                <div>
+                    <label for="similarity_threshold" class="block text-sm font-medium text-gray-700 mb-1">Similarity Threshold (%)</label>
+                    <input type="number" id="similarity_threshold" name="similarity_threshold" value="{settings.similarity_threshold|default:70}" min="0" max="100" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="min_match_length" class="block text-sm font-medium text-gray-700 mb-1">Minimum Match Length (words)</label>
+                    <input type="number" id="min_match_length" name="min_match_length" value="{settings.min_match_length|default:5}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="fingerprint_shingle_size" class="block text-sm font-medium text-gray-700 mb-1">Shingle Size (words)</label>
+                    <input type="number" id="fingerprint_shingle_size" name="fingerprint_shingle_size" value="{settings.fingerprint_shingle_size|default:5}" min="2" max="20" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="near_match_threshold" class="block text-sm font-medium text-gray-700 mb-1">Near-Match Threshold</label>
+                    <input type="number" step="0.01" id="near_match_threshold" name="near_match_threshold" value="{settings.near_match_threshold|default:0.8}" min="0" max="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="processing_batch_size" class="block text-sm font-medium text-gray-700 mb-1">Batch Processing Size</label>
+                    <input type="number" id="processing_batch_size" name="processing_batch_size" value="{settings.processing_batch_size|default:10}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="max_sources_per_comparison" class="block text-sm font-medium text-gray-700 mb-1">Max Sources Per Comparison</label>
+                    <input type="number" id="max_sources_per_comparison" name="max_sources_per_comparison" value="{settings.max_sources_per_comparison|default:100}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+            </div>
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'semantic'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <div class="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
+                <h2 class="text-lg font-semibold text-gray-900">Semantic Matching Service</h2>
+                <span class="inline-flex w-fit items-center px-3 py-1 rounded-full text-xs font-medium {if semantic_status.ok}bg-green-100 text-green-800{else}bg-yellow-100 text-yellow-800{/if}">
+                    {if semantic_status.ok}Available{else}Needs configuration{/if}
+                </span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="semantic_match_enabled" value="1" {if settings.semantic_match_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable semantic matching when plan and privacy gates pass</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="semantic_health_visible" value="1" {if settings.semantic_health_visible}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show semantic service health diagnostics</span>
+                </label>
+                <div>
+                    <label for="semantic_provider" class="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                    <select id="semantic_provider" name="semantic_provider" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="token_overlap" {if settings.semantic_provider == 'token_overlap'}selected{/if}>Token overlap</option>
+                        <option value="tfidf" {if settings.semantic_provider == 'tfidf'}selected{/if}>TF-IDF cosine</option>
+                        <option value="sentence_transformers" {if settings.semantic_provider == 'sentence_transformers'}selected{/if}>Sentence transformers</option>
+                        <option value="groq" {if settings.semantic_provider == 'groq'}selected{/if}>Groq LLM judge</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="semantic_model_name" class="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
+                    <input type="text" id="semantic_model_name" name="semantic_model_name" value="{settings.semantic_model_name|default:token_overlap}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="semantic_service_endpoint" class="block text-sm font-medium text-gray-700 mb-1">Python Service Endpoint</label>
+                    <input type="url" id="semantic_service_endpoint" name="semantic_service_endpoint" value="{settings.semantic_service_endpoint|default:http://127.0.0.1:9003}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Kernel ServiceProxy calls this service at /capability/call.</p>
+                </div>
+                <div>
+                    <label for="semantic_service_token_env" class="block text-sm font-medium text-gray-700 mb-1">Service Token Env Var</label>
+                    <input type="text" id="semantic_service_token_env" name="semantic_service_token_env" value="{settings.semantic_service_token_env|default:SEMANTIC_SERVICE_TOKEN}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Store the token in the server environment; do not paste secrets here.</p>
+                </div>
+                <div>
+                    <label for="semantic_external_api_key_env" class="block text-sm font-medium text-gray-700 mb-1">External AI API Key Env Var</label>
+                    <input type="text" id="semantic_external_api_key_env" name="semantic_external_api_key_env" value="{settings.semantic_external_api_key_env|default:SEMANTIC_API_KEY}" placeholder="GROQ_API_KEY" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Optional fallback when no encrypted tenant key is saved.</p>
+                </div>
+                <div>
+                    <label for="semantic_external_api_key" class="block text-sm font-medium text-gray-700 mb-1">External AI API Key</label>
+                    <input type="password" id="semantic_external_api_key" name="semantic_external_api_key" value="" placeholder="{if settings.semantic_external_api_key_configured}Saved: {settings.semantic_external_api_key_masked}{else}Paste API key to save encrypted{/if}" autocomplete="new-password" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Stored encrypted at rest. Leave blank to keep the current key.</p>
+                </div>
+                <div>
+                    <label for="semantic_similarity_threshold" class="block text-sm font-medium text-gray-700 mb-1">Semantic Threshold</label>
+                    <input type="number" step="0.01" id="semantic_similarity_threshold" name="semantic_similarity_threshold" value="{settings.semantic_similarity_threshold|default:0.70}" min="0" max="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="semantic_max_segments" class="block text-sm font-medium text-gray-700 mb-1">Max Segments Per Payload</label>
+                    <input type="number" id="semantic_max_segments" name="semantic_max_segments" value="{settings.semantic_max_segments|default:500}" min="50" max="5000" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="semantic_payload_policy" class="block text-sm font-medium text-gray-700 mb-1">Payload Policy</label>
+                    <select id="semantic_payload_policy" name="semantic_payload_policy" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="segments_only" {if settings.semantic_payload_policy == 'segments_only'}selected{/if}>Segments only</option>
+                        <option value="redacted_segments" {if settings.semantic_payload_policy == 'redacted_segments'}selected{/if}>Redacted segments</option>
+                    </select>
+                </div>
+            </div>
+            {if semantic_status.error}
+            <p class="mt-4 text-sm text-yellow-700">{semantic_status.error}</p>
+            <div class="mt-4 flex items-center gap-3">
+                <button onclick="acSimTestSemantic()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">
+                    Test Connection
+                </button>
+                <span id="ac-sim-semantic-result" class="text-sm"></span>
+            </div>
+            <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-800">
+                <p class="font-medium mb-1">To start the service:</p>
+                <code class="block bg-blue-100 px-2 py-1 rounded">cd modules/academic-similarity-semantic-service/service && python3 app.py</code>
+            </div>
+            <script>
+            function acSimTestSemantic() {
+                var btn = event.target;
+                var result = document.getElementById('ac-sim-semantic-result');
+                btn.disabled = true;
+                result.textContent = 'Testing...';
+                result.style.color = '#6b7280';
+                fetch('/api/v1/academic-similarity/semantic/health')
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.available) {
+                        result.textContent = '✅ Service is reachable';
+                        result.style.color = '#059669';
+                    } else {
+                        result.textContent = '❌ ' + (d.error || 'Not reachable');
+                        result.style.color = '#dc2626';
+                    }
+                })
+                .catch(function() {
+                    result.textContent = '❌ Connection failed';
+                    result.style.color = '#dc2626';
+                })
+                .finally(function() { btn.disabled = false; });
+            }
+            </script>
+            {/if}
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'reports'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Report Configuration</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="report_include_highlights" value="1" {if settings.report_include_highlights}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Include highlighted passages in reports</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="report_include_source_breakdown" value="1" {if settings.report_include_source_breakdown}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Include source breakdown in reports</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="auto_generate_reports" value="1" {if settings.auto_generate_reports}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Automatically generate reports after processing</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="notify_on_completion" value="1" {if settings.notify_on_completion}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Send notification when processing completes</span>
+                </label>
+            </div>
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'sources'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Source Management</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="max_file_size_mb" class="block text-sm font-medium text-gray-700 mb-1">Submission Max Upload Size (MB)</label>
+                    <input type="number" id="max_file_size_mb" name="max_file_size_mb" value="{settings.max_file_size_mb|default:20}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="max_upload_size" class="block text-sm font-medium text-gray-700 mb-1">Source Max Upload Size (MB)</label>
+                    <input type="number" id="max_upload_size" name="max_upload_size" value="{settings.max_upload_size|default:50}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="allowed_extensions" class="block text-sm font-medium text-gray-700 mb-1">Submission File Extensions</label>
+                    <input type="text" id="allowed_extensions" name="allowed_extensions" value="{settings.allowed_extensions|default:docx,pdf,txt}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="allowed_file_types" class="block text-sm font-medium text-gray-700 mb-1">Source File Types</label>
+                    <input type="text" id="allowed_file_types" name="allowed_file_types" value="{settings.allowed_file_types|default:.pdf,.docx,.txt,.md}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="max_word_count" class="block text-sm font-medium text-gray-700 mb-1">Maximum Word Count</label>
+                    <input type="number" id="max_word_count" name="max_word_count" value="{settings.max_word_count|default:50000}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="retention_days" class="block text-sm font-medium text-gray-700 mb-1">Default Retention Days</label>
+                    <input type="number" id="retention_days" name="retention_days" value="{settings.retention_days|default:365}" min="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+            </div>
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'internet'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <div class="mb-4 flex flex-col gap-2">
+                <h2 class="text-lg font-semibold text-gray-900">AI Internet Check</h2>
+                <p class="text-sm text-gray-500">Opt-in bounded public source discovery. Results disclose provider limits and are not a comprehensive internet search.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_enabled" value="1" {if settings.internet_check_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable AI-assisted internet checking</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_auto_run_when_no_sources" value="1" {if settings.internet_check_auto_run_when_no_sources}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Auto-run when local indexed sources are unavailable</span>
+                </label>
+                <div>
+                    <label for="internet_check_provider" class="block text-sm font-medium text-gray-700 mb-1">Discovery Provider</label>
+                    <select id="internet_check_provider" name="internet_check_provider" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="capability" {if settings.internet_check_provider == 'capability'}selected{/if}>Provider capability</option>
+                        <option value="seed_urls" {if settings.internet_check_provider == 'seed_urls'}selected{/if}>Configured seed URLs</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="internet_check_api_key_env" class="block text-sm font-medium text-gray-700 mb-1">Provider API Key Env Var</label>
+                    <input type="text" id="internet_check_api_key_env" name="internet_check_api_key_env" value="{settings.internet_check_api_key_env|default:AISS_INTERNET_API_KEY}" placeholder="GROQ_API_KEY" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Optional fallback when no encrypted tenant key is saved.</p>
+                </div>
+                <div>
+                    <label for="internet_check_api_key" class="block text-sm font-medium text-gray-700 mb-1">Internet Provider API Key</label>
+                    <input type="password" id="internet_check_api_key" name="internet_check_api_key" value="" placeholder="{if settings.internet_check_api_key_configured}Saved: {settings.internet_check_api_key_masked}{else}Paste API key to save encrypted{/if}" autocomplete="new-password" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Stored encrypted at rest. Leave blank to keep the current key.</p>
+                </div>
+                <div>
+                    <label for="internet_check_max_queries" class="block text-sm font-medium text-gray-700 mb-1">Max Queries</label>
+                    <input type="number" id="internet_check_max_queries" name="internet_check_max_queries" value="{settings.internet_check_max_queries|default:3}" min="1" max="10" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_max_sources" class="block text-sm font-medium text-gray-700 mb-1">Max Sources</label>
+                    <input type="number" id="internet_check_max_sources" name="internet_check_max_sources" value="{settings.internet_check_max_sources|default:5}" min="1" max="25" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_max_chars_per_source" class="block text-sm font-medium text-gray-700 mb-1">Max Retrieved Characters Per Source</label>
+                    <input type="number" id="internet_check_max_chars_per_source" name="internet_check_max_chars_per_source" value="{settings.internet_check_max_chars_per_source|default:12000}" min="1000" max="100000" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="internet_check_payload_policy" class="block text-sm font-medium text-gray-700 mb-1">Payload Policy</label>
+                    <select id="internet_check_payload_policy" name="internet_check_payload_policy" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="snippets_only" {if settings.internet_check_payload_policy == 'snippets_only'}selected{/if}>Snippets only</option>
+                        <option value="phrases_only" {if settings.internet_check_payload_policy == 'phrases_only'}selected{/if}>Distinctive phrases only</option>
+                    </select>
+                </div>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_allow_full_document_query" value="1" {if settings.internet_check_allow_full_document_query}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Allow longer query text from documents</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="internet_check_store_retrieved_text" value="1" {if settings.internet_check_store_retrieved_text}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Store bounded retrieved text for reproducible evidence</span>
+                </label>
+                <div class="md:col-span-2">
+                    <label for="internet_check_seed_urls" class="block text-sm font-medium text-gray-700 mb-1">Seed URLs</label>
+                    <textarea id="internet_check_seed_urls" name="internet_check_seed_urls" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{settings.internet_check_seed_urls}</textarea>
+                    <p class="mt-1 text-xs text-gray-500">One URL per line or comma-separated. Used for deterministic testing or curated public-source providers.</p>
+                </div>
+            </div>
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'cms'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">CMS Publishing Flow</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="cms_public_submission_enabled" value="1" {if settings.cms_public_submission_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable public submission shortcode rendering</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="cms_builder_block_enabled" value="1" {if settings.cms_builder_block_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show page builder Similarity Check Form block</span>
+                </label>
+                <div>
+                    <label for="cms_submission_shortcode" class="block text-sm font-medium text-gray-700 mb-1">Submission Shortcode</label>
+                    <input type="text" id="cms_submission_shortcode" name="cms_submission_shortcode" value="{settings.cms_submission_shortcode|default:academic_similarity_submission}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="cms_default_submission_title" class="block text-sm font-medium text-gray-700 mb-1">Default Form Title</label>
+                    <input type="text" id="cms_default_submission_title" name="cms_default_submission_title" value="{settings.cms_default_submission_title|default:Submit Document for Similarity Check}" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                </div>
+            </div>
+        </section>
+        {/if}
+
+        {if settings_section == 'all' or settings_section == 'cms'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Public Report Workspace</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_workspace_enabled" value="1" {if settings.public_report_workspace_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable public report workspace for logged-in users</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_download_enabled" value="1" {if settings.public_report_download_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable report download for users</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_show_raw_score" value="1" {if settings.public_report_show_raw_score}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show raw similarity score in public reports</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_show_source_names" value="1" {if settings.public_report_show_source_names}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show source names in public reports</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_show_full_document" value="1" {if settings.public_report_show_full_document}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show full highlighted document (vs. excerpts only)</span>
+                </label>
+                <div>
+                    <label for="public_report_default_mode" class="block text-sm font-medium text-gray-700 mb-1">Default Workspace Mode</label>
+                    <select id="public_report_default_mode" name="public_report_default_mode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="workspace" {if settings.public_report_default_mode == 'workspace'}selected{/if}>Full workspace (form + history + viewer)</option>
+                        <option value="form_only" {if settings.public_report_default_mode == 'form_only'}selected{/if}>Form only</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+        {/if}
+
+        <div class="flex justify-end gap-4">
+            <a href="/admin/academic-similarity" class="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</a>
+            <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm ring-1 ring-emerald-700 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">Save Settings</button>
+        </div>
+    </form>
+</div>
+{/block}

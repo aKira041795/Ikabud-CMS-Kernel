@@ -193,35 +193,12 @@
             {
                 "id": "academic_similarity.internet.discover@1",
                 "priority": 50,
-                "modes": [
-                    "first"
-                ],
-                "description": "Discover internet sources for a submission. Default handler returns empty/disclosure; external provider modules can register at higher priority to supply real search results.",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "tenant_id": {
-                            "type": "string"
-                        },
-                        "queries": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        "max_sources": {
-                            "type": "integer"
-                        },
-                        "payload_policy": {
-                            "type": "string"
-                        }
-                    }
-                }
+                "modes": ["first"],
+                "description": "Discover internet sources for a submission (default handler; external modules can override at higher priority)"
             }
         ],
         "depends": [
-            "kernel.audit.record@1",
-            "academic_similarity.internet.discover@1"
+            "kernel.audit.record@1"
         ]
     },
     "events": {
@@ -305,20 +282,20 @@
             "default": "SEMANTIC_SERVICE_TOKEN",
             "description": "Environment variable containing the ServiceProxy bearer token"
         },
-        {
-            "key": "semantic_external_api_key_env",
-            "type": "text",
-            "label": "External AI API Key Environment Variable",
-            "default": "SEMANTIC_API_KEY",
-            "description": "Optional fallback environment variable when no encrypted tenant key is saved"
-        },
-        {
-            "key": "semantic_external_api_key",
-            "type": "password",
-            "label": "External AI API Key",
-            "default": "",
-            "description": "Stored encrypted at rest. Leave blank to keep the current key."
-        },
+    {
+      "key": "semantic_external_api_key_env",
+      "type": "text",
+      "label": "External AI API Key Environment Variable",
+      "default": "SEMANTIC_API_KEY",
+      "description": "Optional fallback environment variable when no encrypted tenant key is saved"
+    },
+    {
+      "key": "semantic_external_api_key",
+      "type": "password",
+      "label": "External AI API Key",
+      "default": "",
+      "description": "Stored encrypted at rest. Leave blank to keep the current key."
+    },
         {
             "key": "semantic_similarity_threshold",
             "type": "number",
@@ -376,41 +353,41 @@
                 }
             ]
         },
-        {
-            "key": "internet_check_api_key_env",
-            "type": "text",
-            "label": "Internet Provider API Key Environment Variable",
-            "default": "AISS_INTERNET_API_KEY"
-        },
-        {
-            "key": "internet_check_api_key",
-            "type": "password",
-            "label": "Internet Provider API Key",
-            "default": "",
-            "description": "Stored encrypted at rest. Leave blank to keep the current key."
-        },
+    {
+      "key": "internet_check_api_key_env",
+      "type": "text",
+      "label": "Internet Provider API Key Environment Variable",
+      "default": "AISS_INTERNET_API_KEY"
+    },
+    {
+      "key": "internet_check_api_key",
+      "type": "password",
+      "label": "Internet Provider API Key",
+      "default": "",
+      "description": "Stored encrypted at rest. Leave blank to keep the current key."
+    },
         {
             "key": "internet_check_max_queries",
             "type": "number",
             "label": "Max Internet Queries",
             "default": "3"
         },
-        {
-            "key": "internet_check_max_sources",
-            "type": "number",
-            "label": "Max Internet Sources",
-            "default": "5"
-        },
-        {
-            "key": "internet_check_max_chars_per_source",
-            "type": "number",
-            "label": "Max Retrieved Characters Per Source",
-            "default": "12000"
-        },
-        {
-            "key": "internet_check_payload_policy",
-            "type": "select",
-            "label": "Internet Payload Policy",
+    {
+      "key": "internet_check_max_sources",
+      "type": "number",
+      "label": "Max Internet Sources",
+      "default": "5"
+    },
+    {
+      "key": "internet_check_max_chars_per_source",
+      "type": "number",
+      "label": "Max Retrieved Characters Per Source",
+      "default": "12000"
+    },
+    {
+      "key": "internet_check_payload_policy",
+      "type": "select",
+      "label": "Internet Payload Policy",
             "default": "snippets_only",
             "options": [
                 {
@@ -420,37 +397,37 @@
                 {
                     "value": "phrases_only",
                     "label": "Distinctive phrases only"
-                }
-            ]
-        },
-        {
-            "key": "internet_check_auto_run_when_no_sources",
-            "type": "checkbox",
-            "label": "Auto-run Internet Check When Local Sources Are Unavailable",
-            "default": "0"
-        },
-        {
-            "key": "internet_check_allow_full_document_query",
-            "type": "checkbox",
-            "label": "Allow Longer Internet Query Text",
-            "default": "0"
-        },
-        {
-            "key": "internet_check_store_retrieved_text",
-            "type": "checkbox",
-            "label": "Store Retrieved Internet Text",
-            "default": "1"
-        },
-        {
-            "key": "internet_check_seed_urls",
-            "type": "text",
-            "label": "Internet Seed URLs",
-            "default": "",
-            "description": "Comma-separated or line-separated curated URLs for deterministic internet checks"
-        },
-        {
-            "key": "cms_public_submission_enabled",
-            "type": "checkbox",
+        }
+      ]
+    },
+    {
+      "key": "internet_check_auto_run_when_no_sources",
+      "type": "checkbox",
+      "label": "Auto-run Internet Check When Local Sources Are Unavailable",
+      "default": "0"
+    },
+    {
+      "key": "internet_check_allow_full_document_query",
+      "type": "checkbox",
+      "label": "Allow Longer Internet Query Text",
+      "default": "0"
+    },
+    {
+      "key": "internet_check_store_retrieved_text",
+      "type": "checkbox",
+      "label": "Store Retrieved Internet Text",
+      "default": "1"
+    },
+    {
+      "key": "internet_check_seed_urls",
+      "type": "text",
+      "label": "Internet Seed URLs",
+      "default": "",
+      "description": "Comma-separated or line-separated curated URLs for deterministic internet checks"
+    },
+    {
+      "key": "cms_public_submission_enabled",
+      "type": "checkbox",
             "label": "Enable CMS Public Submission",
             "default": "1"
         },
@@ -504,61 +481,61 @@
             "label": "Show Report Links in Public Results",
             "default": "1"
         },
+    {
+      "key": "public_results_allow_anonymous",
+      "type": "checkbox",
+      "label": "Allow Anonymous Submissions",
+      "default": "1",
+      "description": "When disabled, only logged-in users can submit documents"
+    },
+    {
+      "key": "public_report_workspace_enabled",
+      "type": "checkbox",
+      "label": "Enable Public Report Workspace",
+      "default": "1"
+    },
+    {
+      "key": "public_report_download_enabled",
+      "type": "checkbox",
+      "label": "Enable Public Report Download",
+      "default": "1"
+    },
+    {
+      "key": "public_report_show_raw_score",
+      "type": "checkbox",
+      "label": "Show Raw Score in Public Reports",
+      "default": "1"
+    },
+    {
+      "key": "public_report_show_source_names",
+      "type": "checkbox",
+      "label": "Show Source Names in Public Reports",
+      "default": "1"
+    },
+    {
+      "key": "public_report_show_full_document",
+      "type": "checkbox",
+      "label": "Show Full Highlighted Document",
+      "default": "1"
+    },
+    {
+      "key": "public_report_default_mode",
+      "type": "select",
+      "label": "Public Report Default Mode",
+      "default": "workspace",
+      "options": [
         {
-            "key": "public_results_allow_anonymous",
-            "type": "checkbox",
-            "label": "Allow Anonymous Submissions",
-            "default": "1",
-            "description": "When disabled, only logged-in users can submit documents"
+          "value": "workspace",
+          "label": "Workspace"
         },
         {
-            "key": "public_report_workspace_enabled",
-            "type": "checkbox",
-            "label": "Enable Public Report Workspace",
-            "default": "1"
-        },
-        {
-            "key": "public_report_download_enabled",
-            "type": "checkbox",
-            "label": "Enable Public Report Download",
-            "default": "1"
-        },
-        {
-            "key": "public_report_show_raw_score",
-            "type": "checkbox",
-            "label": "Show Raw Score in Public Reports",
-            "default": "1"
-        },
-        {
-            "key": "public_report_show_source_names",
-            "type": "checkbox",
-            "label": "Show Source Names in Public Reports",
-            "default": "1"
-        },
-        {
-            "key": "public_report_show_full_document",
-            "type": "checkbox",
-            "label": "Show Full Highlighted Document",
-            "default": "1"
-        },
-        {
-            "key": "public_report_default_mode",
-            "type": "select",
-            "label": "Public Report Default Mode",
-            "default": "workspace",
-            "options": [
-                {
-                    "value": "workspace",
-                    "label": "Workspace"
-                },
-                {
-                    "value": "form_only",
-                    "label": "Form only"
-                }
-            ]
-        },
-        {
-            "key": "min_word_count",
+          "value": "form_only",
+          "label": "Form only"
+        }
+      ]
+    },
+    {
+      "key": "min_word_count",
             "type": "number",
             "label": "Minimum Word Count",
             "default": "20",

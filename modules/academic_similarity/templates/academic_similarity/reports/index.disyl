@@ -1,0 +1,98 @@
+{extends "modules/academic-similarity/layouts/admin"}
+
+{block "title"}Reports{/block}
+
+{block "content"}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase text-gray-500">Reports</div>
+            <div class="mt-2 text-2xl font-bold text-gray-900">{report_stats.total_reports|default:0}</div>
+            <div class="mt-1 text-xs text-gray-500">{report_stats.generated_today|default:0} generated today</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase text-gray-500">Avg Adjusted</div>
+            <div class="mt-2 text-2xl font-bold text-emerald-700">{report_stats.avg_adjusted_score|default:0}%</div>
+            <div class="mt-1 text-xs text-gray-500">Raw avg {report_stats.avg_raw_score|default:0}%</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase text-gray-500">Highest Score</div>
+            <div class="mt-2 text-2xl font-bold text-amber-700">{report_stats.highest_adjusted_score|default:0}%</div>
+            <div class="mt-1 text-xs text-gray-500">{report_stats.high_risk_reports|default:0} at 50% or higher</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase text-gray-500">Matches</div>
+            <div class="mt-2 text-2xl font-bold text-sky-700">{report_stats.total_matches|default:0}</div>
+            <div class="mt-1 text-xs text-gray-500">{report_stats.matched_word_count|default:0} matched words</div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+            <div class="text-xs font-semibold uppercase text-gray-500">Eligible Words</div>
+            <div class="mt-2 text-2xl font-bold text-gray-900">{report_stats.eligible_word_count|default:0}</div>
+            <div class="mt-1 text-xs text-gray-500">Across listed reports</div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow border border-gray-200">
+        <div class="p-4 border-b border-gray-200">
+            <form method="GET" class="flex gap-4">
+                {if submission_id > 0}<input type="hidden" name="submission_id" value="{submission_id}">{/if}
+                <input type="text" name="search" value="{search_query}" placeholder="Search by submission title..." class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                <select name="sort" class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <option value="newest" {if current_sort == 'newest'}selected{/if}>Newest First</option>
+                    <option value="oldest" {if current_sort == 'oldest'}selected{/if}>Oldest First</option>
+                    <option value="score_high" {if current_sort == 'score_high'}selected{/if}>Highest Score</option>
+                    <option value="score_low" {if current_sort == 'score_low'}selected{/if}>Lowest Score</option>
+                </select>
+                <button type="submit" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Filter</button>
+            </form>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50">
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Submission</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Author</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Words</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Raw Score</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Adjusted Score</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Matches</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Generated</th>
+                        <th class="px-6 py-3 text-left font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {if reports|count > 0}
+                    {for report in reports}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium text-gray-900">{report.submission_title}</td>
+                        <td class="px-6 py-4 text-gray-600">{report.author_name}</td>
+                        <td class="px-6 py-4 text-gray-700">{report.submission_word_count|default:0}</td>
+                        <td class="px-6 py-4 font-semibold text-gray-900">{report.raw_similarity_score|default:0}%</td>
+                        <td class="px-6 py-4 font-semibold text-emerald-700">{report.adjusted_similarity_score|default:0}%</td>
+                        <td class="px-6 py-4 text-gray-700">
+                            <span class="font-semibold">{report.match_count|default:0}</span>
+                            <span class="text-gray-400">/ {report.matched_word_count|default:0} matched words</span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500">{report.generated_at}</td>
+                        <td class="px-6 py-4">
+                            <a href="/admin/academic-similarity/reports/{report.report_id}" class="text-brand-600 hover:text-brand-900 font-medium mr-3">View</a>
+                            <a href="/admin/academic-similarity/reports/{report.report_id}/download" class="text-gray-500 hover:text-gray-700 font-medium">PDF</a>
+                        </td>
+                    </tr>
+                    {/for}
+                    {else}
+                    <tr>
+                        <td colspan="8" class="px-6 py-8 text-center text-gray-500">No reports generated yet. Process a submission to generate a report.</td>
+                    </tr>
+                    {/if}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{/block}

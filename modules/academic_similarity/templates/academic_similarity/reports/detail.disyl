@@ -1,0 +1,267 @@
+{extends "modules/academic-similarity/layouts/admin"}
+
+{block "title"}Report Detail{/block}
+
+{block "content"}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-6 flex justify-between items-center">
+        <div>
+            <a href="/admin/academic-similarity/reports" class="text-brand-600 hover:text-brand-900 text-sm">&larr; Back to Reports</a>
+        </div>
+        <div class="flex gap-3">
+            <a href="/admin/academic-similarity/reports/{report.report_id}/download" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Download PDF</a>
+            <a href="/admin/academic-similarity/submissions/{report.submission_id}" class="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700">View Submission</a>
+        </div>
+    </div>
+
+    <!-- Score Cards -->
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 mb-4">Similarity Report</h1>
+        <p class="text-gray-500 mb-6">for <strong>{report.submission_title}</strong> by {report.author_name}</p>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div class="bg-gray-50 rounded-lg p-4 text-center border border-gray-200">
+                <p class="text-3xl font-bold text-gray-900">{report.raw_similarity_score}{if report.raw_similarity_score !== null}%{/if}</p>
+                <p class="text-xs text-gray-500 uppercase mt-1">Raw Score</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 text-center border border-green-200">
+                <p class="text-3xl font-bold text-green-700">{report.adjusted_similarity_score}{if report.adjusted_similarity_score !== null}%{/if}</p>
+                <p class="text-xs text-green-600 uppercase mt-1">Adjusted Score</p>
+            </div>
+            <div class="bg-blue-50 rounded-lg p-4 text-center border border-blue-200">
+                <p class="text-3xl font-bold text-blue-700">{report.match_count|default:0}</p>
+                <p class="text-xs text-blue-600 uppercase mt-1">Total Matches</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center border border-purple-200">
+                <p class="text-3xl font-bold text-purple-700">{highlight_stats.submission_spans|default:0}</p>
+                <p class="text-xs text-purple-600 uppercase mt-1">Highlighted Spans</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6 text-sm">
+            <div><span class="text-gray-500">Submission ID</span><p class="font-semibold">{report.submission_id}</p></div>
+            <div><span class="text-gray-500">Word Count</span><p class="font-semibold">{report.word_count|default:0}</p></div>
+            <div><span class="text-gray-500">Generated</span><p class="font-semibold">{report.generated_at}</p></div>
+        </div>
+
+        <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+            <p class="font-semibold text-gray-900 mb-2">How to read this report</p>
+            <p>Raw score is the initial matched-text coverage. Adjusted score applies reviewer exclusions such as quotations, bibliography, or approved matches. Matched words show how much eligible text was tied to source evidence.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <div><span class="text-gray-500">Matched words</span><p class="font-semibold">{report.matched_word_count|default:0}</p></div>
+                <div><span class="text-gray-500">Eligible words</span><p class="font-semibold">{report.total_eligible_words|default:0}</p></div>
+                <div><span class="text-gray-500">Excluded matches</span><p class="font-semibold">{report.total_excluded|default:0}</p></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Highlight Legend -->
+    {if highlight_legend|count > 0}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-4 mb-6">
+        <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Highlight Legend</h2>
+        <div class="flex flex-wrap gap-3">
+            {for entry in highlight_legend}
+            <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm {if entry.count == 0}opacity-40{/if}">
+                <span class="inline-block w-4 h-4 rounded {entry.css}"></span>
+                <span class="font-medium text-gray-700">{entry.label}</span>
+                <span class="text-gray-400 text-xs">({entry.count})</span>
+            </div>
+            {/for}
+        </div>
+    </div>
+    {/if}
+
+    <!-- Highlighted Submission Document -->
+    {if highlighted_html}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Highlighted Submission</h2>
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('hl-filters').classList.toggle('hidden')" class="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200">Filters</button>
+            </div>
+        </div>
+        <div id="hl-filters" class="hidden mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200 flex flex-wrap gap-2">
+            {for entry in highlight_legend}
+            <label class="flex items-center gap-1.5 text-xs cursor-pointer">
+                <input type="checkbox" class="hl-filter-checkbox rounded border-gray-300" data-type="{entry.type}" checked {if entry.count == 0}disabled{/if}>
+                <span class="inline-block w-2.5 h-2.5 rounded {entry.css}"></span>
+                {entry.label}
+            </label>
+            {/for}
+        </div>
+        <div class="hl-text-container prose prose-sm max-w-none bg-white border border-gray-100 rounded-lg p-4">
+            {highlighted_html|raw}
+        </div>
+    </div>
+    {/if}
+
+    <!-- Source Highlight Panels -->
+    {if source_panels|count > 0}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Source Comparisons</h2>
+        <div class="space-y-4">
+            {for panel in source_panels}
+            <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden" data-source-id="{panel.source_id}">
+                <div class="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-900 text-sm">{panel.title}</h3>
+                    <span class="text-xs text-gray-500">Source #{panel.source_id}</span>
+                </div>
+                <div class="p-4 hl-source-text prose prose-sm max-w-none">
+                    {panel.html|raw}
+                </div>
+            </div>
+            {/for}
+        </div>
+    </div>
+    {/if}
+
+    <!-- Matched Passages -->
+    {if matched_passages|count > 0}
+    <div class="bg-white rounded-lg shadow border border-gray-200 mb-6">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">Matched Passages ({matched_passages|count})</h2>
+        </div>
+        <div class="divide-y divide-gray-200">
+            {for passage in matched_passages}
+            <div class="p-6 {if passage.is_excluded}opacity-50{/if}">
+                <div class="flex justify-between items-start mb-3">
+                    <div>
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                            {if passage.match_type == 'exact'}bg-red-100 text-red-800
+                            {else if passage.match_type == 'near-exact'}bg-orange-100 text-orange-800
+                            {else if passage.match_type == 'semantic'}bg-yellow-100 text-yellow-800
+                            {else if passage.match_type == 'quotation'}bg-blue-100 text-blue-800
+                            {else}bg-gray-100 text-gray-800{/if}">
+                            {passage.match_type}
+                        </span>
+                        <span class="ml-2 text-sm text-gray-500">{(passage.match_confidence * 100)|round}% confidence</span>
+                    </div>
+                    {if !passage.is_excluded}
+                    <button onclick="excludeMatch({passage.id})" class="text-red-600 hover:text-red-900 text-sm">Exclude</button>
+                    {/if}
+                </div>
+
+                {if passage.source_title}
+                <p class="text-sm text-gray-500 mb-2">
+                    Source: <strong>{passage.source_title}</strong>
+                    {if passage.source_author} by {passage.source_author}{/if}
+                    {if passage.source_origin == 'internet'} · Internet-discovered source{/if}
+                </p>
+                {if passage.source_url}
+                <p class="text-xs text-blue-700 mb-2">Retrieved source: {passage.source_url}</p>
+                {/if}
+                {/if}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-red-50 border border-red-200 rounded p-3">
+                        <p class="text-xs text-red-600 uppercase font-medium mb-1">Submission Text</p>
+                        <p class="text-sm text-gray-800">{passage.submission_text}</p>
+                        <p class="text-xs text-gray-400 mt-1">Lines {passage.submission_line_start}–{passage.submission_line_end}</p>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-200 rounded p-3">
+                        <p class="text-xs text-blue-600 uppercase font-medium mb-1">Source Text</p>
+                        <p class="text-sm text-gray-800">{passage.source_text}</p>
+                        <p class="text-xs text-gray-400 mt-1">Lines {passage.source_line_start}–{passage.source_line_end}</p>
+                    </div>
+                </div>
+
+                <div class="mt-2 flex flex-wrap gap-2">
+                    {if passage.highlight_labels|count > 0}
+                    {for label in passage.highlight_labels}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">{label}</span>
+                    {/for}
+                    {/if}
+                </div>
+            </div>
+            {/for}
+        </div>
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Matched Passages</h2>
+        <p class="text-sm text-gray-600">No passage-level evidence is available for this report. This usually means the submission processed with no detected matches, or the report was generated before match evidence/highlighting was populated. Reprocess the pending submission or regenerate the report after source indexing completes.</p>
+    </div>
+    {/if}
+
+    {if highlighted_html}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Highlighted Submission</h2>
+        <div class="prose max-w-none text-sm leading-7">{highlighted_html}</div>
+    </div>
+    {/if}
+
+    {if internet_sources|count > 0}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Internet Source Coverage</h2>
+        <p class="text-sm text-gray-600 mb-4">These matches came from bounded public-source retrieval. This is not a comprehensive internet search.</p>
+        <div class="space-y-3">
+            {for src in internet_sources}
+            <div class="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
+                <p class="font-semibold text-gray-900">{src.title|default:Internet Source}</p>
+                <p class="text-blue-700 break-all">{src.source_url}</p>
+                <p class="text-xs text-gray-500 mt-1">Provider {src.provider} · status {src.retrieval_status} · retrieved {src.retrieved_at}</p>
+            </div>
+            {/for}
+        </div>
+    </div>
+    {/if}
+
+    <!-- Report Summary -->
+    {if report.summary}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Summary</h2>
+        <p class="text-gray-700">{report.summary}</p>
+    </div>
+    {/if}
+</div>
+
+<style>
+/* Highlight span styles */
+.hl-exact { background: #fecaca; border-bottom: 2px solid #dc2626; }
+.hl-near { background: #fed7aa; border-bottom: 2px solid #ea580c; }
+.hl-semantic { background: #fef08a; border-bottom: 2px solid #ca8a04; }
+.hl-quote { background: #bfdbfe; border-bottom: 2px solid #2563eb; }
+.hl-excluded { background: #e5e7eb; border-bottom: 2px solid #9ca3af; text-decoration: line-through; opacity: 0.6; }
+.hl-stat { background: #ddd6fe; border-bottom: 2px solid #7c3aed; }
+.hl-span { cursor: pointer; border-radius: 2px; padding: 0 1px; transition: opacity 0.15s; }
+.hl-span:hover { opacity: 0.8; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
+.hl-text { line-height: 1.8; }
+.hl-text p { margin: 0; }
+.hl-source-excerpts { display: flex; flex-direction: column; gap: 8px; }
+.hl-source-excerpt { padding: 6px 8px; background: #f9fafb; border-radius: 4px; }
+.hl-label { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.hl-excerpt-text { font-size: 13px; color: #374151; }
+.hl-text--no-matches,
+.hl-text--no-highlights { color: #6b7280; font-style: italic; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Highlight filter toggles
+    document.querySelectorAll('.hl-filter-checkbox').forEach(function (cb) {
+        cb.addEventListener('change', function () {
+            var type = this.getAttribute('data-type');
+            var visible = this.checked;
+            document.querySelectorAll('.hl-span[data-type="' + type + '"]').forEach(function (span) {
+                span.style.display = visible ? '' : 'none';
+            });
+        });
+    });
+
+    // Click highlight → scroll to source panel
+    document.querySelectorAll('.hl-span').forEach(function (span) {
+        span.addEventListener('click', function () {
+            var sourceId = this.getAttribute('data-source-id');
+            if (sourceId && sourceId !== '0') {
+                var panel = document.querySelector('[data-source-id="' + sourceId + '"]');
+                if (panel) {
+                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    panel.classList.add('ring-2', 'ring-brand-500');
+                    setTimeout(function () { panel.classList.remove('ring-2', 'ring-brand-500'); }, 2000);
+                }
+            }
+        });
+    });
+});
+</script>
+{/block}
