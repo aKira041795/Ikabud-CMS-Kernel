@@ -123,7 +123,10 @@ class AcademicSimilaritySemanticService
             $result = app()->cap()->call(
                 'academic_similarity.semantic.compare@1',
                 $payload,
-                ['caller' => ['module' => 'academic-similarity']]
+                [
+                    'caller' => ['module' => 'academic-similarity'],
+                    'timeout_ms' => 60000,
+                ]
             );
 
             if (!is_array($result)) {

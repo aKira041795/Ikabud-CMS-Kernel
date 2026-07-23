@@ -802,6 +802,9 @@ class AcademicSimilarityPipelineService
         $institutionId = (int)($submission['institution_id'] ?? 0);
         $semantic = new AcademicSimilaritySemanticService($this->tenantId);
         $availability = $semantic->isAvailable($institutionId);
+        if (function_exists('write_log')) {
+            write_log('AISS semantic availability: ok=' . ($availability['ok'] ?? false ? 'Y' : 'N') . ' gates=' . json_encode($availability['gates'] ?? []) . ' error=' . ($availability['error'] ?? '-'), 'debug', ['submission_id' => $submissionId]);
+        }
         if (!($availability['ok'] ?? false)) {
             return [
                 'ok' => true,
@@ -821,6 +824,17 @@ class AcademicSimilarityPipelineService
             return ['ok' => true, 'semantic_status' => 'skipped', 'reason' => 'No semantic source segments available'];
         }
 
+        // Limit source segments to avoid exceeding the semantic service max
+        $maxSourceSegments = (int)($settings['semantic_max_segments'] ?? 500);
+        $maxSourceSegments = max(50, min(5000, $maxSourceSegments));
+        if (count($sourceBundle['texts']) > $maxSourceSegments) {
+            $sourceBundle['texts'] = array_slice($sourceBundle['texts'], 0, $maxSourceSegments);
+            $sourceBundle['segments'] = array_slice($sourceBundle['segments'], 0, $maxSourceSegments);
+            if (function_exists('write_log')) {
+                write_log('AISS semantic source segments truncated to ' . $maxSourceSegments, 'debug', ['submission_id' => $submissionId, 'original_count' => count($sourceBundle['texts'])]);
+            }
+        }
+
         $result = $semantic->compare(
             array_column($submissionSegments, 'normalized_content'),
             $sourceBundle['texts'],
@@ -833,6 +847,9 @@ class AcademicSimilarityPipelineService
         );
 
         if (!($result['ok'] ?? false)) {
+            if (function_exists('write_log')) {
+                write_log('AISS semantic compare failed: ' . ($result['error'] ?? 'unknown'), 'warning', ['submission_id' => $submissionId]);
+            }
             return ['ok' => true, 'semantic_status' => 'failed', 'error' => $result['error'] ?? 'Semantic matching failed'];
         }
 

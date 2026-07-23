@@ -261,8 +261,15 @@ def compare_groq(
     segments_b: list[str],
     model_name: str | None = None,
     api_key: str | None = None,
+    threshold: float = 0.70,
+    max_pairs: int = 20,
 ) -> list[dict]:
-    """Compare segment pairs with Groq chat completions returning strict JSON scores."""
+    """Compare segment pairs with Groq chat completions returning strict JSON scores.
+
+    Pre-filters pairs using fast Jaccard token overlap — only the top
+    ``max_pairs`` candidates by token similarity are sent to the LLM.
+    This avoids N×M API calls (thousands) for typical academic submissions.
+    """
     api_key = api_key or os.environ.get("SEMANTIC_API_KEY") or os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("Groq backend requires SEMANTIC_API_KEY or GROQ_API_KEY")
@@ -270,56 +277,72 @@ def compare_groq(
     model_name = model_name or os.environ.get("SEMANTIC_MODEL_NAME", "llama-3.1-8b-instant")
     endpoint = os.environ.get("GROQ_API_BASE", "https://api.groq.com/openai/v1").rstrip("/")
     timeout = float(os.environ.get("GROQ_TIMEOUT_SECONDS", "30"))
-    comparisons = []
 
+    # ── Step 1: pre-filter with fast token overlap ──────────────
+    scored: list[tuple[int, int, float]] = []
     for i, seg_a in enumerate(segments_a):
+        tokens_a = _tokenize(seg_a)
         for j, seg_b in enumerate(segments_b):
-            prompt = (
-                "Return only JSON with a numeric similarity_score between 0 and 1. "
-                "Score semantic academic similarity, not writing quality or AI authorship.\n\n"
-                f"Submission segment:\n{seg_a}\n\nSource segment:\n{seg_b}"
-            )
-            request_body = json.dumps({
-                "model": model_name,
-                "temperature": 0,
-                "max_tokens": 64,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a strict academic similarity scoring service. Return only JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-            }).encode("utf-8")
-            request = urllib.request.Request(
-                f"{endpoint}/chat/completions",
-                data=request_body,
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                method="POST",
-            )
-            try:
-                with urllib.request.urlopen(request, timeout=timeout) as response:
-                    raw = response.read().decode("utf-8")
-            except urllib.error.HTTPError as e:
-                body = e.read().decode("utf-8", errors="replace")
-                raise RuntimeError(f"Groq API HTTP {e.code}: {body[:240]}") from e
-            except urllib.error.URLError as e:
-                raise RuntimeError(f"Groq API request failed: {e.reason}") from e
+            tokens_b = _tokenize(seg_b)
+            score = _jaccard_similarity(tokens_a, tokens_b)
+            scored.append((i, j, score))
 
-            data = json.loads(raw)
-            content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
-            parsed = _extract_json_object(content)
-            score = _clamp_score(parsed.get("similarity_score"))
-            comparisons.append({
-                "submission_segment_index": i,
-                "source_segment_index": j,
-                "similarity_score": round(score, 4),
-                "above_threshold": score >= threshold,
-            })
+    # Sort by token similarity descending, take top max_pairs
+    scored.sort(key=lambda t: t[2], reverse=True)
+    candidates = scored[:max_pairs]
+
+    # ── Step 2: send only top candidates to Groq ────────────────
+    comparisons: list[dict] = []
+    for i, j, token_score in candidates:
+        seg_a = segments_a[i]
+        seg_b = segments_b[j]
+        prompt = (
+            "Return only JSON with a numeric similarity_score between 0 and 1. "
+            "Score semantic academic similarity, not writing quality or AI authorship.\n\n"
+            f"Submission segment:\n{seg_a}\n\nSource segment:\n{seg_b}"
+        )
+        request_body = json.dumps({
+            "model": model_name,
+            "temperature": 0,
+            "max_tokens": 64,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a strict academic similarity scoring service. Return only JSON.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            f"{endpoint}/chat/completions",
+            data=request_body,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "Ikabud/1.0 (Academic Similarity Service)",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                raw = response.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"Groq API HTTP {e.code}: {body[:240]}") from e
+        except urllib.error.URLError as e:
+            raise RuntimeError(f"Groq API request failed: {e.reason}") from e
+
+        data = json.loads(raw)
+        content = (((data.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+        parsed = _extract_json_object(content)
+        score = _clamp_score(parsed.get("similarity_score"))
+        comparisons.append({
+            "submission_segment_index": i,
+            "source_segment_index": j,
+            "similarity_score": round(score, 4),
+            "above_threshold": score >= threshold,
+        })
 
     return comparisons
 
