@@ -784,14 +784,18 @@ function apiSaveSettings(array $params = []): void
         header('Content-Type: application/json');
     }
 
-    try {
-        app()->csrfEnforce();
-    } catch (\Throwable $e) {
+    // Validate CSRF token with form-friendly fallback
+    $validToken = false;
+    $tokenRaw = $_POST['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if (is_string($tokenRaw) && $tokenRaw !== '' && function_exists('kernel_request_context_get')) {
+        $validToken = hash_equals(\Ikabud\Kernel\Http\CsrfManager::token(), $tokenRaw);
+    }
+    if (!$validToken) {
         if ($isJson) {
             http_response_code(419);
-            echo json_encode(['ok' => false, 'error' => 'CSRF validation failed']);
+            echo json_encode(['ok' => false, 'error' => 'Invalid or expired CSRF token. Please reload the page and try again.']);
         } else {
-            $_SESSION['_kernel_flash']['error'][] = 'Session expired. Please try again.';
+            $_SESSION['_kernel_flash']['error'][] = 'Session expired. Please reload the page and try again.';
             header('Location: /admin/academic-similarity/settings');
             exit;
         }
@@ -800,6 +804,7 @@ function apiSaveSettings(array $params = []): void
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
     foreach ([
         'enabled', 'exact_match_enabled', 'near_match_enabled', 'semantic_match_enabled',
         'semantic_health_visible', 'cms_public_submission_enabled', 'cms_builder_block_enabled',
