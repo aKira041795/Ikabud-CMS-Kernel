@@ -124,18 +124,18 @@ function academic_similarity_get_settings(string $tenantId): array
         'public_report_show_source_names' => '1',
         'public_report_show_full_document' => '1',
         'public_report_default_mode' => 'workspace',
-        'internet_check_enabled' => '0',
-        'internet_check_provider' => 'capability',
+        'internet_check_enabled' => '1',
+        'internet_check_provider' => 'seed_urls',
         'internet_check_api_key_env' => 'AISS_INTERNET_API_KEY',
         'internet_check_api_key' => '',
         'internet_check_max_queries' => '3',
         'internet_check_max_sources' => '5',
         'internet_check_max_chars_per_source' => '12000',
         'internet_check_payload_policy' => 'snippets_only',
-        'internet_check_auto_run_when_no_sources' => '0',
-        'internet_check_allow_full_document_query' => '0',
+        'internet_check_auto_run_when_no_sources' => '1',
+        'internet_check_allow_full_document_query' => '1',
         'internet_check_store_retrieved_text' => '1',
-        'internet_check_seed_urls' => '',
+        'internet_check_seed_urls' => "https://en.wikipedia.org/wiki/Social_media\nhttps://en.wikipedia.org/wiki/Academic_achievement\nhttps://en.wikipedia.org/wiki/Digital_literacy\nhttps://en.wikipedia.org/wiki/Educational_technology\nhttps://en.wikipedia.org/wiki/Higher_education\nhttps://openstax.org/books/psychology-2e/pages/1-introduction\nhttps://openstax.org/books/writing-guide/pages/1-unit-introduction",
         'internet_check_disclosure_visible' => '1',
     ];
 
@@ -512,19 +512,24 @@ function ac_sim_cap_semantic_compare_1(mixed $payload, string $capabilityId = ''
 function ac_sim_cap_internet_discover_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     // Default fallback handler registered at priority 50.
-    // An external provider module (e.g. a search-engine integration) can
-    // register at a higher priority to supply real internet discovery.
+    // Returns empty candidates — the built-in internet discovery works via
+    // seed URLs configured in module settings (internet_check_seed_urls).
     //
-    // When this handler is reached, return empty candidates — the
-    // InternetCheckService will skip the check with a disclosure.
-    // If seed_urls are configured, they are handled directly in
-    // AcademicSimilarityInternetDiscoveryService::discover() before
-    // the capability call, so this handler is only reached when
-    // provider='capability' and no seed URLs are set.
+    // An external provider module (e.g. Google Custom Search, Bing API,
+    // SerpAPI) can register at a higher priority to supply real-time
+    // web search results through this capability contract.
+    //
+    // Seed URLs are handled directly in AcademicSimilarityInternetDiscoveryService
+    // BEFORE this capability call, so configure seed_urls for zero-config usage.
+
+    if (!is_array($payload)) {
+        return ['ok' => false, 'candidates' => [], 'error' => 'Invalid payload'];
+    }
+
     return [
         'ok' => true,
         'candidates' => [],
-        'disclosure' => 'No internet discovery provider is configured. Enable a provider module or configure seed URLs in settings.',
+        'disclosure' => 'No search-engine capability provider is configured. To enable web search, either add seed URLs in Settings → Internet Check, or install a search provider module that fulfills the academic_similarity.internet.discover@1 capability.',
     ];
 }
 
