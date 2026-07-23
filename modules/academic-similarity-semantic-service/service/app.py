@@ -256,9 +256,14 @@ def _extract_json_object(text: str) -> dict:
     return parsed
 
 
-def compare_groq(segments_a: list[str], segments_b: list[str], model_name: str | None = None) -> list[dict]:
+def compare_groq(
+    segments_a: list[str],
+    segments_b: list[str],
+    model_name: str | None = None,
+    api_key: str | None = None,
+) -> list[dict]:
     """Compare segment pairs with Groq chat completions returning strict JSON scores."""
-    api_key = os.environ.get("SEMANTIC_API_KEY") or os.environ.get("GROQ_API_KEY")
+    api_key = api_key or os.environ.get("SEMANTIC_API_KEY") or os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("Groq backend requires SEMANTIC_API_KEY or GROQ_API_KEY")
 
@@ -377,6 +382,7 @@ def handle_semantic_compare(payload: dict) -> dict:
     backend_name = EMBEDDING_BACKEND
     provider = backend_name
     model_name = os.environ.get("SEMANTIC_MODEL_NAME", backend_name)
+    api_key = None
     threshold = 0.70
 
     if model_profile:
@@ -395,13 +401,19 @@ def handle_semantic_compare(payload: dict) -> dict:
                 threshold = float(model_profile["threshold"])
             except (TypeError, ValueError):
                 threshold = 0.70
+        requested_api_key = str(model_profile.get("api_key", "")).strip()
+        if requested_api_key:
+            api_key = requested_api_key
     threshold = max(0.0, min(1.0, threshold))
 
     backend = get_backend(backend_name)
 
     try:
         if backend_name in {"sentence_transformers", "groq"}:
-            comparisons = backend(submission_segments, source_segments, model_name)
+            if backend_name == "groq":
+                comparisons = backend(submission_segments, source_segments, model_name, api_key)
+            else:
+                comparisons = backend(submission_segments, source_segments, model_name)
         else:
             comparisons = backend(submission_segments, source_segments)
     except Exception as e:

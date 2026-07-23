@@ -238,6 +238,72 @@ if (!function_exists('superadminModuleEnablementState')) {
     }
 }
 
+if (!function_exists('superadminSyncAcademicSimilarityRuntimeSettings')) {
+    /**
+     * Mirror superadmin-declared AISS feature settings into the module runtime
+     * table that /admin/academic-similarity reads.
+     *
+     * @return array{ok: bool, skipped?: bool, error?: string}
+     */
+    function superadminSyncAcademicSimilarityRuntimeSettings(?int $tenantId, array $settings): array
+    {
+        if ($tenantId === null || $tenantId <= 0) {
+            return ['ok' => true, 'skipped' => true];
+        }
+
+        try {
+            $db = app()->dbForTenant($tenantId);
+            if (!$db instanceof PDO) {
+                return ['ok' => false, 'error' => 'Tenant database is unavailable'];
+            }
+
+            $tableCheck = $db->query("SHOW TABLES LIKE 'ac_similarity_settings'");
+            if (!$tableCheck || !$tableCheck->fetchColumn()) {
+                return ['ok' => false, 'error' => 'AISS settings table is missing; run the academic-similarity migrations for this tenant'];
+            }
+
+            $stmt = $db->prepare(
+                'INSERT INTO ac_similarity_settings (tenant_id, setting_key, setting_value, updated_at) '
+                . 'VALUES (:tenant_id, :setting_key, :setting_value, NOW()) '
+                . 'ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()'
+            );
+
+            foreach ($settings as $key => $value) {
+                if (!is_string($key) || $key === '' || str_starts_with($key, '_')) {
+                    continue;
+                }
+                if (is_bool($value)) {
+                    $value = $value ? '1' : '0';
+                }
+                if (in_array($key, ['semantic_external_api_key', 'internet_check_api_key'], true)) {
+                    $secret = trim((string)$value);
+                    if ($secret === '' || str_starts_with($secret, '***')) {
+                        continue;
+                    }
+                    $envelope = json_decode($secret, true);
+                    if (!is_array($envelope) || !isset($envelope['ciphertext'], $envelope['iv'], $envelope['tag'])) {
+                        $secret = json_encode((new \Ikabud\Kernel\Crypto())->encryptString($secret), JSON_UNESCAPED_SLASHES);
+                    }
+                    $value = $secret;
+                }
+                $stmt->execute([
+                    ':tenant_id' => (string)$tenantId,
+                    ':setting_key' => $key,
+                    ':setting_value' => (string)$value,
+                ]);
+            }
+
+            if (($settings['semantic_match_enabled'] ?? null) === true || (string)($settings['semantic_match_enabled'] ?? '') === '1') {
+                enableModuleForTenant('academic-similarity-semantic-service', $tenantId);
+            }
+
+            return ['ok' => true];
+        } catch (Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+}
+
 if (!function_exists('kernelHandlePageSuperadminSettings')) {
     function kernelHandlePageSuperadminSettings(): void
     {
@@ -476,7 +542,11 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
                     : ($field['default'] ?? '');
                 $isCheckbox = in_array($type, ['checkbox', 'bool', 'boolean'], true);
                 $isSelect = ($type === 'select');
-                $inputType = in_array($type, ['number', 'int', 'integer'], true) ? 'number' : ($type === 'email' ? 'email' : 'text');
+                $inputType = in_array($type, ['number', 'int', 'integer'], true)
+                    ? 'number'
+                    : ($type === 'email' ? 'email' : (in_array($type, ['password', 'secret'], true) ? 'password' : 'text'));
+                $isSecret = in_array($type, ['password', 'secret'], true);
+                $displayValue = $isSecret ? '' : (string)$currentValue;
 
                 $options = [];
                 if ($isSelect && is_array($field['options'] ?? null)) {
@@ -506,7 +576,7 @@ if (!function_exists('kernelHandlePageSuperadminSettings')) {
                     'is_select' => $isSelect,
                     'is_text' => (!$isCheckbox && !$isSelect),
                     'input_type' => $inputType,
-                    'current_value' => $isCheckbox ? '' : (string)$currentValue,
+                    'current_value' => $isCheckbox ? '' : $displayValue,
                     'is_checked' => $isCheckbox && !empty($currentValue),
                     'options' => $options,
                 ];
@@ -726,6 +796,9 @@ if (!function_exists('kernelHandleApiSuperadminUpdateModuleSettings')) {
         if (!array_key_exists($key, $settingsIn)) continue;
         $type = strtolower(trim((string)($field['type'] ?? 'text')));
         $raw = $settingsIn[$key];
+        if (in_array($type, ['password', 'secret'], true) && trim((string)$raw) === '') {
+            continue;
+        }
         if ($type === 'checkbox' || $type === 'bool' || $type === 'boolean') {
             $newSettings[$key] = (bool)$raw;
             continue;
@@ -757,6 +830,19 @@ if (!function_exists('kernelHandleApiSuperadminUpdateModuleSettings')) {
         saveModuleSettings($modId, $newSettings);
     }
 
+    $runtimeSync = ['ok' => true];
+    if ($modId === 'academic-similarity') {
+        $runtimeSync = superadminSyncAcademicSimilarityRuntimeSettings($saMultiTenant ? $saTenantId : null, $newSettings);
+        if (empty($runtimeSync['ok'])) {
+            http_response_code(500);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'Feature settings were saved, but AISS runtime settings did not persist: ' . (string)($runtimeSync['error'] ?? 'unknown error'),
+            ]);
+            exit;
+        }
+    }
+
     try {
         app()->cap()->call('kernel.audit.record@1', [
             'module' => '_kernel',
@@ -769,7 +855,7 @@ if (!function_exists('kernelHandleApiSuperadminUpdateModuleSettings')) {
     } catch (Throwable $e) {}
 
     adminViewCacheInvalidate(['admin:view:modules', 'admin:view:platform', 'admin:view:capabilities']);
-    echo json_encode(['ok' => true, 'module_id' => $modId, 'settings' => $newSettings]);
+    echo json_encode(['ok' => true, 'module_id' => $modId, 'settings' => $newSettings, 'runtime_sync' => $runtimeSync]);
     exit;
     }
 }

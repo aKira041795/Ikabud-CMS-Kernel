@@ -361,6 +361,7 @@
                         <label class="text-xs font-semibold text-slate-700">{field.label}</label>
                         <input class="w-full border border-gray-300 rounded-lg px-2.5 py-2 text-sm text-slate-700 bg-white"
                                type="{field.input_type}" data-sa-module="{mod.id}" data-sa-key="{field.key}" data-sa-type="{field.type}"
+                               autocomplete="{if field.input_type == 'password'}new-password{else}off{/if}"
                                value="{field.current_value}">
                         {if field.description}
                         <div class="text-xs text-gray-500">{field.description}</div>
