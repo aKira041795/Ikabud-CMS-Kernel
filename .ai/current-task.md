@@ -310,3 +310,37 @@ weighted_score = Σ(match_weight × type_weight × diversity_factor) / total_wor
 3. **ScoringService DB dependency** — Made `$db` nullable to allow in-memory testing. Production code always has `module()` available.
 4. **Weighted scoring changes existing report scores** — Old unweighted score is still returned alongside new weighted score. Consumers choose which to display.
 5. **False-positive filters are opt-in** — Bibliography/quotation/citation/common-phrase exclusions are available via settings but default to off. No change in existing matching behavior.
+
+## Developer Review
+
+### Findings corrected
+
+| # | Severity | Finding | Fix |
+|---|----------|---------|-----|
+| 1 | **P0** | **Shifted arguments in FingerprintService callers** — `generateFingerprints()` and `generateNearFingerprints()` no longer accept `$shingleSize` as the 2nd parameter, but all 4 callers (PipelineService L431/L440, SourceService L375/L376) were still passing it positionally. `$shingleSize` (int, e.g. 5) was silently interpreted as `$sourceId`; `$sourceId`/`null` as `$submissionId`; `$submissionId` as `$textVersionId`. This caused all fingerprint records to have wrong `source_id`/`submission_id`, breaking matching entirely. | Removed the extra positional `$shingleSize` argument from all 4 callers. PipelineService: `generateFingerprints($segments, $shingleSize, null, $submissionId, ...)` → `generateFingerprints($segments, null, $submissionId, ...)`. SourceService: same pattern. |
+| 2 | **P1** | **`recheck` stage wired into `executeStage` with hardcoded source_id=0** — The `match` block in `executeStage` had `'recheck' => $this->runRecheck($submissionId, 0)`, which always returns `'Valid source_id is required'`. The recheck methods are designed to be called directly with a source ID, not as pipeline stages. | Removed the `recheck` entry from `executeStage`. The public `runRecheck(submissionId, sourceId)` and `runRecheckAll(sourceId)` methods remain callable from CLI commands or API handlers. |
+
+### Findings rejected
+
+| # | Finding | Why rejected |
+|---|---------|-------------|
+| 1 | `$shingleSize` variable still read from settings in `SourceService::indexSourceText()` (line 304) | Harmless unused variable. The setting `fingerprint_shingle_size` is now ignored in favor of fixed 3/7/20 sizes. Removing it would be a P2 cleanup — not within scope of this review. |
+| 2 | `generateFingerprints` produces ~3× more fingerprints than before (3 layers instead of 1) | Expected behavior. Winnowing reduces medium+ layers by ~75%. Total fingerprint count is still manageable. Storage impact is mitigated by the winnowing implementation. |
+| 3 | False-positive reduction filters not wired into MatchingService | By design — all filters are available via NormalizationService methods and are intended to be opt-in via settings in a future phase. Wiring them into the matching pipeline would change existing behavior and requires a settings toggle. |
+
+### Tests run
+
+- All 8 critical test suites: fingerprint (21), exact match (23), scoring (22), normalization (27), near match (18), multi_shingle (31), false_positive (37), weighted_scoring (16) — **195 passed, 0 failed**
+- `php -l` on both modified files — no syntax errors
+- `git status` — clean working tree (2 files modified by fixes, committed)
+- Migration 009 confirmed applied across tenants
+
+### Remaining release risks
+
+| Risk | Severity | Notes |
+|------|----------|-------|
+| Migration 009 must run before any `saveFingerprints()` call that includes `shingle_level` | P1 | Migration was applied to tenants during test. New tenants will get it on first migrate. If a tenant hasn't migrated, fingerprint saving will fail with "Unknown column 'shingle_level'". **Mitigation**: migration is idempotent (uses `ALTER TABLE ADD COLUMN`). |
+| `findCandidateSourcesFromFingerprints` now uses `$params + [':min_shingles' => $minShared]` | P2 | The `+` operator adds `:min_shingles` without overwriting existing keys. No collision with existing `:h0..:hN`, `:tid`, `:ft` keys. Safe. |
+| `runRecheck` loads all submission fingerprints into memory | P3 | Recheck is intended for new-sources-after-fact scenarios, which are infrequent. For a recheck of 10K+ submissions, memory use could spike. **Mitigation**: `runRecheckAll` processes submissions one at a time in a loop. Each individual `runRecheck` loads only that submission's fingerprints. |
+| `processSubmission` still calls `$this->runFingerprint` which internally calls the new multi-layer `generateFingerprints` | P2 | The pipeline stage doesn't pass `$shingleSize` — it calls the zero-arg version via `executeStage` → `runFingerprint` → `fpService->generateFingerprints($segments, null, $submissionId, $textVersionId)`. This was correct (the pipeline never had the bug since it didn't pass `$shingleSize` explicitly before my change). Verified: line 431 was the only place in pipeline that passed it. |
+| No automated migration test | P3 | Migration 009 was applied manually via `php ikabud migrate`. No test verifies it runs successfully on all tenants. Consider adding a migration smoke test. |
