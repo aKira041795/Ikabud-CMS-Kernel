@@ -34,29 +34,28 @@
     {/if}
 
     <!-- Toast container -->
-    <div id="aiss-toast" class="fixed top-4 right-4 z-50 transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-none" style="display:none">
+    <div id="aiss-toast" class="fixed top-4 right-4 z-50" style="display:none">
         <div id="aiss-toast-body" class="px-5 py-3 rounded-lg shadow-lg text-sm font-medium"></div>
     </div>
 
+    <style>
+    #aiss-toast.show { display: block !important; }
+    #aiss-toast.fade-in { animation: aissToastIn 0.3s ease forwards; }
+    #aiss-toast.fade-out { animation: aissToastOut 0.3s ease forwards; }
+    @keyframes aissToastIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes aissToastOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-12px); } }
+    </style>
+
     <script>
     (function() {
-        var toast = document.getElementById('aiss-toast');
-        var body = document.getElementById('aiss-toast-body');
+        var t = document.getElementById('aiss-toast');
+        var b = document.getElementById('aiss-toast-body');
         function show(msg, type) {
-            body.className = 'px-5 py-3 rounded-lg shadow-lg text-sm font-medium ';
-            if (type === 'error') {
-                body.className += 'bg-red-600 text-white';
-            } else {
-                body.className += 'bg-emerald-600 text-white';
-            }
-            body.textContent = msg;
-            toast.style.display = 'block';
-            setTimeout(function() { toast.className = 'fixed top-4 right-4 z-50 transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-none'; }, 50);
-            setTimeout(function() { toast.className = 'fixed top-4 right-4 z-50 transition-all duration-300 opacity-1 translate-y-0 pointer-events-auto'; }, 60);
-            setTimeout(function() {
-                toast.className = 'fixed top-4 right-4 z-50 transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-none';
-                setTimeout(function() { toast.style.display = 'none'; }, 350);
-            }, 3000);
+            b.className = 'px-5 py-3 rounded-lg shadow-lg text-sm font-medium ' + (type === 'error' ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white');
+            b.textContent = msg;
+            t.className = 'fixed top-4 right-4 z-50 fade-in';
+            setTimeout(function() { t.className = 'fixed top-4 right-4 z-50 fade-out'; }, 2800);
+            setTimeout(function() { t.className = 'fixed top-4 right-4 z-50'; t.style.display = 'none'; }, 3150);
         }
         {if saved}
         show('Settings saved successfully.', 'success');
