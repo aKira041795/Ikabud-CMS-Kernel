@@ -8,7 +8,9 @@ return [
     'GET' => [
         '/admin/academic-similarity'                              => 'academic-similarity:pageDashboard',
         '/api/v1/academic-similarity/public/results'              => 'academic-similarity:apiPublicResults',
-        '/api/v1/academic-similarity/public/reports/{submission_id}' => 'academic-similarity:apiPublicReportSummary',
+        '/api/v1/academic-similarity/public/reports/{submission_id}'          => 'academic-similarity:apiPublicReportSummary',
+        '/api/v1/academic-similarity/public/reports/{submission_id}/viewer' => 'academic-similarity:apiPublicReportViewer',
+        '/api/v1/academic-similarity/public/reports/{submission_id}/download' => 'academic-similarity:apiPublicReportDownload',
         '/admin/academic-similarity/submissions'                  => 'academic-similarity:pageSubmissions',
         '/admin/academic-similarity/submissions/{id}'             => 'academic-similarity:pageSubmissionDetail',
         '/admin/academic-similarity/sources'                      => 'academic-similarity:pageSources',
@@ -38,5 +40,6 @@ return [
         '/api/v1/academic-similarity/reviews/{match_id}/exclude'  => 'academic-similarity:apiExcludeMatch',
         '/api/v1/academic-similarity/settings'                    => 'academic-similarity:apiSaveSettings',
         '/api/v1/academic-similarity/public/submit'               => 'academic-similarity:apiPublicSubmit',
+        '/admin/academic-similarity/submissions/process-all-pending' => 'academic-similarity:apiProcessAllPending',
     ],
 ];

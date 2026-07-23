@@ -220,6 +220,41 @@
         </section>
         {/if}
 
+        {if settings_section == 'all' or settings_section == 'cms'}
+        <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Public Report Workspace</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_workspace_enabled" value="1" {if settings.public_report_workspace_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable public report workspace for logged-in users</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_download_enabled" value="1" {if settings.public_report_download_enabled}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Enable report download for users</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_show_raw_score" value="1" {if settings.public_report_show_raw_score}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show raw similarity score in public reports</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_show_source_names" value="1" {if settings.public_report_show_source_names}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show source names in public reports</span>
+                </label>
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="public_report_show_full_document" value="1" {if settings.public_report_show_full_document}checked{/if} class="rounded border-gray-300 text-brand-600">
+                    <span class="text-sm text-gray-700">Show full highlighted document (vs. excerpts only)</span>
+                </label>
+                <div>
+                    <label for="public_report_default_mode" class="block text-sm font-medium text-gray-700 mb-1">Default Workspace Mode</label>
+                    <select id="public_report_default_mode" name="public_report_default_mode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="workspace" {if settings.public_report_default_mode == 'workspace'}selected{/if}>Full workspace (form + history + viewer)</option>
+                        <option value="form_only" {if settings.public_report_default_mode == 'form_only'}selected{/if}>Form only</option>
+                    </select>
+                </div>
+            </div>
+        </section>
+        {/if}
+
         <div class="flex justify-end gap-4">
             <a href="/admin/academic-similarity" class="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg text-sm font-medium hover:bg-gray-200">Cancel</a>
             <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-bold text-white shadow-sm ring-1 ring-emerald-700 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2">Save Settings</button>

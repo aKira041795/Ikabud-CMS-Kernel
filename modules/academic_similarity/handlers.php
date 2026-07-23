@@ -333,6 +333,17 @@ function apiCreateSubmission(array $params = []): void
         }
         http_response_code(201);
         echo json_encode($result);
+
+        // Auto-process after creation
+        try {
+            $submissionId = (int)($result['submission_id'] ?? 0);
+            if ($submissionId > 0) {
+                $pipeline = new \AcademicSimilarityPipelineService($tenantId);
+                $pipeline->processSubmission($submissionId);
+            }
+        } catch (\Throwable $pe) {
+            write_log('Auto-processing failed for submission #' . ($result['submission_id'] ?? 0) . ': ' . $pe->getMessage());
+        }
     } catch (\Throwable $e) {
         write_log('Submission creation failed: ' . $e->getMessage());
         http_response_code(500);
@@ -602,6 +613,21 @@ function apiPublicSubmit(array $params = []): void
             return;
         }
         http_response_code(201);
+
+        // Auto-process the submission right after creation
+        try {
+            $pipeline = new \AcademicSimilarityPipelineService($tenantId);
+            $processResult = $pipeline->processSubmission((int)($result['submission_id'] ?? 0));
+            $result['processing'] = $processResult['ok'] ?? false;
+            if (!empty($processResult['status'])) {
+                $result['processed_status'] = $processResult['status'];
+            }
+        } catch (\Throwable $pe) {
+            write_log('Public submission auto-processing failed: ' . $pe->getMessage());
+            $result['processing'] = false;
+            $result['processing_error'] = 'Processing will complete shortly.';
+        }
+
         // Return submitter info for UI
         $result['submitter_user_id'] = $submitterUserId;
         echo json_encode($result);
@@ -757,5 +783,259 @@ function apiPublicReportSummary(array $params = []): void
         write_log('Public report summary failed: ' . $e->getMessage());
         http_response_code(500);
         echo json_encode(['ok' => false, 'error' => 'Failed to load report']);
+    }
+}
+
+function apiPublicReportViewer(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['submission_id'] ?? 0);
+    $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+
+    if ($submitterUserId <= 0) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Authentication required']);
+        return;
+    }
+
+    if ($submissionId <= 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Invalid submission ID']);
+        return;
+    }
+
+    try {
+        $settings = academic_similarity_get_settings($tenantId);
+        $viewService = new \AcademicSimilarityPublicReportViewService($tenantId);
+        $view = $viewService->getView($submissionId, $submitterUserId);
+
+        if ($view === null) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Submission not found or access denied']);
+            return;
+        }
+
+        // Apply settings-based visibility filters
+        $showScores = ($settings['public_results_show_scores'] ?? '1') === '1';
+        $showSourceNames = ($settings['public_report_show_source_names'] ?? '1') === '1';
+        $showFullDocument = ($settings['public_report_show_full_document'] ?? '1') === '1';
+
+        $safeView = [
+            'ok' => true,
+            'submission' => $view['submission'],
+            'analysis' => $showScores ? $view['analysis'] : [
+                'status' => $view['submission']['status'],
+                'match_count' => $view['analysis']['match_count'],
+                'source_count' => $view['analysis']['source_count'],
+            ],
+            'highlights' => [
+                'highlighted_html' => $showFullDocument ? ($view['highlights']['highlighted_html'] ?? '') : '',
+                'highlight_legend' => $view['highlights']['highlight_legend'],
+                'highlight_stats' => $view['highlights']['highlight_stats'],
+                'source_panels' => $showSourceNames ? $view['highlights']['source_panels'] : array_map(function (array $p): array {
+                    $p['title'] = 'Matched Source';
+                    return $p;
+                }, $view['highlights']['source_panels']),
+                'matched_passages' => $view['highlights']['matched_passages'],
+            ],
+            'report' => $view['report'],
+            'download' => $view['download'],
+        ];
+
+        echo json_encode($safeView);
+    } catch (\Throwable $e) {
+        write_log('Public report viewer failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to load report viewer']);
+    }
+}
+
+function apiPublicReportDownload(array $params = []): void
+{
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['submission_id'] ?? 0);
+    $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+
+    if ($submitterUserId <= 0) {
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Authentication required']);
+        return;
+    }
+
+    if ($submissionId <= 0) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'Invalid submission ID']);
+        return;
+    }
+
+    try {
+        $viewService = new \AcademicSimilarityPublicReportViewService($tenantId);
+        $view = $viewService->getView($submissionId, $submitterUserId);
+
+        if ($view === null) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Submission not found or access denied']);
+            return;
+        }
+
+        if (!$view['download']['can_download']) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'error' => 'Report not yet available for this submission']);
+            return;
+        }
+
+        $settings = academic_similarity_get_settings($tenantId);
+        $showSourceNames = ($settings['public_report_show_source_names'] ?? '1') === '1';
+
+        // Build safe public report using the report generator with redacted admin details
+        $generator = new \AcademicSimilarityReportGenerator($tenantId);
+        $reportData = $generator->generate($submissionId);
+
+        if (!$reportData['ok']) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => 'Failed to generate report']);
+            return;
+        }
+
+        // Redact admin-only source details from the report
+        if (!$showSourceNames && isset($reportData['report']['source_breakdown'])) {
+            foreach ($reportData['report']['source_breakdown'] as &$sb) {
+                if (isset($sb['source'])) {
+                    $sb['source']['title'] = 'Matched Source';
+                    $sb['source']['author'] = '';
+                }
+            }
+            unset($sb);
+        }
+
+        // Build highlight data for the HTML report
+        $submissionRepo = new \AcademicSimilaritySubmissionRepository($tenantId);
+        $matchRepo = new \AcademicSimilarityMatchRepository($tenantId);
+        $submission = $submissionRepo->findById($submissionId);
+        $matches = $matchRepo->findBySubmissionId($submissionId);
+
+        // Build source cache and evidence map for highlights
+        $sourceRepo = new \AcademicSimilaritySourceRepository($tenantId);
+        $sourceCache = [];
+        foreach ($matches as $match) {
+            $sid = (int)($match['source_id'] ?? 0);
+            if ($sid > 0 && !isset($sourceCache[$sid])) {
+                $src = $sourceRepo->findById($sid);
+                if ($src) {
+                    $sourceCache[$sid] = $src;
+                }
+            }
+        }
+        $evidenceMap = [];
+        foreach ($matches as $match) {
+            $evidenceMap[(int)$match['id']] = $matchRepo->getEvidence((int)$match['id']);
+        }
+
+        // Load text for highlights
+        $submissionText = '';
+        $sourceTexts = [];
+        $db = academic_similarity_db();
+        $tvStmt = $db->prepare(
+            "SELECT extracted_text FROM ac_similarity_text_versions WHERE submission_id = :sid AND tenant_id = :tid AND text_type = 'submission' ORDER BY id DESC LIMIT 1"
+        );
+        $tvStmt->execute([':sid' => $submissionId, ':tid' => $tenantId]);
+        $tv = $tvStmt->fetch(\PDO::FETCH_ASSOC);
+        $submissionText = $tv['extracted_text'] ?? '';
+
+        foreach ($sourceCache as $sid => $src) {
+            $sStmt = $db->prepare(
+                "SELECT extracted_text FROM ac_similarity_text_versions WHERE source_id = :sid AND tenant_id = :tid AND text_type = 'source' ORDER BY id DESC LIMIT 1"
+            );
+            $sStmt->execute([':sid' => $sid, ':tid' => $tenantId]);
+            $sTv = $sStmt->fetch(\PDO::FETCH_ASSOC);
+            if ($sTv) {
+                $sourceTexts[$sid] = $sTv['extracted_text'];
+            }
+        }
+
+        $highlightService = new \AcademicSimilarityHighlightService($tenantId);
+        $highlightData = $highlightService->buildSpans($submissionId, $matches, $evidenceMap, $submission, $sourceCache);
+        $spans = $highlightData['spans'];
+        $highlightedHtml = $highlightService->renderHighlightedText($submissionText, $spans);
+        $sourcePanels = $highlightService->renderSourcePanels($spans, $sourceTexts);
+
+        $html = $generator->buildHtml($reportData['report'], [
+            'legend' => $highlightData['legend'],
+            'highlighted_html' => $highlightedHtml,
+            'source_panels' => $sourcePanels,
+        ]);
+
+        // Override source titles in HTML if hidden
+        if (!$showSourceNames) {
+            $html = preg_replace('/Source #\d+/', 'Matched Source', $html);
+        }
+
+        header('Content-Type: text/html; charset=utf-8');
+        header('Content-Disposition: attachment; filename="similarity-report-' . $submissionId . '.html"');
+        echo $html;
+    } catch (\Throwable $e) {
+        write_log('Public report download failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to download report']);
+    }
+}
+
+function apiProcessAllPending(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    academic_similarity_require_admin($ctx);
+    app()->csrfEnforce();
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+
+    try {
+        $db = academic_similarity_db();
+        $stmt = $db->prepare(
+            "SELECT id FROM ac_similarity_submissions WHERE tenant_id = :tid AND status = 'pending' ORDER BY created_at ASC"
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        $pending = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        if (empty($pending)) {
+            echo json_encode(['ok' => true, 'processed' => 0, 'failed' => 0, 'message' => 'No pending submissions']);
+            return;
+        }
+
+        $pipeline = new \AcademicSimilarityPipelineService($tenantId);
+        $processed = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($pending as $row) {
+            $id = (int)$row['id'];
+            try {
+                $result = $pipeline->processSubmission($id);
+                if ($result['ok'] ?? false) {
+                    $processed++;
+                } else {
+                    $failed++;
+                    $errors[] = ['id' => $id, 'error' => $result['error'] ?? 'Unknown error'];
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors[] = ['id' => $id, 'error' => $e->getMessage()];
+            }
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'processed' => $processed,
+            'failed' => $failed,
+            'total' => count($pending),
+            'errors' => $errors,
+        ]);
+    } catch (\Throwable $e) {
+        write_log('Process all pending failed: ' . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to process pending submissions']);
     }
 }

@@ -235,10 +235,22 @@
             "label": "Semantic Provider",
             "default": "token_overlap",
             "options": [
-                {"value": "token_overlap", "label": "Token overlap"},
-                {"value": "tfidf", "label": "TF-IDF cosine"},
-                {"value": "sentence_transformers", "label": "Sentence transformers"},
-                {"value": "groq", "label": "Groq LLM judge"}
+                {
+                    "value": "token_overlap",
+                    "label": "Token overlap"
+                },
+                {
+                    "value": "tfidf",
+                    "label": "TF-IDF cosine"
+                },
+                {
+                    "value": "sentence_transformers",
+                    "label": "Sentence transformers"
+                },
+                {
+                    "value": "groq",
+                    "label": "Groq LLM judge"
+                }
             ]
         },
         {
@@ -286,8 +298,14 @@
             "label": "Semantic Payload Policy",
             "default": "segments_only",
             "options": [
-                {"value": "segments_only", "label": "Segments only"},
-                {"value": "redacted_segments", "label": "Redacted segments"}
+                {
+                    "value": "segments_only",
+                    "label": "Segments only"
+                },
+                {
+                    "value": "redacted_segments",
+                    "label": "Redacted segments"
+                }
             ]
         },
         {

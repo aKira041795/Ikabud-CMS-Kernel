@@ -1,0 +1,433 @@
+{* Academic Similarity — Public User Report Workspace *}
+{*
+  Renders a Turnitin-inspired report workspace for logged-in users:
+  - Score summary at the top
+  - Document viewer with highlights (main area)
+  - Source/evidence side panel
+  - Recent submissions history
+  - Report download action
+*}
+<div class="ac-sim-workspace" id="ac-sim-workspace">
+    <div id="ac-sim-workspace-loading" class="text-center py-8 text-gray-500">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent mb-3"></div>
+        <p>Loading workspace...</p>
+    </div>
+
+    {* Workspace content (shown after JS loads) *}
+    <div id="ac-sim-workspace-content" style="display:none">
+
+        {* ── Top: Score Summary Bar ── *}
+        <div id="ac-sim-score-summary" class="bg-white rounded-lg shadow border border-gray-200 p-4 mb-4 flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-gray-700">Similarity:</span>
+                <span id="ac-sim-score-value" class="text-2xl font-bold text-gray-900">—</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Matches:</span>
+                <span id="ac-sim-match-count" class="font-semibold text-gray-700">0</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Sources:</span>
+                <span id="ac-sim-source-count" class="font-semibold text-gray-700">0</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-sm text-gray-500">Words:</span>
+                <span id="ac-sim-word-count" class="font-semibold text-gray-700">0</span>
+            </div>
+            <div id="ac-sim-report-actions" class="ml-auto flex gap-2" style="display:none">
+                <a id="ac-sim-download-link" href="#" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700" target="_blank">Download Report</a>
+            </div>
+        </div>
+
+        {* ── Status Messages ── *}
+        <div id="ac-sim-status-message" class="mb-4 p-4 rounded-lg border text-sm" style="display:none"></div>
+
+        {* ── Main Layout: Viewer + Side Panel ── *}
+        <div class="flex flex-col lg:flex-row gap-4">
+
+            {* Left/Main: Document Viewer *}
+            <div id="ac-sim-viewer" class="flex-1 bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                <div class="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="font-semibold text-gray-900 text-sm" id="ac-sim-viewer-title">Document Viewer</h3>
+                    <div class="flex gap-2">
+                        <button onclick="acSimToggleFilters()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200">Filters</button>
+                    </div>
+                </div>
+
+                {* Highlight type filters *}
+                <div id="ac-sim-hl-filters" class="hidden p-3 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-2"></div>
+
+                {* Document content *}
+                <div id="ac-sim-viewer-content" class="p-5 prose prose-sm max-w-none hl-text-container">
+                    <p class="text-gray-400 italic">Select a submission to view its document.</p>
+                </div>
+            </div>
+
+            {* Right/Side: Source & Evidence Panel *}
+            <div id="ac-sim-side-panel" class="w-full lg:w-80 bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+                <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                    <h3 class="font-semibold text-gray-900 text-sm">Matched Sources</h3>
+                </div>
+                <div id="ac-sim-side-content" class="p-4 space-y-3 text-sm text-gray-500">
+                    <p class="italic">Select a submission with matches to see sources.</p>
+                </div>
+            </div>
+        </div>
+
+        {* ── Highlight Legend ── *}
+        <div id="ac-sim-legend" class="mt-4 bg-white rounded-lg shadow border border-gray-200 p-3" style="display:none">
+            <div id="ac-sim-legend-items" class="flex flex-wrap gap-3"></div>
+        </div>
+
+        {* ── Recent Submissions / History ── *}
+        <div id="ac-sim-history" class="mt-4 bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+            <div class="px-5 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="font-semibold text-gray-900 text-sm">Your Submissions</h3>
+                <button onclick="acSimRefreshHistory()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-lg hover:bg-gray-200">Refresh</button>
+            </div>
+            <div id="ac-sim-history-list" class="divide-y divide-gray-200 text-sm">
+                <div class="p-4 text-gray-400 italic text-center">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.ac-sim-workspace { max-width: 1200px; margin: 0 auto; }
+.ac-sim-workspace .hl-text { line-height: 1.8; font-size: 0.9rem; }
+.ac-sim-workspace .hl-text p { margin: 0; }
+.ac-sim-workspace .hl-span { cursor: pointer; border-radius: 2px; padding: 0 1px; transition: opacity 0.15s; }
+.ac-sim-workspace .hl-span:hover { opacity: 0.8; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
+
+/* Highlight colors */
+.hl-exact { background: #fecaca; border-bottom: 2px solid #dc2626; }
+.hl-near { background: #fed7aa; border-bottom: 2px solid #ea580c; }
+.hl-semantic { background: #fef08a; border-bottom: 2px solid #ca8a04; }
+.hl-quote { background: #bfdbfe; border-bottom: 2px solid #2563eb; }
+.hl-excluded { background: #e5e7eb; border-bottom: 2px solid #9ca3af; text-decoration: line-through; opacity: 0.6; }
+.hl-stat { background: #ddd6fe; border-bottom: 2px solid #7c3aed; }
+
+.ac-sim-history-item { cursor: pointer; transition: background 0.1s; }
+.ac-sim-history-item:hover { background: #f9fafb; }
+.ac-sim-history-item.active { background: #eff6ff; border-left: 3px solid #2563eb; }
+
+.ac-sim-source-card { cursor: pointer; transition: background 0.1s; }
+.ac-sim-source-card:hover { background: #f9fafb; }
+</style>
+
+<script>
+var acSimWorkspaceState = {
+    submissions: [],
+    currentSubmissionId: null,
+    currentView: null,
+    pollInterval: null,
+    showScores: true,
+    showSourceNames: true,
+    showFullDocument: true,
+};
+
+function acSimInitWorkspace() {
+    document.getElementById('ac-sim-workspace-loading').style.display = 'block';
+    document.getElementById('ac-sim-workspace-content').style.display = 'none';
+    acSimRefreshHistory();
+}
+
+function acSimRefreshHistory() {
+    fetch('/api/v1/academic-similarity/public/results')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            acSimWorkspaceState.showScores = data.show_scores !== false;
+            acSimWorkspaceState.submissions = data.recent || [];
+            acSimRenderHistory();
+            document.getElementById('ac-sim-workspace-loading').style.display = 'none';
+            document.getElementById('ac-sim-workspace-content').style.display = '';
+        }
+    })
+    .catch(function() {
+        document.getElementById('ac-sim-workspace-loading').innerHTML = '<p class="text-red-500">Failed to load submissions. Please refresh the page.</p>';
+    });
+}
+
+function acSimRenderHistory() {
+    var list = document.getElementById('ac-sim-history-list');
+    var items = acSimWorkspaceState.submissions;
+    if (items.length === 0) {
+        list.innerHTML = '<div class="p-4 text-gray-400 italic text-center">No submissions yet. Use the form above to submit a document.</div>';
+        return;
+    }
+    var html = '';
+    for (var i = 0; i < items.length; i++) {
+        var s = items[i];
+        var isActive = (s.id === acSimWorkspaceState.currentSubmissionId);
+        var statusColor = s.status === 'processed' ? '#059669' : s.status === 'processing' ? '#d97706' : s.status === 'failed' ? '#dc2626' : '#6b7280';
+        var statusBg = s.status === 'processed' ? '#ecfdf5' : s.status === 'processing' ? '#fffbeb' : s.status === 'failed' ? '#fef2f2' : '#f3f4f6';
+        html += '<div class="ac-sim-history-item p-3 ' + (isActive ? 'active' : '') + '" onclick="acSimOpenSubmission(' + s.id + ')" data-submission-id="' + s.id + '">';
+        html += '<div class="flex justify-between items-start">';
+        html += '<div class="flex-1 min-w-0">';
+        html += '<p class="font-medium text-gray-900 truncate">' + (s.submission_title || 'Untitled').substring(0, 50) + '</p>';
+        html += '<p class="text-xs text-gray-500 mt-0.5">' + (s.submitted_at || '').substring(0, 10) + '</p>';
+        html += '</div>';
+        html += '<div class="flex items-center gap-2 ml-2">';
+        html += '<span class="inline-block px-2 py-0.5 rounded-full text-xs font-medium" style="background:' + statusBg + ';color:' + statusColor + '">' + s.status + '</span>';
+        if (acSimWorkspaceState.showScores && s.adjusted_similarity_score !== null) {
+            html += '<span class="text-sm font-semibold text-gray-700">' + Number(s.adjusted_similarity_score).toFixed(1) + '%</span>';
+        }
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+    }
+    list.innerHTML = html;
+}
+
+function acSimOpenSubmission(submissionId) {
+    acSimWorkspaceState.currentSubmissionId = submissionId;
+
+    // Update active state in history
+    document.querySelectorAll('.ac-sim-history-item').forEach(function(el) {
+        el.classList.toggle('active', parseInt(el.getAttribute('data-submission-id')) === submissionId);
+    });
+
+    // Show loading in viewer
+    document.getElementById('ac-sim-viewer-content').innerHTML = '<p class="text-gray-400 italic">Loading report...</p>';
+
+    fetch('/api/v1/academic-similarity/public/reports/' + submissionId + '/viewer')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            acSimWorkspaceState.currentView = data;
+            acSimRenderViewer(data);
+        } else {
+            document.getElementById('ac-sim-viewer-content').innerHTML = '<p class="text-red-500">' + (data.error || 'Failed to load report') + '</p>';
+        }
+    })
+    .catch(function() {
+        document.getElementById('ac-sim-viewer-content').innerHTML = '<p class="text-red-500">Network error loading report.</p>';
+    });
+}
+
+function acSimRenderViewer(data) {
+    var sub = data.submission || {};
+    var analysis = data.analysis || {};
+    var highlights = data.highlights || {};
+    var reportInfo = data.report || {};
+    var dl = data.download || {};
+
+    // ── Score Summary ──
+    var scoreEl = document.getElementById('ac-sim-score-value');
+    if (acSimWorkspaceState.showScores && analysis.adjusted_score !== null && analysis.adjusted_score !== undefined) {
+        scoreEl.textContent = Number(analysis.adjusted_score).toFixed(1) + '%';
+        scoreEl.className = 'text-2xl font-bold ' + (analysis.adjusted_score > 50 ? 'text-red-600' : analysis.adjusted_score > 20 ? 'text-yellow-600' : 'text-green-600');
+    } else {
+        scoreEl.textContent = sub.status === 'processed' ? 'Processed' : sub.status;
+        scoreEl.className = 'text-2xl font-bold text-gray-500';
+    }
+    document.getElementById('ac-sim-match-count').textContent = analysis.active_match_count || 0;
+    document.getElementById('ac-sim-source-count').textContent = analysis.source_count || 0;
+    document.getElementById('ac-sim-word-count').textContent = sub.word_count || 0;
+
+    // ── Status Message ──
+    var statusEl = document.getElementById('ac-sim-status-message');
+    statusEl.style.display = 'none';
+    if (sub.status === 'pending' || sub.status === 'processing') {
+        statusEl.className = 'mb-4 p-4 rounded-lg border text-sm bg-yellow-50 border-yellow-200 text-yellow-700';
+        statusEl.innerHTML = '<strong>Processing:</strong> Your document is being analyzed. Results will appear automatically.';
+        statusEl.style.display = '';
+        acSimStartPolling(sub.id);
+    } else if (sub.status === 'failed') {
+        statusEl.className = 'mb-4 p-4 rounded-lg border text-sm bg-red-50 border-red-200 text-red-700';
+        statusEl.innerHTML = '<strong>Processing failed.</strong> Please try submitting again or contact support if the issue persists.';
+        statusEl.style.display = '';
+    } else if (sub.status === 'no_text') {
+        statusEl.className = 'mb-4 p-4 rounded-lg border text-sm bg-yellow-50 border-yellow-200 text-yellow-700';
+        statusEl.innerHTML = '<strong>No text extracted.</strong> The submitted document could not be read. Try a different format (DOCX, PDF, or plain text).';
+        statusEl.style.display = '';
+    }
+
+    // ── Download Action ──
+    var actionsEl = document.getElementById('ac-sim-report-actions');
+    if (dl.can_download && dl.url) {
+        document.getElementById('ac-sim-download-link').href = dl.url;
+        actionsEl.style.display = '';
+    } else {
+        actionsEl.style.display = 'none';
+    }
+
+    // ── Document Viewer ──
+    var viewerTitle = document.getElementById('ac-sim-viewer-title');
+    viewerTitle.textContent = sub.submission_title || 'Document Viewer';
+
+    var viewerContent = document.getElementById('ac-sim-viewer-content');
+    var highlightedHtml = highlights.highlighted_html || '';
+    if (sub.status === 'processed' && highlightedHtml) {
+        viewerContent.innerHTML = highlightedHtml;
+    } else if (sub.status === 'pending' || sub.status === 'processing') {
+        viewerContent.innerHTML = '<p class="text-gray-400 italic">Document is being processed. Check back shortly.</p>';
+    } else if (sub.status === 'no_text') {
+        viewerContent.innerHTML = '<p class="text-yellow-600">No text was extractable from this submission.</p>';
+    } else {
+        viewerContent.innerHTML = '<p class="text-gray-500">' + (sub.submission_title ? 'Submission: ' + sub.submission_title : 'No document content available.') + '</p>';
+    }
+
+    // ── Highlight Legend ──
+    var legend = highlights.highlight_legend || [];
+    var legendContainer = document.getElementById('ac-sim-legend');
+    var legendItems = document.getElementById('ac-sim-legend-items');
+    if (legend.length > 0) {
+        var legendHtml = '';
+        for (var i = 0; i < legend.length; i++) {
+            var entry = legend[i];
+            if (entry.count === 0) continue;
+            legendHtml += '<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 text-sm">';
+            legendHtml += '<span class="inline-block w-4 h-4 rounded ' + (entry.css || 'hl-exact') + '"></span>';
+            legendHtml += '<span class="font-medium text-gray-700">' + (entry.label || entry.type) + '</span>';
+            legendHtml += '<span class="text-gray-400 text-xs">(' + entry.count + ')</span>';
+            legendHtml += '</div>';
+        }
+        if (legendHtml) {
+            legendItems.innerHTML = legendHtml;
+            legendContainer.style.display = '';
+        } else {
+            legendContainer.style.display = 'none';
+        }
+    } else {
+        legendContainer.style.display = 'none';
+    }
+
+    // ── Filters ──
+    var filterContainer = document.getElementById('ac-sim-hl-filters');
+    if (legend.length > 0) {
+        var filterHtml = '';
+        for (var i = 0; i < legend.length; i++) {
+            var entry = legend[i];
+            filterHtml += '<label class="flex items-center gap-1.5 text-xs cursor-pointer">';
+            filterHtml += '<input type="checkbox" class="hl-filter-checkbox rounded border-gray-300" data-type="' + entry.type + '" checked ' + (entry.count === 0 ? 'disabled' : '') + '>';
+            filterHtml += '<span class="inline-block w-2.5 h-2.5 rounded ' + (entry.css || 'hl-exact') + '"></span>';
+            filterHtml += entry.label || entry.type;
+            filterHtml += '</label>';
+        }
+        filterContainer.innerHTML = filterHtml;
+
+        // Bind filter handlers
+        filterContainer.querySelectorAll('.hl-filter-checkbox').forEach(function(cb) {
+            cb.addEventListener('change', function() {
+                var type = this.getAttribute('data-type');
+                var visible = this.checked;
+                document.querySelectorAll('.hl-span[data-type="' + type + '"]').forEach(function(span) {
+                    span.style.display = visible ? '' : 'none';
+                });
+            });
+        });
+    } else {
+        filterContainer.innerHTML = '';
+    }
+
+    // ── Side Panel: Sources ──
+    acSimRenderSidePanel(data);
+
+    // ── Bind click handlers for highlight spans ──
+    document.querySelectorAll('.hl-span').forEach(function(span) {
+        span.addEventListener('click', function() {
+            var sourceId = this.getAttribute('data-source-id');
+            if (sourceId && sourceId !== '0') {
+                var card = document.querySelector('[data-source-card-id="' + sourceId + '"]');
+                if (card) {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    card.style.boxShadow = '0 0 0 2px #2563eb';
+                    setTimeout(function() { card.style.boxShadow = ''; }, 2000);
+                }
+            }
+        });
+    });
+}
+
+function acSimRenderSidePanel(data) {
+    var sideContent = document.getElementById('ac-sim-side-content');
+    var highlights = data.highlights || {};
+    var sourcePanels = highlights.source_panels || [];
+    var matchedPassages = highlights.matched_passages || [];
+
+    if (sourcePanels.length === 0 && matchedPassages.length === 0) {
+        sideContent.innerHTML = '<p class="italic">No matched sources found for this submission.</p>';
+        return;
+    }
+
+    var html = '';
+
+    // Score breakdown
+    var analysis = data.analysis || {};
+    html += '<div class="bg-gray-50 rounded-lg p-3 mb-3 text-xs">';
+    if (analysis.adjusted_score !== null && analysis.adjusted_score !== undefined) {
+        html += '<div class="flex justify-between mb-1"><span class="text-gray-500">Adjusted Score</span><span class="font-semibold">' + Number(analysis.adjusted_score).toFixed(1) + '%</span></div>';
+    }
+    if (analysis.raw_score !== null && analysis.raw_score !== undefined) {
+        html += '<div class="flex justify-between mb-1"><span class="text-gray-500">Raw Score</span><span class="font-semibold">' + Number(analysis.raw_score).toFixed(1) + '%</span></div>';
+    }
+    html += '<div class="flex justify-between mb-1"><span class="text-gray-500">Matched Words</span><span class="font-semibold">' + (analysis.matched_word_count || 0) + ' / ' + (analysis.total_eligible_words || 0) + '</span></div>';
+    html += '<div class="flex justify-between"><span class="text-gray-500">Active Matches</span><span class="font-semibold">' + (analysis.active_match_count || 0) + '</span></div>';
+    html += '</div>';
+
+    // Source cards
+    for (var i = 0; i < sourcePanels.length; i++) {
+        var panel = sourcePanels[i];
+        html += '<div class="ac-sim-source-card bg-white border border-gray-200 rounded-lg p-3" data-source-card-id="' + (panel.source_id || i) + '">';
+        html += '<p class="font-semibold text-gray-900 text-xs truncate">' + (panel.title || 'Source') + '</p>';
+        if (panel.html) {
+            html += '<div class="mt-1 text-xs text-gray-600 hl-text">' + panel.html + '</div>';
+        }
+        html += '</div>';
+    }
+
+    // Matched passages
+    if (matchedPassages.length > 0) {
+        html += '<div class="mt-3 pt-3 border-t border-gray-200">';
+        html += '<p class="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Matched Passages (' + matchedPassages.length + ')</p>';
+        for (var i = 0; i < Math.min(matchedPassages.length, 5); i++) {
+            var mp = matchedPassages[i];
+            html += '<div class="bg-gray-50 rounded p-2 mb-2 text-xs border border-gray-100">';
+            html += '<div class="flex items-center gap-1 mb-1">';
+            html += '<span class="inline-block px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">' + (mp.match_type || 'match') + '</span>';
+            html += '<span class="text-gray-400">' + Number((mp.match_confidence || 0) * 100).toFixed(0) + '%</span>';
+            html += '</div>';
+            if (mp.submission_text) {
+                html += '<p class="text-gray-600 truncate">"' + mp.submission_text.substring(0, 80) + '"</p>';
+            }
+            html += '</div>';
+        }
+        if (matchedPassages.length > 5) {
+            html += '<p class="text-xs text-gray-400 text-center mt-1">+' + (matchedPassages.length - 5) + ' more passages</p>';
+        }
+        html += '</div>';
+    }
+
+    sideContent.innerHTML = html;
+}
+
+function acSimToggleFilters() {
+    var el = document.getElementById('ac-sim-hl-filters');
+    el.classList.toggle('hidden');
+}
+
+function acSimStartPolling(submissionId) {
+    if (acSimWorkspaceState.pollInterval) clearInterval(acSimWorkspaceState.pollInterval);
+    acSimWorkspaceState.pollInterval = setInterval(function() {
+        if (acSimWorkspaceState.currentSubmissionId !== submissionId) {
+            clearInterval(acSimWorkspaceState.pollInterval);
+            acSimWorkspaceState.pollInterval = null;
+            return;
+        }
+        fetch('/api/v1/academic-similarity/public/reports/' + submissionId + '/viewer')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok && data.submission && (data.submission.status === 'processed' || data.submission.status === 'failed' || data.submission.status === 'no_text')) {
+                clearInterval(acSimWorkspaceState.pollInterval);
+                acSimWorkspaceState.pollInterval = null;
+                acSimWorkspaceState.currentView = data;
+                acSimRenderViewer(data);
+                acSimRefreshHistory();
+            }
+        })
+        .catch(function() {});
+    }, 5000);
+}
+</script>

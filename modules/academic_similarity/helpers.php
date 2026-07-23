@@ -36,6 +36,7 @@ declare(strict_types=1);
         '/ValueObjects/AcademicSimilarityHighlightSpan.php',
         '/Services/AcademicSimilarityHighlightService.php',
         '/Services/AcademicSimilarityUserResultService.php',
+        '/Services/AcademicSimilarityPublicReportViewService.php',
         '/Jobs/AcademicSimilarityProcessJob.php',
         '/Reports/AcademicSimilarityReportGenerator.php',
         '/Policies/AcademicSimilarityTenantPolicy.php',
@@ -111,6 +112,12 @@ function academic_similarity_get_settings(string $tenantId): array
         'public_results_show_match_count' => '1',
         'public_results_show_report_links' => '1',
         'public_results_allow_anonymous' => '1',
+        'public_report_workspace_enabled' => '1',
+        'public_report_download_enabled' => '1',
+        'public_report_show_raw_score' => '1',
+        'public_report_show_source_names' => '1',
+        'public_report_show_full_document' => '1',
+        'public_report_default_mode' => 'workspace',
     ];
 
     $db = academic_similarity_db();
@@ -142,6 +149,9 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'public_results_enabled', 'public_results_recent_limit',
         'public_results_show_scores', 'public_results_show_match_count',
         'public_results_show_report_links', 'public_results_allow_anonymous',
+        'public_report_workspace_enabled', 'public_report_download_enabled',
+        'public_report_show_raw_score', 'public_report_show_source_names',
+        'public_report_show_full_document', 'public_report_default_mode',
     ];
 
     $db = academic_similarity_db();
@@ -351,7 +361,108 @@ function academic_similarity_render_submission_form(array $options = []): string
     }
 
     $title = $options['title'] ?? ($settings['cms_default_submission_title'] ?? 'Submit Document for Similarity Check');
+    $showResults = ($settings['public_results_enabled'] ?? '1') === '1';
+    $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+    $isLoggedIn = $submitterUserId > 0;
+
     $html = '<div class="ac-sim-public-wrap" style="max-width:640px;margin:2rem auto">';
+
+    // ── User Stats Panel (logged-in users only) ──
+    if ($isLoggedIn && $showResults) {
+        $resultService = new \AcademicSimilarityUserResultService((string)(app()->tenant()->current() ?? ''));
+        try {
+            $stats = $resultService->getSummaryStats($submitterUserId);
+        } catch (\Throwable $e) {
+            $stats = [];
+        }
+        $showScores = ($settings['public_results_show_scores'] ?? '1') === '1';
+        $statCards = [];
+
+        if (!empty($stats)) {
+            $statCards[] = ['label' => 'Total', 'value' => (int)($stats['total_submissions'] ?? 0), 'color' => '#374151'];
+            $statCards[] = ['label' => 'Processed', 'value' => (int)($stats['processed_count'] ?? 0), 'color' => '#059669'];
+            $statCards[] = ['label' => 'Pending', 'value' => (int)($stats['pending_count'] ?? 0), 'color' => '#d97706'];
+            $statCards[] = ['label' => 'Failed', 'value' => (int)($stats['failed_count'] ?? 0), 'color' => '#dc2626'];
+            if ($showScores) {
+                $statCards[] = ['label' => 'Avg Score', 'value' => number_format((float)($stats['avg_adjusted_score'] ?? 0), 1) . '%', 'color' => '#7c3aed'];
+                $statCards[] = ['label' => 'Highest', 'value' => number_format((float)($stats['highest_adjusted_score'] ?? 0), 1) . '%', 'color' => '#2563eb'];
+            }
+        }
+
+        if ($statCards !== []) {
+            $html .= '<div id="ac-sim-stats" class="ac-sim-stats">';
+            $html .= '<h4 style="font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;color:#111827">Your Submission History</h4>';
+            $html .= '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-bottom:1rem">';
+            foreach ($statCards as $card) {
+                $html .= '<div style="text-align:center;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 6px">';
+                $html .= '<div style="font-size:1.25rem;font-weight:700;color:' . htmlspecialchars($card['color']) . '">' . htmlspecialchars((string)$card['value']) . '</div>';
+                $html .= '<div style="font-size:0.65rem;text-transform:uppercase;color:#6b7280;letter-spacing:0.02em">' . htmlspecialchars($card['label']) . '</div>';
+                $html .= '</div>';
+            }
+            $html .= '</div></div>';
+        }
+
+        // ── Recent Submissions Table ──
+        $recentLimit = max(1, min(50, (int)($settings['public_results_recent_limit'] ?? 10)));
+        $showMatchCount = ($settings['public_results_show_match_count'] ?? '1') === '1';
+        $showReportLinks = ($settings['public_results_show_report_links'] ?? '1') === '1';
+        try {
+            $recentSubmissions = $resultService->getRecentSubmissions($submitterUserId, $recentLimit);
+        } catch (\Throwable $e) {
+            $recentSubmissions = [];
+        }
+
+        if ($recentSubmissions !== []) {
+            $html .= '<div id="ac-sim-recent" style="margin-bottom:1.5rem;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">';
+            $html .= '<div style="padding:10px 14px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:0.85rem;font-weight:600;color:#374151">Recent Submissions</div>';
+            $html .= '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8rem">';
+            $html .= '<thead><tr style="background:#f3f4f6">';
+            $html .= '<th style="padding:8px 10px;text-align:left;font-weight:600;color:#6b7280">Title</th>';
+            $html .= '<th style="padding:8px 10px;text-align:left;font-weight:600;color:#6b7280">Status</th>';
+            if ($showScores) $html .= '<th style="padding:8px 10px;text-align:left;font-weight:600;color:#6b7280">Score</th>';
+            if ($showMatchCount) $html .= '<th style="padding:8px 10px;text-align:left;font-weight:600;color:#6b7280">Matches</th>';
+            $html .= '<th style="padding:8px 10px;text-align:left;font-weight:600;color:#6b7280">Date</th>';
+            if ($showReportLinks) $html .= '<th style="padding:8px 10px;text-align:left;font-weight:600;color:#6b7280">Report</th>';
+            $html .= '</tr></thead><tbody>';
+
+            foreach ($recentSubmissions as $row) {
+                $status = $row['status'] ?? 'pending';
+                $statusColor = match ($status) {
+                    'processed' => '#059669',
+                    'processing' => '#d97706',
+                    'failed' => '#dc2626',
+                    default => '#6b7280',
+                };
+                $statusBg = match ($status) {
+                    'processed' => '#ecfdf5',
+                    'processing' => '#fffbeb',
+                    'failed' => '#fef2f2',
+                    default => '#f3f4f6',
+                };
+                $html .= '<tr style="border-top:1px solid #f3f4f6">';
+                $html .= '<td style="padding:8px 10px;font-weight:500;color:#111827">' . htmlspecialchars(mb_substr($row['submission_title'] ?? '', 0, 40)) . '</td>';
+                $html .= '<td style="padding:8px 10px"><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:600;background:' . $statusBg . ';color:' . $statusColor . '">' . htmlspecialchars($status) . '</span></td>';
+                if ($showScores) {
+                    $score = $row['adjusted_similarity_score'] !== null ? $row['adjusted_similarity_score'] : ($row['raw_similarity_score'] !== null ? $row['raw_similarity_score'] : null);
+                    $val = $score !== null ? number_format((float)$score, 1) . '%' : html_entity_decode('&mdash;', ENT_QUOTES, 'UTF-8');
+                    $html .= '<td style="padding:8px 10px;font-weight:600;color:#374151">' . htmlspecialchars((string)$val) . '</td>';
+                }
+                if ($showMatchCount) {
+                    $html .= '<td style="padding:8px 10px;color:#6b7280">' . ((int)($row['matched_word_count'] ?? 0)) . '</td>';
+                }
+                $html .= '<td style="padding:8px 10px;color:#6b7280;white-space:nowrap">' . htmlspecialchars(mb_substr($row['submitted_at'] ?? '', 0, 10)) . '</td>';
+                if ($showReportLinks && !empty($row['report_id'])) {
+                    $html .= '<td style="padding:8px 10px"><a href="#" onclick="acSimViewReport(' . (int)$row['report_id'] . ',' . (int)$row['id'] . ');return false" style="color:#2563eb;font-weight:500;text-decoration:none">View</a></td>';
+                } elseif ($showReportLinks) {
+                    $html .= '<td style="padding:8px 10px;color:#d1d5db">' . html_entity_decode('&mdash;', ENT_QUOTES, 'UTF-8') . '</td>';
+                }
+                $html .= '</tr>';
+            }
+            $html .= '</tbody></table></div></div>';
+        }
+    }
+
+    // ── Form ──
     if ($title) {
         $html .= '<h3 style="font-size:1.25rem;font-weight:700;margin-bottom:1rem">' . htmlspecialchars($title) . '</h3>';
     }
@@ -370,7 +481,7 @@ function academic_similarity_render_submission_form(array $options = []): string
     $html .= '<div><label style="font-weight:600;font-size:0.9rem;margin-bottom:0.25rem">Upload File</label>';
     $html .= '<input type="file" name="file" accept=".docx,.pdf,.txt" style="font-size:0.85rem" /></div>';
 
-    $html .= '<div style="text-align:center;color:#9ca3af;font-size:0.8rem">— or —</div>';
+    $html .= '<div style="text-align:center;color:#9ca3af;font-size:0.8rem">' . html_entity_decode('&mdash;', ENT_QUOTES, 'UTF-8') . ' or ' . html_entity_decode('&mdash;', ENT_QUOTES, 'UTF-8') . '</div>';
 
     $html .= '<div><label style="display:block;font-weight:600;font-size:0.9rem;margin-bottom:0.25rem">Paste Text</label>';
     $html .= '<textarea name="pasted_text" rows="6" style="width:100%;padding:0.6rem 0.75rem;border:1px solid #d1d5db;border-radius:0.5rem;font-size:0.9rem" placeholder="Paste your document content..."></textarea></div>';
@@ -379,9 +490,26 @@ function academic_similarity_render_submission_form(array $options = []): string
     $html .= '</form>';
     $html .= '<div id="ac-sim-result" style="margin-top:1rem;display:none"></div>';
 
-    $html .= '<script>
-function acSimPublicSubmit(e){e.preventDefault();var f=document.getElementById("ac-sim-form"),fd=new FormData(f),r=document.getElementById("ac-sim-result"),file=fd.get("file"),text=(fd.get("pasted_text")||"").toString().trim();fd.set("source_type",file&&file.name?"upload":"pasted");if(!file.name&&!text){r.style.display="block";r.style.color="#dc2626";r.innerHTML="Error: paste text or upload a file";return false}fd.set("submission_title",fd.get("submission_title")||"Untitled"),r.style.display="block",r.innerHTML="Submitting...",fetch("/api/v1/academic-similarity/public/submit",{method:"POST",body:fd}).then(function(x){return x.json()}).then(function(d){r.className="";if(d.ok){r.style.color="#059669";r.innerHTML="<strong>Submitted!</strong> Reference ID: "+d.submission_id;f.reset()}else{r.style.color="#dc2626";r.innerHTML="Error: "+(d.error||"Unknown")}}).catch(function(e){r.style.color="#dc2626";r.innerHTML="Network error: "+e.message});return false}
-</script>';
+    // ── JS: submission + results refresh ──
+    $jsVars = "var acSimIsLoggedIn = " . ($isLoggedIn ? "true" : "false") . ";\n"
+        . "var acSimShowResults = " . ($showResults ? "true" : "false") . ";\n"
+        . "var acSimPollInterval = null;\n";
+
+    $jsFuncs = <<< 'JSBLOCK'
+function acSimPublicSubmit(e){e.preventDefault();var f=document.getElementById("ac-sim-form"),fd=new FormData(f),r=document.getElementById("ac-sim-result"),file=fd.get("file"),text=(fd.get("pasted_text")||"").toString().trim();fd.set("source_type",file&&file.name?"upload":"pasted");if(!file.name&&!text){r.style.display="block";r.style.color="#dc2626";r.innerHTML="Error: paste text or upload a file";return false}fd.set("submission_title",fd.get("submission_title")||"Untitled"),r.style.display="block",r.innerHTML="Submitting...",fetch("/api/v1/academic-similarity/public/submit",{method:"POST",body:fd}).then(function(x){return x.json()}).then(function(d){r.className="";if(d.ok){r.style.color="#059669";r.innerHTML="<strong>Submitted!</strong> Your document is being processed. Results will appear here when ready.";f.reset();if(acSimIsLoggedIn&&acSimShowResults){acSimRefreshResults();acSimStartPolling()}}else{r.style.color="#dc2626";r.innerHTML="Error: "+(d.error||"Unknown")}}).catch(function(e){r.style.color="#dc2626";r.innerHTML="Network error: "+e.message});return false}
+
+function acSimRefreshResults(){if(!acSimIsLoggedIn||!acSimShowResults)return;fetch("/api/v1/academic-similarity/public/results").then(function(x){return x.json()}).then(function(d){if(d.ok&&d.stats){var s=d.stats;var cards="";cards+=acSimStatCard("Total",s.total_submissions,"#374151");cards+=acSimStatCard("Processed",s.processed_count,"#059669");cards+=acSimStatCard("Pending",s.pending_count,"#d97706");cards+=acSimStatCard("Failed",s.failed_count,"#dc2626");if(d.show_scores){cards+=acSimStatCard("Avg Score",(s.avg_adjusted_score||0)+"%","#7c3aed");cards+=acSimStatCard("Highest",(s.highest_adjusted_score||0)+"%","#2563eb")}var el=document.getElementById("ac-sim-stats");if(el)el.innerHTML="<h4 style=\"font-size:0.95rem;font-weight:700;margin-bottom:0.75rem;color:#111827\">Your Submission History</h4><div style=\"display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-bottom:1rem\">"+cards+"</div>";acSimBuildRecentTable(d)}}).catch(function(){})}
+
+function acSimStatCard(l,v,c){return "<div style=\"text-align:center;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:8px 6px\"><div style=\"font-size:1.25rem;font-weight:700;color:"+c+"\">"+v+"</div><div style=\"font-size:0.65rem;text-transform:uppercase;color:#6b7280;letter-spacing:0.02em\">"+l+"</div></div>"}
+
+function acSimBuildRecentTable(d){var el=document.getElementById("ac-sim-recent");if(!el)return;var rows="";for(var i=0;i<d.recent.length;i++){var r=d.recent[i];var sc=r.status==="processed"?"#059669":r.status==="processing"?"#d97706":r.status==="failed"?"#dc2626":"#6b7280";var sb=r.status==="processed"?"#ecfdf5":r.status==="processing"?"#fffbeb":r.status==="failed"?"#fef2f2":"#f3f4f6";rows+="<tr style=\"border-top:1px solid #f3f4f6\">";rows+="<td style=\"padding:8px 10px;font-weight:500;color:#111827\">"+(r.submission_title||"").substring(0,40)+"</td>";rows+="<td style=\"padding:8px 10px\"><span style=\"display:inline-block;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:600;background:"+sb+";color:"+sc+"\">"+(r.status||"pending")+"</span></td>";if(d.show_scores){var sv=r.adjusted_similarity_score!==null?r.adjusted_similarity_score:r.raw_similarity_score;rows+="<td style=\"padding:8px 10px;font-weight:600;color:#374151\">"+(sv!==null?Number(sv).toFixed(1)+"%":"\u2014")+"</td>"}if(d.show_match_count){rows+="<td style=\"padding:8px 10px;color:#6b7280\">"+(r.matched_word_count||0)+"</td>"}rows+="<td style=\"padding:8px 10px;color:#6b7280;white-space:nowrap\">"+((r.submitted_at||"").substring(0,10))+"</td>";if(d.show_report_links&&r.report_id){rows+="<td style=\"padding:8px 10px\"><a href=\"#\" onclick=\"acSimViewReport("+r.report_id+","+r.id+");return false\" style=\"color:#2563eb;font-weight:500;text-decoration:none\">View</a></td>"}else if(d.show_report_links){rows+="<td style=\"padding:8px 10px;color:#d1d5db\">\u2014</td>"}rows+="</tr>"}el.innerHTML="<div style=\"padding:10px 14px;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:0.85rem;font-weight:600;color:#374151\">Recent Submissions</div><div style=\"overflow-x:auto\"><table style=\"width:100%;border-collapse:collapse;font-size:0.8rem\"><thead><tr style=\"background:#f3f4f6\"><th style=\"padding:8px 10px;text-align:left;font-weight:600;color:#6b7280\">Title</th><th style=\"padding:8px 10px;text-align:left;font-weight:600;color:#6b7280\">Status</th>"+(d.show_scores?"<th style=\"padding:8px 10px;text-align:left;font-weight:600;color:#6b7280\">Score</th>":"")+(d.show_match_count?"<th style=\"padding:8px 10px;text-align:left;font-weight:600;color:#6b7280\">Matches</th>":"")+"<th style=\"padding:8px 10px;text-align:left;font-weight:600;color:#6b7280\">Date</th>"+(d.show_report_links?"<th style=\"padding:8px 10px;text-align:left;font-weight:600;color:#6b7280\">Report</th>":"")+"</tr></thead><tbody>"+rows+"</tbody></table></div>"}
+
+function acSimStartPolling(){if(acSimPollInterval)clearInterval(acSimPollInterval);acSimPollInterval=setInterval(function(){acSimRefreshResults()},10000)}
+
+function acSimViewReport(reportId,submissionId){fetch("/api/v1/academic-similarity/public/reports/"+submissionId).then(function(x){return x.json()}).then(function(d){if(d.ok){var r=document.getElementById("ac-sim-result");var out="<div style=\"background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:0.85rem\">";out+="<h4 style=\"font-weight:700;font-size:1rem;margin:0 0 8px\">Report Summary</h4>";out+="<p><strong>Title:</strong> "+(d.submission.submission_title||"")+"</p>";out+="<p><strong>Status:</strong> "+(d.submission.status||"")+"</p>";if(d.submission.adjusted_similarity_score!==null){out+="<p><strong>Similarity Score:</strong> "+Number(d.submission.adjusted_similarity_score).toFixed(1)+"%</p>"}if(d.report){out+="<p><strong>Total Matches:</strong> "+(d.report.total_matches||0)+"</p>";out+="<p><strong>Generated:</strong> "+(d.report.generated_at||"")+"</p>"}out+="</div>";r.className="mt-6 p-4 rounded-lg border text-sm bg-gray-50 border-gray-200 text-gray-700";r.innerHTML=out;r.classList.remove("hidden");r.scrollIntoView({behavior:"smooth"})}}).catch(function(){})}
+JSBLOCK;
+
+    $html .= '<script>' . "\n" . $jsVars . $jsFuncs . "\n" . '</script>';
     $html .= '</div>';
     return $html;
 }
@@ -398,9 +526,35 @@ if (function_exists('app') && app() && method_exists(app(), 'hooks')) {
         if ($shortcode === '') {
             $shortcode = 'academic_similarity_submission';
         }
-        $pattern = '/\[' . preg_quote($shortcode, '/') . '(?:\s+title="([^"]*)")?\s*\]/i';
-        return preg_replace_callback($pattern, static function (array $matches): string {
-            $title = $matches[1] ?? '';
+        $pattern = '/\[' . preg_quote($shortcode, '/') . '([^\]]*)\]/i';
+        return preg_replace_callback($pattern, static function (array $matches) use ($settings): string {
+            $attrs = $matches[1] ?? '';
+            $title = '';
+            $mode = '';
+            $showForm = '';
+            $showHistory = '';
+            $showReportViewer = '';
+
+            if (preg_match('/title="([^"]*)"/i', $attrs, $m)) $title = $m[1];
+            if (preg_match('/mode="([^"]*)"/i', $attrs, $m)) $mode = $m[1];
+            if (preg_match('/show_form="([^"]*)"/i', $attrs, $m)) $showForm = $m[1];
+            if (preg_match('/show_history="([^"]*)"/i', $attrs, $m)) $showHistory = $m[1];
+            if (preg_match('/show_report_viewer="([^"]*)"/i', $attrs, $m)) $showReportViewer = $m[1];
+
+            $workspaceEnabled = ($settings['public_report_workspace_enabled'] ?? '1') === '1';
+            $isLoggedIn = \AcademicSimilarityUserResultService::getCurrentUserId() > 0;
+
+            if ($mode === 'workspace' && $workspaceEnabled && $isLoggedIn) {
+                return academic_similarity_render_submission_form([
+                    'title' => $title,
+                    'mode' => 'workspace',
+                ]) . academic_similarity_render_workspace([
+                    'show_form' => $showForm !== '0',
+                    'show_history' => $showHistory !== '0',
+                    'show_report_viewer' => $showReportViewer !== '0',
+                ]);
+            }
+
             return academic_similarity_render_submission_form(['title' => $title]);
         }, $html) ?? $html;
     }, 10);
@@ -436,4 +590,62 @@ function academic_similarity_render_submission_block(array $props, array $style,
 {
     $title = (string)($props['title'] ?? '');
     return academic_similarity_render_submission_form(['title' => $title]);
+}
+
+/**
+ * Render the public report workspace for logged-in users.
+ */
+function academic_similarity_render_workspace(array $options = []): string
+{
+    $showForm = $options['show_form'] ?? true;
+    $showHistory = $options['show_history'] ?? true;
+    $showReportViewer = $options['show_report_viewer'] ?? true;
+
+    $html = '<div class="ac-sim-workspace-container" id="ac-sim-workspace-container">';
+
+    // Hidden data for JS initialization
+    $html .= '<script>
+var acSimWorkspaceCfg = ' . json_encode([
+        'show_form' => (bool)$showForm,
+        'show_history' => (bool)$showHistory,
+        'show_report_viewer' => (bool)$showReportViewer,
+    ]) . ';
+document.addEventListener("DOMContentLoaded", function () {
+    if (typeof acSimInitWorkspace === "function") {
+        acSimInitWorkspace();
+    }
+});
+</script>';
+
+    // Render the workspace template content via app()->render()
+    try {
+        $tenantId = (string)(app()->tenant()->current() ?? '');
+        $settings = academic_similarity_get_settings($tenantId);
+        $submitterUserId = \AcademicSimilarityUserResultService::getCurrentUserId();
+
+        $html .= app()->render('modules/academic-similarity/public/workspace', [
+            'show_form' => $showForm,
+            'show_history' => $showHistory,
+            'show_report_viewer' => $showReportViewer,
+            'is_logged_in' => $submitterUserId > 0,
+            'settings' => $settings,
+        ]);
+    } catch (\Throwable $e) {
+        write_log('Failed to render workspace template: ' . $e->getMessage());
+        $html .= '<div class="p-4 text-red-500 text-sm">Failed to load workspace. Please refresh the page.</div>';
+    }
+
+    // Highlight CSS
+    $html .= '<style>
+.hl-exact { background: #fecaca; border-bottom: 2px solid #dc2626; }
+.hl-near { background: #fed7aa; border-bottom: 2px solid #ea580c; }
+.hl-semantic { background: #fef08a; border-bottom: 2px solid #ca8a04; }
+.hl-quote { background: #bfdbfe; border-bottom: 2px solid #2563eb; }
+.hl-excluded { background: #e5e7eb; border-bottom: 2px solid #9ca3af; text-decoration: line-through; opacity: 0.6; }
+.hl-stat { background: #ddd6fe; border-bottom: 2px solid #7c3aed; }
+.hl-span { cursor: pointer; border-radius: 2px; padding: 0 1px; }
+</style>';
+
+    $html .= '</div>';
+    return $html;
 }
