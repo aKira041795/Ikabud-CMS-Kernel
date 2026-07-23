@@ -372,8 +372,8 @@ class AcademicSimilaritySourceService
             }
 
             $fingerprintService = new AcademicSimilarityFingerprintService($this->tenantId);
-            $exact = $fingerprintService->generateFingerprints($segments, $shingleSize, $sourceId, null, $textVersionId);
-            $near = $fingerprintService->generateNearFingerprints($segments, $shingleSize, $sourceId, null, $textVersionId);
+            $exact = $fingerprintService->generateFingerprints($segments, $sourceId, null, $textVersionId);
+            $near = $fingerprintService->generateNearFingerprints($segments, $sourceId, null, $textVersionId);
             $fingerprintService->saveFingerprints($exact, $this->tenantId, $sourceId, null, $textVersionId);
             $fingerprintService->saveFingerprints($near, $this->tenantId, $sourceId, null, $textVersionId);
 

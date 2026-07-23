@@ -423,23 +423,17 @@ class AcademicSimilarityPipelineService
         try {
             $fpService = new AcademicSimilarityFingerprintService($this->tenantId);
 
-            // Get shingle size from settings
-            $settings = academic_similarity_get_settings($this->tenantId);
-            $shingleSize = (int)($settings['fingerprint_shingle_size'] ?? 5);
-
-            // Generate exact fingerprints
+            // Generate exact fingerprints (multi-layer: short/medium/long)
             $exactFps = $fpService->generateFingerprints(
                 $segments,
-                $shingleSize,
                 null,
                 $submissionId,
                 $textVersionId
             );
 
-            // Generate near fingerprints
+            // Generate near fingerprints (medium+ layers only)
             $nearFps = $fpService->generateNearFingerprints(
                 $segments,
-                $shingleSize,
                 null,
                 $submissionId,
                 $textVersionId
@@ -708,7 +702,6 @@ class AcademicSimilarityPipelineService
             'semantic_match' => $this->runSemanticMatchStage($submissionId),
             'score' => $this->runScore($submissionId),
             'report' => $this->runReport($submissionId),
-            'recheck' => $this->runRecheck($submissionId, 0),
             default => throw new \RuntimeException("Unknown pipeline stage: {$stage}"),
         };
     }
