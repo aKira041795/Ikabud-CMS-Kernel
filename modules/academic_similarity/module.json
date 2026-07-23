@@ -189,6 +189,34 @@
                         }
                     }
                 }
+            },
+            {
+                "id": "academic_similarity.internet.discover@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Discover internet sources for a submission. Default handler returns empty/disclosure; external provider modules can register at higher priority to supply real search results.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "tenant_id": {
+                            "type": "string"
+                        },
+                        "queries": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "max_sources": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    }
+                }
             }
         ],
         "depends": [
