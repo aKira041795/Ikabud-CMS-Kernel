@@ -421,11 +421,18 @@ function pageSettings(array $params = []): void
     $semantic = new \AcademicSimilaritySemanticService($tenantId);
     $semanticStatus = $semantic->isAvailable();
 
+    $flashError = '';
+    if (isset($_SESSION['_kernel_flash']['error']) && is_array($_SESSION['_kernel_flash']['error'])) {
+        $flashError = implode(' ', $_SESSION['_kernel_flash']['error']);
+        $_SESSION['_kernel_flash']['error'] = [];
+    }
+
     echo $ctx->render('academic_similarity/settings', [
         'settings' => $settings,
         'settings_section' => $settingsSection,
         'semantic_status' => $semanticStatus,
         'active_nav' => 'settings',
+        'flash_error' => $flashError,
     ]);
 }
 
@@ -768,11 +775,28 @@ function apiExcludeMatch(array $params = []): void
 
 function apiSaveSettings(array $params = []): void
 {
-    header('Content-Type: application/json');
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
     academic_similarity_require_admin($ctx);
-    app()->csrfEnforce();
+
+    $isJson = str_contains((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json');
+    if ($isJson) {
+        header('Content-Type: application/json');
+    }
+
+    try {
+        app()->csrfEnforce();
+    } catch (\Throwable $e) {
+        if ($isJson) {
+            http_response_code(419);
+            echo json_encode(['ok' => false, 'error' => 'CSRF validation failed']);
+        } else {
+            $_SESSION['_kernel_flash']['error'][] = 'Session expired. Please try again.';
+            header('Location: /admin/academic-similarity/settings');
+            exit;
+        }
+        return;
+    }
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
@@ -795,8 +819,10 @@ function apiSaveSettings(array $params = []): void
 
     try {
         academic_similarity_save_settings($tenantId, $input);
-        $accept = (string)($_SERVER['HTTP_ACCEPT'] ?? '');
-        if (!str_contains($accept, 'application/json')) {
+        if (function_exists('write_log')) {
+            write_log('AISS settings saved', 'debug', ['tenant_id' => $tenantId, 'keys' => array_keys($input)]);
+        }
+        if (!$isJson) {
             $section = preg_replace('/[^a-z_]/', '', (string)($input['settings_section'] ?? ''));
             $validSections = ['processing', 'reports', 'sources', 'semantic', 'internet', 'cms'];
             $target = '/admin/academic-similarity/settings';
@@ -804,12 +830,21 @@ function apiSaveSettings(array $params = []): void
                 $target .= '/' . $section;
             }
             header('Location: ' . $target . '?saved=1');
-            return;
+            exit;
         }
         echo json_encode(['ok' => true, 'message' => 'Settings saved']);
     } catch (\Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        if (function_exists('write_log')) {
+            write_log('AISS settings save failed: ' . $e->getMessage(), 'error', ['tenant_id' => $tenantId]);
+        }
+        if ($isJson) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        } else {
+            $_SESSION['_kernel_flash']['error'][] = 'Save failed: ' . $e->getMessage();
+            header('Location: /admin/academic-similarity/settings');
+            exit;
+        }
     }
 }
 

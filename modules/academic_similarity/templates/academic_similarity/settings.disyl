@@ -27,6 +27,46 @@
     </div>
     {/if}
 
+    {if flash_error}
+    <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p class="text-sm text-red-700">{flash_error}</p>
+    </div>
+    {/if}
+
+    <!-- Toast container -->
+    <div id="aiss-toast" class="fixed top-4 right-4 z-50 transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-none" style="display:none">
+        <div id="aiss-toast-body" class="px-5 py-3 rounded-lg shadow-lg text-sm font-medium"></div>
+    </div>
+
+    <script>
+    (function() {
+        var toast = document.getElementById('aiss-toast');
+        var body = document.getElementById('aiss-toast-body');
+        function show(msg, type) {
+            body.className = 'px-5 py-3 rounded-lg shadow-lg text-sm font-medium ';
+            if (type === 'error') {
+                body.className += 'bg-red-600 text-white';
+            } else {
+                body.className += 'bg-emerald-600 text-white';
+            }
+            body.textContent = msg;
+            toast.style.display = 'block';
+            setTimeout(function() { toast.className = 'fixed top-4 right-4 z-50 transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-none'; }, 50);
+            setTimeout(function() { toast.className = 'fixed top-4 right-4 z-50 transition-all duration-300 opacity-1 translate-y-0 pointer-events-auto'; }, 60);
+            setTimeout(function() {
+                toast.className = 'fixed top-4 right-4 z-50 transition-all duration-300 opacity-0 translate-y-[-8px] pointer-events-none';
+                setTimeout(function() { toast.style.display = 'none'; }, 350);
+            }, 3000);
+        }
+        {if saved}
+        show('Settings saved successfully.', 'success');
+        {/if}
+        {if flash_error}
+        show('{flash_error|escape:js}', 'error');
+        {/if}
+    })();
+    </script>
+
     <form id="aiss-settings-form" method="POST" action="/admin/academic-similarity/settings" class="space-y-6">
         <input type="hidden" name="_token" value="{csrf_token}">
         <input type="hidden" name="settings_section" value="{settings_section}">
