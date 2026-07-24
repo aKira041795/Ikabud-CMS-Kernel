@@ -285,8 +285,8 @@ class AcademicSimilarityPipelineService
             return ['ok' => false, 'error' => "No text version found for submission #{$submissionId}"];
         }
 
-        $normalizedText = $textVersion['normalized_text'] ?? $textVersion['extracted_text'];
-        if (empty($normalizedText)) {
+        $originalText = $textVersion['extracted_text'] ?? '';
+        if (empty($originalText)) {
             return ['ok' => false, 'error' => "No text to segment for submission #{$submissionId}"];
         }
 
@@ -294,10 +294,19 @@ class AcademicSimilarityPipelineService
             $normalizer = new AcademicSimilarityNormalizationService($this->tenantId);
             $segments = [];
 
-            // Split into sentences by common sentence boundaries
-            $sentences = preg_split('/(?<=[.!?])\s+/', $normalizedText, -1, PREG_SPLIT_NO_EMPTY);
+            // Split ORIGINAL text into sentences (preserves punctuation for boundary detection).
+            // Normalized text has punctuation stripped, so sentence splitting on it fails.
+            $sentences = preg_split('/(?<=[.!?])\s+/', $originalText, -1, PREG_SPLIT_NO_EMPTY);
+            if ($sentences === false || count($sentences) <= 1) {
+                // Fallback: split on newlines, then on sentence-like boundaries
+                $sentences = preg_split('/\n+/', $originalText, -1, PREG_SPLIT_NO_EMPTY);
+                if ($sentences === false || count($sentences) <= 1) {
+                    // Last resort: split on any double-space or keep as single segment
+                    $sentences = preg_split('/\s{2,}/', $originalText, -1, PREG_SPLIT_NO_EMPTY);
+                }
+            }
             if ($sentences === false) {
-                $sentences = [$normalizedText];
+                $sentences = [$originalText];
             }
 
             $origOffset = 0;
@@ -335,6 +344,12 @@ class AcademicSimilarityPipelineService
                 $origOffset += $charCount + 1; // +1 for the split whitespace
                 $normOffset += strlen($sentenceNorm) + 1;
             }
+
+            // Delete existing segments for this submission (idempotent re-run safety)
+            $this->db->prepare("
+                DELETE FROM ac_similarity_segments
+                WHERE submission_id = :sid AND tenant_id = :tid
+            ")->execute([':sid' => $submissionId, ':tid' => $this->tenantId]);
 
             // Insert segments into database
             $insertStmt = $this->db->prepare("
@@ -873,7 +888,18 @@ class AcademicSimilarityPipelineService
     private function runNearMatchStage(int $submissionId): array
     {
         $matchingService = new AcademicSimilarityMatchingService($this->tenantId);
-        $result = $matchingService->runNearExactMatching($submissionId);
+
+        // Skip sources that already have matches stored from the exact stage.
+        // When fingerprint hits are zero, both exact and near stages fall back to
+        // the same text-level comparison, producing duplicate matches.
+        $alreadyMatched = $this->db->prepare("
+            SELECT DISTINCT source_id FROM ac_similarity_matches
+            WHERE submission_id = :sid AND tenant_id = :tid
+        ");
+        $alreadyMatched->execute([':sid' => $submissionId, ':tid' => $this->tenantId]);
+        $excludedSourceIds = $alreadyMatched->fetchAll(\PDO::FETCH_COLUMN);
+
+        $result = $matchingService->runNearExactMatching($submissionId, array_map('intval', $excludedSourceIds));
 
         if ($result['ok'] && !empty($result['match_results'])) {
             $stored = $matchingService->storeMatches($result['match_results'], $this->tenantId);
@@ -991,11 +1017,19 @@ class AcademicSimilarityPipelineService
 
             $segWordCount = (int)($submissionSegment['word_count'] ?? 0);
             $segId = (int)($submissionSegment['id'] ?? 0);
-            $wordStart = $subSegmentWordStarts[$segId] ?? 0;
-            $wordEnd = $wordStart + max(0, $segWordCount - 1);
+            $segBase = $subSegmentWordStarts[$segId] ?? 0;
 
-            // Scale matched_word_count by confidence to avoid score inflation
+            // Scale matched_word_count by confidence to avoid score inflation.
+            // Cap at segment word count.
             $effectiveWords = max(1, (int)round($segWordCount * $score * 0.5));
+            $effectiveWords = min($effectiveWords, $segWordCount);
+
+            // Semantic similarity is a segment-level property — we can't know
+            // exactly WHICH words match. Use a proportional sub-range starting
+            // from the segment base, capped by effective word count.
+            // This prevents the entire segment range from inflating unique coverage.
+            $wordStart = $segBase;
+            $wordEnd = $segBase + $effectiveWords - 1;
 
             $bestBySource[$sourceId] = [
                 'score' => $score,

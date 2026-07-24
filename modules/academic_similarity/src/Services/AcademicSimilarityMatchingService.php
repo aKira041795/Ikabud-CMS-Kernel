@@ -71,7 +71,7 @@ class AcademicSimilarityMatchingService
      * @param int $submissionId
      * @return array{ok: bool, matches: int, match_results: AcademicSimilarityMatchResult[]}
      */
-    public function runNearExactMatching(int $submissionId): array
+    public function runNearExactMatching(int $submissionId, array $excludeSourceIds = []): array
     {
         $subFps = $this->loadFingerprints($submissionId, 'near', 'submission');
 
@@ -91,8 +91,14 @@ class AcademicSimilarityMatchingService
             return ['ok' => true, 'matches' => 0, 'match_results' => []];
         }
 
+        $excludeLookup = array_flip($excludeSourceIds);
         $allMatches = [];
         foreach ($candidates as $sourceId => $sourceInfo) {
+            // Skip sources already matched by the exact stage (prevents duplicate
+            // text-level fallback matches when no fingerprint hits exist).
+            if (isset($excludeLookup[(int)$sourceId])) {
+                continue;
+            }
             $sourceMatches = $this->compareSubmissionToSource(
                 $submissionId,
                 (int)$sourceId,
