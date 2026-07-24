@@ -957,6 +957,16 @@ class AcademicSimilarityPipelineService
 
         $threshold = (float)($settings['semantic_similarity_threshold'] ?? 0.70);
         $matches = [];
+
+        // Build word-position index for submission segments
+        // (semantic match produces character offsets, but scoring expects word positions)
+        $subWordOffset = 0;
+        $subSegmentWordStarts = [];
+        foreach ($submissionSegments as $seg) {
+            $subSegmentWordStarts[(int)($seg['id'] ?? 0)] = $subWordOffset;
+            $subWordOffset += (int)($seg['word_count'] ?? 0);
+        }
+
         foreach (($result['comparisons'] ?? []) as $comparison) {
             $score = (float)($comparison['similarity_score'] ?? 0);
             if ($score < $threshold || empty($comparison['above_threshold'])) {
@@ -971,26 +981,32 @@ class AcademicSimilarityPipelineService
                 continue;
             }
 
+            // Compute word-position range from segment data (original_start_offset is character offset, not word position)
+            $segWordCount = (int)($submissionSegment['word_count'] ?? 0);
+            $segId = (int)($submissionSegment['id'] ?? 0);
+            $wordStart = $subSegmentWordStarts[$segId] ?? 0;
+            $wordEnd = $wordStart + max(0, $segWordCount - 1);
+
             $matches[] = new AcademicSimilarityMatchResult([
                 'submission_id' => $submissionId,
                 'source_id' => (int)($sourceSegment['source_id'] ?? 0),
                 'match_type' => 'semantic',
                 'confidence' => $score,
-                'submission_segment_id' => (int)($submissionSegment['id'] ?? 0),
+                'submission_segment_id' => $segId,
                 'source_segment_id' => (int)($sourceSegment['id'] ?? 0),
-                'matched_word_count' => (int)($submissionSegment['word_count'] ?? 0),
-                'submission_word_range_start' => (int)($submissionSegment['original_start_offset'] ?? 0),
-                'submission_word_range_end' => (int)($submissionSegment['original_end_offset'] ?? 0),
-                'source_word_range_start' => (int)($sourceSegment['original_start_offset'] ?? 0),
-                'source_word_range_end' => (int)($sourceSegment['original_end_offset'] ?? 0),
+                'matched_word_count' => $segWordCount,
+                'submission_word_range_start' => $wordStart,
+                'submission_word_range_end' => $wordEnd,
+                'source_word_range_start' => 0,
+                'source_word_range_end' => 0,
                 'segment_match_count' => 1,
                 'evidence' => [[
                     'submission_text' => (string)($submissionSegment['content'] ?? ''),
                     'source_text' => (string)($sourceSegment['content'] ?? ''),
-                    'submission_start_offset' => (int)($submissionSegment['original_start_offset'] ?? 0),
-                    'submission_end_offset' => (int)($submissionSegment['original_end_offset'] ?? 0),
-                    'source_start_offset' => (int)($sourceSegment['original_start_offset'] ?? 0),
-                    'source_end_offset' => (int)($sourceSegment['original_end_offset'] ?? 0),
+                    'submission_start_offset' => $wordStart,
+                    'submission_end_offset' => $wordEnd,
+                    'source_start_offset' => 0,
+                    'source_end_offset' => 0,
                 ]],
             ]);
         }
