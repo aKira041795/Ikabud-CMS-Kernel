@@ -36,6 +36,7 @@ return [
         '/admin/academic-similarity/submissions/new'              => 'academic-similarity:pageSubmissionUpload',
         '/admin/academic-similarity/submissions/{id}/upload'      => 'academic-similarity:pageSubmissionUpload',
         '/api/v1/academic-similarity/semantic/health'            => 'academic-similarity:apiSemanticHealth',
+        '/api/v1/academic-similarity/submissions/{id}/internet-check-status' => 'academic-similarity:apiInternetCheckStatus',
     ],
     'POST' => [
         '/admin/academic-similarity/settings'                     => 'academic-similarity:apiSaveSettings',

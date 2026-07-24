@@ -13,6 +13,14 @@
     <div class="mb-6 rounded-lg border border-red-200 bg-red-50 text-red-900 px-4 py-3 text-sm">
         <strong>Internet check failed.</strong> The internet search could not complete. Check the error log for details or try again.
     </div>
+    {else if internet_check_query == 'queued'}
+    <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 text-blue-900 px-4 py-3 text-sm">
+        Internet check queued — will run in the background. Results will appear when processing completes.
+    </div>
+    {else if internet_check_query == 'completed_partial'}
+    <div class="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 text-yellow-900 px-4 py-3 text-sm">
+        Internet check completed. Some sources could not be imported — see details below.
+    </div>
     {else if internet_check_query != ''}
     <div class="mb-6 rounded-lg border border-green-200 bg-green-50 text-green-900 px-4 py-3 text-sm">
         Internet check completed with status: <strong>{internet_check_query}</strong>.
@@ -68,7 +76,31 @@
                     <p class="text-sm font-semibold text-gray-900">AI Internet Check</p>
                     <p class="text-sm text-gray-600">Discovers bounded public sources, imports retrieved evidence, then lets AISS compare against those sources.</p>
                     {if internet_run.id}
-                    <p class="text-xs text-gray-500 mt-2">Last run: {internet_run.status} · candidates {internet_run.candidate_count|default:0} · imported {internet_run.imported_count|default:0}</p>
+                    <p class="text-xs text-gray-500 mt-2">
+                        {if internet_run.status == 'completed'}
+                            <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-1"></span>
+                        {else if internet_run.status == 'completed_partial'}
+                            <span class="inline-block w-2 h-2 bg-yellow-400 rounded-full mr-1"></span>
+                        {else if internet_run.status == 'completed_none'}
+                            <span class="inline-block w-2 h-2 bg-orange-400 rounded-full mr-1"></span>
+                        {else if internet_run.status == 'queued'}
+                            <span class="inline-block w-2 h-2 bg-blue-400 rounded-full mr-1 animate-pulse"></span>
+                        {else if internet_run.status == 'skipped'}
+                            <span class="inline-block w-2 h-2 bg-gray-400 rounded-full mr-1"></span>
+                        {else if internet_run.status == 'failed'}
+                            <span class="inline-block w-2 h-2 bg-red-500 rounded-full mr-1"></span>
+                        {/if}
+                        {if internet_run.status == 'completed'}
+                            All {internet_run.imported_count|default:0} source(s) imported.
+                        {else if internet_run.status == 'completed_partial'}
+                            {internet_run.imported_count|default:0} of {internet_run.candidate_count|default:0} sources imported ({internet_run.candidate_count - internet_run.imported_count} not importable).
+                        {else if internet_run.status == 'completed_none'}
+                            Found {internet_run.candidate_count|default:0} candidate(s) but none were importable.
+                        {else if internet_run.status == 'queued'}                            <span class="inline-block w-2 h-2 bg-blue-400 rounded-full mr-1 animate-pulse"></span>                            Internet discovery queued — will run in background.
+                        {else}
+                            {internet_run.status}: candidates {internet_run.candidate_count|default:0} · imported {internet_run.imported_count|default:0}
+                        {/if}
+                    </p>
                     {if internet_run.disclosure}<p class="text-xs text-gray-500 mt-1">{internet_run.disclosure}</p>{/if}
                     {/if}
                 </div>

@@ -845,17 +845,38 @@ class AcademicSimilarityPipelineService
             return ['ok' => true, 'internet_status' => 'skipped', 'reason' => 'Automatic internet checking is disabled'];
         }
 
+        // Dispatch async — pipeline continues without blocking; re-match runs via job handler
         $service = new AcademicSimilarityInternetCheckService($this->tenantId);
-        $result = $service->runForSubmission($submissionId, false);
+        $result = $service->dispatchAsync($submissionId);
         return [
             'ok' => true,
-            'internet_status' => $result['status'] ?? 'unknown',
-            'search_run_id' => $result['search_run_id'] ?? null,
-            'candidate_count' => $result['candidate_count'] ?? 0,
-            'imported_count' => $result['imported_count'] ?? 0,
-            'disclosure' => $result['disclosure'] ?? null,
-            'error' => $result['error'] ?? null,
+            'internet_status' => $result['status'] ?? 'queued',
+            'search_run_id' => $result['search_run_id'] ?? 0,
+            'candidate_count' => 0,
+            'imported_count' => 0,
+            'disclosure' => 'Internet discovery dispatched asynchronously. New sources will be compared when they arrive.',
         ];
+    }
+
+    /**
+     * Re-run matching stages against internet sources that were imported
+     * asynchronously after the initial pipeline run. Called by the kernel
+     * job handler after internet check completes.
+     */
+    public function runRecheckFromInternet(int $submissionId): array
+    {
+        $stages = ['candidate_search', 'exact_match', 'near_match', 'semantic_match', 'score', 'report'];
+        $results = [];
+
+        foreach ($stages as $stage) {
+            $stageResult = $this->executeStage($submissionId, $stage);
+            $results[$stage] = $stageResult;
+            if (($stageResult['ok'] ?? false) === false) {
+                return ['ok' => false, 'stages' => $results, 'error' => "Re-match failed at stage '{$stage}'"];
+            }
+        }
+
+        return ['ok' => true, 'stages' => $results];
     }
 
     /**

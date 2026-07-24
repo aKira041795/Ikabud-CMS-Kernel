@@ -22,6 +22,96 @@ class AcademicSimilarityInternetCheckService
         $this->ingestion = new AcademicSimilarityInternetSourceIngestionService($tenantId);
     }
 
+    /**
+     * Dispatch internet check as an async kernel job.
+     */
+    public function dispatchAsync(int $submissionId): array
+    {
+        if (function_exists('kernelDispatchJob')) {
+            $jobId = kernelDispatchJob(
+                'academic-similarity:academicSimilarityInternetCheckHandler',
+                [
+                    'submission_id' => $submissionId,
+                    'tenant_id' => $this->tenantId,
+                ],
+                'default',
+                0,
+                3
+            );
+            if ($jobId > 0) {
+                return ['ok' => true, 'status' => 'queued', 'job_id' => $jobId];
+            }
+        }
+        // Fallback: run synchronously
+        return $this->runForSubmission($submissionId, true);
+    }
+
+    /**
+     * Check circuit breaker state from DB settings.
+     * Returns true if the breaker is open (calls should be skipped).
+     */
+    private function breakerIsOpen(): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT setting_value FROM ac_similarity_settings
+             WHERE tenant_id = :tid AND setting_key = 'internet_check_breaker_state'"
+        );
+        $stmt->execute([':tid' => $this->tenantId]);
+        $raw = (string)($stmt->fetchColumn() ?: '');
+        if ($raw === '') {
+            return false;
+        }
+        $state = json_decode($raw, true);
+        if (!is_array($state)) {
+            return false;
+        }
+        $failures = (int)($state['failures'] ?? 0);
+        $openedAt = (int)($state['opened_at'] ?? 0);
+        if ($failures < 3) {
+            return false;
+        }
+        // Open for 5 minutes
+        if (time() - $openedAt < 300) {
+            return true;
+        }
+        // Reset after cooldown
+        $this->breakerReset();
+        return false;
+    }
+
+    /**
+     * Record a breaker failure.
+     */
+    private function breakerRecordFailure(): void
+    {
+        $stmt = $this->db->prepare(
+            "SELECT setting_value FROM ac_similarity_settings
+             WHERE tenant_id = :tid AND setting_key = 'internet_check_breaker_state'"
+        );
+        $stmt->execute([':tid' => $this->tenantId]);
+        $raw = (string)($stmt->fetchColumn() ?: '');
+        $state = json_decode($raw, true);
+        $failures = is_array($state) ? ((int)($state['failures'] ?? 0) + 1) : 1;
+        $state = ['failures' => $failures, 'opened_at' => time()];
+
+        $this->db->prepare(
+            "INSERT INTO ac_similarity_settings (tenant_id, setting_key, setting_value)
+             VALUES (:tid, 'internet_check_breaker_state', :val)
+             ON DUPLICATE KEY UPDATE setting_value = :val2"
+        )->execute([':tid' => $this->tenantId, ':val' => json_encode($state), ':val2' => json_encode($state)]);
+    }
+
+    /**
+     * Reset circuit breaker on success.
+     */
+    private function breakerReset(): void
+    {
+        $this->db->prepare(
+            "DELETE FROM ac_similarity_settings
+             WHERE tenant_id = :tid AND setting_key = 'internet_check_breaker_state'"
+        )->execute([':tid' => $this->tenantId]);
+    }
+
     public function runForSubmission(int $submissionId, bool $force = false): array
     {
         $settings = academic_similarity_get_settings($this->tenantId);
@@ -46,6 +136,15 @@ class AcademicSimilarityInternetCheckService
             return ['ok' => true, 'status' => 'skipped', 'reason' => 'Auto-run disabled; only local sources were checked'];
         }
 
+        // Circuit breaker: skip if 3 consecutive failures in last 5 minutes.
+        // Manual run ($force=true) bypasses the breaker.
+        if (!$force && $this->breakerIsOpen()) {
+            if (function_exists('write_log')) {
+                write_log("AISS internet check skipped for submission #{$submissionId}: circuit breaker open", 'warning');
+            }
+            return ['ok' => true, 'status' => 'skipped', 'reason' => 'Circuit breaker open; internet discovery temporarily suspended after repeated failures'];
+        }
+
         $text = $this->loadSubmissionText($submissionId);
         if ($text === '') {
             return ['ok' => true, 'status' => 'skipped', 'reason' => 'No extracted submission text available'];
@@ -68,6 +167,7 @@ class AcademicSimilarityInternetCheckService
         if (!($discovered['ok'] ?? false)) {
             $error = (string)($discovered['error'] ?? 'Internet discovery failed');
             $this->runRepo->updateSummary($runId, 'failed', count($queries), 0, 0, $this->partialDisclosure(), $error);
+            $this->breakerRecordFailure();
             return ['ok' => false, 'status' => 'failed', 'search_run_id' => $runId, 'error' => $error];
         }
 
@@ -117,7 +217,16 @@ class AcademicSimilarityInternetCheckService
             $imported++;
         }
 
-        $status = $imported > 0 ? ($errors === [] ? 'completed' : 'partial') : ($candidates === [] ? 'skipped' : 'failed');
+        // Phase 4: improved status granularity
+        if ($imported > 0) {
+            $status = ($errors === []) ? 'completed' : 'completed_partial';
+            $this->breakerReset(); // Success resets breaker
+        } elseif (count($candidates) > 0) {
+            $status = 'completed_none'; // Found candidates but none were importable
+            $this->breakerRecordFailure();
+        } else {
+            $status = 'skipped';
+        }
         $errorText = $errors === [] ? '' : implode('; ', array_slice($errors, 0, 5));
         $this->runRepo->updateSummary($runId, $status, count($queries), count($candidates), $imported, $this->coverageDisclosure($provider, count($queries), count($candidates)), $errorText);
 

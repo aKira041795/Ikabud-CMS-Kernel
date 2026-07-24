@@ -508,14 +508,25 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
         ];
     }
 
-    // ── Execute search ──
+    // ── Execute search via backend dispatch ──
     $candidates = [];
     $searched = 0;
+    $backend = (string)($payload['internet_search_backend'] ?? 'serpapi');
+
+    // Check for unimplemented backend before executing queries
+    if (!in_array($backend, ['serpapi'], true)) {
+        return [
+            'ok' => true,
+            'candidates' => [],
+            'disclosure' => "Search backend '{$backend}' is not yet implemented. Configure internet_search_backend=serpapi or use the default.",
+        ];
+    }
 
     foreach ($queries as $query) {
         if ($searched >= $maxSources * 2) break;
 
-        $results = ai_search_serpapi_direct($query, $apiKey, min(10, $maxSources));
+        $results = ai_search_backend_dispatch($query, $apiKey, min(10, $maxSources), $backend);
+        if (!is_array($results)) continue;
 
         foreach ($results as $result) {
             $url = trim((string)($result['url'] ?? ''));
@@ -545,39 +556,118 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
 }
 
 /**
+ * Backend dispatch — routes to the configured search backend.
+ * Returns the same result format as ai_search_serpapi_direct().
+ */
+function ai_search_backend_dispatch(string $query, string $apiKey, int $max, string $backend): array
+{
+    return match ($backend) {
+        'serpapi' => ai_search_serpapi_direct($query, $apiKey, $max),
+        'google_cse' => ai_search_google_cse_direct($query, $apiKey, $max),
+        'bing' => ai_search_bing_direct($query, $apiKey, $max),
+        default => [],
+    };
+}
+
+/**
+ * Stub: Google Custom Search Engine — not yet implemented.
+ */
+function ai_search_google_cse_direct(string $query, string $apiKey, int $max): array
+{
+    if (function_exists('write_log')) {
+        write_log('ai.search.discover: backend "google_cse" is not yet implemented', 'warning');
+    }
+    return [];
+}
+
+/**
+ * Stub: Bing Web Search API — not yet implemented.
+ */
+function ai_search_bing_direct(string $query, string $apiKey, int $max): array
+{
+    if (function_exists('write_log')) {
+        write_log('ai.search.discover: backend "bing" is not yet implemented', 'warning');
+    }
+    return [];
+}
+
+/**
  * Direct SerpAPI search — no module dependencies.
+ *
+ * Note: SerpAPI requires the API key as a query parameter. Ensure server access
+ * logs are not publicly accessible and the key is encrypted at rest in settings.
  */
 function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10): array
 {
-    $url = 'https://serpapi.com/search?q=' . rawurlencode($query)
-         . '&api_key=' . rawurlencode($apiKey)
-         . '&num=' . $max
-         . '&engine=google';
+    // Retry with exponential backoff: max 2 retries on connection errors
+    $maxRetries = 2;
+    $retryDelay = [1, 3]; // seconds
+    $lastError = '';
 
-    $ctx = stream_context_create([
-        'http' => [
-            'method' => 'GET',
-            'timeout' => 15,
-            'header' => "User-Agent: AISS/1.0\r\nAccept: application/json\r\n",
-        ],
-    ]);
+    for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+        $url = 'https://serpapi.com/search?q=' . rawurlencode($query)
+             . '&api_key=' . rawurlencode($apiKey)
+             . '&num=' . $max
+             . '&engine=google';
 
-    $raw = @file_get_contents($url, false, $ctx);
-    if (!is_string($raw)) return [];
+        $ctx = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 15,
+                'header' => "User-Agent: AISS/1.0\r\nAccept: application/json\r\n",
+            ],
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+            ],
+        ]);
 
-    $data = json_decode($raw, true);
-    if (!is_array($data)) return [];
+        $raw = @file_get_contents($url, false, $ctx);
+        if (is_string($raw)) {
+            // HTTP request succeeded — parse JSON
+            $data = json_decode($raw, true);
+            if (!is_array($data)) {
+                if (function_exists('write_log')) {
+                    write_log('SerpAPI: invalid JSON response for query "' . substr($query, 0, 80) . '"', 'warning');
+                }
+                return [];
+            }
 
-    $results = [];
-    foreach (($data['organic_results'] ?? []) as $item) {
-        if (!is_array($item)) continue;
-        $results[] = [
-            'url' => (string)($item['link'] ?? ''),
-            'title' => (string)($item['title'] ?? ''),
-            'snippet' => (string)($item['snippet'] ?? ''),
-        ];
-        if (count($results) >= $max) break;
+            // Check for API error response (non-retryable)
+            if (!empty($data['error'])) {
+                if (function_exists('write_log')) {
+                    write_log('SerpAPI error: ' . ($data['error'] ?? 'unknown'), 'warning');
+                }
+                return [];
+            }
+
+            // Success — extract results
+            $results = [];
+            foreach (($data['organic_results'] ?? []) as $item) {
+                if (!is_array($item)) continue;
+                $results[] = [
+                    'url' => (string)($item['link'] ?? ''),
+                    'title' => (string)($item['title'] ?? ''),
+                    'snippet' => (string)($item['snippet'] ?? ''),
+                ];
+                if (count($results) >= $max) break;
+            }
+            return $results;
+        }
+
+        // Connection error — retryable
+        $lastError = error_get_last()['message'] ?? 'Unknown error';
+        if (function_exists('write_log')) {
+            write_log('SerpAPI: HTTP request failed (attempt ' . ($attempt + 1) . '/' . ($maxRetries + 1) . '): ' . $lastError, 'warning');
+        }
+
+        if ($attempt < $maxRetries) {
+            usleep($retryDelay[$attempt] * 1000000);
+        }
     }
 
-    return $results;
+    if (function_exists('write_log')) {
+        write_log('SerpAPI: all ' . ($maxRetries + 1) . ' attempts failed for query "' . substr($query, 0, 80) . '": ' . $lastError, 'error');
+    }
+    return [];
 }

@@ -622,10 +622,17 @@ function apiRunInternetCheck(array $params = []): void
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $submissionId = (int)($params['id'] ?? 0);
+    $forceSync = isset($_GET['force_sync']);
 
     try {
         $service = new \AcademicSimilarityInternetCheckService($tenantId);
-        $result = $service->runForSubmission($submissionId, true);
+
+        if ($forceSync) {
+            $result = $service->runForSubmission($submissionId, true);
+        } else {
+            $result = $service->dispatchAsync($submissionId);
+        }
+
         if (!$wantsJson) {
             $status = (string)($result['status'] ?? 'unknown');
             header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?internet_check=' . rawurlencode($status));
@@ -639,6 +646,78 @@ function apiRunInternetCheck(array $params = []): void
             echo json_encode(['ok' => false, 'error' => 'Internet check failed']);
         } else {
             header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?internet_check=failed');
+        }
+    }
+}
+
+/**
+ * API: Return status of the latest internet check run for a submission.
+ * GET /api/v1/academic-similarity/submissions/{id}/internet-check-status
+ */
+function apiInternetCheckStatus(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Module context unavailable']);
+        return;
+    }
+    academic_similarity_require_admin($ctx);
+    // Read-only GET endpoint — no CSRF enforcement needed
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['id'] ?? 0);
+
+    try {
+        $service = new \AcademicSimilarityInternetCheckService($tenantId);
+        $latest = $service->latestRun($submissionId);
+        if ($latest === null) {
+            echo json_encode(['ok' => true, 'status' => 'none', 'submission_id' => $submissionId]);
+            return;
+        }
+        echo json_encode([
+            'ok' => true,
+            'status' => $latest['status'] ?? 'unknown',
+            'submission_id' => $submissionId,
+            'query_count' => (int)($latest['query_count'] ?? 0),
+            'candidate_count' => (int)($latest['candidate_count'] ?? 0),
+            'imported_count' => (int)($latest['imported_count'] ?? 0),
+            'disclosure' => $latest['disclosure'] ?? '',
+            'error_message' => $latest['error_message'] ?? '',
+            'started_at' => $latest['started_at'] ?? null,
+            'completed_at' => $latest['completed_at'] ?? null,
+        ]);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => 'Failed to fetch internet check status']);
+    }
+}
+
+/**
+ * Kernel job handler: process internet check asynchronously.
+ * Registered via kernelDispatchJob('academic-similarity:academicSimilarityInternetCheckHandler', ...)
+ */
+function academicSimilarityInternetCheckHandler(array $payload): void
+{
+    $submissionId = (int)($payload['submission_id'] ?? 0);
+    $tenantId = (string)($payload['tenant_id'] ?? '');
+
+    if ($submissionId <= 0 || $tenantId === '') {
+        write_log('academicSimilarityInternetCheckHandler: invalid payload', 'error', ['payload' => $payload]);
+        return;
+    }
+
+    $service = new \AcademicSimilarityInternetCheckService($tenantId);
+    $result = $service->runForSubmission($submissionId, true);
+
+    // On success, dispatch a re-match job so new internet sources are compared
+    if (($result['status'] ?? '') === 'completed' || ($result['status'] ?? '') === 'completed_partial') {
+        try {
+            $pipeline = new \AcademicSimilarityPipelineService($tenantId);
+            $pipeline->runRecheckFromInternet($submissionId);
+        } catch (\Throwable $e) {
+            write_log('academicSimilarityInternetCheckHandler: re-match failed for submission #' . $submissionId . ': ' . $e->getMessage(), 'warning');
         }
     }
 }

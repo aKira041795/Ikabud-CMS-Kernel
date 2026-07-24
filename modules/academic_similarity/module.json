@@ -339,14 +339,14 @@
             "key": "internet_check_enabled",
             "type": "checkbox",
             "label": "Enable AI Internet Check",
-            "default": "0",
-            "description": "Opt-in bounded public source discovery; not a comprehensive internet search"
+            "default": "1",
+            "description": "Discover public internet sources via SerpAPI during similarity checking; not a comprehensive internet search"
         },
         {
             "key": "internet_check_provider",
             "type": "select",
             "label": "Internet Discovery Provider",
-            "default": "capability",
+            "default": "ai",
             "options": [
                 {
                     "value": "capability",
@@ -354,7 +354,7 @@
                 },
                 {
                     "value": "ai",
-                    "label": "AI search (via ai.search.discover — SerpAPI/Google/Bing)"
+                    "label": "AI search (via ai.search.discover — SerpAPI)"
                 },
                 {
                     "value": "seed_urls",
@@ -371,16 +371,15 @@
                 {
                     "value": "serpapi",
                     "label": "SerpAPI (serpapi.com)"
-                },
-                {
-                    "value": "google_cse",
-                    "label": "Google Custom Search Engine"
-                },
-                {
-                    "value": "bing",
-                    "label": "Bing Web Search API"
                 }
             ]
+        },
+        {
+            "key": "internet_check_timeout",
+            "type": "number",
+            "label": "HTTP Timeout (seconds)",
+            "default": "15",
+            "description": "Timeout per search query. SerpAPI can be slow; 15s is recommended."
         },
         {
             "key": "internet_check_api_key_env",

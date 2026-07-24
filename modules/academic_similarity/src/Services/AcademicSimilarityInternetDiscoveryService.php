@@ -70,6 +70,7 @@ class AcademicSimilarityInternetDiscoveryService
                     'queries' => $queries,
                     'max_sources' => $maxSources,
                     'payload_policy' => (string)($settings['internet_check_payload_policy'] ?? 'snippets_only'),
+                    'internet_search_backend' => (string)($settings['internet_search_backend'] ?? 'serpapi'),
                 ], ['caller' => ['module' => 'academic-similarity']]);
                 if (is_array($result) && !empty($result['candidates']) && is_array($result['candidates'])) {
                     foreach ($result['candidates'] as $idx => $candidate) {
