@@ -354,6 +354,13 @@ function pageReportDetail(array $params = []): void
     }
     unset($sb);
     $report['source_breakdown'] = $sourceBreakdown;
+
+    // Build evidence map
+    $evidenceMap = [];
+    foreach ($matches as $match) {
+        $evidenceMap[(int)$match['id']] = $matchRepo->getEvidence((int)$match['id']);
+    }
+
     $internetBySource = [];
     try {
         $internetBySource = (new \AcademicSimilarityInternetSourceRepository($tenantId))->findBySourceIds(array_keys($sourceCache));
