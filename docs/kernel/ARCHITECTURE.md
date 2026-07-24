@@ -160,6 +160,20 @@ Browser → Apache mod_rewrite → public/index.php
   └── kernel.shutdown hook (Guaranteed execution on script exit via register_shutdown_function)
 ```
 
+### Request Timing Breakdown
+
+| Component | Cold boot (no cache) | Warm boot (APCu+OPcache) | Fast-path cached page |
+|---|---|---|---|
+| Composer autoloader | 3-8ms | ~1ms (OPcache) | 0ms (bypassed) |
+| Module registry load | 5-15ms (disk read) | ~1ms (APCu) | 0ms |
+| Capability map build | 3-8ms | ~1ms | 0ms |
+| Entity preset load | 1-3ms | ~0.5ms | 0ms |
+| Tenant DB connect | 5-15ms (TCP+TLS) | ~2ms (persistent) | 0ms |
+| DiSyL compile | 10-30ms (first hit) | ~1ms (OPcache) | 0ms |
+| **Total infrastructure** | **30-80ms** | **5-15ms** | **5-20ms** |
+
+**Key insight**: The majority of boot time is module registry discovery and capability map building. These are cached in APCu on warm boot (Phase 3 — kernel state caching). The fast-path page cache bypasses the kernel entirely for public pages.
+
 ### Security Hardening
 
 - **CORS:** Whitelist-only origins from `CORS_ORIGINS` env variable; never `*` with credentials

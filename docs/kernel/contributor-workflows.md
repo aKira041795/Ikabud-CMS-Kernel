@@ -129,6 +129,27 @@ Use request IDs to correlate runtime behavior where possible.
 - do not change CSP policy casually; follow the documented compatibility constraints
 - inspect logs after failures before assuming the bug is in the latest change
 
+## Reading Order for New Contributors
+
+If you are new to this codebase, read these files **in order**:
+
+1. **`public/index.php`** — Request entry point and route dispatch. See how modules are discovered, tenants are resolved, and routes are matched.
+2. **`bootstrap.php`** — Environment loading, constants, autoloader, error handler, and global helpers (`app()`, `db()`, `request_id()`).
+3. **`kernel/App.php`** — Singleton service container that wires all kernel primitives. Every `app()->*()` call originates here.
+4. **`src/helpers/module-manager.php`** — Module discovery, capability validation, settings management, and handler dispatch (`executeModuleHandler`).
+5. **`kernel/Database/KernelPDO.php`** — Guarded PDO subclass with table-access enforcement via explicit module context injection (see `setActiveModule()`).
+6. **`kernel/DiSyL/TemplateEngine.php`** — Compiled/interpreted template rendering engine with APCu-backed cache.
+7. **`modules/cms/module.json`** — Reference module manifest. Compare with `docs/kernel/module-development-guide.md`.
+
+### Key Concepts
+
+- **Kernel boots per request** — No persistent process. Everything in `bootstrap.php` runs on every uncached request. State persists only in files, APCu, and OPcache.
+- **Capability bus is the integration surface** — Modules call `app()->capabilities()->call('contract@1', $args)` or `app()->cap()->call(...)`, not each other's classes. Direct class imports across modules are forbidden.
+- **DiSyL is the rendering contract** — Not just a template engine. Components, hydration, entity views, async blocks, filters, and macros. See `docs/kernel/disyl-overview.md`.
+- **Entities are typed content** — Defined by presets (`config/entity-presets/`), rendered by views (`entity.list`/`entity.get` capabilities). The entity view system is the primary rendering engine (see `docs/kernel/entity-context-system.md`).
+- **Module table ownership** — Every SQL query is validated against `owns_tables`/`reads_tables` from `module.json`. Undeclared table access throws a `RuntimeException`. See `kernel/Contracts/ModuleDB.php`.
+- **Explicit module context** — `KernelPDO::setActiveModule()` replaces `debug_backtrace()` for module origin detection. Set by `executeModuleHandler()` before dispatch, cleared in `finally`. The backtrace fallback is deprecated.
+
 ## Related Docs
 
 - `docs/kernel/ARCHITECTURE.md`

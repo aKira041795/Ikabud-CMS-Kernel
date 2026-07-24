@@ -88,6 +88,13 @@ final class App
     private ?array $cachedGuiDefaults = null;
     private ?string $cachedAppUrl = null;
     private ?string $cachedBaseUrl = null;
+
+    /**
+     * Currently active module ID for database context injection.
+     * Set before handler dispatch, cleared in finally block.
+     * Mirrored to KernelPDO::setActiveModule() for O(1) origin detection.
+     */
+    private ?string $activeModule = null;
     
     public const KERNEL_VERSION = '6.1.0';
     public const KERNEL_CODENAME = 'entity-view-extraction';
@@ -541,6 +548,11 @@ final class App
 
         // Fire kernel.boot action so modules/extensions can register hooks
         $this->hooks->action('kernel.boot', $this);
+
+        // Warm kernel state cache (module registry, capability map, entity presets)
+        // Silently skips when APCu is unavailable.
+        // Use cache() accessor for lazy initialization (avoids null on first boot).
+        $this->cache()->warmKernelState();
 
         // Freeze registries to prevent mid-request mutations
         if ($this->entitySourceRegistry !== null) {
@@ -1112,6 +1124,37 @@ final class App
     public function reconnectDbForTenant(int $tenantId): ?PDO
     {
         return $this->databaseManager()->reconnectDbForTenant($tenantId);
+    }
+
+    // ── Module Context Lifecycle ───────────────────────────────────────
+
+    /**
+     * Set the active module for database context injection.
+     * Mirrors to KernelPDO::setActiveModule() for O(1) origin detection
+     * in isDirectModuleCaller() and enforceModuleAccess().
+     */
+    public function setActiveModule(?string $moduleId): void
+    {
+        $this->activeModule = $moduleId;
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule($moduleId);
+    }
+
+    /**
+     * Get the currently active module ID (if set).
+     */
+    public function getActiveModule(): ?string
+    {
+        return $this->activeModule;
+    }
+
+    /**
+     * Clear the active module context.
+     * Should be called in a finally block after handler dispatch.
+     */
+    public function clearActiveModule(): void
+    {
+        $this->activeModule = null;
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule(null);
     }
 
     public function templates(): TemplateEngine

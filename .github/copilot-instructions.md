@@ -183,20 +183,22 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 > All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
 
 ## Bluehost / MySQL 5.7 compatibility (must check on every SQL change)
+> **@mysql57-compat:** All rules in this section are MySQL 5.7 constraints. When Bluehost upgrades to MySQL 8.0+, grep for `@mysql57-compat` to find features to unlock.
+
 The production deployment target is **Bluehost shared hosting**, which runs **MySQL 5.7** (or MariaDB <10.2). The following MySQL 8.0+ features are **unavailable** and must never be used:
 
 | Forbidden | Use instead |
 |---|---|
-| Window functions (`COUNT(*) OVER()`, `ROW_NUMBER() OVER()`, `RANK()`, `LAG()`, `LEAD()`, etc.) | Separate `SELECT COUNT(*)` query, or app-level aggregation |
-| Common Table Expressions (`WITH ... AS (...)`) | Derived tables, temporary tables, or app-level logic |
-| `JSON_TABLE()` | App-level JSON decode + loop |
-| `CHECK` constraints (enforced only in 8.0.16+) | App-level validation or triggers |
-| `EXCEPT` / `INTERSECT` set operators | `NOT EXISTS` / `IN` / `JOIN` equivalents |
+| @mysql57-compat: Window functions (`COUNT(*) OVER()`, `ROW_NUMBER() OVER()`, `RANK()`, `LAG()`, `LEAD()`, etc.) | Separate `SELECT COUNT(*)` query, or app-level aggregation |
+| @mysql57-compat: Common Table Expressions (`WITH ... AS (...)`) | Derived tables, temporary tables, or app-level logic |
+| @mysql57-compat: `JSON_TABLE()` | App-level JSON decode + loop |
+| @mysql57-compat: `CHECK` constraints (enforced only in 8.0.16+) | App-level validation or triggers |
+| @mysql57-compat: `EXCEPT` / `INTERSECT` set operators | `NOT EXISTS` / `IN` / `JOIN` equivalents |
 
 ### Migration compatibility rules
-- Every `CREATE TABLE` must include `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci` — Bluehost defaults to MyISAM, which silently drops FOREIGN KEY constraints.
-- Foreign key columns must have **exactly** the same type (including signedness and width) as the referenced column. `BIGINT UNSIGNED` cannot reference `INT UNSIGNED`.
-- Use `SET FOREIGN_KEY_CHECKS = 0` / `SET FOREIGN_KEY_CHECKS = 1` around cross-module CREATE TABLE statements where the referenced table may not exist yet (kernel migrations run before module migrations).
+- @mysql57-compat: Every `CREATE TABLE` must include `ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci` — Bluehost defaults to MyISAM, which silently drops FOREIGN KEY constraints.
+- @mysql57-compat: Foreign key columns must have **exactly** the same type (including signedness and width) as the referenced column. `BIGINT UNSIGNED` cannot reference `INT UNSIGNED`.
+- @mysql57-compat: Use `SET FOREIGN_KEY_CHECKS = 0` / `SET FOREIGN_KEY_CHECKS = 1` around cross-module CREATE TABLE statements where the referenced table may not exist yet (kernel migrations run before module migrations).
 
 ### Pre-deployment SQL audit checklist
 - [ ] `grep -rn "OVER()" modules/ src/ kernel/` returns nothing

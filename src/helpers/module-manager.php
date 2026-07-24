@@ -1874,6 +1874,10 @@ function executeModuleHandler(string $handler, array $params = []): void
     // uncaught exceptions produce a clean error page, not a white screen.
     ob_start();
     try {
+        // Set active module context for KernelPDO (replaces debug_backtrace)
+        app()->setActiveModule($moduleId);
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule($moduleId);
+
         $routeCallable($params);
 
         // ── Page-level cache: capture and store on cache-eligible requests ──
@@ -1921,6 +1925,8 @@ function executeModuleHandler(string $handler, array $params = []): void
             }
         }
     } finally {
+        app()->clearActiveModule();
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule(null);
         modulePopContext();
         kernel_request_context_delete('_capability_call_context');
     }

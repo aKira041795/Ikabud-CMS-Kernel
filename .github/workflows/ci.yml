@@ -17,6 +17,11 @@ jobs:
             image: mysql:8.0
             root_password: ci_root_pass
             database: baronbakeshop_ci
+          - name: mysql-5.7
+            image: mysql:5.7
+            root_password: ci_root_pass
+            database: baronbakeshop_ci
+            label: "production target"
           - name: mariadb-10.6
             image: mariadb:10.6
             root_password: ci_root_pass

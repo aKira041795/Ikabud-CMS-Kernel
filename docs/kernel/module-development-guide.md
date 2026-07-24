@@ -156,8 +156,12 @@ function myModuleGlobalHelper(): string
 |-------|------|-------------|
 | `description` | string | Short description shown in module listing. |
 | `author` | string | Module author name. |
+| `depends` | string[] | Module-level dependency on other module IDs (not capabilities). Ensures dependent modules are loaded first. Example: `["users", "media", "search"]`. |
 | `owns_tables` | string[] | Tables fully owned by the module (full CRUD). Used for ModuleDB enforcement. |
 | `reads_tables` | string[] | Tables the module may read (SELECT only). Used for ModuleDB enforcement. |
+| `seeds` | string[] | Paths to SQL seed data files (relative to module dir). Executed after migrations during provisioning. |
+| `entity_views` | object | Entity view declarations mapping entity types to view contracts. See `docs/kernel/entity-view-adoption-plan.md`. |
+| `settings` | object | Tenant-scoped settings with default values, e.g., `{"my_setting": "default_value"}`. Used by `getModuleSettings()` / `saveModuleSettings()`. Alternative to `settings_fields` for simpler key→value defaults. |
 | `migrations` | string[] | Paths to SQL migration files (relative to module dir). |
 | `auth_cookie` | string | Additional auth cookie name this module uses for page sessions. When set, the kernel will recognize this cookie for `app()->user()` so kernel layouts can render `user` and `nav_items` consistently. Auth/entry modules that set this should also expose a `<moduleId>LoginPageContext()` helper so tenant `/login` uses the module skin instead of drifting to the kernel default layout. |
 | `auth_owned` | object | Declares that this module owns its own users table. The kernel uses this for tenant provisioning (admin seeding) and the admin password-push recovery flow. See [Module-owned authentication (`auth_owned`)](#module-owned-authentication-auth_owned) below. |

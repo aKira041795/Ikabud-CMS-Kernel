@@ -107,6 +107,16 @@ The 31 governed components registered via `ComponentRegistry::registerCoreCompon
 - Supported formats: `csv`, `docx`, `pdf`
 - `ReportManager` template, archive, and scheduled report contracts
 
+## What is NOT Stable (Deprecated or Internal)
+
+The following internals may be reorganized or removed without notice:
+
+- **KernelPDO internals** — `KernelPDO` class internals including `isDirectModuleCaller()`, `enforceModuleAccess()`, and the `$moduleOriginCache`. Use `KernelPDO::setActiveModule()` / `getActiveModule()` for module context.
+- **`debug_backtrace()` fallback in KernelPDO** — **DEPRECATED**. The backtrace-based module origin detection in `KernelPDO::isDirectModuleCaller()` and `enforceModuleAccess()` is a fallback for callers that have not set explicit module context. It logs a warning when triggered. Will be removed after a full caller audit confirms all paths set active module.
+- **DiSyL parser internals** — The DiSyL parser (Parser, Lexer, ExpressionEvaluator) internal token format and AST structure. Use the public `TemplateEngine::render()` / `renderString()` API.
+- **Compiled template cache format** — The `.php` files in `storage/cache/compiled/` are internal artifacts. Do not read or modify them directly. Invalidation logic may change.
+- **KernelPDO escalation internals** — `KernelPDO::kernelEscalationEnter()`/`kernelEscalationLeave()` are stable in behavior but the counter implementation (`$escalationDepth`) is internal. Use the public API only.
+
 ## Internal Implementation Details
 
 The following can be reorganized as long as stable behavior remains unchanged:

@@ -991,4 +991,143 @@ class Cache
         }
         return $results;
     }
+
+    // ── Kernel State Caching (APCu) ──────────────────────────────────
+
+    /**
+     * Cache key version suffix. Increment when cache format changes.
+     */
+    private const KERNEL_STATE_VERSION = 'v2';
+
+    /**
+     * Warm kernel state by caching module registry, capability map, and
+     * entity presets in APCu for O(1) reads on subsequent requests.
+     *
+     * Gracefully skips when APCu is unavailable. Logs rebuild events at 'info' level.
+     */
+    public function warmKernelState(): void
+    {
+        if (!self::$apcuAvailable) {
+            return;
+        }
+
+        // ── Module registry ──────────────────────────────────────────
+        $registryKey = 'kernel.module_registry_' . self::KERNEL_STATE_VERSION;
+        $registry = apcu_fetch($registryKey);
+        if ($registry === false) {
+            // Rebuild from storage/modules.json (canonical source)
+            $registryPath = defined('STORAGE_PATH')
+                ? rtrim((string)STORAGE_PATH, '/') . '/modules.json'
+                : null;
+            if ($registryPath && is_file($registryPath)) {
+                $registry = json_decode((string)file_get_contents($registryPath), true);
+                if (is_array($registry)) {
+                    apcu_store($registryKey, $registry, 3600);
+                }
+            }
+            if (function_exists('write_log')) {
+                \write_log('kernel_state_cache: module_registry rebuilt', 'info');
+            }
+        }
+
+        // ── Capability map ───────────────────────────────────────────
+        $capKey = 'kernel.capability_map_' . self::KERNEL_STATE_VERSION;
+        $capMap = apcu_fetch($capKey);
+        if ($capMap === false) {
+            // Rebuild from all module manifests
+            $modulesDir = defined('BASE_PATH')
+                ? rtrim((string)BASE_PATH, '/') . '/modules'
+                : null;
+            $capMap = [];
+            if ($modulesDir && is_dir($modulesDir)) {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveCallbackFilterIterator(
+                        new \RecursiveDirectoryIterator($modulesDir, \FilesystemIterator::SKIP_DOTS),
+                        static function (\SplFileInfo $current): bool {
+                            $name = $current->getFilename();
+                            if ($name === '.' || $name === '..') {
+                                return false;
+                            }
+                            if ($current->isDir() && preg_match('/\.bak_\d{8}_\d{6}$/', $name)) {
+                                return false;
+                            }
+                            return true;
+                        }
+                    ),
+                    \RecursiveIteratorIterator::SELF_FIRST
+                );
+                foreach ($iterator as $file) {
+                    if ($file instanceof \SplFileInfo && $file->isFile() && $file->getFilename() === 'module.json') {
+                        $manifest = json_decode((string)file_get_contents($file->getPathname()), true);
+                        if (!is_array($manifest) || empty($manifest['id'])) {
+                            continue;
+                        }
+                        $moduleId = (string)$manifest['id'];
+                        $exposes = $manifest['capabilities']['exposes'] ?? [];
+                        if (is_array($exposes)) {
+                            foreach ($exposes as $cap) {
+                                $capId = is_array($cap) ? (string)($cap['id'] ?? '') : '';
+                                if ($capId !== '') {
+                                    $capMap[$capId] = [
+                                        'module' => $moduleId,
+                                        'priority' => is_array($cap) ? (int)($cap['priority'] ?? 50) : 50,
+                                        'modes' => is_array($cap) ? ($cap['modes'] ?? ['first']) : ['first'],
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // Only cache if we found at least some capabilities
+            if (!empty($capMap)) {
+                apcu_store($capKey, $capMap, 3600);
+            }
+            if (function_exists('write_log')) {
+                \write_log('kernel_state_cache: capability_map rebuilt', 'info');
+            }
+        }
+
+        // ── Entity presets ───────────────────────────────────────────
+        $presetKey = 'kernel.entity_presets_' . self::KERNEL_STATE_VERSION;
+        $presets = apcu_fetch($presetKey);
+        if ($presets === false) {
+            $presetsDir = defined('CONFIG_PATH')
+                ? rtrim((string)CONFIG_PATH, '/') . '/entity-presets'
+                : null;
+            $presets = [];
+            if ($presetsDir && is_dir($presetsDir)) {
+                $presetFiles = glob($presetsDir . '/*.php');
+                if (is_array($presetFiles)) {
+                    foreach ($presetFiles as $pf) {
+                        $presetData = include $pf;
+                        if (is_array($presetData)) {
+                            $presets[basename($pf, '.php')] = $presetData;
+                        }
+                    }
+                }
+            }
+            if (!empty($presets)) {
+                apcu_store($presetKey, $presets, 3600);
+            }
+            if (function_exists('write_log')) {
+                \write_log('kernel_state_cache: entity_presets rebuilt', 'info');
+            }
+        }
+    }
+
+    /**
+     * Invalidate all kernel state APCu cache keys.
+     * Called on module enable/disable, module version change, or entity preset file change.
+     */
+    public function invalidateKernelStateCache(): void
+    {
+        if (!self::$apcuAvailable) {
+            return;
+        }
+
+        apcu_delete('kernel.module_registry_' . self::KERNEL_STATE_VERSION);
+        apcu_delete('kernel.capability_map_' . self::KERNEL_STATE_VERSION);
+        apcu_delete('kernel.entity_presets_' . self::KERNEL_STATE_VERSION);
+    }
 }

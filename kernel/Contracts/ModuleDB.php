@@ -73,35 +73,53 @@ class ModuleDB implements DatabaseContract
     public function prepare(string $sql): PDOStatement
     {
         $this->enforceAccess($sql);
-        return $this->pdo->prepare($sql);
+        $prevModule = \Ikabud\Kernel\Database\KernelPDO::getActiveModule();
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule($this->moduleId);
+        try {
+            return $this->pdo->prepare($sql);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::setActiveModule($prevModule);
+        }
     }
 
     public function query(string $sql, array $params = []): PDOStatement
     {
         $this->enforceAccess($sql);
-        if (empty($params)) {
-            $stmt = $this->pdo->query($sql);
-            if ($stmt === false) {
-                throw new \RuntimeException("Query failed: {$sql}");
+        $prevModule = \Ikabud\Kernel\Database\KernelPDO::getActiveModule();
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule($this->moduleId);
+        try {
+            if (empty($params)) {
+                $stmt = $this->pdo->query($sql);
+                if ($stmt === false) {
+                    throw new \RuntimeException("Query failed: {$sql}");
+                }
+                return $stmt;
             }
+            $stmt = $this->pdo->prepare($sql);
+            if ($stmt === false) {
+                throw new \RuntimeException("Prepare failed: {$sql}");
+            }
+            $stmt->execute($params);
             return $stmt;
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::setActiveModule($prevModule);
         }
-        $stmt = $this->pdo->prepare($sql);
-        if ($stmt === false) {
-            throw new \RuntimeException("Prepare failed: {$sql}");
-        }
-        $stmt->execute($params);
-        return $stmt;
     }
 
     public function execute(string $sql, array $params = []): bool
     {
         $this->enforceAccess($sql);
-        $stmt = $this->pdo->prepare($sql);
-        if ($stmt === false) {
-            throw new \RuntimeException("Prepare failed: {$sql}");
+        $prevModule = \Ikabud\Kernel\Database\KernelPDO::getActiveModule();
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule($this->moduleId);
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            if ($stmt === false) {
+                throw new \RuntimeException("Prepare failed: {$sql}");
+            }
+            return $stmt->execute($params);
+        } finally {
+            \Ikabud\Kernel\Database\KernelPDO::setActiveModule($prevModule);
         }
-        return $stmt->execute($params);
     }
 
     public function lastInsertId(): string

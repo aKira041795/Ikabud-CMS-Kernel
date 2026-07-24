@@ -48,8 +48,32 @@ final class KernelPDO extends PDO
      */
     private static int $escalationDepth = 0;
 
+    /**
+     * Explicitly set module context — replaces debug_backtrace() for origin detection.
+     * Set by App::setActiveModule() / module-manager / ModuleDB before handler dispatch
+     * or database operations. When set, isDirectModuleCaller() returns true without
+     * performing a stack walk.
+     */
+    private static ?string $activeModule = null;
+
+    public static function setActiveModule(?string $moduleId): void
+    {
+        self::$activeModule = $moduleId;
+    }
+
+    public static function getActiveModule(): ?string
+    {
+        return self::$activeModule;
+    }
+
     private static function isDirectModuleCaller(): bool
     {
+        // NOTE: Does NOT use self::$activeModule fast path.
+        // The backtrace is the authoritative check because kernelEscalationEnter()
+        // must distinguish direct module callers from kernel callers even when a
+        // module handler context is active. Kernel code (e.g., audit logging via
+        // kernel.audit.record@1) legitimately calls escalationEnter() while a
+        // module is executing — the fast path would wrongly block it.
         $modulesRoot = defined('BASE_PATH') ? (rtrim((string)BASE_PATH, '/') . '/modules/') : null;
         if ($modulesRoot === null) {
             return false;
@@ -181,6 +205,21 @@ final class KernelPDO extends PDO
             return;
         }
 
+        // Fast path: explicit module context is set via setActiveModule().
+        // This avoids the expensive debug_backtrace() entirely.
+        if (self::$activeModule !== null) {
+            try {
+                $db = $ctx->db();
+                if (is_object($db) && method_exists($db, 'assertAccess')) {
+                    $db->assertAccess($sql);
+                }
+            } catch (\Throwable $e) {
+                throw $e;
+            }
+            return;
+        }
+
+        // Fallback: backtrace-based origin detection (deprecated path).
         // Only enforce when the call site is within a module.
         // This preserves kernel internals (audit logging, auth, etc.) that legitimately
         // touch kernel tables during module handler execution.
@@ -226,6 +265,11 @@ final class KernelPDO extends PDO
 
         if (!$moduleOrigin) {
             return;
+        }
+
+        // Log deprecation warning when backtrace fallback is triggered
+        if (function_exists('write_log')) {
+            \write_log('KernelPDO: debug_backtrace fallback used in enforceModuleAccess — activeModule not set', 'warning');
         }
 
         try {
