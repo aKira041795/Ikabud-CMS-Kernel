@@ -144,6 +144,19 @@ jobs:
       - name: Run test suite
         run: composer test
 
+      - name: Composer audit (dependency vulnerability scan)
+        run: composer audit --no-interaction
+
+      - name: Generate release manifest
+        run: php scripts/generate-release-manifest.php
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest
+          path: release-manifest.json
+          retention-days: 30
+
       - name: Upload log artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -151,3 +164,43 @@ jobs:
           name: logs
           path: storage/logs/
           retention-days: 7
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, mbstring, json, openssl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHPStan static analysis
+        continue-on-error: true
+        run: composer analyse -- --no-progress --error-format=github
+
+  coding-standards:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, mbstring, json, openssl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHP-CS-Fixer coding standards
+        continue-on-error: true
+        run: composer lint -- --dry-run --diff --show-progress=dots

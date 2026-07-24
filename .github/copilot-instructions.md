@@ -183,9 +183,9 @@ When editing DiSyL templates (`.disyl`) with `DISYL_COMPILED_MODE=true`, the com
 > All `{set}` logical operator, ternary-with-filter, `isset()`/`empty()`, and array literal `{['a','b']}` issues that were listed here previously are **fixed as of 2026-06-29 / 2026-07-05** and no longer restrictions.
 
 ## Bluehost / MySQL 5.7 compatibility (must check on every SQL change)
-> **@mysql57-compat:** All rules in this section are MySQL 5.7 constraints. When Bluehost upgrades to MySQL 8.0+, grep for `@mysql57-compat` to find features to unlock.
+> **@mysql57-compat:** All rules in this section are MySQL 5.7 constraints belonging to the **Compatibility database profile** (see [docs/kernel/database-profiles.md](../docs/kernel/database-profiles.md)). When Bluehost upgrades to MySQL 8.0+, grep for `@mysql57-compat` to find features to unlock and switch to Enterprise profile.
 
-The production deployment target is **Bluehost shared hosting**, which runs **MySQL 5.7** (or MariaDB <10.2). The following MySQL 8.0+ features are **unavailable** and must never be used:
+The production deployment target is **Bluehost shared hosting**, which runs **MySQL 5.7** (or MariaDB <10.2) — the Compatibility profile. The following MySQL 8.0+ features are **unavailable** in Compatibility mode and must never be used without a profile gate:
 
 | Forbidden | Use instead |
 |---|---|

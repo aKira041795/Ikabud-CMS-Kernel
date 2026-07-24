@@ -77,3 +77,4 @@ test_results/browser/runs/
 /storage/workbench/ci/
 /storage/workbench/runs/
 /storage/academic_similarity/
+release-manifest.json

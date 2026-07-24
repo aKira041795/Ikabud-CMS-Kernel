@@ -5,7 +5,7 @@
 Ikabud is an **application-kernel modular infrastructure framework** — a PHP runtime that owns the full request lifecycle, extension contracts, policy enforcement, and database isolation. Modules (CMS, daily ledger, workflow, etc.) are first-class citizens that register capabilities, listen for events, and declare their own tables — but the kernel owns the rules.
 
 **Version:** v6.1.0 (intercoherence)  
-**Runtime:** PHP 8.2+ / MySQL 5.7+ (CI: MySQL 8.0, MariaDB 10.6) / Apache with mod_rewrite
+**Runtime:** PHP 8.2+ / Database: Compatibility (MySQL 5.7+) or Enterprise (MySQL 8.0+) profiles — see [database-profiles.md](database-profiles.md) / Apache with mod_rewrite
 **Rendering Runtime:** DiSyL v4.7 (Declarative Ikabud Syntax Language)
 
 Contributor workflow and refactor guardrails are documented in:
@@ -22,7 +22,7 @@ Contributor workflow and refactor guardrails are documented in:
 | Layer | Technology |
 |-------|-----------|
 | Runtime | PHP 8.2+ |
-| Database | MySQL 5.7+ (per-tenant isolation). CI tests against MySQL 8.0 and MariaDB 10.6. Production target: Bluehost shared hosting (MySQL 5.7). |
+| Database | Compatibility (MySQL 5.7+) and Enterprise (MySQL 8.0+) profiles — see [database-profiles.md](database-profiles.md). Per-tenant isolation. CI tests both profiles. Production target: Bluehost shared hosting (Compatibility). |
 | Rendering Runtime | DiSyL v4.7 — layouts, blocks, components, hydration, 40+ filters, reactive client blocks, sandbox + capability scoping, async Fibers runtime, entity-view system, AI primitives, polyglot service modules |
 | Frontend | HTMX 1.9 + Alpine.js (server-first), React/Vite (page builder UI) |
 | Auth | JWT HS256 (cookie-based, httpOnly, secure) |

@@ -39,7 +39,7 @@ Many languages. Many outputs.
 - **AI governance** — AI summaries and drafts with kill switch, model allowlist, cost ceilings, and human review requirements.
 - **30 modules** — CMS, ecommerce, bakeshop, guidance, WMS, EHR, daily ledger, ticketing, SMS, AI orchestrator, attendance-wage, and more.
 - **ARK — Architectural Rendering Kit** — The visual operating specification of Ikabud. Governs themes, renderers, builders, entity views, design tokens, accessibility, and safety policy. 55 block definitions across 10 domains, 16 layout slots, 27 component variants.
-- **Bluehost shared-hosting compatible** — Runs on MySQL 5.7. JWT auth, OPcache-aware, DiSyL linter, no window functions or CTEs.
+- **Bluehost shared-hosting compatible** — Runs on MySQL 5.7 via the Compatibility database profile. JWT auth, OPcache-aware, DiSyL linter. See [docs/kernel/database-profiles.md](docs/kernel/database-profiles.md).
 
 ---
 
@@ -127,8 +127,7 @@ php ikabud workflow:list               List workflow definitions
 ## Target Environment
 
 - **PHP 8.1+** with `ext-pdo`, `ext-json`, `ext-mbstring`
-- **MySQL 5.7** / MariaDB 10.1+ (Bluehost shared hosting compatible)
-  - No window functions (`OVER()`), no CTEs — see [`.github/skills/bluehost-mysql-compatibility.md`](.github/skills/bluehost-mysql-compatibility.md)
+- **Database**: See [Database Compatibility Profiles](docs/kernel/database-profiles.md) — MySQL 5.7 / MariaDB 10.1+ (Compatibility) or MySQL 8.0+ / MariaDB 10.11+ (Enterprise)
   - All migrations use `ENGINE=InnoDB` with `utf8mb4_unicode_ci`
 - **APCu** recommended for DiSyL compiled template cache
 - **DiSyL VS Code Extension** — syntax highlighting, diagnostics, autocomplete: [`extensions/disyl-lsp/`](extensions/disyl-lsp/)
