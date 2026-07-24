@@ -38,7 +38,7 @@ aiss_it('manifest exposes internet settings', str_contains($manifest, '"key": "i
 aiss_it('migration creates search run table', str_contains($migration, 'CREATE TABLE IF NOT EXISTS ac_similarity_internet_search_runs'));
 aiss_it('migration creates internet source table', str_contains($migration, 'CREATE TABLE IF NOT EXISTS ac_similarity_internet_sources'));
 aiss_it('migration extends processing job enum', str_contains($migration, "'internet_discovery'"));
-aiss_it('settings defaults disable internet check', str_contains($helpers, "'internet_check_enabled' => '0'"));
+aiss_it('settings defaults enable internet check', str_contains($helpers, "'internet_check_enabled' => '1'"));
 aiss_it('settings defaults use bounded snippets policy', str_contains($helpers, "'internet_check_payload_policy' => 'snippets_only'"));
 aiss_it('settings allowlist includes provider limits', str_contains($helpers, "'internet_check_max_queries'") && str_contains($helpers, "'internet_check_max_sources'"));
 aiss_it('settings UI has internet tab in module view', str_contains($settings, 'AI Internet Check') && str_contains($settings, 'internet_check_seed_urls'));

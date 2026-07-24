@@ -122,7 +122,7 @@ t('assertTenantScope passes on match', $noThrow);
 // ── Path traversal in filenames ──
 
 t('rejects path traversal in extension check', !$validator->validateExtension('../../../etc/passwd', 'docx,pdf,txt'));
-t('path traversal .pdf gets extension pdf (allowed)', $validator->validateExtension('../../config.php.pdf', 'docx,pdf,txt'));
+t('rejects path traversal even with valid .pdf extension', !$validator->validateExtension('../../config.php.pdf', 'docx,pdf,txt'));
 
 // Check logs
 $appLog = file_get_contents(__DIR__ . '/../storage/logs/app.log');

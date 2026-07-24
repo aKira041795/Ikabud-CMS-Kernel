@@ -239,10 +239,12 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
             $input[$envKey] = $secretSpec['default'];
         }
     }
+    $maskedSentinel = '***MASKED***';
     foreach (academic_similarity_sensitive_setting_keys() as $secretKey) {
         if (array_key_exists($secretKey, $input)) {
             $secret = trim((string)$input[$secretKey]);
-            if ($secret === '' || str_starts_with($secret, '***')) {
+            // Backward compat: also check legacy '***' prefix
+            if ($secret === '' || $secret === $maskedSentinel || str_starts_with($secret, '***')) {
                 unset($input[$secretKey]);
             }
         }

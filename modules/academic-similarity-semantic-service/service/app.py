@@ -26,6 +26,7 @@ import json
 import os
 import sys
 import time
+import signal
 import hashlib
 import math
 import urllib.error
@@ -41,6 +42,11 @@ EMBEDDING_BACKEND = os.environ.get("SEMANTIC_EMBEDDING_BACKEND", "token_overlap"
 # Version
 SERVICE_VERSION = "1.0.0"
 SEMANTIC_MODEL_VERSION = "1.0.0"
+
+# Limits
+MAX_COMPARISONS = int(os.environ.get("SEMANTIC_MAX_COMPARISONS", 10000))
+BACKEND_TIMEOUT = int(os.environ.get("SEMANTIC_BACKEND_TIMEOUT", 30))
+BACKEND_TIMEOUT_ST = int(os.environ.get("SEMANTIC_BACKEND_TIMEOUT_ST", 120))
 
 # ── Embedding Backends ───────────────────────────────────────────
 
@@ -160,10 +166,10 @@ def compare_tfidf(segments_a: list[str], segments_b: list[str], threshold: float
 
     except ImportError:
         # Fallback to built-in TF-IDF
-        return _compare_tfidf_builtin(segments_a, segments_b)
+        return _compare_tfidf_builtin(segments_a, segments_b, threshold)
 
 
-def _compare_tfidf_builtin(segments_a: list[str], segments_b: list[str]) -> list[dict]:
+def _compare_tfidf_builtin(segments_a: list[str], segments_b: list[str], threshold: float = 0.70) -> list[dict]:
     """Built-in TF-IDF fallback (no scikit-learn dependency)."""
     comparisons = []
 
@@ -187,7 +193,8 @@ def _compare_tfidf_builtin(segments_a: list[str], segments_b: list[str]) -> list
 
 
 def compare_sentence_transformers(
-    segments_a: list[str], segments_b: list[str], model_name: str | None = None
+    segments_a: list[str], segments_b: list[str], model_name: str | None = None,
+    threshold: float = 0.70
 ) -> list[dict]:
     """
     Compare segments using sentence-transformers embeddings.
@@ -228,7 +235,7 @@ def compare_sentence_transformers(
             f"falling back to token_overlap",
             file=sys.stderr,
         )
-        return compare_token_overlap(segments_a, segments_b)
+        return compare_token_overlap(segments_a, segments_b, threshold)
 
 
 # ── Backend: Groq LLM Judge (paid provider via OpenAI-compatible API) ──
@@ -373,6 +380,41 @@ def get_backend(name: str):
 
 _start_time = time.time()
 _error_count = 0
+_error_timestamps: list[float] = []
+_ERROR_WINDOW_HOURS = 1
+
+
+class _TimeoutError(Exception):
+    """Raised when a backend execution times out."""
+    pass
+
+
+def _run_with_timeout(func, args, timeout_seconds: int = 30):
+    """Run a function with a timeout using SIGALRM."""
+    def _handler(signum, frame):
+        raise _TimeoutError(f"Backend execution timed out after {timeout_seconds}s")
+    old_handler = signal.signal(signal.SIGALRM, _handler)
+    signal.alarm(timeout_seconds)
+    try:
+        return func(*args)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
+def _prune_old_errors():
+    """Remove error timestamps older than _ERROR_WINDOW_HOURS."""
+    global _error_timestamps
+    cutoff = time.time() - _ERROR_WINDOW_HOURS * 3600
+    _error_timestamps = [ts for ts in _error_timestamps if ts >= cutoff]
+    return len(_error_timestamps)
+
+
+def _record_error():
+    """Record an error timestamp."""
+    global _error_timestamps, _error_count
+    _error_timestamps.append(time.time())
+    _error_count = _prune_old_errors()
 
 
 def handle_semantic_compare(payload: dict) -> dict:
@@ -399,6 +441,14 @@ def handle_semantic_compare(payload: dict) -> dict:
         raise ValueError(
             f"source_segments exceeds limit of {max_segments} "
             f"(got {len(source_segments)})"
+        )
+
+    # Max comparisons cap
+    pair_count = len(submission_segments) * len(source_segments)
+    if pair_count > MAX_COMPARISONS:
+        raise ValueError(
+            f"Segment pair count {pair_count} exceeds limit of {MAX_COMPARISONS}. "
+            f"Reduce the number of segments or increase SEMANTIC_MAX_COMPARISONS."
         )
 
     # Determine backend and threshold from the requested model profile.
@@ -431,16 +481,28 @@ def handle_semantic_compare(payload: dict) -> dict:
 
     backend = get_backend(backend_name)
 
+    # Determine timeout based on backend
+    if backend_name == "sentence_transformers":
+        timeout_seconds = BACKEND_TIMEOUT_ST
+    else:
+        timeout_seconds = BACKEND_TIMEOUT
+
     try:
         if backend_name in {"sentence_transformers", "groq"}:
             if backend_name == "groq":
                 comparisons = backend(submission_segments, source_segments, model_name, api_key, threshold)
             else:
-                comparisons = backend(submission_segments, source_segments, model_name, threshold)
+                comparisons = _run_with_timeout(
+                    backend, (submission_segments, source_segments, model_name, threshold),
+                    timeout_seconds,
+                )
         else:
-            comparisons = backend(submission_segments, source_segments, threshold)
+            comparisons = _run_with_timeout(
+                backend, (submission_segments, source_segments, threshold),
+                timeout_seconds,
+            )
     except Exception as e:
-        _error_count += 1
+        _record_error()
         raise RuntimeError(f"Comparison failed: {e}") from e
 
     for comparison in comparisons:

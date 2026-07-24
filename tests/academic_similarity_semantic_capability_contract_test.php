@@ -8,7 +8,7 @@ declare(strict_types=1);
  * without requiring a running Python service.
  *
  * Coverage areas:
- * - Default settings (semantic_match_enabled defaults to 0)
+ * - Default settings (semantic_match_enabled defaults to 1)
  * - Input validation (empty segments, oversized payloads)
  * - Availability gates (setting, capability registration, plan)
  * - Health check graceful degradation (service off = ok=false)
@@ -43,9 +43,9 @@ echo "\n=== Academic Similarity — Semantic Capability Contract ===\n";
 
 // Check default in source code (not DB-dependent)
 $helpersFile = file_get_contents(__DIR__ . '/../modules/academic_similarity/helpers.php');
-$hasDefault = str_contains($helpersFile, "'semantic_match_enabled' => '0'");
-$alsoDefault = str_contains($helpersFile, "'semantic_match_enabled' => '1'");
-t('semantic_match_enabled defaults to 0 in source', $hasDefault && !$alsoDefault);
+$hasDefault = str_contains($helpersFile, "'semantic_match_enabled' => '1'");
+$alsoDefault = str_contains($helpersFile, "'semantic_match_enabled' => '0'");
+t('semantic_match_enabled defaults to 1 in source', $hasDefault && !$alsoDefault);
 
 // ── SemanticService: Constructor & Structure ──
 
@@ -108,7 +108,7 @@ t('capability handler rejects non-array payload', ($capResult['ok'] ?? true) ===
 $handlerMap = academic_similarity_capability_handlers();
 t('capability handler map includes semantic.compare@1', isset($handlerMap['academic_similarity.semantic.compare@1']));
 t('semantic handler maps to correct function', $handlerMap['academic_similarity.semantic.compare@1'] === 'ac_sim_cap_semantic_compare_1');
-t('handler map has 7 capabilities', count($handlerMap) === 7, 'got: ' . count($handlerMap));
+t('handler map has 8 capabilities', count($handlerMap) === 8, 'got: ' . count($handlerMap));
 
 // ── Quota Service Integration ──
 

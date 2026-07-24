@@ -929,23 +929,8 @@ function apiSaveSettings(array $params = []): void
         header('Content-Type: application/json');
     }
 
-    // Validate CSRF token with form-friendly fallback
-    $validToken = false;
-    $tokenRaw = $_POST['_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-    if (is_string($tokenRaw) && $tokenRaw !== '' && function_exists('kernel_request_context_get')) {
-        $validToken = hash_equals(\Ikabud\Kernel\Http\CsrfManager::token(), $tokenRaw);
-    }
-    if (!$validToken) {
-        if ($isJson) {
-            http_response_code(419);
-            echo json_encode(['ok' => false, 'error' => 'Invalid or expired CSRF token. Please reload the page and try again.']);
-        } else {
-            $_SESSION['_kernel_flash']['error'][] = 'Session expired. Please reload the page and try again.';
-            header('Location: /admin/academic-similarity/settings');
-            exit;
-        }
-        return;
-    }
+    // Validate CSRF token
+    app()->csrfEnforce();
 
     $tenantId = (string)(app()->tenant()->current() ?? '');
     $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
@@ -1031,6 +1016,11 @@ function apiPublicSubmit(array $params = []): void
                 $input['author_name'] = (string)($user['name'] ?? $user['username'] ?? '');
             }
         }
+    } else {
+        // Anonymous submissions are not supported — reject
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'Authentication required to submit documents']);
+        return;
     }
 
     try {
@@ -1070,8 +1060,7 @@ function apiPublicSubmit(array $params = []): void
             $result['processing_error'] = 'Processing will complete shortly.';
         }
 
-        // Return submitter info for UI
-        $result['submitter_user_id'] = $submitterUserId;
+        // Return success — omit internal user ID
         echo json_encode($result);
     } catch (\Throwable $e) {
         write_log('Public submission failed: ' . $e->getMessage());

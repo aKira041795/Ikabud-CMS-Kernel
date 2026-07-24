@@ -27,6 +27,11 @@ class AcademicSimilarityInternetCheckService
      */
     public function dispatchAsync(int $submissionId): array
     {
+        // Dedup guard: skip if a run is already pending for this submission
+        if ($this->runRepo->hasPendingRun($submissionId)) {
+            return ['ok' => false, 'status' => 'skipped', 'reason' => 'Internet check already pending for this submission'];
+        }
+
         if (function_exists('kernelDispatchJob')) {
             $jobId = kernelDispatchJob(
                 'academic-similarity:academicSimilarityInternetCheckHandler',
@@ -35,7 +40,7 @@ class AcademicSimilarityInternetCheckService
                     'tenant_id' => $this->tenantId,
                 ],
                 'default',
-                0,
+                30,
                 3
             );
             if ($jobId > 0) {
@@ -145,23 +150,33 @@ class AcademicSimilarityInternetCheckService
             return ['ok' => true, 'status' => 'skipped', 'reason' => 'Circuit breaker open; internet discovery temporarily suspended after repeated failures'];
         }
 
-        // Concurrency guard: skip if another run is already in progress for this submission.
-        if ($this->runRepo->hasPendingRun($submissionId)) {
-            return ['ok' => true, 'status' => 'skipped', 'reason' => 'An internet check is already in progress for this submission'];
-        }
+        // Concurrency guard with DB-level locking: wrap check + create in a transaction
+        // to prevent TOCTOU race between hasPendingRun() and create().
+        $this->db->beginTransaction();
+        try {
+            if ($this->runRepo->hasPendingRun($submissionId)) {
+                $this->db->rollBack();
+                return ['ok' => true, 'status' => 'skipped', 'reason' => 'An internet check is already in progress for this submission'];
+            }
 
-        $text = $this->loadSubmissionText($submissionId);
-        if ($text === '') {
-            return ['ok' => true, 'status' => 'skipped', 'reason' => 'No extracted submission text available'];
-        }
+            $text = $this->loadSubmissionText($submissionId);
+            if ($text === '') {
+                $this->db->rollBack();
+                return ['ok' => true, 'status' => 'skipped', 'reason' => 'No extracted submission text available'];
+            }
 
-        $provider = (string)($settings['internet_check_provider'] ?? 'capability');
-        $payloadPolicy = (string)($settings['internet_check_payload_policy'] ?? 'snippets_only');
-        $queries = $this->discovery->buildQueries($submission, $text, $settings);
-        $runId = $this->runRepo->create($submissionId, (int)($submission['institution_id'] ?? 0), $provider, $payloadPolicy, [
-            'queries' => $queries,
-            'full_document_query_allowed' => ($settings['internet_check_allow_full_document_query'] ?? '0') === '1',
-        ]);
+            $provider = (string)($settings['internet_check_provider'] ?? 'capability');
+            $payloadPolicy = (string)($settings['internet_check_payload_policy'] ?? 'snippets_only');
+            $queries = $this->discovery->buildQueries($submission, $text, $settings);
+            $runId = $this->runRepo->create($submissionId, (int)($submission['institution_id'] ?? 0), $provider, $payloadPolicy, [
+                'queries' => $queries,
+                'full_document_query_allowed' => ($settings['internet_check_allow_full_document_query'] ?? '0') === '1',
+            ]);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
 
         if ($queries === []) {
             $this->runRepo->updateSummary($runId, 'skipped', 0, 0, 0, $this->limitedCorpusDisclosure(), 'No safe queries could be generated');

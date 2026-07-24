@@ -180,12 +180,42 @@ class AcademicSimilarityMatchingService
     }
 
     /**
-     * Resolve overlapping match results, keeping the longest match for each word range.
+     * Resolve overlapping match results, grouping by source before overlap resolution
+     * to prevent cross-source interference. Each source's matches are trimmed
+     * independently, then merged (deduplicating word positions across sources).
      *
      * @param AcademicSimilarityMatchResult[] $matches
      * @return AcademicSimilarityMatchResult[]
      */
     public function resolveOverlaps(array $matches): array
+    {
+        if (empty($matches)) {
+            return [];
+        }
+
+        // Group by source_id, resolve overlaps per source independently
+        $bySource = [];
+        foreach ($matches as $match) {
+            $sid = $match->sourceId;
+            $bySource[$sid][] = $match;
+        }
+
+        $resolved = [];
+        foreach ($bySource as $sourceMatches) {
+            $perSource = $this->resolveSourceOverlaps($sourceMatches);
+            $resolved = array_merge($resolved, $perSource);
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Resolve overlapping matches within a single source.
+     *
+     * @param AcademicSimilarityMatchResult[] $matches
+     * @return AcademicSimilarityMatchResult[]
+     */
+    private function resolveSourceOverlaps(array $matches): array
     {
         if (empty($matches)) {
             return [];
@@ -474,13 +504,15 @@ class AcademicSimilarityMatchingService
             $srcByHash[$hash][] = $fp;
         }
 
-        // Find matching submission fingerprint positions and map to source positions
+        // Find matching submission fingerprint positions and map to source positions.
+        // Iterate ALL source fingerprints per hash to handle repeated shingles.
         $subPositions = [];
         foreach ($subFps as $fp) {
             $hash = $fp['shingle_hash'];
             if (isset($srcByHash[$hash])) {
-                $srcFp = $srcByHash[$hash][0];
-                $subPositions[(int)$fp['word_position']] = (int)$srcFp['word_position'];
+                foreach ($srcByHash[$hash] as $srcFp) {
+                    $subPositions[(int)$fp['word_position']] = (int)$srcFp['word_position'];
+                }
             }
         }
 
@@ -661,7 +693,8 @@ class AcademicSimilarityMatchingService
             return null;
         }
 
-        // Traceback
+        // Traceback — compare H[i][j] against the three candidate values
+        // that were considered when computing it: H[i-1][j-1]+diag, E[i][j], F[i][j]
         $i = $maxI;
         $j = $maxJ;
         $alignedLen = 0;
@@ -671,30 +704,33 @@ class AcademicSimilarityMatchingService
         while ($i > 0 && $j > 0 && $H[$i][$j] > 0) {
             $currentScore = $H[$i][$j];
 
-            // Check which direction we came from
-            $fromDiag = $H[$i - 1][$j - 1];
-            $fromUp = $F[$i - 1][$j]; // Gap in B
-            $fromLeft = $E[$i][$j - 1]; // Gap in A
-
             $isMatch = ($windowA[$i - 1] === $windowB[$j - 1]);
-            $diagExpected = $fromDiag + ($isMatch ? $matchScore : $mismatchScore);
+            $diagScore = $isMatch ? $matchScore : $mismatchScore;
+            $hDiag = $H[$i - 1][$j - 1] + $diagScore;
 
-            if (abs($currentScore - $diagExpected) < 0.001) {
-                // Diagonal move (match or mismatch)
+            if (abs($currentScore - $hDiag) < 0.001) {
+                // Diagonal move (match or mismatch) — came from H[i-1][j-1] + diag
                 if (!$isMatch) {
                     $gaps++;
                 }
                 $alignedLen++;
                 $i--;
                 $j--;
-            } elseif ($currentScore === $fromLeft + ($currentScore > $fromLeft ? $gapExtend : $gapOpen)) {
-                // Gap in A (insertion in submission)
+            } elseif (abs($currentScore - $E[$i][$j]) < 0.001) {
+                // Came from E[i][j] — gap in A (insertion in submission)
                 $insertions++;
                 $j--;
-            } else {
-                // Gap in B (deletion in submission)
+            } elseif (abs($currentScore - $F[$i][$j]) < 0.001) {
+                // Came from F[i][j] — gap in B (deletion in submission)
                 $gaps++;
                 $i--;
+            } else {
+                // Should not happen for a correct alignment; pick closer candidate
+                if ($E[$i][$j] >= $F[$i][$j]) {
+                    $j--;
+                } else {
+                    $i--;
+                }
             }
         }
 

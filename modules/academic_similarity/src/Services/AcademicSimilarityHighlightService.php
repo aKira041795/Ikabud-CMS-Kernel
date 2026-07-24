@@ -206,17 +206,15 @@ class AcademicSimilarityHighlightService
             'source_spans'     => count(array_filter($resolved, fn(AcademicSimilarityHighlightSpan $s): bool => $s->side === 'source')),
         ];
 
-        // Build legend
+        // Build legend — always include all 6 types for consistency with buildLegend()
         $legend = [];
         foreach (['exact', 'near-exact', 'semantic', 'quotation', 'excluded', 'statistical'] as $type) {
-            if (isset($typeCounts[$type]) || $type === 'exact') {
-                $legend[] = [
-                    'type'  => $type,
-                    'label' => self::TYPE_LABELS[$type],
-                    'css'   => self::TYPE_CSS[$type],
-                    'count' => $typeCounts[$type] ?? 0,
-                ];
-            }
+            $legend[] = [
+                'type'  => $type,
+                'label' => self::TYPE_LABELS[$type],
+                'css'   => self::TYPE_CSS[$type],
+                'count' => $typeCounts[$type] ?? 0,
+            ];
         }
 
         return [
@@ -437,8 +435,8 @@ class AcademicSimilarityHighlightService
                 'matched_word_count'    => (int)($match['matched_word_count'] ?? 0),
                 'is_excluded'           => !empty($match['is_excluded']),
                 'source_id'             => (int)($match['source_id'] ?? 0),
-                'source_title'          => '',
-                'source_author'         => '',
+                'source_title'          => (string)($sourceCache[(int)($match['source_id'] ?? 0)]['title'] ?? $match['source_title'] ?? ''),
+                'source_author'         => (string)($sourceCache[(int)($match['source_id'] ?? 0)]['author'] ?? ''),
                 'submission_text'       => '',
                 'source_text'           => '',
                 'submission_line_start' => (int)($match['submission_word_range_start'] ?? 0),

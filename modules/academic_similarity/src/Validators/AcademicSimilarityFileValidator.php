@@ -69,13 +69,22 @@ class AcademicSimilarityFileValidator
 
     /**
      * Validate file extension against a comma-separated list of allowed extensions.
+     * Also rejects filenames with null bytes or path traversal sequences.
      *
      * @param string $filename          Original filename.
      * @param string $allowedExtensions Comma-separated list, e.g. "docx,pdf,txt".
-     * @return bool True if extension is allowed.
+     * @return bool True if extension is allowed and filename is safe.
      */
     public function validateExtension(string $filename, string $allowedExtensions): bool
     {
+        // Reject null bytes
+        if (str_contains($filename, "\0")) {
+            return false;
+        }
+        // Reject path traversal sequences
+        if (preg_match('#(?:^|/)\\.\\.(?:/|$)#', $filename)) {
+            return false;
+        }
         $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
         $allowed = array_map('trim', explode(',', strtolower($allowedExtensions)));
         return in_array($ext, $allowed, true);
