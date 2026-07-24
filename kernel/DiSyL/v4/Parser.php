@@ -1845,6 +1845,11 @@ final class Parser
                 }
 
                 if ($i >= $bestPos) {
+                    // When a longer operator (e.g. !==) matched earlier, skip
+                    // the shorter operator (e.g. ==) embedded within its span.
+                    if ($best !== false && $i < $bestPos + strlen($best[0])) {
+                        break; // inside current best match — skip
+                    }
                     $bestPos = $i;
                     $best = [
                         $op,
