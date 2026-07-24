@@ -54,7 +54,7 @@ class AcademicSimilarityInternetDiscoveryService
         $maxSources = max(1, min(25, (int)($settings['internet_check_max_sources'] ?? 5)));
         $candidates = [];
 
-        if ($provider === 'seed_urls' || trim((string)($settings['internet_check_seed_urls'] ?? '')) !== '') {
+        if ($provider === 'seed_urls') {
             foreach ($this->seedUrlCandidates((string)($settings['internet_check_seed_urls'] ?? ''), $queries) as $candidate) {
                 $candidates[] = $candidate;
                 if (count($candidates) >= $maxSources) {
