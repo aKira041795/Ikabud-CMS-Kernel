@@ -312,6 +312,19 @@ function pageReportDetail(array $params = []): void
     $report['word_count'] = $submission['word_count'] ?? $report['total_eligible_words'] ?? 0;
     $report['summary'] = $report['summary'] ?? '';
 
+    // Build source cache for titles (must be BEFORE source breakdown)
+    $sourceRepo = new \AcademicSimilaritySourceRepository($tenantId);
+    $sourceCache = [];
+    foreach ($matches as $match) {
+        $sid = (int)$match['source_id'];
+        if ($sid > 0 && !isset($sourceCache[$sid])) {
+            $src = $sourceRepo->findById($sid);
+            if ($src) {
+                $sourceCache[$sid] = $src;
+            }
+        }
+    }
+
     // Build source breakdown with names
     $scoringService = new \AcademicSimilarityScoringService($tenantId);
     $matchResults = [];
@@ -341,25 +354,6 @@ function pageReportDetail(array $params = []): void
     }
     unset($sb);
     $report['source_breakdown'] = $sourceBreakdown;
-
-    // Build evidence map
-    $evidenceMap = [];
-    foreach ($matches as $match) {
-        $evidenceMap[(int)$match['id']] = $matchRepo->getEvidence((int)$match['id']);
-    }
-
-    // Build source cache for titles
-    $sourceRepo = new \AcademicSimilaritySourceRepository($tenantId);
-    $sourceCache = [];
-    foreach ($matches as $match) {
-        $sid = (int)$match['source_id'];
-        if ($sid > 0 && !isset($sourceCache[$sid])) {
-            $src = $sourceRepo->findById($sid);
-            if ($src) {
-                $sourceCache[$sid] = $src;
-            }
-        }
-    }
     $internetBySource = [];
     try {
         $internetBySource = (new \AcademicSimilarityInternetSourceRepository($tenantId))->findBySourceIds(array_keys($sourceCache));
