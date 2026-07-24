@@ -26,6 +26,7 @@ class AcademicSimilarityHighlightService
         'quotation'    => 90,
         'exact'        => 80,
         'near-exact'   => 70,
+        'text-level'   => 65,
         'semantic'     => 60,
         'statistical'  => 50,
     ];
@@ -34,6 +35,7 @@ class AcademicSimilarityHighlightService
     private const TYPE_LABELS = [
         'exact'       => 'Exact Copy',
         'near-exact'  => 'Similar Wording',
+        'text-level'   => 'Topic Similarity',
         'semantic'    => 'Semantic Paraphrase',
         'quotation'   => 'Quoted/Cited',
         'excluded'    => 'Excluded',
@@ -44,6 +46,7 @@ class AcademicSimilarityHighlightService
     private const TYPE_CSS = [
         'exact'       => 'hl-exact',
         'near-exact'  => 'hl-near',
+        'text-level'   => 'hl-text-level',
         'semantic'    => 'hl-semantic',
         'quotation'   => 'hl-quote',
         'excluded'    => 'hl-excluded',

@@ -883,7 +883,7 @@ class AcademicSimilarityMatchingService
     ): AcademicSimilarityMatchResult {
         $evidence = [[
             'submission_text' => implode(' ', array_slice($subWords, $start, $end - $start)),
-            'source_text' => '(text-level match)',
+            'source_text' => '(topic-level similarity — different wording, same subject matter)',
             'submission_start_offset' => $start,
             'submission_end_offset' => $end,
             'source_start_offset' => 0,
@@ -893,7 +893,7 @@ class AcademicSimilarityMatchingService
         return new AcademicSimilarityMatchResult([
             'submission_id' => $submissionId,
             'source_id' => $sourceId,
-            'match_type' => $matchType,
+            'match_type' => 'text-level',
             'confidence' => 0.3,
             'submission_segment_id' => null,
             'source_segment_id' => null,
