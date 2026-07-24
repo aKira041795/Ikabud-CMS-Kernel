@@ -368,9 +368,18 @@
             "label": "Search Backend (when provider=ai)",
             "default": "serpapi",
             "options": [
-                {"value": "serpapi", "label": "SerpAPI (serpapi.com)"},
-                {"value": "google_cse", "label": "Google Custom Search Engine"},
-                {"value": "bing", "label": "Bing Web Search API"}
+                {
+                    "value": "serpapi",
+                    "label": "SerpAPI (serpapi.com)"
+                },
+                {
+                    "value": "google_cse",
+                    "label": "Google Custom Search Engine"
+                },
+                {
+                    "value": "bing",
+                    "label": "Bing Web Search API"
+                }
             ]
         },
         {
