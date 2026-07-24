@@ -154,6 +154,64 @@
         </div>
     </div>
 
+    <!-- Suggestions for Revision -->
+    {if report.raw_similarity_score > 15}
+    <div class="bg-white rounded-lg shadow border border-amber-200 p-6 mb-6">
+        <div class="flex items-start gap-3">
+            <span class="text-2xl">💡</span>
+            <div class="flex-1">
+                <h2 class="text-lg font-semibold text-gray-900 mb-1">Suggestions for the Author</h2>
+                <p class="text-sm text-gray-500 mb-4">If the student needs to revise their submission, share these paraphrasing strategies to help reduce similarity while preserving original ideas.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="flex items-start gap-2 bg-amber-50 rounded-lg p-3 border border-amber-100">
+                        <span class="text-amber-600 font-bold text-sm shrink-0">1.</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Synonyms</p>
+                            <p class="text-xs text-gray-600">Replace key terms with equivalents (e.g. &ldquo;analyze&rdquo; &rarr; &ldquo;examine&rdquo;)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2 bg-amber-50 rounded-lg p-3 border border-amber-100">
+                        <span class="text-amber-600 font-bold text-sm shrink-0">2.</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Restructure</p>
+                            <p class="text-xs text-gray-600">Change sentence order: cause &rarr; effect becomes effect &rarr; cause</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2 bg-amber-50 rounded-lg p-3 border border-amber-100">
+                        <span class="text-amber-600 font-bold text-sm shrink-0">3.</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Voice shift</p>
+                            <p class="text-xs text-gray-600">Switch between passive and active voice (&ldquo;The study found&rdquo; &harr; &ldquo;It was found&rdquo;)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2 bg-amber-50 rounded-lg p-3 border border-amber-100">
+                        <span class="text-amber-600 font-bold text-sm shrink-0">4.</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Split or merge</p>
+                            <p class="text-xs text-gray-600">Break long sentences apart or combine short ones into compound structures</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2 bg-amber-50 rounded-lg p-3 border border-amber-100">
+                        <span class="text-amber-600 font-bold text-sm shrink-0">5.</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Change word form</p>
+                            <p class="text-xs text-gray-600">Use different parts of speech (&ldquo;investigation&rdquo; &rarr; &ldquo;investigate&rdquo;)</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2 bg-amber-50 rounded-lg p-3 border border-amber-100">
+                        <span class="text-amber-600 font-bold text-sm shrink-0">6.</span>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">Cite properly</p>
+                            <p class="text-xs text-gray-600">If the idea is not common knowledge, attribute the source with a proper citation</p>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-4">These are suggested revision strategies — not automated corrections. The author should apply their own judgment to preserve meaning and academic integrity.</p>
+            </div>
+        </div>
+    </div>
+    {/if}
+
     <!-- Highlight Legend -->
     {if highlight_legend|count > 0}
     <div class="bg-white rounded-lg shadow border border-gray-200 p-4 mb-6">
@@ -318,6 +376,25 @@
     {/if}
 </div>
 
+<!-- Exclude Modal -->
+<div id="excludeModal" class="fixed inset-0 z-50 hidden flex items-center justify-center" style="background: rgba(0,0,0,0.5);">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-bold text-gray-900">Exclude Match</h3>
+                <button onclick="closeExcludeModal()" class="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <p class="text-sm text-gray-600 mb-4">Why are you excluding this passage? This helps improve future similarity detection.</p>
+            <textarea id="excludeReason" class="w-full border border-gray-300 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" rows="3" placeholder="e.g. Common knowledge, properly cited quotation, bibliography entry, false positive..."></textarea>
+
+            <div class="mt-4 flex justify-end gap-3">
+                <button onclick="closeExcludeModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                <button id="excludeConfirmBtn" onclick="confirmExclude()" class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700">Exclude</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Highlight span styles */
 .hl-exact { background: #fecaca; border-bottom: 2px solid #dc2626; }
@@ -350,29 +427,53 @@
 </style>
 
 <script>
-function excludeMatch(matchId) {
+var _pendingExcludeId = null;
+
+function excludeMatch(matchId, reason) {
+    var body = '_token=' + encodeURIComponent('{csrf_token}');
+    if (reason) {
+        body += '&reason=' + encodeURIComponent(reason);
+    }
     return fetch('/api/v1/academic-similarity/reviews/' + matchId + '/exclude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
-        body: '_token=' + encodeURIComponent('{csrf_token}')
+        body: body
     }).then(function(r) { return r.json(); });
 }
 
 function promptExclude(matchId) {
-    var reason = prompt('Why are you excluding this match? (optional)');
-    excludeMatch(matchId).then(function(data) {
+    _pendingExcludeId = matchId;
+    document.getElementById('excludeReason').value = '';
+    document.getElementById('excludeModal').classList.remove('hidden');
+}
+
+function confirmExclude() {
+    var matchId = _pendingExcludeId;
+    if (!matchId) return;
+    var reason = document.getElementById('excludeReason').value.trim();
+    document.getElementById('excludeConfirmBtn').disabled = true;
+    document.getElementById('excludeConfirmBtn').textContent = 'Excluding...';
+    excludeMatch(matchId, reason).then(function(data) {
         if (data.ok) {
             location.reload();
         } else {
             alert('Failed to exclude: ' + (data.error || 'Unknown error'));
+            document.getElementById('excludeConfirmBtn').disabled = false;
+            document.getElementById('excludeConfirmBtn').textContent = 'Exclude';
         }
     }).catch(function(e) {
         alert('Network error: ' + e.message);
+        document.getElementById('excludeConfirmBtn').disabled = false;
+        document.getElementById('excludeConfirmBtn').textContent = 'Exclude';
     });
 }
 
+function closeExcludeModal() {
+    _pendingExcludeId = null;
+    document.getElementById('excludeModal').classList.add('hidden');
+}
+
 function keepMatch(matchId) {
-    // Keep is the default state — just scroll to the passage
     var el = document.getElementById('fn-' + matchId);
     if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -388,7 +489,6 @@ function toggleAllExcluded() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Highlight filter toggles
     document.querySelectorAll('.hl-filter-checkbox').forEach(function (cb) {
         cb.addEventListener('change', function () {
             var type = this.getAttribute('data-type');
@@ -399,7 +499,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Click highlight → scroll to evidence footnote
     document.querySelectorAll('.hl-span').forEach(function (span) {
         span.addEventListener('click', function () {
             var footnote = this.getAttribute('data-footnote');
@@ -412,6 +511,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         });
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeExcludeModal();
+    });
+
+    // Close modal on backdrop click
+    document.getElementById('excludeModal').addEventListener('click', function(e) {
+        if (e.target === this) closeExcludeModal();
     });
 });
 </script>

@@ -211,6 +211,8 @@ PHP;
             'or' => "(\$this->isTruthy({$left}) || \$this->isTruthy({$right}))",
             '==' => "({$left} == {$right})",
             '!=' => "({$left} != {$right})",
+            '===' => "({$left} === {$right})",
+            '!==' => "({$left} !== {$right})",
             '<' => "({$left} < {$right})",
             '>' => "({$left} > {$right})",
             '<=' => "({$left} <= {$right})",
