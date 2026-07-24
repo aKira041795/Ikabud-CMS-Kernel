@@ -819,46 +819,62 @@ class AcademicSimilarityMatchingService
             return [];
         }
 
-        // Build source word set for fast Jaccard computation
-        $srcWordSet = array_flip($srcWords);
-        $srcSetSize = count($srcWordSet);
-
-        // Sliding window over submission: compute Jaccard similarity
-        // of each window against the entire source word set.
-        $windowSize = max(10, min(50, intdiv($subCount, 3)));
-        $threshold = 0.03; // 3% Jaccard — lenient for topic-level similarity between different authors
+        // Local sliding-window Jaccard: compare equal-sized windows
+        // from submission and source to detect concentrated text overlap.
+        // Global Jaccard against the full source vocabulary is dominated by
+        // source size — a 50-word window vs 700 unique source words caps at
+        // ~7% even for verbatim copies. Local window-to-window comparison
+        // correctly detects concentrated text overlap regardless of source size.
+        $windowSize = max(15, min(60, intdiv($subCount, 3)));
+        $threshold = 0.20; // 20% Jaccard on equal-sized windows — requires meaningful overlap
+        $srcStep = max(1, intdiv($windowSize, 4));
+        $subStep = max(1, intdiv($windowSize, 2));
         $matches = [];
         $lastMatchEnd = -1;
         $runStart = -1;
         $runEnd = -1;
         $runWords = 0;
 
-        for ($i = 0; $i <= $subCount - $windowSize; $i += max(1, intdiv($windowSize, 4))) {
+        for ($i = 0; $i <= $subCount - $windowSize; $i += $subStep) {
             $windowWords = array_slice($subWords, $i, $windowSize);
             $windowSet = array_flip($windowWords);
-            $windowSize2 = count($windowSet);
+            $windowSetSize = count($windowSet);
+            if ($windowSetSize < 5) continue;
 
-            // Intersection size
-            $intersection = 0;
-            foreach ($windowSet as $w => $_) {
-                if (isset($srcWordSet[$w])) {
-                    $intersection++;
+            // Slide a window of equal size through the source — find best local overlap
+            $bestJaccard = 0.0;
+            $bestIntersection = 0;
+            for ($j = 0; $j <= $srcCount - $windowSize; $j += $srcStep) {
+                $srcWindowWords = array_slice($srcWords, $j, $windowSize);
+                $srcWindowSet = array_flip($srcWindowWords);
+                $srcWindowSetSize = count($srcWindowSet);
+
+                $intersection = 0;
+                foreach ($windowSet as $w => $_) {
+                    if (isset($srcWindowSet[$w])) {
+                        $intersection++;
+                    }
+                }
+
+                $union = $windowSetSize + $srcWindowSetSize - $intersection;
+                if ($union === 0) continue;
+                $jaccard = $intersection / $union;
+
+                if ($jaccard > $bestJaccard) {
+                    $bestJaccard = $jaccard;
+                    $bestIntersection = $intersection;
                 }
             }
 
-            $union = $windowSize2 + $srcSetSize - $intersection;
-            if ($union === 0) continue;
-            $jaccard = $intersection / $union;
-
-            if ($jaccard >= $threshold) {
+            if ($bestJaccard >= $threshold) {
                 $matchEnd = $i + $windowSize;
                 if ($i <= $lastMatchEnd + $windowSize) {
                     // Extend current run
                     $runEnd = $matchEnd;
-                    $runWords += $intersection;
+                    $runWords += $bestIntersection;
                 } else {
                     // Save previous run if it has enough words
-                    if ($runStart >= 0 && $runWords >= 3) {
+                    if ($runStart >= 0 && $runWords >= 5) {
                         $matches[] = $this->buildTextMatchResult(
                             $submissionId, $sourceId, $matchType,
                             $runStart, $runEnd, $runWords, $subWords
@@ -866,14 +882,14 @@ class AcademicSimilarityMatchingService
                     }
                     $runStart = $i;
                     $runEnd = $matchEnd;
-                    $runWords = $intersection;
+                    $runWords = $bestIntersection;
                 }
                 $lastMatchEnd = $matchEnd;
             }
         }
 
         // Don't forget the last run
-        if ($runStart >= 0 && $runWords >= 3) {
+        if ($runStart >= 0 && $runWords >= 5) {
             $matches[] = $this->buildTextMatchResult(
                 $submissionId, $sourceId, $matchType,
                 $runStart, $runEnd, $runWords, $subWords
