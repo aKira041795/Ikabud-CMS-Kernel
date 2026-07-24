@@ -16,9 +16,10 @@ class AcademicSimilarityScoringService
 
     /** Match type → weight multiplier */
     private const TYPE_WEIGHTS = [
-        'exact'     => 1.0,
-        'near-exact' => 0.85,
-        'text-level' => 0.4,
+        'exact'      => 1.0,
+        'near-exact'  => 0.85,
+        'semantic'    => 0.2,
+        'text-level'  => 0.4,
     ];
 
     public function __construct(string $tenantId) {

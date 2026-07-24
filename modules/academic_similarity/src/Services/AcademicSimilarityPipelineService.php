@@ -957,9 +957,9 @@ class AcademicSimilarityPipelineService
 
         $threshold = (float)($settings['semantic_similarity_threshold'] ?? 0.70);
         $matches = [];
+        $bestBySource = []; // Deduplicate semantic matches by source — keep highest confidence
 
         // Build word-position index for submission segments
-        // (semantic match produces character offsets, but scoring expects word positions)
         $subWordOffset = 0;
         $subSegmentWordStarts = [];
         foreach ($submissionSegments as $seg) {
@@ -981,30 +981,56 @@ class AcademicSimilarityPipelineService
                 continue;
             }
 
-            // Compute word-position range from segment data (original_start_offset is character offset, not word position)
+            $sourceId = (int)($sourceSegment['source_id'] ?? 0);
+            if ($sourceId <= 0) continue;
+
+            // Deduplicate: keep only the best semantic match per source
+            if (isset($bestBySource[$sourceId]) && $bestBySource[$sourceId]['score'] >= $score) {
+                continue;
+            }
+
             $segWordCount = (int)($submissionSegment['word_count'] ?? 0);
             $segId = (int)($submissionSegment['id'] ?? 0);
             $wordStart = $subSegmentWordStarts[$segId] ?? 0;
             $wordEnd = $wordStart + max(0, $segWordCount - 1);
 
-            $matches[] = new AcademicSimilarityMatchResult([
+            // Scale matched_word_count by confidence to avoid score inflation
+            $effectiveWords = max(1, (int)round($segWordCount * $score * 0.5));
+
+            $bestBySource[$sourceId] = [
+                'score' => $score,
+                'source_id' => $sourceId,
                 'submission_id' => $submissionId,
-                'source_id' => (int)($sourceSegment['source_id'] ?? 0),
-                'match_type' => 'semantic',
-                'confidence' => $score,
                 'submission_segment_id' => $segId,
                 'source_segment_id' => (int)($sourceSegment['id'] ?? 0),
-                'matched_word_count' => $segWordCount,
+                'matched_word_count' => min($effectiveWords, $segWordCount),
                 'submission_word_range_start' => $wordStart,
                 'submission_word_range_end' => $wordEnd,
+                'submission_text' => (string)($submissionSegment['content'] ?? ''),
+                'source_text' => (string)($sourceSegment['content'] ?? ''),
+            ];
+        }
+
+        // Build final match list from best-by-source
+        foreach ($bestBySource as $sId => $data) {
+            $matches[] = new AcademicSimilarityMatchResult([
+                'submission_id' => $submissionId,
+                'source_id' => $data['source_id'],
+                'match_type' => 'semantic',
+                'confidence' => $data['score'],
+                'submission_segment_id' => $data['submission_segment_id'],
+                'source_segment_id' => $data['source_segment_id'],
+                'matched_word_count' => $data['matched_word_count'],
+                'submission_word_range_start' => $data['submission_word_range_start'],
+                'submission_word_range_end' => $data['submission_word_range_end'],
                 'source_word_range_start' => 0,
                 'source_word_range_end' => 0,
-                'segment_match_count' => 1,
+                'segment_match_count' => count($bestBySource),
                 'evidence' => [[
-                    'submission_text' => (string)($submissionSegment['content'] ?? ''),
-                    'source_text' => (string)($sourceSegment['content'] ?? ''),
-                    'submission_start_offset' => $wordStart,
-                    'submission_end_offset' => $wordEnd,
+                    'submission_text' => $data['submission_text'],
+                    'source_text' => $data['source_text'],
+                    'submission_start_offset' => $data['submission_word_range_start'],
+                    'submission_end_offset' => $data['submission_word_range_end'],
                     'source_start_offset' => 0,
                     'source_end_offset' => 0,
                 ]],
