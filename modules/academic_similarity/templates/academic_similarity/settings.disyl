@@ -318,7 +318,18 @@
                     <label for="internet_check_provider" class="block text-sm font-medium text-gray-700 mb-1">Discovery Provider</label>
                     <select id="internet_check_provider" name="internet_check_provider" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                         <option value="capability" {if settings.internet_check_provider == 'capability'}selected{/if}>Provider capability</option>
+                        <option value="ai" {if settings.internet_check_provider == 'ai'}selected{/if}>AI search (SerpAPI/Google/Bing)</option>
                         <option value="seed_urls" {if settings.internet_check_provider == 'seed_urls'}selected{/if}>Configured seed URLs</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="internet_search_backend" class="block text-sm font-medium text-gray-700 mb-1">Search Backend (provider=ai)</label>
+                    <select id="internet_search_backend" name="internet_search_backend" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="serpapi" {if settings.internet_search_backend == 'serpapi'}selected{/if}>SerpAPI (serpapi.com)</option>
+                        <option value="google_cse" {if settings.internet_search_backend == 'google_cse'}selected{/if}>Google Custom Search</option>
+                        <option value="bing" {if settings.internet_search_backend == 'bing'}selected{/if}>Bing Web Search API</option>
+                    </select>
                     </select>
                 </div>
                 <div>

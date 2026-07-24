@@ -350,12 +350,27 @@
             "options": [
                 {
                     "value": "capability",
-                    "label": "Provider capability"
+                    "label": "Provider capability (via academic_similarity.internet.discover)"
+                },
+                {
+                    "value": "ai",
+                    "label": "AI search (via ai.search.discover — SerpAPI/Google/Bing)"
                 },
                 {
                     "value": "seed_urls",
-                    "label": "Configured seed URLs"
+                    "label": "Configured seed URLs only"
                 }
+            ]
+        },
+        {
+            "key": "internet_search_backend",
+            "type": "select",
+            "label": "Search Backend (when provider=ai)",
+            "default": "serpapi",
+            "options": [
+                {"value": "serpapi", "label": "SerpAPI (serpapi.com)"},
+                {"value": "google_cse", "label": "Google Custom Search Engine"},
+                {"value": "bing", "label": "Bing Web Search API"}
             ]
         },
         {

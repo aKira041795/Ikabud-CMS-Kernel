@@ -470,24 +470,231 @@ function ai_cap_ai_text_generate_1(mixed $payload, string $capabilityId = '', st
 
 function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
-    // Default handler for AI-powered internet source discovery.
-    // Uses the configured AI provider to generate search queries and
-    // attempts to find matching sources.
-    //
-    // Currently returns empty — a future implementation will call
-    // ai.text.generate@1 to refine queries, then search via configured
-    // provider's HTTP client. External modules can override at higher priority.
-    //
-    // For now, users should configure seed_urls in AISS settings for
-    // zero-config internet-assisted similarity checking.
-
     if (!is_array($payload)) {
         return ['ok' => false, 'candidates' => [], 'error' => 'Invalid payload'];
     }
 
+    $queries = (array)($payload['queries'] ?? []);
+    $maxSources = max(1, min(25, (int)($payload['max_sources'] ?? 5)));
+    $tenantId = (string)($payload['tenant_id'] ?? '');
+
+    if ($queries === []) {
+        return ['ok' => true, 'candidates' => [], 'disclosure' => 'No search queries provided.'];
+    }
+
+    // ── Provider resolution ──
+    // Check AISS settings first, then env vars, for API keys.
+    $settings = [];
+    try {
+        if ($tenantId !== '' && function_exists('academic_similarity_get_settings')) {
+            $settings = academic_similarity_get_settings($tenantId);
+        }
+    } catch (\Throwable $e) {
+        // Settings unavailable — fall through to env vars
+    }
+
+    $searchProvider = (string)($settings['internet_search_backend'] ?? $_ENV['AISS_SEARCH_BACKEND'] ?? 'serpapi');
+    $apiKey = '';
+
+    if ($searchProvider === 'serpapi') {
+        $apiKey = trim((string)($settings['internet_check_api_key'] ?? $_ENV['SERPAPI_KEY'] ?? ''));
+    } elseif ($searchProvider === 'google_cse') {
+        $apiKey = trim((string)($settings['internet_check_api_key'] ?? $_ENV['GOOGLE_CSE_KEY'] ?? ''));
+        // CSE also needs a CX (engine ID)
+    } elseif ($searchProvider === 'bing') {
+        $apiKey = trim((string)($settings['internet_check_api_key'] ?? $_ENV['BING_API_KEY'] ?? ''));
+    }
+
+    // If an explicit key env var is set in settings, use it
+    $keyEnvVar = trim((string)($settings['internet_check_api_key_env'] ?? ''));
+    if ($keyEnvVar !== '') {
+        $envValue = $_ENV[$keyEnvVar] ?? getenv($keyEnvVar);
+        if (is_string($envValue) && trim($envValue) !== '') {
+            $apiKey = trim($envValue);
+        }
+    }
+
+    if ($apiKey === '') {
+        return [
+            'ok' => true,
+            'candidates' => [],
+            'disclosure' => 'No search API key configured. Set SERPAPI_KEY (or equivalent) in .env, or configure internet_check_api_key in AISS settings. For zero-config testing, use provider=seed_urls.',
+        ];
+    }
+
+    // ── Execute search ──
+    $candidates = [];
+    $searched = 0;
+
+    foreach ($queries as $query) {
+        if ($searched >= $maxSources * 2) break; // Don't exceed 2x max in searches
+
+        $results = [];
+        try {
+            if ($searchProvider === 'serpapi') {
+                $results = ai_search_serpapi($query, $apiKey, min(10, $maxSources));
+            } elseif ($searchProvider === 'google_cse') {
+                $cx = trim((string)($settings['internet_check_api_key_env'] ?? $_ENV['GOOGLE_CSE_CX'] ?? ''));
+                $results = ai_search_google_cse($query, $apiKey, $cx, min(10, $maxSources));
+            } elseif ($searchProvider === 'bing') {
+                $results = ai_search_bing($query, $apiKey, min(10, $maxSources));
+            }
+        } catch (\Throwable $e) {
+            if (function_exists('write_log')) {
+                write_log("AISS search provider {$searchProvider} failed: " . $e->getMessage(), 'warning');
+            }
+            continue;
+        }
+
+        foreach ($results as $result) {
+            $url = trim((string)($result['url'] ?? ''));
+            if ($url === '') continue;
+            // Skip duplicates
+            foreach ($candidates as $existing) {
+                if (($existing['url'] ?? '') === $url) continue 2;
+            }
+            $candidates[] = [
+                'provider' => $searchProvider,
+                'query' => $query,
+                'rank' => count($candidates) + 1,
+                'url' => $url,
+                'title' => trim((string)($result['title'] ?? $url)),
+                'snippet' => trim((string)($result['snippet'] ?? '')),
+                'publisher' => trim((string)($result['publisher'] ?? '')),
+            ];
+            if (count($candidates) >= $maxSources) break 2;
+        }
+        $searched++;
+    }
+
+    $disclosure = $candidates === []
+        ? "Searched {$searched} queries via {$searchProvider} but found no matching sources."
+        : "Searched {$searched} queries via {$searchProvider} and discovered " . count($candidates) . " candidate source(s). This is not a comprehensive internet search.";
+
     return [
         'ok' => true,
-        'candidates' => [],
-        'disclosure' => 'AI-powered search is configured but the default handler does not perform live searches. Install a search provider (SerpAPI, Google CSE, Bing) or use seed URLs in AISS settings for internet-assisted checking.',
+        'candidates' => $candidates,
+        'disclosure' => $disclosure,
     ];
+}
+
+/**
+ * Search via SerpAPI (serpapi.com).
+ * Returns up to $max results as [['url', 'title', 'snippet'], ...].
+ */
+function ai_search_serpapi(string $query, string $apiKey, int $max = 10): array
+{
+    $url = 'https://serpapi.com/search?q=' . rawurlencode($query)
+         . '&api_key=' . rawurlencode($apiKey)
+         . '&num=' . $max
+         . '&engine=google';
+
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 15,
+            'header' => "User-Agent: AISS/1.0\r\nAccept: application/json\r\n",
+        ],
+    ]);
+
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!is_string($raw)) {
+        return [];
+    }
+
+    $data = json_decode($raw, true);
+    if (!is_array($data)) {
+        return [];
+    }
+
+    $results = [];
+    $organic = $data['organic_results'] ?? [];
+    foreach ($organic as $item) {
+        if (!is_array($item)) continue;
+        $results[] = [
+            'url' => (string)($item['link'] ?? ''),
+            'title' => (string)($item['title'] ?? ''),
+            'snippet' => (string)($item['snippet'] ?? ''),
+        ];
+        if (count($results) >= $max) break;
+    }
+
+    return $results;
+}
+
+/**
+ * Search via Google Custom Search Engine.
+ */
+function ai_search_google_cse(string $query, string $apiKey, string $cx, int $max = 10): array
+{
+    if ($cx === '') return [];
+    $url = 'https://www.googleapis.com/customsearch/v1?q=' . rawurlencode($query)
+         . '&key=' . rawurlencode($apiKey)
+         . '&cx=' . rawurlencode($cx)
+         . '&num=' . min(10, $max);
+
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 15,
+            'header' => "User-Agent: AISS/1.0\r\nAccept: application/json\r\n",
+        ],
+    ]);
+
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!is_string($raw)) return [];
+
+    $data = json_decode($raw, true);
+    if (!is_array($data)) return [];
+
+    $results = [];
+    foreach (($data['items'] ?? []) as $item) {
+        if (!is_array($item)) continue;
+        $results[] = [
+            'url' => (string)($item['link'] ?? ''),
+            'title' => (string)($item['title'] ?? ''),
+            'snippet' => (string)($item['snippet'] ?? ''),
+        ];
+        if (count($results) >= $max) break;
+    }
+
+    return $results;
+}
+
+/**
+ * Search via Bing Web Search API.
+ */
+function ai_search_bing(string $query, string $apiKey, int $max = 10): array
+{
+    $url = 'https://api.bing.microsoft.com/v7.0/search?q=' . rawurlencode($query)
+         . '&count=' . min(50, $max);
+
+    $ctx = stream_context_create([
+        'http' => [
+            'method' => 'GET',
+            'timeout' => 15,
+            'header' => "User-Agent: AISS/1.0\r\n"
+                       . "Ocp-Apim-Subscription-Key: {$apiKey}\r\n"
+                       . "Accept: application/json\r\n",
+        ],
+    ]);
+
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!is_string($raw)) return [];
+
+    $data = json_decode($raw, true);
+    if (!is_array($data)) return [];
+
+    $results = [];
+    foreach (($data['webPages']['value'] ?? []) as $item) {
+        if (!is_array($item)) continue;
+        $results[] = [
+            'url' => (string)($item['url'] ?? ''),
+            'title' => (string)($item['name'] ?? ''),
+            'snippet' => (string)($item['snippet'] ?? ''),
+        ];
+        if (count($results) >= $max) break;
+    }
+
+    return $results;
 }
