@@ -314,12 +314,14 @@ class AcademicSimilarityHighlightService
                         if ($inSpan) {
                             $html .= '</mark>';
                         }
+                        $footnoteId = $span->matchId ?? 0;
                         $dataAttrs = sprintf(
-                            'data-type="%s" data-confidence="%.2f" data-match-id="%d" data-source-id="%d" title="%s"',
+                            'data-type="%s" data-confidence="%.2f" data-match-id="%d" data-source-id="%d" data-footnote="%d" title="%s"',
                             htmlspecialchars($span->type, ENT_QUOTES, 'UTF-8'),
                             $span->confidence,
                             $span->matchId ?? 0,
                             $span->sourceId ?? 0,
+                            $footnoteId,
                             htmlspecialchars($span->tooltip, ENT_QUOTES, 'UTF-8')
                         );
                         $html .= sprintf(
@@ -333,6 +335,14 @@ class AcademicSimilarityHighlightService
                     }
                 } else {
                     if ($inSpan) {
+                        // Close the span with a footnote reference
+                        if ($currentSpan !== null && ($currentSpan->matchId ?? 0) > 0) {
+                            $fnId = $currentSpan->matchId;
+                            $html .= sprintf(
+                                '<sup class="hl-footnote"><a href="#fn-%d" title="View source evidence" data-footnote="%d">[%d]</a></sup>',
+                                $fnId, $fnId, $fnId
+                            );
+                        }
                         $html .= '</mark>';
                         $inSpan = false;
                         $currentSpan = null;
@@ -347,6 +357,13 @@ class AcademicSimilarityHighlightService
         }
 
         if ($inSpan) {
+            if ($currentSpan !== null && ($currentSpan->matchId ?? 0) > 0) {
+                $fnId = $currentSpan->matchId;
+                $html .= sprintf(
+                    '<sup class="hl-footnote"><a href="#fn-%d" title="View source evidence" data-footnote="%d">[%d]</a></sup>',
+                    $fnId, $fnId, $fnId
+                );
+            }
             $html .= '</mark>';
         }
 

@@ -191,17 +191,19 @@
     </div>
     {/if}
 
-    <!-- Matched Passages -->
+    <!-- Matched Passages with Footnotes & Interactive Evaluation -->
     {if matched_passages|count > 0}
     <div class="bg-white rounded-lg shadow border border-gray-200 mb-6">
-        <div class="px-6 py-4 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-900">Matched Passages ({matched_passages|count})</h2>
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">Evidence & Footnotes ({matched_passages|count})</h2>
+            <button onclick="toggleAllExcluded()" class="text-xs bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-200">Show/Hide Excluded</button>
         </div>
         <div class="divide-y divide-gray-200">
             {for passage in matched_passages}
-            <div class="p-6 {if passage.is_excluded}opacity-50{/if}">
+            <div id="fn-{passage.id}" class="p-6 scroll-mt-20 {if passage.is_excluded}opacity-40 bg-gray-50 excluded-passage{/if} passage-card" data-match-id="{passage.id}">
                 <div class="flex justify-between items-start mb-3">
-                    <div>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-600 text-white text-xs font-bold">{loop.index}</span>
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                             {if passage.match_type == 'exact'}bg-red-100 text-red-800
                             {else if passage.match_type == 'near-exact'}bg-orange-100 text-orange-800
@@ -210,52 +212,61 @@
                             {else}bg-gray-100 text-gray-800{/if}">
                             {passage.match_type}
                         </span>
-                        <span class="ml-2 text-sm text-gray-500">{(passage.match_confidence * 100)|round}% confidence</span>
+                        <span class="text-sm text-gray-500">{(passage.match_confidence * 100)|round}% confidence</span>
+                        <span class="text-xs text-gray-400">({passage.matched_word_count} words)</span>
                     </div>
-                    {if !passage.is_excluded}
-                    <button onclick="excludeMatch({passage.id})" class="text-red-600 hover:text-red-900 text-sm">Exclude</button>
-                    {/if}
+                    <div class="flex items-center gap-2">
+                        {if !passage.is_excluded}
+                        <button onclick="promptExclude({passage.id})" class="text-xs bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 border border-red-200">Exclude</button>
+                        {else}
+                        <span class="text-xs bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg">Excluded</span>
+                        {/if}
+                    </div>
                 </div>
 
-                {if passage.source_title}
-                <p class="text-sm text-gray-500 mb-2">
-                    Source: <strong>{passage.source_title}</strong>
-                    {if passage.source_author} by {passage.source_author}{/if}
-                    {if passage.source_origin == 'internet'} · Internet-discovered source{/if}
-                </p>
-                {if passage.source_url}
-                <p class="text-xs text-blue-700 mb-2">Retrieved source: {passage.source_url}</p>
-                {/if}
-                {/if}
+                <!-- Bibliographic Evidence -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                    <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Bibliographic Reference</p>
+                    {if passage.source_title}
+                    <p class="text-sm text-gray-800">
+                        <strong>{passage.source_title}</strong>
+                        {if passage.source_author} by <em>{passage.source_author}</em>{/if}
+                    </p>
+                    {else}
+                    <p class="text-sm text-gray-600">Source #{passage.source_id}</p>
+                    {/if}
+                    {if passage.source_url}
+                    <p class="text-xs text-blue-700 mt-1">Source: {passage.source_url}</p>
+                    {/if}
+                    <p class="text-xs text-gray-400 mt-1">Match ID: {passage.id} · {passage.matched_word_count} words matched · {if passage.source_origin == 'internet'}Internet-discovered{else}Local source{/if}</p>
+                </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="bg-red-50 border border-red-200 rounded p-3">
-                        <p class="text-xs text-red-600 uppercase font-medium mb-1">Submission Text</p>
+                        <p class="text-xs text-red-600 uppercase font-medium mb-1">Submission Text <span class="text-red-400 text-[10px]">({passage.submission_line_start}–{passage.submission_line_end})</span></p>
                         <p class="text-sm text-gray-800">{passage.submission_text}</p>
-                        <p class="text-xs text-gray-400 mt-1">Lines {passage.submission_line_start}–{passage.submission_line_end}</p>
                     </div>
                     <div class="bg-blue-50 border border-blue-200 rounded p-3">
-                        <p class="text-xs text-blue-600 uppercase font-medium mb-1">Source Text</p>
+                        <p class="text-xs text-blue-600 uppercase font-medium mb-1">Source Text <span class="text-blue-400 text-[10px]">({passage.source_line_start}–{passage.source_line_end})</span></p>
                         <p class="text-sm text-gray-800">{passage.source_text}</p>
-                        <p class="text-xs text-gray-400 mt-1">Lines {passage.source_line_start}–{passage.source_line_end}</p>
                     </div>
                 </div>
 
-                <div class="mt-2 flex flex-wrap gap-2">
-                    {if passage.highlight_labels|count > 0}
-                    {for label in passage.highlight_labels}
-                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">{label}</span>
-                    {/for}
-                    {/if}
+                <!-- Evaluation Controls -->
+                <div class="mt-3 flex items-center gap-3">
+                    <button onclick="keepMatch({passage.id})" class="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 border border-green-200 {if passage.is_excluded}opacity-50{/if}">✓ Keep</button>
+                    <button onclick="promptExclude({passage.id})" class="text-xs bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 border border-red-200">✕ Exclude</button>
+                    <div class="flex-1"></div>
+                    <span class="text-[10px] text-gray-400">Click footnote <sup>[{passage.id}]</sup> in the highlighted text above to scroll here</span>
                 </div>
             </div>
             {/for}
         </div>
     </div>
     {else}
-    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
-        <h2 class="text-lg font-semibold text-gray-900 mb-3">Matched Passages</h2>
-        <p class="text-sm text-gray-600">No passage-level evidence is available for this report. This usually means the submission processed with no detected matches, or the report was generated before match evidence/highlighting was populated. Reprocess the pending submission or regenerate the report after source indexing completes.</p>
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6" id="fn-section">
+        <h2 class="text-lg font-semibold text-gray-900 mb-3">Evidence & Footnotes</h2>
+        <p class="text-sm text-gray-600">No passage-level evidence is available for this report. This usually means the submission processed with no detected matches, or the report was generated before match evidence/highlighting was populated.</p>
     </div>
     {/if}
 
@@ -294,7 +305,7 @@
 .hl-stat { background: #ddd6fe; border-bottom: 2px solid #7c3aed; }
 .hl-span { cursor: pointer; border-radius: 2px; padding: 0 1px; transition: opacity 0.15s; }
 .hl-span:hover { opacity: 0.8; box-shadow: 0 0 0 2px rgba(0,0,0,0.1); }
-.hl-text { line-height: 1.8; }
+.hl-text { line-height: 2; }
 .hl-text p { margin: 0; }
 .hl-source-excerpts { display: flex; flex-direction: column; gap: 8px; }
 .hl-source-excerpt { padding: 6px 8px; background: #f9fafb; border-radius: 4px; }
@@ -302,29 +313,53 @@
 .hl-excerpt-text { font-size: 13px; color: #374151; }
 .hl-text--no-matches,
 .hl-text--no-highlights { color: #6b7280; font-style: italic; }
+
+/* Footnote superscript styles */
+.hl-footnote { font-size: 10px; vertical-align: super; line-height: 0; }
+.hl-footnote a { color: #2563eb; text-decoration: none; font-weight: 700; padding: 0 1px; }
+.hl-footnote a:hover { color: #1d4ed8; text-decoration: underline; }
+.hl-footnote a:target { background: #dbeafe; padding: 0 2px; border-radius: 2px; }
+
+/* Passage card transitions */
+.passage-card { transition: opacity 0.3s ease, background 0.3s ease; }
+.excluded-passage .hl-span { opacity: 0.4; }
 </style>
 
 <script>
 function excludeMatch(matchId) {
-    if (!confirm('Exclude this match from the similarity score?')) return;
-    fetch('/api/v1/academic-similarity/reviews/' + matchId + '/exclude', {
+    return fetch('/api/v1/academic-similarity/reviews/' + matchId + '/exclude', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
         body: '_token=' + encodeURIComponent('{csrf_token}')
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
+    }).then(function(r) { return r.json(); });
+}
+
+function promptExclude(matchId) {
+    var reason = prompt('Why are you excluding this match? (optional)');
+    excludeMatch(matchId).then(function(data) {
         if (data.ok) {
             location.reload();
         } else {
-            alert('Failed to exclude match: ' + (data.error || 'Unknown error'));
+            alert('Failed to exclude: ' + (data.error || 'Unknown error'));
         }
-    })
-    .catch(function(e) {
+    }).catch(function(e) {
         alert('Network error: ' + e.message);
+    });
+}
+
+function keepMatch(matchId) {
+    // Keep is the default state — just scroll to the passage
+    var el = document.getElementById('fn-' + matchId);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-green-400');
+        setTimeout(function() { el.classList.remove('ring-2', 'ring-green-400'); }, 2000);
+    }
+}
+
+function toggleAllExcluded() {
+    document.querySelectorAll('.excluded-passage').forEach(function(el) {
+        el.style.display = el.style.display === 'none' ? '' : 'none';
     });
 }
 
@@ -340,16 +375,16 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Click highlight → scroll to source panel
+    // Click highlight → scroll to evidence footnote
     document.querySelectorAll('.hl-span').forEach(function (span) {
         span.addEventListener('click', function () {
-            var sourceId = this.getAttribute('data-source-id');
-            if (sourceId && sourceId !== '0') {
-                var panel = document.querySelector('[data-source-id="' + sourceId + '"]');
-                if (panel) {
-                    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    panel.classList.add('ring-2', 'ring-brand-500');
-                    setTimeout(function () { panel.classList.remove('ring-2', 'ring-brand-500'); }, 2000);
+            var footnote = this.getAttribute('data-footnote');
+            if (footnote && footnote !== '0') {
+                var target = document.getElementById('fn-' + footnote);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    target.classList.add('ring-2', 'ring-brand-500');
+                    setTimeout(function () { target.classList.remove('ring-2', 'ring-brand-500'); }, 2000);
                 }
             }
         });
