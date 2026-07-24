@@ -53,6 +53,12 @@ storage/locks/
 storage/logs/
 storage/module-exports/
 storage/modules.json
+# Broader storage/private exclusion — keep specific allowlisted subdirs
+/storage/private/**
+!/storage/private/.gitkeep
+# Generated/test upload directories (not source)
+/public/uploads/**
+!/public/uploads/.gitkeep
 # Storage runtime artifacts
 /test_*.php
 test-results/
