@@ -145,6 +145,11 @@ class AcademicSimilarityInternetCheckService
             return ['ok' => true, 'status' => 'skipped', 'reason' => 'Circuit breaker open; internet discovery temporarily suspended after repeated failures'];
         }
 
+        // Concurrency guard: skip if another run is already in progress for this submission.
+        if ($this->runRepo->hasPendingRun($submissionId)) {
+            return ['ok' => true, 'status' => 'skipped', 'reason' => 'An internet check is already in progress for this submission'];
+        }
+
         $text = $this->loadSubmissionText($submissionId);
         if ($text === '') {
             return ['ok' => true, 'status' => 'skipped', 'reason' => 'No extracted submission text available'];

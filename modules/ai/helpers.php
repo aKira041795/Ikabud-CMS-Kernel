@@ -525,7 +525,7 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
     foreach ($queries as $query) {
         if ($searched >= $maxSources * 2) break;
 
-        $results = ai_search_backend_dispatch($query, $apiKey, min(10, $maxSources), $backend);
+        $results = ai_search_backend_dispatch($query, $apiKey, min(10, $maxSources), $backend, (int)($payload['timeout_seconds'] ?? 15));
         if (!is_array($results)) continue;
 
         foreach ($results as $result) {
@@ -559,10 +559,10 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
  * Backend dispatch — routes to the configured search backend.
  * Returns the same result format as ai_search_serpapi_direct().
  */
-function ai_search_backend_dispatch(string $query, string $apiKey, int $max, string $backend): array
+function ai_search_backend_dispatch(string $query, string $apiKey, int $max, string $backend, int $timeout = 15): array
 {
     return match ($backend) {
-        'serpapi' => ai_search_serpapi_direct($query, $apiKey, $max),
+        'serpapi' => ai_search_serpapi_direct($query, $apiKey, $max, $timeout),
         'google_cse' => ai_search_google_cse_direct($query, $apiKey, $max),
         'bing' => ai_search_bing_direct($query, $apiKey, $max),
         default => [],
@@ -597,7 +597,7 @@ function ai_search_bing_direct(string $query, string $apiKey, int $max): array
  * Note: SerpAPI requires the API key as a query parameter. Ensure server access
  * logs are not publicly accessible and the key is encrypted at rest in settings.
  */
-function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10): array
+function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10, int $timeout = 15): array
 {
     // Retry with exponential backoff: max 2 retries on connection errors
     $maxRetries = 2;
@@ -613,7 +613,7 @@ function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10):
         $ctx = stream_context_create([
             'http' => [
                 'method' => 'GET',
-                'timeout' => 15,
+                'timeout' => $timeout,
                 'header' => "User-Agent: AISS/1.0\r\nAccept: application/json\r\n",
             ],
             'ssl' => [

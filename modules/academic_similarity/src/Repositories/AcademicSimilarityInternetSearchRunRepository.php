@@ -68,4 +68,19 @@ class AcademicSimilarityInternetSearchRunRepository
         $row = $stmt->fetch(\PDO::FETCH_ASSOC);
         return $row ?: null;
     }
+
+    /**
+     * Check if there is a pending (in-progress) run for a submission.
+     */
+    public function hasPendingRun(int $submissionId): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM ac_similarity_internet_search_runs
+             WHERE tenant_id = :tid AND submission_id = :sid
+               AND status = 'pending'
+               AND completed_at IS NULL"
+        );
+        $stmt->execute([':tid' => $this->tenantId, ':sid' => $submissionId]);
+        return (int)$stmt->fetchColumn() > 0;
+    }
 }
