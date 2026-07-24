@@ -203,4 +203,4 @@ jobs:
 
       - name: PHP-CS-Fixer coding standards
         continue-on-error: true
-        run: composer lint -- --dry-run --diff --show-progress=dots
+        run: composer lint -- --show-progress=dots

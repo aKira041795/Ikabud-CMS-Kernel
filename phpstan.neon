@@ -6,7 +6,7 @@ parameters:
         - modules
     excludePaths:
         - analyse
-        - '*Test.php'
+        - '**/*Test.php'
         - modules/*/builder-ui
         - modules/*/node_modules
         - vendor
@@ -19,8 +19,6 @@ parameters:
         # --- Path-specific level overrides ---
         # kernel/ stays at level 6 (the global level)
         # modules/ relaxed to level 4 during initial rollout
-    stubFiles:
-        - vendor/autoprefixer/stubs/stub.php
 
     # Baseline — generated errors we accept during initial rollout.
     # After baseline is clean, this file can be removed and
