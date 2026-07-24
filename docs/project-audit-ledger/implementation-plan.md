@@ -6,7 +6,7 @@
 > **[`invoice-receivable-payment-architecture.md`](./invoice-receivable-payment-architecture.md)**
 
 > **Module**: `project-audit-ledger`  
-> **Kernel OS**: Ikabud Kernel OS (DiSyL, PHP 8.3+, MySQL 8+)  
+> **Kernel OS**: Ikabud Kernel OS (DiSyL, PHP 8.3+, MySQL 5.7+)  
 > **Domain**: Project Costing, Inventory, Fabrication Dues, Sales, and Audit Management  
 
 ---
@@ -50,7 +50,7 @@ The module is a **project-first costing and inventory system** designed for smal
 │        Repository / Data Access Layer          │
 │      (module()->db(), query builders)          │
 ├──────────────────────────────────────────────┤
-│              Database (MySQL 8+)              │
+│              Database (MySQL 5.7+)              │
 │       (pal_* tables, tenant-scoped)           │
 └──────────────────────────────────────────────┘
 ```

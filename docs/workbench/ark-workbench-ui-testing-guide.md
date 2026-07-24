@@ -49,7 +49,7 @@ Browser workflow tests     → prove the assembled user journey
 | Layer | Tool | Location | Runs |
 |---|---|---|---|
 | Component conformance | Playwright | `tests/browser/workbench/` | CI or local |
-| Module rendering | PHPUnit / custom PHP | `tests/php/workbench/` | `composer test` |
+| Module rendering | Custom PHP integration tests (`scripts/run-tests.php`) | `tests/php/workbench/` | `composer test` |
 | Browser interaction | Playwright | `tests/browser/modules/<module>/` | CI or local |
 | Context & workflow | Playwright | `tests/browser/modules/<module>/` | CI or local |
 | Accessibility | Playwright + axe-core | `tests/browser/workbench/accessibility.spec.js` | CI or local |
@@ -427,8 +427,8 @@ PAL is the reference implementation for ARK Workbench testing.
 | `tests/browser/workbench/responsive-table.spec.js` | Browser | Table columns, rows, data-label |
 | `tests/browser/workbench/component-conformance.spec.js` | Browser | All component data-wb-* attrs, a11y |
 | `tests/browser/modules/pal/pal-workflow.spec.js` | Browser | Dashboard, project list/detail, forms, approvals, cross-page nav |
-| `tests/php/workbench/PalMoneyPresenterTest.php` | PHPUnit | Money formatting, minor units |
-| `tests/php/workbench/PalStatusPresenterTest.php` | PHPUnit | Status → tone mapping |
+| `tests/php/workbench/PalMoneyPresenterTest.php` | Custom (via `scripts/run-tests.php`) | Money formatting, minor units |
+| `tests/php/workbench/PalStatusPresenterTest.php` | Custom (via `scripts/run-tests.php`) | Status → tone mapping |
 | `tests/pal_integration_harness.php` | Custom PHP | View models, template files, handlers |
 | `tests/pal_service_integration_test.php` | Custom PHP | DB queries, services, routes |
 | `modules/project-audit-ledger/testing/PalUiFixtures.php` | PHP | Test scenario fixtures |

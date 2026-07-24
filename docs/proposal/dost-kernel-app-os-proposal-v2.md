@@ -51,7 +51,7 @@ The Kernel OS is not a framework or a CMS. It is an architectural layer that enf
 | Security | Patched after the fact | Defaulted at the OS layer (auth, headers, CSRF, encrypted credentials) |
 | Observability | Logs added manually per app | Request-ID tracing and telemetry are built into every request |
 
-The core runtime is written in PHP 8.2+ backed by MySQL 8+, with a custom template engine (DiSyL), JWT-based authentication, and a React-powered visual page builder — proven, battle-tested technologies combined in a uniquely disciplined architecture.
+The core runtime is written in PHP 8.2+ backed by MySQL 5.7+ (production: Bluehost shared hosting), with a custom template engine (DiSyL), JWT-based authentication, and a React-powered visual page builder — proven, battle-tested technologies combined in a uniquely disciplined architecture.
 
 ---
 

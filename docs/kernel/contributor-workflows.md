@@ -15,7 +15,7 @@ It focuses on:
 ## Environment Prerequisites
 
 - PHP 8.2+
-- MySQL 8+
+- MySQL 5.7+ (CI: MySQL 8.0, MariaDB 10.6; production target: Bluehost MySQL 5.7)
 - Apache with `mod_rewrite` for browser-driven routing checks
 - Composer
 - a configured `.env` file for app and database access

@@ -163,9 +163,9 @@ The CI pipeline installs PHP + Composer + MySQL but does not run `npm install` o
 **Action:** Add `php ikabud architecture:check` to CI **after** the 9 known violations are remediated (TD-K1). Until then, run it in `--warn` mode and upload the report as a CI artifact.
 
 #### **TD-CI5 — Single MySQL Version Pinned (LOW)**
-CI targets `mysql:8.0`. The production deployment guide recommends MySQL 8.0+ / MariaDB 10.6+. MariaDB compatibility is untested.
+CI targets `mysql:8.0`. However, the actual production deployment target is **Bluehost shared hosting (MySQL 5.7)** — see `.github/copilot-instructions.md` for the full MySQL 5.7 compatibility rules (no window functions, no CTEs, InnoDB enforcement, FK type matching). MariaDB compatibility is also untested.
 
-**Action:** Add a matrix strategy for `mysql:8.0` and `mariadb:10.6` to catch MariaDB-specific SQL dialect issues.
+**Action:** Add a matrix strategy for `mysql:5.7`, `mysql:8.0`, and `mariadb:10.6` to catch both MySQL 5.7-specific issues and MariaDB-specific SQL dialect issues. The MySQL 5.7 target is critical because that's the production environment.
 
 ### 3.2 Instruction Files (`.github/instructions/`)
 
@@ -368,7 +368,7 @@ Items ranked by impact × urgency:
 | TD-M6 | Resolve Moodle SSO validation contract gap | Integration team | 2–4 hours | ✅ Done (follow-up scoped) — documented test-contract gap and next actions in `docs/cms/moodle-sso-validation-gap-followup.md` |
 | TD-M7 | Document content-ingestion / WordPress bridge module | Docs | 2 hours | ✅ Done — new `docs/cms/content-ingestion-module.md` |
 | TD-CI4 | Add `php ikabud architecture:check` to CI after violations are remediated | Platform / CI | 1 hour | ✅ Done — CI now runs architecture boundary audit |
-| TD-CI5 | Add MariaDB 10.6 to CI matrix | Platform / CI | 1 hour | ✅ Done — CI matrix now includes MySQL 8 and MariaDB 10.6 |
+| TD-CI5 | Add MariaDB 10.6 and MySQL 5.7 to CI matrix | Platform / CI | 1 hour | ⚠️ Partial — MariaDB 10.6 added; MySQL 5.7 (actual Bluehost production target) still missing from CI matrix |
 
 ### Priority 4 — Cleanup & Archive (Ongoing)
 

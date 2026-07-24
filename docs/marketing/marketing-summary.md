@@ -46,7 +46,7 @@ One Ikabud installation can serve **multiple independent businesses (tenants)** 
 - AES-encrypted database credentials per tenant
 
 ### ⚡ Runs on Standard Hosting
-Ikabud deploys on **standard PHP/MySQL shared hosting** (including Bluehost) — no expensive infrastructure required. PHP 8.2+, MySQL 8+, Apache. One-click installer (`lock.php`) for fast onboarding.
+Ikabud deploys on **standard PHP/MySQL shared hosting** (including Bluehost) — no expensive infrastructure required. PHP 8.2+, MySQL 5.7+ (CI tests against MySQL 8.0 and MariaDB 10.6), Apache. One-click installer (`lock.php`) for fast onboarding.
 
 ---
 
