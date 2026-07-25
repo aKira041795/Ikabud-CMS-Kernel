@@ -91,8 +91,68 @@
     </div>
 
     {* Products tab *}
-    <div x-show="tab === 'products'" class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-        {ikb_entity_list source="dc_product_stock" view="table" empty="No products found." /}
+    <div x-show="tab === 'products'" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div x-show="!prodItems.length" class="text-center py-8 text-gray-500">Loading...</div>
+        <div x-show="prodItems.length" class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide border-b">
+                        <th class="text-left px-4 py-3">Product</th>
+                        <th class="text-left px-4 py-3">Category</th>
+                        <th class="text-right px-4 py-3">Price</th>
+                        <th class="text-right px-4 py-3 w-28">Stock</th>
+                        <th class="text-right px-4 py-3 w-28">Reorder At</th>
+                        <th class="text-center px-4 py-3 w-16">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="item in prodItems" :key="item.product_id">
+                        <tr class="border-b border-gray-100 hover:bg-amber-50 transition"
+                            :class="{'bg-red-50': item.is_low}">
+                            <td class="px-4 py-3 font-medium text-gray-800" x-text="item.name"></td>
+                            <td class="px-4 py-3 text-gray-500" x-text="item.category_name"></td>
+                            <td class="px-4 py-3 text-right text-gray-700">₱<span x-text="parseFloat(item.base_price).toFixed(2)"></span></td>
+                            <td class="px-4 py-3 text-right">
+                                {if user.role == 'admin' || user.role == 'supervisor'}
+                                <div class="inline-flex items-center gap-1 justify-end">
+                                    <input type="number" step="any" min="0"
+                                           x-model="item.current_stock"
+                                           @input.debounce.800="saveProdStock(item)"
+                                           class="w-20 text-right px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                           :class="{'border-red-300 bg-red-50': item.is_low}">
+                                    <span x-show="item.saving" class="text-xs text-amber-600">...</span>
+                                    <span x-show="item.saved" class="text-xs text-green-600">✓</span>
+                                </div>
+                                {else}
+                                <span class="font-semibold" :class="item.is_low ? 'text-red-600' : 'text-gray-800'"
+                                      x-text="parseFloat(item.current_stock).toFixed(0)"></span>
+                                {/if}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                {if user.role == 'admin' || user.role == 'supervisor'}
+                                <div class="inline-flex items-center gap-1 justify-end">
+                                    <input type="number" step="any" min="0"
+                                           x-model="item.reorder_level"
+                                           @input.debounce.800="saveProdReorder(item)"
+                                           class="w-20 text-right px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    <span x-show="item.savingReorder" class="text-xs text-amber-600">...</span>
+                                    <span x-show="item.savedReorder" class="text-xs text-green-600">✓</span>
+                                </div>
+                                {else}
+                                <span class="text-gray-700" x-text="parseFloat(item.reorder_level).toFixed(0)"></span>
+                                {/if}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span x-show="item.is_low"
+                                      class="inline-block bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded">LOW</span>
+                                <span x-show="!item.is_low"
+                                      class="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">OK</span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -101,10 +161,15 @@ function inventoryApp() {
     return {
         tab: 'ingredients',
         items: [],
+        prodItems: [],
         init() {
             fetch('/dc-cafe/api/v1/inventory')
                 .then(r => r.json()).then(d => {
                     if (d.ok) this.items = d.inventory;
+                });
+            fetch('/dc-cafe/api/v1/products/stock')
+                .then(r => r.json()).then(d => {
+                    if (d.ok) this.prodItems = d.products;
                 });
         },
         saveStock(item) {
@@ -145,6 +210,50 @@ function inventoryApp() {
                     item.savedReorder = true;
                     setTimeout(() => item.savedReorder = false, 2000);
                     item.is_low = item.stock <= item.reorder_level && item.reorder_level > 0;
+                } else {
+                    item.savingReorder = false;
+                    alert('Failed to save: ' + (d.error || 'Unknown error'));
+                }
+            })
+            .catch(() => { item.savingReorder = false; alert('Connection error'); });
+        },
+        saveProdStock(item) {
+            item.saving = true;
+            item.saved = false;
+            fetch('/dc-cafe/api/v1/inventory/product-stock/' + item.product_id, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({current_stock: item.current_stock})
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    item.saving = false;
+                    item.saved = true;
+                    setTimeout(() => item.saved = false, 2000);
+                    item.is_low = parseFloat(item.current_stock) <= parseFloat(item.reorder_level) && parseFloat(item.reorder_level) > 0;
+                } else {
+                    item.saving = false;
+                    alert('Failed to save: ' + (d.error || 'Unknown error'));
+                }
+            })
+            .catch(() => { item.saving = false; alert('Connection error'); });
+        },
+        saveProdReorder(item) {
+            item.savingReorder = true;
+            item.savedReorder = false;
+            fetch('/dc-cafe/api/v1/inventory/product-stock/' + item.product_id, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({reorder_level: item.reorder_level})
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    item.savingReorder = false;
+                    item.savedReorder = true;
+                    setTimeout(() => item.savedReorder = false, 2000);
+                    item.is_low = parseFloat(item.current_stock) <= parseFloat(item.reorder_level) && parseFloat(item.reorder_level) > 0;
                 } else {
                     item.savingReorder = false;
                     alert('Failed to save: ' + (d.error || 'Unknown error'));

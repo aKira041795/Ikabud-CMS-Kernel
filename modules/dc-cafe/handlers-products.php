@@ -114,3 +114,58 @@ function apiGetProductStockLevels(array $params = []): void
 
     dcJsonResponse(['ok' => true, 'products' => $products]);
 }
+
+/**
+ * PATCH /dc-cafe/api/v1/inventory/product-stock/{id} — Inline update product stock/reorder
+ */
+function apiUpdateProductStock(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid product ID', 400);
+    }
+
+    $currentStock = dcInput('current_stock');
+    $reorderLevel = dcInput('reorder_level');
+    $hasStock = $currentStock !== null;
+    $hasReorder = $reorderLevel !== null;
+
+    if (!$hasStock && !$hasReorder) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $db = dcDb();
+    $product = $db->query(
+        "SELECT product_id, current_stock FROM dc_products WHERE product_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$product) {
+        dcJsonError('Product not found', 404);
+    }
+
+    $sets = [];
+    $vals = [];
+
+    if ($hasStock) {
+        $newStock = (float) $currentStock;
+        if ($newStock < 0) {
+            dcJsonError('Stock cannot be negative', 422);
+        }
+        $sets[] = 'current_stock = ?';
+        $vals[] = $newStock;
+    }
+
+    if ($hasReorder) {
+        $sets[] = 'reorder_level = ?';
+        $vals[] = (float) $reorderLevel;
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_products SET " . implode(', ', $sets) . " WHERE product_id = ?", $vals);
+
+    dcJsonResponse(['ok' => true]);
+}

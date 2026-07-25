@@ -127,6 +127,7 @@ return [
         '/dc-cafe/api/v1/ingredients/{id}'    => 'dc-cafe:apiUpdateIngredient',
     ],
     'PATCH' => [
-        '/dc-cafe/api/v1/inventory/stock/{id}' => 'dc-cafe:apiUpdateInventoryStock',
+        '/dc-cafe/api/v1/inventory/stock/{id}'          => 'dc-cafe:apiUpdateInventoryStock',
+        '/dc-cafe/api/v1/inventory/product-stock/{id}'   => 'dc-cafe:apiUpdateProductStock',
     ],
 ];
