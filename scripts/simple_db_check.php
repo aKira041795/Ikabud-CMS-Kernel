@@ -2,7 +2,7 @@
 require __DIR__ . '/../bootstrap.php';
 
 $host = $_ENV['DB_HOST'] ?? '127.0.0.1';
-$dbname = $_ENV['DB_DATABASE'] ?? 'baronbakeshop';
+$dbname = $_ENV['DB_DATABASE'] ?? 'ikabud';
 $user = $_ENV['DB_USERNAME'] ?? 'root';
 $pass = $_ENV['DB_PASSWORD'] ?? '';
 

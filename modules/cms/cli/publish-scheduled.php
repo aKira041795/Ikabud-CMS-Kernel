@@ -10,7 +10,7 @@
  *   php modules/cms/cli/publish-scheduled.php
  *
  * Crontab (run every 5 minutes):
- *   star/5 * * * * cd /var/www/html/baronbakeshop && php modules/cms/cli/publish-scheduled.php >> storage/logs/cron.log 2>&1
+ *   star/5 * * * * cd /var/www/html/ikabud && php modules/cms/cli/publish-scheduled.php >> storage/logs/cron.log 2>&1
  *   (replace star with asterisk)
  */
 

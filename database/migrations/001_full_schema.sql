@@ -1,6 +1,6 @@
 -- ============================================================
--- Ikabud Daily Ledger — Full Schema
--- Database: baronbakeshop2
+-- Ikabud Kernel OS — Daily Ledger Schema
+-- Database: ikabud (originally baronbakeshop2)
 -- ============================================================
 
 -- -----------------------------------------------

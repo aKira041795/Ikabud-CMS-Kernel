@@ -30,7 +30,7 @@ These are currently forbidden due to MySQL 5.7 and are tagged `@mysql57-compat` 
 1. **Dump production database:**
    ```bash
    mysqldump -h hostname -u username -p --routines --triggers --single-transaction \
-     --default-character-set=utf8mb4 baronbakeshop > production-backup.sql
+     --default-character-set=utf8mb4 ikabud > production-backup.sql
    ```
 
 2. **Verify charset compatibility:**
@@ -41,14 +41,14 @@ These are currently forbidden due to MySQL 5.7 and are tagged `@mysql57-compat` 
 
 3. **Restore on MySQL 8.0:**
    ```bash
-   mysql -h new-host -u username -p baronbakeshop < production-backup.sql
+   mysql -h new-host -u username -p ikabud < production-backup.sql
    ```
 
 4. **Verify foreign key types:**
    ```sql
    SELECT TABLE_NAME, COLUMN_NAME, COLUMN_TYPE, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
    FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
-   WHERE REFERENCED_TABLE_SCHEMA = 'baronbakeshop'
+   WHERE REFERENCED_TABLE_SCHEMA = 'ikabud'
      AND REFERENCED_TABLE_NAME IS NOT NULL;
    ```
 

@@ -6,7 +6,7 @@ return [
     'driver' => 'mysql',
     'host' => $_ENV['CONTROL_DB_HOST'] ?? ($_ENV['DB_HOST'] ?? '127.0.0.1'),
     'port' => $_ENV['CONTROL_DB_PORT'] ?? ($_ENV['DB_PORT'] ?? '3306'),
-    'database' => $_ENV['CONTROL_DB_DATABASE'] ?? ($_ENV['DB_DATABASE'] ?? 'baronbakeshop'),
+    'database' => $_ENV['CONTROL_DB_DATABASE'] ?? ($_ENV['DB_DATABASE'] ?? 'ikabud'),
     'username' => $_ENV['CONTROL_DB_USERNAME'] ?? ($_ENV['DB_USERNAME'] ?? 'root'),
     'password' => $_ENV['CONTROL_DB_PASSWORD'] ?? ($_ENV['DB_PASSWORD'] ?? ''),
     'charset' => 'utf8mb4',
