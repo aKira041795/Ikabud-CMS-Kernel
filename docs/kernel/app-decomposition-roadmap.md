@@ -71,12 +71,20 @@ class ProjectService {
 
 Define narrow interfaces for each subsystem. These already exist for some (e.g., `ModuleDB` contract) but not all.
 
+**Status**: ✅ Completed (2026-07-25)
+
+| Contract | File | Status |
+|----------|------|--------|
+| `TenantDatabase` | `kernel/Contracts/TenantDatabase.php` | ✅ Created |
+| `AuthProvider` | `kernel/Contracts/AuthProvider.php` | ✅ Created |
+| `RenderEngine` | `kernel/Contracts/RenderEngine.php` | ✅ Created |
+
 ```php
 namespace Ikabud\Kernel\Contracts;
 
 interface TenantDatabase {
     public function query(string $sql, array $params = []): \PDOStatement;
-    public function execute(string $sql, array $params = []): int;
+    public function execute(string $sql, array $params = []): bool;
     public function lastInsertId(): string;
 }
 ```
