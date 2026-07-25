@@ -1,0 +1,189 @@
+{
+    "id": "dc-cafe",
+    "name": "DC Cafe POS",
+    "version": "1.0.0",
+    "description": "Standalone point-of-sale, inventory, and sales management system for DC Cafe. Module-owned auth, products, orders, ingredients, and customer loyalty.",
+    "author": "Ikabud Platform Team",
+    "auth_owned": {
+        "users_table": "dc_users",
+        "username_column": "username",
+        "email_column": "email",
+        "password_column": "password_hash",
+        "name_column": "full_name",
+        "active_column": "is_active",
+        "deleted_column": "deleted_at",
+        "admin_roles": [
+            "admin",
+            "supervisor",
+            "auditor"
+        ],
+        "default_admin_role": "admin",
+        "requires_named_admin_on_provision": false,
+        "touch_updated_at": true
+    },
+    "owns_tables": [
+        "dc_users",
+        "dc_stores",
+        "dc_categories",
+        "dc_products",
+        "dc_payment_methods",
+        "dc_sessions",
+        "dc_orders",
+        "dc_order_items",
+        "dc_customers",
+        "dc_ingredients",
+        "dc_product_ingredients",
+        "dc_inventory_movements",
+        "dc_suppliers",
+        "dc_soft_serve_bases",
+        "dc_soft_serve_sauces",
+        "dc_soft_serve_toppings",
+        "dc_soft_serve_addons",
+        "dc_vouchers",
+        "dc_voucher_usages",
+        "dc_inventory_progress",
+        "dc_addon_ingredients",
+        "dc_password_resets"
+    ],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_create_dc_users.sql",
+        "database/migrations/002_create_dc_stores.sql",
+        "database/migrations/003_create_dc_categories.sql",
+        "database/migrations/004_create_dc_products.sql",
+        "database/migrations/005_create_dc_payment_methods.sql",
+        "database/migrations/006_create_dc_sessions.sql",
+        "database/migrations/007_create_dc_orders.sql",
+        "database/migrations/008_create_dc_order_items.sql",
+        "database/migrations/009_create_dc_customers.sql",
+        "database/migrations/010_create_dc_ingredients.sql",
+        "database/migrations/011_create_dc_product_ingredients.sql",
+        "database/migrations/012_create_dc_inventory_movements.sql",
+        "database/migrations/013_create_dc_suppliers.sql",
+        "database/migrations/014_create_dc_soft_serve_tables.sql",
+        "database/migrations/015_create_dc_vouchers.sql",
+        "database/migrations/016_create_dc_inventory_progress.sql",
+        "database/migrations/017_seed_dc_cafe_data.sql",
+        "database/migrations/018_seed_bom_and_ingredients.sql",
+        "database/migrations/019_create_dc_addon_ingredients.sql",
+        "database/migrations/020_alter_dc_users_role_enum.sql",
+        "database/migrations/021_seed_dc_users.sql",
+        "database/migrations/022_create_dc_password_resets.sql",
+        "database/migrations/023_update_seed_user_emails.sql",
+        "database/migrations/024_add_product_stock.sql"
+    ],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "entity.list.dc_product@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "List DC Cafe products with category and pricing"
+            },
+            {
+                "id": "entity.get.dc_product@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single DC Cafe product by ID"
+            },
+            {
+                "id": "entity.list.dc_order@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "List DC Cafe orders with status and totals"
+            },
+            {
+                "id": "entity.get.dc_order@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single DC Cafe order with items"
+            },
+            {
+                "id": "entity.list.dc_customer@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "List DC Cafe customers"
+            },
+            {
+                "id": "entity.get.dc_customer@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Get single DC Cafe customer with order history"
+            },
+            {
+                "id": "entity.list.dc_inventory@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "List DC Cafe inventory stock levels"
+            },
+            {
+                "id": "kernel.auth.authenticate@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "Module-owned authentication for DC Cafe users"
+            }
+        ],
+        "depends": [
+            "kernel.audit.record@1"
+        ]
+    },
+    "routes": true,
+    "nav": [
+        {
+            "label": "DC Cafe POS",
+            "url": "/dc-cafe/pos",
+            "icon": "shopping-cart",
+            "roles": [
+                "admin",
+                "supervisor",
+                "cashier"
+            ]
+        },
+        {
+            "label": "DC Cafe Dashboard",
+            "url": "/dc-cafe/dashboard",
+            "icon": "bar-chart",
+            "roles": [
+                "admin",
+                "supervisor",
+                "auditor"
+            ]
+        },
+        {
+            "label": "Ingredients",
+            "url": "/dc-cafe/ingredients",
+            "icon": "package",
+            "roles": [
+                "admin",
+                "supervisor",
+                "auditor"
+            ]
+        },
+        {
+            "label": "Suppliers",
+            "url": "/dc-cafe/suppliers",
+            "icon": "truck",
+            "roles": [
+                "admin",
+                "supervisor",
+                "auditor"
+            ]
+        }
+    ]
+}

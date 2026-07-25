@@ -42,6 +42,7 @@ applyTo: "**/*.disyl"
 - `isset()`/`empty()`/`is_array()` are now in the whitelist — `{if isset(source_label)}` works in compiled mode. Both `isset(var)` and `isset($var)` syntaxes are supported (the `$` prefix is stripped automatically).
 
 ## Common Pitfalls
+- **`{block "name"}` with quotes renders as raw text** — The DiSyL engine regex `{block\s+(\w+)}` uses `\w+` which does NOT match quoted names. Always use `{block name}` without quotes. The `{extends}` is processed normally but block replacement silently fails with no error.
 - DiSyL curly braces inside Alpine.js `x-data`, `@click`, `x-init` attributes can conflict — use `{verbatim}`/`{literal}` blocks, or escape with `{` → `{` patterns
 - For Alpine.js + DiSyL: the engine extracts `<script>` blocks before processing, but inline attribute handlers (`@click="..."`) are NOT extracted — DiSyL sees bare `{}` there
 - Compiled template cache may need clearing after template changes: delete `storage/cache/disyl/`

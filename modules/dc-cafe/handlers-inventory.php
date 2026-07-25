@@ -1,0 +1,411 @@
+<?php
+/**
+ * DC Cafe — Inventory & Stock Handlers
+ *
+ * Receive stock, adjust stock, save/load inventory progress, get stock levels.
+ */
+
+declare(strict_types=1);
+
+/**
+ * GET /dc-cafe/api/v1/inventory — Current stock levels
+ */
+function apiGetStockLevels(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+
+    $inventory = dc_cap_entity_list_inventory_1($params);
+    dcJsonResponse(['ok' => true, 'inventory' => $inventory]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/inventory/receive — Receive stock from supplier
+ *
+ * Input: { ingredient_id, quantity, cost_per_unit?, supplier_id?, notes? }
+ */
+function apiReceiveStock(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+
+    $ingredientId = (int) (dcInput('ingredient_id') ?? 0);
+    $quantity = (float) (dcInput('quantity') ?? 0);
+    $costPerUnit = (float) (dcInput('cost_per_unit') ?? 0);
+    $supplierId = dcInput('supplier_id') ? (int) dcInput('supplier_id') : null;
+    $notes = (string) (dcInput('notes') ?? '');
+
+    if ($ingredientId <= 0 || $quantity <= 0) {
+        dcJsonError('Valid ingredient_id and quantity are required');
+    }
+
+    $db = dcDb();
+
+    // Verify ingredient exists
+    $ingredient = $db->query("SELECT * FROM dc_ingredients WHERE ingredient_id = ?", [$ingredientId])->fetch();
+    if (!$ingredient) {
+        dcJsonError('Ingredient not found', 404);
+    }
+
+    $db->beginTransaction();
+    try {
+        // Update stock
+        $db->query(
+            "UPDATE dc_ingredients SET current_stock = current_stock + ?, cost_per_unit = ?
+             WHERE ingredient_id = ?",
+            [$quantity, $costPerUnit > 0 ? $costPerUnit : $ingredient['cost_per_unit'], $ingredientId]
+        );
+
+        // Record movement
+        $db->query(
+            "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type,
+                    reference_type, notes, created_by)
+             VALUES (?, ?, 'purchase', 'supplier', ?, ?)",
+            [$ingredientId, $quantity, $notes ?: 'Stock received', (int) $ctx->user()['user_id']]
+        );
+
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        dcJsonError('Failed to receive stock: ' . $e->getMessage(), 500);
+    }
+
+    dc_auditLog('stock.received', 'dc_ingredients', (string) $ingredientId, null, [
+        'quantity' => $quantity, 'supplier_id' => $supplierId,
+    ]);
+
+    dcJsonResponse(['ok' => true]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/inventory/receive/batch — Receive multiple items at once
+ *
+ * Input: { items: [{ ingredient_id, quantity, cost_per_unit?, notes? }] }
+ */
+function apiReceiveStockBatch(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+
+    $items = (array) (dcInput('items') ?? []);
+    if (empty($items)) {
+        dcJsonError('Items array is required');
+    }
+
+    $db = dcDb();
+    $userId = (int) $ctx->user()['user_id'];
+    $processed = 0;
+    $errors = [];
+
+    $db->beginTransaction();
+    try {
+        foreach ($items as $item) {
+            $ingredientId = (int) ($item['ingredient_id'] ?? 0);
+            $quantity = (float) ($item['quantity'] ?? 0);
+            $costPerUnit = (float) ($item['cost_per_unit'] ?? 0);
+            $notes = (string) ($item['notes'] ?? '');
+
+            if ($ingredientId <= 0 || $quantity <= 0) {
+                $errors[] = "Invalid ingredient_id or quantity for item #" . ($processed + 1);
+                continue;
+            }
+
+            $ingredient = $db->query(
+                "SELECT * FROM dc_ingredients WHERE ingredient_id = ?", [$ingredientId]
+            )->fetch(\PDO::FETCH_ASSOC);
+
+            if (!$ingredient) {
+                $errors[] = "Ingredient ID $ingredientId not found";
+                continue;
+            }
+
+            $db->query(
+                "UPDATE dc_ingredients SET current_stock = current_stock + ?, cost_per_unit = ?
+                 WHERE ingredient_id = ?",
+                [$quantity, $costPerUnit > 0 ? $costPerUnit : $ingredient['cost_per_unit'], $ingredientId]
+            );
+
+            $db->query(
+                "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type,
+                        reference_type, notes, created_by)
+                 VALUES (?, ?, 'purchase', 'supplier', ?, ?)",
+                [$ingredientId, $quantity, $notes ?: 'Batch stock received', $userId]
+            );
+
+            $processed++;
+        }
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        dcJsonError('Failed to process batch: ' . $e->getMessage(), 500);
+    }
+
+    dcJsonResponse([
+        'ok' => true,
+        'processed' => $processed,
+        'errors' => $errors,
+        'message' => $processed . ' item(s) received.' . ($errors ? ' ' . count($errors) . ' error(s).' : ''),
+    ]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/inventory/adjust — Manual stock adjustment
+ *
+ * Input: { ingredient_id, quantity_change (positive=add, negative=remove), reason }
+ */
+function apiAdjustStock(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $ingredientId = (int) (dcInput('ingredient_id') ?? 0);
+    $quantityChange = (float) (dcInput('quantity_change') ?? 0);
+    $reason = (string) (dcInput('reason') ?? '');
+
+    if ($ingredientId <= 0 || $quantityChange == 0) {
+        dcJsonError('Valid ingredient_id and non-zero quantity_change are required');
+    }
+
+    $db = dcDb();
+    $ingredient = $db->query("SELECT * FROM dc_ingredients WHERE ingredient_id = ?", [$ingredientId])->fetch();
+    if (!$ingredient) {
+        dcJsonError('Ingredient not found', 404);
+    }
+
+    // Prevent negative stock
+    $newStock = (float) $ingredient['current_stock'] + $quantityChange;
+    if ($newStock < 0) {
+        dcJsonError('Adjustment would result in negative stock. Current stock: ' . (float) $ingredient['current_stock']);
+    }
+
+    $movementType = $quantityChange > 0 ? 'adjustment' : 'waste';
+
+    $db->beginTransaction();
+    try {
+        $db->query(
+            "UPDATE dc_ingredients SET current_stock = ? WHERE ingredient_id = ?",
+            [$newStock, $ingredientId]
+        );
+        $db->query(
+            "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type, notes, created_by)
+             VALUES (?, ?, ?, ?, ?)",
+            [$ingredientId, $quantityChange, $movementType, $reason ?: 'Manual adjustment', (int) $ctx->user()['user_id']]
+        );
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        dcJsonError('Failed to adjust stock: ' . $e->getMessage(), 500);
+    }
+
+    dc_auditLog('stock.adjusted', 'dc_ingredients', (string) $ingredientId, [
+        'old_stock' => $ingredient['current_stock'],
+    ], [
+        'new_stock' => $newStock, 'change' => $quantityChange, 'reason' => $reason,
+    ]);
+
+    dcJsonResponse(['ok' => true, 'new_stock' => $newStock]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/inventory/progress — Save/update inventory progress for a session
+ *
+ * Input: { session_id, items: [{product_id, beginning_qty?, production_qty?, pullout_qty?, ending_qty?, sold_qty?, notes?}] }
+ */
+function apiSaveInventoryProgress(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+
+    $sessionId = (int) (dcInput('session_id') ?? 0);
+    $items = (array) (dcInput('items') ?? []);
+
+    if ($sessionId <= 0 || empty($items)) {
+        dcJsonError('session_id and items are required');
+    }
+
+    $db = dcDb();
+
+    $db->beginTransaction();
+    try {
+        foreach ($items as $item) {
+            $productId = (int) ($item['product_id'] ?? 0);
+            if ($productId <= 0) continue;
+
+            $beginning = (float) ($item['beginning_qty'] ?? 0);
+            $production = (float) ($item['production_qty'] ?? 0);
+            $pullout = (float) ($item['pullout_qty'] ?? 0);
+            $ending = (float) ($item['ending_qty'] ?? 0);
+            $sold = (float) ($item['sold_qty'] ?? 0);
+            $notes = (string) ($item['notes'] ?? '');
+
+            // Upsert: insert or update
+            $existing = $db->query(
+                "SELECT progress_id FROM dc_inventory_progress WHERE session_id = ? AND product_id = ?",
+                [$sessionId, $productId]
+            )->fetch();
+
+            if ($existing) {
+                $db->query(
+                    "UPDATE dc_inventory_progress SET beginning_qty = ?, production_qty = ?,
+                     pullout_qty = ?, ending_qty = ?, sold_qty = ?, notes = ?, updated_at = NOW()
+                     WHERE progress_id = ?",
+                    [$beginning, $production, $pullout, $ending, $sold, $notes ?: null, (int) $existing['progress_id']]
+                );
+            } else {
+                $db->query(
+                    "INSERT INTO dc_inventory_progress (session_id, product_id, beginning_qty, production_qty,
+                     pullout_qty, ending_qty, sold_qty, notes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$sessionId, $productId, $beginning, $production, $pullout, $ending, $sold, $notes ?: null]
+                );
+            }
+        }
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        dcJsonError('Failed to save inventory progress: ' . $e->getMessage(), 500);
+    }
+
+    dcJsonResponse(['ok' => true]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/inventory/progress/{session_id} — Load saved inventory progress
+ */
+function apiGetInventoryProgress(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+
+    $sessionId = (int) ($params['session_id'] ?? 0);
+    if ($sessionId <= 0) {
+        dcJsonError('Invalid session ID');
+    }
+
+    $items = dcDb()->query(
+        "SELECT ip.*, p.name AS product_name
+         FROM dc_inventory_progress ip
+         JOIN dc_products p ON p.product_id = ip.product_id
+         WHERE ip.session_id = ?",
+        [$sessionId]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    dcJsonResponse(['ok' => true, 'items' => $items]);
+}
+
+// ─── Supplier Handlers ──────────────────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/suppliers — List all suppliers
+ */
+function apiListSuppliers(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+
+    $suppliers = dcDb()->query(
+        "SELECT * FROM dc_suppliers WHERE is_active = 1 ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    dcJsonResponse(['ok' => true, 'suppliers' => $suppliers]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/suppliers/{id} — Get single supplier
+ */
+function apiGetSupplier(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+
+    $id = (int) ($params['id'] ?? 0);
+    $supplier = dcDb()->query("SELECT * FROM dc_suppliers WHERE supplier_id = ?", [$id])->fetch(\PDO::FETCH_ASSOC);
+    if (!$supplier) { dcJsonError('Supplier not found', 404); }
+    dcJsonResponse(['ok' => true, 'supplier' => $supplier]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/suppliers — Create supplier
+ * PUT  /dc-cafe/api/v1/suppliers/{id} — Update supplier
+ */
+function apiCreateSupplier(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+    $name = (string) (dcInput('name') ?? '');
+    if ($name === '') { dcJsonError('Supplier name is required'); }
+    dcDb()->query("INSERT INTO dc_suppliers (name, contact_person, phone, email) VALUES (?, ?, ?, ?)",
+        [$name, dcInput('contact_person') ?: null, dcInput('phone') ?: null, dcInput('email') ?: null]);
+    dcJsonResponse(['ok' => true, 'supplier_id' => (int) dcDb()->lastInsertId()]);
+}
+
+function apiUpdateSupplier(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+    $id = (int) ($params['id'] ?? 0);
+    dcDb()->query(
+        "UPDATE dc_suppliers SET name = ?, contact_person = ?, phone = ?, email = ? WHERE supplier_id = ?",
+        [dcInput('name') ?? '', dcInput('contact_person') ?: null, dcInput('phone') ?: null, dcInput('email') ?: null, $id]
+    );
+    dcJsonResponse(['ok' => true]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/ingredients — List all ingredients (with supplier name)
+ */
+function apiListIngredients(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+
+    $rows = dcDb()->query(
+        "SELECT i.*, s.name AS supplier_name
+         FROM dc_ingredients i
+         LEFT JOIN dc_suppliers s ON s.supplier_id = i.supplier_id
+         WHERE i.is_active = 1
+         ORDER BY i.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    dcJsonResponse(['ok' => true, 'ingredients' => $rows]);
+}
+
+function apiGetIngredient(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor');
+    $id = (int) ($params['id'] ?? 0);
+    $row = dcDb()->query("SELECT * FROM dc_ingredients WHERE ingredient_id = ?", [$id])->fetch(\PDO::FETCH_ASSOC);
+    if (!$row) { dcJsonError('Ingredient not found', 404); }
+    dcJsonResponse(['ok' => true, 'ingredient' => $row]);
+}
+
+function apiCreateIngredient(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+    $name = (string) (dcInput('name') ?? '');
+    $unit = (string) (dcInput('unit') ?? '');
+    if ($name === '' || $unit === '') { dcJsonError('Name and unit are required'); }
+    dcDb()->query(
+        "INSERT INTO dc_ingredients (name, unit, cost_per_unit, reorder_level, supplier_id)
+         VALUES (?, ?, ?, ?, ?)",
+        [$name, $unit, (float) (dcInput('cost_per_unit') ?? 0), (float) (dcInput('reorder_level') ?? 0),
+         dcInput('supplier_id') ? (int) dcInput('supplier_id') : null]
+    );
+    dcJsonResponse(['ok' => true, 'ingredient_id' => (int) dcDb()->lastInsertId()]);
+}
+
+function apiUpdateIngredient(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+    $id = (int) ($params['id'] ?? 0);
+    dcDb()->query(
+        "UPDATE dc_ingredients SET name = ?, unit = ?, cost_per_unit = ?, reorder_level = ?, supplier_id = ?
+         WHERE ingredient_id = ?",
+        [dcInput('name') ?? '', dcInput('unit') ?? '', (float) (dcInput('cost_per_unit') ?? 0),
+         (float) (dcInput('reorder_level') ?? 0), dcInput('supplier_id') ? (int) dcInput('supplier_id') : null, $id]
+    );
+    dcJsonResponse(['ok' => true]);
+}

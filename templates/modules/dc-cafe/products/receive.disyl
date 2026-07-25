@@ -1,0 +1,113 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div x-data="receiveProducts()" x-init="addRow()" class="max-w-5xl mx-auto mt-6">
+    <div class="bg-white rounded-2xl shadow-xl p-6">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-amber-800">Receive Products</h1>
+                <p class="text-sm text-gray-500 mt-1">Record incoming deliveries of finished products (donuts, meals, etc.).</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input type="text" x-model="globalSearch" placeholder="Filter products..."
+                       class="px-3 py-1.5 border rounded text-sm w-48">
+                <button @click="addRow()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700">
+                    + Add Row
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                        <th class="text-left px-3 py-3 w-1/2">Product</th>
+                        <th class="text-right px-3 py-3 w-24">Qty Received</th>
+                        <th class="text-left px-3 py-3">Note</th>
+                        <th class="px-3 py-3 w-10"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(row, idx) in rows" :key="idx">
+                        <tr class="border-t border-gray-200 hover:bg-amber-50">
+                            <td class="px-3 py-2">
+                                <select x-model="row.product_id"
+                                        class="w-full px-2 py-1.5 border rounded text-sm bg-white">
+                                    <option value="">— Select —</option>
+                                    {for p in products}
+                                    <option value="{p.product_id}">{p.name}</option>
+                                    {/for}
+                                </select>
+                            </td>
+                            <td class="px-3 py-2">
+                                <input type="number" x-model="row.quantity" step="1" min="1" required
+                                       class="w-full px-2 py-1.5 border rounded text-right text-sm">
+                            </td>
+                            <td class="px-3 py-2">
+                                <input type="text" x-model="row.notes" placeholder="optional"
+                                       class="w-full px-2 py-1.5 border rounded text-sm">
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <button @click="removeRow(idx)" x-show="rows.length > 1"
+                                        class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bg-gray-50 rounded-xl p-4 flex items-center justify-between text-sm mb-4">
+            <span class="text-gray-600" x-text="rows.length + ' item(s)'"></span>
+            <span class="font-bold text-lg text-amber-800" x-text="totalQty + ' unit(s)'"></span>
+        </div>
+
+        <div x-show="message" x-text="message" class="text-sm p-3 rounded-lg mb-4"
+             :class="error ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'"></div>
+
+        <div class="flex gap-3">
+            <button @click="submitAll()" x-bind:disabled="loading || validRows === 0"
+                    class="flex-1 bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700 disabled:opacity-50">
+                <span x-show="!loading">Receive <span x-text="validRows"></span> Product(s)</span>
+                <span x-show="loading">Processing...</span>
+            </button>
+            <button @click="clearAll()" class="px-6 py-3 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Clear</button>
+        </div>
+    </div>
+</div>
+
+<script>
+function receiveProducts() {
+    return {
+        rows: [],
+        globalSearch: '',
+        message: '',
+        error: false,
+        loading: false,
+
+        get validRows() { return this.rows.filter(r => r.product_id && parseFloat(r.quantity) > 0).length; },
+        get totalQty() { return this.rows.reduce((s, r) => s + (parseFloat(r.quantity) || 0), 0); },
+
+        addRow() { this.rows.push({ product_id: '', quantity: '', notes: '' }); },
+        removeRow(idx) { this.rows.splice(idx, 1); },
+        clearAll() { this.rows = [{ product_id: '', quantity: '', notes: '' }]; this.message = ''; this.error = false; },
+
+        submitAll() {
+            const items = this.rows.filter(r => r.product_id && parseFloat(r.quantity) > 0);
+            if (items.length === 0) { this.message = 'Add at least one product.'; this.error = true; return; }
+            this.loading = true; this.message = ''; this.error = false;
+            fetch('/dc-cafe/api/v1/products/receive/batch', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ items: items.map(r => ({ product_id: parseInt(r.product_id), quantity: parseFloat(r.quantity), notes: r.notes || '' })) })
+            })
+            .then(r => r.json()).then(d => {
+                if (d.ok) { this.message = d.message; this.clearAll(); }
+                else { this.message = d.error; this.error = true; }
+            })
+            .catch(() => { this.message = 'Connection error'; this.error = true; })
+            .finally(() => { this.loading = false; });
+        }
+    };
+}
+</script>
+{/block}

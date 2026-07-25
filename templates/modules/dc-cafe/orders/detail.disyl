@@ -1,0 +1,47 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div class="max-w-3xl mx-auto space-y-4">
+    <a href="/dc-cafe/orders" class="text-amber-600 hover:underline text-sm">&larr; Back to Orders</a>
+
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Order #{order.id}</h1>
+            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                {if order.status == 'completed'}bg-green-100 text-green-700{/if}
+                {if order.status == 'voided'}bg-red-100 text-red-700{/if}
+                {if order.status == 'draft'}bg-gray-100 text-gray-700{/if}">
+                {order.status|capitalize}
+            </span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6 text-sm">
+            <div><span class="text-gray-500">Date:</span> {order.date}</div>
+            <div><span class="text-gray-500">Cashier:</span> {order.cashier}</div>
+            <div><span class="text-gray-500">Payment:</span> {order.payment_method}</div>
+            <div><span class="text-gray-500">Shift:</span> {order.shift}</div>
+            {if order.discount > 0}
+            <div><span class="text-gray-500">Discount:</span> ₱{order.discount|number_format:2} ({order.discount_reason})</div>
+            {/if}
+        </div>
+
+        <table class="w-full text-sm mb-4">
+            <thead><tr class="text-gray-500 border-b"><th class="text-left py-2">Item</th><th class="text-right">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr></thead>
+            <tbody>
+                {for item in order.items}
+                <tr class="border-t">
+                    <td class="py-2">{item.product_name}</td>
+                    <td class="text-right py-2">{item.quantity}</td>
+                    <td class="text-right py-2">₱{item.unit_price|number_format:2}</td>
+                    <td class="text-right py-2 font-semibold">₱{item.total_price|number_format:2}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+
+        <div class="border-t pt-4 text-right">
+            <div class="text-xl font-bold">Total: ₱{order.total|number_format:2}</div>
+        </div>
+    </div>
+</div>
+{/block}

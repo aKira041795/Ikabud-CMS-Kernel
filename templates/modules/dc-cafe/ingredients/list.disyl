@@ -1,0 +1,93 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div x-data="ingredientManager()" x-init="load()" class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">Ingredients</h1>
+        <button @click="showForm = true; editing = null; formData = {name:'',unit:'',cost_per_unit:0,reorder_level:0,supplier_id:''}"
+                class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">+ Add Ingredient</button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 text-gray-600"><th class="text-left px-4 py-3">Name</th><th class="text-left px-4 py-3">Unit</th><th class="text-right px-4 py-3">Cost/Unit</th><th class="text-right px-4 py-3">Stock</th><th class="text-right px-4 py-3">Reorder</th><th class="text-left px-4 py-3">Supplier</th><th class="text-right px-4 py-3">Actions</th></tr></thead>
+            <tbody>
+                <template x-for="i in ingredients" :key="i.ingredient_id">
+                    <tr class="border-t hover:bg-gray-50"
+                        :class="parseFloat(i.current_stock) <= parseFloat(i.reorder_level) && parseFloat(i.reorder_level) > 0 ? 'bg-red-50' : ''">
+                        <td class="px-4 py-3 font-medium" x-text="i.name"></td>
+                        <td class="px-4 py-3" x-text="i.unit"></td>
+                        <td class="px-4 py-3 text-right" x-text="'₱' + parseFloat(i.cost_per_unit).toFixed(2)"></td>
+                        <td class="px-4 py-3 text-right font-semibold" x-text="parseFloat(i.current_stock).toFixed(2)"></td>
+                        <td class="px-4 py-3 text-right" x-text="parseFloat(i.reorder_level).toFixed(2)"></td>
+                        <td class="px-4 py-3" x-text="i.supplier_name || '-'"></td>
+                        <td class="px-4 py-3 text-right">
+                            <button @click="edit(i)" class="text-amber-600 hover:underline text-xs">Edit</button>
+                        </td>
+                    </tr>
+                </template>
+                <tr x-show="ingredients.length === 0"><td colspan="7" class="text-center text-gray-400 py-8">No ingredients.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    {* Ingredient Form Modal *}
+    <div x-show="showForm" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" x-cloak>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h2 class="text-lg font-bold mb-4" x-text="editing ? 'Edit Ingredient' : 'Add Ingredient'"></h2>
+            <div class="space-y-3">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <input type="text" x-model="formData.name" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div class="flex gap-2"><div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                    <input type="text" x-model="formData.unit" placeholder="L, kg, pc" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Cost/Unit</label>
+                    <input type="number" x-model="formData.cost_per_unit" step="0.01" class="w-full px-3 py-2 border rounded-lg text-sm"></div></div>
+                <div class="flex gap-2"><div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Reorder Level</label>
+                    <input type="number" x-model="formData.reorder_level" step="0.01" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div class="flex-1"><label class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                    <select x-model="formData.supplier_id" class="w-full px-3 py-2 border rounded-lg text-sm">
+                        <option value="">None</option>
+                        <template x-for="s in suppliers" :key="s.supplier_id">
+                            <option x-bind:value="s.supplier_id" x-text="s.name"></option>
+                        </template>
+                    </select></div></div>
+            </div>
+            <div x-show="message" x-text="message" class="mt-3 text-sm" :class="error ? 'text-red-600' : 'text-green-600'"></div>
+            <div class="flex gap-2 mt-4">
+                <button @click="showForm = false" class="flex-1 px-4 py-2 border rounded-lg text-sm">Cancel</button>
+                <button @click="save()" class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function ingredientManager() {
+    return {
+        ingredients: [], suppliers: [],
+        showForm: false, editing: null,
+        formData: {name:'', unit:'', cost_per_unit:0, reorder_level:0, supplier_id:''},
+        message: '', error: false,
+        load() {
+            Promise.all([
+                fetch('/dc-cafe/api/v1/inventory').then(r => r.json()),
+                fetch('/dc-cafe/api/v1/suppliers').then(r => r.json()),
+            ]).then(([inv, sup]) => {
+                if (inv.ok) this.ingredients = inv.inventory;
+                if (sup.ok) this.suppliers = sup.suppliers;
+            });
+        },
+        edit(i) { this.editing = i; this.formData = {name:i.name, unit:i.unit, cost_per_unit:i.cost_per_unit, reorder_level:i.reorder_level, supplier_id:i.supplier_id || ''}; this.showForm = true; },
+        save() {
+            const method = this.editing ? 'PUT' : 'POST';
+            const url = this.editing ? '/dc-cafe/api/v1/ingredients/' + this.editing.id : '/dc-cafe/api/v1/ingredients';
+            fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.formData) })
+            .then(r => r.json()).then(d => {
+                if (d.ok) { this.showForm = false; this.load(); this.message = ''; }
+                else { this.message = d.error; this.error = true; }
+            }).catch(() => { this.message = 'Connection error'; this.error = true; });
+        }
+    };
+}
+</script>
+{/block}

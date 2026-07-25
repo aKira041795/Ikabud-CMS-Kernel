@@ -1,0 +1,45 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div class="max-w-3xl mx-auto space-y-4">
+    <a href="/dc-cafe/customers" class="text-amber-600 hover:underline text-sm">&larr; Back to Customers</a>
+
+    <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">{customer.name}</h1>
+                <p class="text-gray-500">{customer.phone}</p>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-semibold
+                {if customer.tier == 'vip'}bg-purple-100 text-purple-700{/if}
+                {if customer.tier == 'regular'}bg-gray-100 text-gray-700{/if}">
+                {customer.tier|capitalize}
+            </span>
+        </div>
+
+        <div class="grid grid-cols-4 gap-4 mb-6">
+            <div class="bg-amber-50 p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold text-amber-700">{customer.points}</div>
+                <div class="text-xs text-amber-600">Points</div>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold text-blue-700">{customer.order_count}</div>
+                <div class="text-xs text-blue-600">Orders</div>
+            </div>
+            <div class="bg-green-50 p-4 rounded-xl text-center">
+                <div class="text-xl font-bold text-green-700">₱{customer.total_spent|number_format:2}</div>
+                <div class="text-xs text-green-600">Total Spent</div>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-xl text-center">
+                <div class="text-lg font-bold text-gray-700">{customer.total_earned}</div>
+                <div class="text-xs text-gray-600">Points Earned</div>
+            </div>
+        </div>
+
+        {if customer.email}
+        <p class="text-sm text-gray-600"><strong>Email:</strong> {customer.email}</p>
+        {/if}
+        <p class="text-sm text-gray-500 mt-1"><strong>Customer since:</strong> {customer.joined|date:"M d, Y"}</p>
+    </div>
+</div>
+{/block}

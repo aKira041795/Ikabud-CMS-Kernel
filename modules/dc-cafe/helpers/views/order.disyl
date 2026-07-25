@@ -1,0 +1,21 @@
+{ikb_entity_view name="dc_order" view="table"}
+    {field name="id" type="number"}
+    {field name="date" type="text" role="subtitle"}
+    {field name="cashier" type="text"}
+    {field name="total" type="number" renderer="money:2" role="value"}
+    {field name="payment_method" type="text"}
+    {field name="status" type="text" role="status"}
+    {action name="view" url="/dc-cafe/orders/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="dc_order" view="detailed"}
+    {field name="id" type="number" role="id"}
+    {field name="date" type="text" role="subtitle"}
+    {field name="cashier" type="text"}
+    {field name="total" type="number" renderer="money:2" role="value"}
+    {field name="original_amount" type="number" renderer="money:2"}
+    {field name="discount" type="number" renderer="money:2"}
+    {field name="payment_method" type="text"}
+    {field name="status" type="text" role="status"}
+    {field name="items" type="text"}
+{/ikb_entity_view}

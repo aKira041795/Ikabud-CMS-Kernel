@@ -1,0 +1,173 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div x-data="receiveStock()" x-init="init()" class="max-w-5xl mx-auto mt-6">
+    <div class="bg-white rounded-2xl shadow-xl p-6">
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-amber-800">Receive Stock</h1>
+                <p class="text-sm text-gray-500 mt-1">Add multiple items at once. All rows are submitted together.</p>
+            </div>
+            <button @click="addRow()" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700">
+                + Add Row
+            </button>
+        </div>
+
+        {* Ledger Table *}
+        <div class="overflow-x-auto mb-4">
+            <table class="w-full text-sm border-collapse">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                        <th class="text-left px-3 py-3 w-2/5">Ingredient</th>
+                        <th class="text-left px-3 py-3 w-16">Unit</th>
+                        <th class="text-right px-3 py-3 w-24">Qty</th>
+                        <th class="text-right px-3 py-3 w-28">Cost/Unit</th>
+                        <th class="text-right px-3 py-3 w-28">Total Cost</th>
+                        <th class="text-left px-3 py-3">Note</th>
+                        <th class="px-3 py-3 w-10"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(row, idx) in rows" :key="idx">
+                        <tr class="border-t border-gray-200 hover:bg-amber-50">
+                            <td class="px-3 py-2">
+                                <select x-model="row.ingredient_id"
+                                        class="w-full px-2 py-1.5 border rounded text-sm bg-white">
+                                    <option value="">— Select —</option>
+                                    {for ing in ingredients}
+                                    <option value="{ing.ingredient_id}">{ing.name} ({ing.unit})</option>
+                                    {/for}
+                                </select>
+                            </td>
+                            <td class="px-3 py-2 text-gray-500 text-center" x-text="row.unit || '—'"></td>
+                            <td class="px-3 py-2">
+                                <input type="number" x-model="row.quantity" step="0.001" min="0.001" required
+                                       class="w-full px-2 py-1.5 border rounded text-right text-sm">
+                            </td>
+                            <td class="px-3 py-2">
+                                <input type="number" x-model="row.cost_per_unit" step="0.01" min="0"
+                                       class="w-full px-2 py-1.5 border rounded text-right text-sm"
+                                       placeholder="auto">
+                            </td>
+                            <td class="px-3 py-2 text-right font-semibold text-gray-700">
+                                ₱<span x-text="rowTotal(row).toFixed(2)"></span>
+                            </td>
+                            <td class="px-3 py-2">
+                                <input type="text" x-model="row.notes" placeholder="optional"
+                                       class="w-full px-2 py-1.5 border rounded text-sm">
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <button @click="removeRow(idx)" x-show="rows.length > 1"
+                                        class="text-red-400 hover:text-red-600 text-lg leading-none">&times;</button>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        {* Summary Bar *}
+        <div class="bg-gray-50 rounded-xl p-4 flex items-center justify-between text-sm mb-4">
+            <span class="text-gray-600">
+                <span x-text="rows.length"></span> item<span x-show="rows.length != 1">s</span>
+                <span x-show="totalQty > 0"> · <span x-text="totalQty.toFixed(1)"></span> total units</span>
+            </span>
+            <span class="font-bold text-lg text-amber-800">Total: ₱<span x-text="grandTotal.toFixed(2)"></span></span>
+        </div>
+
+        {* Messages *}
+        <div x-show="message" x-text="message" class="text-sm p-3 rounded-lg mb-4"
+             :class="error ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'"></div>
+
+        {* Actions *}
+        <div class="flex gap-3">
+            <button @click="submitAll()" x-bind:disabled="loading || validRows === 0"
+                    class="flex-1 bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700 disabled:opacity-50">
+                <span x-show="!loading">Receive <span x-text="validRows"></span> Item<span x-show="validRows != 1">s</span></span>
+                <span x-show="loading">Processing...</span>
+            </button>
+            <button @click="clearAll()" class="px-6 py-3 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                Clear All
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function receiveStock() {
+    return {
+        rows: [],
+        ingredientList: [],
+        message: '',
+        error: false,
+        loading: false,
+
+        get validRows() {
+            return this.rows.filter(r => r.ingredient_id && parseFloat(r.quantity) > 0).length;
+        },
+
+        get totalQty() {
+            return this.rows.reduce((s, r) => s + (parseFloat(r.quantity) || 0), 0);
+        },
+
+        get grandTotal() {
+            return this.rows.reduce((s, r) => s + this.rowTotal(r), 0);
+        },
+
+        rowTotal(row) {
+            return (parseFloat(row.quantity) || 0) * (parseFloat(row.cost_per_unit) || 0);
+        },
+
+        init() {
+            this.addRow();
+        },
+
+        addRow() {
+            this.rows.push({ ingredient_id: '', quantity: '', cost_per_unit: '', notes: '', unit: '' });
+        },
+        removeRow(idx) { this.rows.splice(idx, 1); },
+        clearAll() {
+            this.rows = [{ ingredient_id: '', quantity: '', cost_per_unit: '', notes: '', unit: '' }];
+            this.message = '';
+            this.error = false;
+        },
+
+        submitAll() {
+            const items = this.rows.filter(r => r.ingredient_id && parseFloat(r.quantity) > 0);
+            if (items.length === 0) {
+                this.message = 'Add at least one item with quantity.';
+                this.error = true;
+                return;
+            }
+            this.loading = true;
+            this.message = '';
+            this.error = false;
+
+            fetch('/dc-cafe/api/v1/inventory/receive/batch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    items: items.map(r => ({
+                        ingredient_id: parseInt(r.ingredient_id),
+                        quantity: parseFloat(r.quantity),
+                        cost_per_unit: parseFloat(r.cost_per_unit) || 0,
+                        notes: r.notes || '',
+                    }))
+                })
+            })
+            .then(r => r.json()).then(d => {
+                if (d.ok) {
+                    this.message = d.message || items.length + ' item(s) received successfully!';
+                    this.clearAll();
+                } else {
+                    this.message = d.error;
+                    this.error = true;
+                }
+            })
+            .catch(() => { this.message = 'Connection error'; this.error = true; })
+            .finally(() => { this.loading = false; });
+        }
+    };
+}
+</script>
+{/block}

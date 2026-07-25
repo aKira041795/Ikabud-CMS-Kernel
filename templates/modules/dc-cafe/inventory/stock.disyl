@@ -1,0 +1,13 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">Stock Levels</h1>
+        <a href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+        {ikb_entity_list source="dc_inventory" view="table" empty="No ingredients found. Add ingredients from the Ingredients page." /}
+    </div>
+</div>
+{/block}

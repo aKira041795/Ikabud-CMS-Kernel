@@ -1063,6 +1063,7 @@ final class Parser
     {
         $tag = $this->readTagContent();
         $name = trim(substr($tag, 5));                // strip "block"
+        $name = trim($name, '"\' ');                  // strip optional surrounding quotes
 
         $body = $this->parseChildren(['{/block}']);
         $this->consumeExact('{/block}');

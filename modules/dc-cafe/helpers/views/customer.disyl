@@ -1,0 +1,22 @@
+{ikb_entity_view name="dc_customer" view="table"}
+    {field name="id" type="number"}
+    {field name="name" type="text" role="title"}
+    {field name="phone" type="text" role="subtitle"}
+    {field name="points" type="number" role="value"}
+    {field name="tier" type="text" role="status"}
+    {field name="joined" type="text"}
+    {action name="view" url="/dc-cafe/customers/{id}" label="View"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="dc_customer" view="detailed"}
+    {field name="id" type="number" role="id"}
+    {field name="name" type="text" role="title"}
+    {field name="phone" type="text" role="subtitle"}
+    {field name="email" type="text"}
+    {field name="points" type="number" role="value"}
+    {field name="total_earned" type="number"}
+    {field name="tier" type="text" role="status"}
+    {field name="order_count" type="number"}
+    {field name="total_spent" type="number" renderer="money:2"}
+    {field name="joined" type="text"}
+{/ikb_entity_view}

@@ -1616,7 +1616,7 @@ class TemplateEngine
 
         if ($isHtmx) {
             // For HTMX: extract block content without any layout wrapping
-            preg_match_all('/\{block\s+(\w+)\}(.*?)\{\/block\}/s', $content, $blocks, PREG_SET_ORDER);
+            preg_match_all('/\{block\s+(?:"?(\w+)"?)\}(.*?)\{\/block\}/s', $content, $blocks, PREG_SET_ORDER);
             $blockContent = '';
             foreach ($blocks as $block) {
                 $blockContent .= $block[2];
@@ -1684,7 +1684,7 @@ class TemplateEngine
         // with child definitions winning over parent definitions (first one wins).
         $allBlocks = [];
         foreach ($chain as $template) {
-            preg_match_all('/\{block\s+(\w+)\}(.*?)\{\/block\}/s', $template, $blocks, PREG_SET_ORDER);
+            preg_match_all('/\{block\s+(?:"?(\w+)"?)\}(.*?)\{\/block\}/s', $template, $blocks, PREG_SET_ORDER);
             foreach ($blocks as $block) {
                 if (!isset($allBlocks[$block[1]])) {
                     $allBlocks[$block[1]] = $block[2];
@@ -1698,7 +1698,7 @@ class TemplateEngine
         $maxPasses = 10;
         for ($pass = 0; $pass < $maxPasses; $pass++) {
             $new = preg_replace_callback(
-                '/\{block\s+(\w+)\}(.*?)\{\/block\}/s',
+                '/\{block\s+(?:"?(\w+)"?)\}(.*?)\{\/block\}/s',
                 fn($m) => $allBlocks[$m[1]] ?? $m[2],
                 $result
             );
@@ -1817,7 +1817,7 @@ class TemplateEngine
      */
     private function processBlocks(string $content, array $context): string
     {
-        return preg_replace('/\{block\s+\w+\}(.*?)\{\/block\}/s', '$1', $content);
+        return preg_replace('/\{block\s+(?:"?\w+"?)\}(.*?)\{\/block\}/s', '$1', $content);
     }
 
     /**

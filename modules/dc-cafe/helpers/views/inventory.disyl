@@ -1,0 +1,10 @@
+{ikb_entity_view name="dc_inventory" view="table"}
+    {field name="id" type="number" role="id" visible="false"}
+    {field name="name" type="text" role="title"}
+    {field name="unit" type="text"}
+    {field name="stock" type="number" role="value"}
+    {field name="cost_per_unit" type="number" renderer="money:2"}
+    {field name="reorder_level" type="number"}
+    {field name="supplier" type="text"}
+    {field name="is_low" type="boolean" role="status"}
+{/ikb_entity_view}

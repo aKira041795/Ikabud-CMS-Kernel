@@ -42,6 +42,7 @@ All skills are loaded automatically by their `applyTo` patterns or `description`
 | `module-boundaries` | `**/*.php` | Kernel boundary discipline, tenant scoping, capability-based access, route ownership. No bypassing kernel contracts. |
 | `service-layer-patterns` | `**/services/**` | Domain service structure (`ServiceResult`), transaction discipline, event emission, audit logging. |
 | `module-creation` | `**/module.json` | Module scaffold checklist, manifest essentials, capability handler naming, migration patterns, auth-owned module conventions. |
+| `new-module-checklist` | `**/*.php`, `**/*.disyl`, `**/module.json` | Complete new module checklist: user seeding, DiSyL syntax, capability handler placement, JWT auth, role access matrix, forgot password, log permissions, debugging guide. |
 
 ### Domain-specific (loaded when file pattern or topic matches)
 

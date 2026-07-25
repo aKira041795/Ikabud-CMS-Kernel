@@ -1,0 +1,163 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block "content"}
+<div x-data="sessionEnd()" x-init="loadData()" class="max-w-2xl mx-auto mt-8">
+    <div class="bg-white rounded-2xl shadow-xl p-8">
+        <h1 class="text-2xl font-bold text-amber-800 mb-6">End Shift</h1>
+
+        {* Summary *}
+        <div class="grid grid-cols-4 gap-4 mb-8">
+            <div class="bg-blue-50 p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold text-blue-700" x-text="salesCount"></div>
+                <div class="text-xs text-blue-600 mt-1">Transactions</div>
+            </div>
+            <div class="bg-green-50 p-4 rounded-xl text-center">
+                <div class="text-2xl font-bold text-green-700">₱<span x-text="salesTotal.toFixed(2)"></span></div>
+                <div class="text-xs text-green-600 mt-1">Gross Sales</div>
+            </div>
+            <div class="bg-red-50 p-4 rounded-xl text-center">
+                <div class="text-xl font-bold text-red-700">₱<span x-text="discountTotal.toFixed(2)"></span></div>
+                <div class="text-xs text-red-600 mt-1">Discount</div>
+            </div>
+            <div class="bg-amber-50 p-4 rounded-xl text-center">
+                <div class="text-lg font-bold text-amber-700">₱<span x-text="startingCash.toFixed(2)"></span></div>
+                <div class="text-xs text-amber-600 mt-1">Starting Cash</div>
+            </div>
+        </div>
+
+        {* Items Bought *}
+        <div class="mb-6">
+            <h3 class="font-semibold text-gray-700 mb-2">Items Bought</h3>
+            <div class="bg-gray-50 rounded-xl p-4 max-h-48 overflow-y-auto text-sm">
+                <template x-if="itemsBought.length === 0">
+                    <p class="text-gray-400 text-center py-4">No items sold this shift.</p>
+                </template>
+                <template x-for="item in itemsBought" :key="item.product_id">
+                    <div class="flex justify-between py-1 border-b border-gray-200 last:border-0">
+                        <span x-text="item.name"></span>
+                        <span class="font-semibold" x-text="item.qty"></span>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        {* Net Summary *}
+        <div class="mb-6 bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+            <div class="flex justify-between">
+                <span>Gross Sales</span>
+                <span class="font-semibold">₱<span x-text="salesTotal.toFixed(2)"></span></span>
+            </div>
+            <div class="flex justify-between text-red-600">
+                <span>Less Discount</span>
+                <span>-₱<span x-text="discountTotal.toFixed(2)"></span></span>
+            </div>
+            <div class="flex justify-between font-bold text-lg border-t pt-2 text-amber-800">
+                <span>Net Sales (Cash to Remit)</span>
+                <span>₱<span x-text="netSales.toFixed(2)"></span></span>
+            </div>
+        </div>
+
+        {* Payment Breakdown *}
+        <div class="mb-6">
+            <h3 class="font-semibold text-gray-700 mb-2">Payment Breakdown</h3>
+            <template x-for="pm in paymentBreakdown" :key="pm.code">
+                <div class="flex justify-between py-2 border-b text-sm">
+                    <span x-text="pm.name"></span>
+                    <span class="font-semibold">₱<span x-text="parseFloat(pm.total).toFixed(2)"></span></span>
+                </div>
+            </template>
+        </div>
+
+        {* Cash Count *}
+        <form x-on:submit.prevent="endShift()" class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Actual Cash in Drawer (₱)</label>
+                <input type="number" x-model="endingCash" step="0.01" min="0" required
+                       class="w-full px-4 py-2.5 border rounded-lg text-lg"
+                       placeholder="Enter physical cash count">
+            </div>
+            <div x-show="expectedCash > 0" class="text-sm space-y-1">
+                <div class="text-gray-500">
+                    Expected: ₱<span x-text="expectedCash.toFixed(2)"></span>
+                </div>
+                <div x-show="endingCash > 0"
+                     class="font-semibold px-3 py-2 rounded-lg"
+                     :class="variance === 0 ? 'bg-green-100 text-green-700' : variance > 0 ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'">
+                    <template x-if="variance > 0">
+                        <span>OVER by ₱<span x-text="variance.toFixed(2)"></span></span>
+                    </template>
+                    <template x-if="variance < 0">
+                        <span>SHORT by ₱<span x-text="Math.abs(variance).toFixed(2)"></span></span>
+                    </template>
+                    <template x-if="variance === 0">
+                        <span>✓ Exact — no variance</span>
+                    </template>
+                </div>
+                <div x-show="endingCash > 0 && Math.abs(variance) > 0"
+                     class="text-xs text-gray-400">
+                    <span x-text="variance > 0 ? 'Drawer has extra cash' : 'Drawer is short'"></span> — adjust before ending shift.
+                </div>
+            </div>
+            <div x-show="error" x-text="error" class="text-red-600 text-sm bg-red-50 p-3 rounded-lg"></div>
+            <div x-show="success" x-text="success" class="text-green-600 text-sm bg-green-50 p-3 rounded-lg"></div>
+            <button type="submit" x-bind:disabled="loading"
+                    class="w-full bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700 disabled:opacity-50">
+                <span x-show="!loading">End Shift</span>
+                <span x-show="loading">Processing...</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+function sessionEnd() {
+    return {
+        salesCount: 0,
+        salesTotal: 0,
+        discountTotal: 0,
+        startingCash: {session.starting_cash ?? 0},
+        endingCash: 0,
+        expectedCash: 0,
+        paymentBreakdown: [],
+        itemsBought: [],
+        error: '',
+        success: '',
+        loading: false,
+
+        get variance() { return parseFloat(this.endingCash || 0) - this.expectedCash; },
+        get netSales() { return this.salesTotal - this.discountTotal; },
+
+        loadData() {
+            this.salesCount = {sales_count ?? 0};
+            this.salesTotal = {sales_total ?? 0};
+            this.discountTotal = {discount_total ?? 0};
+            this.startingCash = {session.starting_cash ?? 0};
+            this.expectedCash = this.startingCash + this.salesTotal;
+            this.paymentBreakdown = {payment_breakdown|json|raw};
+            this.itemsBought = {items_bought|json|raw};
+        },
+
+        endShift() {
+            this.loading = true;
+            this.error = '';
+            this.success = '';
+            fetch('/dc-cafe/api/v1/sessions/end', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ending_cash: parseFloat(this.endingCash) || 0})
+            })
+            .then(r => r.json()).then(d => {
+                if (d.ok) {
+                    this.success = 'Shift ended! Variance: ₱' + d.variance.toFixed(2);
+                    setTimeout(() => { window.location.href = '/dc-cafe/pos/session-start'; }, 2000);
+                } else {
+                    this.error = d.error;
+                }
+            })
+            .catch(() => { this.error = 'Connection error'; })
+            .finally(() => { this.loading = false; });
+        }
+    };
+}
+</script>
+{/block}

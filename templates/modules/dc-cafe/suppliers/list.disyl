@@ -1,0 +1,80 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div x-data="supplierManager()" x-init="load()" class="space-y-4">
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">Suppliers</h1>
+        <button @click="showForm = true; editing = null; formData = {name:'',contact_person:'',phone:'',email:''}"
+                class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">+ Add Supplier</button>
+    </div>
+
+    {* Supplier List *}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-50 text-gray-600"><th class="text-left px-4 py-3">Name</th><th class="text-left px-4 py-3">Contact</th><th class="text-left px-4 py-3">Phone</th><th class="text-left px-4 py-3">Email</th><th class="text-right px-4 py-3">Actions</th></tr></thead>
+            <tbody>
+                <template x-for="s in suppliers" :key="s.supplier_id">
+                    <tr class="border-t hover:bg-gray-50">
+                        <td class="px-4 py-3 font-medium" x-text="s.name"></td>
+                        <td class="px-4 py-3 text-gray-600" x-text="s.contact_person || '-'"></td>
+                        <td class="px-4 py-3" x-text="s.phone || '-'"></td>
+                        <td class="px-4 py-3" x-text="s.email || '-'"></td>
+                        <td class="px-4 py-3 text-right">
+                            <button @click="edit(s)" class="text-amber-600 hover:underline text-xs">Edit</button>
+                        </td>
+                    </tr>
+                </template>
+                <tr x-show="suppliers.length === 0"><td colspan="5" class="text-center text-gray-400 py-8">No suppliers yet.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    {* Supplier Form Modal *}
+    <div x-show="showForm" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" x-cloak>
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h2 class="text-lg font-bold mb-4" x-text="editing ? 'Edit Supplier' : 'Add Supplier'"></h2>
+            <div class="space-y-3">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <input type="text" x-model="formData.name" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                    <input type="text" x-model="formData.contact_person" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input type="text" x-model="formData.phone" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" x-model="formData.email" class="w-full px-3 py-2 border rounded-lg text-sm"></div>
+            </div>
+            <div x-show="message" x-text="message" class="mt-3 text-sm"
+                 :class="error ? 'text-red-600' : 'text-green-600'"></div>
+            <div class="flex gap-2 mt-4">
+                <button @click="showForm = false" class="flex-1 px-4 py-2 border rounded-lg text-sm">Cancel</button>
+                <button @click="save()" class="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function supplierManager() {
+    return {
+        suppliers: [],
+        showForm: false,
+        editing: null,
+        formData: {name:'', contact_person:'', phone:'', email:''},
+        message: '', error: false,
+        load() {
+            fetch('/dc-cafe/api/v1/suppliers').then(r => r.json()).then(d => { if (d.ok) this.suppliers = d.suppliers; });
+        },
+        edit(s) { this.editing = s; this.formData = {...s}; this.showForm = true; },
+        save() {
+            const method = this.editing ? 'PUT' : 'POST';
+            const url = this.editing ? '/dc-cafe/api/v1/suppliers/' + this.editing.supplier_id : '/dc-cafe/api/v1/suppliers';
+            fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(this.formData) })
+            .then(r => r.json()).then(d => {
+                if (d.ok) { this.showForm = false; this.load(); this.message = ''; }
+                else { this.message = d.error; this.error = true; }
+            }).catch(() => { this.message = 'Connection error'; this.error = true; });
+        }
+    };
+}
+</script>
+{/block}

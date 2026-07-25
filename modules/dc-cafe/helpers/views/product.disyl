@@ -1,0 +1,17 @@
+{ikb_entity_view name="dc_product" view="card_grid"}
+    {field name="id" type="number" role="id" visible="false"}
+    {field name="name" type="text" role="title"}
+    {field name="category" type="text" role="subtitle"}
+    {field name="price" type="number" renderer="money:2" role="value"}
+    {field name="is_active" type="boolean" role="status"}
+    {action name="edit" url="/dc-cafe/products/{id}/edit" label="Edit"}
+{/ikb_entity_view}
+
+{ikb_entity_view name="dc_product" view="table"}
+    {field name="id" type="number"}
+    {field name="name" type="text" role="title"}
+    {field name="category" type="text"}
+    {field name="price" type="number" renderer="money:2"}
+    {field name="is_active" type="boolean" role="status"}
+    {action name="edit" url="/dc-cafe/products/{id}/edit" label="Edit"}
+{/ikb_entity_view}

@@ -1,0 +1,572 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block "content"}
+<div x-data="posApp()" x-init="init()" class="flex flex-col h-[calc(100vh-3.5rem)]">
+    {* Top: Session Bar *}
+    <div class="bg-amber-100 px-4 py-2 rounded-lg mb-4 flex items-center justify-between text-sm">
+        <div class="flex items-center space-x-4">
+            <span class="font-semibold text-amber-800">Shift: {shift_type ?? 'morning'}</span>
+            <span>Store ID: {store_id}</span>
+            <span>Session: #{session.session_id}</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span>Today: <strong>{today_sales_count} sales</strong> — ₱<span id="today-total">{today_sales_total|number_format:2}</span></span>
+            <a href="/dc-cafe/pos/session-end" class="bg-amber-600 text-white px-3 py-1 rounded text-xs hover:bg-amber-700">End Shift</a>
+        </div>
+    </div>
+
+    {* Main: Products Left | Cart Right *}
+    <div class="flex flex-1 gap-4 overflow-hidden">
+        {* Product Grid *}
+        <div class="w-3/5 overflow-y-auto pr-2">
+            {* Category Filter *}
+            <div class="flex gap-2 mb-3 flex-wrap">
+                <button @click="categoryFilter = ''"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium"
+                        :class="categoryFilter === '' ? 'bg-amber-600 text-white' : 'bg-gray-200'">
+                    All
+                </button>
+                <template x-for="cat in categories" :key="cat">
+                    <button @click="categoryFilter = cat"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium"
+                            :class="categoryFilter === cat ? 'bg-amber-600 text-white' : 'bg-gray-200'"
+                            x-text="cat"></button>
+                </template>
+            </div>
+
+            {* Search *}
+            <input type="text" x-model="search" placeholder="Search products..."
+                   class="w-full px-3 py-2 border rounded-lg mb-3 text-sm">
+
+            {* Product Cards *}
+            <div class="grid grid-cols-3 gap-3">
+                <template x-for="p in filteredProducts" :key="p.id">
+                    <div @click="addToCart(p)"
+                         class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-amber-300 transition text-center">
+                        <div class="text-lg font-bold text-amber-700" x-text="p.name"></div>
+                        <div class="text-xs text-gray-500 mt-1" x-text="p.category"></div>
+                        <div class="text-sm font-semibold text-gray-800 mt-2">₱<span x-text="p.price.toFixed(2)"></span></div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        {* Cart *}
+        <div class="w-2/5 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+            <div class="p-4 border-b border-gray-100">
+                <h2 class="font-bold text-lg">Current Order</h2>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                <template x-for="(item, idx) in cart" :key="idx">
+                    <div class="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                        <div class="flex-1">
+                            <div class="font-medium text-sm" x-text="item.name"></div>
+                            <div class="text-xs text-gray-500">₱<span x-text="item.price.toFixed(2)"></span> × <span x-text="item.qty"></span></div>
+                            <div x-show="item.custLabel" class="text-xs text-amber-600 italic mt-1 truncate max-w-[200px]" x-text="item.custLabel"></div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button @click="item.qty > 1 ? item.qty-- : removeFromCart(idx)"
+                                    class="w-7 h-7 rounded-full bg-gray-200 text-sm font-bold hover:bg-gray-300">−</button>
+                            <span class="w-6 text-center font-semibold text-sm" x-text="item.qty"></span>
+                            <button @click="item.qty++"
+                                    class="w-7 h-7 rounded-full bg-gray-200 text-sm font-bold hover:bg-gray-300">+</button>
+                            <button @click="removeFromCart(idx)" class="ml-2 text-red-400 hover:text-red-600 text-sm">✕</button>
+                        </div>
+                    </div>
+                </template>
+                <div x-show="cart.length === 0" class="text-center text-gray-400 py-8">
+                    No items in cart. Tap a product to add.
+                </div>
+            </div>
+
+            {* Summary *}
+            <div class="border-t border-gray-200 p-4 space-y-3">
+                <div class="flex justify-between text-lg font-bold">
+                    <span>Total</span>
+                    <span>₱<span x-text="cartTotal.toFixed(2)"></span></span>
+                </div>
+
+                {* Discount *}
+                <div class="border-t pt-3">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Discount</label>
+                    <div class="flex gap-2 mb-2">
+                        <select x-model="discountType" @change="applyDiscount()"
+                                class="flex-1 px-3 py-1.5 border rounded text-sm bg-white">
+                            <option value="">None</option>
+                            <option value="senior">Senior Citizen</option>
+                            <option value="promo">Promo</option>
+                            <option value="sale">Sale</option>
+                        </select>
+                        <div class="flex-1 flex gap-1">
+                            <input type="text" x-model="discountInput" @input="applyDiscount()"
+                                   placeholder="₱ or %"
+                                   class="flex-1 px-3 py-1.5 border rounded text-sm w-24">
+                            <button @click="applyDiscount()"
+                                    class="bg-green-100 text-green-700 px-3 py-1.5 rounded text-sm hover:bg-green-200 font-medium">Apply</button>
+                        </div>
+                    </div>
+                    <div x-show="discount > 0" class="flex justify-between text-sm text-green-600 bg-green-50 px-3 py-1.5 rounded">
+                        <span x-text="discountReason || discountTypeLabel"></span>
+                        <span>-₱<span x-text="discount.toFixed(2)"></span></span>
+                    </div>
+                </div>
+
+                {* Voucher *}
+                <div class="flex gap-2">
+                    <input type="text" x-model="voucherCode" placeholder="Voucher code"
+                           class="flex-1 px-3 py-1.5 border rounded text-sm">
+                    <button @click="validateVoucher" class="bg-purple-100 text-purple-700 px-3 py-1.5 rounded text-sm hover:bg-purple-200">Check</button>
+                </div>
+                <div x-show="voucherMessage" x-text="voucherMessage" class="text-xs"
+                     :class="voucherValid ? 'text-green-600' : 'text-red-600'"></div>
+
+                {* Payment *}
+                <div class="flex gap-2">
+                    <select x-model="paymentMethod" class="flex-1 px-3 py-2 border rounded text-sm bg-white">
+                        <template x-for="pm in paymentMethods" :key="pm.payment_method_id">
+                            <option x-bind:value="pm.payment_method_id" x-text="pm.name"></option>
+                        </template>
+                    </select>
+                    <input type="number" x-model="amountTendered" @input.debounce="" placeholder="Amount tendered"
+                           class="flex-1 px-3 py-2 border rounded text-sm"
+                           x-bind:class="{'border-green-400': change >= 0 && amountTendered > 0}">
+                </div>
+                <div x-show="isCashPayment && change >= 0 && amountTendered > 0"
+                     class="flex justify-between text-sm bg-blue-50 px-3 py-2 rounded text-blue-700 font-semibold">
+                    <span>Change</span>
+                    <span>₱<span x-text="change.toFixed(2)"></span></span>
+                </div>
+
+                {* Customer *}
+                <div class="flex gap-2">
+                    <input type="text" x-model="customerPhone" placeholder="Customer phone (for loyalty)"
+                           class="flex-1 px-3 py-1.5 border rounded text-sm">
+                    <input type="text" x-model="customerName" placeholder="Name (new customer)"
+                           class="flex-1 px-3 py-1.5 border rounded text-sm">
+                </div>
+
+                <button @click="processPayment"
+                        class="w-full bg-amber-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-amber-700 disabled:opacity-50"
+                        x-bind:disabled="cart.length === 0 || processing">
+                    <span x-show="!processing">Pay — ₱<span x-text="finalTotal.toFixed(2)"></span></span>
+                    <span x-show="processing">Processing...</span>
+                </button>
+
+                <div x-show="successMessage" class="bg-green-50 text-green-700 p-3 rounded-lg text-sm text-center font-semibold"
+                     x-text="successMessage"></div>
+
+                {* Print Receipt Button *}
+                <div x-show="lastOrder !== null" class="flex gap-2">
+                    <button @click="showPrintModal = true"
+                            class="flex-1 bg-blue-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-blue-700">
+                        🖨 Print Receipt
+                    </button>
+                    <button @click="lastOrder = null; successMessage = ''"
+                            class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300">
+                        New Order
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{* Print Receipt Modal *}
+<div x-show="showPrintModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+     x-cloak @click.away="showPrintModal = false">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+        <div class="text-center mb-4">
+            <h2 class="text-lg font-bold text-amber-800">DC Cafe</h2>
+            <p class="text-xs text-gray-500">Point of Sale — Receipt</p>
+        </div>
+        <div class="border-t border-b py-3 space-y-1 text-sm" x-show="lastOrder">
+            <div class="flex justify-between text-gray-600">
+                <span>Order #</span>
+                <span class="font-semibold" x-text="lastOrder.order_id"></span>
+            </div>
+            <div class="flex justify-between text-gray-600">
+                <span>Date</span>
+                <span x-text="lastOrder.date"></span>
+            </div>
+            <template x-for="item in lastOrder.items" :key="item.product_id">
+                <div class="flex justify-between text-gray-700 pt-1">
+                    <span><span x-text="item.qty"></span>× <span x-text="item.name"></span></span>
+                    <span>₱<span x-text="(item.price * item.qty).toFixed(2)"></span></span>
+                </div>
+            </template>
+            <div class="flex justify-between font-bold pt-2 border-t mt-2">
+                <span>Total</span>
+                <span>₱<span x-text="lastOrder.total.toFixed(2)"></span></span>
+            </div>
+            <div x-show="lastOrder.discount > 0" class="flex justify-between text-sm text-green-600">
+                <span>Discount</span>
+                <span>-₱<span x-text="lastOrder.discount.toFixed(2)"></span></span>
+            </div>
+            <div x-show="lastOrder.points_earned > 0" class="flex justify-between text-sm text-amber-600">
+                <span>Points Earned</span>
+                <span x-text="lastOrder.points_earned"></span>
+            </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+            <button @click="window.print()"
+                    class="flex-1 bg-amber-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-amber-700">
+                🖨 Print
+            </button>
+            <button @click="showPrintModal = false"
+                    class="flex-1 bg-gray-200 text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-300">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+{* Soft-serve Customization Modal *}
+<div x-show="showCustomizer" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center"
+     x-cloak @click.away="showCustomizer = false">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4">
+        <div class="p-6 border-b sticky top-0 bg-white z-10">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold" x-text="'Customize: ' + (customizingProduct ? customizingProduct.name : '')"></h2>
+                <button @click="showCustomizer = false" class="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-6">
+            {* Base Selection *}
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Base</h3>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="b in custBases" :key="b.base_id">
+                        <button @click="custBase = b"
+                                class="px-4 py-2 rounded-lg text-sm font-medium border transition"
+                                :class="custBase && custBase.base_id === b.base_id ? 'bg-amber-600 text-white border-amber-600' : 'bg-white text-gray-700 border-gray-300 hover:border-amber-400'"
+                                x-text="b.name"></button>
+                    </template>
+                </div>
+            </div>
+
+            {* Sauces *}
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Sauces <span class="text-xs text-gray-400">(tap to toggle)</span></h3>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="s in custSauceOptions" :key="s.sauce_id">
+                        <button @click="toggleCustSauce(s)"
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium border transition"
+                                :class="custSauces.some(x => x.sauce_id === s.sauce_id) ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-gray-700 border-gray-300 hover:border-rose-400'"
+                                x-text="s.name"></button>
+                    </template>
+                </div>
+            </div>
+
+            {* Toppings *}
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Toppings <span class="text-xs text-gray-400">(tap to toggle)</span></h3>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="t in custToppingOptions" :key="t.topping_id">
+                        <button @click="toggleCustTopping(t)"
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium border transition"
+                                :class="custToppings.some(x => x.topping_id === t.topping_id) ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-400'"
+                                x-text="t.name"></button>
+                    </template>
+                </div>
+            </div>
+
+            {* Addons *}
+            <div>
+                <h3 class="font-semibold text-gray-700 mb-3">Add-ons <span class="text-xs text-gray-400">(₱ each, tap to toggle)</span></h3>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="a in custAddonOptions" :key="a.addon_id">
+                        <button @click="toggleCustAddon(a)"
+                                class="px-3 py-1.5 rounded-lg text-xs font-medium border transition"
+                                :class="custAddons.some(x => x.addon_id === a.addon_id) ? 'bg-purple-600 text-white border-purple-600' : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400'"
+                                x-text="a.name + ' (₱' + a.price + ')'"></button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        {* Summary & Confirm *}
+        <div class="p-6 border-t bg-gray-50 rounded-b-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <div class="text-sm text-gray-500">
+                        <span x-show="custBase" x-text="custBase.name"></span>
+                        <span x-show="custSauces.length"> · Sauces: <span x-text="custSauces.length"></span></span>
+                        <span x-show="custToppings.length"> · Toppings: <span x-text="custToppings.length"></span></span>
+                        <span x-show="custAddons.length"> · Addons: <span x-text="custAddons.length"></span></span>
+                    </div>
+                </div>
+                <div class="text-2xl font-bold text-amber-700">₱<span x-text="custTotal.toFixed(2)"></span></div>
+            </div>
+            <button @click="confirmCustomization()" class="w-full bg-amber-600 text-white py-3 rounded-lg font-bold hover:bg-amber-700">
+                Add to Order — ₱<span x-text="custTotal.toFixed(2)"></span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function posApp() {
+    return {
+        products: [],
+        categories: [],
+        cart: [],
+        search: '',
+        categoryFilter: '',
+        paymentMethod: 1,
+        amountTendered: 0,
+        discountType: '',
+        discountInput: '',
+        discount: 0,
+        discountReason: '',
+        voucherCode: '',
+        voucherMessage: '',
+        voucherValid: false,
+        customerPhone: '',
+        customerName: '',
+        processing: false,
+        successMessage: '',
+        paymentMethods: [],
+        storeId: {store_id},
+        sessionId: {session.session_id},
+        // Print
+        showPrintModal: false,
+        lastOrder: null,
+
+        // Customization state
+        showCustomizer: false,
+        customizingProduct: null,
+        custBase: null,
+        custSauces: [],
+        custToppings: [],
+        custAddons: [],
+        custBases: [],
+        custSauceOptions: [],
+        custToppingOptions: [],
+        custAddonOptions: [],
+
+        get filteredProducts() {
+            return this.products.filter(p => {
+                const matchesSearch = p.name.toLowerCase().includes(this.search.toLowerCase());
+                const matchesCat = !this.categoryFilter || p.category === this.categoryFilter;
+                return matchesSearch && matchesCat && p.is_active;
+            });
+        },
+
+        get cartTotal() {
+            return this.cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        },
+
+        get finalTotal() {
+            return Math.max(0, this.cartTotal - this.discount);
+        },
+
+        get discountTypeLabel() {
+            const labels = {'senior': 'Senior Citizen', 'promo': 'Promo', 'sale': 'Sale'};
+            return labels[this.discountType] || this.discountReason || 'Discount';
+        },
+
+        get isCashPayment() {
+            const pm = this.paymentMethods.find(p => p.payment_method_id === parseInt(this.paymentMethod));
+            return pm && pm.name.toLowerCase() === 'cash';
+        },
+
+        get change() {
+            return parseFloat(this.amountTendered || 0) - this.finalTotal;
+        },
+
+        init() {
+            fetch('/dc-cafe/api/v1/products?store_id=' + this.storeId)
+                .then(r => r.json()).then(d => {
+                    if (d.ok) {
+                        this.products = d.products;
+                        this.categories = [...new Set(d.products.map(p => p.category))].filter(Boolean);
+                    }
+                });
+            fetch('/dc-cafe/api/v1/payment-methods')
+                .then(r => r.json()).then(d => {
+                    if (d.ok) this.paymentMethods = d.payment_methods;
+                });
+            // Preload soft-serve customization options
+            fetch('/dc-cafe/api/v1/soft-serve/bases').then(r => r.json()).then(d => { if (d.ok) this.custBases = d.bases; });
+            fetch('/dc-cafe/api/v1/soft-serve/sauces').then(r => r.json()).then(d => { if (d.ok) this.custSauceOptions = d.sauces; });
+            fetch('/dc-cafe/api/v1/soft-serve/toppings').then(r => r.json()).then(d => { if (d.ok) this.custToppingOptions = d.toppings; });
+            fetch('/dc-cafe/api/v1/soft-serve/addons').then(r => r.json()).then(d => { if (d.ok) this.custAddonOptions = d.addons; });
+        },
+
+        addToCart(product) {
+            if (product.is_variable) {
+                this.customizingProduct = product;
+                this.custBase = null;
+                this.custSauces = [];
+                this.custToppings = [];
+                this.custAddons = [];
+                this.showCustomizer = true;
+                return;
+            }
+            const existing = this.cart.find(i => i.id === product.id);
+            if (existing) {
+                existing.qty++;
+            } else {
+                this.cart.push({...product, qty: 1, customizations: null, custLabel: ''});
+            }
+        },
+
+        confirmCustomization() {
+            const p = this.customizingProduct;
+            const basePrice = p.price;
+            const addonTotal = this.custAddons.reduce((s, a) => s + (a.price || 0), 0);
+            const totalPrice = basePrice + addonTotal;
+
+            const cust = {
+                base: this.custBase ? {id: this.custBase.base_id, name: this.custBase.name} : null,
+                sauces: this.custSauces.map(s => ({id: s.sauce_id, name: s.name})),
+                toppings: this.custToppings.map(t => ({id: t.topping_id, name: t.name})),
+                addons: this.custAddons.map(a => ({id: a.addon_id, name: a.name, price: a.price, type: a.type})),
+                product_name: p.name,
+                is_blu: true,
+            };
+
+            const labels = [
+                this.custBase ? this.custBase.name : '',
+                ...this.custSauces.map(s => s.name),
+                ...this.custToppings.map(t => t.name),
+                ...this.custAddons.map(a => a.name),
+            ].filter(Boolean).join(', ');
+
+            this.cart.push({...p, qty: 1, price: totalPrice, customizations: cust, custLabel: labels});
+            this.showCustomizer = false;
+            this.customizingProduct = null;
+        },
+
+        toggleCustSauce(sauce) {
+            const idx = this.custSauces.findIndex(s => s.sauce_id === sauce.sauce_id);
+            if (idx >= 0) { this.custSauces.splice(idx, 1); } else { this.custSauces.push(sauce); }
+        },
+
+        toggleCustTopping(topping) {
+            const idx = this.custToppings.findIndex(t => t.topping_id === topping.topping_id);
+            if (idx >= 0) { this.custToppings.splice(idx, 1); } else { this.custToppings.push(topping); }
+        },
+
+        toggleCustAddon(addon) {
+            const idx = this.custAddons.findIndex(a => a.addon_id === addon.addon_id);
+            if (idx >= 0) { this.custAddons.splice(idx, 1); } else { this.custAddons.push(addon); }
+        },
+
+        get custTotal() {
+            const base = this.customizingProduct ? this.customizingProduct.price : 0;
+            const addons = this.custAddons.reduce((s, a) => s + (a.price || 0), 0);
+            return base + addons;
+        },
+
+        removeFromCart(idx) {
+            this.cart.splice(idx, 1);
+        },
+
+        applyDiscount() {
+            const input = (this.discountInput || '').toString().trim();
+            if (input === '' || this.discountType === '') {
+                this.discount = 0;
+                this.discountReason = '';
+                return;
+            }
+            if (input.includes('%')) {
+                const pct = parseFloat(input.replace('%', '')) || 0;
+                this.discount = Math.min(this.cartTotal * pct / 100, this.cartTotal);
+            } else {
+                this.discount = Math.min(parseFloat(input) || 0, this.cartTotal);
+            }
+            if (this.discount <= 0) this.discountReason = '';
+        },
+
+        validateVoucher() {
+            if (!this.voucherCode) return;
+            fetch('/dc-cafe/api/v1/vouchers/validate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code: this.voucherCode, order_total: this.cartTotal})
+            })
+            .then(r => r.json()).then(d => {
+                if (d.ok) {
+                    this.discount = d.discount_amount;
+                    this.discountReason = 'Voucher: ' + d.voucher.code;
+                    this.voucherMessage = 'Discount: ₱' + d.discount_amount.toFixed(2);
+                    this.voucherValid = true;
+                } else {
+                    this.voucherMessage = d.error;
+                    this.voucherValid = false;
+                }
+            });
+        },
+
+        processPayment() {
+            if (this.cart.length === 0) return;
+            this.processing = true;
+
+            const payload = {
+                store_id: this.storeId,
+                session_id: this.sessionId,
+                payment_method_id: parseInt(this.paymentMethod),
+                amount_tendered: parseFloat(this.amountTendered) || 0,
+                discount_amount: this.discount,
+                discount_reason: this.discountReason,
+                voucher_code: this.voucherCode || undefined,
+                items: this.cart.map(i => ({
+                    product_id: i.id,
+                    quantity: i.qty,
+                    unit_price: i.price,
+                    customizations: i.customizations || undefined,
+                })),
+            };
+
+            if (this.customerPhone || this.customerName) {
+                payload.customer = {
+                    name: this.customerName || 'Guest',
+                    phone: this.customerPhone || '0000000000',
+                };
+            }
+
+            fetch('/dc-cafe/api/v1/orders', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json()).then(d => {
+                if (d.ok) {
+                    this.lastOrder = {
+                        order_id: d.order_id,
+                        total: d.total,
+                        discount: d.discount || this.discount,
+                        points_earned: d.points_earned || 0,
+                        date: new Date().toLocaleString(),
+                        items: this.cart.map(i => ({name: i.name, qty: i.qty, price: i.price})),
+                    };
+                    this.successMessage = 'Order #' + d.order_id + ' — ₱' + d.total.toFixed(2)
+                        + (d.points_earned > 0 ? ' (+' + d.points_earned + ' pts)' : '');
+                    this.cart = [];
+                    this.discount = 0;
+                    this.discountInput = '';
+                    this.discountType = '';
+                    this.discountReason = '';
+                    this.amountTendered = 0;
+                    this.voucherCode = '';
+                    this.voucherMessage = '';
+                    this.customerPhone = '';
+                    this.customerName = '';
+                    // Refresh today total
+                    fetch('/dc-cafe/api/v1/dashboard/today').then(r => r.json()).then(td => {
+                        if (td.ok) document.getElementById('today-total').textContent = td.today.total.toFixed(2);
+                    });
+                } else {
+                    alert(d.error || 'Payment failed');
+                }
+            })
+            .catch(() => { alert('Connection error'); })
+            .finally(() => { this.processing = false; });
+        }
+    };
+}
+</script>
+{/block}
