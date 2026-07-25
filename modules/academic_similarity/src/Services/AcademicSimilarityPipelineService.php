@@ -180,11 +180,9 @@ class AcademicSimilarityPipelineService
                 return ['ok' => false, 'error' => $sizeError];
             }
 
-            // For DOCX, check ZIP archive structure before extraction
-            if (in_array($mimeType, [
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                'application/msword',
-            ], true)) {
+            // For DOCX (OpenXML), check ZIP archive structure before extraction.
+            // Legacy .doc (application/msword) is not a ZIP archive and is skipped here.
+            if ($mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
                 $zipError = ExtractionLimits::checkZipArchive($fullPath);
                 if ($zipError !== null) {
                     $this->subRepo->updateStatus($submissionId, 'failed', $zipError);

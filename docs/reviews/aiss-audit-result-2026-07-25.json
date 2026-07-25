@@ -2,16 +2,20 @@
     "meta": {
         "title": "AISS Architecture Audit — Machine-Readable Result",
         "date": "2026-07-25",
-        "audit_commit": "52a1f735",
+        "audit_started_at_commit": "52a1f735",
+        "remediation_verified_at_commit": "865a4ac8",
+        "repository_head": "865a4ac8fa39e562cb2c8f67fc1ae12c81ed36f3",
         "generated_by": "automated-audit-pipeline"
     },
     "test_results": {
         "php_test_files": 30,
+        "php_test_cases": 30,
         "python_test_files": 1,
+        "python_test_cases": 47,
+        "python_passed": 45,
+        "python_skipped": 2,
         "tests_passed": 31,
-        "tests_failed": 0,
-        "skipped": 2,
-        "commit": "52a1f735"
+        "tests_failed": 0
     },
     "findings": {
         "critical": {
