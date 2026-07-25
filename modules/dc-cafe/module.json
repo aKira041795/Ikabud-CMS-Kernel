@@ -85,6 +85,14 @@
                 "description": "List DC Cafe products with category and pricing"
             },
             {
+                "id": "entity.list.dc_product_stock@1",
+                "priority": 10,
+                "modes": [
+                    "first"
+                ],
+                "description": "List DC Cafe product stock levels for inventory tab"
+            },
+            {
                 "id": "entity.get.dc_product@1",
                 "priority": 10,
                 "modes": [
