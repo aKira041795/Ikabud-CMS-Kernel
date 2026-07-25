@@ -138,8 +138,9 @@ Enterprise Edition contributions may require a separate written contribution
 agreement. Contact the maintainer before beginning such work to discuss the
 applicable terms.
 
-For Community Edition (MIT) contributions, no additional agreement is needed.
-The act of submitting a pull request under the MIT license is sufficient.
+By submitting a Community Edition contribution, the contributor agrees to
+license that contribution under the repository's MIT License and confirms
+that they have the right to do so.
 
 ---
 

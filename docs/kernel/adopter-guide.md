@@ -195,7 +195,10 @@ To fully export your data for migration:
 1. Dump each tenant database: `mysqldump --single-transaction <tenant_db>`
 2. Export media files: `tar -czf media_backup.tar.gz storage/uploads/` (or
    configured upload path)
-3. Export configuration: `tar -czf config_backup.tar.gz config/ .env`
+3. Export configuration — encrypt secrets:
+   ```bash
+   tar -czf - config/ .env | gpg --symmetric --cipher-algo AES256 > config_backup.tar.gz.gpg
+   ```
 
 Ikabud avoids proprietary database formats and supports direct SQL export.
 Migration may still require mapping module schemas, workflow state, capability
