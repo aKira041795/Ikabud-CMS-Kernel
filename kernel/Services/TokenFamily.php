@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Ikabud\Kernel\Services;
 
+use Ikabud\Kernel\Contracts\TenantDatabase;
+
 /**
  * Token family — refresh token rotation with reuse detection.
  *
@@ -13,9 +15,31 @@ namespace Ikabud\Kernel\Services;
  *
  * If a previously-consumed refresh token is presented again,
  * the entire family is revoked (potential token theft detected).
+ *
+ * Injection pattern (preferred):
+ *   $tf = new TokenFamily($db);
+ *   $tf->rotate($familyId, $hash);
+ *
+ * Legacy pattern (deprecated):
+ *   TokenFamily::rotate($familyId, $hash);
  */
 class TokenFamily
 {
+    private TenantDatabase $db;
+
+    /**
+     * @var ?self Singleton instance for backward-compatible static calls
+     */
+    private static ?self $instance = null;
+
+    /**
+     * @param TenantDatabase $db Tenant-scoped database access
+     */
+    public function __construct(TenantDatabase $db)
+    {
+        $this->db = $db;
+    }
+
     /**
      * Attempt to rotate a refresh token within its family.
      *
@@ -26,13 +50,11 @@ class TokenFamily
      * On theft detection, returns success=false with reason='theft_detected'
      * and the entire family is revoked.
      */
-    public static function rotate(string $familyId, string $tokenHash): array
+    public function rotate(string $familyId, string $tokenHash): array
     {
-        $db = self::db();
-
         try {
             // Lock the family row for atomicity
-            $stmt = $db->prepare(
+            $stmt = $this->db->prepare(
                 'SELECT id, user_id, status, current_token_hash, consumed_token_hashes
                  FROM kernel_token_families
                  WHERE family_id = ? FOR UPDATE'
@@ -52,22 +74,22 @@ class TokenFamily
             // Check if this token was already consumed (theft detection)
             if (in_array($tokenHash, $consumed, true)) {
                 // Token theft detected — revoke the entire family
-                $db->prepare(
+                $this->db->execute(
                     'UPDATE kernel_token_families
                      SET status = \'revoked\', revoked_at = NOW()
-                     WHERE family_id = ?'
-                )->execute([$familyId]);
+                     WHERE family_id = ?',
+                    [$familyId]
+                );
 
                 // Also revoke all associated device sessions
-                if (function_exists('app')) {
-                    $db->prepare(
-                        'UPDATE kernel_device_sessions
-                         SET revoked_at = NOW()
-                         WHERE token_family_id = ? AND revoked_at IS NULL'
-                    )->execute([$familyId]);
-                }
+                $this->db->execute(
+                    'UPDATE kernel_device_sessions
+                     SET revoked_at = NOW()
+                     WHERE token_family_id = ? AND revoked_at IS NULL',
+                    [$familyId]
+                );
 
-                self::log('token_theft_detected', 'critical', [
+                $this->log('token_theft_detected', 'critical', [
                     'family_id' => $familyId,
                     'user_id' => $family['user_id'],
                 ]);
@@ -83,13 +105,14 @@ class TokenFamily
             $newHash = hash('sha256', $newRefreshToken);
             $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
 
-            $db->prepare(
+            $this->db->execute(
                 'UPDATE kernel_token_families
                  SET current_token_hash = ?,
                      consumed_token_hashes = ?,
                      updated_at = NOW()
-                 WHERE family_id = ?'
-            )->execute([$newHash, json_encode($consumed), $familyId]);
+                 WHERE family_id = ?',
+                [$newHash, json_encode($consumed), $familyId]
+            );
 
             return [
                 'success'    => true,
@@ -99,7 +122,7 @@ class TokenFamily
                 'expires_at' => $expiresAt,
             ];
         } catch (\Throwable $e) {
-            self::log('token_family_rotate_error', 'error', [
+            $this->log('token_family_rotate_error', 'error', [
                 'family_id' => $familyId,
                 'error'     => $e->getMessage(),
             ]);
@@ -114,17 +137,18 @@ class TokenFamily
      * @param string $deviceId  Unique device identifier
      * @return array{family_id: string, refresh_token: string, refresh_hash: string, expires_at: string}
      */
-    public static function create(int $userId, string $deviceId): array
+    public function create(int $userId, string $deviceId): array
     {
         $familyId = bin2hex(random_bytes(16));
         $refreshToken = bin2hex(random_bytes(32));
         $refreshHash = hash('sha256', $refreshToken);
         $expiresAt = date('Y-m-d H:i:s', strtotime('+30 days'));
 
-        self::db()->prepare(
+        $this->db->execute(
             'INSERT INTO kernel_token_families (family_id, user_id, current_token_hash, status, created_at, updated_at)
-             VALUES (?, ?, ?, \'active\', NOW(), NOW())'
-        )->execute([$familyId, $userId, $refreshHash]);
+             VALUES (?, ?, ?, \'active\', NOW(), NOW())',
+            [$familyId, $userId, $refreshHash]
+        );
 
         return [
             'family_id'     => $familyId,
@@ -137,42 +161,58 @@ class TokenFamily
     /**
      * Revoke an entire token family.
      */
-    public static function revoke(string $familyId): void
+    public function revoke(string $familyId): void
     {
-        self::db()->prepare(
+        $this->db->execute(
             'UPDATE kernel_token_families
              SET status = \'revoked\', revoked_at = NOW()
-             WHERE family_id = ? AND status = \'active\''
-        )->execute([$familyId]);
+             WHERE family_id = ? AND status = \'active\'',
+            [$familyId]
+        );
     }
 
     /**
      * Revoke all families for a user (logout all devices).
      */
-    public static function revokeAllForUser(int $userId): void
+    public function revokeAllForUser(int $userId): void
     {
-        self::db()->prepare(
+        $this->db->execute(
             'UPDATE kernel_token_families
              SET status = \'revoked\', revoked_at = NOW()
-             WHERE user_id = ? AND status = \'active\''
-        )->execute([$userId]);
+             WHERE user_id = ? AND status = \'active\'',
+            [$userId]
+        );
 
-        self::db()->prepare(
+        $this->db->execute(
             'UPDATE kernel_device_sessions
              SET revoked_at = NOW()
-             WHERE user_id = ? AND revoked_at IS NULL'
-        )->execute([$userId]);
+             WHERE user_id = ? AND revoked_at IS NULL',
+            [$userId]
+        );
     }
 
-    private static function db(): \PDO
+    /**
+     * Set the singleton instance for backward-compatible static access.
+     * Called during App::boot() to wire the default instance.
+     */
+    public static function setInstance(self $instance): void
     {
-        if (function_exists('app') && $app = \app()) {
-            return $app->db();
-        }
-        throw new \RuntimeException('Application not available');
+        self::$instance = $instance;
     }
 
-    private static function log(string $message, string $level, array $context = []): void
+    /**
+     * Get the singleton instance for static access.
+     * Falls back to creating a new instance with AppTenantDatabase adapter.
+     */
+    public static function instance(): self
+    {
+        if (self::$instance === null) {
+            self::$instance = new self(new \Ikabud\Kernel\Adapters\AppTenantDatabase());
+        }
+        return self::$instance;
+    }
+
+    private function log(string $message, string $level, array $context = []): void
     {
         if (function_exists('write_log')) {
             write_log($message, $level, $context);

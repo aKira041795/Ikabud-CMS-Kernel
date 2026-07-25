@@ -95,13 +95,24 @@ interface TenantDatabase {
 
 Each subsystem gets a concrete provider implementing its contract. Providers are registered with `App` during bootstrap.
 
+**Status**: ✅ Completed (2026-07-25)
+
+| Provider | File | Status |
+|----------|------|--------|
+| `AppTenantDatabase` | `kernel/Adapters/AppTenantDatabase.php` | ✅ Created |
+| `AppAuthProvider` | `kernel/Adapters/AppAuthProvider.php` | ✅ Created |
+| `AppRenderEngine` | `kernel/Adapters/AppRenderEngine.php` | ✅ Created |
+
+Adapter classes wrap the existing `App` singleton behind the narrow contract interfaces. They can be injected into services immediately without changing App's internal architecture.
+
+**PoC migration**: `TokenFamily` service migrated from `app()->db()` to `TenantDatabase $db` constructor injection (see `kernel/Services/TokenFamily.php`). Test at `tests/token_family_injection_poc_test.php` demonstrates fake provider usage.
+
 ```php
 // kernel/Providers/DatabaseProvider.php
-class DatabaseProvider implements TenantDatabase { ... }
+class AppTenantDatabase implements TenantDatabase { ... }
 
-// kernel/App.php — boot()
-$this->registerProvider(TenantDatabase::class, new DatabaseProvider($this->config));
-```
+// Usage in service (new pattern):
+$service = new TokenFamily($db);
 
 ### Step 3: Inject narrow interfaces (v6.3-v6.4)
 
