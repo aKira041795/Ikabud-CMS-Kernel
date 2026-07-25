@@ -219,8 +219,10 @@ function apiDcCafeForgotPassword(array $params = []): void
         [$userId, $tokenHash, $ip !== '' ? $ip : null, $expiresAt]
     );
 
-    // Build reset link
-    $resetUrl = rtrim((string) config('app.url', 'http://dccafe.test'), '/') . '/dc-cafe/reset-password?token=' . $token;
+    // Build reset link using the actual request host
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'dccafe.test';
+    $resetUrl = $scheme . '://' . $host . '/dc-cafe/reset-password?token=' . $token;
 
     // Log for now — email sending requires mail infrastructure
     write_log('dc-cafe password reset requested', 'info', [

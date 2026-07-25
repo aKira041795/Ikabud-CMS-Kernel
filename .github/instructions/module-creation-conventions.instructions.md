@@ -26,8 +26,9 @@ applyTo: "**/*.php **/*.disyl **/module.json"
 
 ## Forgot Password
 - Table: `<prefix>_password_resets`. MUST be in `module.json` `owns_tables`.
-- Reset URL is logged to `storage/logs/app.log` via `write_log()` — no mail server needed in dev.
-
+- Reset URL is logged to `storage/logs/app.log` via `write_log()` — no mail server needed in dev.- **Build the reset URL using the request host**, not `config('app.url')` — `APP_URL` may differ from the actual domain.
+  ✅ `$scheme . '://' . $_SERVER['HTTP_HOST'] . '/reset-password?token=' . $token`
+  ❌ `config('app.url') . '/reset-password?token=' . $token`
 ## Post-Creation
 1. Run `php ikabud tenant:migrate <domain> <module>`
 2. Check app.log for capability warnings
