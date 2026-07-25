@@ -1,3 +1,7 @@
+---
+description: "Complete new module checklist: user seeding, DiSyL syntax, capability handler placement, JWT auth, role access matrix, forgot password, log permissions, post-creation validation, debugging guide. Use when creating or auditing any new module."
+applyTo: "**/*.php, **/*.disyl, **/module.json"
+---
 # New Module Checklist — De Facto Process
 
 Applies to all `**/*.php`, `**/*.disyl`, `**/module.json` in new module creation.
