@@ -61,4 +61,24 @@ final class AppTenantDatabase implements TenantDatabase
     {
         return $this->app->reconnectDbForTenant($tenantId);
     }
+
+    public function beginTransaction(): bool
+    {
+        return $this->app->db()->beginTransaction();
+    }
+
+    public function commit(): bool
+    {
+        return $this->app->db()->commit();
+    }
+
+    public function rollBack(): bool
+    {
+        return $this->app->db()->rollBack();
+    }
+
+    public function inTransaction(): bool
+    {
+        return $this->app->db()->inTransaction();
+    }
 }

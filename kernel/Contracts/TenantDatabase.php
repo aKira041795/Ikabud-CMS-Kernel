@@ -56,4 +56,24 @@ interface TenantDatabase
      * Reconnect the database connection for a specific tenant.
      */
     public function reconnectForTenant(int $tenantId): ?\PDO;
+
+    /**
+     * Begin a database transaction.
+     */
+    public function beginTransaction(): bool;
+
+    /**
+     * Commit the current transaction.
+     */
+    public function commit(): bool;
+
+    /**
+     * Roll back the current transaction.
+     */
+    public function rollBack(): bool;
+
+    /**
+     * Check if a transaction is currently active.
+     */
+    public function inTransaction(): bool;
 }

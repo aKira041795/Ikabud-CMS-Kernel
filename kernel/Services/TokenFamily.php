@@ -20,8 +20,8 @@ use Ikabud\Kernel\Contracts\TenantDatabase;
  *   $tf = new TokenFamily($db);
  *   $tf->rotate($familyId, $hash);
  *
- * Legacy pattern (deprecated):
- *   TokenFamily::rotate($familyId, $hash);
+ * Static access:
+ *   TokenFamily::instance()->rotate($familyId, $hash);
  */
 class TokenFamily
 {
@@ -43,6 +43,10 @@ class TokenFamily
     /**
      * Attempt to rotate a refresh token within its family.
      *
+     * The operation runs inside a database transaction with SELECT FOR UPDATE
+     * to prevent concurrent rotation races. On theft detection, the entire
+     * family is revoked atomically as part of the same transaction.
+     *
      * @param string $familyId   Unique family identifier (UUID)
      * @param string $tokenHash  SHA-256 hash of the presented refresh token
      * @return array{success: bool, user_id?: int, new_token?: string, new_hash?: string, expires_at?: string}
@@ -52,8 +56,10 @@ class TokenFamily
      */
     public function rotate(string $familyId, string $tokenHash): array
     {
+        $this->db->beginTransaction();
+
         try {
-            // Lock the family row for atomicity
+            // Lock the family row for atomicity within the transaction
             $stmt = $this->db->prepare(
                 'SELECT id, user_id, status, current_token_hash, consumed_token_hashes
                  FROM kernel_token_families
@@ -63,6 +69,7 @@ class TokenFamily
             $family = $stmt->fetch(\PDO::FETCH_ASSOC);
 
             if (!$family) {
+                $this->db->rollBack();
                 return ['success' => false, 'reason' => 'family_not_found'];
             }
 
@@ -81,7 +88,6 @@ class TokenFamily
                     [$familyId]
                 );
 
-                // Also revoke all associated device sessions
                 $this->db->execute(
                     'UPDATE kernel_device_sessions
                      SET revoked_at = NOW()
@@ -94,6 +100,7 @@ class TokenFamily
                     'user_id' => $family['user_id'],
                 ]);
 
+                $this->db->commit();
                 return ['success' => false, 'reason' => 'theft_detected'];
             }
 
@@ -114,6 +121,8 @@ class TokenFamily
                 [$newHash, json_encode($consumed), $familyId]
             );
 
+            $this->db->commit();
+
             return [
                 'success'    => true,
                 'user_id'    => (int)$family['user_id'],
@@ -122,6 +131,10 @@ class TokenFamily
                 'expires_at' => $expiresAt,
             ];
         } catch (\Throwable $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
             $this->log('token_family_rotate_error', 'error', [
                 'family_id' => $familyId,
                 'error'     => $e->getMessage(),
