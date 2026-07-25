@@ -224,12 +224,28 @@ function apiDcCafeForgotPassword(array $params = []): void
     $host = $_SERVER['HTTP_HOST'] ?? 'dccafe.test';
     $resetUrl = $scheme . '://' . $host . '/dc-cafe/reset-password?token=' . $token;
 
-    // Log for now — email sending requires mail infrastructure
+    // Log the reset URL
     write_log('dc-cafe password reset requested', 'info', [
         'user_id' => $userId,
         'username' => $user['username'],
         'reset_url' => $resetUrl,
     ]);
+
+    // Send reset email
+    $userEmail = trim((string)($user['email'] ?? ''));
+    if ($userEmail !== '' && filter_var($userEmail, FILTER_VALIDATE_EMAIL) && function_exists('buildEmailTemplate') && function_exists('sendEmail')) {
+        $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
+        $policy = kernel_password_reset_policy();
+        $ttlMinutes = $policy['token_ttl_minutes'] ?? 30;
+        $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
+            . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your DC Cafe POS password.</p>'
+            . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
+        $body = buildEmailTemplate('Reset Your DC Cafe Password', $content, 'Reset Password', $resetUrl);
+        $sent = sendEmail($userEmail, 'DC Cafe Password Reset', $body);
+        if (!$sent) {
+            write_log('dc-cafe forgot-password email dispatch failed for user_id=' . (string)$userId, 'error');
+        }
+    }
 
     echo json_encode(['ok' => true, 'message' => 'If the account exists, a reset link has been sent.']);
     exit;
