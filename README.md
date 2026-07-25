@@ -19,6 +19,27 @@ Many languages. Many outputs.
 
 ---
 
+## Choose Your Path
+
+```
+I want to understand Ikabud  ──────────────────────>  README below · [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md)
+I want to try it locally  ─────────────────────────>  [Quick Deploy](#quick-deploy-to-bluehost) · [docs/kernel/installation.md](docs/kernel/installation.md)
+I want to deploy a pilot  ─────────────────────────>  [ADOPTER-GUIDE.md](docs/kernel/adopter-guide.md)
+I want to build a module  ─────────────────────────>  [docs/kernel/module-development-guide.md](docs/kernel/module-development-guide.md)
+I want to contribute to the kernel  ───────────────>  [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/kernel/contributor-workflows.md](docs/kernel/contributor-workflows.md)
+I want to evaluate for an institution  ────────────>  [docs/kernel/installation.md](docs/kernel/installation.md) · [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md)
+```
+
+### Governance
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — How to contribute, review expectations, CLA process
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — Community behavior expectations
+- [SECURITY.md](SECURITY.md) — Vulnerability reporting and disclosure policy
+- [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) — Project principles and design rationale
+- [docs/TERMINOLOGY.md](docs/TERMINOLOGY.md) — Canonical terminology and retired terms
+
+---
+
 ## Key Features
 
 - **Multi-tenant by default** — Isolated databases per organization.
@@ -87,6 +108,15 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 
 ## Documentation
 
+### Audience guides
+
+| Document | For |
+|---|---|
+| [PHILOSOPHY.md](docs/PHILOSOPHY.md) | Understanding Ikabud's principles, design decisions, and scope limits |
+| [TERMINOLOGY.md](docs/TERMINOLOGY.md) | Canonical terminology and retired terms |
+
+### Technical reference
+
 | Document | Topic |
 |---|---|
 | [ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) | Kernel OS system architecture |
@@ -105,8 +135,8 @@ See [docs/kernel/installation.md](docs/kernel/installation.md) for the full guid
 | [cms-performance-and-scalability.md](docs/cms/cms-performance-and-scalability.md) | CMS performance benchmark + scaling analysis |
 | [ark-authority-layer-plan.md](docs/themes/ark-authority-layer-plan.md) | **ARK** — Architectural Rendering Kit: the visual operating specification of Ikabud |
 | [roadmap.md](docs/kernel/roadmap.md) | Project roadmap |
-| [mobile-offline-db-readiness.md](docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md) | Mobile-app backend capability review — 13 gaps across Kernel OS/DiSyL/ARK |
-| [mobile-api-platform-plan.md](docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md) | 6-phase implementation plan: API reliability, offline sync, mobile auth |
+| [mobile-offline-db-readiness.md](docs/reviews/mobile-offline-db-readiness-review-2026-07-10.md) | Mobile-app backend capability review |
+| [mobile-api-platform-plan.md](docs/reviews/mobile-api-platform-implementation-plan-2026-07-10.md) | Mobile API implementation plan |
 
 ---
 
