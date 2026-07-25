@@ -63,14 +63,14 @@ variance calculation, offline sync, role-based access, and export formats.
 
 ## Measurable results
 
-| Metric | Before | After |
-|---|---|---|
-| Daily reconciliation time | 30–45 min per branch | 5–10 min per branch |
-| Variance detection | 2–5 days after occurrence | Same-day automatic |
-| Cross-branch visibility | None (paper silos) | Real-time dashboard |
-| Report generation | Manual (hours) | One-click CSV/PDF |
-| Data loss risk | High (paper) | Low (database + backups) |
-| Active branches | 3 | 5+ |
+| Metric | Before | After | Evidence source |
+|---|---|---|---|
+| Daily reconciliation time | 30–45 min per branch | 5–10 min per branch | Reported by branch operators during rollout |
+| Variance detection | 2–5 days after occurrence | Same-day automatic | System behavior (automatic calculation) |
+| Cross-branch visibility | None (paper silos) | Real-time dashboard | System capability (supervisor dashboard) |
+| Report generation | Manual (hours) | One-click CSV/PDF | System capability (export pipeline) |
+| Data loss risk | High (paper) | Low (database + backups) | System architecture (database + backup procedures) |
+| Active branches | 3 | 5+ | Tenant configuration and deployment records |
 
 ## Lessons learned
 

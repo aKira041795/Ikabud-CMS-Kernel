@@ -35,3 +35,22 @@ coherent platform — not disconnected modules.
 
 This demo is for technical evaluators, pilot adopters, and contributors who
 want to see Ikabud working before reading architecture documents.
+
+## Status: Scripted walkthrough
+
+This directory contains a **scripted walkthrough** — a step-by-step guide
+for someone with a working Ikabud installation to follow. It is not yet a
+live/public demo deployment.
+
+A complete public demo would additionally require:
+
+- A reachable demo URL or packaged local environment (Docker)
+- Seeded non-sensitive demonstration data
+- Demo credentials or guided anonymous access
+- Automatic data reset between sessions
+- Screenshots or a short video walkthrough
+- Clear notice that demo data is fictional
+- A visible version and last-reset date
+
+See the [Adopter Guide](../kernel/adopter-guide.md) for installation and
+seed instructions to set up your own evaluation environment.
