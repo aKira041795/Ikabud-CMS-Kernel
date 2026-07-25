@@ -1,10 +1,13 @@
 {extends "modules/dc-cafe/layouts/app.disyl"}
 
 {block content}
-<div x-data="{ tab: 'ingredients' }" class="space-y-4">
+<div x-data="inventoryApp()" x-init="init()" class="space-y-4">
     <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-gray-800">Inventory</h1>
-        <a x-show="tab === 'ingredients'" href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+        <div x-show="tab === 'ingredients'" class="flex gap-2">
+            <a href="/dc-cafe/ingredients" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200">Manage Ingredients</a>
+            <a href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+        </div>
         <a x-show="tab === 'products'" href="/dc-cafe/products/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Products</a>
     </div>
 
@@ -23,8 +26,68 @@
     </div>
 
     {* Ingredients tab *}
-    <div x-show="tab === 'ingredients'" class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-        {ikb_entity_list source="dc_inventory" view="table" empty="No ingredients found." /}
+    <div x-show="tab === 'ingredients'" class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div x-show="!items.length" class="text-center py-8 text-gray-500">Loading...</div>
+        <div x-show="items.length" class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide border-b">
+                        <th class="text-left px-4 py-3">Ingredient</th>
+                        <th class="text-left px-4 py-3">Unit</th>
+                        <th class="text-right px-4 py-3">Cost/Unit</th>
+                        <th class="text-right px-4 py-3 w-28">Stock</th>
+                        <th class="text-right px-4 py-3 w-28">Reorder At</th>
+                        <th class="text-center px-4 py-3 w-16">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="item in items" :key="item.id">
+                        <tr class="border-b border-gray-100 hover:bg-amber-50 transition"
+                            :class="{'bg-red-50': item.is_low}">
+                            <td class="px-4 py-3 font-medium text-gray-800" x-text="item.name"></td>
+                            <td class="px-4 py-3 text-gray-500" x-text="item.unit"></td>
+                            <td class="px-4 py-3 text-right text-gray-700">₱<span x-text="item.cost_per_unit.toFixed(2)"></span></td>
+                            <td class="px-4 py-3 text-right">
+                                {if user.role == 'admin' || user.role == 'supervisor'}
+                                <div class="inline-flex items-center gap-1">
+                                    <input type="number" step="any" min="0"
+                                           x-model="item.stock"
+                                           @input.debounce.800="saveStock(item)"
+                                           class="w-20 text-right px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500"
+                                           :class="{'border-red-300 bg-red-50': item.is_low}">
+                                    <span x-show="item.saving" class="text-xs text-amber-600">...</span>
+                                    <span x-show="item.saved" class="text-xs text-green-600">✓</span>
+                                </div>
+                                {else}
+                                <span class="font-semibold" :class="item.is_low ? 'text-red-600' : 'text-gray-800'"
+                                      x-text="item.stock.toFixed(item.unit === 'pcs' ? 0 : 2)"></span>
+                                {/if}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                {if user.role == 'admin' || user.role == 'supervisor'}
+                                <div class="inline-flex items-center gap-1 justify-end">
+                                    <input type="number" step="any" min="0"
+                                           x-model="item.reorder_level"
+                                           @input.debounce.800="saveReorder(item)"
+                                           class="w-20 text-right px-2 py-1 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    <span x-show="item.savingReorder" class="text-xs text-amber-600">...</span>
+                                    <span x-show="item.savedReorder" class="text-xs text-green-600">✓</span>
+                                </div>
+                                {else}
+                                <span class="text-gray-700" x-text="item.reorder_level.toFixed(0)"></span>
+                                {/if}
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                <span x-show="item.is_low"
+                                      class="inline-block bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded">LOW</span>
+                                <span x-show="!item.is_low"
+                                      class="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded">OK</span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     {* Products tab *}
@@ -32,4 +95,64 @@
         {ikb_entity_list source="dc_product_stock" view="table" empty="No products found." /}
     </div>
 </div>
+
+<script>
+function inventoryApp() {
+    return {
+        tab: 'ingredients',
+        items: [],
+        init() {
+            fetch('/dc-cafe/api/v1/inventory')
+                .then(r => r.json()).then(d => {
+                    if (d.ok) this.items = d.inventory;
+                });
+        },
+        saveStock(item) {
+            item.saving = true;
+            item.saved = false;
+            fetch('/dc-cafe/api/v1/inventory/stock/' + item.id, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({current_stock: item.stock})
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    item.saving = false;
+                    item.saved = true;
+                    setTimeout(() => item.saved = false, 2000);
+                    // Update is_low based on new stock
+                    item.is_low = item.stock <= item.reorder_level && item.reorder_level > 0;
+                } else {
+                    item.saving = false;
+                    alert('Failed to save: ' + (d.error || 'Unknown error'));
+                }
+            })
+            .catch(() => { item.saving = false; alert('Connection error'); });
+        },
+        saveReorder(item) {
+            item.savingReorder = true;
+            item.savedReorder = false;
+            fetch('/dc-cafe/api/v1/inventory/stock/' + item.id, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({reorder_level: item.reorder_level})
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    item.savingReorder = false;
+                    item.savedReorder = true;
+                    setTimeout(() => item.savedReorder = false, 2000);
+                    item.is_low = item.stock <= item.reorder_level && item.reorder_level > 0;
+                } else {
+                    item.savingReorder = false;
+                    alert('Failed to save: ' + (d.error || 'Unknown error'));
+                }
+            })
+            .catch(() => { item.savingReorder = false; alert('Connection error'); });
+        }
+    };
+}
+</script>
 {/block}

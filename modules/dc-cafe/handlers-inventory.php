@@ -409,3 +409,75 @@ function apiUpdateIngredient(array $params = []): void
     );
     dcJsonResponse(['ok' => true]);
 }
+
+/**
+ * PATCH /dc-cafe/api/v1/inventory/stock/{id} — Inline update stock/reorder
+ *
+ * Input: { current_stock?, reorder_level? }
+ * Only updates fields that are provided.
+ */
+function apiUpdateInventoryStock(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid ingredient ID', 400);
+    }
+
+    $currentStock = dcInput('current_stock');
+    $reorderLevel = dcInput('reorder_level');
+    $hasStock = $currentStock !== null;
+    $hasReorder = $reorderLevel !== null;
+
+    if (!$hasStock && !$hasReorder) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $db = dcDb();
+    $ingredient = $db->query(
+        "SELECT ingredient_id, current_stock FROM dc_ingredients WHERE ingredient_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$ingredient) {
+        dcJsonError('Ingredient not found', 404);
+    }
+
+    $oldStock = (float) $ingredient['current_stock'];
+    $sets = [];
+    $vals = [];
+
+    if ($hasStock) {
+        $newStock = (float) $currentStock;
+        if ($newStock < 0) {
+            dcJsonError('Stock cannot be negative', 422);
+        }
+        $sets[] = 'current_stock = ?';
+        $vals[] = $newStock;
+
+        $diff = $newStock - $oldStock;
+        if ((int) $diff !== 0) {
+            $movementType = $diff > 0 ? 'adjustment' : 'waste';
+        }
+    }
+
+    if ($hasReorder) {
+        $sets[] = 'reorder_level = ?';
+        $vals[] = (float) $reorderLevel;
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_ingredients SET " . implode(', ', $sets) . " WHERE ingredient_id = ?", $vals);
+
+    if (isset($movementType)) {
+        $db->query(
+            "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type, notes, created_by)
+             VALUES (?, ?, ?, 'Inline edit', ?)",
+            [$id, $diff, $movementType, (int) $ctx->user()['user_id']]
+        );
+    }
+
+    dcJsonResponse(['ok' => true]);
+}
