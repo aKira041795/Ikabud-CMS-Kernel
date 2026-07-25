@@ -931,6 +931,32 @@ if (!function_exists('kernelHandleApiTenantAdminEmailPush')) {
                     }
                     $skipped[] = 'users';
                 }
+
+                // Update dc_users (dc-cafe module)
+                try {
+                    $check = $tDb->prepare('SELECT user_id, email FROM dc_users WHERE role IN (:r1, :r2, :r3) AND is_active = 1 ORDER BY user_id ASC LIMIT 1');
+                    $check->execute([':r1' => 'admin', ':r2' => 'supervisor', ':r3' => 'auditor']);
+                    $admin = $check->fetch(PDO::FETCH_ASSOC);
+                    if ($admin) {
+                        if ($admin['email'] === $adminEmail) {
+                            $pushed[] = 'dc_users';
+                        } else {
+                            $r = $tDb->prepare('UPDATE dc_users SET email = :e WHERE user_id = :id LIMIT 1');
+                            $r->execute([':e' => $adminEmail, ':id' => $admin['user_id']]);
+                            $pushed[] = 'dc_users';
+                        }
+                    } else {
+                        $skipped[] = 'dc_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminEmailPush dc_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'dc_users';
+                }
             } else {
                 $skipped[] = 'tenant_db_not_configured';
             }
@@ -1098,6 +1124,25 @@ if (!function_exists('kernelHandleApiTenantAdminPasswordPush')) {
                         ]);
                     }
                     $skipped[] = 'bakeshop_users';
+                }
+
+                // Update dc_users (dc-cafe module)
+                try {
+                    $r = $tDb->prepare("UPDATE dc_users SET password_hash = :p, updated_at = NOW() WHERE role IN (:r1, :r2, :r3) AND is_active = 1");
+                    $r->execute([':p' => $hashMsg, ':r1' => 'admin', ':r2' => 'supervisor', ':r3' => 'auditor']);
+                    if ($r->rowCount() > 0) {
+                        $pushed[] = 'dc_users';
+                    } else {
+                        $skipped[] = 'dc_users:no_matching_row';
+                    }
+                } catch (Throwable $ex) {
+                    $msg = $ex->getMessage();
+                    if (strpos($msg, '1146') === false && stripos($msg, 'Base table or view not found') === false) {
+                        write_log('apiTenantAdminPasswordPush dc_users failed: ' . $msg, 'error', [
+                            'tenant_id' => $tenantId, 'request_id' => request_id(),
+                        ]);
+                    }
+                    $skipped[] = 'dc_users';
                 }
             } else {
                 $skipped[] = 'tenant_db_not_configured';
