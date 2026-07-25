@@ -17,10 +17,12 @@ function dc_cap_entity_list_product_1(array $params = []): array
 
     $rows = $db->query(
         "SELECT p.product_id, p.name, p.base_price, p.is_variable, p.is_active,
+                p.current_stock, p.has_stock,
                 c.name AS category_name, c.category_id
          FROM dc_products p
          JOIN dc_categories c ON c.category_id = p.category_id
          WHERE p.store_id = ?
+           AND (p.has_stock = 0 OR p.current_stock > 0)
          ORDER BY c.sort_order ASC, p.name ASC",
         [$storeId]
     )->fetchAll(\PDO::FETCH_ASSOC);
@@ -34,6 +36,8 @@ function dc_cap_entity_list_product_1(array $params = []): array
             'category_id' => (int) $row['category_id'],
             'is_variable' => (bool) $row['is_variable'],
             'is_active'   => (bool) $row['is_active'],
+            'current_stock' => (float) $row['current_stock'],
+            'has_stock'     => (bool) $row['has_stock'],
         ];
     }, $rows);
 }
