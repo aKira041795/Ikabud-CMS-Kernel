@@ -404,9 +404,9 @@ def _run_with_timeout(func, args, timeout_seconds: int = 30):
 
 def _prune_old_errors():
     """Remove error timestamps older than _ERROR_WINDOW_HOURS."""
-    global _error_timestamps
     cutoff = time.time() - _ERROR_WINDOW_HOURS * 3600
-    _error_timestamps = [ts for ts in _error_timestamps if ts >= cutoff]
+    keep = [ts for ts in _error_timestamps if ts >= cutoff]
+    _error_timestamps[:] = keep  # Mutate in place so imported references see changes
     return len(_error_timestamps)
 
 

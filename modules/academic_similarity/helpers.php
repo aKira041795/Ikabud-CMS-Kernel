@@ -56,6 +56,7 @@ define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '008');
         '/Validators/AcademicSimilarityFileValidator.php',
         '/Support/AcademicSimilarityTextExtractor.php',
         '/Support/AcademicSimilarityStorage.php',
+        '/Support/ExtractionLimits.php',
     ];
     foreach ($files as $file) {
         $path = $base . $file;

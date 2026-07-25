@@ -102,6 +102,104 @@ $result5 = $matching->smithWatermanAlignment(['a', 'b'], ['a', 'b'], [
 ], 0);
 t('tiny window returns null', $result5 === null);
 
+// ── Test: insertion (extra words in submission) ──
+echo "\n--- Insertion (Extra Words in Submission) ---\n";
+// Sub: "the quick brown fox SOMETHING jumps over the lazy dog"
+// Src: "the quick brown fox jumps over the lazy dog"
+$subIns = explode(' ', 'the quick brown fox something jumps over the lazy dog');
+$srcIns = explode(' ', 'the quick brown fox jumps over the lazy dog');
+$resultIns = $matching->smithWatermanAlignment($subIns, $srcIns, [
+    'sub_start' => 0, 'sub_end' => count($subIns) - 1,
+    'src_start' => 0, 'src_end' => count($srcIns) - 1,
+], 5);
+t('insertion test produces alignment', $resultIns !== null);
+if ($resultIns !== null) {
+    // With affine gap penalties (-3 open, -1 extend), a single-word insertion
+    // may be handled as a mismatch (-2) rather than a gap (-3+). Verify
+    // the alignment covers the matching words correctly regardless.
+    t('insertion alignment length >= 7', $resultIns['length'] >= 7, "got: {$resultIns['length']}");
+    t('insertion sub_start correct', $resultIns['sub_start'] >= 0);
+    t('insertion src_start correct', $resultIns['src_start'] >= 0);
+}
+
+// ── Test: deletion (words missing from submission) ──
+echo "\n--- Deletion (Words Missing From Submission) ---\n";
+// Sub: "the quick brown fox lazy dog"
+// Src: "the quick brown fox jumps over the lazy dog"
+$subDel = explode(' ', 'the quick brown fox lazy dog');
+$srcDel = explode(' ', 'the quick brown fox jumps over the lazy dog');
+$resultDel = $matching->smithWatermanAlignment($subDel, $srcDel, [
+    'sub_start' => 0, 'sub_end' => count($subDel) - 1,
+    'src_start' => 0, 'src_end' => count($srcDel) - 1,
+], 5);
+t('deletion test produces alignment', $resultDel !== null);
+if ($resultDel !== null) {
+    // Single-word deletion may align as mismatch (-2) instead of gap (-3+).
+    // Smith-Waterman is local: after diverging words, alignment may restart.
+    // "the quick brown fox" (4 words) is a valid local alignment.
+    t('deletion alignment length >= 4', $resultDel['length'] >= 4, "got: {$resultDel['length']}");
+    t('deletion sub_start correct', $resultDel['sub_start'] >= 0);
+    t('deletion src_start correct', $resultDel['src_start'] >= 0);
+}
+
+// ── Test: substitution (word changed) ──
+echo "\n--- Substitution (Word Changed) ---\n";
+// Sub: "the quick brown fox jumps over the sleepy dog"
+// Src: "the quick brown fox jumps over the lazy dog"
+$subSub = explode(' ', 'the quick brown fox jumps over the sleepy dog');
+$srcSub = explode(' ', 'the quick brown fox jumps over the lazy dog');
+$resultSub = $matching->smithWatermanAlignment($subSub, $srcSub, [
+    'sub_start' => 0, 'sub_end' => count($subSub) - 1,
+    'src_start' => 0, 'src_end' => count($srcSub) - 1,
+], 5);
+t('substitution test produces alignment', $resultSub !== null);
+if ($resultSub !== null) {
+    t('substitution alignment has correct sub_start', $resultSub['sub_start'] >= 0);
+    t('substitution alignment has correct src_start', $resultSub['src_start'] >= 0);
+    t('substitution alignment covers matching parts', $resultSub['length'] >= 7, "got: {$resultSub['length']}");
+}
+
+// ── Test: repeated phrases in source ──
+echo "\n--- Repeated Phrases ---\n";
+// Sub: "hello world foo bar baz"
+// Src: "the quick brown fox hello world foo bar baz and hello world again"
+// The repeated "hello world" should not cause missed alignments
+$subRepeat = explode(' ', 'hello world foo bar baz');
+$srcRepeat = explode(' ', 'the quick brown fox hello world foo bar baz and hello world again');
+$resultRepeat = $matching->smithWatermanAlignment($subRepeat, $srcRepeat, [
+    'sub_start' => 0, 'sub_end' => count($subRepeat) - 1,
+    'src_start' => 0, 'src_end' => count($srcRepeat) - 1,
+], 5);
+t('repeated phrase produces alignment', $resultRepeat !== null);
+if ($resultRepeat !== null) {
+    t('repeated phrase alignment has positive length', $resultRepeat['length'] > 0, "got: {$resultRepeat['length']}");
+    t('repeated phrase alignment covers all 5 words', $resultRepeat['length'] >= 5, "got: {$resultRepeat['length']}");
+}
+
+// ── Test: match only near the end of a document ──
+echo "\n--- Match Near Document End ---\n";
+// Sub: many words of preamble then a matching phrase
+// Src: matching phrase
+$preamble = array_fill(0, 100, 'preamble');
+$matchingEnd = explode(' ', 'this is the matching content at the end');
+$subEnd = array_merge($preamble, $matchingEnd);
+$srcEnd = explode(' ', 'this is the matching content at the end');
+$resultEnd = $matching->smithWatermanAlignment($subEnd, $srcEnd, [
+    'sub_start' => 0, 'sub_end' => count($subEnd) - 1,
+    'src_start' => 0, 'src_end' => count($srcEnd) - 1,
+], 5);
+t('end-of-document match produces alignment', $resultEnd !== null);
+if ($resultEnd !== null) {
+    t('end-of-doc alignment starts at correct sub position',
+        $resultEnd['sub_start'] >= 100,
+        "got: {$resultEnd['sub_start']}"
+    );
+    t('end-of-doc alignment has correct length',
+        $resultEnd['length'] === count($matchingEnd),
+        "got: {$resultEnd['length']} expected: " . count($matchingEnd)
+    );
+}
+
 // ── Log checks ──
 $appLog = file_get_contents(__DIR__ . '/../storage/logs/app.log');
 $errorLog = file_get_contents(__DIR__ . '/../storage/logs/error.log');

@@ -28,6 +28,7 @@ from app import (
     compare_groq,
     _tokenize,
     _jaccard_similarity,
+    _run_with_timeout,
     SERVICE_VERSION,
     SEMANTIC_MODEL_VERSION,
 )
@@ -355,6 +356,65 @@ class TestEndpointIntegration(unittest.TestCase):
         if self.skip_integration:
             self.skipTest("Integration tests disabled (SKIP_INTEGRATION=1)")
         pass
+
+
+class TestResourceGuards(unittest.TestCase):
+    """Test resource protection: max comparisons cap, timeout, error tracking."""
+
+    def test_max_comparisons_exceeded(self):
+        """250 segments × 250 segments = 62,500 pairs, exceeds MAX_COMPARISONS=10,000."""
+        segs_a = ["word " + str(i) for i in range(250)]
+        segs_b = ["word " + str(i) for i in range(250)]
+        with self.assertRaises(ValueError) as ctx:
+            handle_semantic_compare({
+                "submission_segments": segs_a,
+                "source_segments": segs_b,
+            })
+        self.assertIn("exceeds limit", str(ctx.exception))
+
+    def test_max_comparisons_at_limit(self):
+        """100 × 100 = 10,000, exactly at MAX_COMPARISONS."""
+        segs_a = ["word " + str(i) for i in range(100)]
+        segs_b = ["word " + str(i) for i in range(100)]
+        try:
+            result = handle_semantic_compare({
+                "submission_segments": segs_a,
+                "source_segments": segs_b,
+            })
+            self.assertIn("comparisons", result)
+        except ValueError:
+            self.fail("handle_semantic_compare raised ValueError for exactly 10,000 pairs")
+
+    def test_max_comparisons_under_limit(self):
+        """50 × 50 = 2,500 pairs, well under MAX_COMPARISONS."""
+        segs_a = ["word " + str(i) for i in range(50)]
+        segs_b = ["word " + str(i) for i in range(50)]
+        result = handle_semantic_compare({
+            "submission_segments": segs_a,
+            "source_segments": segs_b,
+        })
+        self.assertEqual(len(result["comparisons"]), 2500)
+        self.assertEqual(result["summary"]["total_comparisons"], 2500)
+
+    def test_run_with_timeout_success(self):
+        """_run_with_timeout returns the result when function completes in time."""
+        result = _run_with_timeout(lambda x: x * 2, (21,), timeout_seconds=5)
+        self.assertEqual(result, 42)
+
+    def test_health_reports_error_count(self):
+        """Health endpoint includes recent_errors as an integer."""
+        health = handle_semantic_health({})
+        self.assertIn("recent_errors", health)
+        self.assertIsInstance(health["recent_errors"], int)
+
+    def test_error_count_in_health(self):
+        """Health endpoint reflects recent error count."""
+        global _error_timestamps, _error_count
+        _error_timestamps = []
+        _error_count = 0
+        health = handle_semantic_health({})
+        self.assertIn("recent_errors", health)
+        self.assertIsInstance(health["recent_errors"], int)
 
 
 if __name__ == "__main__":

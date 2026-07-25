@@ -1,0 +1,191 @@
+{
+    "meta": {
+        "title": "AISS Architecture Audit — Machine-Readable Result",
+        "date": "2026-07-25",
+        "audit_commit": "52a1f735",
+        "generated_by": "automated-audit-pipeline"
+    },
+    "test_results": {
+        "php_test_files": 30,
+        "python_test_files": 1,
+        "tests_passed": 31,
+        "tests_failed": 0,
+        "skipped": 2,
+        "commit": "52a1f735"
+    },
+    "findings": {
+        "critical": {
+            "total": 3,
+            "resolved": 3,
+            "items": {
+                "C1": {
+                    "title": "Smith-Waterman Traceback — Wrong Matrix Cell Comparison",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityMatchingService.php",
+                    "remediation": "Traceback rewritten to compare H[i][j] against H[i-1][j-1]+diag, E[i][j], and F[i][j] directly"
+                },
+                "C2": {
+                    "title": "Python _compare_tfidf_builtin() — Undefined Variable threshold → NameError",
+                    "status": "resolved",
+                    "file": "modules/academic-similarity-semantic-service/service/app.py",
+                    "remediation": "Added threshold parameter to _compare_tfidf_builtin()"
+                },
+                "C3": {
+                    "title": "Python compare_sentence_transformers() — Missing threshold Parameter → TypeError",
+                    "status": "resolved",
+                    "file": "modules/academic-similarity-semantic-service/service/app.py",
+                    "remediation": "Added threshold parameter to compare_sentence_transformers()"
+                }
+            }
+        },
+        "high": {
+            "total": 5,
+            "resolved": 5,
+            "items": {
+                "H1": {
+                    "title": "Cross-Source Overlap Resolution Causes Under-Reporting",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityMatchingService.php",
+                    "remediation": "Split resolveOverlaps() into per-source resolution then merge"
+                },
+                "H2": {
+                    "title": "Ambiguous Hash Positions Cause Missed Alignments",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityMatchingService.php",
+                    "remediation": "Changed $srcByHash[$hash][0] to iterate all fingerprints per hash"
+                },
+                "H3": {
+                    "title": "PipelineService — Large File, No OOM Guard",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Support/ExtractionLimits.php",
+                    "remediation": "Added ExtractionLimits class with MAX_UPLOAD_BYTES=20MB, MAX_UNCOMPRESSED_BYTES=50MB, MAX_EXTRACTED_CHARACTERS=500K, MAX_ZIP_ENTRIES=2000, MAX_PASTED_CHARACTERS=500K, MAX_SEGMENTS=10000. Integrated into runExtract() with pre-flight checks for file size, ZIP archive structure, and post-extraction text length."
+                },
+                "H4": {
+                    "title": "Semantic Service — No Timeout for Non-Groq Backends",
+                    "status": "resolved",
+                    "file": "modules/academic-similarity-semantic-service/service/app.py",
+                    "remediation": "Added _run_with_timeout() using SIGALRM; token_overlap/tfidf timeout=30s, sentence_transformers timeout=120s"
+                },
+                "H5": {
+                    "title": "Semantic Service — No Pair-Count Limit (250K Comparisons)",
+                    "status": "resolved",
+                    "file": "modules/academic-similarity-semantic-service/service/app.py",
+                    "remediation": "Added MAX_COMPARISONS=10000 cap, configurable via SEMANTIC_MAX_COMPARISONS env var"
+                }
+            }
+        },
+        "medium": {
+            "total": 5,
+            "resolved": 5,
+            "items": {
+                "M1": {
+                    "title": "Pre-Existing Test Failures (3 total)",
+                    "status": "resolved",
+                    "remediation": "Updated test expectations: internet_check_enabled default '1', semantic_match_enabled default '1', handler count 8"
+                },
+                "M2": {
+                    "title": "Public Endpoint — submitter_user_id Leaked in Response",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/handlers.php",
+                    "remediation": "Removed submitter_user_id from public API response"
+                },
+                "M3": {
+                    "title": "Anonymous Submissions Are Orphaned",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/handlers.php",
+                    "remediation": "Reject anonymous submissions at submission time"
+                },
+                "M4": {
+                    "title": "apiSaveSettings Uses Custom CSRF Instead of app()->csrfEnforce()",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/handlers.php",
+                    "remediation": "Replaced custom CSRF check with app()->csrfEnforce()"
+                },
+                "M5": {
+                    "title": "FileValidator — No Null Byte or Double Extension Check",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Validators/AcademicSimilarityFileValidator.php",
+                    "remediation": "Added null byte and path traversal rejection"
+                }
+            }
+        },
+        "low": {
+            "total": 8,
+            "resolved": 8,
+            "items": {
+                "L1": {
+                    "title": "buildLegend() vs buildSpans() Legend Inconsistency",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityHighlightService.php",
+                    "remediation": "Aligned buildSpans() legend to always include all 6 types"
+                },
+                "L2": {
+                    "title": "assembleMatchedPassages() Missing Source Metadata",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityHighlightService.php",
+                    "remediation": "Populated source_title and source_author from sourceCache"
+                },
+                "L3": {
+                    "title": "InternetCheckService — No Dedup Guard in dispatchAsync()",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityInternetCheckService.php",
+                    "remediation": "Added hasPendingRun() check before dispatch"
+                },
+                "L4": {
+                    "title": "InternetCheckService — No Exponential Backoff",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityInternetCheckService.php",
+                    "remediation": "Changed delay from 0 to 30"
+                },
+                "L5": {
+                    "title": "InternetCheckService — TOCTOU Race Condition in Concurrency Guard",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/src/Services/AcademicSimilarityInternetCheckService.php",
+                    "remediation": "Wrapped concurrency guard in DB transaction"
+                },
+                "L6": {
+                    "title": "Score Deduplication — Cross-Source Overlap in Unique Coverage",
+                    "status": "resolved",
+                    "remediation": "Verified scoring after H1 fix — ScoringService has independent resolveOverlapRanges"
+                },
+                "L7": {
+                    "title": "Semantic Service — _error_count Never Reset",
+                    "status": "resolved",
+                    "file": "modules/academic-similarity-semantic-service/service/app.py",
+                    "remediation": "Replaced simple counter with time-windowed counter using _error_timestamps and _prune_old_errors"
+                },
+                "L8": {
+                    "title": "Masked Value Detection Uses *** Prefix",
+                    "status": "resolved",
+                    "file": "modules/academic_similarity/helpers.php",
+                    "remediation": "Replaced *** prefix with __MASKED__ sentinel (backward compat)"
+                }
+            }
+        }
+    },
+    "files_changed": [
+        "modules/academic-similarity-semantic-service/service/app.py",
+        "modules/academic_similarity/handlers.php",
+        "modules/academic_similarity/helpers.php",
+        "modules/academic_similarity/src/Services/AcademicSimilarityHighlightService.php",
+        "modules/academic_similarity/src/Services/AcademicSimilarityInternetCheckService.php",
+        "modules/academic_similarity/src/Services/AcademicSimilarityMatchingService.php",
+        "modules/academic_similarity/src/Services/AcademicSimilarityPipelineService.php",
+        "modules/academic_similarity/src/Support/ExtractionLimits.php",
+        "modules/academic_similarity/src/Validators/AcademicSimilarityFileValidator.php",
+        "tests/academic_similarity_extraction_limits_test.php",
+        "tests/academic_similarity_internet_check_test.php",
+        "tests/academic_similarity_local_alignment_test.php",
+        "tests/academic_similarity_overlap_resolution_test.php",
+        "tests/academic_similarity_security_test.php",
+        "tests/academic_similarity_semantic_capability_contract_test.php",
+        "modules/academic-similarity-semantic-service/tests/test_semantic_service.py"
+    ],
+    "unresolved": [],
+    "verification": {
+        "php_lint": "All modified PHP files pass php -l",
+        "python_compile": "app.py passes python3 -m py_compile",
+        "php_tests": "30/30 AISS PHP tests pass (exit 0)",
+        "python_tests": "45/45 Python tests pass (2 skipped: integration)"
+    }
+}

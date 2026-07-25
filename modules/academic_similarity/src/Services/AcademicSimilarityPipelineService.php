@@ -144,6 +144,13 @@ class AcademicSimilarityPipelineService
                 if ($textVersion === false || trim((string)($textVersion['extracted_text'] ?? '')) === '') {
                     return ['ok' => false, 'error' => "No pasted text found for submission #{$submissionId}"];
                 }
+                // Check pasted text length
+                $pastedText = (string)($textVersion['extracted_text'] ?? '');
+                $pasteError = ExtractionLimits::checkPastedText($pastedText);
+                if ($pasteError !== null) {
+                    $this->subRepo->updateStatus($submissionId, 'failed', $pasteError);
+                    return ['ok' => false, 'error' => $pasteError];
+                }
                 $this->subRepo->updateStatus($submissionId, 'processing');
                 return [
                     'ok' => true,
@@ -165,10 +172,38 @@ class AcademicSimilarityPipelineService
                 return ['ok' => false, 'error' => "File not found at: {$storagePath}"];
             }
 
+            // ── Extraction resource guard (H3) ──
+            $fileSize = filesize($fullPath);
+            $sizeError = ExtractionLimits::checkFileSize($fileSize !== false ? $fileSize : 0);
+            if ($sizeError !== null) {
+                $this->subRepo->updateStatus($submissionId, 'failed', $sizeError);
+                return ['ok' => false, 'error' => $sizeError];
+            }
+
+            // For DOCX, check ZIP archive structure before extraction
+            if (in_array($mimeType, [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/msword',
+            ], true)) {
+                $zipError = ExtractionLimits::checkZipArchive($fullPath);
+                if ($zipError !== null) {
+                    $this->subRepo->updateStatus($submissionId, 'failed', $zipError);
+                    return ['ok' => false, 'error' => $zipError];
+                }
+            }
+
             $result = $extractor->extract($fullPath, $mimeType);
             $text = $result['text'];
             $pageCount = $result['page_count'];
             $method = $result['method'];
+
+            // Check extracted text length after extraction
+            $textLengthError = ExtractionLimits::checkExtractedText($text);
+            if ($textLengthError !== null) {
+                $this->subRepo->updateStatus($submissionId, 'failed', $textLengthError);
+                return ['ok' => false, 'error' => $textLengthError];
+            }
+
             $wordCount = str_word_count($text);
             $textHash = hash('sha256', $text);
 
