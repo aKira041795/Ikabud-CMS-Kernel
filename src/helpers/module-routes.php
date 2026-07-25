@@ -439,7 +439,7 @@ function loadModuleRoutes(array $routes): array
         }
 
         foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $method) {
-            if (empty($moduleRoutes[$method]) || !is_array($moduleRoutes[$method])) {
+            if (!isset($moduleRoutes[$method]) || empty($moduleRoutes[$method]) || !is_array($moduleRoutes[$method])) {
                 continue;
             }
             foreach ($moduleRoutes[$method] as $pattern => $handler) {
