@@ -248,12 +248,30 @@ if (!$user) {
 }
 ```
 
-### Email delivery dependency
-The forgot password flow generates a token and emails the reset link. If no mail server is configured (`sendEmail()` in `src/helpers/email.php` fails), the token is stored in `<prefix>_password_resets` but never delivered. During development, retrieve the token from the DB:
-```sql
-SELECT token_hash FROM dc_password_resets ORDER BY created_at DESC LIMIT 1;
+### Email delivery — MUST send via `buildEmailTemplate()` + `sendEmail()`
+
+After inserting the token and logging the URL, send a branded email using the same pattern as bakeshop/CMS/daily-ledger:
+
+```php
+$userEmail = trim((string)($user['email'] ?? ''));
+if ($userEmail !== '' && filter_var($userEmail, FILTER_VALIDATE_EMAIL) && function_exists('buildEmailTemplate') && function_exists('sendEmail')) {
+    $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
+    $policy = kernel_password_reset_policy();
+    $ttlMinutes = $policy['token_ttl_minutes'] ?? 30;
+    $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
+        . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your ' . htmlspecialchars($storeName, ENT_QUOTES, 'UTF-8') . ' password.</p>'
+        . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
+    $body = buildEmailTemplate('Reset Your Password', $content, 'Reset Password', $resetUrl);
+    $sent = sendEmail($userEmail, 'Password Reset', $body);
+    if (!$sent) {
+        write_log('{prefix} forgot-password email dispatch failed for user_id=' . (string)$userId, 'error');
+    }
+}
 ```
-Then use it as `?token=XXX` in the reset URL. For production, ensure mail is configured or add a CLI command to output the reset URL.
+
+Dependencies: `buildEmailTemplate()` and `sendEmail()` live in `src/helpers/email.php` — always check `function_exists()` before calling. The email will still log the URL to `app.log` as a fallback.
+
+If no mail server is configured (`sendEmail()` fails), the reset URL is still logged to `app.log` — no dev dependency on email:
 
 ### Kernel tenant admin email/password push
 The kernel's tenant admin management (`/admin/tenants`) has "Set Admin Email" and "Set Admin Password" buttons that push changes to tenant module user tables via `kernelHandleApiTenantAdminEmailPush()` / `kernelHandleApiTenantAdminPasswordPush()`. These handlers iterate `kernelAuthOwnedModules()` and handle tables outside the explicit skip list `['cms_users', 'gm_users', 'wms_users', 'users']`. New auth-owned module tables (like `dc_users`) are automatically picked up — no manual handler update needed.
