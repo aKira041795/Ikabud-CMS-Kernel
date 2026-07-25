@@ -21,14 +21,14 @@ Many languages. Many outputs.
 
 ## Choose Your Path
 
-```
-I want to understand Ikabud  ──────────────────────>  README below · [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md)
-I want to try it locally  ─────────────────────────>  [Quick Deploy](#quick-deploy-to-bluehost) · [docs/kernel/installation.md](docs/kernel/installation.md)
-I want to deploy a pilot  ─────────────────────────>  [ADOPTER-GUIDE.md](docs/kernel/adopter-guide.md)
-I want to build a module  ─────────────────────────>  [docs/kernel/module-development-guide.md](docs/kernel/module-development-guide.md)
-I want to contribute to the kernel  ───────────────>  [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/kernel/contributor-workflows.md](docs/kernel/contributor-workflows.md)
-I want to evaluate for an institution  ────────────>  [docs/kernel/installation.md](docs/kernel/installation.md) · [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md)
-```
+| I want to… | Start here |
+|---|---|
+| Understand Ikabud | [README below](#what-is-kernel-os) · [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) |
+| Try it locally | [Quick Deploy](#quick-deploy-to-bluehost) · [docs/kernel/installation.md](docs/kernel/installation.md) |
+| Deploy a pilot | [ADOPTER-GUIDE.md](docs/kernel/adopter-guide.md) |
+| Build a module | [docs/kernel/module-development-guide.md](docs/kernel/module-development-guide.md) |
+| Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/kernel/contributor-workflows.md](docs/kernel/contributor-workflows.md) |
+| Evaluate for an institution | [docs/kernel/installation.md](docs/kernel/installation.md) · [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) |
 
 ### Governance
 

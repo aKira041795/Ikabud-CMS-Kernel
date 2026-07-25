@@ -64,13 +64,16 @@ Documented conventions are forgotten. Code review catches some violations but
 not all. As teams grow and turnover occurs, undocumented dependencies
 accumulate.
 
-Ikabud enforces its boundaries at the database and dispatch layer:
+During module-owned runtime requests, the kernel enforces boundaries at the
+database and dispatch layer:
 
-- `KernelPDO` validates every SQL query against the module's declared
-  `owns_tables` / `reads_tables`. Undeclared table access throws a
-  `RuntimeException`.
-- The capability bus (`app()->capabilities()->call(...)`) is the only way a
-  module talks to another module. Direct class imports across modules are
+- `KernelPDO` validates SQL queries against the module's declared
+  `owns_tables` / `reads_tables`. Undeclared table access through the standard
+  kernel path throws a `RuntimeException`. Privileged infrastructure
+  (migrations, control-plane access, approved raw-SQL escapement) uses
+  separate controlled paths with explicit review.
+- The capability bus (`app()->capabilities()->call(...)`) is the primary
+  cross-module integration path. Direct class imports across modules are
   forbidden by convention and detected by CI.
 - Route dispatch sets explicit module context before any handler runs, cleared
   in a `finally` block. There is no ambiguity about which module owns the
@@ -103,9 +106,10 @@ This constraint drives:
 - **Stable public contracts.** Module manifests, capability IDs, and rendering
   components are compatibility-sensitive. Internal implementation can move,
   but the public surface stays stable. See [kernel-stable-contracts.md](kernel/kernel-stable-contracts.md).
-- **Test discipline.** 291 test files with ~4,290 assertions run against
-  real databases, not mocks. Changes that pass CI are less likely to break in
-  production.
+- **Test discipline.** The repository maintains an extensive automated
+  integration and contract test suite running against real databases, not
+  mocks. Current test counts are reported by CI. Changes that pass CI are
+  less likely to break in production.
 
 ---
 
@@ -156,7 +160,7 @@ Alternatives considered and why they were not chosen:
 |---|---|
 | Each module uses its own template engine | Inconsistent patterns, no shared components |
 | React/SPA everywhere | Operational complexity, JS dependency for every page |
-| Twig/Blade | No component model, no entity views, no hydration |
+| Twig/Blade | No kernel-native entity-view, capability, governance, or bridge contracts without additional application-specific infrastructure |
 | Pure PHP templates | No safety, no governance, no cross-module consistency |
 
 DiSyL provides:
@@ -305,16 +309,19 @@ software, the decision should be reconsidered.
 
 ## What Ikabud will not become
 
-- **A SaaS platform.** Ikabud is self-hosted software. There is no hosted
-  version, no cloud account, and no telemetry requirement.
+- **A mandatory SaaS platform.** The core Ikabud project is self-hostable and
+  does not require a hosted Ikabud account or mandatory telemetry. Hosted
+  deployments, managed services, and commercial support may be provided
+  separately by the maintainer or third-party implementers.
 - **A no-code platform.** Ikabud reduces the amount of code needed for common
   business patterns (entity views, workflows, reports), but module development
   requires programming.
 - **A marketplace.** There is no app store, no revenue share, and no
   centralized distribution channel for modules. Modules are code in a
   repository.
-- **A consultancy.** Ikabud is open-source infrastructure. Custom development
-  is the domain of third-party implementers.
+- **A consultancy in itself.** Ikabud is a software platform, not a consulting
+  engagement. Implementation, training, hosting, and support may be provided
+  separately by the maintainer or third-party implementers.
 - **A framework you build from scratch.** Ikabud is a platform you extend with
   modules. Starting from `bootstrap.php` and building everything yourself is
   possible but not recommended.
@@ -330,8 +337,9 @@ The governance model is designed to be transferred:
 
 - Stable contracts ensure module behavior does not depend on a single
   maintainer's knowledge.
-- Test coverage (291 files, ~4,290 assertions) means future maintainers can
-  refactor with confidence.
+- Test coverage (the project maintains an extensive automated integration and
+  contract test suite; current counts are reported by CI) means future
+  maintainers can refactor with confidence.
 - Documentation separates the "what" from the "why" to preserve design intent.
 - The open-core licensing allows the community edition to survive independently
   of the commercial edition.

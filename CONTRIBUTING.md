@@ -31,13 +31,15 @@ All changes to Community Edition components are welcome:
 
 ### Enterprise Edition (Commercial)
 
-Changes to Enterprise Edition components are accepted through a **standard Contributor License Agreement (CLA)** process. This applies to:
+Changes to Enterprise Edition components may require a separate written
+contribution agreement. This applies to:
 
 - Kernel orchestration (`kernel/App.php`, `kernel/Capabilities/`, `kernel/EntityContext/`, etc.)
 - Enterprise modules (CMS, ecommerce, guidance, WMS, bakeshop, etc.)
 - Infrastructure (`public/index.php`, `bootstrap.php`, `src/helpers/module-manager.php`)
 
-Contact **noah2.omamalin@gmail.com** to start the CLA process for Enterprise contributions.
+Contact **noah2.omamalin@gmail.com** before beginning Enterprise work to
+discuss the contribution terms.
 
 ### What is not currently open for contribution
 
@@ -130,16 +132,14 @@ Always check:
 
 ---
 
-## Contributor License Agreement (CLA)
+## Contributor Agreement
 
-Enterprise Edition contributions require a signed CLA. The CLA:
+Enterprise Edition contributions may require a separate written contribution
+agreement. Contact the maintainer before beginning such work to discuss the
+applicable terms.
 
-- Grants the project permission to use your contribution
-- Does **not** transfer copyright ownership
-- Allows you to reuse your own contribution
-- Is a one-time signing, not per-contribution
-
-Contact **noah2.omamalin@gmail.com** to request the CLA.
+For Community Edition (MIT) contributions, no additional agreement is needed.
+The act of submitting a pull request under the MIT license is sufficient.
 
 ---
 

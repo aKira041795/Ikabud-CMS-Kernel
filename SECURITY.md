@@ -12,6 +12,9 @@ fixes on a best-effort basis.
 | 6.0.x | ⚠️ Critical fixes only |
 | < 6.0 | ❌ Unsupported |
 
+> Last reviewed: July 2026. This table is updated with each major and minor
+> release. Consult the latest release notes for the current support matrix.
+
 ## Reporting a vulnerability
 
 Ikabud handles authentication, tenant isolation, academic records, guidance
@@ -34,7 +37,10 @@ Please include:
 
 ### What to expect
 
-| Step | Timeline |
+These are good-faith targets rather than contractual service levels. Complex
+vulnerabilities may require additional time.
+
+| Step | Target response |
 |---|---|
 | Acknowledgment of receipt | Within 48 hours |
 | Initial assessment and severity | Within 5 business days |
@@ -54,7 +60,8 @@ We follow **coordinated disclosure**:
 4. Public advisory is published after the fix is available
 
 We aim to publish advisories within 14 days of confirmation for critical
-issues, or longer for complex fixes.
+issues, or longer for complex fixes. These are good-faith targets rather
+than contractual service levels.
 
 ## What not to post publicly
 
@@ -79,9 +86,16 @@ This policy covers:
 
 The following are not covered by this policy:
 
-- Third-party dependencies (report to their respective maintainers)
 - Vulnerabilities in deployed infrastructure (hosting, network, OS)
 - Self-inflicted issues (misconfiguration, weak passwords)
+
+### Third-party dependencies
+
+Vulnerabilities originating in third-party dependencies (Composer packages,
+npm modules, etc.) should preferably be reported to their respective
+maintainers. Reports demonstrating an exploitable impact on Ikabud are still
+accepted so that mitigation, upgrade guidance, or dependency pinning can be
+coordinated.
 
 ## Bug bounty
 

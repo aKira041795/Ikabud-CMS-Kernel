@@ -24,25 +24,29 @@ framework, and not a turnkey SaaS product. Adopting it means:
 Not all modules are equally mature. Start with a module that matches your
 organizational need and has a proven deployment profile.
 
-| Module | Maturity | Best for | Start here |
-|---|---|---|---|
-| CMS | Production | Content-managed websites | ✅ |
-| Daily Ledger | Production | Daily sales tracking | ✅ |
-| Contact Form | Production | Lightweight inbound forms | ✅ |
-| Media | Production | File uploads and library | ✅ |
-| Users | Production | User accounts and roles | ✅ |
-| Bakeshop | Controlled pilot | Bakery production tracking | ⚠️ |
-| Guidance | Controlled pilot | School guidance counseling | ⚠️ |
-| Ecommerce | Controlled pilot | Online storefront | ⚠️ |
-| WMS | Prototype | Warehouse operations | ❌ |
-| EHR | Prototype | Healthcare records | ❌ |
-| AI | Prototype | AI-assisted features | ❌ |
+| Module | Maturity | Best for | Start here | Last reviewed |
+|---|---|---|---|---|
+| CMS | Production | Content-managed websites | ✅ | July 2026 |
+| Daily Ledger | Production | Daily sales tracking | ✅ | July 2026 |
+| Contact Form | Production | Lightweight inbound forms | ✅ | July 2026 |
+| Media | Production | File uploads and library | ✅ | July 2026 |
+| Users | Production | User accounts and roles | ✅ | July 2026 |
+| Bakeshop | Controlled pilot | Bakery production tracking | ⚠️ | July 2026 |
+| Guidance | Controlled pilot | School guidance counseling | ⚠️ | July 2026 |
+| Ecommerce | Controlled pilot | Online storefront | ⚠️ | July 2026 |
+| WMS | Prototype | Warehouse operations | ❌ | July 2026 |
+| EHR | Prototype | Healthcare records | ❌ | July 2026 |
+| AI | Prototype | AI-assisted features | ❌ | July 2026 |
 
 > **Lifecycle definitions:**
 > - **Production** — Used in real deployments, tested, documented, stable APIs
 > - **Controlled pilot** — Functional but limited deployment history, may need
 >   active support from maintainer
 > - **Prototype** — Functional core but not yet used in unsupervised production
+>
+> Maturity assessments are dated and reflect the module's state at that date.
+> Verify current status against the latest release notes before planning a
+> deployment.
 
 ---
 
@@ -89,9 +93,23 @@ see [database-profiles.md](database-profiles.md).
 ### What to back up
 
 1. **Databases** — each tenant database individually + the control-plane database
-2. **`storage/` directory** — compiled template cache, logs, uploads
-3. **`.env` file** — contains database credentials and app key
+2. **`storage/uploads/` directory** — uploaded media files (do not back up
+   the entire `storage/` directory; compiled caches and logs are ephemeral)
+3. **`.env` file** — contains database credentials and app key — **encrypt
+   this backup separately**
 4. **`config/` directory** — environment-specific configuration
+
+### Important precautions
+
+- **Do not commit backups** to the repository or expose them via the web root.
+- **Encrypt backups at rest** — `.env` contains database credentials and the
+   application key. Use `gpg` or an equivalent tool for secrets-containing
+   archives.
+- **Restrict filesystem permissions** — backup files should be readable only
+   by the backup user.
+- **Test restore periodically** — an untested backup is not a backup.
+- **Define retention and off-site copies** appropriate to your recovery
+   objectives.
 
 ### Recommended procedure
 
@@ -100,8 +118,11 @@ see [database-profiles.md](database-profiles.md).
 mysqldump --single-transaction ikabud_control > backup_control_$(date +%F).sql
 mysqldump --single-transaction ikabud_tenant_1 > backup_tenant_1_$(date +%F).sql
 
-# Backup files
-tar -czf ikabud_storage_$(date +%F).tar.gz storage/ .env config/
+# Backup configuration and secrets — encrypt and restrict access
+tar -czf - .env config/ | gpg --symmetric --cipher-algo AES256 > config_backup_$(date +%F).tar.gz.gpg
+
+# Backup uploaded media (not the full storage/ directory)
+tar -czf uploads_backup_$(date +%F).tar.gz storage/uploads/
 ```
 
 ### Restore
@@ -176,8 +197,11 @@ To fully export your data for migration:
    configured upload path)
 3. Export configuration: `tar -czf config_backup.tar.gz config/ .env`
 
-There is no vendor lock-in at the data level. The platform's value is in the
-runtime and module capabilities, not in a proprietary data format.
+Ikabud avoids proprietary database formats and supports direct SQL export.
+Migration may still require mapping module schemas, workflow state, capability
+semantics, file references, and tenant boundaries to the destination system.
+The platform's value is in the runtime and module capabilities, not in a
+proprietary data format.
 
 ---
 
@@ -193,12 +217,15 @@ Application logs are written to local files only. No logs are sent externally.
 ## Service-level expectations
 
 As an open-source project, Ikabud is provided without formal SLA. The
-maintainer aims to:
+maintainer aims to meet the following good-faith targets:
 
 - Respond to critical security issues within 48 hours
 - Release patch fixes within 14 days for confirmed vulnerabilities
 - Review pull requests within 5 business days
 - Answer questions via GitHub Issues on a best-effort basis
+
+These are good-faith targets rather than contractual service levels. Complex
+vulnerabilities or changes may require additional time.
 
 Production deployments should budget for internal or contracted support.
 
@@ -214,7 +241,8 @@ Production deployments should budget for internal or contracted support.
   operations should use the job queue or workflow engine
 - **MySQL 5.7 ceiling** (Compatibility profile) — window functions, CTEs, and
   JSON_TABLE are unavailable on shared hosting
-- **No standalone SaaS offering** — Self-hosted only
+- **No mandatory SaaS account** — Self-hostable; no hosted account required
+   to use the software
 
 ---
 
