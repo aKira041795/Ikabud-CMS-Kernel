@@ -13,8 +13,10 @@
 5. [Proof 4: Module Development Is Fully Documented and CMS-Agnostic](#proof-4-module-development-is-fully-documented-and-cms-agnostic)
 6. [Proof 5: Diverse Module Archetypes](#proof-5-diverse-module-archetypes)
 7. [Proof 6: CLI Scaffolding for Any Module Type](#proof-6-cli-scaffolding-for-any-module-type)
-8. [Proof 7: Entity View System — Declarative Rendering for Any Module](#proof-7-entity-view-system--declarative-rendering-for-any-module)- [Proof 8: Operational Validation — What's Been Tested and What Hasn't](#proof-8-operational-validation--whats-been-tested-and-what-hasnt)9. [Quick Reference: What a Module Looks Like](#quick-reference-what-a-module-looks-like)
-10. [Conclusion](#conclusion)
+8. [Proof 7: Entity View System — Declarative Rendering for Any Module](#proof-7-entity-view-system--declarative-rendering-for-any-module)
+9. [Proof 8: Operational Validation — What's Been Tested and What Hasn't](#proof-8-operational-validation--whats-been-tested-and-what-hasnt)
+10. [Quick Reference: What a Module Looks Like](#quick-reference-what-a-module-looks-like)
+11. [Conclusion](#conclusion)
 
 ---
 
