@@ -1,241 +1,151 @@
 ---
-description: Kernel OS (Community Edition) — Capability Contracts Roadmap
+description: Kernel OS — Public Execution Roadmap
 ---
 
-# Kernel OS — Roadmap
+# Ikabud Public Execution Roadmap
 
-> **Status:** All capability contracts phases (0–4) are shipped. See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the full implementation status across all 9 platform phases.
+> **Last updated:** July 2026
+> **Release:** Kernel OS 6.1.0 (intercoherence), DiSyL 4.7.0
+> See [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md) for the detailed implementation status.
 
-This roadmap defines the phased implementation plan for **Capability Contracts** and ecosystem stability in Kernel OS.
+This roadmap is organized into four lanes so contributors, adopters, and
+evaluators can see what exists, what is being hardened, and what they can
+participate in.
 
-Guiding principles:
-
-- **Contract-centric capabilities**: `payments.gateway.charge@1`
-- **Multi-provider** supported from v1 (deterministic provider ordering)
-- **Kernel core contracts are capabilities** under `kernel.*@1`
-- **Hooks** are kernel-owned extension points
-- **EventBus** is for best-effort side effects
-- **Capabilities** are the sanctioned synchronous module-to-module request/response mechanism
+**Legend:** ✅ Shipped · 🟡 In progress · 🔴 Not started · 🧊 On hold
 
 ---
 
-## Phase 0 — Spec Lock ✅ Complete
+## Lane 1: Kernel — Security, tenancy, contracts, reliability
 
-Outcome: a stable contract surface before implementation.
-
-- Define capability ID format: `contract.id@major`
-- Reserve namespaces:
-  - `kernel.*` reserved for kernel-provided contracts
-- Define multi-provider semantics:
-  - provider ordering: `priority DESC`, then `provider_id ASC`
-  - modes: `first`, `pipeline`, `fanout`
-- Define enable-time validation rules:
-  - module cannot enable if any required capability has no provider
-- Define v1 stability policy:
-  - breaking changes ship as `@2` capability versions
-
-Acceptance criteria:
-
-- Documented in `docs/kernel/module-development-guide.md` and this file
-
----
-
-## Phase 1 — Capability Contracts MVP ✅ Complete
-
-Outcome: capabilities exist end-to-end with deterministic multi-provider selection.
-
-Deliverables:
-
-- Kernel services:
-  - `CapabilityRegistry`
-  - `CapabilityBus`
-  - core exceptions (`CapabilityNotFound`, `CapabilityCallFailed`, etc.)
-- Kernel registers core contracts (provider `kernel`):
-  - `kernel.auth.user@1`
-  - `kernel.auth.require@1`
-  - `kernel.audit.record@1`
-  - `kernel.http.request_context@1`
-  - `kernel.render.context@1`
-- Module registration hook point:
-  - modules register their own capabilities during `kernel.boot`
-- Manifest support:
-  - `capabilities.exposes[]` (id, priority, modes)
-  - `capabilities.depends[]` (list of required capability IDs)
-- Enable-time validation:
-  - verify required capabilities exist before module routes are active
-
-Acceptance criteria:
-
-- A module declaring `depends: ["kernel.auth.user@1"]` fails to enable if core contracts are not registered
-- Multi-provider selection is deterministic under ties
-- `fanout` mode isolates provider exceptions by default
+| Item | Status | Evidence | Owner | Contribution | Target |
+|---|---|---|---|---|---|
+| Capability contracts (phases 0–4) | ✅ | `kernel/Capabilities/`, `tests/*capability*` | Kernel maintainer | Community (MIT) | Shipped |
+| Multi-provider dispatch (first/pipeline/fanout) | ✅ | `CapabilityBus.php`, `tests/*capability*` | Kernel maintainer | Community (MIT) | Shipped |
+| Kernel core contracts (`kernel.auth.user@1`, `kernel.audit.record@1`, etc.) | ✅ | `kernel/Capabilities/` | Kernel maintainer | Community (MIT) | Shipped |
+| Enable-time dependency validation | ✅ | `module-manager.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Tenant isolation (fail-closed DB) | ✅ | `tests/tenant_chaos_test.php`, `tests/tenant_db_fail_closed_test.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Tenant entry router (host→tenant resolution) | ✅ | `kernel/Http/TenantEntryRouter.php` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Module table ownership enforcement | ✅ | `kernel/Contracts/ModuleDB.php`, `KernelPDO` | Kernel maintainer | Community (MIT) | Shipped |
+| CSRF enforcement on browser-mutating routes | ✅ | `kernel/Http/*` | Kernel maintainer | Community (MIT) | Shipped |
+| JWT auth (Bearer + cookie dual path) | ✅ | `kernel/JWT.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Request ID generation + propagation | ✅ | `bootstrap.php`, structured logs | Kernel maintainer | Community (MIT) | Shipped |
+| CLI tools (9 commands) | ✅ | `ikabud` commands | Kernel maintainer | Community (MIT) | Shipped |
+| Workflow engine (event-triggered state machine) | ✅ | `kernel/WorkflowEngine.php`, `kernel/WorkflowRuntime.php` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Job queue | ✅ | `kernel/Services/*` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Observability (22 superadmin APIs) | ✅ | `public/index.php` superadmin routes | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Capability ACLs (caller allow/deny) | 🟡 | Design phase | Kernel maintainer | Community (MIT) | Q4 2026 |
+| Circuit breaker for capability calls | 🟡 | Design phase | Kernel maintainer | Enterprise (CLA) | Q4 2026 |
+| Schema validation for capability payloads | 🔴 | Not started | TBD | Community (MIT) | Q1 2027 |
 
 ---
 
-## Phase 2 — Tooling + Safety ✅ Complete
+## Lane 2: DiSyL and ARK — Rendering, components, builder integration
 
-Outcome: contributors can see and validate the dependency graph.
-
-Deliverables:
-
-- CLI:
-  - `baron capability:list`
-  - `baron module:validate`
-  - `baron module:graph`
-- Improved diagnostics:
-  - missing capability providers
-  - version mismatch (wrong `@major`)
-  - provider present but does not support requested mode
-
-Acceptance criteria:
-
-- Validation catches missing providers without running the app
-- Graph output lists contract-centric edges: `module -> capability -> providers`
-
----
-
-## Phase 3 — v1 Stable ✅ Complete
-
-Outcome: stable public API for the community ecosystem.
-
-Deliverables:
-
-- Published compatibility policy:
-  - kernel SemVer + deprecation windows
-  - stable list of `kernel.*@1` contracts
-- Observability baseline:
-  - request IDs propagated into capability calls
-  - structured logs for capability failures
-- Conformance tests:
-  - deterministic provider ordering
-  - missing provider blocks enable
-  - handler exceptions isolated
-
-Acceptance criteria:
-
-- Documented invariants + test suite enforcement
-- Community modules can target `kernel.*@1` without fear of silent breaking changes
+| Item | Status | Evidence | Owner | Contribution | Target |
+|---|---|---|---|---|---|
+| DiSyL grammar + parser (v4.7) | ✅ | `kernel/DiSyL/Grammar.php`, `kernel/DiSyL/v4/Parser.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Compiled template mode (default) | ✅ | `TemplateEngine.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Per-block parser error recovery | ✅ | `kernel/DiSyL/v4/Parser.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Component registry (32 governed components) | ✅ | `kernel/DiSyL/ComponentRegistry.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Entity view system (resolver + renderer) | ✅ | `kernel/EntityContext/`, `DefaultEntityRenderer.php` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| 16 registered entity views across 8 modules | ✅ | Module manifests, `en*_views` capabilities | Module owners | Mixed | Shipped |
+| Async Fibers scheduler | ✅ | `kernel/DiSyL/Async/Scheduler.php` | Kernel maintainer | Community (MIT) | Shipped |
+| LSP extension (VS Code) | ✅ | `extensions/disyl-lsp/` | Kernel maintainer | Community (MIT) | Shipped |
+| Linter (583 templates, 0 errors) | ✅ | `php ikabud disyl:lint` | Kernel maintainer | Community (MIT) | Shipped |
+| ARK — Architectural Rendering Kit | ✅ | `docs/themes/*`, 55 block definitions, 16 layout slots | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Theme customizer orchestrator v2 | ✅ | Theme integration | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Framework bridges (Alpine.js, HTMX, custom) | ✅ | `kernel/DiSyL/Component/*` bridge system | Kernel maintainer | Community (MIT) | Shipped |
+| Progressive hydration | ✅ | `kernel/DiSyL/Hydration/` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Visual page builder (React/Vite) | ✅ | `modules/cms/builder-ui/` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Reactive template blocks | ✅ | `kernel/DiSyL/Reactive/` | Kernel maintainer | Enterprise (CLA) | Shipped |
+| Inline editing support | 🟡 | RFC phase | Kernel maintainer | Community (MIT) | Q1 2027 |
+| Component testing framework | 🔴 | Not started | TBD | Community (MIT) | Q2 2027 |
 
 ---
 
-## Phase 4 — Post-v1 Enhancements ✅ Complete
+## Lane 3: Modules — CMS, Guidance, Ledger, WMS, Ecommerce
 
-Outcome: ecosystem scaling features, added carefully.
+| Module | Status | Evidence | Owner | Contribution | Pilot-ready |
+|---|---|---|---|---|---|
+| **CMS** | ✅ Production | 24 docs, visual builder, 13 entity views, Moodle bridge | Kernel maintainer | Enterprise (CLA) | ✅ |
+| **Daily Ledger** | ✅ Production | Android app, offline sync, 5 user roles, variance tracking | Kernel maintainer | Enterprise (CLA) | ✅ |
+| **Users** | ✅ Production | Accounts, roles, permissions | Kernel maintainer | Community (MIT) | ✅ |
+| **Media** | ✅ Production | File uploads, metadata, library | Kernel maintainer | Community (MIT) | ✅ |
+| **Contact Form** | ✅ Production | Lightweight forms, page-builder block | Kernel maintainer | Community (MIT) | ✅ |
+| **Anti-spam** | ✅ Production | Honeypot, rate limiting, keyword blocklist | Kernel maintainer | Community (MIT) | ✅ |
+| **Search** | ✅ Production | Cross-module search index | Kernel maintainer | Community (MIT) | ✅ |
+| **GUI Settings** | ✅ Production | Frontend appearance customization | Kernel maintainer | Community (MIT) | ✅ |
+| **Tinymce** | ✅ Production | Shared editor service | Kernel maintainer | Community (MIT) | ✅ |
+| **Bakeshop** | 🟡 Controlled pilot | Bakery production tracking, supervisor tooling | Kernel maintainer | Enterprise (CLA) | ⚠️ |
+| **Guidance** | 🟡 Controlled pilot | Case management, appointments, public booking, SMS | Kernel maintainer | Enterprise (CLA) | ⚠️ |
+| **Ecommerce** | 🟡 Controlled pilot | Products, cart, checkout, orders, POS | Kernel maintainer | Enterprise (CLA) | ⚠️ |
+| **WMS** | 🔴 Prototype | Warehouse operations | Kernel maintainer | Enterprise (CLA) | ❌ |
+| **EHR** | 🔴 Prototype | Healthcare records | Kernel maintainer | Enterprise (CLA) | ❌ |
+| **AI** | 🔴 Prototype | AI summaries, drafts, governance | Kernel maintainer | Enterprise (CLA) | ❌ |
+| **Security** | 🔴 Prototype | File integrity, IP allowlist | Kernel maintainer | Enterprise (CLA) | ❌ |
+| **Ticketing** | 🟡 Controlled pilot | Ticket tracking | Kernel maintainer | Enterprise (CLA) | ⚠️ |
+| **Workflow** | 🟡 Controlled pilot | Workflow compatibility shell | Kernel maintainer | Enterprise (CLA) | ⚠️ |
 
-Potential deliverables:
+### Module hardening priorities (H2 2026)
 
-- Optional schema descriptors for capability payloads
-- Multi-provider strategies beyond priority:
-  - explicit provider pinning
-  - weighted routing
-- Advanced tenant strategies surfaced as contracts (if multi-tenant mode enabled)
-
-Additional near-term (adoption-driven) deliverables:
-
-- Control-plane tenancy readiness (host→tenant resolution, entry-module routing)
-- Regression test suite for kernel hardening behaviors (hooks isolation, route conflict detection, module handler exception safety, CSRF enforcement)
-- Standardize module web-session cookies via `auth_cookie` in `module.json` so kernel `app()->user()` works consistently across entry modules
-
-### Runtime workflows (business automations)
-
-Outcome: modules can model cross-module business workflows as a kernel-supported runtime primitive.
-
-Deliverables:
-
-- A workflow definition format (stored in DB or version-controlled JSON)
-  - triggers: event key + filter predicates
-  - steps: ordered capability calls with input mapping
-  - guards: role/ACL, tenant constraints
-  - idempotency: deterministic workflow run keys
-- Execution engine:
-  - enqueue + retry semantics
-  - per-step timeout handling
-  - failure modes: stop, compensate, continue
-- Observability:
-  - workflow run logs: workflow_id, run_id, triggering event, step status, duration, error
-  - admin UI for runs + replay (admin-only)
-
-Acceptance criteria:
-
-- A workflow can be authored without writing PHP code
-- Workflows can call capabilities across modules and produce an auditable run history
-- Failures are visible and do not crash the originating HTTP request
-
-### Capability Registry export (AI + tooling)
-
-Outcome: the capability registry becomes machine-readable enough for scaffolding and AI-assisted module building.
-
-Deliverables:
-
-- Registry export endpoint (admin-only) returning a single canonical spec:
-  - capability IDs, modes, provider ordering, policies
-  - payload schema + return schema (lightweight JSON schema)
-  - examples: valid payloads and typical responses
-- CLI validation and codegen hooks:
-  - validate a module manifest against required capability schemas
-  - generate provider/client stubs from the registry spec
-
-Acceptance criteria:
-
-- A tool (or AI) can consume the registry export to generate a module skeleton with correct capability stubs
+| Priority | Module | Focus |
+|---|---|---|
+| 1 | Ecommerce | Storefront media, product-card images, cart currency, checkout reliability |
+| 2 | Guidance | Appointment stability, SMS notifications, public booking hardening |
+| 3 | Bakeshop | Supervisor role tools, production voiding, report archive |
+| 4 | WMS | Inventory authority, batch tracking, picklist flow |
+| 5 | EHR | System design implementation, clinical safety UX |
 
 ---
 
-## Hardening Roadmap — App Reliability & Safety
+## Lane 4: Ecosystem — Documentation, contributors, training, partners
 
-Purpose: close operational and security gaps discovered during capability adoption.
+| Item | Status | Evidence | Owner | Contribution | Target |
+|---|---|---|---|---|---|
+| Root README with audience routing | ✅ | `README.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Architecture documentation | ✅ | `docs/kernel/ARCHITECTURE.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Stable contracts documented | ✅ | `docs/kernel/kernel-stable-contracts.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Module development guide | ✅ | `docs/kernel/module-development-guide.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Module quickstart tutorial | ✅ | `docs/kernel/module-quickstart.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Installation guide | ✅ | `docs/kernel/installation.md` | Kernel maintainer | Community (MIT) | Shipped |
+| API reference | ✅ | `docs/kernel/api-reference.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Database profiles documentation | ✅ | `docs/kernel/database-profiles.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Polyglot service guide | ✅ | `docs/kernel/polyglot-service-guide.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Project philosophy | ✅ | `docs/PHILOSOPHY.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Adopter guide | ✅ | `docs/kernel/adopter-guide.md` | Kernel maintainer | Community (MIT) | Shipped |
+| Terminology policy | ✅ | `docs/TERMINOLOGY.md` | Kernel maintainer | Community (MIT) | Shipped |
+| CONTRIBUTING.md | ✅ | Root-level | Kernel maintainer | Community (MIT) | Shipped |
+| CODE_OF_CONDUCT.md | ✅ | Root-level | Kernel maintainer | Community (MIT) | Shipped |
+| SECURITY.md | ✅ | Root-level | Kernel maintainer | Community (MIT) | Shipped |
+| CLI reference | ✅ | README + `php ikabud` help | Kernel maintainer | Community (MIT) | Shipped |
+| License boundary (`LICENSING.md`) | ✅ | Root-level | Kernel maintainer | N/A | Shipped |
+| Public demo walkthrough | ✅ | `docs/demo/` | Kernel maintainer | Community (MIT) | Shipped |
+| Case studies | ✅ | `docs/case-studies/` | Kernel maintainer | Community (MIT) | Shipped |
+| Test suite (291 files) | ✅ | `tests/` | Kernel maintainer | Community (MIT) | Shipped |
+| CI pipeline (3 seeded tenants) | ✅ | `.github/workflows/ci.yml` | Kernel maintainer | Community (MIT) | Shipped |
+| Bluehost deployment archive | ✅ | `create-bluehost-archive.php` | Kernel maintainer | Community (MIT) | Shipped |
+| Formal CLA document | 🔴 | Not drafted | Kernel maintainer | N/A | Q4 2026 |
+| Newcomer issues / good-first-issue labels | 🔴 | Not created | Kernel maintainer | N/A | Q4 2026 |
+| Contributor tutorials (video/written) | 🔴 | Not started | TBD | Community (MIT) | Q1 2027 |
+| Training materials / bootcamp | 🔴 | Not started | TBD | Community (MIT) | Q2 2027 |
+| Partner / implementation partner program | 🔴 | Not started | Kernel maintainer | N/A | 2027 |
 
-### Hardening Phase 1 — Observability Baseline
+---
 
-Deliverables:
+## Previous content preserved
 
-- Request ID generation and propagation (HTTP + capability calls)
-- Structured log fields for: request_id, module, capability_id, provider
-- Capability failure counts and p95 latency metrics (per capability/provider)
+This roadmap supersedes the earlier capability-contracts-focused roadmap. All
+completed phases (0–4 capability contracts, hardening phases 1–4) are now
+integrated into the four lanes above. For the original detailed phase
+descriptions, see [kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md).
 
-Acceptance criteria:
+### Historical: Capability contracts phases (0–4)
 
-- Every request has a stable request_id across logs
-- Capability logs include request_id and provider
-- Metrics can surface top failing capabilities without code changes
+All shipped. See the original detailed descriptions in
+[kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md#phase-0--spec-lock-).
 
-### Hardening Phase 2 — Capability Security & Caller Context
+### Historical: Hardening phases (1–4)
 
-Deliverables:
-
-- Caller context attached to capability calls (module + user)
-- Capability ACLs based on caller (allow/deny by module)
-- Auditable security decision logs for denied capability calls
-
-Acceptance criteria:
-
-- A module can be denied from calling a capability even if a provider exists
-- Denials are logged with capability_id + caller module
-
-### Hardening Phase 3 — Reliability & Failure Semantics
-
-Deliverables:
-
-- Standard timeout handling for capability calls
-- Retry policy (configurable per capability)
-- Circuit breaker for repeated provider failures
-- SMS provider failover strategy for `sms.send@1` (ordered fallback, no duplicate sends, auditable logs)
-- Fallback behavior when provider set changes mid-request
-
-Acceptance criteria:
-
-- Capability call timeouts are enforced and logged
-- Repeated failures degrade gracefully without crashing the request
-
-### Hardening Phase 4 — Versioning & Schema Validation
-
-Deliverables:
-
-- Version resolution policy (highest compatible `@major` if not pinned)
-- Optional schema descriptors for payload validation (lightweight JSON schema)
-- CLI validation for schema compatibility and version mismatches
-
-Acceptance criteria:
-
-- Modules can declare compatible versions and resolve safely
-- Invalid payloads are rejected before hitting provider handlers
+All shipped. See the original detailed descriptions in
+[kernel-os-disyl-roadmap-status.md](kernel-os-disyl-roadmap-status.md#hardening-roadmap--app-reliability--safety).

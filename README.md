@@ -26,7 +26,7 @@ Many languages. Many outputs.
 | Understand Ikabud | [README below](#what-is-kernel-os) · [docs/PHILOSOPHY.md](docs/PHILOSOPHY.md) |
 | Try it locally | [Quick Deploy](#quick-deploy-to-bluehost) · [docs/kernel/installation.md](docs/kernel/installation.md) |
 | Deploy a pilot | [ADOPTER-GUIDE.md](docs/kernel/adopter-guide.md) |
-| Build a module | [docs/kernel/module-development-guide.md](docs/kernel/module-development-guide.md) |
+| Build a module | [Module Quickstart (30 min)](docs/kernel/module-quickstart.md) · [Full Guide](docs/kernel/module-development-guide.md) |
 | Contribute | [CONTRIBUTING.md](CONTRIBUTING.md) · [docs/kernel/contributor-workflows.md](docs/kernel/contributor-workflows.md) |
 | Evaluate for an institution | [docs/kernel/installation.md](docs/kernel/installation.md) · [docs/kernel/ARCHITECTURE.md](docs/kernel/ARCHITECTURE.md) |
 

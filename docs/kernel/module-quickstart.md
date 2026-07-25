@@ -9,9 +9,13 @@ For cross-module integration patterns, see [Cross-Module Interaction Playbook](c
 
 ## Prerequisites
 
+Before starting, you need a working Ikabud installation. If you haven't set
+one up yet, follow the [Installation Guide](installation.md) first.
+
 - PHP 8.2+ with PDO/MySQL
 - Ikabud Kernel booted (`bootstrap.php` loads, `app()` works)
 - MySQL database accessible
+- Composer dependencies installed (`composer install`)
 
 ---
 
