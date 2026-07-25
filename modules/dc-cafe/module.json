@@ -6,6 +6,8 @@
     "author": "Ikabud Platform Team",
     "auth_owned": {
         "users_table": "dc_users",
+        "id_column": "user_id",
+        "role_column": "role",
         "username_column": "username",
         "email_column": "email",
         "password_column": "password_hash",

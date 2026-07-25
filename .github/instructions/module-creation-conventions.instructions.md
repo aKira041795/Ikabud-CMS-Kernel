@@ -7,8 +7,7 @@ applyTo: "**/*.php **/*.disyl **/module.json"
 ## User Seeding
 - Role ENUM must include ALL roles upfront. Use `migration 020 → ALTER TABLE` only if missed.
 - Seed users: one per role with bcrypt hash, email, and store_id.
-- `module.json` `auth_owned.email_column` must be `"email"`.
-
+- `module.json` `auth_owned.email_column` must be `"email"`.- `module.json` `auth_owned` MUST declare `id_column` (matches table PK, e.g. `"user_id"`) and `role_column` (e.g. `"role"`). The kernel tenant admin push handlers use these to build SQL — missing `id_column` causes the table to be silently skipped on email/password changes.
 ## DiSyL Syntax
 - `{block name}` — NO quotes around block name. `{block "name"}` breaks silently.
 - `{ikb_entity_view name="X" view="Y"}` — config uses `name=` not `source=`.

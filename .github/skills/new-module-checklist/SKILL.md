@@ -14,6 +14,7 @@ Every auth-owned module MUST have seed users for all defined roles.
 - `role` ENUM must include ALL intended roles **upfront** (`admin`, `supervisor`, `auditor`, `cashier`, etc.). Adding roles later requires a separate ALTER TABLE migration.
 - Always include `email` column (VARCHAR(255) DEFAULT NULL) for password reset support.
 - `auth_owned` in `module.json` MUST declare `email_column: "email"` so kernel tenant admin push handlers can update it.
+- `auth_owned` MUST also declare `id_column` (e.g., `"user_id"`) and `role_column` (e.g., `"role"`) if they differ from defaults (`id`, `role`). The tenant admin push handlers (`kernelHandleApiTenantAdminEmailPush` / `kernelHandleApiTenantAdminPasswordPush`) use these to build SQL queries — missing `id_column` causes silent failures that skip the table.
 - All FK columns must match referenced column types exactly (@mysql57-compat).
 
 ### Seed migration
