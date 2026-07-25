@@ -56,9 +56,9 @@ class TokenFamily
      */
     public function rotate(string $familyId, string $tokenHash): array
     {
-        $this->db->beginTransaction();
-
         try {
+            $this->db->beginTransaction();
+
             // Lock the family row for atomicity within the transaction
             $stmt = $this->db->prepare(
                 'SELECT id, user_id, status, current_token_hash, consumed_token_hashes

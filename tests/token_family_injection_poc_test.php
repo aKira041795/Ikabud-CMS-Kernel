@@ -246,7 +246,7 @@ $db->rows = [[
     'consumed_token_hashes' => '[]',
 ]];
 $rotateResult = $tf->rotate('family-tx', 'valid-token');
-t('rotate with transaction: first call is beginTransaction', count($db->executed) >= 3 && $db->executed[0][0] === 'BEGIN TRANSACTION',
+t('rotate with transaction: first executed call is beginTransaction', count($db->executed) >= 3 && $db->executed[0][0] === 'BEGIN TRANSACTION',
     'got: ' . ($db->executed[0][0] ?? 'none'));
 t('rotate with transaction: second call is SELECT ... FOR UPDATE', count($db->executed) >= 3 && str_contains($db->executed[1][0], 'SELECT'),
     'got: ' . ($db->executed[1][0] ?? 'none'));
