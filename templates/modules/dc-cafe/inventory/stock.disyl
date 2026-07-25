@@ -1,13 +1,35 @@
 {extends "modules/dc-cafe/layouts/app.disyl"}
 
 {block content}
-<div class="space-y-4">
+<div x-data="{ tab: 'ingredients' }" class="space-y-4">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-800">Stock Levels</h1>
-        <a href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+        <h1 class="text-2xl font-bold text-gray-800">Inventory</h1>
+        <a x-show="tab === 'ingredients'" href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+        <a x-show="tab === 'products'" href="/dc-cafe/products/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Products</a>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-        {ikb_entity_list source="dc_inventory" view="table" empty="No ingredients found. Add ingredients from the Ingredients page." /}
+
+    {* Tabs *}
+    <div class="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <button @click="tab = 'ingredients'"
+                class="flex-1 px-4 py-2 rounded-md text-sm font-medium transition"
+                :class="tab === 'ingredients' ? 'bg-white shadow text-amber-700' : 'text-gray-600 hover:text-gray-800'">
+            Ingredients
+        </button>
+        <button @click="tab = 'products'"
+                class="flex-1 px-4 py-2 rounded-md text-sm font-medium transition"
+                :class="tab === 'products' ? 'bg-white shadow text-amber-700' : 'text-gray-600 hover:text-gray-800'">
+            Products
+        </button>
+    </div>
+
+    {* Ingredients tab *}
+    <div x-show="tab === 'ingredients'" class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+        {ikb_entity_list source="dc_inventory" view="table" empty="No ingredients found." /}
+    </div>
+
+    {* Products tab *}
+    <div x-show="tab === 'products'" class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+        {ikb_entity_list source="dc_product_stock" view="table" empty="No products found." /}
     </div>
 </div>
 {/block}

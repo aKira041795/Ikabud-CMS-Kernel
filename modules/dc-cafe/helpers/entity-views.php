@@ -17,7 +17,7 @@ function dc_cap_entity_list_product_1(array $params = []): array
 
     $rows = $db->query(
         "SELECT p.product_id, p.name, p.base_price, p.is_variable, p.is_active,
-                p.current_stock, p.has_stock,
+                p.current_stock, p.has_stock, p.reorder_level,
                 c.name AS category_name, c.category_id
          FROM dc_products p
          JOIN dc_categories c ON c.category_id = p.category_id
@@ -38,6 +38,39 @@ function dc_cap_entity_list_product_1(array $params = []): array
             'is_active'   => (bool) $row['is_active'],
             'current_stock' => (float) $row['current_stock'],
             'has_stock'     => (bool) $row['has_stock'],
+            'reorder_level' => (float) $row['reorder_level'],
+        ];
+    }, $rows);
+}
+
+function dc_cap_entity_list_product_stock_1(array $params = []): array
+{
+    $db = dcDb();
+    $storeId = (int) ($params['store_id'] ?? dcInput('store_id') ?? 1);
+
+    $rows = $db->query(
+        "SELECT p.product_id, p.name, p.base_price, p.is_variable, p.is_active,
+                p.current_stock, p.has_stock, p.reorder_level,
+                c.name AS category_name, c.category_id
+         FROM dc_products p
+         JOIN dc_categories c ON c.category_id = p.category_id
+         WHERE p.store_id = ?
+         ORDER BY c.sort_order ASC, p.name ASC",
+        [$storeId]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    return array_map(function ($row) {
+        return [
+            'id'        => (int) $row['product_id'],
+            'name'      => $row['name'],
+            'price'     => (float) $row['base_price'],
+            'category'  => $row['category_name'],
+            'category_id' => (int) $row['category_id'],
+            'is_variable' => (bool) $row['is_variable'],
+            'is_active'   => (bool) $row['is_active'],
+            'current_stock' => (float) $row['current_stock'],
+            'has_stock'     => (bool) $row['has_stock'],
+            'reorder_level' => (float) $row['reorder_level'],
         ];
     }, $rows);
 }

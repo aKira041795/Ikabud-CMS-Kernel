@@ -1,0 +1,9 @@
+{ikb_entity_view name="dc_product_stock" view="table"}
+    {field name="id" type="number" role="id" visible="false"}
+    {field name="name" type="text" role="title"}
+    {field name="category" type="text"}
+    {field name="price" type="number" renderer="money:2"}
+    {field name="current_stock" type="number" role="value"}
+    {field name="reorder_level" type="number"}
+    {field name="has_stock" type="boolean" role="status"}
+{/ikb_entity_view}

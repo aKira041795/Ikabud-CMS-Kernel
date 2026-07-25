@@ -84,6 +84,7 @@ function dc_cafe_capability_handlers(): array
     return [
         'kernel.auth.authenticate@1'   => 'dc_cap_kernel_auth_authenticate_1',
         'entity.list.dc_product@1'     => 'dc_cap_entity_list_product_1',
+        'entity.list.dc_product_stock@1' => 'dc_cap_entity_list_product_stock_1',
         'entity.get.dc_product@1'      => 'dc_cap_entity_get_product_1',
         'entity.list.dc_order@1'       => 'dc_cap_entity_list_order_1',
         'entity.get.dc_order@1'        => 'dc_cap_entity_get_order_1',
