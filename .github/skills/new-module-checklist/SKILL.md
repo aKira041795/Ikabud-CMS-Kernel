@@ -9,6 +9,7 @@ Every auth-owned module MUST have seed users for all defined roles.
 ### Table schema
 - `role` ENUM must include ALL intended roles **upfront** (`admin`, `supervisor`, `auditor`, `cashier`, etc.). Adding roles later requires a separate ALTER TABLE migration.
 - Always include `email` column (VARCHAR(255) DEFAULT NULL) for password reset support.
+- `auth_owned` in `module.json` MUST declare `email_column: "email"` so kernel tenant admin push handlers can update it.
 - All FK columns must match referenced column types exactly (@mysql57-compat).
 
 ### Seed migration
@@ -242,6 +243,30 @@ if (!$user) {
 }
 ```
 
+### Email delivery dependency
+The forgot password flow generates a token and emails the reset link. If no mail server is configured (`sendEmail()` in `src/helpers/email.php` fails), the token is stored in `<prefix>_password_resets` but never delivered. During development, retrieve the token from the DB:
+```sql
+SELECT token_hash FROM dc_password_resets ORDER BY created_at DESC LIMIT 1;
+```
+Then use it as `?token=XXX` in the reset URL. For production, ensure mail is configured or add a CLI command to output the reset URL.
+
+### Kernel tenant admin email/password push
+The kernel's tenant admin management (`/admin/tenants`) has "Set Admin Email" and "Set Admin Password" buttons that push changes to tenant module user tables via `kernelHandleApiTenantAdminEmailPush()` / `kernelHandleApiTenantAdminPasswordPush()`. These handlers iterate `kernelAuthOwnedModules()` and handle tables outside the explicit skip list `['cms_users', 'gm_users', 'wms_users', 'users']`. New auth-owned module tables (like `dc_users`) are automatically picked up — no manual handler update needed.
+
+### Kernel profile update dependencies
+The `kernelHandleApiAdminUpdateProfile()` handler updates the kernel `users` table:
+- Email changes require migration `020_users_email.sql` (adds `email` column to `users`). Check `kernelUsersHasEmailColumn()` return value.
+- Password changes increment `token_version`, which invalidates ALL existing JWT sessions. The user is logged out everywhere.
+- JWT cookie is re-issued with updated payload on success.
+
+### Forgot password — reset URL always logged
+Both the kernel (`src/http/auth-handlers.php`) and module-level forgot password handlers now log the reset URL via `write_log()` regardless of email delivery status. In development, find the URL in `storage/logs/app.log`:
+```
+grep 'reset_url' storage/logs/app.log
+# → ... "reset_url":"http://dccafe.test/dc-cafe/reset-password?token=..."
+```
+No mail server needed for development.
+
 ---
 
 ## 8. First-Run Checklist (before deployment)
@@ -262,7 +287,16 @@ if (!$user) {
 
 ---
 
-## 9. New Module Scaffolding — Proposed CLI Command
+## 9. Post-Creation Validation (run after every new module deploy)
+
+- [ ] `php ikabud tenant:migrate <domain> <module>` — run ALL migrations
+- [ ] Check `storage/logs/app.log` for capability warnings or missing handler errors
+- [ ] Test login with each seeded user
+- [ ] Test forgot password — check `storage/logs/app.log` for `reset_url`
+- [ ] Verify `kernelAuthOwnedModules()` includes the new module (check `/superadmin/settings`)
+- [ ] Test tenant admin email/password push from `/admin/tenants`
+
+## 10. New Module Scaffolding — Proposed CLI Command
 
 Design goal: `php ikabud module:create <module-id> [--auth-owned] [--entities=...]`
 

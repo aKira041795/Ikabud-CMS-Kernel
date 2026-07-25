@@ -563,11 +563,19 @@ function kernelHandleAuthForgotPassword(): void
             ]);
 
             $email = trim((string)($user['email'] ?? ''));
+            $resetUrl = external_base_url() . '/reset-password?token=' . urlencode($rawToken);
+
+            // Always log the reset URL for dev fallback (email may not be configured)
+            write_log('kernel password reset requested', 'info', [
+                'user_id' => (int)$user['id'],
+                'username' => $user['username'] ?? '',
+                'reset_url' => $resetUrl,
+            ]);
+
             if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $context = kernelAuthExperienceContext();
                 $brandText = (string)($context['login_brand_text'] ?? 'APPLICATION KERNEL OS');
                 $name = trim((string)($user['full_name'] ?? $user['username'] ?? 'there'));
-                $resetUrl = external_base_url() . '/reset-password?token=' . urlencode($rawToken);
                 $content = '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">Hi ' . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . ',</p>'
                     . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">A request was made to reset your ' . htmlspecialchars($brandText, ENT_QUOTES, 'UTF-8') . ' password.</p>'
                     . '<p style="margin:0 0 16px;color:#4b5563;font-size:16px;line-height:1.6;">This link expires in ' . $ttlMinutes . ' minutes. If you did not request this, you can safely ignore this email.</p>';
