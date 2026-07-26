@@ -64,6 +64,30 @@ app()->setUser(is_array($previousUser) ? $previousUser : []);
 $h->test('Settings page renders JSON payload script', str_contains($settingsHtml, 'id="dc-settings-data"'));
 $h->test('Settings page bootstraps Alpine settingsApp', str_contains($settingsHtml, 'function settingsApp(initialData)'));
 $h->test('Settings page includes payment tab label', str_contains($settingsHtml, 'Payment Methods'));
+$h->test('Settings page includes Ledger Organization tab', str_contains($settingsHtml, 'Ledger Organization'));
+$h->test('Settings tab hash is validated against supported tabs', str_contains($settingsHtml, "validTabs.includes(hashTab)"));
+$h->test('Settings Ledger links to reconciliation', str_contains($settingsHtml, 'href="/dc-cafe/inventory/ledger"'));
+
+$routes = require __DIR__ . '/../../modules/dc-cafe/routes.php';
+$h->test('Store creation is not exposed through GET', !isset($routes['GET']['/dc-cafe/api/v1/stores/create']));
+$h->test('User creation is not exposed through GET', !isset($routes['GET']['/dc-cafe/api/v1/users/create']));
+$h->test(
+    'Ledger group routes use read and mutation methods',
+    isset($routes['GET']['/dc-cafe/api/v1/settings/ledger-groups'])
+    && isset($routes['POST']['/dc-cafe/api/v1/settings/ledger-groups/create'])
+    && isset($routes['POST']['/dc-cafe/api/v1/settings/ledger-groups/remap'])
+    && isset($routes['PUT']['/dc-cafe/api/v1/settings/ledger-groups/{id}'])
+);
+
+$ledgerTableExists = (int) $db->query(
+    "SELECT COUNT(*) FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'dc_ledger_groups'"
+)->fetchColumn();
+$h->test('Normalized ledger group table exists', $ledgerTableExists === 1);
+$unassignedActiveCategories = (int) $db->query(
+    "SELECT COUNT(*) FROM dc_categories WHERE is_active = 1 AND ledger_group_id IS NULL"
+)->fetchColumn();
+$h->test('Active categories are backfilled to ledger groups', $unassignedActiveCategories === 0, (string) $unassignedActiveCategories);
 
 // ── 3. Payment method CRUD (DB-level) ──
 $h->section('Payment Method DB Operations');

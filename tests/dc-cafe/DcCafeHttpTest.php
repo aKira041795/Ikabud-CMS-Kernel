@@ -217,6 +217,9 @@ $created = [
     'addon_id' => 0,
     'ingredient_ids' => [],
 ];
+$branchSessionId = 0;
+$closedBranchSessionId = 0;
+$branchCashier = [];
 
 try {
     $h->section('Fixture Setup');
@@ -322,6 +325,173 @@ try {
         count(array_filter($branchProducts, static fn(array $p): bool => ((int) ($p['id'] ?? 0)) === $productId)) === 1,
         $productsResponse['body']
     );
+
+    $h->section('Branch Ledger Reconciliation');
+
+    $ledgerPageResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/dc-cafe/inventory/ledger',
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_ACCEPT' => 'text/html',
+    ], $branchCashier);
+    $h->test('Cashier ledger page renders', (int) $ledgerPageResponse['status'] === 200, $ledgerPageResponse['raw']);
+    $h->test('Cashier ledger selector includes own session', str_contains($ledgerPageResponse['body'], 'value="' . $branchSessionId . '"'));
+    $h->test('Cashier ledger selector excludes another cashier session', !str_contains($ledgerPageResponse['body'], 'value="' . $sessionId . '"'));
+
+    $reconciliationResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $branchSessionId,
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier);
+    $reconciliationJson = dcJsonResponse($reconciliationResponse);
+    $reconciliationItems = is_array($reconciliationJson['items'] ?? null) ? $reconciliationJson['items'] : [];
+    $reconciliationProduct = null;
+    foreach ($reconciliationItems as $candidate) {
+        if ((int) ($candidate['product_id'] ?? 0) === $productId) {
+            $reconciliationProduct = $candidate;
+            break;
+        }
+    }
+    $expectedGroupName = (string) $db->query(
+        "SELECT COALESCE(g.name, c.name)
+         FROM dc_categories c
+         LEFT JOIN dc_ledger_groups g ON g.ledger_group_id = c.ledger_group_id
+         WHERE c.category_id = {$categoryId}"
+    )->fetchColumn();
+    $ledgerGroup = dcFetchOne(
+        $db,
+        "SELECT g.* FROM dc_ledger_groups g
+         JOIN dc_categories c ON c.ledger_group_id = g.ledger_group_id
+         WHERE c.category_id = ?",
+        [$categoryId]
+    );
+
+    $h->test('Branch reconciliation returns HTTP 200', (int) $reconciliationResponse['status'] === 200, $reconciliationResponse['raw']);
+    $h->test('Branch reconciliation identifies selected store', (int) ($reconciliationJson['session']['store_id'] ?? 0) === $secondaryStoreId, $reconciliationResponse['body']);
+    $h->test('Branch reconciliation is editable for active cashier session', !empty($reconciliationJson['session']['editable']), $reconciliationResponse['body']);
+    $h->test('Branch reconciliation includes catalog product', is_array($reconciliationProduct), $reconciliationResponse['body']);
+    $h->test('Branch reconciliation reads branch stock', is_array($reconciliationProduct) && abs((float) $reconciliationProduct['current_stock'] - 3.0) < 0.001, $reconciliationResponse['body']);
+    $h->test('Branch reconciliation uses normalized ledger group', is_array($reconciliationProduct) && ($reconciliationProduct['ledger_group'] ?? '') === $expectedGroupName, $reconciliationResponse['body']);
+
+    $ledgerGroupsResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/dc-cafe/api/v1/settings/ledger-groups',
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $supervisor);
+    $ledgerGroupsJson = dcJsonResponse($ledgerGroupsResponse);
+    $h->test('Ledger settings API returns normalized groups', (int) $ledgerGroupsResponse['status'] === 200 && !empty($ledgerGroupsJson['groups']), $ledgerGroupsResponse['raw']);
+
+    $deactivateGroupResponse = dcRunDirectHandler(
+        'modules/dc-cafe/handlers.php',
+        'apiUpdateLedgerGroup',
+        ['id' => (int) ($ledgerGroup['ledger_group_id'] ?? 0)],
+        $supervisor,
+        [
+        'is_active' => false,
+        'version' => (int) ($ledgerGroup['version'] ?? 0),
+        ]
+    );
+    $deactivateGroupJson = dcJsonResponse($deactivateGroupResponse);
+    $h->test('Assigned ledger group cannot be deactivated', (int) $deactivateGroupResponse['status'] === 409, $deactivateGroupResponse['raw']);
+    $h->test('Deactivation explains required category reassignment', str_contains((string) ($deactivateGroupJson['error'] ?? ''), 'Reassign active categories'), $deactivateGroupResponse['body']);
+
+    $staleGroupResponse = dcRunDirectHandler(
+        'modules/dc-cafe/handlers.php',
+        'apiUpdateLedgerGroup',
+        ['id' => (int) ($ledgerGroup['ledger_group_id'] ?? 0)],
+        $supervisor,
+        [
+        'sort_order' => (int) ($ledgerGroup['sort_order'] ?? 0),
+        'version' => max(0, (int) ($ledgerGroup['version'] ?? 1) - 1),
+        ]
+    );
+    $h->test('Stale ledger group update is rejected', (int) $staleGroupResponse['status'] === 409, $staleGroupResponse['raw']);
+
+    $invalidProgressResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier, [
+        'session_id' => $branchSessionId,
+        'items' => [[
+            'product_id' => $productId,
+            'beginning_qty' => -1,
+        ]],
+    ]);
+    $h->test('Negative ledger quantity is rejected', (int) $invalidProgressResponse['status'] === 400, $invalidProgressResponse['raw']);
+    $invalidProgressCount = (int) $db->query(
+        "SELECT COUNT(*) FROM dc_inventory_progress WHERE session_id = {$branchSessionId}"
+    )->fetchColumn();
+    $h->test('Rejected ledger batch writes no progress rows', $invalidProgressCount === 0, (string) $invalidProgressCount);
+
+    $validProgressResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier, [
+        'session_id' => $branchSessionId,
+        'items' => [[
+            'product_id' => $productId,
+            'beginning_qty' => 3,
+            'production_qty' => 1,
+            'pullout_qty' => 0,
+            'notes' => 'counted',
+        ]],
+    ]);
+    $savedProgress = dcFetchOne(
+        $db,
+        "SELECT * FROM dc_inventory_progress WHERE session_id = ? AND product_id = ?",
+        [$branchSessionId, $productId]
+    );
+    $h->test('Valid branch ledger progress saves through request path', (int) $validProgressResponse['status'] === 200, $validProgressResponse['raw']);
+    $h->test('Saved branch ledger progress preserves manual counts', is_array($savedProgress) && abs((float) $savedProgress['beginning_qty'] - 3.0) < 0.001 && abs((float) $savedProgress['production_qty'] - 1.0) < 0.001, json_encode($savedProgress));
+
+    $db->prepare(
+        "INSERT INTO dc_sessions (user_id, store_id, starting_cash, shift_type, shift_start, shift_end, status)
+         VALUES (?, ?, 500.00, 'morning', DATE_SUB(NOW(), INTERVAL 1 DAY), NOW(), 'closed')"
+    )->execute([(int) $branchCashier['user_id'], $secondaryStoreId]);
+    $closedBranchSessionId = (int) $db->lastInsertId();
+    $closedReconciliationResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $closedBranchSessionId,
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier);
+    $closedReconciliationJson = dcJsonResponse($closedReconciliationResponse);
+    $h->test('Closed session reconciliation remains readable', (int) $closedReconciliationResponse['status'] === 200, $closedReconciliationResponse['raw']);
+    $h->test('Closed session reconciliation is marked read only', empty($closedReconciliationJson['session']['editable']), $closedReconciliationResponse['body']);
+
+    $closedSaveResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier, [
+        'session_id' => $closedBranchSessionId,
+        'items' => [[
+            'product_id' => $productId,
+            'beginning_qty' => 3,
+        ]],
+    ]);
+    $closedProgressCount = (int) $db->query(
+        "SELECT COUNT(*) FROM dc_inventory_progress WHERE session_id = {$closedBranchSessionId}"
+    )->fetchColumn();
+    $h->test('Closed session progress mutation is rejected', (int) $closedSaveResponse['status'] === 404, $closedSaveResponse['raw']);
+    $h->test('Closed session rejection writes no progress rows', $closedProgressCount === 0, (string) $closedProgressCount);
 
     $insufficientBranchPayload = [
         'session_id' => $branchSessionId,
@@ -600,6 +770,7 @@ try {
     }
 
     if (!empty($created['product_id'])) {
+        $db->prepare("DELETE FROM dc_product_stock_movements WHERE product_id = ?")->execute([$created['product_id']]);
         $db->prepare("DELETE FROM dc_product_ingredients WHERE product_id = ?")->execute([$created['product_id']]);
         $db->prepare("DELETE FROM dc_products WHERE product_id = ?")->execute([$created['product_id']]);
     }
@@ -621,6 +792,11 @@ try {
     if (!empty($branchSessionId)) {
         $db->prepare("DELETE FROM dc_inventory_progress WHERE session_id = ?")->execute([$branchSessionId]);
         $db->prepare("DELETE FROM dc_sessions WHERE session_id = ?")->execute([$branchSessionId]);
+    }
+
+    if (!empty($closedBranchSessionId)) {
+        $db->prepare("DELETE FROM dc_inventory_progress WHERE session_id = ?")->execute([$closedBranchSessionId]);
+        $db->prepare("DELETE FROM dc_sessions WHERE session_id = ?")->execute([$closedBranchSessionId]);
     }
 
     foreach ([$created['cashier_id'], $created['supervisor_id'], (int) ($branchCashier['user_id'] ?? 0)] as $userId) {

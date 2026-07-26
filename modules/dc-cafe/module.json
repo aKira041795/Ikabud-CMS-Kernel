@@ -47,7 +47,8 @@
         "dc_addon_ingredients",
         "dc_password_resets",
         "dc_product_stock_movements",
-        "dc_product_store_stock"
+        "dc_product_store_stock",
+        "dc_ledger_groups"
     ],
     "reads_tables": [],
     "migrations": [
@@ -79,7 +80,8 @@
         "database/migrations/026_create_dc_product_stock_movements.sql",
         "database/migrations/027_add_store_coordinates.sql",
         "database/migrations/028_create_dc_product_store_stock.sql",
-        "database/migrations/029_add_store_id_to_product_stock_movements.sql"
+        "database/migrations/029_add_store_id_to_product_stock_movements.sql",
+        "database/migrations/030_create_dc_ledger_groups.sql"
     ],
     "capabilities": {
         "exposes": [

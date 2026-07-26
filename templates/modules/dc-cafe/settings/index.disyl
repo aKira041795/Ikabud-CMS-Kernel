@@ -20,6 +20,7 @@
         <button @click="setTab('sauces')" :class="tab === 'sauces' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Sauces</button>
         <button @click="setTab('toppings')" :class="tab === 'toppings' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Toppings</button>
         <button @click="setTab('addons')" :class="tab === 'addons' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Addons</button>
+        <button @click="setTab('ledger')" :class="tab === 'ledger' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Ledger Groups</button>
     </div>
 
     {* ── Payment Methods Tab ── *}
@@ -518,6 +519,93 @@
             </div>
         </div>
     </div>
+
+    {* ── Ledger Groups Tab ── *}
+    <div x-show="tab === 'ledger'">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
+            <div>
+                <h2 class="text-lg font-semibold">Ledger Organization</h2>
+                <p class="text-xs text-gray-500">Choose how product categories are grouped in shift reconciliation.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <a href="/dc-cafe/inventory/ledger" class="border border-amber-600 text-amber-700 px-3 py-1 rounded text-sm hover:bg-amber-50">Open Reconciliation</a>
+                <button @click="showAddLedgerGroup = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add Group</button>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mb-3">These settings change labels and order only. They never alter stock, sales, or saved shift counts.</p>
+
+        {* Unassigned categories warning *}
+        <div x-show="unassignedCategories.length > 0" class="bg-amber-50 border border-amber-200 text-amber-700 px-3 py-2 rounded mb-3 text-xs">
+            <span class="font-semibold">Warning:</span>
+            <span x-text="unassignedCategories.length + ' active categor' + (unassignedCategories.length === 1 ? 'y is' : 'ies are') + ' not assigned to any ledger group.'"></span>
+            They remain visible under their category names until assigned.
+        </div>
+
+        {* Group list *}
+        <div class="space-y-2">
+            <template x-for="g in ledgerGroups" :key="g.ledger_group_id">
+            <div class="border rounded p-3 bg-white flex items-center justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="font-medium text-sm" x-text="g.name"></span>
+                        <span class="text-xs text-gray-400" x-text="'(' + g.category_count + ' categories)'"></span>
+                        <span x-show="!g.is_active" class="text-red-600 text-xs bg-red-100 px-1.5 py-0.5 rounded">Inactive</span>
+                    </div>
+                    <div class="text-xs text-gray-400 mt-1">
+                        Sort: <span x-text="g.sort_order"></span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="number" x-model="editGroupSort[g.ledger_group_id]" class="border rounded px-2 py-1 w-16 text-xs" placeholder="Sort">
+                    <input type="text" x-model="editGroupName[g.ledger_group_id]" class="border rounded px-2 py-1 w-32 text-xs" placeholder="Group name">
+                    <button @click="updateLedgerGroup(g)" class="text-blue-600 hover:text-blue-800 text-xs">Save</button>
+                    <button @click="toggleLedgerGroupActive(g)" class="text-gray-600 hover:text-gray-800 text-xs" x-text="g.is_active ? 'Deactivate' : 'Activate'"></button>
+                </div>
+            </div>
+            </template>
+            <div x-show="ledgerGroups.length === 0" class="text-center text-gray-400 py-6 text-sm">No ledger groups configured.</div>
+        </div>
+
+        {* Category assignment table *}
+        <div class="mt-6">
+            <h3 class="text-sm font-semibold mb-2">Category → Group Mapping</h3>
+            <p class="mb-2 text-xs text-gray-500">Changing a selection saves immediately after confirmation.</p>
+            <table class="w-full text-sm">
+                <thead><tr class="bg-gray-100 text-left"><th class="p-2">Category</th><th class="p-2">Current Group</th><th class="p-2">Reassign To</th></tr></thead>
+                <tbody>
+                    <template x-for="cat in categories" :key="cat.category_id">
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-2" x-text="cat.name"></td>
+                        <td class="p-2 text-xs" x-text="cat.ledger_group_id ? (ledgerGroups.find(g => g.ledger_group_id == cat.ledger_group_id)?.name || '—') : '—'"></td>
+                        <td class="p-2">
+                            <select x-model="remapCategory[cat.category_id]" @change="remapCategoryGroup(cat.category_id)" class="border rounded px-2 py-1 text-xs">
+                                <option :value="null">— Unassigned —</option>
+                                <template x-for="g in activeLedgerGroups" :key="g.ledger_group_id">
+                                    <option :value="g.ledger_group_id" x-text="g.name"></option>
+                                </template>
+                            </select>
+                        </td>
+                    </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+
+        {* Add group modal *}
+        <div x-show="showAddLedgerGroup" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddLedgerGroup = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Add Ledger Group</h3>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Group Name</label>
+                    <input type="text" x-model="newLedgerGroupName" class="border rounded w-full px-3 py-2 text-sm" placeholder="e.g. Beverages">
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddLedgerGroup = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createLedgerGroup()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script id="dc-settings-data" type="application/json">{settings_data_json|raw}</script>
@@ -570,8 +658,40 @@ function settingsApp(initialData) {
         editStoreLng[s.store_id] = s.longitude || '';
     });
 
-    // Restore last-active tab from URL hash (survives page reloads)
-    const initialTab = location.hash.replace('#', '') || 'payment';
+    // Build initial edit maps for ledger groups
+    const editGroupName = {};
+    const editGroupSort = {};
+    const initialLedgerGroups = (initialData.ledgerGroups || []).map(g => ({
+        ...g,
+        ledger_group_id: Number(g.ledger_group_id),
+        sort_order: Number(g.sort_order) || 0,
+        version: Number(g.version) || 1,
+        is_active: Number(g.is_active) === 1,
+        category_count: Number(g.category_count) || 0,
+    }));
+    const initialCategories = (initialData.categories || []).map(c => ({
+        ...c,
+        category_id: Number(c.category_id),
+        ledger_group_id: c.ledger_group_id === null ? null : Number(c.ledger_group_id),
+    }));
+    initialLedgerGroups.forEach(g => {
+        editGroupName[g.ledger_group_id] = g.name;
+        editGroupSort[g.ledger_group_id] = g.sort_order;
+    });
+
+    const remapCategory = {};
+    initialCategories.forEach(c => {
+        remapCategory[c.category_id] = c.ledger_group_id;
+    });
+
+    // Restore last-active tab from URL hash; validate against whitelist
+    const validTabs = ['payment', 'stores', 'users', 'bases', 'sauces', 'toppings', 'addons', 'ledger'];
+    const hashTab = location.hash.replace('#', '');
+    const initialTab = validTabs.includes(hashTab) ? hashTab : 'payment';
+    // Normalize hash if it was invalid or empty
+    if (hashTab !== initialTab) {
+        history.replaceState(null, '', '#' + initialTab);
+    }
 
     return {
         tab: initialTab,
@@ -594,7 +714,16 @@ function settingsApp(initialData) {
         addons: initialData.addons || [],
         stores: initialData.stores || [],
         users: initialData.users || [],
+        ledgerGroups: initialLedgerGroups,
+        categories: initialCategories,
         currentUserId: initialData.currentUserId || 0,
+
+        // Ledger group state
+        showAddLedgerGroup: false,
+        newLedgerGroupName: '',
+        editGroupName,
+        editGroupSort,
+        remapCategory,
 
         // Sub-tab filters: 'all', 'active', 'inactive'
         statusFilter: { payment: 'active', stores: 'active', users: 'active', bases: 'active', sauces: 'active', toppings: 'active', addons: 'active' },
@@ -606,9 +735,21 @@ function settingsApp(initialData) {
             return items.filter(item => (item.is_active ? 1 : 0) === (wantActive ? 1 : 0));
         },
 
+        // Computed: active ledger groups for dropdowns
+        get activeLedgerGroups() {
+            return (this.ledgerGroups || []).filter(g => g.is_active);
+        },
+
+        // Computed: unassigned categories
+        get unassignedCategories() {
+            return (this.categories || []).filter(c => !c.ledger_group_id);
+        },
+
         toast: { show: false, message: '', type: 'success' },
 
         setTab(name) {
+            const v = ['payment', 'stores', 'users', 'bases', 'sauces', 'toppings', 'addons', 'ledger'];
+            if (!v.includes(name)) name = 'payment';
             this.tab = name;
             location.hash = name;
         },
@@ -629,6 +770,7 @@ function settingsApp(initialData) {
                 addons: this.api('/dc-cafe/api/v1/soft-serve/addons/list', 'GET'),
                 stores: this.api('/dc-cafe/api/v1/stores', 'GET'),
                 users: this.api('/dc-cafe/api/v1/users', 'GET'),
+                ledger: this.api('/dc-cafe/api/v1/settings/ledger-groups', 'GET'),
             };
             Promise.all(Object.values(fetches)).then(() => {
                 fetches.payment.then(d => { if (d.ok) this.paymentMethods = d.payment_methods; });
@@ -647,6 +789,29 @@ function settingsApp(initialData) {
                             this.editUserData.role = u.role;
                             this.editUserData.store_id = u.store_id;
                         }
+                    });
+                }});
+                fetches.ledger.then(d => { if (d.ok) {
+                    this.ledgerGroups = (d.groups || []).map(g => ({
+                        ...g,
+                        ledger_group_id: Number(g.ledger_group_id),
+                        sort_order: Number(g.sort_order) || 0,
+                        version: Number(g.version) || 1,
+                        is_active: Number(g.is_active) === 1,
+                        category_count: Number(g.category_count) || 0,
+                    }));
+                    this.categories = (d.categories || []).map(c => ({
+                        ...c,
+                        category_id: Number(c.category_id),
+                        ledger_group_id: c.ledger_group_id === null ? null : Number(c.ledger_group_id),
+                    }));
+                    // Rebuild edit maps
+                    (d.groups || []).forEach(g => {
+                        this.editGroupName[g.ledger_group_id] = g.name;
+                        this.editGroupSort[g.ledger_group_id] = g.sort_order;
+                    });
+                    (d.categories || []).forEach(c => {
+                        this.remapCategory[c.category_id] = c.ledger_group_id;
                     });
                 }});
                 // Rebuild edit maps for stores
@@ -674,7 +839,18 @@ function settingsApp(initialData) {
                 method: method,
                 headers: {'Content-Type': 'application/json'},
                 body: body ? JSON.stringify(body) : undefined,
-            }).then(r => r.json());
+            }).then(async r => {
+                let data = {};
+                try {
+                    data = await r.json();
+                } catch (e) {
+                    return {ok: false, error: 'The server returned an unreadable response'};
+                }
+                if (!r.ok) {
+                    return {ok: false, error: data.error || 'The request could not be completed'};
+                }
+                return data;
+            }).catch(() => ({ok: false, error: 'Connection error. Check your network and try again.'}));
         },
 
         onSuccess(msg) {
@@ -812,6 +988,58 @@ function settingsApp(initialData) {
         },
         toggleAddonActive(id, active) {
             this.api('/dc-cafe/api/v1/soft-serve/addons/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Addon updated'); else this.onError(d.error); });
+        },
+
+        // ── Ledger Group Methods ──
+
+        createLedgerGroup() {
+            if (!this.newLedgerGroupName) return;
+            this.api('/dc-cafe/api/v1/settings/ledger-groups/create', 'POST', {name: this.newLedgerGroupName}).then(d => {
+                if (d.ok) {
+                    this.showAddLedgerGroup = false;
+                    this.newLedgerGroupName = '';
+                    this.onSuccess('Ledger group created');
+                } else {
+                    this.onError(d.error);
+                }
+            });
+        },
+        updateLedgerGroup(g) {
+            const body = {};
+            if (this.editGroupName[g.ledger_group_id] !== undefined && this.editGroupName[g.ledger_group_id] !== g.name) body.name = this.editGroupName[g.ledger_group_id];
+            if (this.editGroupSort[g.ledger_group_id] !== undefined && this.editGroupSort[g.ledger_group_id] != g.sort_order) body.sort_order = parseInt(this.editGroupSort[g.ledger_group_id]);
+            if (Object.keys(body).length === 0) {
+                this.showToast('No changes to save', 'info');
+                return;
+            }
+            body.version = g.version;
+            this.api('/dc-cafe/api/v1/settings/ledger-groups/' + g.ledger_group_id, 'PUT', body).then(d => { if (d.ok) this.onSuccess('Group saved'); else this.onError(d.error); });
+        },
+        toggleLedgerGroupActive(g) {
+            this.api('/dc-cafe/api/v1/settings/ledger-groups/' + g.ledger_group_id, 'PUT', {is_active: g.is_active ? 0 : 1, version: g.version}).then(d => { if (d.ok) this.onSuccess('Group updated'); else this.onError(d.error); });
+        },
+        remapCategoryGroup(categoryId) {
+            const category = this.categories.find(c => c.category_id == categoryId);
+            const groupId = this.remapCategory[categoryId];
+            const oldGroupId = category ? category.ledger_group_id : null;
+            if (!confirm('Apply this category grouping change? Existing stock and sales will not be changed.')) {
+                this.remapCategory[categoryId] = oldGroupId;
+                return;
+            }
+            this.api('/dc-cafe/api/v1/settings/ledger-groups/remap', 'POST', {
+                category_id: categoryId,
+                ledger_group_id: groupId,
+            }).then(d => {
+                if (d.ok) {
+                    this.onSuccess('Category grouping updated');
+                } else {
+                    this.remapCategory[categoryId] = oldGroupId;
+                    this.onError(d.error);
+                }
+            }).catch(() => {
+                this.remapCategory[categoryId] = oldGroupId;
+                this.onError('Unable to update category grouping');
+            });
         },
     };
 }

@@ -1,195 +1,152 @@
 {extends "modules/dc-cafe/layouts/app.disyl"}
 
 {block content}
-<div x-data="inventoryLedger()" x-init="init()" class="space-y-4">
-    {* Header *}
-    <div class="flex items-center justify-between">
+<div x-data="inventoryLedger()" class="space-y-4">
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">Inventory Reconciliation</h1>
-            <p class="text-sm text-gray-500 mt-1">
-                Sales from orders · Beginning + Production − Pullouts − Sales = Expected Ending
+            <p class="mt-1 text-sm text-gray-500">
+                Review one shift and branch at a time. Sales and branch stock are read from the system.
             </p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="w-full lg:w-[32rem]">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Shift session</label>
             <select x-model="sessionId" @change="loadReconciliation()"
-                    class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500">
-                <option value="">— Select Session —</option>
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500">
+                <option value="">Select a shift session</option>
                 {for s in sessions}
                 <option value="{s.session_id}">
-                    {s.shift_start|date:'M d, H:i'} — {s.opened_by} ({s.status})
+                    {s.shift_start|date:'M d, H:i'} · {s.store_name} · {s.opened_by} · {s.status}
                 </option>
                 {/for}
             </select>
-            <span x-show="statusMsg" x-text="statusMsg"
-                  class="text-xs px-2 py-1 rounded"
-                  :class="statusError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'"></span>
         </div>
     </div>
 
-    {* Formula reminder *}
-    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
-        <span class="font-bold">Formula:</span>
-        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Beginning</span>
-        <span>+</span>
-        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Production</span>
-        <span>−</span>
-        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Pullouts</span>
-        <span>−</span>
-        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono font-bold">Sales</span>
-        <span>=</span>
-        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono font-bold">Expected Ending</span>
-        <span class="ml-2 text-xs text-gray-500">(sales from completed orders)</span>
+    <div x-show="statusMsg" x-cloak
+         class="rounded-lg border px-4 py-3 text-sm"
+         :class="statusError ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'">
+        <span x-text="statusMsg"></span>
     </div>
 
-    {* Empty state *}
-    <div x-show="!sessionId" class="text-center py-12 text-gray-400 bg-white rounded-xl border">
-        Select a session above to view reconciliation.
+    <div x-show="sessionMeta" x-cloak class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500">Selected branch</div>
+                <div class="mt-1 font-semibold text-gray-900" x-text="sessionMeta?.store_name || '—'"></div>
+                <div class="mt-1 text-xs text-gray-500">
+                    Opened by <span x-text="sessionMeta?.opened_by || '—'"></span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="rounded-full px-2.5 py-1 text-xs font-semibold"
+                      :class="sessionMeta?.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'"
+                      x-text="sessionMeta?.status === 'active' ? 'Active shift' : 'Closed shift'"></span>
+                <span x-show="!editable" class="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                    Read only
+                </span>
+            </div>
+        </div>
+        <p x-show="!editable" class="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
+            This reconciliation can be reviewed, but manual counts cannot be changed for a closed shift or read-only role.
+        </p>
     </div>
 
-    {* ─── Grouped Reconciliation Sections ─── *}
-    <div x-show="sessionId" class="space-y-4" x-cloak>
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <span class="font-semibold">Expected ending</span>
+        = Beginning + Production − Pullouts − Completed sales.
+        <span class="ml-1 text-xs text-amber-700">Branch stock is shown separately for comparison.</span>
+    </div>
 
-{for g in groups}
-        {* ── {g.name} ── *}
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            {* Collapse toggle *}
-            <button @click="groups[{g@index}].open = !groups[{g@index}].open"
-                    class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition border-b"
-                    :class="groups[{g@index}].open ? 'border-gray-100' : 'border-transparent'">
-                <div class="flex items-center gap-3">
-                    <span class="font-semibold text-gray-800">{g.name}</span>
-                    <span class="text-xs text-gray-400">(<span x-text="groups[{g@index}].products.length"></span>)</span>
-                </div>
-                <div class="flex items-center gap-4">
-                    <template x-if="!groups[{g@index}].open">
-                        <span class="text-xs text-gray-500">
-                            Sold <b x-text="groupTotals({g@index}).sold.toFixed(0)"></b>
-                            · Exp End <b x-text="groupTotals({g@index}).expected_ending.toFixed(0)"></b>
-                        </span>
-                    </template>
-                    <span class="text-xs text-gray-400" x-show="groups[{g@index}].open">click to collapse</span>
-                    <svg class="w-5 h-5 text-gray-400 transition-transform"
-                         :class="groups[{g@index}].open ? 'rotate-180' : ''"
-                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                    </svg>
-                </div>
-            </button>
+    <div x-show="!sessionId && !loading" class="rounded-xl border bg-white py-12 text-center text-gray-400">
+        Select a shift session to view its branch reconciliation.
+    </div>
 
-            {* Collapsible table *}
-            <div x-show="groups[{g@index}].open" x-collapse>
+    <div x-show="loading" x-cloak class="rounded-xl border bg-white py-12 text-center text-sm text-gray-500">
+        Loading reconciliation…
+    </div>
+
+    <div x-show="sessionId && !loading && groups.length === 0 && !statusError" x-cloak
+         class="rounded-xl border bg-white py-12 text-center text-gray-400">
+        No active catalog products are available for this session.
+    </div>
+
+    <div x-show="!loading && groups.length > 0" x-cloak class="space-y-4">
+        <template x-for="group in groups" :key="group.name">
+            <section class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div class="flex items-center justify-between border-b bg-gray-50 px-5 py-3">
+                    <div>
+                        <h2 class="font-semibold text-gray-800" x-text="group.name"></h2>
+                        <p class="text-xs text-gray-500" x-text="group.products.length + ' products'"></p>
+                    </div>
+                    <div class="text-right text-xs text-gray-500">
+                        Sold <b class="text-gray-800" x-text="groupTotals(group).sold.toFixed(0)"></b>
+                        · Expected <b class="text-gray-800" x-text="groupTotals(group).expected.toFixed(1)"></b>
+                    </div>
+                </div>
+
                 <div class="overflow-x-auto">
-                    <table class="w-full text-sm">
-                        <thead>
-                            <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
-                                <th class="text-left px-4 py-3 w-1/4">Product</th>
-                                <th class="text-right px-3 py-3 w-20">Beginning</th>
-                                <th class="text-center px-1 py-3 w-6 text-green-600">+</th>
-                                <th class="text-right px-3 py-3 w-20">Production</th>
-                                <th class="text-center px-1 py-3 w-6 text-red-500">−</th>
-                                <th class="text-right px-3 py-3 w-20">Pullouts</th>
-                                <th class="text-center px-1 py-3 w-6 text-red-500">−</th>
-                                <th class="text-right px-3 py-3 w-20">Sales</th>
-                                <th class="text-center px-1 py-3 w-6">=</th>
-                                <th class="text-right px-4 py-3 w-24">Expected End</th>
-                                <th class="text-left px-3 py-3">Current Stock</th>
-                                <th class="text-left px-3 py-3">Notes</th>
+                    <table class="w-full min-w-[980px] text-sm">
+                        <thead class="bg-white text-xs uppercase tracking-wide text-gray-500">
+                            <tr>
+                                <th class="px-4 py-3 text-left">Product</th>
+                                <th class="px-3 py-3 text-right">Beginning</th>
+                                <th class="px-3 py-3 text-right">Production</th>
+                                <th class="px-3 py-3 text-right">Pullouts</th>
+                                <th class="px-3 py-3 text-right">Sales</th>
+                                <th class="px-3 py-3 text-right">Expected end</th>
+                                <th class="px-3 py-3 text-right">Branch stock</th>
+                                <th class="px-3 py-3 text-right">Variance</th>
+                                <th class="px-4 py-3 text-left">Notes</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <template x-for="(row, idx) in groups[{g@index}].products" :key="row.product_id">
-                                <tr class="border-b border-gray-100 hover:bg-amber-50 transition"
-                                    :class="{'bg-red-50': row.expected_ending < 0}">
+                            <template x-for="row in group.products" :key="row.product_id">
+                                <tr class="border-t border-gray-100" :class="Math.abs(row.variance) > 0.001 ? 'bg-amber-50/50' : ''">
+                                    <td class="px-4 py-2 font-medium text-gray-800" x-text="row.name"></td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" min="0" step="any" x-model.number="row.beginning_qty"
+                                               :disabled="!editable" @input.debounce.800ms="queueSave(row)"
+                                               class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" min="0" step="any" x-model.number="row.production_qty"
+                                               :disabled="!editable" @input.debounce.800ms="queueSave(row)"
+                                               class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" min="0" step="any" x-model.number="row.pullout_qty"
+                                               :disabled="!editable" @input.debounce.800ms="queueSave(row)"
+                                               class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
+                                    </td>
+                                    <td class="px-3 py-2 text-right font-medium" x-text="row.sold_qty.toFixed(0)"></td>
+                                    <td class="px-3 py-2 text-right font-semibold" x-text="row.expected_ending.toFixed(2)"></td>
+                                    <td class="px-3 py-2 text-right" x-text="row.current_stock.toFixed(2)"></td>
+                                    <td class="px-3 py-2 text-right font-semibold"
+                                        :class="Math.abs(row.variance) > 0.001 ? 'text-amber-700' : 'text-green-700'"
+                                        x-text="row.variance.toFixed(2)"></td>
                                     <td class="px-4 py-2">
-                                        <span class="font-medium text-gray-800" x-text="row.name"></span>
-                                    </td>
-                                    {* Beginning (manual) *}
-                                    <td class="px-3 py-2">
-                                        <input type="number" step="any" min="0"
-                                               x-model.number="row.beginning_qty"
-                                               @input.debounce.800="saveManual(row)"
-                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
-                                    </td>
-                                    <td class="text-center text-green-500 font-bold text-xs">+</td>
-                                    {* Production (manual) *}
-                                    <td class="px-3 py-2">
-                                        <input type="number" step="any" min="0"
-                                               x-model.number="row.production_qty"
-                                               @input.debounce.800="saveManual(row)"
-                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
-                                    </td>
-                                    <td class="text-center text-red-400 font-bold text-xs">−</td>
-                                    {* Pullouts (manual) *}
-                                    <td class="px-3 py-2">
-                                        <input type="number" step="any" min="0"
-                                               x-model.number="row.pullout_qty"
-                                               @input.debounce.800="saveManual(row)"
-                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
-                                    </td>
-                                    <td class="text-center text-red-400 font-bold text-xs">−</td>
-                                    {* Sales (read-only — from orders) *}
-                                    <td class="px-3 py-2">
-                                        <span class="block w-full text-right px-2 py-1.5 text-gray-800 font-medium"
-                                              x-text="row.sold_qty.toFixed(0)"></span>
-                                    </td>
-                                    <td class="text-center text-gray-400 font-bold text-xs">=</td>
-                                    {* Expected ending (auto-computed) *}
-                                    <td class="px-4 py-2 text-right">
-                                        <span class="font-bold text-sm"
-                                              :class="row.expected_ending < 0 ? 'text-red-600' : 'text-gray-800'"
-                                              x-text="row.expected_ending.toFixed(2)"></span>
-                                    </td>
-                                    {* Current system stock *}
-                                    <td class="px-3 py-2">
-                                        <span class="text-sm text-gray-600" x-text="row.current_stock.toFixed(0)"></span>
-                                    </td>
-                                    {* Notes *}
-                                    <td class="px-3 py-2">
-                                        <input type="text" x-model="row.notes" placeholder="—"
-                                               @input.debounce.1000="saveManual(row)"
-                                               class="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                        <input type="text" x-model="row.notes" :disabled="!editable"
+                                               @input.debounce.1000ms="queueSave(row)" placeholder="Optional note"
+                                               class="w-44 rounded border px-2 py-1.5 disabled:bg-gray-100 disabled:text-gray-500">
                                     </td>
                                 </tr>
                             </template>
                         </tbody>
-                        {* Group subtotal *}
-                        <tfoot>
-                            <tr class="bg-amber-50 text-gray-700 font-semibold text-xs">
-                                <td class="px-4 py-2">{g.name} Total</td>
-                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).beginning.toFixed(1)"></td>
-                                <td></td>
-                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).production.toFixed(1)"></td>
-                                <td></td>
-                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).pullout.toFixed(1)"></td>
-                                <td></td>
-                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).sold.toFixed(1)"></td>
-                                <td></td>
-                                <td class="px-4 py-2 text-right" x-text="groupTotals({g@index}).expected_ending.toFixed(1)"></td>
-                                <td colspan="2"></td>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
-            </div>
-        </div>
-{/for}
+            </section>
+        </template>
 
-        {* ── Grand Total Bar ── *}
-        <div class="bg-amber-700 text-white rounded-xl px-5 py-3 flex items-center justify-between shadow-sm">
-            <span class="text-sm font-semibold">
-                <span x-text="allRows().length"></span> products
-                <span x-show="dirtyCount > 0" class="ml-2 text-amber-200">
-                    · <span x-text="dirtyCount"></span> unsaved manual counts
-                </span>
-            </span>
-            <div class="flex gap-5 text-xs font-medium">
-                <span>Sales: <b x-text="grandTotals.sold.toFixed(0)"></b></span>
-                <span>Exp End: <b x-text="grandTotals.expected_ending.toFixed(0)"></b></span>
+        <div class="flex flex-col gap-3 rounded-xl bg-amber-700 px-5 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-sm">
+                <b x-text="allRows().length"></b> products
+                · Sold <b x-text="grandTotals.sold.toFixed(0)"></b>
+                · Expected <b x-text="grandTotals.expected.toFixed(1)"></b>
             </div>
-            <button @click="saveAllManual()" :disabled="dirtyCount === 0 || saving"
-                    class="bg-white text-amber-800 px-4 py-1.5 rounded text-sm font-bold hover:bg-amber-100 disabled:opacity-50">
-                <span x-show="!saving">Save Manual Counts</span>
-                <span x-show="saving">Saving...</span>
+            <button x-show="editable" @click="saveAllManual()" :disabled="dirtyCount === 0 || saving"
+                    class="rounded bg-white px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50">
+                <span x-text="saving ? 'Saving…' : (dirtyCount ? 'Save ' + dirtyCount + ' unsaved row(s)' : 'All changes saved')"></span>
             </button>
         </div>
     </div>
@@ -199,174 +156,150 @@
 function inventoryLedger() {
     return {
         sessionId: '',
+        sessionMeta: null,
         groups: [],
+        loading: false,
         saving: false,
+        editable: false,
         statusMsg: '',
         statusError: false,
         saveTimers: {},
 
-        get dirtyCount() {
-            return this.allRows().filter(r => r._dirty).length;
-        },
-
-        get grandTotals() {
-            const all = this.allRows();
-            return {
-                beginning: all.reduce((s, r) => s + (parseFloat(r.beginning_qty) || 0), 0),
-                production: all.reduce((s, r) => s + (parseFloat(r.production_qty) || 0), 0),
-                pullout: all.reduce((s, r) => s + (parseFloat(r.pullout_qty) || 0), 0),
-                sold: all.reduce((s, r) => s + (parseFloat(r.sold_qty) || 0), 0),
-                expected_ending: all.reduce((s, r) => s + (parseFloat(r.expected_ending) || 0), 0),
-            };
-        },
-
         allRows() {
-            return this.groups.reduce((acc, g) => acc.concat(g.products), []);
+            return this.groups.flatMap(group => group.products);
         },
+        get dirtyCount() {
+            return this.allRows().filter(row => row._dirty).length;
+        },
+        get grandTotals() {
+            return this.allRows().reduce((totals, row) => {
+                totals.sold += row.sold_qty;
+                totals.expected += row.expected_ending;
+                return totals;
+            }, {sold: 0, expected: 0});
+        },
+        groupTotals(group) {
+            return group.products.reduce((totals, row) => {
+                totals.sold += row.sold_qty;
+                totals.expected += row.expected_ending;
+                return totals;
+            }, {sold: 0, expected: 0});
+        },
+        clearPendingSaves() {
+            Object.values(this.saveTimers).forEach(timer => clearTimeout(timer));
+            this.saveTimers = {};
+        },
+        setStatus(message, isError = false) {
+            this.statusMsg = message;
+            this.statusError = isError;
+        },
+        async request(url, options = {}) {
+            const response = await fetch(url, options);
+            let data = {};
+            try {
+                data = await response.json();
+            } catch (error) {
+                throw new Error('The server returned an unreadable response.');
+            }
+            if (!response.ok || !data.ok) {
+                throw new Error(data.error || 'The request could not be completed.');
+            }
+            return data;
+        },
+        async loadReconciliation() {
+            this.clearPendingSaves();
+            this.groups = [];
+            this.sessionMeta = null;
+            this.editable = false;
+            this.setStatus('');
+            if (!this.sessionId) return;
 
-        groupTotals(gi) {
-            const prods = this.groups[gi].products;
+            this.loading = true;
+            try {
+                const data = await this.request('/dc-cafe/api/v1/inventory/reconciliation/' + this.sessionId);
+                this.sessionMeta = data.session || null;
+                this.editable = !!data.session?.editable;
+
+                const groups = new Map();
+                (data.items || []).forEach(item => {
+                    const name = item.ledger_group || 'Unassigned';
+                    if (!groups.has(name)) groups.set(name, []);
+                    const beginning = parseFloat(item.beginning_qty) || 0;
+                    const production = parseFloat(item.production_qty) || 0;
+                    const pullout = parseFloat(item.pullout_qty) || 0;
+                    const sold = parseFloat(item.sold_qty) || 0;
+                    const current = parseFloat(item.current_stock) || 0;
+                    const expected = beginning + production - pullout - sold;
+                    groups.get(name).push({
+                        product_id: Number(item.product_id),
+                        name: item.name,
+                        beginning_qty: beginning,
+                        production_qty: production,
+                        pullout_qty: pullout,
+                        sold_qty: sold,
+                        expected_ending: expected,
+                        current_stock: current,
+                        variance: current - expected,
+                        notes: item.notes || '',
+                        _dirty: false,
+                    });
+                });
+                this.groups = Array.from(groups, ([name, products]) => ({name, products}));
+                this.setStatus(this.editable ? 'Reconciliation loaded. Manual counts can be updated.' : 'Reconciliation loaded in read-only mode.');
+            } catch (error) {
+                this.groups = [];
+                this.sessionMeta = null;
+                this.setStatus(error.message || 'Unable to load reconciliation.', true);
+            } finally {
+                this.loading = false;
+            }
+        },
+        recalculate(row) {
+            row.expected_ending = (parseFloat(row.beginning_qty) || 0)
+                + (parseFloat(row.production_qty) || 0)
+                - (parseFloat(row.pullout_qty) || 0)
+                - (parseFloat(row.sold_qty) || 0);
+            row.variance = (parseFloat(row.current_stock) || 0) - row.expected_ending;
+        },
+        queueSave(row) {
+            if (!this.editable) return;
+            this.recalculate(row);
+            row._dirty = true;
+        },
+        payloadFor(rows) {
             return {
-                beginning: prods.reduce((s, r) => s + (parseFloat(r.beginning_qty) || 0), 0),
-                production: prods.reduce((s, r) => s + (parseFloat(r.production_qty) || 0), 0),
-                pullout: prods.reduce((s, r) => s + (parseFloat(r.pullout_qty) || 0), 0),
-                sold: prods.reduce((s, r) => s + (parseFloat(r.sold_qty) || 0), 0),
-                expected_ending: prods.reduce((s, r) => s + (parseFloat(r.expected_ending) || 0), 0),
+                session_id: Number(this.sessionId),
+                items: rows.map(row => ({
+                    product_id: row.product_id,
+                    beginning_qty: parseFloat(row.beginning_qty) || 0,
+                    production_qty: parseFloat(row.production_qty) || 0,
+                    pullout_qty: parseFloat(row.pullout_qty) || 0,
+                    notes: row.notes || '',
+                })),
             };
         },
-
-        init() {
-            {for g in groups}
-            this.groups.push({
-                name: '{g.name}',
-                open: true,
-                products: JSON.parse('{g.products_json|raw}').map(p => ({
-                    product_id: p.product_id,
-                    name: p.name,
-                    beginning_qty: 0,
-                    production_qty: 0,
-                    pullout_qty: 0,
-                    sold_qty: 0,
-                    expected_ending: 0,
-                    current_stock: 0,
-                    notes: '',
-                    _dirty: false,
-                }))
-            });
-            {/for}
-        },
-
-        loadReconciliation() {
-            if (!this.sessionId) return;
-            fetch('/dc-cafe/api/v1/inventory/reconciliation/' + this.sessionId)
-                .then(r => r.json()).then(d => {
-                    if (d.ok && d.items) {
-                        const map = {};
-                        d.items.forEach(item => { map[item.product_id] = item; });
-                        this.allRows().forEach(row => {
-                            const data = map[row.product_id];
-                            if (data) {
-                                row.beginning_qty = parseFloat(data.beginning_qty) || 0;
-                                row.production_qty = parseFloat(data.production_qty) || 0;
-                                row.pullout_qty = parseFloat(data.pullout_qty) || 0;
-                                row.sold_qty = parseFloat(data.sold_qty) || 0;
-                                row.expected_ending = parseFloat(data.expected_ending) || 0;
-                                row.current_stock = parseFloat(data.current_stock) || 0;
-                                row.notes = data.notes || '';
-                            }
-                            row._dirty = false;
-                        });
-                        this.statusMsg = 'Loaded — sales from completed orders';
-                        this.statusError = false;
-                        setTimeout(() => { this.statusMsg = ''; }, 3000);
-                    }
-                });
-        },
-
-        saveManual(row) {
-            row._dirty = true;
-            row.expected_ending = (parseFloat(row.beginning_qty) || 0)
-                               + (parseFloat(row.production_qty) || 0)
-                               - (parseFloat(row.pullout_qty) || 0)
-                               - (parseFloat(row.sold_qty) || 0);
-            const key = row.product_id;
-            if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
-            this.saveTimers[key] = setTimeout(() => this._persistManual(row), 800);
-        },
-
-        _persistManual(row) {
-            fetch('/dc-cafe/api/v1/inventory/progress', {
+        async persist(rows) {
+            if (!this.editable || rows.length === 0) return;
+            await this.request('/dc-cafe/api/v1/inventory/progress', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    session_id: this.sessionId,
-                    items: [{
-                        product_id: row.product_id,
-                        beginning_qty: parseFloat(row.beginning_qty) || 0,
-                        production_qty: parseFloat(row.production_qty) || 0,
-                        pullout_qty: parseFloat(row.pullout_qty) || 0,
-                        sold_qty: 0,
-                        ending_qty: 0,
-                        notes: row.notes || '',
-                    }]
-                })
-            })
-            .then(r => r.json())
-            .then(d => {
-                if (d.ok) {
-                    row._dirty = false;
-                    this.statusMsg = 'Manual counts saved';
-                    this.statusError = false;
-                    setTimeout(() => { this.statusMsg = ''; }, 1500);
-                } else {
-                    this.statusMsg = 'Error: ' + (d.error || 'save failed');
-                    this.statusError = true;
-                }
-            })
-            .catch(() => {
-                this.statusMsg = 'Connection error';
-                this.statusError = true;
+                body: JSON.stringify(this.payloadFor(rows)),
             });
+            rows.forEach(row => { row._dirty = false; });
         },
-
-        saveAllManual() {
-            if (this.dirtyCount === 0) return;
+        async saveAllManual() {
+            const dirty = this.allRows().filter(row => row._dirty);
+            if (!this.editable || dirty.length === 0) return;
             this.saving = true;
-            const dirty = this.allRows().filter(r => r._dirty);
-            const items = dirty.map(r => ({
-                product_id: r.product_id,
-                beginning_qty: parseFloat(r.beginning_qty) || 0,
-                production_qty: parseFloat(r.production_qty) || 0,
-                pullout_qty: parseFloat(r.pullout_qty) || 0,
-                sold_qty: 0,
-                ending_qty: 0,
-                notes: r.notes || '',
-            }));
-
-            fetch('/dc-cafe/api/v1/inventory/progress', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ session_id: this.sessionId, items: items })
-            })
-            .then(r => r.json())
-            .then(d => {
+            try {
+                await this.persist(dirty);
+                this.setStatus('Manual reconciliation counts saved.');
+            } catch (error) {
+                this.setStatus(error.message || 'Unable to save manual counts.', true);
+            } finally {
                 this.saving = false;
-                if (d.ok) {
-                    dirty.forEach(r => { r._dirty = false; });
-                    this.statusMsg = 'All manual counts saved';
-                    this.statusError = false;
-                    setTimeout(() => { this.statusMsg = ''; }, 2000);
-                } else {
-                    this.statusMsg = 'Error: ' + (d.error || 'save failed');
-                    this.statusError = true;
-                }
-            })
-            .catch(() => {
-                this.saving = false;
-                this.statusMsg = 'Connection error';
-                this.statusError = true;
-            });
-        }
+            }
+        },
     };
 }
 </script>

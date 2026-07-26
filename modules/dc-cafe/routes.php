@@ -90,15 +90,16 @@ return [
         // API: stores
         '/dc-cafe/api/v1/stores'              => 'dc-cafe:apiListStores',
         '/dc-cafe/api/v1/stores/{id}'         => 'dc-cafe:apiGetStore',
-        '/dc-cafe/api/v1/stores/create'       => 'dc-cafe:apiCreateStore',
 
         // API: users
         '/dc-cafe/api/v1/users'               => 'dc-cafe:apiListUsers',
         '/dc-cafe/api/v1/users/{id}'          => 'dc-cafe:apiGetUser',
-        '/dc-cafe/api/v1/users/create'        => 'dc-cafe:apiCreateUser',
 
         // API: dashboard
         '/dc-cafe/api/v1/dashboard/today'     => 'dc-cafe:apiGetTodaySalesData',
+
+        // API: settings / ledger groups
+        '/dc-cafe/api/v1/settings/ledger-groups' => 'dc-cafe:apiListLedgerGroups',
 
         // API: sales report export
         '/dc-cafe/api/v1/sales-report/export' => 'dc-cafe:apiExportSalesReportCsv',
@@ -159,6 +160,10 @@ return [
         '/dc-cafe/api/v1/soft-serve/addons/create'   => 'dc-cafe:apiCreateSoftServeAddon',
         '/dc-cafe/api/v1/soft-serve/addons/{id}'     => 'dc-cafe:apiUpdateSoftServeAddon',
 
+        // Ledger group management
+        '/dc-cafe/api/v1/settings/ledger-groups/create' => 'dc-cafe:apiCreateLedgerGroup',
+        '/dc-cafe/api/v1/settings/ledger-groups/remap'  => 'dc-cafe:apiRemapLedgerGroupCategory',
+
         // Vouchers
         '/dc-cafe/api/v1/vouchers/validate'   => 'dc-cafe:apiValidateVoucher',
     ],
@@ -172,6 +177,7 @@ return [
         '/dc-cafe/api/v1/soft-serve/sauces/{id}'   => 'dc-cafe:apiUpdateSoftServeSauce',
         '/dc-cafe/api/v1/soft-serve/toppings/{id}' => 'dc-cafe:apiUpdateSoftServeTopping',
         '/dc-cafe/api/v1/soft-serve/addons/{id}'   => 'dc-cafe:apiUpdateSoftServeAddon',
+        '/dc-cafe/api/v1/settings/ledger-groups/{id}' => 'dc-cafe:apiUpdateLedgerGroup',
     ],
     'PATCH' => [
         '/dc-cafe/api/v1/inventory/stock/{id}'          => 'dc-cafe:apiUpdateInventoryStock',

@@ -52,7 +52,7 @@ function apiGetStockLevels(array $params = []): void
 function apiGetReconciliation(array $params = []): void
 {
     $ctx = dcCtx();
-    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
 
     $sessionId = (int) ($params['session_id'] ?? 0);
     if ($sessionId <= 0) {
@@ -60,7 +60,9 @@ function apiGetReconciliation(array $params = []): void
     }
 
     $db = dcDb();
-    _dcLoadInventorySession($sessionId);
+    $session = _dcLoadInventorySession($sessionId);
+    $storeId = (int) $session['store_id'];
+    $catalogStoreId = dcCatalogStoreId($storeId);
 
     // Sales by product — quantity from completed order items in this session
     $sales = $db->query(
@@ -86,15 +88,21 @@ function apiGetReconciliation(array $params = []): void
         $progressMap[(int) $p['product_id']] = $p;
     }
 
-    // All active products with their ledger group
+    // Product identity comes from the resolved catalog; stock always comes
+    // from the selected session's branch.
     $products = $db->query(
         "SELECT p.product_id, p.name, c.name AS category_name,
-                COALESCE(c.ledger_group, c.name) AS ledger_group,
-                p.current_stock
+                COALESCE(g.name, c.name) AS ledger_group,
+                COALESCE(g.sort_order, c.sort_order) AS ledger_group_sort,
+                COALESCE(pss.on_hand_qty, 0) AS branch_stock
          FROM dc_products p
          JOIN dc_categories c ON c.category_id = p.category_id
-         WHERE p.is_active = 1
-         ORDER BY COALESCE(c.ledger_group, c.name), c.sort_order, p.name"
+         LEFT JOIN dc_ledger_groups g ON g.ledger_group_id = c.ledger_group_id
+         LEFT JOIN dc_product_store_stock pss
+           ON pss.product_id = p.product_id AND pss.store_id = ?
+         WHERE p.store_id = ? AND p.is_active = 1 AND c.is_active = 1
+         ORDER BY COALESCE(g.sort_order, c.sort_order), COALESCE(g.name, c.name), c.sort_order, p.name",
+        [$storeId, $catalogStoreId]
     )->fetchAll(\PDO::FETCH_ASSOC);
 
     $items = [];
@@ -111,13 +119,25 @@ function apiGetReconciliation(array $params = []): void
             'pullout_qty' => $saved ? (float) $saved['pullout_qty'] : 0,
             'sold_qty' => $salesMap[$pid] ?? 0,
             'notes' => $saved ? ($saved['notes'] ?? '') : '',
-            'current_stock' => (float) $p['current_stock'],
+            'current_stock' => (float) $p['branch_stock'],
         ];
         $item['expected_ending'] = $item['beginning_qty'] + $item['production_qty'] - $item['pullout_qty'] - $item['sold_qty'];
         $items[] = $item;
     }
 
-    dcJsonResponse(['ok' => true, 'items' => $items]);
+    $sessionMeta = $db->query(
+        "SELECT s.session_id, s.store_id, s.status, s.shift_start, s.shift_end,
+                st.name AS store_name, u.full_name AS opened_by
+         FROM dc_sessions s
+         JOIN dc_stores st ON st.store_id = s.store_id
+         JOIN dc_users u ON u.user_id = s.user_id
+         WHERE s.session_id = ?",
+        [$sessionId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    $sessionMeta['editable'] = $session['status'] === 'active'
+        && (($ctx->user()['role'] ?? '') !== 'auditor');
+
+    dcJsonResponse(['ok' => true, 'session' => $sessionMeta, 'items' => $items]);
 }
 
 /**
@@ -321,18 +341,60 @@ function apiSaveInventoryProgress(array $params = []): void
     }
 
     $db = dcDb();
-    _dcLoadInventorySession($sessionId, true);
+    $session = _dcLoadInventorySession($sessionId, true);
+    $catalogStoreId = dcCatalogStoreId((int) $session['store_id']);
+
+    $normalizedItems = [];
+    $productIds = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            dcJsonError('Every inventory item must be an object', 400);
+        }
+        $productId = (int) ($item['product_id'] ?? 0);
+        if ($productId <= 0 || isset($productIds[$productId])) {
+            dcJsonError($productId <= 0 ? 'Every item requires a valid product_id' : 'Duplicate product_id in request', 400);
+        }
+        $productIds[$productId] = true;
+
+        $values = [];
+        foreach (['beginning_qty', 'production_qty', 'pullout_qty'] as $field) {
+            $raw = $item[$field] ?? 0;
+            if (!is_numeric($raw)) {
+                dcJsonError($field . ' must be numeric', 400);
+            }
+            $value = (float) $raw;
+            if (!is_finite($value) || $value < 0) {
+                dcJsonError($field . ' must be a non-negative finite number', 400);
+            }
+            $values[$field] = $value;
+        }
+        $normalizedItems[] = [
+            'product_id' => $productId,
+            'beginning_qty' => $values['beginning_qty'],
+            'production_qty' => $values['production_qty'],
+            'pullout_qty' => $values['pullout_qty'],
+            'notes' => substr(trim((string) ($item['notes'] ?? '')), 0, 1000),
+        ];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($productIds), '?'));
+    $validProducts = $db->query(
+        "SELECT product_id FROM dc_products
+         WHERE store_id = ? AND is_active = 1 AND product_id IN ($placeholders)",
+        array_merge([$catalogStoreId], array_keys($productIds))
+    )->fetchAll(\PDO::FETCH_COLUMN);
+    if (count($validProducts) !== count($productIds)) {
+        dcJsonError('One or more products do not belong to this session catalog', 400);
+    }
 
     $db->beginTransaction();
     try {
-        foreach ($items as $item) {
-            $productId = (int) ($item['product_id'] ?? 0);
-            if ($productId <= 0) continue;
-
-            $beginning = (float) ($item['beginning_qty'] ?? 0);
-            $production = (float) ($item['production_qty'] ?? 0);
-            $pullout = (float) ($item['pullout_qty'] ?? 0);
-            $notes = (string) ($item['notes'] ?? '');
+        foreach ($normalizedItems as $item) {
+            $productId = $item['product_id'];
+            $beginning = $item['beginning_qty'];
+            $production = $item['production_qty'];
+            $pullout = $item['pullout_qty'];
+            $notes = $item['notes'];
 
             // Upsert: insert or update
             $existing = $db->query(
@@ -361,6 +423,11 @@ function apiSaveInventoryProgress(array $params = []): void
         $db->rollBack();
         dcJsonError('Failed to save inventory progress: ' . $e->getMessage(), 500);
     }
+
+    dc_auditLog('inventory_progress.saved', 'dc_sessions', (string) $sessionId, null, [
+        'item_count' => count($normalizedItems),
+        'product_ids' => array_keys($productIds),
+    ]);
 
     dcJsonResponse(['ok' => true]);
 }

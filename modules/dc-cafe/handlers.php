@@ -837,49 +837,30 @@ function pageInventory(array $params = []): void
 function pageInventoryLedger(array $params = []): void
 {
     $ctx = dcCtx();
-    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+    $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
+    $user = $ctx->user();
 
-    // Load sessions for selector
-    $sessions = dcDb()->query(
+    // Scope the selector before rendering so cashiers never receive another
+    // cashier's session metadata. The API repeats this authorization check.
+    $sessionSql =
         "SELECT s.session_id, s.shift_start, s.shift_end, s.status,
-                u.full_name AS opened_by
+                s.store_id, u.full_name AS opened_by, st.name AS store_name
          FROM dc_sessions s
          JOIN dc_users u ON u.user_id = s.user_id
-         WHERE s.status IN ('active', 'closed')
-         ORDER BY s.shift_start DESC
-         LIMIT 30"
-    )->fetchAll(\PDO::FETCH_ASSOC);
-
-    // Load all active products with category — grouped by ledger_group
-    $allProducts = dcDb()->query(
-        "SELECT p.product_id, p.name, c.name AS category_name,
-                COALESCE(c.ledger_group, c.name) AS ledger_group
-         FROM dc_products p
-         JOIN dc_categories c ON c.category_id = p.category_id
-         WHERE p.is_active = 1
-         ORDER BY COALESCE(c.ledger_group, c.name), c.sort_order, p.name"
-    )->fetchAll(\PDO::FETCH_ASSOC);
-
-    // Group by ledger_group (dynamic — no hardcoded map)
-    $groups = [];
-    foreach ($allProducts as $p) {
-        $key = $p['ledger_group'];
-        if (!isset($groups[$key])) {
-            $groups[$key] = ['name' => $key, 'products' => []];
-        }
-        $groups[$key]['products'][] = $p;
+         JOIN dc_stores st ON st.store_id = s.store_id
+         WHERE s.status IN ('active', 'closed')";
+    $sessionParams = [];
+    if (($user['role'] ?? '') === 'cashier') {
+        $sessionSql .= " AND s.user_id = ?";
+        $sessionParams[] = (int) ($user['user_id'] ?? 0);
     }
-
-    // Pre-encode JSON per group for Alpine.js init
-    foreach ($groups as &$g) {
-        $g['products_json'] = json_encode($g['products'], JSON_HEX_APOS | JSON_HEX_QUOT);
-    }
-    unset($g);
+    $sessionSql .= " ORDER BY s.shift_start DESC LIMIT 30";
+    $sessions = dcDb()->query($sessionSql, $sessionParams)->fetchAll(\PDO::FETCH_ASSOC);
 
     echo dcRender('inventory/ledger.disyl', [
         'page_title' => 'Inventory Ledger',
         'sessions' => $sessions,
-        'groups' => $groups,
+        'ledger_read_only' => ($user['role'] ?? '') === 'auditor',
     ]);
 }
 
@@ -1106,10 +1087,12 @@ function pageDcCafeSettings(array $params = []): void
     )->fetchAll(\PDO::FETCH_ASSOC);
 
     $users = $db->query(
-        "SELECT user_id, username, full_name, email, role, store_id, is_active, last_login_at
-         FROM dc_users
-         WHERE deleted_at IS NULL
-         ORDER BY full_name"
+        "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.store_id, u.is_active, u.last_login_at,
+                s.name AS store_name
+         FROM dc_users u
+         LEFT JOIN dc_stores s ON s.store_id = u.store_id
+         WHERE u.deleted_at IS NULL
+         ORDER BY u.full_name"
     )->fetchAll(\PDO::FETCH_ASSOC);
 
     $bases = $db->query(
@@ -1125,6 +1108,21 @@ function pageDcCafeSettings(array $params = []): void
         "SELECT * FROM dc_soft_serve_addons ORDER BY name"
     )->fetchAll(\PDO::FETCH_ASSOC);
 
+    $ledgerGroups = $db->query(
+        "SELECT g.*, COUNT(c.category_id) AS category_count
+         FROM dc_ledger_groups g
+         LEFT JOIN dc_categories c ON c.ledger_group_id = g.ledger_group_id
+         GROUP BY g.ledger_group_id
+         ORDER BY g.sort_order, g.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $categories = $db->query(
+        "SELECT c.*, COALESCE(NULLIF(c.ledger_group, ''), c.name) AS effective_ledger_group
+         FROM dc_categories c
+         WHERE c.is_active = 1
+         ORDER BY c.sort_order, c.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
     $settingsDataJson = json_encode([
         'paymentMethods' => $paymentMethods,
         'stores' => $stores,
@@ -1133,6 +1131,8 @@ function pageDcCafeSettings(array $params = []): void
         'sauces' => $sauces,
         'toppings' => $toppings,
         'addons' => $addons,
+        'ledgerGroups' => $ledgerGroups,
+        'categories' => $categories,
         'currentUserId' => (int) ($ctx->user()['user_id'] ?? 0),
     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
@@ -1994,5 +1994,225 @@ function apiUpdateSoftServeAddon(array $params = []): void
 
     $vals[] = $id;
     $db->query("UPDATE dc_soft_serve_addons SET " . implode(', ', $sets) . " WHERE addon_id = ?", $vals);
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── Ledger Group Management API ───────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/settings/ledger-groups — List all groups w/ category membership
+ */
+function apiListLedgerGroups(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $db = dcDb();
+    $groups = $db->query(
+        "SELECT g.*, COUNT(c.category_id) AS category_count
+         FROM dc_ledger_groups g
+         LEFT JOIN dc_categories c ON c.ledger_group_id = g.ledger_group_id
+         GROUP BY g.ledger_group_id
+         ORDER BY g.sort_order, g.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $categories = $db->query(
+        "SELECT c.category_id, c.name, c.ledger_group_id, c.sort_order,
+                COALESCE(NULLIF(c.ledger_group, ''), c.name) AS effective_ledger_group
+         FROM dc_categories c
+         WHERE c.is_active = 1
+         ORDER BY c.sort_order, c.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    dcJsonResponse(['ok' => true, 'groups' => $groups, 'categories' => $categories]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/settings/ledger-groups/create
+ */
+function apiCreateLedgerGroup(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $name = trim((string) (dcInput('name') ?? ''));
+    if ($name === '') {
+        dcJsonError('Group name is required');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT ledger_group_id FROM dc_ledger_groups WHERE name = ?",
+        [$name]
+    )->fetch();
+    if ($existing) {
+        dcJsonError('A group with that name already exists');
+    }
+
+    $db->query(
+        "INSERT INTO dc_ledger_groups (name) VALUES (?)",
+        [$name]
+    );
+
+    $newId = (int) $db->lastInsertId();
+    dc_auditLog('ledger_group.create', 'dc_ledger_groups', (string) $newId, null, [
+        'name' => $name,
+    ]);
+
+    dcJsonResponse(['ok' => true, 'ledger_group_id' => $newId]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/settings/ledger-groups/{id}
+ */
+function apiUpdateLedgerGroup(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid group ID', 400);
+    }
+
+    $name = dcInput('name');
+    $sortOrder = dcInput('sort_order');
+    $isActive = dcInput('is_active');
+    $clientVersion = dcInput('version');
+
+    if ($name === null && $sortOrder === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT * FROM dc_ledger_groups WHERE ledger_group_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Group not found', 404);
+    }
+
+    if ($clientVersion === null) {
+        dcJsonError('Group version is required. Refresh and try again.', 428);
+    }
+    // Optimistic version check
+    if ((int) $clientVersion !== (int) $existing['version']) {
+        dcJsonError('Group was modified by another user. Refresh and try again.', 409);
+    }
+
+    if ($name !== null) {
+        $name = trim((string) $name);
+        if ($name === '') {
+            dcJsonError('Group name is required');
+        }
+        $dup = $db->query(
+            "SELECT ledger_group_id FROM dc_ledger_groups WHERE name = ? AND ledger_group_id != ?",
+            [$name, $id]
+        )->fetch();
+        if ($dup) {
+            dcJsonError('Another group with that name already exists');
+        }
+    }
+    if ($isActive !== null && !$isActive) {
+        $assigned = (int) $db->query(
+            "SELECT COUNT(*) FROM dc_categories WHERE ledger_group_id = ? AND is_active = 1",
+            [$id]
+        )->fetchColumn();
+        if ($assigned > 0) {
+            dcJsonError('Reassign active categories before deactivating this group.', 409);
+        }
+    }
+
+    $sets = ['version = version + 1'];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = $name;
+    }
+    if ($sortOrder !== null) {
+        $sets[] = 'sort_order = ?';
+        $vals[] = (int) $sortOrder;
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    $vals[] = $id;
+    $vals[] = (int) $clientVersion;
+    $updated = $db->query(
+        "UPDATE dc_ledger_groups SET " . implode(', ', $sets)
+        . " WHERE ledger_group_id = ? AND version = ?",
+        $vals
+    );
+    if ($updated->rowCount() !== 1) {
+        dcJsonError('Group was modified by another user. Refresh and try again.', 409);
+    }
+
+    $newState = $db->query(
+        "SELECT * FROM dc_ledger_groups WHERE ledger_group_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    dc_auditLog(
+        'ledger_group.update',
+        'dc_ledger_groups',
+        (string) $id,
+        $existing,
+        $newState ?: null
+    );
+
+    dcJsonResponse(['ok' => true]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/settings/ledger-groups/remap — Reassign category to a group
+ */
+function apiRemapLedgerGroupCategory(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $categoryId = (int) (dcInput('category_id') ?? 0);
+    $groupId = dcInput('ledger_group_id');
+
+    if ($categoryId <= 0) {
+        dcJsonError('Invalid category ID', 400);
+    }
+
+    $db = dcDb();
+    $category = $db->query(
+        "SELECT * FROM dc_categories WHERE category_id = ? AND is_active = 1",
+        [$categoryId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$category) {
+        dcJsonError('Category not found', 404);
+    }
+
+    $newGroupId = ($groupId !== null && $groupId !== '') ? (int) $groupId : null;
+    if ($newGroupId !== null) {
+        $group = $db->query(
+            "SELECT * FROM dc_ledger_groups WHERE ledger_group_id = ? AND is_active = 1",
+            [$newGroupId]
+        )->fetch(\PDO::FETCH_ASSOC);
+        if (!$group) {
+            dcJsonError('Target ledger group not found or inactive', 404);
+        }
+    }
+
+    $oldGroupId = $category['ledger_group_id'];
+    $db->query(
+        "UPDATE dc_categories SET ledger_group_id = ? WHERE category_id = ?",
+        [$newGroupId, $categoryId]
+    );
+
+    dc_auditLog('ledger_group.remap', 'dc_categories', (string) $categoryId, [
+        'category_name' => $category['name'],
+        'ledger_group_id' => $oldGroupId,
+    ], [
+        'category_name' => $category['name'],
+        'ledger_group_id' => $newGroupId,
+    ]);
+
     dcJsonResponse(['ok' => true]);
 }
