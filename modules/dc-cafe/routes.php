@@ -33,6 +33,7 @@ return [
         // Inventory views
         '/dc-cafe/inventory'                  => 'dc-cafe:pageInventory',
         '/dc-cafe/inventory/receive'          => 'dc-cafe:pageReceiveStock',
+        '/dc-cafe/inventory/ledger'           => 'dc-cafe:pageInventoryLedger',
         '/dc-cafe/products/receive'           => 'dc-cafe:pageReceiveProducts',
         '/dc-cafe/ingredients'                => 'dc-cafe:pageIngredientList',
         '/dc-cafe/suppliers'                  => 'dc-cafe:pageSupplierList',

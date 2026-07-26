@@ -831,6 +831,63 @@ function pageInventory(array $params = []): void
 }
 
 /**
+ * GET /dc-cafe/inventory/ledger — Daily/shift inventory ledger
+ * Beginning + Production − Pullouts − Sales = Ending
+ */
+function pageInventoryLedger(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+
+    // Load sessions for selector
+    $sessions = dcDb()->query(
+        "SELECT s.session_id, s.shift_start, s.shift_end, s.status,
+                u.full_name AS opened_by
+         FROM dc_sessions s
+         JOIN dc_users u ON u.user_id = s.user_id
+         WHERE s.status IN ('active', 'closed')
+         ORDER BY s.shift_start DESC
+         LIMIT 30"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    // Load all active products with category — grouped by ledger_group
+    $allProducts = dcDb()->query(
+        "SELECT p.product_id, p.name, c.name AS category_name,
+                COALESCE(c.ledger_group, c.name) AS ledger_group
+         FROM dc_products p
+         JOIN dc_categories c ON c.category_id = p.category_id
+         WHERE p.is_active = 1
+         ORDER BY COALESCE(c.ledger_group, c.name), c.sort_order, p.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    // Group by ledger_group (dynamic — no hardcoded map)
+    $groups = [];
+    foreach ($allProducts as $p) {
+        $key = $p['ledger_group'];
+        if (!isset($groups[$key])) {
+            $groups[$key] = ['name' => $key, 'products' => []];
+        }
+        $groups[$key]['products'][] = $p;
+    }
+
+    // Pre-encode JSON per group for Alpine.js init
+    foreach ($groups as &$g) {
+        $g['products_json'] = json_encode($g['products'], JSON_HEX_APOS | JSON_HEX_QUOT);
+    }
+    unset($g);
+
+    // Flat products_json for backward compat (session options rendering)
+    $productsJson = json_encode($allProducts, JSON_HEX_APOS | JSON_HEX_QUOT);
+
+    echo dcRender('inventory/ledger.disyl', [
+        'page_title' => 'Inventory Ledger',
+        'sessions' => $sessions,
+        'groups' => $groups,
+        'products_json' => $productsJson,
+    ]);
+}
+
+/**
  * GET /dc-cafe/inventory/receive
  */
 function pageReceiveStock(array $params = []): void

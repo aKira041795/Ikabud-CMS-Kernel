@@ -4,11 +4,14 @@
 <div x-data="inventoryApp()" x-init="init()" class="space-y-4">
     <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-gray-800">Inventory</h1>
-        <div x-show="tab === 'ingredients'" class="flex gap-2">
-            <a href="/dc-cafe/ingredients" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200">Manage Ingredients</a>
-            <a href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+        <div class="flex gap-2">
+            <a href="/dc-cafe/inventory/ledger" class="bg-white border-2 border-amber-600 text-amber-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-50">📒 Ledger</a>
+            <div x-show="tab === 'ingredients'" class="flex gap-2">
+                <a href="/dc-cafe/ingredients" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200">Manage Ingredients</a>
+                <a href="/dc-cafe/inventory/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Stock</a>
+            </div>
+            <a x-show="tab === 'products'" href="/dc-cafe/products/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Products</a>
         </div>
-        <a x-show="tab === 'products'" href="/dc-cafe/products/receive" class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Receive Products</a>
     </div>
 
     {* Tabs *}

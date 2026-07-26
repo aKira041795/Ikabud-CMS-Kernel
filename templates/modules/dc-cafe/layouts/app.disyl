@@ -23,6 +23,7 @@
                     <a href="/dc-cafe/orders" class="text-amber-200 hover:text-white text-sm">Orders</a>
                     {* Role: all *}
                     <a href="/dc-cafe/inventory" class="text-amber-200 hover:text-white text-sm">Inventory</a>
+                    <a href="/dc-cafe/inventory/ledger" class="text-amber-200 hover:text-white text-sm">Ledger</a>
                     {if user.role != 'auditor'}
                     <a href="/dc-cafe/products/receive" class="text-amber-200 hover:text-white text-sm">Deliveries</a>
                     {/if}

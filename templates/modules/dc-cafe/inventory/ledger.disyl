@@ -1,0 +1,363 @@
+{extends "modules/dc-cafe/layouts/app.disyl"}
+
+{block content}
+<div x-data="inventoryLedger()" x-init="init()" class="space-y-4">
+    {* Header *}
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Inventory Ledger</h1>
+            <p class="text-sm text-gray-500 mt-1">Beginning + Production − Pullouts − Sales = Ending</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <select x-model="sessionId" @change="loadProgress()"
+                    class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-amber-500">
+                <option value="">— Select Session —</option>
+                {for s in sessions}
+                <option value="{s.session_id}">
+                    {s.shift_start|date:'M d, H:i'} — {s.opened_by} ({s.status})
+                </option>
+                {/for}
+            </select>
+            <span x-show="autoSaveStatus" x-text="autoSaveStatus"
+                  class="text-xs px-2 py-1 rounded"
+                  :class="autoSaveError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'"></span>
+        </div>
+    </div>
+
+    {* Formula reminder *}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
+        <span class="font-bold">Formula:</span>
+        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Beginning</span>
+        <span>+</span>
+        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Production</span>
+        <span>−</span>
+        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Pullouts</span>
+        <span>−</span>
+        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono">Sales</span>
+        <span>=</span>
+        <span class="bg-white px-2 py-0.5 rounded border border-amber-300 font-mono font-bold">Ending</span>
+    </div>
+
+    {* Empty state *}
+    <div x-show="!sessionId" class="text-center py-12 text-gray-400 bg-white rounded-xl border">
+        Select a session above to start the ledger.
+    </div>
+
+    {* ─── Grouped Ledger Sections ─── *}
+    <div x-show="sessionId" class="space-y-4" x-cloak>
+
+{for g in groups}
+        {* ── {g.name} ── *}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            {* Collapse toggle *}
+            <button @click="groups[{g@index}].open = !groups[{g@index}].open"
+                    class="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-gray-50 transition border-b"
+                    :class="groups[{g@index}].open ? 'border-gray-100' : 'border-transparent'">
+                <div class="flex items-center gap-3">
+                    <span class="font-semibold text-gray-800">{g.name}</span>
+                    <span class="text-xs text-gray-400">(<span x-text="groups[{g@index}].products.length"></span>)</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <template x-if="!groups[{g@index}].open">
+                        <span class="text-xs text-gray-500">
+                            Beg <b x-text="groupTotals({g@index}).beginning.toFixed(0)"></b>
+                            · End <b x-text="groupTotals({g@index}).ending.toFixed(0)"></b>
+                        </span>
+                    </template>
+                    <span class="text-xs text-gray-400" x-show="groups[{g@index}].open">click to collapse</span>
+                    <svg class="w-5 h-5 text-gray-400 transition-transform"
+                         :class="groups[{g@index}].open ? 'rotate-180' : ''"
+                         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                    </svg>
+                </div>
+            </button>
+
+            {* Collapsible table *}
+            <div x-show="groups[{g@index}].open" x-collapse>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wide">
+                                <th class="text-left px-4 py-3 w-1/3">Product</th>
+                                <th class="text-right px-3 py-3 w-24">Beginning</th>
+                                <th class="text-center px-1 py-3 w-6 text-green-600">+</th>
+                                <th class="text-right px-3 py-3 w-24">Production</th>
+                                <th class="text-center px-1 py-3 w-6 text-red-500">−</th>
+                                <th class="text-right px-3 py-3 w-24">Pullouts</th>
+                                <th class="text-center px-1 py-3 w-6 text-red-500">−</th>
+                                <th class="text-right px-3 py-3 w-24">Sales</th>
+                                <th class="text-center px-1 py-3 w-6">=</th>
+                                <th class="text-right px-4 py-3 w-24">Ending</th>
+                                <th class="text-left px-3 py-3">Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <template x-for="(row, idx) in groups[{g@index}].products" :key="row.product_id">
+                                <tr class="border-b border-gray-100 hover:bg-amber-50 transition"
+                                    :class="{'bg-red-50': calcEnding(row) < 0}">
+                                    <td class="px-4 py-2">
+                                        <span class="font-medium text-gray-800" x-text="row.name"></span>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" step="any" min="0"
+                                               x-model.number="row.beginning_qty"
+                                               @input.debounce.600="saveRow(row)"
+                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    </td>
+                                    <td class="text-center text-green-500 font-bold text-xs">+</td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" step="any" min="0"
+                                               x-model.number="row.production_qty"
+                                               @input.debounce.600="saveRow(row)"
+                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    </td>
+                                    <td class="text-center text-red-400 font-bold text-xs">−</td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" step="any" min="0"
+                                               x-model.number="row.pullout_qty"
+                                               @input.debounce.600="saveRow(row)"
+                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    </td>
+                                    <td class="text-center text-red-400 font-bold text-xs">−</td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" step="any" min="0"
+                                               x-model.number="row.sold_qty"
+                                               @input.debounce.600="saveRow(row)"
+                                               class="w-full text-right px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    </td>
+                                    <td class="text-center text-gray-400 font-bold text-xs">=</td>
+                                    <td class="px-4 py-2 text-right">
+                                        <span class="font-bold text-sm"
+                                              :class="calcEnding(row) < 0 ? 'text-red-600' : 'text-gray-800'"
+                                              x-text="calcEnding(row).toFixed(2)"></span>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <input type="text" x-model="row.notes" placeholder="—"
+                                               @input.debounce.1000="saveRow(row)"
+                                               class="w-full px-2 py-1.5 border border-gray-200 rounded text-sm focus:ring-1 focus:ring-amber-500 focus:border-amber-500">
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                        {* Group subtotal *}
+                        <tfoot>
+                            <tr class="bg-amber-50 text-gray-700 font-semibold text-xs">
+                                <td class="px-4 py-2">{g.name} Total</td>
+                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).beginning.toFixed(1)"></td>
+                                <td></td>
+                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).production.toFixed(1)"></td>
+                                <td></td>
+                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).pullout.toFixed(1)"></td>
+                                <td></td>
+                                <td class="px-3 py-2 text-right" x-text="groupTotals({g@index}).sold.toFixed(1)"></td>
+                                <td></td>
+                                <td class="px-4 py-2 text-right" x-text="groupTotals({g@index}).ending.toFixed(1)"></td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+{/for}
+
+        {* ── Grand Total Bar ── *}
+        <div class="bg-amber-700 text-white rounded-xl px-5 py-3 flex items-center justify-between shadow-sm">
+            <span class="text-sm font-semibold">
+                <span x-text="allProducts().length"></span> products
+                <span x-show="dirtyCount > 0" class="ml-2 text-amber-200">
+                    · <span x-text="dirtyCount"></span> unsaved
+                </span>
+            </span>
+            <div class="flex gap-5 text-xs font-medium">
+                <span>Beg: <b x-text="grandTotals.beginning.toFixed(0)"></b></span>
+                <span>Prod: <b x-text="grandTotals.production.toFixed(0)"></b></span>
+                <span>Pull: <b x-text="grandTotals.pullout.toFixed(0)"></b></span>
+                <span>Sold: <b x-text="grandTotals.sold.toFixed(0)"></b></span>
+                <span>End: <b x-text="grandTotals.ending.toFixed(0)"></b></span>
+            </div>
+            <button @click="saveAll()" :disabled="dirtyCount === 0 || saving"
+                    class="bg-white text-amber-800 px-4 py-1.5 rounded text-sm font-bold hover:bg-amber-100 disabled:opacity-50">
+                <span x-show="!saving">Save All</span>
+                <span x-show="saving">Saving...</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function inventoryLedger() {
+    return {
+        sessionId: '',
+        groups: [],
+        saving: false,
+        autoSaveStatus: '',
+        autoSaveError: false,
+        saveTimers: {},
+
+        get dirtyCount() {
+            return this.allProducts().filter(r => r._dirty).length;
+        },
+
+        get grandTotals() {
+            const all = this.allProducts();
+            return {
+                beginning: all.reduce((s, r) => s + (parseFloat(r.beginning_qty) || 0), 0),
+                production: all.reduce((s, r) => s + (parseFloat(r.production_qty) || 0), 0),
+                pullout: all.reduce((s, r) => s + (parseFloat(r.pullout_qty) || 0), 0),
+                sold: all.reduce((s, r) => s + (parseFloat(r.sold_qty) || 0), 0),
+                ending: all.reduce((s, r) => s + this.calcEnding(r), 0),
+            };
+        },
+
+        allProducts() {
+            return this.groups.reduce((acc, g) => acc.concat(g.products), []);
+        },
+
+        groupTotals(gi) {
+            const prods = this.groups[gi].products;
+            return {
+                beginning: prods.reduce((s, r) => s + (parseFloat(r.beginning_qty) || 0), 0),
+                production: prods.reduce((s, r) => s + (parseFloat(r.production_qty) || 0), 0),
+                pullout: prods.reduce((s, r) => s + (parseFloat(r.pullout_qty) || 0), 0),
+                sold: prods.reduce((s, r) => s + (parseFloat(r.sold_qty) || 0), 0),
+                ending: prods.reduce((s, r) => s + this.calcEnding(r), 0),
+            };
+        },
+
+        init() {
+            {for g in groups}
+            this.groups.push({
+                name: '{g.name}',
+                open: true,
+                products: JSON.parse('{g.products_json|raw}').map(p => ({
+                    product_id: p.product_id,
+                    name: p.name,
+                    beginning_qty: 0,
+                    production_qty: 0,
+                    pullout_qty: 0,
+                    sold_qty: 0,
+                    notes: '',
+                    _dirty: false,
+                }))
+            });
+            {/for}
+        },
+
+        calcEnding(row) {
+            return (parseFloat(row.beginning_qty) || 0)
+                 + (parseFloat(row.production_qty) || 0)
+                 - (parseFloat(row.pullout_qty) || 0)
+                 - (parseFloat(row.sold_qty) || 0);
+        },
+
+        loadProgress() {
+            if (!this.sessionId) return;
+            fetch('/dc-cafe/api/v1/inventory/progress/' + this.sessionId)
+                .then(r => r.json()).then(d => {
+                    if (d.ok && d.items) {
+                        const map = {};
+                        d.items.forEach(p => { map[p.product_id] = p; });
+                        this.allProducts().forEach(row => {
+                            const saved = map[row.product_id];
+                            if (saved) {
+                                row.beginning_qty = parseFloat(saved.beginning_qty) || 0;
+                                row.production_qty = parseFloat(saved.production_qty) || 0;
+                                row.pullout_qty = parseFloat(saved.pullout_qty) || 0;
+                                row.sold_qty = parseFloat(saved.sold_qty) || 0;
+                                row.notes = saved.notes || '';
+                            }
+                            row._dirty = false;
+                        });
+                        this.autoSaveStatus = 'Loaded';
+                        this.autoSaveError = false;
+                        setTimeout(() => { this.autoSaveStatus = ''; }, 2000);
+                    }
+                });
+        },
+
+        saveRow(row) {
+            row._dirty = true;
+            const key = row.product_id;
+            if (this.saveTimers[key]) clearTimeout(this.saveTimers[key]);
+            this.saveTimers[key] = setTimeout(() => this._persistRow(row), 600);
+        },
+
+        _persistRow(row) {
+            fetch('/dc-cafe/api/v1/inventory/progress', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    session_id: this.sessionId,
+                    items: [{
+                        product_id: row.product_id,
+                        beginning_qty: parseFloat(row.beginning_qty) || 0,
+                        production_qty: parseFloat(row.production_qty) || 0,
+                        pullout_qty: parseFloat(row.pullout_qty) || 0,
+                        ending_qty: this.calcEnding(row),
+                        sold_qty: parseFloat(row.sold_qty) || 0,
+                        notes: row.notes || '',
+                    }]
+                })
+            })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    row._dirty = false;
+                    this.autoSaveStatus = 'Saved';
+                    this.autoSaveError = false;
+                    setTimeout(() => { this.autoSaveStatus = ''; }, 1500);
+                } else {
+                    this.autoSaveStatus = 'Error: ' + (d.error || 'save failed');
+                    this.autoSaveError = true;
+                }
+            })
+            .catch(() => {
+                this.autoSaveStatus = 'Connection error';
+                this.autoSaveError = true;
+            });
+        },
+
+        saveAll() {
+            if (this.dirtyCount === 0) return;
+            this.saving = true;
+            const dirty = this.allProducts().filter(r => r._dirty);
+            const items = dirty.map(r => ({
+                product_id: r.product_id,
+                beginning_qty: parseFloat(r.beginning_qty) || 0,
+                production_qty: parseFloat(r.production_qty) || 0,
+                pullout_qty: parseFloat(r.pullout_qty) || 0,
+                ending_qty: this.calcEnding(r),
+                sold_qty: parseFloat(r.sold_qty) || 0,
+                notes: r.notes || '',
+            }));
+
+            fetch('/dc-cafe/api/v1/inventory/progress', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ session_id: this.sessionId, items: items })
+            })
+            .then(r => r.json())
+            .then(d => {
+                this.saving = false;
+                if (d.ok) {
+                    dirty.forEach(r => { r._dirty = false; });
+                    this.autoSaveStatus = 'All saved';
+                    this.autoSaveError = false;
+                    setTimeout(() => { this.autoSaveStatus = ''; }, 2000);
+                } else {
+                    this.autoSaveStatus = 'Error: ' + (d.error || 'save failed');
+                    this.autoSaveError = true;
+                }
+            })
+            .catch(() => {
+                this.saving = false;
+                this.autoSaveStatus = 'Connection error';
+                this.autoSaveError = true;
+            });
+        }
+    };
+}
+</script>
+{/block}
