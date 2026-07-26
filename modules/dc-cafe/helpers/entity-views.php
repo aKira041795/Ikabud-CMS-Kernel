@@ -14,17 +14,25 @@ function dc_cap_entity_list_product_1(array $params = []): array
 {
     $db = dcDb();
     $storeId = (int) ($params['store_id'] ?? dcInput('store_id') ?? 1);
+    $catalogStoreId = dcCatalogStoreId($storeId);
 
+    // List catalog products from the catalog store, with branch-specific
+    // stock availability from dc_product_store_stock for the cashier's branch.
+    // BOM-tracked items (has_stock=0) have no stock row and are always sellable.
     $rows = $db->query(
         "SELECT p.product_id, p.name, p.base_price, p.is_variable, p.is_active,
-                p.current_stock, p.has_stock, p.reorder_level,
+                p.has_stock,
+                COALESCE(pss.on_hand_qty, p.current_stock) AS current_stock,
+                COALESCE(pss.reorder_level, p.reorder_level) AS reorder_level,
                 c.name AS category_name, c.category_id
          FROM dc_products p
          JOIN dc_categories c ON c.category_id = p.category_id
+         LEFT JOIN dc_product_store_stock pss
+               ON pss.product_id = p.product_id AND pss.store_id = ?
          WHERE p.store_id = ?
-           AND (p.has_stock = 0 OR p.current_stock > 0)
+           AND p.is_active = 1
          ORDER BY c.sort_order ASC, p.name ASC",
-        [$storeId]
+        [$storeId, $catalogStoreId]
     )->fetchAll(\PDO::FETCH_ASSOC);
 
     return array_map(function ($row) {
@@ -47,16 +55,22 @@ function dc_cap_entity_list_product_stock_1(array $params = []): array
 {
     $db = dcDb();
     $storeId = (int) ($params['store_id'] ?? dcInput('store_id') ?? 1);
+    $catalogStoreId = dcCatalogStoreId($storeId);
 
+    // Inventory stock view: catalog products with branch-specific stock levels
     $rows = $db->query(
         "SELECT p.product_id, p.name, p.base_price, p.is_variable, p.is_active,
-                p.current_stock, p.has_stock, p.reorder_level,
+                p.has_stock,
+                COALESCE(pss.on_hand_qty, p.current_stock) AS current_stock,
+                COALESCE(pss.reorder_level, p.reorder_level) AS reorder_level,
                 c.name AS category_name, c.category_id
          FROM dc_products p
          JOIN dc_categories c ON c.category_id = p.category_id
+         LEFT JOIN dc_product_store_stock pss
+               ON pss.product_id = p.product_id AND pss.store_id = ?
          WHERE p.store_id = ?
          ORDER BY c.sort_order ASC, p.name ASC",
-        [$storeId]
+        [$storeId, $catalogStoreId]
     )->fetchAll(\PDO::FETCH_ASSOC);
 
     return array_map(function ($row) {

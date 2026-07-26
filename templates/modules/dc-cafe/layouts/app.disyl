@@ -33,6 +33,10 @@
                     {if user.role != 'cashier'}
                     <a href="/dc-cafe/dashboard" class="text-amber-200 hover:text-white text-sm">Dashboard</a>
                     {/if}
+                    {* Role: admin, supervisor *}
+                    {if user.role != 'cashier' && user.role != 'auditor'}
+                    <a href="/dc-cafe/settings" class="text-amber-200 hover:text-white text-sm">Settings</a>
+                    {/if}
                 </div>
                 <div class="flex items-center space-x-4">
                     <span class="text-amber-200 text-sm">{user.full_name ?? ''}</span>

@@ -77,6 +77,40 @@ function dcBaseUrl(): string
     return '/dc-cafe';
 }
 
+/**
+ * Resolve the effective catalog store for a requested branch.
+ *
+ * DC Cafe currently seeds menu products into a primary store only. Branches
+ * without store-local product rows should still see and sell the shared menu.
+ */
+function dcCatalogStoreId(int $requestedStoreId): int
+{
+    $db = dcDb();
+
+    if ($requestedStoreId > 0) {
+        $row = $db->query(
+            "SELECT COUNT(*) AS cnt
+             FROM dc_products
+             WHERE store_id = ? AND is_active = 1",
+            [$requestedStoreId]
+        )->fetch(\PDO::FETCH_ASSOC);
+        if ((int) ($row['cnt'] ?? 0) > 0) {
+            return $requestedStoreId;
+        }
+    }
+
+    $fallback = $db->query(
+        "SELECT store_id
+         FROM dc_products
+         WHERE is_active = 1
+         GROUP BY store_id
+         ORDER BY COUNT(*) DESC, store_id ASC
+         LIMIT 1"
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    return (int) ($fallback['store_id'] ?? $requestedStoreId ?: 1);
+}
+
 // ── Capability Handler Map ───────────────────────────────────────
 
 function dc_cafe_capability_handlers(): array

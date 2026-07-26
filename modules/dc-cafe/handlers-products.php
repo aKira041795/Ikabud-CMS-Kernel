@@ -7,6 +7,35 @@
 
 declare(strict_types=1);
 
+function _dcResolveInventoryStoreId(\Ikabud\Kernel\Contracts\ModuleContext $ctx, int $requestedStoreId): int
+{
+    $user = $ctx->user();
+    $role = (string) ($user['role'] ?? '');
+    $defaultStoreId = (int) ($user['store_id'] ?? 0);
+    $effectiveStoreId = $requestedStoreId > 0 ? $requestedStoreId : $defaultStoreId;
+
+    if ($effectiveStoreId <= 0) {
+        dcJsonError('Store ID is required', 400);
+    }
+
+    if ($role === 'cashier' && $defaultStoreId > 0 && $effectiveStoreId !== $defaultStoreId) {
+        dcJsonError('Cashier cannot modify another branch inventory', 403);
+    }
+
+    $store = dcDb()->query(
+        "SELECT store_id, is_active FROM dc_stores WHERE store_id = ?",
+        [$effectiveStoreId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$store) {
+        dcJsonError('Store not found', 404);
+    }
+    if ((int) ($store['is_active'] ?? 0) !== 1) {
+        dcJsonError('Store is inactive', 422);
+    }
+
+    return $effectiveStoreId;
+}
+
 /**
  * GET /dc-cafe/products/receive — Receive product stock page
  */
@@ -43,6 +72,8 @@ function apiReceiveProductsBatch(array $params = []): void
     $userId = (int) $ctx->user()['user_id'];
     $processed = 0;
     $errors = [];
+    // Use session store_id as default branch for receiving
+    $defaultStoreId = _dcResolveInventoryStoreId($ctx, (int) (dcInput('store_id') ?? 0));
 
     $db->beginTransaction();
     try {
@@ -50,6 +81,7 @@ function apiReceiveProductsBatch(array $params = []): void
             $productId = (int) ($item['product_id'] ?? 0);
             $quantity = (float) ($item['quantity'] ?? 0);
             $notes = (string) ($item['notes'] ?? '');
+            $itemStoreId = _dcResolveInventoryStoreId($ctx, (int) ($item['store_id'] ?? $defaultStoreId));
 
             if ($productId <= 0 || $quantity <= 0) {
                 $errors[] = "Invalid product_id or quantity";
@@ -66,17 +98,20 @@ function apiReceiveProductsBatch(array $params = []): void
                 continue;
             }
 
+            // Update branch stock; insert row if not exists
             $db->query(
-                "UPDATE dc_products SET current_stock = current_stock + ? WHERE product_id = ?",
-                [$quantity, $productId]
+                "INSERT INTO dc_product_store_stock (product_id, store_id, on_hand_qty, reorder_level, version)
+                 VALUES (?, ?, ?, COALESCE((SELECT reorder_level FROM dc_products WHERE product_id = ?), 0), 1)
+                 ON DUPLICATE KEY UPDATE on_hand_qty = on_hand_qty + ?, version = version + 1",
+                [$productId, $itemStoreId, $quantity, $productId, $quantity]
             );
 
-            // Record product stock movement in its own journal (not ingredient table)
+            // Record branch-aware product stock movement
             $db->query(
-                "INSERT INTO dc_product_stock_movements (product_id, quantity_change, movement_type,
+                "INSERT INTO dc_product_stock_movements (product_id, store_id, quantity_change, movement_type,
                         reference_type, notes, created_by)
-                 VALUES (?, ?, 'purchase', 'supplier', ?, ?)",
-                [$productId, $quantity, $notes ?: 'Product delivery received', $userId]
+                 VALUES (?, ?, ?, 'purchase', 'supplier', ?, ?)",
+                [$productId, $itemStoreId, $quantity, $notes ?: 'Product delivery received', $userId]
             );
 
             $processed++;
@@ -102,16 +137,24 @@ function apiGetProductStockLevels(array $params = []): void
 {
     $ctx = dcCtx();
     $ctx->requireAnyRole('admin', 'supervisor', 'auditor', 'cashier');
+    $storeId = _dcResolveInventoryStoreId($ctx, (int) (dcInput('store_id') ?? 0));
+    $catalogStoreId = dcCatalogStoreId($storeId);
 
     $products = dcDb()->query(
-        "SELECT p.product_id, p.name, p.base_price, p.current_stock, p.reorder_level,
+        "SELECT p.product_id, p.name, p.base_price,
+                COALESCE(pss.on_hand_qty, 0) AS current_stock,
+                COALESCE(pss.reorder_level, p.reorder_level) AS reorder_level,
                 c.name AS category_name,
-                CASE WHEN p.current_stock <= p.reorder_level AND p.reorder_level > 0 THEN 1 ELSE 0 END AS is_low
+                CASE WHEN COALESCE(pss.on_hand_qty, 0) <= COALESCE(pss.reorder_level, p.reorder_level)
+                          AND COALESCE(pss.reorder_level, p.reorder_level) > 0
+                     THEN 1 ELSE 0 END AS is_low
          FROM dc_products p
          LEFT JOIN dc_categories c ON c.category_id = p.category_id
-         WHERE p.is_active = 1 AND p.has_stock = 1
+         LEFT JOIN dc_product_store_stock pss
+               ON pss.product_id = p.product_id AND pss.store_id = ?
+         WHERE p.store_id = ? AND p.is_active = 1 AND p.has_stock = 1
          ORDER BY is_low DESC, p.name ASC"
-    )->fetchAll(\PDO::FETCH_ASSOC);
+    , [$storeId, $catalogStoreId])->fetchAll(\PDO::FETCH_ASSOC);
 
     dcJsonResponse(['ok' => true, 'products' => $products]);
 }
@@ -139,9 +182,16 @@ function apiUpdateProductStock(array $params = []): void
     }
 
     $db = dcDb();
+    $userId = (int) $ctx->user()['user_id'];
+    $adjustStoreId = _dcResolveInventoryStoreId($ctx, (int) (dcInput('store_id') ?? 0));
     $product = $db->query(
-        "SELECT product_id, current_stock FROM dc_products WHERE product_id = ?",
-        [$id]
+        "SELECT p.product_id, p.current_stock, p.reorder_level,
+                pss.on_hand_qty AS branch_on_hand
+         FROM dc_products p
+         LEFT JOIN dc_product_store_stock pss
+               ON pss.product_id = p.product_id AND pss.store_id = ?
+         WHERE p.product_id = ?",
+        [$adjustStoreId, $id]
     )->fetch(\PDO::FETCH_ASSOC);
 
     if (!$product) {
@@ -150,14 +200,16 @@ function apiUpdateProductStock(array $params = []): void
 
     $sets = [];
     $vals = [];
+    $stockChanged = false;
+    $oldStock = isset($product['branch_on_hand']) ? (float) $product['branch_on_hand'] : 0.0;
+    $newStock = $oldStock;
 
     if ($hasStock) {
         $newStock = (float) $currentStock;
         if ($newStock < 0) {
             dcJsonError('Stock cannot be negative', 422);
         }
-        $sets[] = 'current_stock = ?';
-        $vals[] = $newStock;
+        $stockChanged = abs($newStock - $oldStock) > 0.0001;
     }
 
     if ($hasReorder) {
@@ -165,8 +217,32 @@ function apiUpdateProductStock(array $params = []): void
         $vals[] = (float) $reorderLevel;
     }
 
-    $vals[] = $id;
-    $db->query("UPDATE dc_products SET " . implode(', ', $sets) . " WHERE product_id = ?", $vals);
+    $db->beginTransaction();
+    try {
+        if ($stockChanged) {
+            // Update branch stock; insert row if not exists
+            $db->query(
+                "INSERT INTO dc_product_store_stock (product_id, store_id, on_hand_qty, reorder_level, version)
+                 VALUES (?, ?, ?, COALESCE((SELECT reorder_level FROM dc_products WHERE product_id = ?), 0), 1)
+                 ON DUPLICATE KEY UPDATE on_hand_qty = ?, version = version + 1",
+                [$id, $adjustStoreId, $newStock, $id, $newStock]
+            );
+            $db->query(
+                "INSERT INTO dc_product_stock_movements (product_id, store_id, quantity_change, movement_type,
+                        reference_type, reference_id, notes, created_by)
+                 VALUES (?, ?, ?, 'adjustment', 'inventory_edit', ?, ?, ?)",
+                [$id, $adjustStoreId, $newStock - $oldStock, $id, 'Inline product stock edit', $userId]
+            );
+        }
+        if ($hasReorder) {
+            $vals[] = $id;
+            $db->query("UPDATE dc_products SET " . implode(', ', $sets) . " WHERE product_id = ?", $vals);
+        }
+        $db->commit();
+    } catch (\Throwable $e) {
+        $db->rollBack();
+        dcJsonError('Failed to update product stock: ' . $e->getMessage(), 500);
+    }
 
     dcJsonResponse(['ok' => true]);
 }

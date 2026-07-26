@@ -46,7 +46,8 @@
         "dc_inventory_progress",
         "dc_addon_ingredients",
         "dc_password_resets",
-        "dc_product_stock_movements"
+        "dc_product_stock_movements",
+        "dc_product_store_stock"
     ],
     "reads_tables": [],
     "migrations": [
@@ -75,7 +76,10 @@
         "database/migrations/023_update_seed_user_emails.sql",
         "database/migrations/024_add_product_stock.sql",
         "database/migrations/025_add_category_ledger_group.sql",
-        "database/migrations/026_create_dc_product_stock_movements.sql"
+        "database/migrations/026_create_dc_product_stock_movements.sql",
+        "database/migrations/027_add_store_coordinates.sql",
+        "database/migrations/028_create_dc_product_store_stock.sql",
+        "database/migrations/029_add_store_id_to_product_stock_movements.sql"
     ],
     "capabilities": {
         "exposes": [
@@ -196,6 +200,15 @@
                 "admin",
                 "supervisor",
                 "auditor"
+            ]
+        },
+        {
+            "label": "Settings",
+            "url": "/dc-cafe/settings",
+            "icon": "settings",
+            "roles": [
+                "admin",
+                "supervisor"
             ]
         }
     ]

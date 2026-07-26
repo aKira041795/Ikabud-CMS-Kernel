@@ -37,6 +37,7 @@ return [
         '/dc-cafe/products/receive'           => 'dc-cafe:pageReceiveProducts',
         '/dc-cafe/ingredients'                => 'dc-cafe:pageIngredientList',
         '/dc-cafe/suppliers'                  => 'dc-cafe:pageSupplierList',
+        '/dc-cafe/settings'                   => 'dc-cafe:pageDcCafeSettings',
 
         // Customer views
         '/dc-cafe/customers'                  => 'dc-cafe:pageCustomerList',
@@ -66,11 +67,17 @@ return [
         '/dc-cafe/api/v1/inventory/progress/{session_id}' => 'dc-cafe:apiGetInventoryProgress',
 
         // API: soft-serve options
-        '/dc-cafe/api/v1/soft-serve/bases'    => 'dc-cafe:apiGetSoftServeBases',
-        '/dc-cafe/api/v1/soft-serve/sauces'   => 'dc-cafe:apiGetSoftServeSauces',
-        '/dc-cafe/api/v1/soft-serve/toppings' => 'dc-cafe:apiGetSoftServeToppings',        '/dc-cafe/api/v1/soft-serve/addons'    => 'dc-cafe:apiGetSoftServeAddons',
+        '/dc-cafe/api/v1/soft-serve/bases'       => 'dc-cafe:apiGetSoftServeBases',
+        '/dc-cafe/api/v1/soft-serve/bases/list'  => 'dc-cafe:apiListSoftServeBases',
+        '/dc-cafe/api/v1/soft-serve/sauces'      => 'dc-cafe:apiGetSoftServeSauces',
+        '/dc-cafe/api/v1/soft-serve/sauces/list' => 'dc-cafe:apiListSoftServeSauces',
+        '/dc-cafe/api/v1/soft-serve/toppings'    => 'dc-cafe:apiGetSoftServeToppings',
+        '/dc-cafe/api/v1/soft-serve/toppings/list' => 'dc-cafe:apiListSoftServeToppings',
+        '/dc-cafe/api/v1/soft-serve/addons'       => 'dc-cafe:apiGetSoftServeAddons',
+        '/dc-cafe/api/v1/soft-serve/addons/list'  => 'dc-cafe:apiListSoftServeAddons',
         // API: payment methods
         '/dc-cafe/api/v1/payment-methods'     => 'dc-cafe:apiGetPaymentMethods',
+        '/dc-cafe/api/v1/payment-methods/list' => 'dc-cafe:apiListPaymentMethods',
 
         // API: suppliers
         '/dc-cafe/api/v1/suppliers'           => 'dc-cafe:apiListSuppliers',
@@ -79,6 +86,16 @@ return [
         // API: ingredients
         '/dc-cafe/api/v1/ingredients'         => 'dc-cafe:apiListIngredients',
         '/dc-cafe/api/v1/ingredients/{id}'    => 'dc-cafe:apiGetIngredient',
+
+        // API: stores
+        '/dc-cafe/api/v1/stores'              => 'dc-cafe:apiListStores',
+        '/dc-cafe/api/v1/stores/{id}'         => 'dc-cafe:apiGetStore',
+        '/dc-cafe/api/v1/stores/create'       => 'dc-cafe:apiCreateStore',
+
+        // API: users
+        '/dc-cafe/api/v1/users'               => 'dc-cafe:apiListUsers',
+        '/dc-cafe/api/v1/users/{id}'          => 'dc-cafe:apiGetUser',
+        '/dc-cafe/api/v1/users/create'        => 'dc-cafe:apiCreateUser',
 
         // API: dashboard
         '/dc-cafe/api/v1/dashboard/today'     => 'dc-cafe:apiGetTodaySalesData',
@@ -121,12 +138,40 @@ return [
         '/dc-cafe/api/v1/ingredients'         => 'dc-cafe:apiCreateIngredient',
         '/dc-cafe/api/v1/ingredients/{id}'    => 'dc-cafe:apiUpdateIngredient',
 
+        // Payment methods management
+        '/dc-cafe/api/v1/payment-methods/create' => 'dc-cafe:apiCreatePaymentMethod',
+        '/dc-cafe/api/v1/payment-methods/{id}'   => 'dc-cafe:apiUpdatePaymentMethod',
+
+        // Store profile management
+        '/dc-cafe/api/v1/stores/{id}'            => 'dc-cafe:apiUpdateStore',
+
+        // User account management
+        '/dc-cafe/api/v1/users/create'             => 'dc-cafe:apiCreateUser',
+        '/dc-cafe/api/v1/users/{id}/toggle-active' => 'dc-cafe:apiToggleUserActive',
+
+        // Soft-serve option management
+        '/dc-cafe/api/v1/soft-serve/bases/create'    => 'dc-cafe:apiCreateSoftServeBase',
+        '/dc-cafe/api/v1/soft-serve/bases/{id}'      => 'dc-cafe:apiUpdateSoftServeBase',
+        '/dc-cafe/api/v1/soft-serve/sauces/create'   => 'dc-cafe:apiCreateSoftServeSauce',
+        '/dc-cafe/api/v1/soft-serve/sauces/{id}'     => 'dc-cafe:apiUpdateSoftServeSauce',
+        '/dc-cafe/api/v1/soft-serve/toppings/create' => 'dc-cafe:apiCreateSoftServeTopping',
+        '/dc-cafe/api/v1/soft-serve/toppings/{id}'   => 'dc-cafe:apiUpdateSoftServeTopping',
+        '/dc-cafe/api/v1/soft-serve/addons/create'   => 'dc-cafe:apiCreateSoftServeAddon',
+        '/dc-cafe/api/v1/soft-serve/addons/{id}'     => 'dc-cafe:apiUpdateSoftServeAddon',
+
         // Vouchers
         '/dc-cafe/api/v1/vouchers/validate'   => 'dc-cafe:apiValidateVoucher',
     ],
     'PUT' => [
         '/dc-cafe/api/v1/suppliers/{id}'      => 'dc-cafe:apiUpdateSupplier',
         '/dc-cafe/api/v1/ingredients/{id}'    => 'dc-cafe:apiUpdateIngredient',
+        '/dc-cafe/api/v1/payment-methods/{id}' => 'dc-cafe:apiUpdatePaymentMethod',
+        '/dc-cafe/api/v1/stores/{id}'          => 'dc-cafe:apiUpdateStore',
+        '/dc-cafe/api/v1/users/{id}'           => 'dc-cafe:apiUpdateUser',
+        '/dc-cafe/api/v1/soft-serve/bases/{id}'    => 'dc-cafe:apiUpdateSoftServeBase',
+        '/dc-cafe/api/v1/soft-serve/sauces/{id}'   => 'dc-cafe:apiUpdateSoftServeSauce',
+        '/dc-cafe/api/v1/soft-serve/toppings/{id}' => 'dc-cafe:apiUpdateSoftServeTopping',
+        '/dc-cafe/api/v1/soft-serve/addons/{id}'   => 'dc-cafe:apiUpdateSoftServeAddon',
     ],
     'PATCH' => [
         '/dc-cafe/api/v1/inventory/stock/{id}'          => 'dc-cafe:apiUpdateInventoryStock',

@@ -117,7 +117,7 @@ function loadModuleRoutes(array $routes): array
     // Track which module owns each route for conflict detection
     $routeOwners = [];
     $methodPatterns = [];
-    foreach (['GET', 'POST', 'PUT', 'DELETE'] as $m) {
+    foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $m) {
         $methodPatterns[$m] = [];
         foreach ($routes[$m] ?? [] as $pattern => $_) {
             $routeOwners[$m . ':' . $pattern] = '_kernel';

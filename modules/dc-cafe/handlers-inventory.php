@@ -9,6 +9,27 @@
 declare(strict_types=1);
 
 /**
+ * Load a session and enforce cashier ownership for inventory flows.
+ */
+function _dcLoadInventorySession(int $sessionId, bool $mustBeActive = false): array
+{
+    $user = dcCtx()->user();
+    $sql = "SELECT * FROM dc_sessions WHERE session_id = ?";
+    $params = [$sessionId];
+    if ($mustBeActive) {
+        $sql .= " AND status = 'active'";
+    }
+    $session = dcDb()->query($sql, $params)->fetch(\PDO::FETCH_ASSOC);
+    if (!$session) {
+        dcJsonError($mustBeActive ? 'Active session not found' : 'Session not found', 404);
+    }
+    if (($user['role'] ?? '') === 'cashier' && (int) $session['user_id'] !== (int) $user['user_id']) {
+        dcJsonError('Session belongs to another cashier', 403);
+    }
+    return $session;
+}
+
+/**
  * GET /dc-cafe/api/v1/inventory — Current stock levels
  */
 function apiGetStockLevels(array $params = []): void
@@ -39,6 +60,7 @@ function apiGetReconciliation(array $params = []): void
     }
 
     $db = dcDb();
+    _dcLoadInventorySession($sessionId);
 
     // Sales by product — quantity from completed order items in this session
     $sales = $db->query(
@@ -299,6 +321,7 @@ function apiSaveInventoryProgress(array $params = []): void
     }
 
     $db = dcDb();
+    _dcLoadInventorySession($sessionId, true);
 
     $db->beginTransaction();
     try {
@@ -309,8 +332,6 @@ function apiSaveInventoryProgress(array $params = []): void
             $beginning = (float) ($item['beginning_qty'] ?? 0);
             $production = (float) ($item['production_qty'] ?? 0);
             $pullout = (float) ($item['pullout_qty'] ?? 0);
-            $ending = (float) ($item['ending_qty'] ?? 0);
-            $sold = (float) ($item['sold_qty'] ?? 0);
             $notes = (string) ($item['notes'] ?? '');
 
             // Upsert: insert or update
@@ -324,14 +345,14 @@ function apiSaveInventoryProgress(array $params = []): void
                     "UPDATE dc_inventory_progress SET beginning_qty = ?, production_qty = ?,
                      pullout_qty = ?, ending_qty = ?, sold_qty = ?, notes = ?, updated_at = NOW()
                      WHERE progress_id = ?",
-                    [$beginning, $production, $pullout, $ending, $sold, $notes ?: null, (int) $existing['progress_id']]
+                    [$beginning, $production, $pullout, 0, 0, $notes ?: null, (int) $existing['progress_id']]
                 );
             } else {
                 $db->query(
                     "INSERT INTO dc_inventory_progress (session_id, product_id, beginning_qty, production_qty,
                      pullout_qty, ending_qty, sold_qty, notes)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    [$sessionId, $productId, $beginning, $production, $pullout, $ending, $sold, $notes ?: null]
+                    [$sessionId, $productId, $beginning, $production, $pullout, 0, 0, $notes ?: null]
                 );
             }
         }
@@ -356,6 +377,7 @@ function apiGetInventoryProgress(array $params = []): void
     if ($sessionId <= 0) {
         dcJsonError('Invalid session ID');
     }
+    _dcLoadInventorySession($sessionId);
 
     $items = dcDb()->query(
         "SELECT ip.*, p.name AS product_name

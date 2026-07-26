@@ -1,0 +1,819 @@
+{extends 'modules/dc-cafe/layouts/app.disyl'}
+
+{block content}
+<div class="max-w-5xl mx-auto" x-data="settingsApp()">
+    {* Toast notification *}
+    <div x-show="toast.show" x-transition class="fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2"
+         :class="toast.type === 'success' ? 'bg-green-600 text-white' : toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'">
+        <span x-text="toast.message"></span>
+        <button @click="toast.show = false" class="ml-2 text-white/80 hover:text-white">&times;</button>
+    </div>
+
+    <h1 class="text-2xl font-bold mb-4">Settings</h1>
+
+    {* Tab bar *}
+    <div class="flex border-b mb-6 overflow-x-auto">
+        <button @click="setTab('payment')" :class="tab === 'payment' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Payment Methods</button>
+        <button @click="setTab('stores')" :class="tab === 'stores' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Store Profile</button>
+        <button @click="setTab('users')" :class="tab === 'users' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">User Accounts</button>
+        <button @click="setTab('bases')" :class="tab === 'bases' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Bases</button>
+        <button @click="setTab('sauces')" :class="tab === 'sauces' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Sauces</button>
+        <button @click="setTab('toppings')" :class="tab === 'toppings' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Toppings</button>
+        <button @click="setTab('addons')" :class="tab === 'addons' ? 'border-b-2 border-amber-600 text-amber-700 font-semibold' : 'text-gray-500 hover:text-gray-700'" class="px-4 py-2 text-sm focus:outline-none whitespace-nowrap">Addons</button>
+    </div>
+
+    {* ── Payment Methods Tab ── *}
+    <div x-show="tab === 'payment'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">Payment Methods</h2>
+            <button @click="showAddPayment = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.payment = 'all'" :class="statusFilter.payment === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.payment = 'active'" :class="statusFilter.payment === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.payment = 'inactive'" :class="statusFilter.payment === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-100 text-left">
+                    <th class="p-2">Code</th>
+                    <th class="p-2">Name</th>
+                    <th class="p-2">Sort</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="pm in filteredItems(paymentMethods, statusFilter.payment)" :key="pm.payment_method_id">
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 font-mono text-xs" x-text="pm.code"></td>
+                    <td class="p-2">
+                        <input type="text" x-model="editPmName[pm.payment_method_id]" class="border rounded px-2 py-1 w-40 text-sm">
+                    </td>
+                    <td class="p-2">
+                        <input type="number" x-model="editPmSort[pm.payment_method_id]" class="border rounded px-2 py-1 w-16 text-sm">
+                    </td>
+                    <td class="p-2">
+                        <span x-show="pm.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!pm.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </td>
+                    <td class="p-2 space-x-1">
+                        <button @click="updatePayment(pm.payment_method_id)" class="text-blue-600 hover:text-blue-800 text-xs">Save</button>
+                        <button @click="togglePaymentActive(pm.payment_method_id, pm.is_active ? 0 : 1)" class="text-gray-600 hover:text-gray-800 text-xs">
+                            <span x-text="pm.is_active ? 'Deactivate' : 'Activate'"></span>
+                        </button>
+                    </td>
+                </tr>
+                </template>
+            </tbody>
+        </table>
+
+        {* Add payment method modal *}
+        <div x-show="showAddPayment" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddPayment = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Add Payment Method</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Code</label>
+                        <input type="text" x-model="newPmCode" class="border rounded w-full px-3 py-2 text-sm" placeholder="e.g. SHPEE">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Name</label>
+                        <input type="text" x-model="newPmName" class="border rounded w-full px-3 py-2 text-sm" placeholder="e.g. Shopeepay">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Sort Order</label>
+                        <input type="number" x-model="newPmSort" class="border rounded w-full px-3 py-2 text-sm" placeholder="0">
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddPayment = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createPayment()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* ── Store Profile Tab ── *}
+    <div x-show="tab === 'stores'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">Store Branches</h2>
+            <button @click="showAddStore = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ New Branch</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.stores = 'all'" :class="statusFilter.stores === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.stores = 'active'" :class="statusFilter.stores === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.stores = 'inactive'" :class="statusFilter.stores === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <div class="space-y-4">
+            <template x-for="store in filteredItems(stores, statusFilter.stores)" :key="store.store_id">
+            <div class="border rounded p-4 bg-white">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Store Name</label>
+                        <input type="text" x-model="editStoreName[store.store_id]" class="border rounded px-3 py-2 w-full text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Contact Number</label>
+                        <input type="text" x-model="editStoreContact[store.store_id]" class="border rounded px-3 py-2 w-full text-sm">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                    <textarea x-model="editStoreAddress[store.store_id]" rows="2" class="border rounded px-3 py-2 w-full text-sm"></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Latitude</label>
+                        <input type="number" step="0.0000001" x-model="editStoreLat[store.store_id]" class="border rounded px-3 py-2 w-full text-sm" placeholder="e.g. 14.5995">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Longitude</label>
+                        <input type="number" step="0.0000001" x-model="editStoreLng[store.store_id]" class="border rounded px-3 py-2 w-full text-sm" placeholder="e.g. 120.9842">
+                    </div>
+                </div>
+                <div x-show="editStoreLat[store.store_id] && editStoreLng[store.store_id]" class="mb-3">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Map Preview</label>
+                    <div class="bg-gray-100 rounded h-40 flex items-center justify-center text-xs text-gray-400">
+                        <a x-bind:href="'https://www.google.com/maps?q=' + editStoreLat[store.store_id] + ',' + editStoreLng[store.store_id]" target="_blank" class="text-blue-600 hover:underline">
+                            Open in Google Maps
+                        </a>
+                    </div>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400 font-mono" x-text="'[' + store.code + ']'"></span>
+                        <span x-show="store.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!store.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </div>
+                    <div class="space-x-2">
+                        <button @click="updateStore(store.store_id)" class="bg-amber-600 text-white px-3 py-1 rounded text-xs hover:bg-amber-700">Save</button>
+                        <button @click="toggleStoreActive(store.store_id, store.is_active ? 0 : 1)" class="text-gray-600 hover:text-gray-800 text-xs">
+                            <span x-text="store.is_active ? 'Deactivate' : 'Activate'"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            </template>
+        </div>
+
+        {* Create store modal *}
+        <div x-show="showAddStore" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddStore = false">
+            <div class="bg-white rounded-lg p-6 w-[32rem] shadow-xl max-h-[90vh] overflow-y-auto">
+                <h3 class="font-semibold mb-4">New Store Branch</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Branch Name</label>
+                        <input type="text" x-model="newStoreName" class="border rounded w-full px-3 py-2 text-sm" placeholder="e.g. DC Mall North">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Address</label>
+                        <textarea x-model="newStoreAddress" rows="2" class="border rounded w-full px-3 py-2 text-sm" placeholder="Full address"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Contact Number</label>
+                        <input type="text" x-model="newStoreContact" class="border rounded w-full px-3 py-2 text-sm" placeholder="Contact number">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Latitude</label>
+                            <input type="number" step="0.0000001" x-model="newStoreLat" class="border rounded w-full px-3 py-2 text-sm" placeholder="14.5995">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Longitude</label>
+                            <input type="number" step="0.0000001" x-model="newStoreLng" class="border rounded w-full px-3 py-2 text-sm" placeholder="120.9842">
+                        </div>
+                    </div>
+                    <div x-show="newStoreLat && newStoreLng" class="text-xs">
+                        <a x-bind:href="'https://www.google.com/maps?q=' + newStoreLat + ',' + newStoreLng" target="_blank" class="text-blue-600 hover:underline">View on Google Maps</a>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddStore = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createStore()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create Branch</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* ── User Accounts Tab ── *}
+    <div x-show="tab === 'users'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">User Accounts</h2>
+            <button @click="showAddUser = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add User</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.users = 'all'" :class="statusFilter.users === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.users = 'active'" :class="statusFilter.users === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.users = 'inactive'" :class="statusFilter.users === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-100 text-left">
+                    <th class="p-2">Name</th>
+                    <th class="p-2">Username</th>
+                    <th class="p-2">Email</th>
+                    <th class="p-2">Role</th>
+                    <th class="p-2">Branch</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="u in filteredItems(users, statusFilter.users)" :key="u.user_id">
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2" x-text="u.full_name"></td>
+                    <td class="p-2 font-mono text-xs" x-text="u.username"></td>
+                    <td class="p-2 text-xs" x-text="u.email || '-'"></td>
+                    <td class="p-2 capitalize text-xs"><span :class="u.role === 'admin' ? 'text-amber-700 font-semibold' : ''" x-text="u.role"></span></td>
+                    <td class="p-2 text-xs" x-text="u.store_name || '-'"></td>
+                    <td class="p-2">
+                        <span x-show="u.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!u.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </td>
+                    <td class="p-2 space-x-1">
+                        <button @click="editUser(u)" class="text-blue-600 hover:text-blue-800 text-xs">Edit</button>
+                        <button @click="toggleUserActive(u.user_id)" class="text-gray-600 hover:text-gray-800 text-xs" :disabled="u.user_id == currentUserId">
+                            <span x-text="u.is_active ? 'Deactivate' : 'Activate'"></span>
+                        </button>
+                    </td>
+                </tr>
+                </template>
+            </tbody>
+        </table>
+
+        {* Edit user modal *}
+        <div x-show="showEditUser" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showEditUser = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Edit User: <span x-text="editUserData.username"></span></h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Full Name</label>
+                        <input type="text" x-model="editUserData.full_name" class="border rounded w-full px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Email</label>
+                        <input type="email" x-model="editUserData.email" class="border rounded w-full px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Role</label>
+                        <select x-model="editUserData.role" class="border rounded w-full px-3 py-2 text-sm">
+                            <option value="cashier">Cashier</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="auditor">Auditor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">New Password <span class="text-gray-400 font-normal">(leave blank to keep current)</span></label>
+                        <input type="password" x-model="editUserData.password" class="border rounded w-full px-3 py-2 text-sm" placeholder="min 6 characters">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Assigned Branch</label>
+                        <select x-model="editUserData.store_id" class="border rounded w-full px-3 py-2 text-sm">
+                            <option :value="null">— Unassigned —</option>
+                            <template x-for="s in stores" :key="s.store_id">
+                                <option :value="s.store_id" x-text="s.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showEditUser = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="saveEditUser()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Save</button>
+                </div>
+            </div>
+        </div>
+
+        {* Create user modal *}
+        <div x-show="showAddUser" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddUser = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Create User Account</h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Username</label>
+                        <input type="text" x-model="newUser.username" class="border rounded w-full px-3 py-2 text-sm" placeholder="e.g. jdelacruz">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Full Name</label>
+                        <input type="text" x-model="newUser.full_name" class="border rounded w-full px-3 py-2 text-sm" placeholder="e.g. Juan Dela Cruz">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Email</label>
+                        <input type="email" x-model="newUser.email" class="border rounded w-full px-3 py-2 text-sm" placeholder="optional">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Password</label>
+                        <input type="password" x-model="newUser.password" class="border rounded w-full px-3 py-2 text-sm" placeholder="min 6 characters">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Role</label>
+                        <select x-model="newUser.role" class="border rounded w-full px-3 py-2 text-sm">
+                            <option value="cashier">Cashier</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="auditor">Auditor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Assigned Branch</label>
+                        <select x-model="newUser.store_id" class="border rounded w-full px-3 py-2 text-sm">
+                            <option :value="null">— Unassigned —</option>
+                            <template x-for="s in stores" :key="s.store_id">
+                                <option :value="s.store_id" x-text="s.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddUser = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createUser()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* ── Bases Tab ── *}
+    <div x-show="tab === 'bases'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">Soft-Serve Bases</h2>
+            <button @click="showAddBase = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.bases = 'all'" :class="statusFilter.bases === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.bases = 'active'" :class="statusFilter.bases === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.bases = 'inactive'" :class="statusFilter.bases === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-100 text-left"><th class="p-2">Name</th><th class="p-2">Status</th><th class="p-2">Actions</th></tr></thead>
+            <tbody>
+                <template x-for="base in filteredItems(bases, statusFilter.bases)" :key="base.base_id">
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2"><input type="text" x-model="editBaseName[base.base_id]" class="border rounded px-2 py-1 w-48 text-sm"></td>
+                    <td class="p-2">
+                        <span x-show="base.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!base.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </td>
+                    <td class="p-2 space-x-1">
+                        <button @click="updateBase(base.base_id)" class="text-blue-600 hover:text-blue-800 text-xs">Save</button>
+                        <button @click="toggleBaseActive(base.base_id, base.is_active ? 0 : 1)" class="text-gray-600 hover:text-gray-800 text-xs"><span x-text="base.is_active ? 'Deactivate' : 'Activate'"></span></button>
+                    </td>
+                </tr>
+                </template>
+            </tbody>
+        </table>
+        {* Add base modal *}
+        <div x-show="showAddBase" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddBase = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Add Base</h3>
+                <div><label class="block text-sm font-medium mb-1">Name</label><input type="text" x-model="newBaseName" class="border rounded w-full px-3 py-2 text-sm"></div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddBase = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createBase()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* ── Sauces Tab ── *}
+    <div x-show="tab === 'sauces'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">Soft-Serve Sauces</h2>
+            <button @click="showAddSauce = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.sauces = 'all'" :class="statusFilter.sauces === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.sauces = 'active'" :class="statusFilter.sauces === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.sauces = 'inactive'" :class="statusFilter.sauces === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-100 text-left"><th class="p-2">Name</th><th class="p-2">Status</th><th class="p-2">Actions</th></tr></thead>
+            <tbody>
+                <template x-for="sauce in filteredItems(sauces, statusFilter.sauces)" :key="sauce.sauce_id">
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2"><input type="text" x-model="editSauceName[sauce.sauce_id]" class="border rounded px-2 py-1 w-48 text-sm"></td>
+                    <td class="p-2">
+                        <span x-show="sauce.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!sauce.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </td>
+                    <td class="p-2 space-x-1">
+                        <button @click="updateSauce(sauce.sauce_id)" class="text-blue-600 hover:text-blue-800 text-xs">Save</button>
+                        <button @click="toggleSauceActive(sauce.sauce_id, sauce.is_active ? 0 : 1)" class="text-gray-600 hover:text-gray-800 text-xs"><span x-text="sauce.is_active ? 'Deactivate' : 'Activate'"></span></button>
+                    </td>
+                </tr>
+                </template>
+            </tbody>
+        </table>
+        {* Add sauce modal *}
+        <div x-show="showAddSauce" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddSauce = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Add Sauce</h3>
+                <div><label class="block text-sm font-medium mb-1">Name</label><input type="text" x-model="newSauceName" class="border rounded w-full px-3 py-2 text-sm"></div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddSauce = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createSauce()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* ── Toppings Tab ── *}
+    <div x-show="tab === 'toppings'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">Soft-Serve Toppings</h2>
+            <button @click="showAddTopping = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.toppings = 'all'" :class="statusFilter.toppings === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.toppings = 'active'" :class="statusFilter.toppings === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.toppings = 'inactive'" :class="statusFilter.toppings === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-100 text-left"><th class="p-2">Name</th><th class="p-2">Status</th><th class="p-2">Actions</th></tr></thead>
+            <tbody>
+                <template x-for="topping in filteredItems(toppings, statusFilter.toppings)" :key="topping.topping_id">
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2"><input type="text" x-model="editToppingName[topping.topping_id]" class="border rounded px-2 py-1 w-48 text-sm"></td>
+                    <td class="p-2">
+                        <span x-show="topping.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!topping.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </td>
+                    <td class="p-2 space-x-1">
+                        <button @click="updateTopping(topping.topping_id)" class="text-blue-600 hover:text-blue-800 text-xs">Save</button>
+                        <button @click="toggleToppingActive(topping.topping_id, topping.is_active ? 0 : 1)" class="text-gray-600 hover:text-gray-800 text-xs"><span x-text="topping.is_active ? 'Deactivate' : 'Activate'"></span></button>
+                    </td>
+                </tr>
+                </template>
+            </tbody>
+        </table>
+        {* Add topping modal *}
+        <div x-show="showAddTopping" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddTopping = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Add Topping</h3>
+                <div><label class="block text-sm font-medium mb-1">Name</label><input type="text" x-model="newToppingName" class="border rounded w-full px-3 py-2 text-sm"></div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddTopping = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createTopping()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* ── Addons Tab ── *}
+    <div x-show="tab === 'addons'">
+        <div class="flex justify-between items-center mb-2">
+            <h2 class="text-lg font-semibold">Soft-Serve Addons</h2>
+            <button @click="showAddAddon = true" class="bg-amber-600 text-white px-3 py-1 rounded text-sm hover:bg-amber-700">+ Add</button>
+        </div>
+        <div class="flex gap-1 mb-3">
+            <button @click="statusFilter.addons = 'all'" :class="statusFilter.addons === 'all' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">All</button>
+            <button @click="statusFilter.addons = 'active'" :class="statusFilter.addons === 'active' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Active</button>
+            <button @click="statusFilter.addons = 'inactive'" :class="statusFilter.addons === 'inactive' ? 'bg-amber-100 text-amber-800' : 'text-gray-500 hover:text-gray-700'" class="px-2 py-0.5 rounded text-xs font-medium">Inactive</button>
+        </div>
+        <table class="w-full text-sm">
+            <thead><tr class="bg-gray-100 text-left"><th class="p-2">Name</th><th class="p-2">Price</th><th class="p-2">Type</th><th class="p-2">Status</th><th class="p-2">Actions</th></tr></thead>
+            <tbody>
+                <template x-for="addon in filteredItems(addons, statusFilter.addons)" :key="addon.addon_id">
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2"><input type="text" x-model="editAddonName[addon.addon_id]" class="border rounded px-2 py-1 w-36 text-sm"></td>
+                    <td class="p-2"><input type="number" step="0.01" x-model="editAddonPrice[addon.addon_id]" class="border rounded px-2 py-1 w-20 text-sm"></td>
+                    <td class="p-2">
+                        <select x-model="editAddonType[addon.addon_id]" class="border rounded px-2 py-1 text-sm">
+                            <option value="sauce">Sauce</option>
+                            <option value="topping">Topping</option>
+                            <option value="spoon">Spoon</option>
+                        </select>
+                    </td>
+                    <td class="p-2">
+                        <span x-show="addon.is_active" class="text-green-600 text-xs bg-green-100 px-2 py-0.5 rounded">Active</span>
+                        <span x-show="!addon.is_active" class="text-red-600 text-xs bg-red-100 px-2 py-0.5 rounded">Inactive</span>
+                    </td>
+                    <td class="p-2 space-x-1">
+                        <button @click="updateAddon(addon.addon_id)" class="text-blue-600 hover:text-blue-800 text-xs">Save</button>
+                        <button @click="toggleAddonActive(addon.addon_id, addon.is_active ? 0 : 1)" class="text-gray-600 hover:text-gray-800 text-xs"><span x-text="addon.is_active ? 'Deactivate' : 'Activate'"></span></button>
+                    </td>
+                </tr>
+                </template>
+            </tbody>
+        </table>
+        {* Add addon modal *}
+        <div x-show="showAddAddon" class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @click.self="showAddAddon = false">
+            <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+                <h3 class="font-semibold mb-4">Add Addon</h3>
+                <div class="space-y-3">
+                    <div><label class="block text-sm font-medium mb-1">Name</label><input type="text" x-model="newAddonName" class="border rounded w-full px-3 py-2 text-sm"></div>
+                    <div><label class="block text-sm font-medium mb-1">Price</label><input type="number" step="0.01" x-model="newAddonPrice" class="border rounded w-full px-3 py-2 text-sm"></div>
+                    <div><label class="block text-sm font-medium mb-1">Type</label>
+                        <select x-model="newAddonType" class="border rounded w-full px-3 py-2 text-sm">
+                            <option value="sauce">Sauce</option>
+                            <option value="topping">Topping</option>
+                            <option value="spoon">Spoon</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showAddAddon = false" class="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                    <button @click="createAddon()" class="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="dc-settings-data" type="application/json">{settings_data_json|raw}</script>
+<script>
+function settingsApp(initialData) {
+    if (initialData === undefined) {
+        const node = document.getElementById('dc-settings-data');
+        try {
+            initialData = node ? (JSON.parse(node.textContent || '{}') || {}) : {};
+        } catch (e) {
+            initialData = {};
+        }
+    }
+    // Build initial edit maps from server-rendered data to avoid x-model/:value conflict.
+    const editPmName = {};
+    const editPmSort = {};
+    (initialData.paymentMethods || []).forEach(pm => {
+        editPmName[pm.payment_method_id] = pm.name;
+        editPmSort[pm.payment_method_id] = pm.sort_order;
+    });
+
+    const editBaseName = {};
+    (initialData.bases || []).forEach(b => { editBaseName[b.base_id] = b.name; });
+
+    const editSauceName = {};
+    (initialData.sauces || []).forEach(s => { editSauceName[s.sauce_id] = s.name; });
+
+    const editToppingName = {};
+    (initialData.toppings || []).forEach(t => { editToppingName[t.topping_id] = t.name; });
+
+    const editAddonName = {};
+    const editAddonPrice = {};
+    const editAddonType = {};
+    (initialData.addons || []).forEach(a => {
+        editAddonName[a.addon_id] = a.name;
+        editAddonPrice[a.addon_id] = a.price;
+        editAddonType[a.addon_id] = a.type;
+    });
+
+    const editStoreName = {};
+    const editStoreAddress = {};
+    const editStoreContact = {};
+    const editStoreLat = {};
+    const editStoreLng = {};
+    (initialData.stores || []).forEach(s => {
+        editStoreName[s.store_id] = s.name;
+        editStoreAddress[s.store_id] = s.address || '';
+        editStoreContact[s.store_id] = s.contact_number || '';
+        editStoreLat[s.store_id] = s.latitude || '';
+        editStoreLng[s.store_id] = s.longitude || '';
+    });
+
+    // Restore last-active tab from URL hash (survives page reloads)
+    const initialTab = location.hash.replace('#', '') || 'payment';
+
+    return {
+        tab: initialTab,
+        showAddPayment: false, newPmCode: '', newPmName: '', newPmSort: 0,
+        editPmName, editPmSort,
+        showAddBase: false, newBaseName: '', editBaseName,
+        showAddSauce: false, newSauceName: '', editSauceName,
+        showAddTopping: false, newToppingName: '', editToppingName,
+        showAddAddon: false, newAddonName: '', newAddonPrice: 0, newAddonType: 'topping',
+        editAddonName, editAddonPrice, editAddonType,
+        editStoreName, editStoreAddress, editStoreContact, editStoreLat, editStoreLng,
+        showAddStore: false, newStoreName: '', newStoreAddress: '', newStoreContact: '', newStoreLat: '', newStoreLng: '',
+        showAddUser: false, showEditUser: false,
+        editUserData: {user_id: 0, full_name: '', email: '', role: 'cashier', store_id: null, password: ''},
+        newUser: {username: '', password: '', full_name: '', email: '', role: 'cashier', store_id: null},
+        paymentMethods: initialData.paymentMethods || [],
+        bases: initialData.bases || [],
+        sauces: initialData.sauces || [],
+        toppings: initialData.toppings || [],
+        addons: initialData.addons || [],
+        stores: initialData.stores || [],
+        users: initialData.users || [],
+        currentUserId: initialData.currentUserId || 0,
+
+        // Sub-tab filters: 'all', 'active', 'inactive'
+        statusFilter: { payment: 'active', stores: 'active', users: 'active', bases: 'active', sauces: 'active', toppings: 'active', addons: 'active' },
+
+        // Filter items by status: 1=active, 0=inactive, anything=all
+        filteredItems(items, filter) {
+            if (filter === 'all') return items;
+            const wantActive = filter === 'active';
+            return items.filter(item => (item.is_active ? 1 : 0) === (wantActive ? 1 : 0));
+        },
+
+        toast: { show: false, message: '', type: 'success' },
+
+        setTab(name) {
+            this.tab = name;
+            location.hash = name;
+        },
+
+        showToast(message, type) {
+            this.toast = { show: true, message, type };
+            clearTimeout(this._toastTimer);
+            this._toastTimer = setTimeout(() => { this.toast.show = false; }, 3000);
+        },
+
+        // Fetch fresh data for current tab without page reload
+        ajaxRefresh() {
+            const fetches = {
+                payment: this.api('/dc-cafe/api/v1/payment-methods/list', 'GET'),
+                bases: this.api('/dc-cafe/api/v1/soft-serve/bases/list', 'GET'),
+                sauces: this.api('/dc-cafe/api/v1/soft-serve/sauces/list', 'GET'),
+                toppings: this.api('/dc-cafe/api/v1/soft-serve/toppings/list', 'GET'),
+                addons: this.api('/dc-cafe/api/v1/soft-serve/addons/list', 'GET'),
+                stores: this.api('/dc-cafe/api/v1/stores', 'GET'),
+                users: this.api('/dc-cafe/api/v1/users', 'GET'),
+            };
+            Promise.all(Object.values(fetches)).then(() => {
+                fetches.payment.then(d => { if (d.ok) this.paymentMethods = d.payment_methods; });
+                fetches.bases.then(d => { if (d.ok) this.bases = d.bases; });
+                fetches.sauces.then(d => { if (d.ok) this.sauces = d.sauces; });
+                fetches.toppings.then(d => { if (d.ok) this.toppings = d.toppings; });
+                fetches.addons.then(d => { if (d.ok) this.addons = d.addons; });
+                fetches.stores.then(d => { if (d.ok) this.stores = d.stores; });
+                fetches.users.then(d => { if (d.ok) {
+                    this.users = d.users;
+                    // Rebuild edit maps for users
+                    (d.users || []).forEach(u => {
+                        if (this.editUserData.user_id === u.user_id) {
+                            this.editUserData.full_name = u.full_name;
+                            this.editUserData.email = u.email || '';
+                            this.editUserData.role = u.role;
+                            this.editUserData.store_id = u.store_id;
+                        }
+                    });
+                }});
+                // Rebuild edit maps for stores
+                fetches.stores.then(d => { if (d.ok) {
+                    (d.stores || []).forEach(s => {
+                        this.editStoreName[s.store_id] = s.name;
+                        this.editStoreAddress[s.store_id] = s.address || '';
+                        this.editStoreContact[s.store_id] = s.contact_number || '';
+                        this.editStoreLat[s.store_id] = s.latitude || '';
+                        this.editStoreLng[s.store_id] = s.longitude || '';
+                    });
+                }});
+                // Rebuild edit maps for payment methods
+                fetches.payment.then(d => { if (d.ok) {
+                    (d.payment_methods || []).forEach(pm => {
+                        this.editPmName[pm.payment_method_id] = pm.name;
+                        this.editPmSort[pm.payment_method_id] = pm.sort_order;
+                    });
+                }});
+            });
+        },
+
+        api(path, method, body) {
+            return fetch(path, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: body ? JSON.stringify(body) : undefined,
+            }).then(r => r.json());
+        },
+
+        onSuccess(msg) {
+            this.showToast(msg, 'success');
+            this.ajaxRefresh();
+        },
+        onError(msg) {
+            this.showToast(msg || 'Operation failed', 'error');
+        },
+
+        createPayment() {
+            if (!this.newPmCode || !this.newPmName) return;
+            this.api('/dc-cafe/api/v1/payment-methods/create', 'POST', {
+                code: this.newPmCode, name: this.newPmName, sort_order: this.newPmSort
+            }).then(d => { if (d.ok) this.onSuccess('Payment method created'); else this.onError(d.error); });
+        },
+        updatePayment(id) {
+            const body = {};
+            if (this.editPmName[id] !== undefined) body.name = this.editPmName[id];
+            if (this.editPmSort[id] !== undefined) body.sort_order = parseInt(this.editPmSort[id]);
+            this.api('/dc-cafe/api/v1/payment-methods/' + id, 'PUT', body).then(d => { if (d.ok) this.onSuccess('Payment method saved'); else this.onError(d.error); });
+        },
+        togglePaymentActive(id, active) {
+            this.api('/dc-cafe/api/v1/payment-methods/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Payment method updated'); else this.onError(d.error); });
+        },
+
+        updateStore(id) {
+            const body = {};
+            if (this.editStoreName[id] !== undefined) body.name = this.editStoreName[id];
+            if (this.editStoreAddress[id] !== undefined) body.address = this.editStoreAddress[id];
+            if (this.editStoreContact[id] !== undefined) body.contact_number = this.editStoreContact[id];
+            if (this.editStoreLat[id] !== undefined && this.editStoreLat[id] !== '') body.latitude = parseFloat(this.editStoreLat[id]);
+            if (this.editStoreLng[id] !== undefined && this.editStoreLng[id] !== '') body.longitude = parseFloat(this.editStoreLng[id]);
+            this.api('/dc-cafe/api/v1/stores/' + id, 'PUT', body).then(d => { if (d.ok) this.onSuccess('Store saved'); else this.onError(d.error); });
+        },
+        toggleStoreActive(id, active) {
+            this.api('/dc-cafe/api/v1/stores/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Store updated'); else this.onError(d.error); });
+        },
+        createStore() {
+            if (!this.newStoreName) return;
+            const body = {name: this.newStoreName};
+            if (this.newStoreAddress) body.address = this.newStoreAddress;
+            if (this.newStoreContact) body.contact_number = this.newStoreContact;
+            if (this.newStoreLat) body.latitude = parseFloat(this.newStoreLat);
+            if (this.newStoreLng) body.longitude = parseFloat(this.newStoreLng);
+            this.api('/dc-cafe/api/v1/stores/create', 'POST', body).then(d => { if (d.ok) this.onSuccess('Branch created'); else this.onError(d.error); });
+        },
+
+        toggleUserActive(id) {
+            this.api('/dc-cafe/api/v1/users/' + id + '/toggle-active', 'POST', {}).then(d => { if (d.ok) this.onSuccess('User status toggled'); else this.onError(d.error); });
+        },
+        editUser(u) {
+            this.editUserData = {
+                user_id: u.user_id,
+                full_name: u.full_name,
+                email: u.email || '',
+                role: u.role,
+                store_id: u.store_id,
+                password: '',
+            };
+            this.showEditUser = true;
+        },
+        saveEditUser() {
+            const d = this.editUserData;
+            const body = {};
+            if (d.full_name !== undefined) body.full_name = d.full_name;
+            if (d.email !== undefined) body.email = d.email;
+            if (d.role !== undefined) body.role = d.role;
+            if (d.password) body.password = d.password;
+            body.store_id = d.store_id;
+            this.api('/dc-cafe/api/v1/users/' + d.user_id, 'PUT', body).then(r => { if (r.ok) { this.showEditUser = false; this.onSuccess('User saved'); } else this.onError(r.error); });
+        },
+        createUser() {
+            const d = this.newUser;
+            if (!d.username || !d.password || !d.full_name) return;
+            const body = {
+                username: d.username,
+                password: d.password,
+                full_name: d.full_name,
+                role: d.role || 'cashier',
+            };
+            if (d.email) body.email = d.email;
+            if (d.store_id !== null && d.store_id !== undefined) body.store_id = d.store_id;
+            this.api('/dc-cafe/api/v1/users/create', 'POST', body).then(r => { if (r.ok) { this.showAddUser = false; this.onSuccess('User created'); } else this.onError(r.error); });
+        },
+
+        createBase() {
+            if (!this.newBaseName) return;
+            this.api('/dc-cafe/api/v1/soft-serve/bases/create', 'POST', {name: this.newBaseName}).then(d => { if (d.ok) this.onSuccess('Base created'); else this.onError(d.error); });
+        },
+        updateBase(id) {
+            if (this.editBaseName[id] === undefined) return;
+            this.api('/dc-cafe/api/v1/soft-serve/bases/' + id, 'PUT', {name: this.editBaseName[id]}).then(d => { if (d.ok) this.onSuccess('Base saved'); else this.onError(d.error); });
+        },
+        toggleBaseActive(id, active) {
+            this.api('/dc-cafe/api/v1/soft-serve/bases/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Base updated'); else this.onError(d.error); });
+        },
+
+        createSauce() {
+            if (!this.newSauceName) return;
+            this.api('/dc-cafe/api/v1/soft-serve/sauces/create', 'POST', {name: this.newSauceName}).then(d => { if (d.ok) this.onSuccess('Sauce created'); else this.onError(d.error); });
+        },
+        updateSauce(id) {
+            if (this.editSauceName[id] === undefined) return;
+            this.api('/dc-cafe/api/v1/soft-serve/sauces/' + id, 'PUT', {name: this.editSauceName[id]}).then(d => { if (d.ok) this.onSuccess('Sauce saved'); else this.onError(d.error); });
+        },
+        toggleSauceActive(id, active) {
+            this.api('/dc-cafe/api/v1/soft-serve/sauces/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Sauce updated'); else this.onError(d.error); });
+        },
+
+        createTopping() {
+            if (!this.newToppingName) return;
+            this.api('/dc-cafe/api/v1/soft-serve/toppings/create', 'POST', {name: this.newToppingName}).then(d => { if (d.ok) this.onSuccess('Topping created'); else this.onError(d.error); });
+        },
+        updateTopping(id) {
+            if (this.editToppingName[id] === undefined) return;
+            this.api('/dc-cafe/api/v1/soft-serve/toppings/' + id, 'PUT', {name: this.editToppingName[id]}).then(d => { if (d.ok) this.onSuccess('Topping saved'); else this.onError(d.error); });
+        },
+        toggleToppingActive(id, active) {
+            this.api('/dc-cafe/api/v1/soft-serve/toppings/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Topping updated'); else this.onError(d.error); });
+        },
+
+        createAddon() {
+            if (!this.newAddonName || !this.newAddonPrice) return;
+            this.api('/dc-cafe/api/v1/soft-serve/addons/create', 'POST', {
+                name: this.newAddonName, price: parseFloat(this.newAddonPrice), type: this.newAddonType
+            }).then(d => { if (d.ok) this.onSuccess('Addon created'); else this.onError(d.error); });
+        },
+        updateAddon(id) {
+            const body = {};
+            if (this.editAddonName[id] !== undefined) body.name = this.editAddonName[id];
+            if (this.editAddonPrice[id] !== undefined) body.price = parseFloat(this.editAddonPrice[id]);
+            if (this.editAddonType[id] !== undefined) body.type = this.editAddonType[id];
+            this.api('/dc-cafe/api/v1/soft-serve/addons/' + id, 'PUT', body).then(d => { if (d.ok) this.onSuccess('Addon saved'); else this.onError(d.error); });
+        },
+        toggleAddonActive(id, active) {
+            this.api('/dc-cafe/api/v1/soft-serve/addons/' + id, 'PUT', {is_active: !!active}).then(d => { if (d.ok) this.onSuccess('Addon updated'); else this.onError(d.error); });
+        },
+    };
+}
+</script>
+{/block}

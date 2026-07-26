@@ -1084,3 +1084,915 @@ function pageIngredientList(array $params = []): void
         'page_title' => 'Ingredients',
     ]);
 }
+
+// ─── Settings Page ─────────────────────────────────────────────────────
+
+/**
+ * GET /dc-cafe/settings — Settings page
+ */
+function pageDcCafeSettings(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $db = dcDb();
+
+    $paymentMethods = $db->query(
+        "SELECT * FROM dc_payment_methods ORDER BY sort_order"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $stores = $db->query(
+        "SELECT * FROM dc_stores ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $users = $db->query(
+        "SELECT user_id, username, full_name, email, role, store_id, is_active, last_login_at
+         FROM dc_users
+         WHERE deleted_at IS NULL
+         ORDER BY full_name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $bases = $db->query(
+        "SELECT * FROM dc_soft_serve_bases ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $sauces = $db->query(
+        "SELECT * FROM dc_soft_serve_sauces ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $toppings = $db->query(
+        "SELECT * FROM dc_soft_serve_toppings ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $addons = $db->query(
+        "SELECT * FROM dc_soft_serve_addons ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $settingsDataJson = json_encode([
+        'paymentMethods' => $paymentMethods,
+        'stores' => $stores,
+        'users' => $users,
+        'bases' => $bases,
+        'sauces' => $sauces,
+        'toppings' => $toppings,
+        'addons' => $addons,
+        'currentUserId' => (int) ($ctx->user()['user_id'] ?? 0),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    echo dcRender('settings/index.disyl', [
+        'page_title' => 'DC Cafe Settings',
+        'settings_data_json' => $settingsDataJson ?: '{}',
+    ]);
+}
+
+// ─── Payment Method Management API ─────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/payment-methods/list — All payment methods (incl. inactive)
+ */
+function apiListPaymentMethods(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $methods = dcDb()->query(
+        "SELECT * FROM dc_payment_methods ORDER BY sort_order"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    dcJsonResponse(['ok' => true, 'payment_methods' => $methods]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/payment-methods/create
+ */
+function apiCreatePaymentMethod(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $code = (string) (dcInput('code') ?? '');
+    $name = (string) (dcInput('name') ?? '');
+    $sortOrder = (int) (dcInput('sort_order') ?? 0);
+
+    if ($code === '' || $name === '') {
+        dcJsonError('Code and name are required');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT payment_method_id FROM dc_payment_methods WHERE code = ?",
+        [$code]
+    )->fetch();
+    if ($existing) {
+        dcJsonError('Payment method code already exists');
+    }
+
+    $db->query(
+        "INSERT INTO dc_payment_methods (code, name, sort_order) VALUES (?, ?, ?)",
+        [strtoupper($code), $name, $sortOrder]
+    );
+
+    dcJsonResponse([
+        'ok' => true,
+        'payment_method_id' => (int) $db->lastInsertId(),
+    ]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/payment-methods/{id}
+ */
+function apiUpdatePaymentMethod(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid payment method ID', 400);
+    }
+
+    $name = dcInput('name');
+    $sortOrder = dcInput('sort_order');
+    $isActive = dcInput('is_active');
+
+    if ($name === null && $sortOrder === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT * FROM dc_payment_methods WHERE payment_method_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Payment method not found', 404);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = (string) $name;
+    }
+    if ($sortOrder !== null) {
+        $sets[] = 'sort_order = ?';
+        $vals[] = (int) $sortOrder;
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    if (empty($sets)) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_payment_methods SET " . implode(', ', $sets) . " WHERE payment_method_id = ?", $vals);
+
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── Store Management API ──────────────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/stores
+ */
+function apiListStores(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $stores = dcDb()->query("SELECT * FROM dc_stores ORDER BY name")->fetchAll(\PDO::FETCH_ASSOC);
+    dcJsonResponse(['ok' => true, 'stores' => $stores]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/stores/{id}
+ */
+function apiGetStore(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid store ID', 400);
+    }
+
+    $store = dcDb()->query("SELECT * FROM dc_stores WHERE store_id = ?", [$id])->fetch(\PDO::FETCH_ASSOC);
+    if (!$store) {
+        dcJsonError('Store not found', 404);
+    }
+
+    dcJsonResponse(['ok' => true, 'store' => $store]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/stores/create — Create a new store branch
+ */
+function apiCreateStore(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $name = (string) (dcInput('name') ?? '');
+    $address = (string) (dcInput('address') ?? '');
+    $contactNumber = (string) (dcInput('contact_number') ?? '');
+    $latitude = dcInput('latitude');
+    $longitude = dcInput('longitude');
+
+    if ($name === '') {
+        dcJsonError('Store name is required');
+    }
+
+    $db = dcDb();
+
+    // Auto-generate unique code from name
+    $base = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $name));
+    $code = substr($base, 0, 10);
+    $suffix = 0;
+    while ($db->query("SELECT store_id FROM dc_stores WHERE code = ?", [$code])->fetch()) {
+        $suffix++;
+        $suffixPart = (string) $suffix;
+        $code = substr($base, 0, 10 - strlen($suffixPart)) . $suffixPart;
+    }
+
+    $lat = $latitude !== null ? (float) $latitude : null;
+    $lng = $longitude !== null ? (float) $longitude : null;
+
+    $db->query(
+        "INSERT INTO dc_stores (name, code, address, contact_number, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)",
+        [$name, $code, $address ?: null, $contactNumber ?: null, $lat, $lng]
+    );
+
+    dcJsonResponse([
+        'ok' => true,
+        'store_id' => (int) $db->lastInsertId(),
+        'code' => $code,
+    ]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/stores/{id}
+ */
+function apiUpdateStore(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid store ID', 400);
+    }
+
+    $name = dcInput('name');
+    $address = dcInput('address');
+    $contactNumber = dcInput('contact_number');
+    $latitude = dcInput('latitude');
+    $longitude = dcInput('longitude');
+    $isActive = dcInput('is_active');
+
+    if ($name === null && $address === null && $contactNumber === null
+        && $latitude === null && $longitude === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query("SELECT * FROM dc_stores WHERE store_id = ?", [$id])->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Store not found', 404);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = (string) $name;
+    }
+    if ($address !== null) {
+        $sets[] = 'address = ?';
+        $vals[] = (string) $address;
+    }
+    if ($contactNumber !== null) {
+        $sets[] = 'contact_number = ?';
+        $vals[] = (string) $contactNumber;
+    }
+    if ($latitude !== null) {
+        $sets[] = 'latitude = ?';
+        $vals[] = (float) $latitude;
+    }
+    if ($longitude !== null) {
+        $sets[] = 'longitude = ?';
+        $vals[] = (float) $longitude;
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    if (empty($sets)) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_stores SET " . implode(', ', $sets) . " WHERE store_id = ?", $vals);
+
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── User Account Management API ───────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/users
+ */
+function apiListUsers(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $users = dcDb()->query(
+        "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.store_id, u.is_active, u.last_login_at,
+                s.name AS store_name
+         FROM dc_users u
+         LEFT JOIN dc_stores s ON s.store_id = u.store_id
+         WHERE u.deleted_at IS NULL
+         ORDER BY u.full_name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    dcJsonResponse(['ok' => true, 'users' => $users]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/users/{id}
+ */
+function apiGetUser(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid user ID', 400);
+    }
+
+    $user = dcDb()->query(
+        "SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.store_id, u.is_active, u.last_login_at,
+                s.name AS store_name
+         FROM dc_users u
+         LEFT JOIN dc_stores s ON s.store_id = u.store_id
+         WHERE u.user_id = ? AND u.deleted_at IS NULL",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        dcJsonError('User not found', 404);
+    }
+
+    dcJsonResponse(['ok' => true, 'user' => $user]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/users/{id}/toggle-active
+ */
+function apiToggleUserActive(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid user ID', 400);
+    }
+
+    $currentUserId = (int) ($ctx->user()['user_id'] ?? 0);
+    if ($id === $currentUserId) {
+        dcJsonError('You cannot deactivate your own account', 403);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT user_id, is_active FROM dc_users WHERE user_id = ? AND deleted_at IS NULL",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+
+    if (!$existing) {
+        dcJsonError('User not found', 404);
+    }
+
+    $newActive = empty((int) $existing['is_active']) ? 1 : 0;
+    $db->query(
+        "UPDATE dc_users SET is_active = ? WHERE user_id = ?",
+        [$newActive, $id]
+    );
+
+    dcJsonResponse(['ok' => true, 'is_active' => $newActive]);
+}
+
+// ─── User Account Management API (continued) ───────────────────────────
+
+/**
+ * POST /dc-cafe/api/v1/users/create — Create a new user account
+ *
+ * Input: { username, password, full_name, email?, role?, store_id? }
+ */
+function apiCreateUser(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $username = (string) (dcInput('username') ?? '');
+    $password = (string) (dcInput('password') ?? '');
+    $fullName = (string) (dcInput('full_name') ?? '');
+    $email = (string) (dcInput('email') ?? '');
+    $role = (string) (dcInput('role') ?? 'cashier');
+    $storeId = dcInput('store_id');
+
+    if ($username === '' || $password === '' || $fullName === '') {
+        dcJsonError('Username, password, and full name are required');
+    }
+    if (!in_array($role, ['admin', 'supervisor', 'auditor', 'cashier'], true)) {
+        dcJsonError('Invalid role. Must be admin, supervisor, auditor, or cashier');
+    }
+    if (strlen($password) < 6) {
+        dcJsonError('Password must be at least 6 characters');
+    }
+
+    $db = dcDb();
+
+    // Check uniqueness
+    $existing = $db->query("SELECT user_id FROM dc_users WHERE username = ?", [$username])->fetch();
+    if ($existing) {
+        dcJsonError('Username already taken');
+    }
+    if ($email !== '') {
+        $existingEmail = $db->query("SELECT user_id FROM dc_users WHERE email = ?", [$email])->fetch();
+        if ($existingEmail) {
+            dcJsonError('Email already in use');
+        }
+    }
+
+    $db->query(
+        "INSERT INTO dc_users (username, password_hash, email, full_name, role, store_id)
+         VALUES (?, ?, ?, ?, ?, ?)",
+        [
+            $username,
+            password_hash($password, PASSWORD_BCRYPT),
+            $email ?: null,
+            $fullName,
+            $role,
+            $storeId !== null ? (int) $storeId : null,
+        ]
+    );
+
+    dcJsonResponse([
+        'ok' => true,
+        'user_id' => (int) $db->lastInsertId(),
+    ]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/users/{id} — Update user profile and assignment
+ *
+ * Input: { full_name?, email?, role?, store_id? }
+ */
+function apiUpdateUser(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid user ID', 400);
+    }
+
+    $fullName = dcInput('full_name');
+    $email = dcInput('email');
+    $role = dcInput('role');
+    $storeId = dcInput('store_id');
+    $password = dcInput('password');
+
+    if ($fullName === null && $email === null && $role === null && $storeId === null && $password === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    if ($role !== null && !in_array((string) $role, ['admin', 'supervisor', 'auditor', 'cashier'], true)) {
+        dcJsonError('Invalid role. Must be admin, supervisor, auditor, or cashier');
+    }
+
+    if ($password !== null && strlen((string) $password) < 6) {
+        dcJsonError('Password must be at least 6 characters');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT user_id FROM dc_users WHERE user_id = ? AND deleted_at IS NULL",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('User not found', 404);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($fullName !== null) {
+        $sets[] = 'full_name = ?';
+        $vals[] = (string) $fullName;
+    }
+    if ($email !== null) {
+        $sets[] = 'email = ?';
+        $vals[] = (string) $email;
+    }
+    if ($role !== null) {
+        $sets[] = 'role = ?';
+        $vals[] = (string) $role;
+    }
+    if ($storeId !== null) {
+        $sets[] = 'store_id = ?';
+        $vals[] = (int) $storeId;
+    }
+    if ($password !== null) {
+        $sets[] = 'password_hash = ?';
+        $vals[] = password_hash((string) $password, PASSWORD_BCRYPT);
+    }
+
+    if (empty($sets)) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_users SET " . implode(', ', $sets) . " WHERE user_id = ?", $vals);
+
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── Soft-Serve Base Management API ────────────────────────────────────
+
+/**
+ * GET /dc-cafe/api/v1/soft-serve/bases/list — All bases (incl. inactive) for settings
+ */
+function apiListSoftServeBases(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $rows = dcDb()->query(
+        "SELECT * FROM dc_soft_serve_bases ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    dcJsonResponse(['ok' => true, 'bases' => $rows]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/soft-serve/sauces/list — All sauces (incl. inactive) for settings
+ */
+function apiListSoftServeSauces(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $rows = dcDb()->query(
+        "SELECT * FROM dc_soft_serve_sauces ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    dcJsonResponse(['ok' => true, 'sauces' => $rows]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/soft-serve/toppings/list — All toppings (incl. inactive) for settings
+ */
+function apiListSoftServeToppings(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $rows = dcDb()->query(
+        "SELECT * FROM dc_soft_serve_toppings ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    dcJsonResponse(['ok' => true, 'toppings' => $rows]);
+}
+
+/**
+ * GET /dc-cafe/api/v1/soft-serve/addons/list — All addons (incl. inactive) for settings
+ */
+function apiListSoftServeAddons(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $rows = dcDb()->query(
+        "SELECT * FROM dc_soft_serve_addons ORDER BY name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    dcJsonResponse(['ok' => true, 'addons' => $rows]);
+}
+
+/**
+ * POST /dc-cafe/api/v1/soft-serve/bases/create
+ */
+function apiCreateSoftServeBase(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $name = (string) (dcInput('name') ?? '');
+    if ($name === '') {
+        dcJsonError('Name is required');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT base_id FROM dc_soft_serve_bases WHERE name = ?",
+        [$name]
+    )->fetch();
+    if ($existing) {
+        dcJsonError('A base with that name already exists');
+    }
+
+    $db->query("INSERT INTO dc_soft_serve_bases (name) VALUES (?)", [strtoupper($name)]);
+    dcJsonResponse(['ok' => true, 'base_id' => (int) $db->lastInsertId()]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/soft-serve/bases/{id}
+ */
+function apiUpdateSoftServeBase(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid base ID', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT * FROM dc_soft_serve_bases WHERE base_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Base not found', 404);
+    }
+
+    $name = dcInput('name');
+    $isActive = dcInput('is_active');
+    if ($name === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = strtoupper((string) $name);
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_soft_serve_bases SET " . implode(', ', $sets) . " WHERE base_id = ?", $vals);
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── Soft-Serve Sauce Management API ───────────────────────────────────
+
+/**
+ * POST /dc-cafe/api/v1/soft-serve/sauces/create
+ */
+function apiCreateSoftServeSauce(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $name = (string) (dcInput('name') ?? '');
+    if ($name === '') {
+        dcJsonError('Name is required');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT sauce_id FROM dc_soft_serve_sauces WHERE name = ?",
+        [$name]
+    )->fetch();
+    if ($existing) {
+        dcJsonError('A sauce with that name already exists');
+    }
+
+    $db->query("INSERT INTO dc_soft_serve_sauces (name) VALUES (?)", [strtoupper($name)]);
+    dcJsonResponse(['ok' => true, 'sauce_id' => (int) $db->lastInsertId()]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/soft-serve/sauces/{id}
+ */
+function apiUpdateSoftServeSauce(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid sauce ID', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT * FROM dc_soft_serve_sauces WHERE sauce_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Sauce not found', 404);
+    }
+
+    $name = dcInput('name');
+    $isActive = dcInput('is_active');
+    if ($name === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = strtoupper((string) $name);
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_soft_serve_sauces SET " . implode(', ', $sets) . " WHERE sauce_id = ?", $vals);
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── Soft-Serve Topping Management API ─────────────────────────────────
+
+/**
+ * POST /dc-cafe/api/v1/soft-serve/toppings/create
+ */
+function apiCreateSoftServeTopping(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $name = (string) (dcInput('name') ?? '');
+    if ($name === '') {
+        dcJsonError('Name is required');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT topping_id FROM dc_soft_serve_toppings WHERE name = ?",
+        [$name]
+    )->fetch();
+    if ($existing) {
+        dcJsonError('A topping with that name already exists');
+    }
+
+    $db->query("INSERT INTO dc_soft_serve_toppings (name) VALUES (?)", [strtoupper($name)]);
+    dcJsonResponse(['ok' => true, 'topping_id' => (int) $db->lastInsertId()]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/soft-serve/toppings/{id}
+ */
+function apiUpdateSoftServeTopping(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid topping ID', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT * FROM dc_soft_serve_toppings WHERE topping_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Topping not found', 404);
+    }
+
+    $name = dcInput('name');
+    $isActive = dcInput('is_active');
+    if ($name === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = strtoupper((string) $name);
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_soft_serve_toppings SET " . implode(', ', $sets) . " WHERE topping_id = ?", $vals);
+    dcJsonResponse(['ok' => true]);
+}
+
+// ─── Soft-Serve Addon Management API ───────────────────────────────────
+
+/**
+ * POST /dc-cafe/api/v1/soft-serve/addons/create
+ */
+function apiCreateSoftServeAddon(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $name = (string) (dcInput('name') ?? '');
+    $price = (float) (dcInput('price') ?? 0);
+    $type = (string) (dcInput('type') ?? 'topping');
+
+    if ($name === '') {
+        dcJsonError('Name is required');
+    }
+    if ($price <= 0) {
+        dcJsonError('Price must be greater than zero');
+    }
+    if (!in_array($type, ['sauce', 'topping', 'spoon'], true)) {
+        dcJsonError('Type must be sauce, topping, or spoon');
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT addon_id FROM dc_soft_serve_addons WHERE name = ?",
+        [$name]
+    )->fetch();
+    if ($existing) {
+        dcJsonError('An addon with that name already exists');
+    }
+
+    $db->query(
+        "INSERT INTO dc_soft_serve_addons (name, price, type) VALUES (?, ?, ?)",
+        [strtoupper($name), $price, $type]
+    );
+    dcJsonResponse(['ok' => true, 'addon_id' => (int) $db->lastInsertId()]);
+}
+
+/**
+ * PUT /dc-cafe/api/v1/soft-serve/addons/{id}
+ */
+function apiUpdateSoftServeAddon(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor');
+
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        dcJsonError('Invalid addon ID', 400);
+    }
+
+    $db = dcDb();
+    $existing = $db->query(
+        "SELECT * FROM dc_soft_serve_addons WHERE addon_id = ?",
+        [$id]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$existing) {
+        dcJsonError('Addon not found', 404);
+    }
+
+    $name = dcInput('name');
+    $price = dcInput('price');
+    $type = dcInput('type');
+    $isActive = dcInput('is_active');
+
+    if ($name === null && $price === null && $type === null && $isActive === null) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $sets = [];
+    $vals = [];
+    if ($name !== null) {
+        $sets[] = 'name = ?';
+        $vals[] = strtoupper((string) $name);
+    }
+    if ($price !== null) {
+        $sets[] = 'price = ?';
+        $vals[] = (float) $price;
+    }
+    if ($type !== null) {
+        if (!in_array((string) $type, ['sauce', 'topping', 'spoon'], true)) {
+            dcJsonError('Type must be sauce, topping, or spoon');
+        }
+        $sets[] = 'type = ?';
+        $vals[] = (string) $type;
+    }
+    if ($isActive !== null) {
+        $sets[] = 'is_active = ?';
+        $vals[] = $isActive ? 1 : 0;
+    }
+
+    if (empty($sets)) {
+        dcJsonError('Nothing to update', 400);
+    }
+
+    $vals[] = $id;
+    $db->query("UPDATE dc_soft_serve_addons SET " . implode(', ', $sets) . " WHERE addon_id = ?", $vals);
+    dcJsonResponse(['ok' => true]);
+}

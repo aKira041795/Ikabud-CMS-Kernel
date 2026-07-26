@@ -2,7 +2,7 @@
 
 {block "content"}
 <div x-data="posApp()" x-init="init()" class="flex flex-col h-[calc(100vh-3.5rem)]">
-    {* Top: Session Bar *}
+    {* Top: Session Bar + Config Load Status *}
     <div class="bg-amber-100 px-4 py-2 rounded-lg mb-4 flex items-center justify-between text-sm">
         <div class="flex items-center space-x-4">
             <span class="font-semibold text-amber-800">Shift: {shift_type ?? 'morning'}</span>
@@ -13,6 +13,21 @@
             <span>Today: <strong>{today_sales_count} sales</strong> — ₱<span id="today-total">{today_sales_total|number_format:2}</span></span>
             <a href="/dc-cafe/pos/session-end" class="bg-amber-600 text-white px-3 py-1 rounded text-xs hover:bg-amber-700">End Shift</a>
         </div>
+    </div>
+
+    {* Config load status banners *}
+    <div x-show="errors.products || errors.payments || errors.bases || errors.sauces || errors.toppings || errors.addons"
+         class="bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg mb-4 text-sm flex items-center justify-between">
+        <span>
+            <span class="font-semibold">Configuration load failed.</span>
+            Some POS features may be unavailable.
+        </span>
+        <button @click="init()" class="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700">Retry</button>
+    </div>
+    <div x-show="!errors.products && !errors.payments && (loading.products || loading.payments)"
+         class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg mb-4 text-sm flex items-center gap-2">
+        <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+        <span>Loading POS configuration...</span>
     </div>
 
     {* Main: Products Left | Cart Right *}
@@ -338,6 +353,10 @@ function posApp() {
         showPrintModal: false,
         lastOrder: null,
 
+        // Loading/error states
+        loading: { products: true, payments: true, bases: true, sauces: true, toppings: true, addons: true },
+        errors: { products: null, payments: null, bases: null, sauces: null, toppings: null, addons: null },
+
         // Customization state
         showCustomizer: false,
         customizingProduct: null,
@@ -381,22 +400,28 @@ function posApp() {
         },
 
         init() {
+            this.loading = { products: true, payments: true, bases: true, sauces: true, toppings: true, addons: true };
+            this.errors = { products: null, payments: null, bases: null, sauces: null, toppings: null, addons: null };
             fetch('/dc-cafe/api/v1/products?store_id=' + this.storeId)
                 .then(r => r.json()).then(d => {
                     if (d.ok) {
                         this.products = d.products;
                         this.categories = [...new Set(d.products.map(p => p.category))].filter(Boolean);
                     }
-                });
+                    this.loading.products = false;
+                })
+                .catch(e => { this.loading.products = false; this.errors.products = 'Could not load products. Please refresh.'; });
             fetch('/dc-cafe/api/v1/payment-methods')
                 .then(r => r.json()).then(d => {
                     if (d.ok) this.paymentMethods = d.payment_methods;
-                });
+                    this.loading.payments = false;
+                })
+                .catch(e => { this.loading.payments = false; this.errors.payments = 'Could not load payment methods.'; });
             // Preload soft-serve customization options
-            fetch('/dc-cafe/api/v1/soft-serve/bases').then(r => r.json()).then(d => { if (d.ok) this.custBases = d.bases; });
-            fetch('/dc-cafe/api/v1/soft-serve/sauces').then(r => r.json()).then(d => { if (d.ok) this.custSauceOptions = d.sauces; });
-            fetch('/dc-cafe/api/v1/soft-serve/toppings').then(r => r.json()).then(d => { if (d.ok) this.custToppingOptions = d.toppings; });
-            fetch('/dc-cafe/api/v1/soft-serve/addons').then(r => r.json()).then(d => { if (d.ok) this.custAddonOptions = d.addons; });
+            fetch('/dc-cafe/api/v1/soft-serve/bases').then(r => r.json()).then(d => { if (d.ok) this.custBases = d.bases; this.loading.bases = false; }).catch(e => { this.loading.bases = false; this.errors.bases = 'Could not load bases.'; });
+            fetch('/dc-cafe/api/v1/soft-serve/sauces').then(r => r.json()).then(d => { if (d.ok) this.custSauceOptions = d.sauces; this.loading.sauces = false; }).catch(e => { this.loading.sauces = false; this.errors.sauces = 'Could not load sauces.'; });
+            fetch('/dc-cafe/api/v1/soft-serve/toppings').then(r => r.json()).then(d => { if (d.ok) this.custToppingOptions = d.toppings; this.loading.toppings = false; }).catch(e => { this.loading.toppings = false; this.errors.toppings = 'Could not load toppings.'; });
+            fetch('/dc-cafe/api/v1/soft-serve/addons').then(r => r.json()).then(d => { if (d.ok) this.custAddonOptions = d.addons; this.loading.addons = false; }).catch(e => { this.loading.addons = false; this.errors.addons = 'Could not load addons.'; });
         },
 
         addToCart(product) {
