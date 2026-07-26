@@ -45,7 +45,8 @@
         "dc_voucher_usages",
         "dc_inventory_progress",
         "dc_addon_ingredients",
-        "dc_password_resets"
+        "dc_password_resets",
+        "dc_product_stock_movements"
     ],
     "reads_tables": [],
     "migrations": [
@@ -73,7 +74,8 @@
         "database/migrations/022_create_dc_password_resets.sql",
         "database/migrations/023_update_seed_user_emails.sql",
         "database/migrations/024_add_product_stock.sql",
-        "database/migrations/025_add_category_ledger_group.sql"
+        "database/migrations/025_add_category_ledger_group.sql",
+        "database/migrations/026_create_dc_product_stock_movements.sql"
     ],
     "capabilities": {
         "exposes": [

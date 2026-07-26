@@ -71,8 +71,9 @@ function apiReceiveProductsBatch(array $params = []): void
                 [$quantity, $productId]
             );
 
+            // Record product stock movement in its own journal (not ingredient table)
             $db->query(
-                "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type,
+                "INSERT INTO dc_product_stock_movements (product_id, quantity_change, movement_type,
                         reference_type, notes, created_by)
                  VALUES (?, ?, 'purchase', 'supplier', ?, ?)",
                 [$productId, $quantity, $notes ?: 'Product delivery received', $userId]

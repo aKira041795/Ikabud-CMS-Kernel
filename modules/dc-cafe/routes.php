@@ -62,6 +62,7 @@ return [
 
         // API: inventory
         '/dc-cafe/api/v1/inventory'           => 'dc-cafe:apiGetStockLevels',
+        '/dc-cafe/api/v1/inventory/reconciliation/{session_id}' => 'dc-cafe:apiGetReconciliation',
         '/dc-cafe/api/v1/inventory/progress/{session_id}' => 'dc-cafe:apiGetInventoryProgress',
 
         // API: soft-serve options

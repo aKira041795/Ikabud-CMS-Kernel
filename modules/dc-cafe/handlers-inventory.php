@@ -2,7 +2,8 @@
 /**
  * DC Cafe — Inventory & Stock Handlers
  *
- * Receive stock, adjust stock, save/load inventory progress, get stock levels.
+ * Receive stock, adjust stock, save/load inventory progress, get stock levels,
+ * and reconciliation (sales derived from completed orders).
  */
 
 declare(strict_types=1);
@@ -20,10 +21,84 @@ function apiGetStockLevels(array $params = []): void
 }
 
 /**
- * POST /dc-cafe/api/v1/inventory/receive — Receive stock from supplier
+ * GET /dc-cafe/api/v1/inventory/reconciliation/{session_id}
+ * — Per-session reconciliation view.
  *
- * Input: { ingredient_id, quantity, cost_per_unit?, supplier_id?, notes? }
+ * Returns: per-product actual sales (from completed orders) + saved progress
+ * (beginning, production, pullout) so the client can compute expected ending
+ * and compare with physical count.
  */
+function apiGetReconciliation(array $params = []): void
+{
+    $ctx = dcCtx();
+    $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
+
+    $sessionId = (int) ($params['session_id'] ?? 0);
+    if ($sessionId <= 0) {
+        dcJsonError('Invalid session ID');
+    }
+
+    $db = dcDb();
+
+    // Sales by product — quantity from completed order items in this session
+    $sales = $db->query(
+        "SELECT oi.product_id, SUM(oi.quantity) AS qty_sold
+         FROM dc_order_items oi
+         JOIN dc_orders o ON o.order_id = oi.order_id
+         WHERE o.session_id = ? AND o.status = 'completed'
+         GROUP BY oi.product_id",
+        [$sessionId]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $salesMap = [];
+    foreach ($sales as $s) {
+        $salesMap[(int) $s['product_id']] = (float) $s['qty_sold'];
+    }
+
+    // Saved progress (manual beginning/production/pullout counts)
+    $progress = $db->query(
+        "SELECT * FROM dc_inventory_progress WHERE session_id = ?",
+        [$sessionId]
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $progressMap = [];
+    foreach ($progress as $p) {
+        $progressMap[(int) $p['product_id']] = $p;
+    }
+
+    // All active products with their ledger group
+    $products = $db->query(
+        "SELECT p.product_id, p.name, c.name AS category_name,
+                COALESCE(c.ledger_group, c.name) AS ledger_group,
+                p.current_stock
+         FROM dc_products p
+         JOIN dc_categories c ON c.category_id = p.category_id
+         WHERE p.is_active = 1
+         ORDER BY COALESCE(c.ledger_group, c.name), c.sort_order, p.name"
+    )->fetchAll(\PDO::FETCH_ASSOC);
+
+    $items = [];
+    foreach ($products as $p) {
+        $pid = (int) $p['product_id'];
+        $saved = $progressMap[$pid] ?? null;
+        $item = [
+            'product_id' => $pid,
+            'name' => $p['name'],
+            'category_name' => $p['category_name'],
+            'ledger_group' => $p['ledger_group'],
+            'beginning_qty' => $saved ? (float) $saved['beginning_qty'] : 0,
+            'production_qty' => $saved ? (float) $saved['production_qty'] : 0,
+            'pullout_qty' => $saved ? (float) $saved['pullout_qty'] : 0,
+            'sold_qty' => $salesMap[$pid] ?? 0,
+            'notes' => $saved ? ($saved['notes'] ?? '') : '',
+            'current_stock' => (float) $p['current_stock'],
+        ];
+        $item['expected_ending'] = $item['beginning_qty'] + $item['production_qty'] - $item['pullout_qty'] - $item['sold_qty'];
+        $items[] = $item;
+    }
+
+    dcJsonResponse(['ok' => true, 'items' => $items]);
+}
+
+/**
 function apiReceiveStock(array $params = []): void
 {
     $ctx = dcCtx();

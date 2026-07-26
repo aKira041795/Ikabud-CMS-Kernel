@@ -876,14 +876,10 @@ function pageInventoryLedger(array $params = []): void
     }
     unset($g);
 
-    // Flat products_json for backward compat (session options rendering)
-    $productsJson = json_encode($allProducts, JSON_HEX_APOS | JSON_HEX_QUOT);
-
     echo dcRender('inventory/ledger.disyl', [
         'page_title' => 'Inventory Ledger',
         'sessions' => $sessions,
         'groups' => $groups,
-        'products_json' => $productsJson,
     ]);
 }
 

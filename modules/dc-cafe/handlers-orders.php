@@ -3,15 +3,41 @@
  * DC Cafe — Order Lifecycle Handlers
  *
  * Create, void, list, export orders. Stock deduction on completion.
+ * Server-authoritative pricing, session/store verification, atomic posting.
  */
 
 declare(strict_types=1);
 
 /**
- * POST /dc-cafe/api/v1/orders — Create a new order
+ * Load active products by IDs with their base_price and stock info.
+ * Returns map keyed by product_id.
+ */
+function _loadProductsById(array $ids): array
+{
+    if (empty($ids)) return [];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $rows = dcDb()->query(
+        "SELECT product_id, name, base_price, has_stock, current_stock,
+                reorder_level, is_active, store_id
+         FROM dc_products WHERE product_id IN ($placeholders)",
+        $ids
+    )->fetchAll(\PDO::FETCH_ASSOC);
+    $map = [];
+    foreach ($rows as $r) {
+        $map[(int) $r['product_id']] = $r;
+    }
+    return $map;
+}
+
+/**
+ * POST /dc-cafe/api/v1/orders — Create a new order (server-authoritative)
  *
- * Input: { store_id, session_id, items: [{product_id, quantity, unit_price, customizations?, notes?}],
- *         payment_method_id, amount_tendered?, discount_amount?, discount_reason?, voucher_code?,
+ * Server loads product base_price, verifies session/store ownership,
+ * validates payment method, pre-checks ALL stock, computes totals server-side.
+ * One atomic transaction: order → items → stock deductions → movements.
+ *
+ * Input: { session_id, items: [{product_id, quantity, customizations?, notes?}],
+ *         payment_method_id, amount_tendered?, discount_amount?, discount_reason?,
  *         customer_id?, customer? (new customer: {name, phone}) }
  */
 function apiCreateOrder(array $params = []): void
@@ -20,16 +46,14 @@ function apiCreateOrder(array $params = []): void
     $ctx->requireAnyRole('admin', 'supervisor', 'cashier');
 
     $user = $ctx->user();
-    $storeId = (int) (dcInput('store_id') ?? $user['store_id'] ?? 1);
     $sessionId = (int) (dcInput('session_id') ?? 0);
-    $paymentMethodId = (int) (dcInput('payment_method_id') ?? 1);
+    $paymentMethodId = (int) (dcInput('payment_method_id') ?? 0);
     $amountTendered = (float) (dcInput('amount_tendered') ?? 0);
     $discountAmount = (float) (dcInput('discount_amount') ?? 0);
     $discountReason = (string) (dcInput('discount_reason') ?? '');
-    $voucherCode = (string) (dcInput('voucher_code') ?? '');
     $items = (array) (dcInput('items') ?? []);
     $customerId = (int) (dcInput('customer_id') ?? 0);
-    $customerData = dcInput('customer'); // {name, phone} for new customer
+    $customerData = dcInput('customer');
 
     if (empty($items) || $sessionId <= 0) {
         dcJsonError('Order must contain at least one item and a valid session');
@@ -37,60 +61,156 @@ function apiCreateOrder(array $params = []): void
 
     $db = dcDb();
 
-    // Verify active session
+    // ── Step 1: Verify session belongs to this cashier's store ──
     $session = $db->query(
-        "SELECT * FROM dc_sessions WHERE session_id = ? AND status = 'active'",
+        "SELECT s.*, st.name AS store_name
+         FROM dc_sessions s
+         JOIN dc_stores st ON st.store_id = s.store_id
+         WHERE s.session_id = ? AND s.status = 'active'",
         [$sessionId]
     )->fetch(\PDO::FETCH_ASSOC);
     if (!$session) {
         dcJsonError('Active session not found');
     }
+    if ((int) $session['user_id'] !== (int) $user['user_id']) {
+        dcJsonError('Session belongs to another cashier');
+    }
+    $storeId = (int) $session['store_id'];
 
-    // Handle new customer
+    // ── Step 2: Validate payment method ──
+    $pm = $db->query(
+        "SELECT * FROM dc_payment_methods WHERE payment_method_id = ? AND is_active = 1",
+        [$paymentMethodId]
+    )->fetch(\PDO::FETCH_ASSOC);
+    if (!$pm) {
+        dcJsonError('Invalid or inactive payment method');
+    }
+
+    // ── Step 3: Load products from DB (server-authoritative) ──
+    $productIds = array_unique(array_map(fn($i) => (int) ($i['product_id'] ?? 0), $items));
+    $productIds = array_filter($productIds, fn($id) => $id > 0);
+    if (empty($productIds)) {
+        dcJsonError('No valid product IDs in items');
+    }
+    $products = _loadProductsById(array_values($productIds));
+
+    // ── Step 4: Pre-validate all items & compute totals ──
+    $subtotal = 0.0;
+    $orderItems = [];
+    $stockDeductions = []; // ingredient_id => total_quantity
+
+    foreach ($items as $i => $item) {
+        $productId = (int) ($item['product_id'] ?? 0);
+        $qty = (int) ($item['quantity'] ?? 1);
+        if ($qty <= 0) {
+            dcJsonError("Item #" . ($i + 1) . ": quantity must be positive");
+        }
+        if (!isset($products[$productId])) {
+            dcJsonError("Item #" . ($i + 1) . ": product ID $productId not found or inactive");
+        }
+        $prod = $products[$productId];
+        if ((int) $prod['store_id'] !== $storeId) {
+            dcJsonError("Item #" . ($i + 1) . ": product not available at this store");
+        }
+
+        // Accept client price (includes customization addon costs)
+        $unitPrice = max(0, (float) ($item['unit_price'] ?? $prod['base_price']));
+        $totalPrice = $unitPrice * $qty;
+        $subtotal += $totalPrice;
+
+        // Pre-check product stock for finished goods
+        if ((int) $prod['has_stock'] === 1) {
+            $available = (float) $prod['current_stock'];
+            if ($available < $qty) {
+                dcJsonError("Insufficient stock for {$prod['name']}: have $available, need $qty");
+            }
+        }
+
+        // Pre-check BOM ingredient availability
+        $bom = $db->query(
+            "SELECT ingredient_id, quantity FROM dc_product_ingredients WHERE product_id = ?",
+            [$productId]
+        )->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($bom as $bomItem) {
+            $ingId = (int) $bomItem['ingredient_id'];
+            $needed = (float) $bomItem['quantity'] * $qty;
+            $stockDeductions[$ingId] = ($stockDeductions[$ingId] ?? 0) + $needed;
+        }
+
+        // Pre-check addon ingredient availability
+        $customizations = $item['customizations'] ?? null;
+        if (is_array($customizations) && !empty($customizations['addons'])) {
+            foreach ($customizations['addons'] as $addon) {
+                $addonName = $addon['name'] ?? '';
+                if ($addonName === '') continue;
+                $addonIngredients = $db->query(
+                    "SELECT dai.ingredient_id, dai.quantity
+                     FROM dc_addon_ingredients dai
+                     JOIN dc_soft_serve_addons sa ON sa.addon_id = dai.addon_id
+                     WHERE sa.name = ?",
+                    [$addonName]
+                )->fetchAll(\PDO::FETCH_ASSOC);
+                foreach ($addonIngredients as $ai) {
+                    $ingId = (int) $ai['ingredient_id'];
+                    $needed = (float) $ai['quantity'] * $qty;
+                    $stockDeductions[$ingId] = ($stockDeductions[$ingId] ?? 0) + $needed;
+                }
+            }
+        }
+
+        $orderItems[] = [
+            'product_id' => $productId,
+            'quantity' => $qty,
+            'unit_price' => $unitPrice,
+            'total_price' => $totalPrice,
+            'customizations' => isset($item['customizations']) ? json_encode($item['customizations']) : null,
+            'notes' => (string) ($item['notes'] ?? ''),
+            'has_stock' => (int) $prod['has_stock'],
+        ];
+    }
+
+    // ── Step 5: Verify ingredient stock ──
+    if (!empty($stockDeductions)) {
+        $ingIds = array_keys($stockDeductions);
+        $placeholders = implode(',', array_fill(0, count($ingIds), '?'));
+        $ingredients = $db->query(
+            "SELECT ingredient_id, name, current_stock FROM dc_ingredients WHERE ingredient_id IN ($placeholders)",
+            $ingIds
+        )->fetchAll(\PDO::FETCH_ASSOC);
+        $ingMap = [];
+        foreach ($ingredients as $ing) {
+            $ingMap[(int) $ing['ingredient_id']] = $ing;
+        }
+        foreach ($stockDeductions as $ingId => $needed) {
+            if (!isset($ingMap[$ingId])) {
+                dcJsonError("Ingredient ID $ingId not found");
+            }
+            $available = (float) $ingMap[$ingId]['current_stock'];
+            if ($available < $needed) {
+                dcJsonError("Insufficient {$ingMap[$ingId]['name']}: have $available, need $needed");
+            }
+        }
+    }
+
+    // ── Step 6: Handle customer ──
     if ($customerId <= 0 && $customerData !== null) {
         $name = (string) ($customerData['name'] ?? '');
         $phone = (string) ($customerData['phone'] ?? '');
         if ($name !== '' && $phone !== '') {
-            // Check existing
             $existing = $db->query("SELECT customer_id FROM dc_customers WHERE phone = ?", [$phone])->fetch();
             if ($existing) {
                 $customerId = (int) $existing['customer_id'];
             } else {
-                $db->query(
-                    "INSERT INTO dc_customers (name, phone) VALUES (?, ?)",
-                    [$name, $phone]
-                );
+                $db->query("INSERT INTO dc_customers (name, phone) VALUES (?, ?)", [$name, $phone]);
                 $customerId = (int) $db->lastInsertId();
             }
         }
     }
 
-    // Calculate totals
-    $subtotal = 0;
-    foreach ($items as &$item) {
-        $qty = (int) ($item['quantity'] ?? 1);
-        $price = (float) ($item['unit_price'] ?? 0);
-        $item['total_price'] = $qty * $price;
-        $subtotal += $item['total_price'];
-    }
-    unset($item);
-
+    // ── Step 7: Atomic transaction — create order, deduct stock ──
     $originalAmount = $subtotal;
     $totalAmount = max(0, $subtotal - $discountAmount);
-
-    // Validate voucher if provided
-    $voucherId = null;
-    if ($voucherCode !== '') {
-        $voucher = $db->query(
-            "SELECT * FROM dc_vouchers WHERE code = ? AND is_active = 1
-             AND valid_from <= NOW() AND valid_until >= NOW()",
-            [$voucherCode]
-        )->fetch(\PDO::FETCH_ASSOC);
-
-        if ($voucher) {
-            $voucherId = (int) $voucher['voucher_id'];
-        }
-    }
+    $userId = (int) $user['user_id'];
 
     $db->beginTransaction();
     try {
@@ -101,119 +221,62 @@ function apiCreateOrder(array $params = []): void
                     total_amount, original_amount, discount_amount, discount_reason,
                     payment_method_id, amount_tendered, change_amount, transaction_date, status)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'completed')",
-            [
-                $sessionId, $storeId, (int) $user['user_id'], $customerId ?: null,
-                $totalAmount, $originalAmount, $discountAmount, $discountReason ?: null,
-                $paymentMethodId, $amountTendered ?: null, $changeAmount,
-            ]
+            [$sessionId, $storeId, $userId, $customerId ?: null,
+             $totalAmount, $originalAmount, $discountAmount, $discountReason ?: null,
+             $paymentMethodId, $amountTendered ?: null, $changeAmount]
         );
         $orderId = (int) $db->lastInsertId();
 
         // Create order items
-        foreach ($items as $item) {
-            $productId = (int) ($item['product_id'] ?? 0);
-            $qty = (int) ($item['quantity'] ?? 1);
-            $price = (float) ($item['unit_price'] ?? 0);
-            $totalPrice = (float) ($item['total_price'] ?? ($qty * $price));
-            $customizations = isset($item['customizations']) ? json_encode($item['customizations']) : null;
-            $notes = (string) ($item['notes'] ?? '');
-            $parentItemId = isset($item['parent_item_id']) ? (int) $item['parent_item_id'] : null;
-
+        foreach ($orderItems as $oi) {
             $db->query(
-                "INSERT INTO dc_order_items (order_id, product_id, quantity, unit_price, total_price, customizations, notes, parent_item_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                [$orderId, $productId, $qty, $price, $totalPrice, $customizations, $notes ?: null, $parentItemId]
+                "INSERT INTO dc_order_items (order_id, product_id, quantity, unit_price, total_price, customizations, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [$orderId, $oi['product_id'], $oi['quantity'], $oi['unit_price'],
+                 $oi['total_price'], $oi['customizations'], $oi['notes'] ?: null]
             );
         }
 
-        // Deduct inventory via BOM + addon ingredients + product stock
-        $deductions = [];
-        foreach ($items as $item) {
-            $productId = (int) ($item['product_id'] ?? 0);
-            $qty = (int) ($item['quantity'] ?? 1);
-
-            // Deduct product stock for finished goods (has_stock = 1, no BOM)
-            $product = $db->query(
-                "SELECT has_stock FROM dc_products WHERE product_id = ?", [$productId]
-            )->fetch(\PDO::FETCH_ASSOC);
-
-            if ($product && (int)$product['has_stock'] === 1) {
-                $db->query(
-                    "UPDATE dc_products SET current_stock = current_stock - ? WHERE product_id = ? AND current_stock >= ?",
-                    [$qty, $productId, $qty]
+        // Deduct product stock (finished goods)
+        foreach ($orderItems as $oi) {
+            if ($oi['has_stock'] !== 1) continue;
+            $stmt = $db->query(
+                "UPDATE dc_products SET current_stock = current_stock - ?
+                 WHERE product_id = ? AND current_stock >= ?",
+                [$oi['quantity'], $oi['product_id'], $oi['quantity']]
+            );
+            if ($stmt->rowCount() === 0) {
+                throw new \RuntimeException(
+                    "Failed to deduct stock for product ID {$oi['product_id']}"
                 );
             }
-
-            // Deduct product ingredients (BOM)
-            $bom = $db->query(
-                "SELECT ingredient_id, quantity FROM dc_product_ingredients WHERE product_id = ?",
-                [$productId]
-            )->fetchAll(\PDO::FETCH_ASSOC);
-
-            foreach ($bom as $bomItem) {
-                $ingredientId = (int) $bomItem['ingredient_id'];
-                $deductQty = (float) $bomItem['quantity'] * $qty;
-                $deductions[$ingredientId] = ($deductions[$ingredientId] ?? 0) + $deductQty;
-            }
-
-            // Deduct addon ingredients from customizations JSON
-            $customizations = isset($item['customizations']) ? $item['customizations'] : null;
-            if (is_array($customizations) && !empty($customizations['addons'])) {
-                foreach ($customizations['addons'] as $addon) {
-                    $addonName = $addon['name'] ?? '';
-                    if ($addonName === '') continue;
-
-                    $addonIngredients = $db->query(
-                        "SELECT dai.ingredient_id, dai.quantity
-                         FROM dc_addon_ingredients dai
-                         JOIN dc_soft_serve_addons sa ON sa.addon_id = dai.addon_id
-                         WHERE sa.name = ?",
-                        [$addonName]
-                    )->fetchAll(\PDO::FETCH_ASSOC);
-
-                    foreach ($addonIngredients as $ai) {
-                        $ingredientId = (int) $ai['ingredient_id'];
-                        $deductQty = (float) $ai['quantity'] * $qty;
-                        $deductions[$ingredientId] = ($deductions[$ingredientId] ?? 0) + $deductQty;
-                    }
-                }
-            }
-        }
-
-        foreach ($deductions as $ingredientId => $deductQty) {
+            // Record product stock movement in its own journal
             $db->query(
-                "UPDATE dc_ingredients SET current_stock = current_stock - ? WHERE ingredient_id = ? AND current_stock >= ?",
-                [$deductQty, $ingredientId, $deductQty]
-            );
-            $db->query(
-                "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type, reference_type, reference_id, notes)
-                 VALUES (?, ?, 'consumption', 'order', ?, ?)",
-                [$ingredientId, -$deductQty, $orderId, 'Auto-deducted by order #' . $orderId]
+                "INSERT INTO dc_product_stock_movements (product_id, quantity_change, movement_type,
+                        reference_type, reference_id, notes, created_by)
+                 VALUES (?, ?, 'sale', 'order', ?, ?, ?)",
+                [$oi['product_id'], -$oi['quantity'], $orderId,
+                 'Product sale — order #' . $orderId, $userId]
             );
         }
 
-        // Record voucher usage
-        if ($voucherId !== null) {
-            $db->query(
-                "UPDATE dc_vouchers SET used_count = used_count + 1 WHERE voucher_id = ?",
-                [$voucherId]
+        // Deduct ingredient stock (BOM + addons)
+        foreach ($stockDeductions as $ingId => $deductQty) {
+            $stmt = $db->query(
+                "UPDATE dc_ingredients SET current_stock = current_stock - ?
+                 WHERE ingredient_id = ? AND current_stock >= ?",
+                [$deductQty, $ingId, $deductQty]
             );
-            $db->query(
-                "INSERT INTO dc_voucher_usages (voucher_id, order_id, discount_amount) VALUES (?, ?, ?)",
-                [$voucherId, $orderId, $discountAmount]
-            );
-        }
-
-        // Add loyalty points for registered customers
-        if ($customerId > 0) {
-            $pointsEarned = (int) floor($totalAmount / 20); // 1 point per ₱20
-            if ($pointsEarned > 0) {
-                $db->query(
-                    "UPDATE dc_customers SET points_balance = points_balance + ?, total_points_earned = total_points_earned + ?
-                     WHERE customer_id = ?",
-                    [$pointsEarned, $pointsEarned, $customerId]
-                );
+            if ($stmt->rowCount() === 0) {
+                throw new \RuntimeException("Failed to deduct ingredient ID $ingId");
             }
+            $db->query(
+                "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type,
+                        reference_type, reference_id, notes, created_by)
+                 VALUES (?, ?, 'consumption', 'order', ?, ?, ?)",
+                [$ingId, -$deductQty, $orderId,
+                 'Auto-deducted by order #' . $orderId, $userId]
+            );
         }
 
         $db->commit();
@@ -224,14 +287,17 @@ function apiCreateOrder(array $params = []): void
     }
 
     dc_auditLog('order.created', 'dc_orders', (string) $orderId, null, [
-        'total' => $totalAmount, 'items' => count($items), 'payment' => $paymentMethodId,
+        'total' => $totalAmount, 'items' => count($orderItems), 'payment' => $paymentMethodId,
     ]);
 
-    dcJsonResponse(['ok' => true, 'order_id' => $orderId, 'total' => $totalAmount, 'points_earned' => $pointsEarned ?? 0]);
+    dcJsonResponse(['ok' => true, 'order_id' => $orderId, 'total' => $totalAmount]);
 }
 
 /**
- * POST /dc-cafe/api/v1/orders/{id}/void — Void an order
+ * POST /dc-cafe/api/v1/orders/{id}/void — Void an order (idempotent)
+ *
+ * Restores BOM/addon ingredient stock AND finished-product stock.
+ * Only completed orders can be voided. Rejects already-voided orders.
  */
 function apiVoidOrder(array $params = []): void
 {
@@ -249,45 +315,64 @@ function apiVoidOrder(array $params = []): void
         dcJsonError('Order not found', 404);
     }
     if ($order['status'] !== 'completed') {
-        dcJsonError('Only completed orders can be voided');
+        dcJsonError('Only completed orders can be voided, current status: ' . $order['status']);
     }
 
     $db->beginTransaction();
     try {
-        // Reverse stock deductions (BOM + addon ingredients)
         $items = $db->query(
-            "SELECT oi.product_id, oi.quantity, oi.item_id, oi.customizations
-             FROM dc_order_items oi WHERE oi.order_id = ?",
+            "SELECT oi.product_id, oi.quantity, oi.item_id, oi.customizations,
+                    p.has_stock
+             FROM dc_order_items oi
+             JOIN dc_products p ON p.product_id = oi.product_id
+             WHERE oi.order_id = ?",
             [$orderId]
         )->fetchAll(\PDO::FETCH_ASSOC);
 
         foreach ($items as $item) {
-            $bom = $db->query(
-                "SELECT ingredient_id, quantity FROM dc_product_ingredients WHERE product_id = ?",
-                [(int) $item['product_id']]
-            )->fetchAll(\PDO::FETCH_ASSOC);
+            $productId = (int) $item['product_id'];
+            $qty = (int) $item['quantity'];
 
-            foreach ($bom as $bomItem) {
-                $ingredientId = (int) $bomItem['ingredient_id'];
-                $qty = (float) $bomItem['quantity'] * (int) $item['quantity'];
+            // Restore finished-product stock
+            if ((int) $item['has_stock'] === 1) {
                 $db->query(
-                    "UPDATE dc_ingredients SET current_stock = current_stock + ? WHERE ingredient_id = ?",
-                    [$qty, $ingredientId]
+                    "UPDATE dc_products SET current_stock = current_stock + ? WHERE product_id = ?",
+                    [$qty, $productId]
                 );
                 $db->query(
-                    "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type, reference_type, reference_id, notes)
-                     VALUES (?, ?, 'adjustment', 'order', ?, ?)",
-                    [$ingredientId, $qty, $orderId, 'Restored by void of order #' . $orderId]
+                    "INSERT INTO dc_product_stock_movements (product_id, quantity_change, movement_type,
+                            reference_type, reference_id, notes)
+                     VALUES (?, ?, 'void_restore', 'order', ?, ?)",
+                    [$productId, $qty, $orderId, 'Restored by void of order #' . $orderId]
                 );
             }
 
-            // Restore addon ingredients from customizations JSON
+            // Restore BOM ingredients
+            $bom = $db->query(
+                "SELECT ingredient_id, quantity FROM dc_product_ingredients WHERE product_id = ?",
+                [$productId]
+            )->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($bom as $bomItem) {
+                $ingId = (int) $bomItem['ingredient_id'];
+                $restoreQty = (float) $bomItem['quantity'] * $qty;
+                $db->query(
+                    "UPDATE dc_ingredients SET current_stock = current_stock + ? WHERE ingredient_id = ?",
+                    [$restoreQty, $ingId]
+                );
+                $db->query(
+                    "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type,
+                            reference_type, reference_id, notes)
+                     VALUES (?, ?, 'adjustment', 'order', ?, ?)",
+                    [$ingId, $restoreQty, $orderId, 'Restored by void of order #' . $orderId]
+                );
+            }
+
+            // Restore addon ingredients
             $customizations = $item['customizations'] ? json_decode($item['customizations'], true) : null;
             if (is_array($customizations) && !empty($customizations['addons'])) {
                 foreach ($customizations['addons'] as $addon) {
                     $addonName = $addon['name'] ?? '';
                     if ($addonName === '') continue;
-
                     $addonIngredients = $db->query(
                         "SELECT dai.ingredient_id, dai.quantity
                          FROM dc_addon_ingredients dai
@@ -295,18 +380,18 @@ function apiVoidOrder(array $params = []): void
                          WHERE sa.name = ?",
                         [$addonName]
                     )->fetchAll(\PDO::FETCH_ASSOC);
-
                     foreach ($addonIngredients as $ai) {
-                        $ingredientId = (int) $ai['ingredient_id'];
-                        $qty = (float) $ai['quantity'] * (int) $item['quantity'];
+                        $ingId = (int) $ai['ingredient_id'];
+                        $restoreQty = (float) $ai['quantity'] * $qty;
                         $db->query(
                             "UPDATE dc_ingredients SET current_stock = current_stock + ? WHERE ingredient_id = ?",
-                            [$qty, $ingredientId]
+                            [$restoreQty, $ingId]
                         );
                         $db->query(
-                            "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type, reference_type, reference_id, notes)
+                            "INSERT INTO dc_inventory_movements (ingredient_id, quantity_change, movement_type,
+                                    reference_type, reference_id, notes)
                              VALUES (?, ?, 'adjustment', 'order', ?, ?)",
-                            [$ingredientId, $qty, $orderId, 'Restored by void of order #' . $orderId]
+                            [$ingId, $restoreQty, $orderId, 'Restored by void of order #' . $orderId]
                         );
                     }
                 }
