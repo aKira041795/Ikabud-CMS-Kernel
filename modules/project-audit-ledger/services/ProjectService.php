@@ -196,7 +196,7 @@ class palProjectService
                 ':fabrication_alloc_pct' => $fabAllocPct,
                 ':fabrication_alloc_basis' => $fabAllocBasis,
                 ':fabrication_alloc_fixed' => $fabAllocFixed,
-                ':status' => $data['status'] ?? 'draft',
+                ':status' => 'draft',
                 ':budget_warning_pct' => $data['budget_warning_pct'] ?? 80,
                 ':notes' => $data['notes'] ?? null,
                 ':created_by' => $this->userId,
@@ -229,14 +229,17 @@ class palProjectService
             throw new InvalidArgumentException('Project not found.');
         }
 
-        $allowed = ['draft', 'pending', 'approved', 'started', 'ongoing', 'completed', 'cancelled', 'closed'];
+        // NOTE: Status changes are NOT handled here. They must be performed
+        // through the JobOrderWorkflow transactional path (transitionAndApply)
+        // or ProjectCompletionCoordinator::complete(). This prevents the
+        // guardless status write bug where a status was persisted before
+        // workflow validation.
+        if (array_key_exists('status', $data)) {
+            unset($data['status']);
+        }
+
         $fields = [];
         $params = [':id' => $id, ':tenant_id' => $this->tenantId];
-
-        // Guard: cannot un-complete a project with a paid invoice
-        if ($project['status'] === 'completed' && array_key_exists('status', $data) && $data['status'] !== 'completed') {
-            $this->guardNotPaid($id);
-        }
 
         // Map form field _jo_type to DB column jo_type.
         $joType = $this->normalizeJoType(
@@ -334,21 +337,6 @@ class palProjectService
             $newTotal = $itemsTotal + $installationCharge + $mobilizationCharge + $otherCharges;
             $fields[] = 'contract_amount = :_new_total';
             $params[':_new_total'] = $newTotal;
-        }
-
-        if (array_key_exists('status', $data)) {
-            if (!in_array($data['status'], $allowed, true)) {
-                throw new InvalidArgumentException('Invalid status: ' . $data['status']);
-            }
-            if ($data['status'] === 'completed' && empty($project['client_id'])) {
-                throw new InvalidArgumentException('Cannot complete a project without a client.');
-            }
-            // Delegate 'completed' to completeProject() which handles smart completion
-            if ($data['status'] === 'completed') {
-                return $this->completeProject($id);
-            }
-            $fields[] = 'status = :status';
-            $params[':status'] = $data['status'];
         }
 
         if (empty($fields)) {

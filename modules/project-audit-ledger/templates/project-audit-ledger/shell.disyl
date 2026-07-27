@@ -1,10 +1,13 @@
 {* PAL Admin Shell — delegates to workbench:app_shell.
-   shell_ctx is built in PHP by palBuildShellContext() in helpers.php. *}
+   shell_ctx is built in PHP by palBuildShellContext() in helpers.php.
+   Title ownership: the page template renders the header via pal_page_header
+   or pal_detail_header. The shell does NOT render a competing title. *}
 
 {include "workbench:app_shell" shell=shell_ctx}
     {csrf_field|raw}
-    <h1 class="text-2xl font-bold text-gray-900 mb-6">{page_title}</h1>
+    <div class="pal-page">
     {page_body|raw}
+    </div>
     {* Lightbox — smooth open/close, keyboard escape/arrow nav *}
     <div id="lightbox" class="wb-lightbox" role="dialog" aria-modal="true" aria-label="Image viewer">
         <button class="wb-lightbox__close" id="lightbox-close-btn" aria-label="Close viewer">&times;</button>

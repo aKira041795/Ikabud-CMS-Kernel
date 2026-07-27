@@ -8,6 +8,7 @@
 </div>
 
 <div class="wb-panel">
+    <table class="w-full text-sm wb-table wb-table--sticky">
         <thead>
             <tr class="bg-gray-50 border-b">
                 <th class="text-left py-2 px-3 font-semibold text-gray-600 text-xs">Date</th>

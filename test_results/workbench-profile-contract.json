@@ -1,14 +1,14 @@
 {
     "suite": "workbench-profile-contract",
-    "started": "2026-07-18 13:12:19",
-    "finished": "2026-07-18 13:12:19",
-    "elapsed_ms": 9.6,
+    "started": "2026-07-27 16:49:11",
+    "finished": "2026-07-27 16:49:11",
+    "elapsed_ms": 9.5,
     "summary": {
-        "passed": 72,
+        "passed": 87,
         "failed": 0,
         "skipped": 0,
-        "total": 72,
-        "assertions": 72,
+        "total": 87,
+        "assertions": 87,
         "exit_code": 0
     },
     "source_fingerprints": {
@@ -95,28 +95,28 @@
             "label": "workbench.css is published identically",
             "status": "pass",
             "detail": "",
-            "time": 0.9
+            "time": 0.7
         },
         {
             "section": "Published asset parity",
             "label": "workbench-core.js is published identically",
             "status": "pass",
             "detail": "",
-            "time": 1.2
+            "time": 1
         },
         {
             "section": "Published asset parity",
             "label": "workbench-tailwind.css is published identically",
             "status": "pass",
             "detail": "",
-            "time": 2
+            "time": 1.5
         },
         {
             "section": "Published asset parity",
             "label": "workbench-tailwind.src.css is published identically",
             "status": "pass",
             "detail": "",
-            "time": 2.2
+            "time": 1.6
         },
         {
             "section": "PAL Workbench wiring",
@@ -158,105 +158,105 @@
             "label": "Compiled Tailwind contains brand utilities",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL entity lists do not select the Tailwind renderer preset",
             "status": "pass",
             "detail": "",
-            "time": 2.9
+            "time": 2.3
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL entity lists explicitly select the Workbench renderer preset",
             "status": "pass",
             "detail": "",
-            "time": 2.9
+            "time": 2.4
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL templates contain no legacy standard-control signatures",
             "status": "pass",
             "detail": "",
-            "time": 5.1
+            "time": 4.1
         },
         {
             "section": "PAL Workbench wiring",
             "label": "PAL standard controls explicitly use Workbench form primitives",
             "status": "pass",
             "detail": "",
-            "time": 5.1
+            "time": 4.1
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Client form has padded panel body",
             "status": "pass",
             "detail": "",
-            "time": 5.2
+            "time": 4.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Client form has responsive field spacing",
             "status": "pass",
             "detail": "",
-            "time": 5.2
+            "time": 4.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Supplier form has padded panel body",
             "status": "pass",
             "detail": "",
-            "time": 5.2
+            "time": 4.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Supplier form has responsive field spacing",
             "status": "pass",
             "detail": "",
-            "time": 5.2
+            "time": 4.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Unpadded panels protect direct form inset",
             "status": "pass",
             "detail": "",
-            "time": 5.2
+            "time": 4.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "Workbench controls use border-box sizing inside form grids",
             "status": "pass",
             "detail": "",
-            "time": 5.2
+            "time": 4.2
         },
         {
             "section": "PAL Workbench wiring",
             "label": "DiSyL cache clear includes compiled template cache",
             "status": "pass",
             "detail": "",
-            "time": 5.4
+            "time": 4.5
         },
         {
             "section": "PAL Workbench wiring",
             "label": "app-shell.disyl loads Workbench CSS after utilities",
             "status": "pass",
             "detail": "",
-            "time": 5.4
+            "time": 4.6
         },
         {
             "section": "PAL Workbench wiring",
             "label": "app-shell-mobile.disyl loads Workbench CSS after utilities",
             "status": "pass",
             "detail": "",
-            "time": 5.5
+            "time": 4.6
         },
         {
             "section": "PAL Workbench wiring",
             "label": "app_shell.disyl loads Workbench CSS after utilities",
             "status": "pass",
             "detail": "",
-            "time": 5.5
+            "time": 4.6
         },
         {
             "section": "Contract validator coverage",
@@ -361,14 +361,14 @@
             "label": "page-header.contract.json requirement post_actions_have_data_wb_method is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.2
         },
         {
             "section": "Contract validator coverage",
             "label": "page-header.contract.json requirement breadcrumb_has_nav_landmark is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.3
+            "time": 0.2
         },
         {
             "section": "Contract validator coverage",
@@ -410,98 +410,98 @@
             "label": "status-badge.contract.json requirement visible_text_label is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.3
         },
         {
             "section": "Contract validator coverage",
             "label": "status-badge.contract.json requirement tone_never_communicated_by_color_alone is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.3
         },
         {
             "section": "Contract validator coverage",
             "label": "status-badge.contract.json requirement valid_tones is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.4
+            "time": 0.3
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement displays_label is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement displays_value is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement has_data_wb_tone is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "summary-card.contract.json requirement clickable_when_href_present is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement role is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.5
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement aria_live is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.6
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement tabindex is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.6
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement receives_focus_on_error is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.6
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement error_links_point_to_fields is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.6
+            "time": 0.4
         },
         {
             "section": "Contract validator coverage",
             "label": "validation-summary.contract.json requirement error_links_have_data_wb_error_for is supported",
             "status": "pass",
             "detail": "",
-            "time": 0.6
+            "time": 0.4
         },
         {
             "section": "Validator behavior",
             "label": "Invalid domain status tone is rejected",
             "status": "pass",
             "detail": "",
-            "time": 0.2
+            "time": 0.1
         },
         {
             "section": "Validator behavior",
@@ -523,6 +523,111 @@
             "status": "pass",
             "detail": "",
             "time": 0.6
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Admin shell does not render own h1 page_title",
+            "status": "pass",
+            "detail": "",
+            "time": 0
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Team Lead shell does not render own h1 page_title",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Admin shell wraps page_body in pal-page",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Team Lead shell wraps page_body in pal-page",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "pal-ui.css file exists",
+            "status": "pass",
+            "detail": "",
+            "time": 0.1
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "pal-ui.css is referenced in helpers.php",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Team Lead shell references pal-ui.css",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "pal-ui.css contains PAL page layout rules",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "pal-ui.css contains modal dialog rules",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "team-lead-ca-list has valid <table> tag",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "BOM table header does not use bg-gray-800",
+            "status": "pass",
+            "detail": "",
+            "time": 0.2
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Fabrication dues modal uses pal-modal-overlay",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Fabrication dues modal has role=\"dialog\"",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Team Lead fabrication uses pal-text-positive/pal-text-negative",
+            "status": "pass",
+            "detail": "",
+            "time": 0.3
+        },
+        {
+            "section": "PAL UI consistency contract",
+            "label": "Page templates contain no <style> blocks (exempt: standalone auth, email, shell)",
+            "status": "pass",
+            "detail": "",
+            "time": 1.5
         }
     ],
     "gaps": []

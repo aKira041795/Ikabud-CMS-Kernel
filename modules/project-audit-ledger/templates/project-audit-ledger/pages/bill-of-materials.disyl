@@ -28,7 +28,7 @@
     <div class="overflow-x-auto">
         <table class="w-full text-sm wb-table wb-table--sticky">
             <thead>
-                <tr class="bg-gray-800 text-white text-xs">
+                <tr class="bg-gray-50 border-b text-xs text-gray-600 font-semibold">
                     <th class="text-left py-2 px-3">#</th>
                     <th class="text-left py-2 px-3">Material</th>
                     <th class="text-left py-2 px-3">Category</th>

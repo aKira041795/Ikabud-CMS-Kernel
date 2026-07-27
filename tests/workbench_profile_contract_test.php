@@ -200,4 +200,65 @@ $emptyTableHtml = '<div data-wb-component="responsive-table"><table><thead><tr><
 $violations = $validator->validate('responsive-table', $emptyTableHtml, ['state' => 'empty']);
 $h->test('Empty responsive table row does not require entity id', !isset($violations['entity_rows_have_data_wb_entity_id']));
 
+// ═══════════════════════════════════════════════════════════════
+// PAL UI Consistency Contract Checks
+// ═══════════════════════════════════════════════════════════════
+$h->section('PAL UI consistency contract');
+
+// 1. Shell title ownership — no hard-coded <h1>{page_title}
+$adminShell = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/shell.disyl');
+$tlShell = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/team-lead-shell.disyl');
+$h->test('Admin shell does not render own h1 page_title', !str_contains($adminShell, '<h1 class="text-2xl font-bold'));
+$h->test('Team Lead shell does not render own h1 page_title', !str_contains($tlShell, '<h1 class="wb-page-header__title'));
+$h->test('Admin shell wraps page_body in pal-page', str_contains($adminShell, 'class="pal-page"'));
+$h->test('Team Lead shell wraps page_body in pal-page', str_contains($tlShell, 'class="pal-page"'));
+
+// 2. pal-ui.css exists and is referenced
+$palCss = $base . '/public/assets/pal/pal-ui.css';
+$helpers = (string)file_get_contents($base . '/modules/project-audit-ledger/helpers.php');
+$h->test('pal-ui.css file exists', file_exists($palCss));
+$h->test('pal-ui.css is referenced in helpers.php', str_contains($helpers, 'pal-ui.css'));
+$h->test('Team Lead shell references pal-ui.css', str_contains($tlShell, '/assets/pal/pal-ui.css'));
+$palCssContent = (string)file_get_contents($palCss);
+$h->test('pal-ui.css contains PAL page layout rules', str_contains($palCssContent, '.pal-page'));
+$h->test('pal-ui.css contains modal dialog rules', str_contains($palCssContent, '.pal-modal'));
+
+// 3. Team Lead CA list has valid <table> tag
+$tlCaList = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-ca-list.disyl');
+$h->test('team-lead-ca-list has valid <table> tag', str_contains($tlCaList, '<table'));
+
+// 4. BOM does not use dark table header
+$bom = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/pages/bill-of-materials.disyl');
+$h->test('BOM table header does not use bg-gray-800', !str_contains($bom, 'bg-gray-800 text-white'));
+
+// 5. Fabrication dues uses shared modal classes
+$fabDues = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/pages/fabrication-dues.disyl');
+$h->test('Fabrication dues modal uses pal-modal-overlay', str_contains($fabDues, 'pal-modal-overlay'));
+$h->test('Fabrication dues modal has role="dialog"', str_contains($fabDues, 'role="dialog"'));
+
+// 6. Team Lead fabrication uses CSS classes instead of inline colors
+$tlFab = (string)file_get_contents($base . '/modules/project-audit-ledger/templates/project-audit-ledger/pages/team-lead-fabrication.disyl');
+$h->test('Team Lead fabrication uses pal-text-positive/pal-text-negative',
+    str_contains($tlFab, 'pal-text-positive') && str_contains($tlFab, 'pal-text-negative'));
+
+// 7. Page templates do not contain <style> blocks (unless explicitly exempt)
+// Exempt: standalone auth pages (no Workbench shell), email templates, shell (lightbox CSS)
+$exemptStyleFiles = [
+    'login.disyl', 'forgot-password.disyl', 'reset-password.disyl',
+    'team-lead-login.disyl', 'team-lead-otp-verify.disyl',
+    '_email_job_order.disyl', '_email_invoice.disyl',
+    'shell.disyl', 'team-lead-shell.disyl',
+    'invoice-print.disyl', 'project-print.disyl', 'quotation-print.disyl',
+];
+$styleBlockTemplates = [];
+foreach ($palTemplates as $template) {
+    $name = basename($template);
+    if (in_array($name, $exemptStyleFiles, true)) continue;
+    $contents = (string)file_get_contents($template);
+    if (preg_match('/<style[^>]*>/i', $contents)) {
+        $styleBlockTemplates[] = $name;
+    }
+}
+$h->assertSame([], $styleBlockTemplates, 'Page templates contain no <style> blocks (exempt: standalone auth, email, shell)');
+
 $h->done();

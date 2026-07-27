@@ -1,5 +1,14 @@
-/**
- * PAL UI — focus ring and utility styles. Load after Tailwind + workbench.css.
+/* ── PAL UI — Project Audit Ledger composition styles ──
+ *
+ * This file contains PAL-specific layout and presentation rules only.
+ * Generic reusable primitives (shell, header, panel, form grid, button,
+ * badge, table, modal, toast, empty/loading/error states) live in
+ * the Workbench profile (storage/application-profiles/ark-workbench/assets/).
+ *
+ * DO NOT add Workbench-level primitives here. DO NOT add page-local
+ * overrides. Keep selectors narrowly scoped to PAL domain.
+ *
+ * Cache busting is handled via filemtime in helpers.php → addExtraStyle().
  */
 
 /* ── Focus ring (visible only on keyboard focus) ── */
@@ -35,4 +44,246 @@
 /* ── Mobile safe area for bottom nav (iPhone notch) ── */
 .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Page layout wrappers
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.pal-page--wide {
+    max-width: 100%;
+}
+
+.pal-page--print {
+    max-width: 900px;
+    padding: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Page header wrapper
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-page-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.pal-page-header__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.pal-page-header__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Metric grid (dashboard)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+@media (max-width: 640px) {
+    .pal-metric-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Financial health panel grid
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-financial-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+    .pal-financial-grid {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Domain-specific tone aliases (PAL-specific meanings)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-text-positive {
+    color: var(--wb-tone-success, #16a34a);
+}
+
+.pal-text-negative {
+    color: var(--wb-tone-danger, #dc2626);
+}
+
+.pal-text-warning {
+    color: var(--wb-tone-warning, #d97706);
+}
+
+.pal-text-muted {
+    color: var(--wb-text-muted, #64748b);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Progress bar fill segments
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-progress-expenses {
+    background-color: #f87171;
+}
+
+.pal-progress-fabrication {
+    background-color: #fb923c;
+}
+
+.pal-progress-profit {
+    background-color: #4ade80;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BOM summary footer
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-bom-summary {
+    background-color: var(--wb-surface-muted, #f9fafb);
+    border-top: 1px solid var(--wb-border, #e5e7eb);
+    border-radius: 0 0 0.5rem 0.5rem;
+}
+
+.pal-bom-summary__stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.pal-bom-summary__label {
+    font-size: 0.75rem;
+    color: var(--wb-text-muted, #64748b);
+}
+
+.pal-bom-summary__value {
+    font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Fabrication dues modal (shared dialog)
+   ═══════════════════════════════════════════════════════════════ */
+
+.pal-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.pal-modal {
+    background: #fff;
+    border-radius: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.pal-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--wb-border, #e5e7eb);
+}
+
+.pal-modal__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: var(--wb-text, #0f172a);
+}
+
+.pal-modal__close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--wb-text-muted, #64748b);
+    padding: 0.25rem;
+    line-height: 1;
+    border-radius: 0.25rem;
+}
+
+.pal-modal__close:hover {
+    color: var(--wb-text, #0f172a);
+    background: var(--wb-surface-muted, #f1f5f9);
+}
+
+.pal-modal__body {
+    padding: 1.25rem;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.pal-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--wb-border, #e5e7eb);
+}
+
+@media (max-width: 640px) {
+    .pal-modal {
+        max-width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+        margin: 0;
+    }
+}
+
+/* ── Safe area for bottom nav (replaces old .safe-area-bottom) ── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .wb-bottom-nav {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* ── Workbench extension classes (used by PAL templates) ── */
+
+/* Stacked panel header: column layout with full-width children */
+.wb-panel__header--stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--wb-space-3, 0.75rem);
+}
+
+/* Flush toolbar: negative margin to extend edge-to-edge */
+.wb-toolbar--flush {
+    margin: 0 calc(var(--wb-space-4, 1rem) * -1);
+    padding: 0 var(--wb-space-4, 1rem);
 }

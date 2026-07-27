@@ -277,3 +277,87 @@ Registered under `modules/project-audit-ledger/helpers/views/`:
 | Desktop (≥1024px) | Fixed sidebar, full navigation | Standard table with all columns | Multi-column layout |
 | Tablet (768-1023px) | Overlay drawer, visible toggle | Horizontal scroll | 2-column layout |
 | Phone (<768px) | Overlay drawer, bottom nav (TL) | Card stack (data-label) | Single column |
+
+---
+
+## 10. UI Consistency Contract (Phase 2 — 2026-07-27)
+
+### 10.1 Title Ownership
+
+- **Every page renders exactly one semantic `<h1>`**.
+- The shell (`shell.disyl`, `team-lead-shell.disyl`) does **not** render its own `<h1>{page_title}`.
+- Page templates use `pal_page_header` (list/dashboard/settings) or `pal_detail_header` (detail pages) to produce the page-level title.
+- Auth pages (standalone HTML) and print pages use their own `<h1>` inside their full HTML structure.
+
+### 10.2 Shell Content Wrapper
+
+Both shells wrap `{page_body|raw}` in `<div class="pal-page">`:
+- `.pal-page` — max-width 1280px, centered, 1.5rem gap between sections
+- `.pal-page--wide` — 100% width for full-bleed pages
+- `.pal-page--print` — 900px max for print previews
+
+### 10.3 CSS Architecture
+
+| Layer | Location | Contents |
+|---|---|---|
+| Workbench profile | `storage/application-profiles/ark-workbench/assets/` | All generic reusable primitives |
+| Public mirror | `public/assets/workbench/` | Byte-identical copy of profile assets |
+| PAL-specific | `public/assets/pal/pal-ui.css` | PAL domain composition only |
+
+**PAL-specific CSS classes** (in `pal-ui.css`):
+- `.pal-page`, `.pal-page--wide`, `.pal-page--print` — page layout wrappers
+- `.pal-page-header`, `.pal-page-header__row`, `.pal-page-header__actions` — header composition
+- `.pal-metric-grid` — responsive auto-fill metric grid
+- `.pal-financial-grid` — 6-column financial health grid
+- `.pal-text-positive`, `.pal-text-negative`, `.pal-text-warning`, `.pal-text-muted` — domain tone colors
+- `.pal-progress-expenses`, `.pal-progress-fabrication`, `.pal-progress-profit` — progress bar segments
+- `.pal-bom-summary`, `.pal-bom-summary__stat`, `.pal-bom-summary__label`, `.pal-bom-summary__value` — BOM footer
+- `.pal-modal-overlay`, `.pal-modal`, `.pal-modal__header`, `.pal-modal__title`, `.pal-modal__close`, `.pal-modal__body`, `.pal-modal__footer` — shared dialog
+- `.wb-panel__header--stacked`, `.wb-toolbar--flush` — Workbench extension classes
+
+### 10.4 Forbidden Patterns
+
+| Pattern | Replace With |
+|---|---|
+| `style="color:var(--wb-tone-*)` | `.pal-text-positive`, `.pal-text-negative`, `.pal-text-warning` |
+| `text-red-700`, `text-green-700`, `text-orange-700` | `.pal-text-negative`, `.pal-text-positive`, PAL-specific class |
+| `bg-gray-800 text-white` on table headers | Workbench `bg-gray-50 border-b` header pattern |
+| `fixed inset-0 bg-black/50 z-50` for modals | `.pal-modal-overlay` + `.pal-modal` |
+| `wb-panel__header` with `style="flex-direction:column"` | `.wb-panel__header--stacked` |
+| Tab bar with `style="margin:0 calc(...)"` | `.wb-toolbar--flush` |
+| Hard-coded `<h1>{page_title}` in shells | Page template renders header |
+| `<style>` blocks in page templates | Add to `pal-ui.css` or Workbench profile |
+| `<table>` without `wb-table` class | Add `wb-table wb-table--sticky` |
+| `<table>` without `overflow-x-auto` wrapper | Wrap in `<div class="overflow-x-auto">` |
+| `grid grid-cols-2 md:grid-cols-6 gap-6` for financial grid | `.pal-financial-grid` |
+| `grid-cols-2 gap-3` / `grid-cols-12` for forms | `wb-form-grid wb-form-grid--2` |
+
+### 10.5 Contract Tests
+
+Enforced by `tests/workbench_profile_contract_test.php` (PAL UI consistency section, 11 checks):
+
+| Check | What it validates |
+|---|---|
+| Shell title | No `<h1>{page_title}` in admin or TL shells |
+| Shell wrapper | `pal-page` container in both shells |
+| pal-ui.css | File exists, referenced by helpers, contains PAL rules |
+| TL CA list table | Has valid `<table>` tag (was missing) |
+| BOM header | No `bg-gray-800 text-white` (uses Workbench classes) |
+| Fabrication modal | Uses `pal-modal-overlay` with `role="dialog"` |
+| TL Fabrication colors | Uses `pal-text-positive`/`pal-text-negative` instead of raw Tailwind |
+| `<style>` blocks | None in shell-delegated page templates (exempt: auth, email, shell, prints) |
+| Entity list presets | All use Workbench preset (not Tailwind) |
+| Form controls | All standard controls use Workbench primitives |
+| Asset parity | SHA-256 match between profile source and public mirror |
+
+### 10.6 Future Work
+
+- Migrate Team Lead shell to use Workbench shell delegation for unified nav consistency
+- Add keyboard focus restoration and Escape key handler to fabrication dues modal
+- Add Playwright multi-viewport contract tests for each page family
+- Migrate remaining inline form grids (`grid-cols-12` line items) to `wb-form-grid`
+- Add mobile `data-label` values to entity-list powered tables
+- Consolidate all PAL navigation state into shell context
+- Migrate `mobilization-detail.disyl` inline `<script>` to `pal-core.js`
+- Surface detail pages (issuance-detail, inventory-detail) need `pal_detail_header`
+- Add empty/loading/error state components to list page templates

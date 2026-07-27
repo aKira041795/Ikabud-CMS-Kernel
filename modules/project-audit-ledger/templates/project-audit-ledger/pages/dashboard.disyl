@@ -24,7 +24,7 @@
             <span class="wb-metric-card__label">Monthly Collections</span>
             <span class="wb-metric-card__icon">💰</span>
         </div>
-        <div class="wb-metric-card__value" style="color:var(--wb-tone-success)">₱{dashboard.monthly_collections|number_format:2}</div>
+        <div class="wb-metric-card__value pal-text-positive">₱{dashboard.monthly_collections|number_format:2}</div>
         <div class="wb-metric-card__secondary">This month's cash inflow</div>
     </div>
 
@@ -33,7 +33,7 @@
             <span class="wb-metric-card__label">Monthly Expenses</span>
             <span class="wb-metric-card__icon">💳</span>
         </div>
-        <div class="wb-metric-card__value" style="color:var(--wb-tone-danger)">₱{dashboard.monthly_total_outflow|number_format:2}</div>
+        <div class="wb-metric-card__value pal-text-negative">₱{dashboard.monthly_total_outflow|number_format:2}</div>
         <div class="wb-metric-card__secondary">₱{dashboard.monthly_expenses|number_format:2} ops + ₱{dashboard.monthly_fabrication|number_format:2} fab</div>
     </div>
 
@@ -42,7 +42,7 @@
             <span class="wb-metric-card__label">Net Cash Flow</span>
             <span class="wb-metric-card__icon">{if dashboard.net_cash_flow >= 0}📈{else}📉{/if}</span>
         </div>
-        <div class="wb-metric-card__value" style="color:{if dashboard.net_cash_flow >= 0}var(--wb-tone-success){else}var(--wb-tone-danger){/if}">
+        <div class="wb-metric-card__value {if dashboard.net_cash_flow >= 0}pal-text-positive{else}pal-text-negative{/if}">
             {if dashboard.net_cash_flow >= 0}+{/if}₱{dashboard.net_cash_flow|number_format:2}
         </div>
         <span class="wb-metric-card__delta wb-metric-card__delta--{if dashboard.net_cash_flow >= 0}positive{else}negative{/if}">
@@ -56,7 +56,7 @@
             <span class="wb-metric-card__icon">⏳</span>
         </div>
         <div class="flex items-baseline gap-2">
-            <span class="wb-metric-card__value" style="color:var(--wb-tone-warning)">{dashboard.pending_approvals}</span>
+            <span class="wb-metric-card__value pal-text-warning">{dashboard.pending_approvals}</span>
             <span class="wb-metric-card__secondary">approvals</span>
         </div>
         <div class="wb-metric-card__secondary">🔴 {dashboard.low_stock_count} low stock</div>
@@ -69,29 +69,29 @@
         <h2 class="text-base font-bold text-gray-900">📊 Financial Health</h2>
         <span class="text-xs text-gray-400">All-time totals</span>
     </div>
-    <div class="grid grid-cols-2 md:grid-cols-6 gap-6">
-        <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Contract Value</p>
+    <div class="pal-financial-grid">
+        <div class="pal-bom-summary__stat">
+            <p class="pal-bom-summary__label">Contract Value</p>
             <p class="text-2xl font-bold text-gray-900">₱{dashboard.total_contract_value|number_format:2}</p>
         </div>
-        <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Expenses</p>
-            <p class="text-2xl font-bold text-red-700">₱{dashboard.total_expenses|number_format:2}</p>
+        <div class="pal-bom-summary__stat">
+            <p class="pal-bom-summary__label">Expenses</p>
+            <p class="text-2xl font-bold pal-text-negative">₱{dashboard.total_expenses|number_format:2}</p>
         </div>
-        <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Fabrication</p>
-            <p class="text-2xl font-bold text-orange-700">₱{dashboard.total_fabrication|number_format:2}</p>
+        <div class="pal-bom-summary__stat">
+            <p class="pal-bom-summary__label">Fabrication</p>
+            <p class="text-2xl font-bold" style="color:#ea580c">₱{dashboard.total_fabrication|number_format:2}</p>
         </div>
-        <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Total Costs</p>
+        <div class="pal-bom-summary__stat">
+            <p class="pal-bom-summary__label">Total Costs</p>
             <p class="text-2xl font-bold text-gray-900">₱{(dashboard.total_expenses + dashboard.total_fabrication)|number_format:2}</p>
         </div>
-        <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Collected</p>
-            <p class="text-2xl font-bold text-green-700">₱{dashboard.total_collected|number_format:2}</p>
+        <div class="pal-bom-summary__stat">
+            <p class="pal-bom-summary__label">Collected</p>
+            <p class="text-2xl font-bold pal-text-positive">₱{dashboard.total_collected|number_format:2}</p>
         </div>
-        <div>
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Est. Profit</p>
+        <div class="pal-bom-summary__stat">
+            <p class="pal-bom-summary__label">Est. Profit</p>
             <p class="text-2xl font-bold text-blue-700">₱{dashboard.est_profit|number_format:2}</p>
         </div>
     </div>

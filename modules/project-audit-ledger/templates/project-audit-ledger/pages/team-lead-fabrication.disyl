@@ -15,7 +15,7 @@
         <div class="grid grid-cols-3 gap-4 mb-3 text-sm">
             <div><span class="text-gray-500">Basis:</span> <span class="font-medium">{p.fabrication_alloc_basis|default:'expenses'|replace:'_':' '|capitalize}</span></div>
             <div><span class="text-gray-500">Dispensed:</span> <span class="font-medium">₱{p.total_dispensed|number_format:2}</span></div>
-            <div><span class="text-gray-500">Remaining:</span> <span class="font-medium {if p.remaining > 0}text-green-600{else}text-red-600{/if}">₱{p.remaining|number_format:2}</span></div>
+            <div><span class="text-gray-500">Remaining:</span> <span class="font-medium {if p.remaining > 0}pal-text-positive{else}pal-text-negative{/if}">₱{p.remaining|number_format:2}</span></div>
         </div>
 
         {if p.weekly_dues|count > 0}

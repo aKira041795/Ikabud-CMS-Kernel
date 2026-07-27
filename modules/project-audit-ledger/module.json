@@ -108,7 +108,8 @@
         "database/migrations/018_pal_receivables.sql",
         "database/migrations/019_pal_allocation_idempotency.sql",
         "database/migrations/020_pal_username_case_sensitive.sql",
-        "database/migrations/021_pal_mobilization_attendance_snapshot.sql"
+        "database/migrations/021_pal_mobilization_attendance_snapshot.sql",
+        "database/migrations/022_pal_reconciliation.sql"
     ],
     "capabilities": {
         "exposes": [

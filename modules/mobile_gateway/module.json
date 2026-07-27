@@ -1,0 +1,180 @@
+{
+    "id": "mobile-gateway",
+    "name": "Mobile Gateway",
+    "version": "1.0.0",
+    "description": "Mobile API gateway — bootstrap, sync, device registration, and push notification integration. Wires kernel SyncEngine, PushNotification, and JWT auth into a unified mobile API surface.",
+    "author": "Ikabud Kernel Team",
+    "requires_kernel": "6.1.0",
+    "type": "php-module",
+    "requires_tables": [],
+    "owns_tables": [
+        "mgw_devices"
+    ],
+    "reads_tables": [
+        "kernel_entity_revisions",
+        "kernel_entity_tombstones",
+        "kernel_sync_cursors",
+        "kernel_device_sessions",
+        "kernel_push_tokens"
+    ],
+    "migrations": [
+        "001_mobile_gateway_schema.sql",
+        "002_tenant_scope_devices.sql"
+    ],
+    "settings": [],
+    "hooks": [],
+    "capabilities": {
+        "exposes": [
+            {
+                "id": "mobile.bootstrap@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "input": {},
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "manifest": {
+                                "type": "object"
+                            },
+                            "user": {
+                                "type": "object"
+                            },
+                            "server_time": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "mobile.sync.pull@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "input": {
+                        "entity_type": {
+                            "type": "string"
+                        },
+                        "device_id": {
+                            "type": "string"
+                        },
+                        "limit": {
+                            "type": "integer"
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "changes": {
+                                "type": "array"
+                            },
+                            "deleted": {
+                                "type": "array"
+                            },
+                            "next_cursor": {
+                                "type": "string"
+                            },
+                            "has_more": {
+                                "type": "boolean"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "mobile.sync.push@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "input": {
+                        "operations": {
+                            "type": "array"
+                        },
+                        "idempotency_key": {
+                            "type": "string"
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "results": {
+                                "type": "array"
+                            },
+                            "conflicts": {
+                                "type": "array"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "mobile.device.register@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "input": {
+                        "device_id": {
+                            "type": "string"
+                        },
+                        "platform": {
+                            "type": "string"
+                        },
+                        "push_token": {
+                            "type": "string"
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "device_id": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "mobile.device.unregister@1",
+                "priority": 100,
+                "modes": [
+                    "first"
+                ],
+                "schema": {
+                    "input": {
+                        "device_id": {
+                            "type": "string"
+                        }
+                    },
+                    "output": {
+                        "type": "object",
+                        "properties": {
+                            "device_id": {
+                                "type": "string"
+                            },
+                            "status": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "depends": [
+            "kernel.auth.authenticate@1"
+        ]
+    },
+    "routes": "routes.php",
+    "handlers": "handlers.php"
+}

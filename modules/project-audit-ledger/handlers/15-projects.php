@@ -275,26 +275,44 @@ function palApiProjectStore(): void
         }
 
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-        $id = $svc->create($_POST);
-
-        // If submitted with status, run workflow + create approval
-        $newStatus = $_POST['status'] ?? null;
-        // Admin auto-approve: skip workflow + approval when admin submits their own JO
+        $requestedStatus = (string)($_POST['status'] ?? 'draft');
         $isAdmin = ($user['role'] ?? '') === 'admin';
-        if ($isAdmin && $newStatus === 'pending') {
-            $newStatus = 'approved';
+
+        if ($requestedStatus !== '' && $requestedStatus !== 'draft') {
+            if ($isAdmin && $requestedStatus === 'pending') {
+                if (!palJobOrderWorkflow::isAllowed('draft', 'pending') || !palJobOrderWorkflow::isAllowed('pending', 'approved')) {
+                    palJsonError('Cannot auto-approve this Job Order from draft.');
+                    return;
+                }
+            } elseif (!palJobOrderWorkflow::isAllowed('draft', $requestedStatus)) {
+                palJsonError("Cannot transition from 'Draft' to '" . palJobOrderWorkflow::label($requestedStatus) . "'.");
+                return;
+            }
         }
-        if ($newStatus && $newStatus !== 'draft') {
+
+        $createPayload = $_POST;
+        unset($createPayload['status']);
+        $id = $svc->create($createPayload);
+
+        if ($requestedStatus !== '' && $requestedStatus !== 'draft') {
             try {
                 $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-                $wf->apply($id, $newStatus);
-                if ($newStatus === 'pending' && !$isAdmin) {
+                if ($isAdmin && $requestedStatus === 'pending') {
+                    $wf->transitionAndApply($id, 'pending');
+                    $wf->transitionAndApply($id, 'approved', ['status' => 'pending']);
+                } else {
+                    $wf->transitionAndApply($id, $requestedStatus);
+                }
+                if ($requestedStatus === 'pending' && !$isAdmin) {
                     palCreateApproval('project', $id, (int)$user['id'], 'draft', 'pending_approval');
                 }
             } catch (\Throwable $e) {
                 write_log('pal.project.store.workflow_failed', 'warning', [
-                    'project_id' => $id, 'to' => $newStatus, 'error' => $e->getMessage(),
+                    'project_id' => $id, 'to' => $requestedStatus, 'error' => $e->getMessage(),
                 ]);
+                // Re-throw so the handler returns an error to the client
+                palJsonError($e->getMessage());
+                return;
             }
         }
 
@@ -330,40 +348,53 @@ function palApiProjectUpdate(array $rp = []): void
 
         $id = (int)($rp['id'] ?? $_GET['id'] ?? $_POST['id'] ?? 0);
 
-        $newStatus = $_POST['status'] ?? null;
+        $requestedStatus = isset($_POST['status']) ? (string)$_POST['status'] : null;
         $svc = new palProjectService(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
 
-        // Admin auto-approve: skip workflow + approval when admin submits their own JO
         $isAdmin = ($user['role'] ?? '') === 'admin';
-        if ($isAdmin && $newStatus === 'pending') {
-            $newStatus = 'approved';
-            $_POST['status'] = 'approved';
-        }
-
-        // Get current status before update for workflow detection
         $project = $svc->get($id);
         $oldStatus = $project ? ($project['status'] ?? '') : '';
+        if (!$project) {
+            palJsonError('Project not found.', 404);
+            return;
+        }
+
+        $effectiveStatus = $requestedStatus;
+        if ($requestedStatus !== null && $requestedStatus !== '' && $requestedStatus !== $oldStatus) {
+            $clientId = !empty($_POST['client_id']) ? (int)$_POST['client_id'] : (int)($project['client_id'] ?? 0);
+            $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
+
+            if ($isAdmin && $requestedStatus === 'pending') {
+                $wf->transition($id, 'pending', ['status' => $oldStatus, 'client_id' => $clientId]);
+                $wf->transition($id, 'approved', ['status' => 'pending', 'client_id' => $clientId]);
+                $effectiveStatus = 'approved';
+            } else {
+                $wf->transition($id, $requestedStatus, ['status' => $oldStatus, 'client_id' => $clientId]);
+            }
+        }
 
         $svc->update($id, $_POST);
 
-        // If status changed, run through workflow engine to create approvals, fire events
-        if ($newStatus && $newStatus !== $oldStatus) {
+        if ($requestedStatus !== null && $requestedStatus !== '' && $requestedStatus !== $oldStatus) {
             try {
                 $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-                $wf->apply($id, $newStatus);
+                if ($isAdmin && $requestedStatus === 'pending') {
+                    $wf->transitionAndApply($id, 'pending');
+                    $wf->transitionAndApply($id, 'approved', ['status' => 'pending']);
+                } else {
+                    $wf->transitionAndApply($id, (string)$effectiveStatus, ['status' => $oldStatus, 'client_id' => !empty($_POST['client_id']) ? (int)$_POST['client_id'] : (int)($project['client_id'] ?? 0)]);
+                }
 
-                // Create approval record for status transitions that need review
-                // Skip for admins — their submissions are auto-approved
-                if ($newStatus === 'pending' && !$isAdmin) {
+                if ($requestedStatus === 'pending' && !$isAdmin) {
                     palCreateApproval('project', $id, (int)$user['id'], $oldStatus, 'pending_approval');
                 }
             } catch (\Throwable $e) {
-                // Workflow transition may be invalid — status already updated above,
-                // but workflow side-effects (approval, events) won't fire.
                 write_log('pal.project.update.workflow_failed', 'warning', [
-                    'project_id' => $id, 'from' => $oldStatus, 'to' => $newStatus,
+                    'project_id' => $id, 'from' => $oldStatus, 'to' => $requestedStatus,
                     'error' => $e->getMessage(),
                 ]);
+                palJsonError($e->getMessage());
+                return;
             }
         }
 
@@ -413,13 +444,11 @@ function palApiProjectStatus(array $rp = []): void
                 'status' => $status, 'auto_invoiced' => true,
             ]);
         } else {
-            $svc->updateStatus($id, $status);
-
-            // Run workflow and create approval record when status changes
+            // Use transactional workflow instead of direct updateStatus
             if ($status && $status !== $oldStatus) {
                 try {
                     $wf = new palJobOrderWorkflow(palDb(), (int)($user['tenant_id'] ?? 0), (int)$user['id']);
-                    $wf->apply($id, $status);
+                    $wf->transitionAndApply($id, $status);
 
                     if ($status === 'pending') {
                         palCreateApproval('project', $id, (int)$user['id'], $oldStatus, 'pending_approval');
@@ -429,6 +458,8 @@ function palApiProjectStatus(array $rp = []): void
                         'project_id' => $id, 'from' => $oldStatus, 'to' => $status,
                         'error' => $e->getMessage(),
                     ]);
+                    palJsonError($e->getMessage());
+                    return;
                 }
             }
 

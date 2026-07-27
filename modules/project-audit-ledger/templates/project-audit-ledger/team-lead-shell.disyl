@@ -6,6 +6,7 @@
     <title>{page_title} — Team Lead Portal</title>
 <link rel="stylesheet" href="/assets/workbench/workbench-tailwind.css?v=6">
 <link rel="stylesheet" href="/assets/workbench/workbench.css?v=6">
+<link rel="stylesheet" href="/assets/pal/pal-ui.css?v=1">
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="wb-app-shell">
@@ -32,14 +33,16 @@
         </nav>
         <div class="p-4 border-t border-slate-700">
             <form method="POST" action="/api/v1/project-audit-ledger/tl/logout">
-                <button type="submit" class="wb-nav-item" style="color:var(--wb-text-muted)">Sign Out</button>
+                <button type="submit" class="wb-nav-item text-slate-400">Sign Out</button>
             </form>
         </div>
     </aside>
 
+    {* Title ownership: page templates render pal_page_header. Shell does not render a competing title. *}
     <main class="wb-app-shell__main" id="wb-main">
-        <h1 class="wb-page-header__title mb-6">{page_title}</h1>
+        <div class="pal-page">
         {page_body|raw}
+        </div>
     </main>
 
     <!-- Mobile bottom nav -->

@@ -162,6 +162,10 @@ class palJobOrderWorkflow
     /**
      * Apply the status update to the database.
      * Returns true if the row was actually changed.
+     *
+     * NOTE: This method does NOT validate the transition. It must only be
+     * called AFTER transition() has validated, or from within a transaction
+     * where the caller holds a lock and has already validated.
      */
     public function apply(int $projectId, string $newStatus): bool
     {
@@ -185,6 +189,26 @@ class palJobOrderWorkflow
         }
 
         return $changed;
+    }
+
+    /**
+     * Atomic transition + apply: validates, then applies in one operation.
+     * Unlike calling transition() then apply() separately, this guarantees
+     * the status is only changed after validation in the same code path.
+     *
+     * When called from within a caller-owned transaction with a locked row,
+     * pass context with 'status' and 'client_id' to avoid a re-fetch.
+     *
+     * @return bool True if status was changed
+     * @throws InvalidArgumentException if transition is not allowed or guard fails
+     */
+    public function transitionAndApply(int $projectId, string $newStatus, array $context = []): bool
+    {
+        $valid = $this->transition($projectId, $newStatus, $context);
+        if (!$valid) {
+            return false; // Same status, no change
+        }
+        return $this->apply($projectId, $newStatus);
     }
 
     /**
