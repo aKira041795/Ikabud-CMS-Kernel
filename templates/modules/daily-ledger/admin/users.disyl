@@ -293,7 +293,7 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {
-                if (res.ok) { showToast('User deleted'); setTimeout(function() { window.location.reload(); }, 600); }
+                if (res.ok) { showToast('User deleted'); setTimeout(function() { window.refreshMainContent(); }, 600); }
                 else { showToast(res.error || 'Failed to delete'); }
             })
             .catch(function() { showToast('Network error'); });
@@ -318,7 +318,7 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(res) {
-                if (res.ok) { showToast('User restored'); setTimeout(function() { window.location.reload(); }, 600); }
+                if (res.ok) { showToast('User restored'); setTimeout(function() { window.refreshMainContent(); }, 600); }
                 else { showToast(res.error || 'Failed to restore'); }
             })
             .catch(function() { showToast('Network error'); });
@@ -372,7 +372,7 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('User added'); setTimeout(function() { window.location.reload(); }, 600); }
+            if (res.ok) { showToast('User added'); setTimeout(function() { window.refreshMainContent(); }, 600); }
             else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Add User'; }
         })
         .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Add User'; });
@@ -410,7 +410,7 @@
         })
         .then(function(r) { return r.json(); })
         .then(function(res) {
-            if (res.ok) { showToast('User updated'); setTimeout(function() { window.location.reload(); }, 600); }
+            if (res.ok) { showToast('User updated'); setTimeout(function() { window.refreshMainContent(); }, 600); }
             else { showToast(res.error || 'Failed'); btn.disabled = false; btn.textContent = 'Save Changes'; }
         })
         .catch(function() { showToast('Network error'); btn.disabled = false; btn.textContent = 'Save Changes'; });

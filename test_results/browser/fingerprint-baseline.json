@@ -1,0 +1,7 @@
+{
+  "modules/daily-ledger/module.json": "d23eefd9d4bee84d",
+  "modules/daily-ledger/routes.php": "cc5a26c35b6705a5",
+  "modules/daily-ledger/workbench-contract.json": "49597a30f9e13798",
+  "templates/modules/daily-ledger/layouts/app.disyl": "70642a5130b9da32",
+  "templates/modules/daily-ledger/cashier/ledger.disyl": "40f951fc87dc8232"
+}

@@ -1617,6 +1617,18 @@
             "severity": "critical",
             "scope": "navigation",
             "description": "Every declared internal navigation URL resolves to an owned or explicitly allowed GET route. No sidebar link may drift from registered routes."
+        },
+        {
+            "id": "offline-pending-save-scope",
+            "severity": "major",
+            "scope": "state",
+            "description": "Offline pending ledger saves are scoped to the active tenant or module namespace, actor, branch, and business date. Legacy or stale entries are quarantined and never replayed silently."
+        },
+        {
+            "id": "derived-sales-reconciliation",
+            "severity": "major",
+            "scope": "data",
+            "description": "Sales reporting and summaries derive sales from beg_bal, addtl, withdraw, and bal_end. Historical stored sales values are non-authoritative and must not change reporting semantics."
         }
     ],
     "scenarios": [
@@ -1673,7 +1685,8 @@
         "browser": [
             "tests/browser/modules/daily-ledger/auth/login.spec.js",
             "tests/browser/modules/daily-ledger/navigation/sidebar-navigation.spec.js",
-            "tests/browser/modules/daily-ledger/daily-ledger-contract-verification.spec.js"
+            "tests/browser/modules/daily-ledger/daily-ledger-contract-verification.spec.js",
+            "tests/browser/modules/daily-ledger/ledger/pending-save-scope.spec.js"
         ]
     },
     "compatibility": {

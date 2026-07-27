@@ -399,7 +399,7 @@
                 throw new Error(res.error || 'Failed to save settings');
             }
             showToast('Settings updated', 'success');
-            setTimeout(function() { window.location.reload(); }, 500);
+            setTimeout(function() { window.refreshMainContent(); }, 500);
         })
         .catch(function(err) {
             showToast(err.message || 'Failed to save settings', 'error');

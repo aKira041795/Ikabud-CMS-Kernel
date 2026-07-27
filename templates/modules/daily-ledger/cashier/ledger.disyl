@@ -72,6 +72,16 @@
     <input type="text" class="form-input max-w-xs" id="ledger-search" placeholder="Search product..." oninput="filterLedgerRows(this.value)">
 </div>
 
+<div id="pending-save-warning" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <div class="font-semibold">Stale offline saves need review.</div>
+            <p id="pending-save-warning-text" class="mt-1 text-xs text-amber-800">Pending ledger saves from another user, branch, date, or schema were quarantined and will not be retried automatically.</p>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="clearQuarantinedPending()">Purge stale saves</button>
+    </div>
+</div>
+
 <div class="mb-4 grid gap-3 lg:grid-cols-3">
     <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
         <div class="flex items-start justify-between gap-3">
@@ -189,15 +199,170 @@
         window.dispatchEvent(new CustomEvent('open-withdrawal-modal', { detail: {} }));
     };
 
-    // Offline buffer: localStorage write-ahead log
-    var PENDING_KEY = 'bbs_pending_saves';
+    // Offline buffer: localStorage write-ahead log scoped to the active actor, tenant, branch, and business date.
+    var PENDING_STORAGE_PREFIX = 'daily-ledger:pending-saves';
+    var LEGACY_PENDING_PREFIX = 'bbs_pending_saves';
+    var PENDING_SCHEMA_VERSION = 2;
+    var PENDING_ALLOWED_FIELDS = ['beg_bal', 'addtl', 'withdraw', 'bal_end'];
+    var PENDING_TENANT_SCOPE = String(window.DL_TENANT_SCOPE || 'tenant');
+    var PENDING_ACTOR_SCOPE = String(window.DL_USER_ID || 'anonymous');
+    var PENDING_KEY = [
+        PENDING_STORAGE_PREFIX,
+        PENDING_TENANT_SCOPE,
+        PENDING_ACTOR_SCOPE,
+        BRANCH_ID || 'branch',
+        LEDGER_DATE || 'date'
+    ].join(':');
+    var QUARANTINE_KEY = [PENDING_STORAGE_PREFIX, 'quarantine', PENDING_TENANT_SCOPE, PENDING_ACTOR_SCOPE].join(':');
+
+    function readStoredArray(key) {
+        try {
+            var parsed = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
 
     function getPending() {
-        try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); }
-        catch(e) { return []; }
+        return readStoredArray(PENDING_KEY);
     }
     function setPending(arr) {
+        if (!Array.isArray(arr) || arr.length === 0) {
+            localStorage.removeItem(PENDING_KEY);
+            return;
+        }
         localStorage.setItem(PENDING_KEY, JSON.stringify(arr));
+    }
+    function getQuarantinedPending() {
+        return readStoredArray(QUARANTINE_KEY);
+    }
+    function setQuarantinedPending(arr) {
+        if (!Array.isArray(arr) || arr.length === 0) {
+            localStorage.removeItem(QUARANTINE_KEY);
+            return;
+        }
+        localStorage.setItem(QUARANTINE_KEY, JSON.stringify(arr.slice(-200)));
+    }
+    function buildPendingPayload(productId, field, value) {
+        return {
+            schema_version: PENDING_SCHEMA_VERSION,
+            module: 'daily-ledger',
+            tenant_scope: PENDING_TENANT_SCOPE,
+            actor_id: PENDING_ACTOR_SCOPE,
+            branch_id: BRANCH_ID || '',
+            date: LEDGER_DATE,
+            product_id: String(productId || ''),
+            field: String(field || ''),
+            value: parseInt(value, 10) || 0,
+            created_at: new Date().toISOString()
+        };
+    }
+    function normalizePendingEntry(payload) {
+        if (!payload || typeof payload !== 'object') return null;
+        if (parseInt(payload.schema_version, 10) !== PENDING_SCHEMA_VERSION) return null;
+        if (String(payload.module || '') !== 'daily-ledger') return null;
+        if (String(payload.tenant_scope || '') !== PENDING_TENANT_SCOPE) return null;
+        if (String(payload.actor_id || '') !== PENDING_ACTOR_SCOPE) return null;
+        if (String(payload.branch_id || '') !== String(BRANCH_ID || '')) return null;
+        if (String(payload.date || '') !== String(LEDGER_DATE || '')) return null;
+        if (PENDING_ALLOWED_FIELDS.indexOf(String(payload.field || '')) === -1) return null;
+        if (String(payload.product_id || '').trim() === '') return null;
+        return buildPendingPayload(payload.product_id, payload.field, payload.value);
+    }
+    function quarantinePendingEntries(entries, reason, sourceKey) {
+        if (!Array.isArray(entries) || entries.length === 0) return 0;
+        var stale = getQuarantinedPending();
+        var quarantinedAt = new Date().toISOString();
+        entries.forEach(function(entry) {
+            stale.push({
+                reason: reason,
+                source_key: sourceKey,
+                quarantined_at: quarantinedAt,
+                payload: entry
+            });
+        });
+        setQuarantinedPending(stale);
+        return entries.length;
+    }
+    function listPendingKeys() {
+        var keys = [];
+        try {
+            for (var i = 0; i < localStorage.length; i++) {
+                var key = localStorage.key(i);
+                if (!key) continue;
+                if (key.indexOf(PENDING_STORAGE_PREFIX) === 0 || key === LEGACY_PENDING_PREFIX || key.indexOf(LEGACY_PENDING_PREFIX + ':') === 0) {
+                    keys.push(key);
+                }
+            }
+        } catch (e) {
+            return [];
+        }
+        return keys;
+    }
+    function shouldQueueServerFailure(res) {
+        var error = String((res && res.error) || '');
+        if (error === '') return true;
+        return [
+            'Branch not authorized',
+            'Reference only',
+            'Invalid input',
+            'Value out of bounds',
+            'Day is closed',
+            'cannot override',
+            'Auth required'
+        ].every(function(fragment) {
+            return error.indexOf(fragment) === -1;
+        });
+    }
+    function syncPendingStorage() {
+        var keys = listPendingKeys();
+        var quarantinedCount = 0;
+        keys.forEach(function(key) {
+            if (key === QUARANTINE_KEY) return;
+            var entries = readStoredArray(key);
+            if (key !== PENDING_KEY) {
+                if (entries.length > 0) {
+                    quarantinedCount += quarantinePendingEntries(entries, key.indexOf(LEGACY_PENDING_PREFIX) === 0 ? 'legacy-key' : 'scope-mismatch', key);
+                }
+                localStorage.removeItem(key);
+                return;
+            }
+            var valid = [];
+            var invalid = [];
+            entries.forEach(function(entry) {
+                var normalized = normalizePendingEntry(entry);
+                if (normalized) {
+                    valid.push(normalized);
+                } else {
+                    invalid.push(entry);
+                }
+            });
+            if (invalid.length > 0) {
+                quarantinedCount += quarantinePendingEntries(invalid, 'schema-mismatch', key);
+            }
+            setPending(valid);
+        });
+        renderPendingWarning();
+        return quarantinedCount;
+    }
+    function renderPendingWarning() {
+        var box = document.getElementById('pending-save-warning');
+        var text = document.getElementById('pending-save-warning-text');
+        if (!box || !text) return;
+        var count = getQuarantinedPending().length;
+        box.classList.toggle('hidden', count === 0);
+        if (count > 0) {
+            text.textContent = count + ' stale offline save' + (count === 1 ? '' : 's') + ' were quarantined and will not be retried automatically.';
+        }
+    }
+    window.clearQuarantinedPending = function() {
+        var count = getQuarantinedPending().length;
+        localStorage.removeItem(QUARANTINE_KEY);
+        renderPendingWarning();
+        if (count > 0 && window.showToast) {
+            window.showToast('Cleared ' + count + ' stale offline save' + (count === 1 ? '' : 's') + '.', 'success');
+        }
     }
 
     // Compute sales = beg_bal + addtl - withdraw - bal_end
@@ -247,7 +412,7 @@
         updateGlobalStatus('pending');
 
         // Recompute sales display immediately
-        var sales = computeSales(productId);
+        computeSales(productId);
 
         // Save the changed field
         doSave(productId, field, value)
@@ -257,27 +422,31 @@
                 input.classList.add('saved');
                 setTimeout(function() { input.classList.remove('saved'); }, 1500);
                 removePending(productId, field);
-                // Also save the computed sales value to DB
-                doSave(productId, 'sales', sales).catch(function() {});
             } else {
                 input.classList.add('error');
-                addPending({ product_id: productId, field: field, value: value, date: LEDGER_DATE });
+                if (shouldQueueServerFailure(res)) {
+                    addPending(buildPendingPayload(productId, field, value));
+                } else {
+                    quarantinePendingEntries([buildPendingPayload(productId, field, value)], 'server-rejected', PENDING_KEY);
+                    renderPendingWarning();
+                }
             }
             updateGlobalStatus(getPending().length > 0 ? 'pending' : 'saved');
         })
         .catch(function() {
             input.classList.remove('saving');
             input.classList.add('error');
-            addPending({ product_id: productId, field: field, value: value, date: LEDGER_DATE });
+            addPending(buildPendingPayload(productId, field, value));
             updateGlobalStatus('pending');
         });
     }
 
     function addPending(payload) {
         var list = getPending();
-        // Replace existing entry for same product+field+date
+        payload = normalizePendingEntry(payload) || buildPendingPayload(payload.product_id, payload.field, payload.value);
+        // Replace existing entry for same product+field+branch+date
         list = list.filter(function(p) {
-            return !(p.product_id == payload.product_id && p.field == payload.field && p.date == payload.date);
+            return !(p.product_id == payload.product_id && p.field == payload.field && p.branch_id == payload.branch_id && p.date == payload.date);
         });
         list.push(payload);
         setPending(list);
@@ -285,7 +454,7 @@
 
     function removePending(productId, field) {
         var list = getPending().filter(function(p) {
-            return !(p.product_id == productId && p.field == field && p.date == LEDGER_DATE);
+            return !(p.product_id == productId && p.field == field && p.branch_id == BRANCH_ID && p.date == LEDGER_DATE);
         });
         setPending(list);
     }
@@ -310,6 +479,12 @@
         updateGlobalStatus('pending');
 
         list.forEach(function(payload) {
+            if (normalizePendingEntry(payload) === null) {
+                quarantinePendingEntries([payload], 'schema-mismatch', PENDING_KEY);
+                removePending(payload.product_id, payload.field);
+                renderPendingWarning();
+                return;
+            }
             fetch(BASE + '/api/v1/cashier/ledger/save', {
                 method: 'POST',
                 credentials: 'same-origin',
@@ -325,6 +500,10 @@
                 if (res.ok) {
                     removePending(payload.product_id, payload.field);
                     if (getPending().length === 0) updateGlobalStatus('saved');
+                } else if (!shouldQueueServerFailure(res)) {
+                    quarantinePendingEntries([payload], 'server-rejected', PENDING_KEY);
+                    removePending(payload.product_id, payload.field);
+                    renderPendingWarning();
                 }
             })
             .catch(function() {});
@@ -369,7 +548,7 @@
         .then(function(res) {
             if (res.ok) {
                 showToast('Day closed successfully');
-                setTimeout(function() { window.location.href = BASE + '/ledger?branch_id=' + BRANCH_ID + '&date=' + LEDGER_DATE; }, 800);
+                setTimeout(function() { window.refreshMainContent(); }, 800);
             } else {
                 btn.disabled = false;
                 btn.textContent = 'Close Day';
@@ -400,7 +579,7 @@
         .then(function(res) {
             if (res.ok) {
                 showToast('Day reopened');
-                setTimeout(function() { window.location.href = BASE + '/ledger?branch_id=' + BRANCH_ID + '&date=' + LEDGER_DATE; }, 800);
+                setTimeout(function() { window.refreshMainContent(); }, 800);
             } else {
                 showToast(res.error || 'Failed to reopen');
             }
@@ -418,8 +597,16 @@
         });
     }
 
-    // On page load, retry any pending offline saves
-    document.addEventListener('DOMContentLoaded', retryPending);
+    function initializePendingQueue() {
+        syncPendingStorage();
+        retryPending();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializePendingQueue);
+    } else {
+        initializePendingQueue();
+    }
 
     function printCashierLedger() {
         var rows = Array.from(document.querySelectorAll('#ledger-body tr[data-product-id]'));

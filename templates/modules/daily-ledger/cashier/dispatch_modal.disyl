@@ -208,9 +208,7 @@ function dispatchModal() {
                     this.closeModal();
                     var body = document.getElementById('ledger-body');
                     if (body && window.htmx) {
-                        window.htmx.trigger(body, 'load');
-                    } else {
-                        window.location.reload();
+                        window.refreshMainContent();
                     }
                 } else {
                     this.errorMsg = (data && data.error) || 'Failed to save dispatch.';

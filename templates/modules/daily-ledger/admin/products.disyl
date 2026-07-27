@@ -317,7 +317,7 @@
         .then(function(res) {
             if (res.ok) {
                 showToast('Product added (SKU: ' + res.sku + ')');
-                setTimeout(function() { window.location.reload(); }, 600);
+                setTimeout(function() { window.refreshMainContent(); }, 600);
             } else {
                 showToast(res.error || 'Failed');
                 btn.disabled = false; btn.textContent = 'Add Product';
@@ -349,7 +349,7 @@
         .then(function(res) {
             if (res.ok) {
                 showToast('Product updated');
-                setTimeout(function() { window.location.reload(); }, 600);
+                setTimeout(function() { window.refreshMainContent(); }, 600);
             } else {
                 showToast(res.error || 'Failed');
                 btn.disabled = false; btn.textContent = 'Save Changes';
@@ -380,7 +380,7 @@
         .then(function(res) {
             if (res.ok) {
                 showToast(res.message || 'Import successful');
-                setTimeout(function() { window.location.reload(); }, 800);
+                setTimeout(function() { window.refreshMainContent(); }, 800);
             } else {
                 showToast(res.error || 'Import failed');
                 btn.disabled = false; btn.textContent = originalText;

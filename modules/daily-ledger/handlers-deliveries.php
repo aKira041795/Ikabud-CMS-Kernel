@@ -66,6 +66,39 @@ function dl_resolveProductSupplySource(int $branchId, int $productId): array
 
 // ─── Phase B: Delivery + Receiving handlers ───────────────────────────────
 
+function dl_deliveryBranchAuthorized(array $user, string $type, ?int $branchId): bool
+{
+    if (!in_array($type, ['branch', 'commissary'], true)) {
+        return true;
+    }
+    if ($branchId === null || $branchId <= 0) {
+        return false;
+    }
+    return in_array($branchId, dl_accessibleBranchIds($user), true);
+}
+
+function dl_deliveryRecordAuthorized(array $user, array $delivery): bool
+{
+    $originType = (string)($delivery['origin_type'] ?? '');
+    $destinationType = (string)($delivery['destination_type'] ?? '');
+    $hasBranchScope = in_array($originType, ['branch', 'commissary'], true)
+        || $destinationType === 'branch';
+
+    if (!$hasBranchScope && (string)($user['role'] ?? '') !== 'admin') {
+        return false;
+    }
+
+    return dl_deliveryBranchAuthorized(
+        $user,
+        $originType,
+        isset($delivery['origin_id']) ? (int)$delivery['origin_id'] : null
+    ) && dl_deliveryBranchAuthorized(
+        $user,
+        $destinationType,
+        isset($delivery['destination_id']) ? (int)$delivery['destination_id'] : null
+    );
+}
+
 function dl_normalizeDeliveryItems(array $items): array
 {
     $clean = [];
@@ -507,18 +540,10 @@ function apiCreateDelivery(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    $user = dlCurrentUser();
+    $user = dlCurrentUser(['admin', 'supervisor']);
     $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $idempotencyKey = trim((string)($input['idempotency_key'] ?? ''));
-
-    if ($idempotencyKey !== '') {
-        $cachedResponse = dl_loadIdempotentResponse('create_delivery', $idempotencyKey);
-        if (is_array($cachedResponse)) {
-            $ctx->json($cachedResponse);
-            return;
-        }
-    }
 
     $originType = (string)($input['origin_type'] ?? '');
     $originId   = isset($input['origin_id']) ? (int)$input['origin_id'] : null;
@@ -536,6 +561,25 @@ function apiCreateDelivery(array $params = []): void
     if (!in_array($originType, $allowedOrigins, true) || !in_array($destType, $allowedDests, true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid origin or destination type'], 422);
         return;
+    }
+    if (!dl_deliveryBranchAuthorized($user, $originType, $originId)
+        || !dl_deliveryBranchAuthorized($user, $destType, $destId)) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    if (!in_array($originType, ['branch', 'commissary'], true)
+        && $destType !== 'branch'
+        && (string)($user['role'] ?? '') !== 'admin') {
+        $ctx->json(['ok' => false, 'error' => 'Branch-scoped delivery required'], 403);
+        return;
+    }
+    $idempotencyScope = 'create_delivery:' . $userId;
+    if ($idempotencyKey !== '') {
+        $cachedResponse = dl_loadIdempotentResponse($idempotencyScope, $idempotencyKey);
+        if (is_array($cachedResponse)) {
+            $ctx->json($cachedResponse);
+            return;
+        }
     }
     if (count($items) === 0) {
         $ctx->json(['ok' => false, 'error' => 'At least one item is required'], 422);
@@ -609,7 +653,7 @@ function apiCreateDelivery(array $params = []): void
                 'recovery_reason' => $recoveryReason !== '' ? $recoveryReason : null,
             ]);
         $response = ['ok' => true, 'delivery_id' => $deliveryId, 'status' => 'draft'];
-        dl_storeIdempotentResponse('create_delivery', $idempotencyKey, $response);
+        dl_storeIdempotentResponse($idempotencyScope, $idempotencyKey, $response);
         $ctx->json($response);
     } catch (\Throwable $e) {
         if ($ctx->db()->inTransaction()) {
@@ -624,7 +668,7 @@ function apiPostDelivery(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    $user = dlCurrentUser();
+    $user = dlCurrentUser(['admin', 'supervisor']);
     $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $deliveryId = (int)($input['delivery_id'] ?? 0);
@@ -636,6 +680,11 @@ function apiPostDelivery(array $params = []): void
         $stmt->execute([':id' => $deliveryId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) { throw new \RuntimeException('Delivery not found'); }
+        if (!dl_deliveryRecordAuthorized($user, $row)) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
         if ($row['status'] !== 'draft') { throw new \RuntimeException('Only draft deliveries can be posted'); }
         if ((string)$row['destination_type'] === 'branch' && !dl_isFormalDeliveryEnabled()) {
             throw new \RuntimeException('Formal Delivery Workflow is disabled for branch deliveries.');
@@ -692,6 +741,10 @@ function apiPostDelivery(array $params = []): void
         $ctx->json(['ok' => true]);
     } catch (\Throwable $e) {
         $ctx->db()->rollBack();
+        $ctx->log('apiPostDelivery: ' . $e->getMessage(), 'error', [
+            'delivery_id' => $deliveryId,
+            'user_sub' => $user['sub'] ?? null,
+        ]);
         $ctx->json(['ok' => false, 'error' => $e->getMessage()], 400);
     }
 }
@@ -701,21 +754,36 @@ function apiVoidDelivery(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser(['admin','supervisor']);
-    $userId = (int)($user['sub'] ?? 0);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $deliveryId = (int)($input['delivery_id'] ?? 0);
     $reason = trim((string)($input['reason'] ?? ''));
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
 
+    $ctx->db()->beginTransaction();
     try {
-        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, destination_type, delivery_date, remarks, status FROM dl_deliveries WHERE id = :id');
+        $stmt = $ctx->db()->prepare('SELECT id, origin_type, origin_id, destination_type, destination_id, delivery_date, remarks, status FROM dl_deliveries WHERE id = :id FOR UPDATE');
         $stmt->execute([':id' => $deliveryId]);
         $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        if (!$delivery) { $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404); return; }
+        if (!$delivery) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404);
+            return;
+        }
+        if (!dl_deliveryRecordAuthorized($user, $delivery)) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
         $status = (string)($delivery['status'] ?? '');
-        if ($status === 'voided') { $ctx->json(['ok' => true]); return; }
+        if ($status === 'voided') {
+            $ctx->db()->commit();
+            $ctx->json(['ok' => true]);
+            return;
+        }
 
         if ((string)($delivery['destination_type'] ?? '') === 'branch' && dl_deliveryHasActiveReceivings($ctx->db(), $deliveryId)) {
+            $ctx->db()->rollBack();
             $ctx->json(['ok' => false, 'error' => 'Cannot void a delivery that already has a receiving. Void the receiving first.'], 422);
             return;
         }
@@ -740,13 +808,21 @@ function apiVoidDelivery(array $params = []): void
         }
 
         $ctx->db()->prepare(
-            'UPDATE dl_deliveries SET status = "voided", voided_by = :u, voided_at = NOW() WHERE id = :id'
+            'UPDATE dl_deliveries SET status = "voided", voided_by = :u, voided_at = NOW() WHERE id = :id AND status <> "voided"'
         )->execute([':u' => $userId ?: null, ':id' => $deliveryId]);
 
+        $ctx->db()->commit();
         dl_auditLog('delivery_voided', null, 'dl_deliveries', (string)$deliveryId,
             ['status' => $status], ['status' => 'voided'], $reason ?: null);
         $ctx->json(['ok' => true]);
     } catch (\Throwable $e) {
+        if ($ctx->db()->inTransaction()) {
+            $ctx->db()->rollBack();
+        }
+        $ctx->log('apiVoidDelivery: ' . $e->getMessage(), 'error', [
+            'delivery_id' => $deliveryId,
+            'user_sub' => $user['sub'] ?? null,
+        ]);
         $ctx->json(['ok' => false, 'error' => 'Database error'], 500);
     }
 }
@@ -774,7 +850,8 @@ function apiReviewDeliveryProvenance(array $params = []): void
     }
 
     $stmt = $ctx->db()->prepare(
-        'SELECT id, destination_id, remarks, provenance_status, provenance_review_note
+        'SELECT id, origin_type, origin_id, destination_type, destination_id,
+                remarks, provenance_status, provenance_review_note
            FROM dl_deliveries
           WHERE id = :id
           LIMIT 1'
@@ -783,6 +860,10 @@ function apiReviewDeliveryProvenance(array $params = []): void
     $delivery = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     if (!$delivery) {
         $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404);
+        return;
+    }
+    if (!dl_deliveryRecordAuthorized($user, $delivery)) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
         return;
     }
     if (!dl_isPaperDrCapturedDelivery($delivery)) {
@@ -825,7 +906,13 @@ function apiListDeliveries(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    dlCurrentUser();
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $accessibleBranchIds = $authResult['accessible'];
     $status = (string)($_GET['status'] ?? '');
     $destType = (string)($_GET['destination_type'] ?? '');
     $destId   = isset($_GET['destination_id']) ? (int)$_GET['destination_id'] : 0;
@@ -833,6 +920,30 @@ function apiListDeliveries(array $params = []): void
 
     $where = [];
     $bind = [];
+
+    // Admins own the tenant-wide operational view; other roles are branch-scoped.
+    if ((string)($user['role'] ?? '') !== 'admin') {
+        if (count($accessibleBranchIds) === 0) {
+            $where[] = '1 = 0';
+        } else {
+            $originPlaceholders = [];
+            $destinationPlaceholders = [];
+            foreach (array_values($accessibleBranchIds) as $index => $accessibleBranchId) {
+                $originKey = ':origin_branch_' . $index;
+                $destinationKey = ':destination_branch_' . $index;
+                $originPlaceholders[] = $originKey;
+                $destinationPlaceholders[] = $destinationKey;
+                $bind[$originKey] = (int)$accessibleBranchId;
+                $bind[$destinationKey] = (int)$accessibleBranchId;
+            }
+            $where[] = "((d.origin_type IN ('branch', 'commissary') AND d.origin_id IN ("
+                . implode(',', $originPlaceholders)
+                . ")) OR (d.destination_type = 'branch' AND d.destination_id IN ("
+                . implode(',', $destinationPlaceholders)
+                . ')))';
+        }
+    }
+
     $hasReceivingSql = 'EXISTS (
         SELECT 1
           FROM dl_branch_receivings br
@@ -891,9 +1002,26 @@ function apiGetDeliveryReceivingDetail(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $deliveryId = (int)($_GET['delivery_id'] ?? 0);
     if ($deliveryId <= 0) { $ctx->json(['ok' => false, 'error' => 'delivery_id required'], 422); return; }
+
+    $deliveryStmt = $ctx->db()->prepare(
+        'SELECT origin_type, origin_id, destination_type, destination_id
+           FROM dl_deliveries
+          WHERE id = :id
+          LIMIT 1'
+    );
+    $deliveryStmt->execute([':id' => $deliveryId]);
+    $delivery = $deliveryStmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$delivery) {
+        $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404);
+        return;
+    }
+    if (!dl_deliveryRecordAuthorized($user, $delivery)) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
 
     // Get the latest non-voided receiving for this delivery
     $rcvStmt = $ctx->db()->prepare(
@@ -945,11 +1073,16 @@ function apiCreateReceiving(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled.'], 403);
         return;
     }
-    $user = dlCurrentUser();
-    $userId = (int)($user['sub'] ?? 0);
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $userId = dl_getActorUserId($user);
     $input = (array)json_decode(file_get_contents('php://input'), true);
 
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     if ($branchId <= 0) { $ctx->json(['ok' => false, 'error' => 'Missing branch'], 422); return; }
 
     $deliveryId = isset($input['delivery_id']) ? (int)$input['delivery_id'] : null;
@@ -965,6 +1098,16 @@ function apiCreateReceiving(array $params = []): void
         $h->execute([':id' => $deliveryId]);
         $del = $h->fetch(PDO::FETCH_ASSOC);
         if (!$del) { $ctx->json(['ok' => false, 'error' => 'Delivery not found'], 404); return; }
+        if (!dl_deliveryRecordAuthorized($user, $del)
+            || (string)($del['destination_type'] ?? '') !== 'branch'
+            || (int)($del['destination_id'] ?? 0) !== $branchId) {
+            $ctx->json(['ok' => false, 'error' => 'Delivery is not authorized for this branch'], 403);
+            return;
+        }
+        if ((string)($del['status'] ?? '') !== 'posted') {
+            $ctx->json(['ok' => false, 'error' => 'Only posted deliveries can be received'], 422);
+            return;
+        }
         $originType = (string)$del['origin_type'];
         $originId   = $del['origin_id'] !== null ? (int)$del['origin_id'] : null;
         $drNumber   = $del['dr_number'] ?: $drNumber;
@@ -1091,7 +1234,7 @@ function apiPostReceiving(array $params = []): void
         $ctx->json(['ok' => false, 'error' => 'Formal Delivery Workflow is disabled.'], 403);
         return;
     }
-    $user = dlCurrentUser();
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
     $userId = (int)($user['sub'] ?? 0);
     $input = (array)json_decode(file_get_contents('php://input'), true);
     $rcvId = (int)($input['receiving_id'] ?? 0);
@@ -1103,6 +1246,11 @@ function apiPostReceiving(array $params = []): void
         $stmt->execute([':id' => $rcvId]);
         $head = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$head) { throw new \RuntimeException('Receiving not found'); }
+        if (!in_array((int)$head['branch_id'], dl_accessibleBranchIds($user), true)) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
         if ($head['status'] !== 'draft') { throw new \RuntimeException('Only draft receivings can be posted'); }
 
         $branchId = (int)$head['branch_id'];
@@ -1152,6 +1300,11 @@ function apiVoidReceiving(array $params = []): void
         $stmt->execute([':id' => $rcvId]);
         $head = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$head) { throw new \RuntimeException('Receiving not found'); }
+        if (!in_array((int)$head['branch_id'], dl_accessibleBranchIds($user), true)) {
+            $ctx->db()->rollBack();
+            $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+            return;
+        }
         if ($head['status'] === 'voided') { $ctx->db()->commit(); $ctx->json(['ok' => true]); return; }
 
         if ($head['status'] === 'posted') {
@@ -1182,8 +1335,13 @@ function apiListReceivings(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    $user = dlCurrentUser();
-    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $status = (string)($_GET['status'] ?? '');
 
     $where = [];
@@ -1217,6 +1375,11 @@ function apiBranchProductSupplyRuleUpsert(array $params = []): void
     $isActive = isset($input['is_active']) ? (int)(bool)$input['is_active'] : 1;
 
     if ($branchId <= 0 || $productId <= 0) { $ctx->json(['ok' => false, 'error' => 'branch_id and product_id required'], 422); return; }
+    $authResult = dl_authorizeBranch($user, ['branch_id' => $branchId]);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
     if (!in_array($sourceType, ['commissary','local_production','direct_purchase','manual'], true)) {
         $ctx->json(['ok' => false, 'error' => 'Invalid supply_source_type'], 422);
         return;
@@ -1258,9 +1421,14 @@ function apiBranchProductSupplyRuleList(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    dlCurrentUser();
+    $user = dlCurrentUser(['admin', 'supervisor']);
     $branchId = (int)($_GET['branch_id'] ?? 0);
     if ($branchId <= 0) { $ctx->json(['ok' => true, 'rules' => []]); return; }
+    $authResult = dl_authorizeBranch($user, ['branch_id' => $branchId]);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
 
     $stmt = $ctx->db()->prepare(
         'SELECT r.id, r.product_id, p.name AS product_name, r.supply_source_type, r.source_id, r.is_active
@@ -1279,7 +1447,7 @@ function apiPriceGroupList(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    dlCurrentUser();
+    dlCurrentUser(['admin', 'supervisor']);
     $stmt = $ctx->db()->query('SELECT id, name, type, is_default, is_active FROM dl_price_groups ORDER BY is_default DESC, name');
     $ctx->json(['ok' => true, 'groups' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: []]);
 }
@@ -1375,7 +1543,7 @@ function apiProductPriceList(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    dlCurrentUser();
+    dlCurrentUser(['admin', 'supervisor']);
     $productId = (int)($_GET['product_id'] ?? 0);
     $groupId = (int)($_GET['price_group_id'] ?? 0);
     $where = ['is_active = 1'];
@@ -1445,8 +1613,10 @@ function dl_branchConsolidatedSummary(int $branchId, string $date): array
         return ['regular_sales' => 0.0, 'regular_qty' => 0, 'total_sales' => 0.0];
     }
 
+    $salesExpr = dl_ledgerSalesQuantitySql('dl');
+    $amountExpr = dl_ledgerSalesAmountSql('dl');
     $regStmt = $ctx->db()->prepare(
-        'SELECT COALESCE(SUM(sales),0) AS qty, COALESCE(SUM(sales * price_snapshot),0) AS amt
+        'SELECT COALESCE(SUM(' . $salesExpr . '),0) AS qty, COALESCE(SUM(' . $amountExpr . '),0) AS amt
            FROM dl_daily_ledger WHERE branch_id = :b AND ledger_date = :d'
     );
     $regStmt->execute([':b' => $branchId, ':d' => $date]);
@@ -1465,8 +1635,13 @@ function apiBranchConsolidatedSummary(array $params = []): void
 {
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
-    $user = dlCurrentUser();
-    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $date = (string)($_GET['date'] ?? date('Y-m-d'));
     if ($branchId <= 0) { $ctx->json(['ok' => false, 'error' => 'branch_id required'], 422); return; }
     $ctx->json(['ok' => true, 'summary' => dl_branchConsolidatedSummary($branchId, $date)]);
@@ -1489,7 +1664,12 @@ function handleAdminDeliveries(array $params = []): void
     if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
     $user = dlCurrentUser(['admin', 'supervisor', 'production_in_charge']);
 
-    $branches = $ctx->db()->query('SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branches = $ctx->db()->prepare("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches->execute($accessibleBranchIds);
+    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $products = $ctx->db()->query('SELECT id, sku, name FROM dl_products WHERE is_active = 1 ORDER BY name LIMIT 500')->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $role = (string)($user['role'] ?? '');

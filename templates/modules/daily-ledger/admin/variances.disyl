@@ -545,14 +545,14 @@
                         if (done >= total) {
                             self.selectedIds = [];
                             showToast(total + ' variance(s) set to ' + status, 'success');
-                            setTimeout(function() { location.reload(); }, 800);
+                            setTimeout(function() { window.refreshMainContent(); }, 800);
                         }
                     })
                     .catch(function() {
                         done++;
                         if (done >= total) {
                             showToast('Some updates may have failed. Reloading...', 'error');
-                            setTimeout(function() { location.reload(); }, 1200);
+                            setTimeout(function() { window.refreshMainContent(); }, 1200);
                         }
                     });
                 });

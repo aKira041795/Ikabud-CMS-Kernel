@@ -71,6 +71,11 @@ vendor/
 .windsurf/
 *.zip
 test_results/
+!test_results/
+test_results/*
+!test_results/browser/
+test_results/browser/*
+!test_results/browser/fingerprint-baseline.json
 test_results/evidence/*
 test_results/*.json
 test_results/browser/runs/

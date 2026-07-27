@@ -49,6 +49,15 @@ $h->test('dl_allowedColumn maps known field B', dl_allowedColumn('field_b', $map
 $h->test('dl_allowedColumn returns null for unknown field', dl_allowedColumn('unknown', $map) === null);
 $h->test('dl_allowedColumn returns null for empty map', dl_allowedColumn('field_a', []) === null);
 
+// ─── Derived Sales Helpers (pure logic) ─────────────────────────
+$h->section('Derived Sales Helpers');
+
+$h->test('dl_computeSalesValue calculates positive sales', dl_computeSalesValue(10, 5, 3, 4) === 8);
+$h->test('dl_computeSalesValue floors negative sales to zero', dl_computeSalesValue(1, 0, 5, 0) === 0);
+$h->test('dl_ledgerSalesQuantitySql uses sanitized alias', dl_ledgerSalesQuantitySql('bad alias') === dl_ledgerSalesQuantitySql('dl'));
+$h->test('dl_ledgerSalesQuantitySql references source columns', str_contains(dl_ledgerSalesQuantitySql('dl'), 'dl.beg_bal'));
+$h->test('dl_ledgerSalesAmountSql references price snapshot', str_contains(dl_ledgerSalesAmountSql('dl'), 'dl.price_snapshot'));
+
 // ─── Setting Type Conversion (pure logic) ───────────────────────
 $h->section('Setting Type Conversion');
 

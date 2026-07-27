@@ -508,7 +508,7 @@
             }
             msg += ' — DR ' + res.dr_number;
             showToast(msg, 'success');
-            setTimeout(function() { window.location.reload(); }, 800);
+            setTimeout(function() { window.refreshMainContent(); }, 800);
         })
         .catch(function() { showToast('Network error', 'error'); })
         .finally(function() {

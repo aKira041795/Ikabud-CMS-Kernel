@@ -603,7 +603,7 @@ function priceGroupsPage() {
                 if (j && j.ok) {
                     showToast((j && j.message) || 'Price group created', 'success');
                     this.createOpen = false;
-                    setTimeout(function() { location.reload(); }, 600);
+                    setTimeout(function() { window.refreshMainContent(); }, 600);
                 } else {
                     showToast((j && j.error) || 'Failed to create price group', 'error');
                 }

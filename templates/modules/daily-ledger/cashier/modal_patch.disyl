@@ -228,9 +228,7 @@ function withdrawalModal() {
                      var body = document.getElementById('ledger-body');
                      if (body) {
                          if (typeof htmx !== 'undefined') {
-                             htmx.trigger(body, 'load');
-                         } else {
-                             window.location.reload();
+                             window.refreshMainContent();
                          }
                      }
                 } else {

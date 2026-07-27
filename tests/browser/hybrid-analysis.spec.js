@@ -24,7 +24,11 @@
  */
 
 // @ts-check
-const { test, expect } = require('./WorkbenchFixture');
+const MODULE = process.env.MODULE || '';
+const workbenchFixture = MODULE === 'daily-ledger'
+    ? require('./modules/daily-ledger/daily-ledger-adapter')
+    : require('./WorkbenchFixture');
+const { test, expect } = workbenchFixture;
 const { ModulePageDiscovery } = require('./ModulePageDiscovery');
 const { ProcessComprehension } = require('./ProcessComprehension');
 const { ModuleDiagnostic } = require('./ModuleDiagnostic');
@@ -44,7 +48,6 @@ if (!process.env.WB_RUN_ID) {
     process.env.WB_RUN_ID = `${stamp}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
-const MODULE = process.env.MODULE || '';
 const MODULE_PATH = process.env.MODULE_PATH || path.resolve(__dirname, '../../modules', MODULE);
 const HYBRID_GATE = process.env.HYBRID_GATE || 'critical';
 
@@ -78,10 +81,24 @@ function isGateFailure(gate, severity) {
     return severity === 'critical';
 }
 
+var FINGERPRINT_FILES_BY_MODULE = {
+    'daily-ledger': [
+        'modules/daily-ledger/module.json',
+        'modules/daily-ledger/routes.php',
+        'modules/daily-ledger/workbench-contract.json',
+        'templates/modules/daily-ledger/layouts/app.disyl',
+        'templates/modules/daily-ledger/cashier/ledger.disyl'
+    ]
+};
+
 test.describe(`Hybrid Analysis: ${manifest.name || MODULE}`, () => {
 
-    test('full hybrid analysis — static → dynamic → behavioral → Bayesian', async ({ page }) => {
+    test('full hybrid analysis — static → dynamic → behavioral → Bayesian', async ({ page, integrity }) => {
         test.setTimeout(600000); // 10 min
+
+        (FINGERPRINT_FILES_BY_MODULE[MODULE] || []).forEach(function (relativePath) {
+            integrity.fingerprint(relativePath);
+        });
 
         // ════════════════════════════════════════════════════════
         // LAYER 1: Process Comprehension (static template analysis)

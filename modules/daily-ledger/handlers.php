@@ -825,32 +825,85 @@ function dl_accessibleBranchIds(array $user): array
     return $branchId ? [$branchId] : [];
 }
 
-function dl_resolveLedgerBranchId(array $user, array $input = []): int
+/**
+ * Canonical branch authorization — deny-by-default.
+ *
+ * Returns ['branch_id' => int, 'accessible' => int[]].
+ * If an explicit branch_id is provided in input/GET and it is NOT in the
+ * actor's accessible set, the response is a structured denial (caller handles
+ * 403). Never silently falls back to a different branch when the caller
+ * explicitly requested one.
+ *
+ * - Admins: accessible = all active tenant branches, default = first active.
+ * - Supervisors: accessible = assigned active branches via dl_user_branches.
+ * - Production in-charge: accessible = assigned active branches.
+ * - Cashiers: locked to single assigned branch (accessible = that branch only).
+ */
+function dl_authorizeBranch(array $user, array $input = []): array
 {
     $role = (string)($user['role'] ?? '');
-    $branchId = (int)(dl_getUserBranchId() ?? 0);
 
-    if (!in_array($role, ['admin', 'supervisor'], true)) {
-        return $branchId > 0 ? $branchId : 0;
+    // --- Build accessible set ---
+    if ($role === 'cashier') {
+        $accessible = [];
+        $branchId = dl_getUserBranchId();
+        if ($branchId) {
+            $accessible = [$branchId];
+        }
+        $requestedBranchId = 0;
+        if (!empty($input['branch_id'])) {
+            $requestedBranchId = (int)$input['branch_id'];
+        } elseif (!empty($_GET['branch_id'])) {
+            $requestedBranchId = (int)$_GET['branch_id'];
+        }
+        if ($requestedBranchId > 0 && $requestedBranchId !== (int)$branchId) {
+            return ['branch_id' => -1, 'accessible' => $accessible];
+        }
+        return ['branch_id' => $branchId ?: 0, 'accessible' => $accessible];
     }
 
+    $accessible = dl_accessibleBranchIds($user);
+    $defaultBranchId = count($accessible) > 0 ? $accessible[0] : 0;
+
+    // Check for an explicit requested branch
     $requestedBranchId = 0;
-    if (!empty($_GET['branch_id'])) {
-        $requestedBranchId = (int)$_GET['branch_id'];
-    } elseif (!empty($input['branch_id'])) {
+    if (!empty($input['branch_id'])) {
         $requestedBranchId = (int)$input['branch_id'];
+    } elseif (!empty($_GET['branch_id'])) {
+        $requestedBranchId = (int)$_GET['branch_id'];
     }
 
-    if ($requestedBranchId <= 0) {
-        return $branchId > 0 ? $branchId : 0;
+    if ($requestedBranchId > 0) {
+        if (in_array($requestedBranchId, $accessible, true)) {
+            return ['branch_id' => $requestedBranchId, 'accessible' => $accessible];
+        }
+        // Explicit unauthorized branch — deny, do not fall back
+        return ['branch_id' => -1, 'accessible' => $accessible];
     }
 
-    $accessibleBranchIds = dl_accessibleBranchIds($user);
-    if (in_array($requestedBranchId, $accessibleBranchIds, true)) {
-        return $requestedBranchId;
-    }
+    return ['branch_id' => $defaultBranchId, 'accessible' => $accessible];
+}
 
-    return $branchId > 0 ? $branchId : 0;
+/**
+ * @deprecated Use dl_authorizeBranch() instead. Kept for backward compat.
+ */
+function dl_resolveLedgerBranchId(array $user, array $input = []): int
+{
+    $result = dl_authorizeBranch($user, $input);
+    return $result['branch_id'] > 0 ? $result['branch_id'] : 0;
+}
+
+function dl_denyBranch(string $message = 'Branch not authorized'): void
+{
+    http_response_code(403);
+    $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+    if (str_starts_with($path, '/daily-ledger/api/')) {
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => false, 'error' => $message]);
+    } else {
+        echo $message;
+    }
+    exit;
 }
 
 function dl_generateMovementUuid(): string
@@ -870,6 +923,24 @@ function dl_generateMovementUuid(): string
     } catch (\Throwable $e) {
         return uniqid('dlm-', true);
     }
+}
+
+function dl_computeSalesValue(int $begBal, int $addtl, int $withdraw, int $balEnd): int
+{
+    return max(0, $begBal + $addtl - $withdraw - $balEnd);
+}
+
+function dl_ledgerSalesQuantitySql(string $alias = 'dl'): string
+{
+    $safeAlias = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) ? $alias : 'dl';
+    return "GREATEST(0, COALESCE({$safeAlias}.beg_bal,0) + COALESCE({$safeAlias}.addtl,0) - COALESCE({$safeAlias}.withdraw,0) - COALESCE({$safeAlias}.bal_end,0))";
+}
+
+function dl_ledgerSalesAmountSql(string $alias = 'dl', string $priceColumn = 'price_snapshot'): string
+{
+    $safeAlias = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) ? $alias : 'dl';
+    $safePriceColumn = preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $priceColumn) ? $priceColumn : 'price_snapshot';
+    return dl_ledgerSalesQuantitySql($safeAlias) . " * COALESCE({$safeAlias}.{$safePriceColumn},0)";
 }
 
 function dl_applyLedgerDelta(int $branchId, int $productId, string $ledgerDate, int $delta, int $actorId, string $column = 'addtl'): array
@@ -1490,7 +1561,7 @@ function dl_recomputeSales(int $branchId, int $productId, string $date, int $use
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return;
 
-        $sales = max(0, (int)$row['beg_bal'] + (int)$row['addtl'] - (int)$row['withdraw'] - (int)$row['bal_end']);
+        $sales = dl_computeSalesValue((int)$row['beg_bal'], (int)$row['addtl'], (int)$row['withdraw'], (int)$row['bal_end']);
 
         $ctx->db()->prepare(
             'UPDATE dl_daily_ledger SET sales = :sales, updated_by = :uid, updated_at = CURRENT_TIMESTAMP
@@ -2132,11 +2203,15 @@ function handleCashierLedger(array $params = []): void
     }
 
     $input = $ctx->input();
-    $branchId   = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        dl_denyBranch('Branch not authorized');
+        return;
+    }
+    $branchId   = $authResult['branch_id'];
     $today      = dl_businessDate();
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : $today;
     $branchName = $branchId ? dl_getBranchName($branchId) : 'No Branch';
-    $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== $today);
 
     if ($branchId) {
@@ -2145,18 +2220,31 @@ function handleCashierLedger(array $params = []): void
 
     $dayStatus  = $branchId ? dl_getDayStatus($branchId, $ledgerDate) : 'open';
 
-    // For supervisor/admin: get list of all branches for switcher
+    // Branch selector: only accessible branches for the current actor
     $branches = [];
-    if (in_array($role, ['admin', 'supervisor'], true)) {
-        $stmt = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name');
-        $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    if ($branchId > 0) {
+        $accessible = $authResult['accessible'];
+        if (count($accessible) > 0) {
+            $placeholders = implode(',', array_fill(0, count($accessible), '?'));
+            $stmt = $ctx->db()->prepare(
+                "SELECT id, code, name FROM dl_branches WHERE id IN ({$placeholders}) AND is_active = 1 ORDER BY name"
+            );
+            $stmt->execute($accessible);
+            $branches = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
     }
 
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $canLedgerOverride = dl_roleHasPermission($role, 'ledger.override');
-    // All active branches for dispatch dropdown
-    $stmtAll = $ctx->db()->query("SELECT id, code, name, is_commissary FROM dl_branches WHERE is_active = 1 ORDER BY name");
-    $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // All accessible branches for dispatch dropdown (branch-scoped)
+    $allBranches = [];
+    $accessible = $authResult['accessible'];
+    if (count($accessible) > 0) {
+        $placeholders = implode(',', array_fill(0, count($accessible), '?'));
+        $stmtAll = $ctx->db()->prepare("SELECT id, code, name, is_commissary FROM dl_branches WHERE id IN ({$placeholders}) AND is_active = 1 ORDER BY name");
+        $stmtAll->execute($accessible);
+        $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
     // Pending incoming deliveries (count of distinct DR groups for this branch)
     // Includes both informal transfers (dl_cashier_withdrawals) and formal DRs (dl_deliveries)
     $incomingCount = 0;
@@ -2189,6 +2277,8 @@ function handleCashierLedger(array $params = []): void
     }
 
     $clockLabel = dl_operatingClockLabel();
+    $actorId = dl_getActorUserId($user);
+    $tenantScope = (string)(app()->tenant()->current() ?? '');
     $commissaryBranchId = null;
     $commissaryBranchName = null;
     if ($branchId) {
@@ -2217,6 +2307,8 @@ function handleCashierLedger(array $params = []): void
         'page_title'  => 'Daily Ledger',
         'user_name'   => $userName,
         'user_role'   => $role,
+        'dl_user_id'  => $actorId > 0 ? $actorId : '',
+        'tenant_scope' => $tenantScope,
         'current_page'=> 'ledger',
         'base_url' => dlGetBaseUrl(),
         'dl_token'    => (string)kernelCookie(dlCookieName(), ''),
@@ -2256,7 +2348,12 @@ function handleCashierRows(array $params = []): void
     $user = dlRequireAuth(['cashier', 'supervisor', 'admin']);
     $input = $ctx->input();
     $role = (string)($user['role'] ?? '');
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($input['date']) ? (string)$input['date'] : dl_businessDate();
     $referenceOnly = ($role === 'cashier' && $ledgerDate !== dl_businessDate());
 
@@ -2309,7 +2406,12 @@ function apiGetLedgerRows(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input = $ctx->input();
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
 
     if ($branchId) {
@@ -2354,7 +2456,12 @@ function apiGetLedgerDayStatus(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input = $ctx->input();
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $ledgerDate = !empty($_GET['date']) ? (string)$_GET['date'] : (!empty($input['date']) ? (string)$input['date'] : dl_businessDate());
 
     if ($branchId) {
@@ -2376,7 +2483,12 @@ function apiGetCashierWithdrawals(array $params = []): void
         return;
     }
     $user = dlCurrentUser();
-    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $productId = isset($_GET['product_id']) ? (int)$_GET['product_id'] : 0;
     $date = $_GET['date'] ?? date('Y-m-d');
     
@@ -2401,12 +2513,12 @@ function apiSaveCashierWithdrawals(array $params = []): void
     }
     $user = dlCurrentUser();
     $input = (array)json_decode(file_get_contents('php://input'), true);
-    $branchId = isset($input['branch_id']) ? (int)$input['branch_id'] : 0;
-    if ($branchId <= 0) {
-        $ctx->json(['ok' => false, 'error' => 'Missing branch_id. Ensure the page is loaded with a valid branch selected.'], 422);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
         return;
     }
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $branchId = $authResult['branch_id'];
     if ($branchId <= 0) {
         $ctx->json(['ok' => false, 'error' => 'Unable to resolve branch. Verify your branch assignment.'], 422);
         return;
@@ -2710,7 +2822,12 @@ function apiCreateCashierDispatch(array $params = []): void
     }
 
     $input = (array)json_decode(file_get_contents('php://input'), true);
-    $originBranchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $originBranchId = $authResult['branch_id'];
     $deliveryDate = (string)($input['delivery_date'] ?? dl_businessDate());
     $drNumber = trim((string)($input['dr_number'] ?? ''));
     $destType = (string)($input['destination_type'] ?? 'branch');
@@ -2846,7 +2963,12 @@ function apiGetIncomingDeliveries(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser();
-    $branchId = dl_resolveLedgerBranchId($user, $_GET);
+    $authResult = dl_authorizeBranch($user, $_GET);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     if (!$branchId) { $ctx->json(['ok' => true, 'deliveries' => []]); return; }
 
     $drFilter = isset($_GET['dr_number']) ? trim((string)$_GET['dr_number']) : '';
@@ -2959,7 +3081,12 @@ function apiReceiveDelivery(array $params = []): void
     if (!$ctx) { http_response_code(500); return; }
     $user = dlCurrentUser();
     $input = (array)json_decode(file_get_contents('php://input'), true);
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $ids = array_values(array_filter(array_map('intval', (array)($input['withdrawal_ids'] ?? []))));
     $deliveryIds = array_values(array_filter(array_map('intval', (array)($input['delivery_ids'] ?? []))));
 
@@ -3091,7 +3218,12 @@ function apiReceivePaperDelivery(array $params = []): void
     $user = dlCurrentUser();
 
     $input = (array)json_decode(file_get_contents('php://input'), true);
-    $destinationBranchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $destinationBranchId = $authResult['branch_id'];
     $originType = (string)($input['origin_type'] ?? 'commissary');
     $originId = isset($input['origin_id']) && $input['origin_id'] !== '' ? (int)$input['origin_id'] : null;
     $drNumber = trim((string)($input['dr_number'] ?? ''));
@@ -3254,7 +3386,12 @@ function apiSaveLedgerField(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input     = $ctx->input();
-    $branchId  = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId  = $authResult['branch_id'];
     $productId = (int)($input['product_id'] ?? 0);
     $field     = (string)($input['field'] ?? '');
     $value     = (int)($input['value'] ?? 0);
@@ -3284,13 +3421,12 @@ function apiSaveLedgerField(array $params = []): void
         dl_maybeAutoCloseBranchDay($branchId, $userId);
     }
 
-    // Validate field name and value
+    // Validate field name and value — sales is derived, never client-writable
     $fieldMap = [
         'beg_bal' => 'beg_bal',
         'addtl' => 'addtl',
         'withdraw' => 'withdraw',
         'bal_end' => 'bal_end',
-        'sales' => 'sales',
     ];
     $column = dl_allowedColumn($field, $fieldMap);
     if ($column === null || !$branchId || !$productId) {
@@ -3457,7 +3593,12 @@ function apiSaveLedgerBatch(array $params = []): void
     }
 
     $role = (string)($user['role'] ?? '');
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
 
     if ($branchId) {
         dl_maybeAutoCloseBranchDay($branchId, $userId);
@@ -3469,7 +3610,12 @@ function apiSaveLedgerBatch(array $params = []): void
         return;
     }
 
-    $isReadOnly = ($role === 'cashier' && $date > dl_businessDate());
+    $isReadOnly = ($role === 'cashier' && $date !== dl_businessDate());
+    if ($isReadOnly) {
+        header('HX-Trigger: ' . json_encode(['showToast' => ['message' => 'Reference only', 'type' => 'error']]));
+        $ctx->json(['ok' => false, 'error' => 'Reference only'], 403);
+        return;
+    }
 
     // Validate payload and normalize
     $normalized = [];
@@ -3973,7 +4119,12 @@ function apiCloseDay(array $params = []): void
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin']);
 
     $input = $ctx->input();
-    $branchId = dl_resolveLedgerBranchId($user, $input);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $date     = (string)($input['date'] ?? dl_businessDate());
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
@@ -4030,7 +4181,12 @@ function apiReopenDay(array $params = []): void
     }
 
     $input = $ctx->input();
-    $branchId = (int)($input['branch_id'] ?? 0);
+    $authResult = dl_authorizeBranch($user, $input);
+    if ($authResult['branch_id'] < 0) {
+        $ctx->json(['ok' => false, 'error' => 'Branch not authorized'], 403);
+        return;
+    }
+    $branchId = $authResult['branch_id'];
     $date     = (string)($input['date'] ?? '');
     $userId = dl_getActorUserId($user);
     if ($userId <= 0) {
@@ -4076,7 +4232,14 @@ function handleAdminDashboard(array $params = []): void
     $user = dlCurrentUser(['admin', 'supervisor']);
 
     $today    = dl_businessDate();
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) {
+        $accessibleBranchIds = [0]; // Ensure empty result
+    }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches->execute($accessibleBranchIds);
+    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
     dl_maybeAutoCloseBranches(array_column($branches, 'id'), dl_getActorUserId($user));
 
     // Today's sales per branch — computed: sales = beg_bal + addtl - withdraw - bal_end
@@ -4087,18 +4250,18 @@ function handleAdminDashboard(array $params = []): void
                 COUNT(DISTINCT dl.product_id) AS product_count
          FROM dl_daily_ledger dl
          INNER JOIN dl_branches b ON b.id = dl.branch_id
-         WHERE dl.ledger_date = :d
+         WHERE dl.ledger_date = ? AND dl.branch_id IN (' . $branchPlaceholders . ')
          GROUP BY dl.branch_id
          ORDER BY b.name'
     );
-    $salesStmt->execute([':d' => $today]);
+    $salesStmt->execute(array_merge([$today], $accessibleBranchIds));
     $todaySales = $salesStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    // Day status per branch
+    // Day status per branch — filtered to accessible branches
     $statusStmt = $ctx->db()->prepare(
-        'SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = :d'
+        "SELECT branch_id, status FROM dl_ledger_day_status WHERE ledger_date = ? AND branch_id IN ({$branchPlaceholders})"
     );
-    $statusStmt->execute([':d' => $today]);
+    $statusStmt->execute(array_merge([$today], $accessibleBranchIds));
     $dayStatuses = [];
     foreach ($statusStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $s) {
         $dayStatuses[(int)$s['branch_id']] = $s['status'];
@@ -4148,7 +4311,8 @@ function handleAdminDashboard(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $stmtAll->execute($accessibleBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $clockLabel = dl_operatingClockLabel();
@@ -4229,27 +4393,37 @@ function handleAdminSales(array $params = []): void
         ['value' => 'variance', 'label' => 'Variance'],
     ];
 
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches->execute($accessibleBranchIds);
+    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Sales data with computed sales and amount (admin can see these)
+    $salesExpr = dl_ledgerSalesQuantitySql('dl');
+    $amountExpr = dl_ledgerSalesAmountSql('dl');
     $sql = 'SELECT dl.ledger_date, p.name AS product_name, p.sku, b.name AS branch_name,
                    dl.beg_bal, dl.addtl, dl.withdraw, dl.bal_end,
-                   GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end) AS sales,
+                   ' . $salesExpr . ' AS sales,
                    dl.price_snapshot,
-                   (GREATEST(0, dl.beg_bal + dl.addtl - dl.withdraw - dl.bal_end) * dl.price_snapshot) AS amount
-            FROM dl_daily_ledger dl
-            INNER JOIN dl_products p ON p.id = dl.product_id
-            INNER JOIN dl_branches b ON b.id = dl.branch_id
-            WHERE dl.ledger_date BETWEEN :df AND :dt';
-    $bind = [':df' => $dateFrom, ':dt' => $dateTo];
+                   (' . $amountExpr . ') AS amount
+             FROM dl_daily_ledger dl
+             INNER JOIN dl_products p ON p.id = dl.product_id
+             INNER JOIN dl_branches b ON b.id = dl.branch_id
+            WHERE dl.branch_id IN (' . $branchPlaceholders . ') AND dl.ledger_date BETWEEN ? AND ?';
+    $bind = array_merge($accessibleBranchIds, [$dateFrom, $dateTo]);
 
     if ($branchId) {
-        $sql .= ' AND dl.branch_id = :bid';
-        $bind[':bid'] = $branchId;
+        $sql .= ' AND dl.branch_id = ?';
+        $bind[] = $branchId;
     }
     if ($search !== '') {
-        $sql .= ' AND (p.name LIKE :q OR p.sku LIKE :q2 OR b.name LIKE :q3)';
-        $bind[':q'] = "%{$search}%"; $bind[':q2'] = "%{$search}%"; $bind[':q3'] = "%{$search}%";
+        $sql .= ' AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)';
+        $like = "%{$search}%";
+        $bind[] = $like;
+        $bind[] = $like;
+        $bind[] = $like;
     }
     $sql .= ' ORDER BY dl.ledger_date DESC, b.name, p.name';
 
@@ -4267,7 +4441,11 @@ function handleAdminSales(array $params = []): void
 
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
-        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $stmtAll->execute($accessibleBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $clockLabel = dl_operatingClockLabel();
@@ -4416,7 +4594,11 @@ function handleAdminProductionOutput(array $params = []): void
     $role = (string)($user['role'] ?? '');
     $userName = (string)($user['name'] ?? $user['full_name'] ?? $user['username'] ?? 'User');
     $featureSettings = dl_featureSettings();
-        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $stmtAll->execute($accessibleBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $clockLabel = dl_operatingClockLabel();
@@ -4724,7 +4906,12 @@ function handleAdminVariances(array $params = []): void
         $supervisorBranchIds = array_map('intval', $sbStmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
     }
 
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches->execute($accessibleBranchIds);
+    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     // Build the variance query
     $sql = 'SELECT vf.*, p.name AS product_name, p.sku AS product_sku, b.name AS branch_name,
@@ -4883,7 +5070,12 @@ function handleAdminActivity(array $params = []): void
         ['value' => 'variance', 'label' => 'Variance'],
     ];
 
-    $branches = $ctx->db()->query('SELECT id, code, name FROM dl_branches WHERE is_active = 1 ORDER BY name')->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $accessibleBranchIds = dl_accessibleBranchIds($user);
+    if (count($accessibleBranchIds) === 0) { $accessibleBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($accessibleBranchIds), '?'));
+    $branches = $ctx->db()->prepare("SELECT id, code, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $branches->execute($accessibleBranchIds);
+    $branches = $branches->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $productLookup = [];
     foreach ($ctx->db()->query('SELECT id, name FROM dl_products')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $productRow) {
@@ -8049,7 +8241,10 @@ function apiDailyLedgerMe(array $params = []): void
 
     $user = dlCurrentUser(['cashier', 'supervisor', 'admin', 'production_in_charge']);
     $allowedBranchIds = dl_accessibleBranchIds($user);
-        $stmtAll = $ctx->db()->query("SELECT id, name FROM dl_branches WHERE is_active = 1 ORDER BY name");
+    if (count($allowedBranchIds) === 0) { $allowedBranchIds = [0]; }
+    $branchPlaceholders = implode(',', array_fill(0, count($allowedBranchIds), '?'));
+    $stmtAll = $ctx->db()->prepare("SELECT id, name FROM dl_branches WHERE is_active = 1 AND id IN ({$branchPlaceholders}) ORDER BY name");
+    $stmtAll->execute($allowedBranchIds);
     $allBranches = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
     $clockLabel = dl_operatingClockLabel();

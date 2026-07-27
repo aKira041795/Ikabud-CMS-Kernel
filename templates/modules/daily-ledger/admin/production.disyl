@@ -393,7 +393,7 @@
             var msg = 'Withdrawals synced: ' + summary.succeeded + ' success';
             if (summary.failed > 0) msg += ', ' + summary.failed + ' failed';
             showToast(msg, summary.failed > 0 ? 'error' : 'success');
-            setTimeout(function() { window.location.reload(); }, 700);
+            setTimeout(function() { window.refreshMainContent(); }, 700);
         })
         .catch(function() {
             showToast('Network error while submitting withdrawals', 'error');
@@ -576,7 +576,7 @@
 
             closeOverrideModal();
             showToast('Override applied successfully', 'success');
-            setTimeout(function() { window.location.reload(); }, 700);
+            setTimeout(function() { window.refreshMainContent(); }, 700);
         })
         .catch(function(err) {
             showToast(err.message || 'Override failed', 'error');

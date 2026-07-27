@@ -324,7 +324,9 @@ if (is_file($contractPath)) {
     $h->test('nav-routes-match-get invariant declared', in_array('nav-routes-match-get', $invariantIds, true));
     $h->test('workbench-selectors-present invariant declared', in_array('workbench-selectors-present', $invariantIds, true));
     $h->test('navigation-routes-resolve invariant declared', in_array('navigation-routes-resolve', $invariantIds, true));
-    $h->test('at least 3 invariants declared', count($contract['invariants'] ?? []) >= 3);
+    $h->test('offline-pending-save-scope invariant declared', in_array('offline-pending-save-scope', $invariantIds, true));
+    $h->test('derived-sales-reconciliation invariant declared', in_array('derived-sales-reconciliation', $invariantIds, true));
+    $h->test('at least 5 invariants declared', count($contract['invariants'] ?? []) >= 5);
 }
 
 $h->done();

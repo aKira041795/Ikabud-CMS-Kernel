@@ -88,6 +88,8 @@
         window.DL_BASE = '/daily-ledger';
         window.DL_CSRF = '{csrf_token}';
         window.DL_TOKEN = '{dl_token}';
+        window.DL_USER_ID = '{dl_user_id | default:''}';
+        window.DL_TENANT_SCOPE = '{tenant_scope | default:''}';
         window.showToast = function(message, type) {
             try {
                 var cont = document.getElementById('toast-container');
@@ -147,128 +149,165 @@
         document.addEventListener('htmx:sendError', function() {
             window.showToast('Network error', 'error');
         });
+
+        /**
+         * Unified AJAX refresh: re-fetches the current page via HTMX and
+         * swaps only the #main-content region. No full page reload.
+         */
+        window.refreshMainContent = function() {
+            try {
+                htmx.ajax('GET', window.location.href, {
+                    target: '#main-content',
+                    swap: 'innerHTML',
+                    select: '#main-content > *'
+                });
+            } catch (e) {
+                window.location.reload();
+            }
+        };
     </script>
     {block head}{/block}
 </head>
 <body class="min-h-screen bg-slate-50" x-data="{ sidebarOpen: true }" data-wb-component="app-shell">
 
-    <div id="toast-container" class="fixed top-4 right-4 z-50"></div>
+    <div id="toast-container" class="fixed top-4 right-4 z-50" role="status" aria-live="polite"></div>
 
     <div class="flex h-screen overflow-hidden">
-        <aside class="relative bg-gradient-to-b from-indigo-700 to-indigo-900 text-white transition-all duration-300" :class="sidebarOpen ? 'w-64' : 'w-20'">
+        <aside id="wb-sidebar" class="relative bg-gradient-to-b from-indigo-700 to-indigo-900 text-white transition-all duration-300" :class="sidebarOpen ? 'w-64' : 'w-20'" role="navigation" aria-label="Sidebar navigation">
             <div class="flex h-16 items-center gap-3 px-4 border-b border-white/10">
                 <div class="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center ring-1 ring-white/10">
                     {if logo_url}
                     <img src="{logo_url}" alt="{app_name} logo" class="h-8 w-8 rounded-lg object-contain">
                     {/if}
                     {if !logo_url}
-                    <i class="fas fa-receipt text-lg"></i>
+                    <i class="fas fa-receipt text-lg" aria-hidden="true"></i>
                     {/if}
                 </div>
                 <span class="font-semibold text-base tracking-tight" x-show="sidebarOpen" x-cloak>{app_name}</span>
+		<button type="button" class="ml-auto p-1.5 rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+			@click="sidebarOpen = !sidebarOpen"
+			:aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+			:aria-expanded="sidebarOpen ? 'true' : 'false'">
+		    <i class="fas fa-bars" aria-hidden="true"></i>
+		</button>
             </div>
 
             <nav class="mt-4 px-2">
                 {if user_role == 'cashier' || user_role == 'supervisor' || user_role == 'admin'}
                 <a href="{base_url}/ledger"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'ledger'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-clipboard-list w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'ledger'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Ledger">
+                    <i class="fas fa-clipboard-list w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Ledger</span>
                 </a>
                 {/if}
 
                 {if user_role == 'admin' || user_role == 'supervisor'}
                 <a href="{base_url}/admin/dashboard"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'dashboard'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-chart-line w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'dashboard'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Dashboard">
+                    <i class="fas fa-chart-line w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Dashboard</span>
                 </a>
 
                 <a href="{base_url}/admin/sales"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'sales'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-chart-bar w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'sales'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Sales">
+                    <i class="fas fa-chart-bar w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Sales</span>
                 </a>
 
                 <a href="{base_url}/admin/variances"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'variances'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-triangle-exclamation w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'variances'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Variances">
+                    <i class="fas fa-triangle-exclamation w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Variances</span>
                 </a>
 
                 <a href="{base_url}/admin/activity"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'activity'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-clock-rotate-left w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'activity'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Activity">
+                    <i class="fas fa-clock-rotate-left w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Activity</span>
                 </a>
                 {/if}
 
                 {if user_role == 'admin' || user_role == 'supervisor' || user_role == 'production_in_charge'}
                 <a href="{base_url}/admin/production-output"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'production_output'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-layer-group w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'production_output'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Production Output">
+                    <i class="fas fa-layer-group w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Production Output</span>
                 </a>
 
                 <a href="{base_url}/admin/commissary"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'commissary'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-wheat w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'commissary'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Commissary">
+                    <i class="fas fa-wheat w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary</span>
                 </a>
 
                      {if feature_formal_delivery}
                      <a href="{base_url}/admin/deliveries"
-                         class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}">
-                          <i class="fas fa-truck w-6"></i>
+                         class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'deliveries'}bg-white/10 ring-1 ring-white/10{/if}"
+                         aria-label="Deliveries">
+                          <i class="fas fa-truck w-6" aria-hidden="true"></i>
                          <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Deliveries</span>
                      </a>
                      {/if}
 
                 <a href="{base_url}/admin/usage"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'usage'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-package w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'usage'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Commissary Usage">
+                    <i class="fas fa-package w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Commissary Usage</span>
                 </a>
                 {/if}
 
                 {if user_role == 'admin' || user_role == 'supervisor'}
                 <a href="{base_url}/admin/withdrawals"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'stock-adjustments'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-arrow-right-from-bracket w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'stock-adjustments'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Stock Adjustments">
+                    <i class="fas fa-arrow-right-from-bracket w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Stock Adjustments</span>
                 </a>
                 {/if}
 
                 {if user_role == 'admin'}
                 <a href="{base_url}/admin/products"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-cubes w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'products'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Products">
+                    <i class="fas fa-cubes w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Products</span>
                 </a>
 
                 <a href="{base_url}/admin/branches"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branches'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-code-branch w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'branches'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Branches">
+                    <i class="fas fa-code-branch w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Branches</span>
                 </a>
 
                 <a href="{base_url}/admin/users"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'users'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-users w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'users'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Users">
+                    <i class="fas fa-users w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Users</span>
                 </a>
 
                 {if feature_price_groups}
                 <a href="{base_url}/admin/price-groups"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'price_groups'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-tag w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'price_groups'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Price Groups">
+                    <i class="fas fa-tag w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Price Groups</span>
                 </a>
                 {/if}
 
                 <a href="{base_url}/admin/settings"
-                   class="flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'settings'}bg-white/10 ring-1 ring-white/10{/if}">
-                    <i class="fas fa-user-shield w-6"></i>
+                   class="wb-nav-item flex items-center px-3 py-2.5 rounded-xl mb-1 hover:bg-white/10 {if current_page == 'settings'}bg-white/10 ring-1 ring-white/10{/if}"
+                   aria-label="Settings">
+                    <i class="fas fa-user-shield w-6" aria-hidden="true"></i>
                     <span class="ml-3 text-sm font-medium" x-show="sidebarOpen" x-cloak>Settings</span>
                 </a>
                 {/if}
@@ -277,8 +316,11 @@
 
         <div class="flex-1 flex flex-col overflow-hidden">
             <header class="bg-white/80 backdrop-blur border-b border-gray-200 h-16 flex items-center justify-between px-6">
-                <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100" @click="sidebarOpen = !sidebarOpen">
-                    <i class="fas fa-bars"></i>
+                <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                        @click="sidebarOpen = !sidebarOpen"
+                        :aria-label="sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'"
+                        :aria-expanded="sidebarOpen ? 'true' : 'false'">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
                 <div class="flex items-center gap-4">
                     <div class="text-right">

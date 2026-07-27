@@ -11,9 +11,11 @@
 // @ts-check
 var { createWorkbenchTest } = require('../../WorkbenchFixture');
 
-var appUrl = process.env.TEST_BASE_URL || process.env.APP_URL || 'http://baronledger.test';
+var appUrl = process.env.TEST_BASE_URL || 'http://baronledger.test';
 var adminUser = process.env.TEST_ADMIN_USER || process.env.ADMIN_USER || 'Ledger-Admin';
 var adminPass = process.env.TEST_ADMIN_PASS || process.env.ADMIN_PASS || 'ledger123';
+
+process.env.APP_URL = appUrl;
 
 var dl = createWorkbenchTest({
     appUrl: appUrl,
