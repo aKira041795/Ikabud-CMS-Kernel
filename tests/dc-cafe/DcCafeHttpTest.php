@@ -338,6 +338,12 @@ try {
     $h->test('Cashier ledger page renders', (int) $ledgerPageResponse['status'] === 200, $ledgerPageResponse['raw']);
     $h->test('Cashier ledger selector includes own session', str_contains($ledgerPageResponse['body'], 'value="' . $branchSessionId . '"'));
     $h->test('Cashier ledger selector excludes another cashier session', !str_contains($ledgerPageResponse['body'], 'value="' . $sessionId . '"'));
+    $h->test('Ledger page removes Expected End label', !str_contains($ledgerPageResponse['body'], 'Expected end'), $ledgerPageResponse['body']);
+    $h->test('Ledger page shows Calculated Sales label', str_contains($ledgerPageResponse['body'], 'Calculated Sales'), $ledgerPageResponse['body']);
+    $h->test('Ledger page shows POS Sales label', str_contains($ledgerPageResponse['body'], 'POS Sales'), $ledgerPageResponse['body']);
+    $h->test('Ledger page shows Pending count helper', str_contains($ledgerPageResponse['body'], 'Pending count'), $ledgerPageResponse['body']);
+    $h->test('Ledger page ignores stale reconciliation responses after session changes', str_contains($ledgerPageResponse['body'], 'loadSequence') && str_contains($ledgerPageResponse['body'], 'loadSequence !== this.loadSequence'), $ledgerPageResponse['body']);
+    $h->test('Ledger page recalculates rows on every count input', !str_contains($ledgerPageResponse['body'], '@input.debounce.800ms="queueSave(row)"'), $ledgerPageResponse['body']);
 
     $reconciliationResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
@@ -373,8 +379,12 @@ try {
     $h->test('Branch reconciliation identifies selected store', (int) ($reconciliationJson['session']['store_id'] ?? 0) === $secondaryStoreId, $reconciliationResponse['body']);
     $h->test('Branch reconciliation is editable for active cashier session', !empty($reconciliationJson['session']['editable']), $reconciliationResponse['body']);
     $h->test('Branch reconciliation includes catalog product', is_array($reconciliationProduct), $reconciliationResponse['body']);
-    $h->test('Branch reconciliation reads branch stock', is_array($reconciliationProduct) && abs((float) $reconciliationProduct['current_stock'] - 3.0) < 0.001, $reconciliationResponse['body']);
+    $h->test('Branch reconciliation reads branch stock', is_array($reconciliationProduct) && abs((float) $reconciliationProduct['branch_stock_qty'] - 3.0) < 0.001, $reconciliationResponse['body']);
     $h->test('Branch reconciliation uses normalized ledger group', is_array($reconciliationProduct) && ($reconciliationProduct['ledger_group'] ?? '') === $expectedGroupName, $reconciliationResponse['body']);
+    $h->test('Branch reconciliation keeps pending ending distinct from zero', is_array($reconciliationProduct) && array_key_exists('ending_qty', $reconciliationProduct) && empty($reconciliationProduct['ending_recorded']) && $reconciliationProduct['ending_qty'] === null, $reconciliationResponse['body']);
+    $h->test('Pending ending omits derived sales and variances', is_array($reconciliationProduct) && array_key_exists('calculated_sales_qty', $reconciliationProduct) && array_key_exists('sales_variance_qty', $reconciliationProduct) && array_key_exists('stock_variance_qty', $reconciliationProduct) && $reconciliationProduct['calculated_sales_qty'] === null && $reconciliationProduct['sales_variance_qty'] === null && $reconciliationProduct['stock_variance_qty'] === null, $reconciliationResponse['body']);
+    $branchPosSalesQty = is_array($reconciliationProduct) ? (float) ($reconciliationProduct['pos_sales_qty'] ?? 0) : 0.0;
+    $branchStockQty = is_array($reconciliationProduct) ? (float) ($reconciliationProduct['branch_stock_qty'] ?? 0) : 0.0;
 
     $ledgerGroupsResponse = dcRunEntrypointRequest([
         'REQUEST_METHOD' => 'GET',
@@ -424,6 +434,7 @@ try {
         'items' => [[
             'product_id' => $productId,
             'beginning_qty' => -1,
+            'ending_qty' => 1,
         ]],
     ]);
     $h->test('Negative ledger quantity is rejected', (int) $invalidProgressResponse['status'] === 400, $invalidProgressResponse['raw']);
@@ -446,6 +457,7 @@ try {
             'beginning_qty' => 3,
             'production_qty' => 1,
             'pullout_qty' => 0,
+            'ending_qty' => 0,
             'notes' => 'counted',
         ]],
     ]);
@@ -456,6 +468,71 @@ try {
     );
     $h->test('Valid branch ledger progress saves through request path', (int) $validProgressResponse['status'] === 200, $validProgressResponse['raw']);
     $h->test('Saved branch ledger progress preserves manual counts', is_array($savedProgress) && abs((float) $savedProgress['beginning_qty'] - 3.0) < 0.001 && abs((float) $savedProgress['production_qty'] - 1.0) < 0.001, json_encode($savedProgress));
+    $h->test('Saved branch ledger progress records ending zero with provenance', is_array($savedProgress) && abs((float) $savedProgress['ending_qty'] - 0.0) < 0.001 && !empty($savedProgress['ending_counted_at']) && (int) ($savedProgress['ending_counted_by'] ?? 0) === (int) $branchCashier['user_id'], json_encode($savedProgress));
+
+    $postSaveReconciliationResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $branchSessionId,
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier);
+    $postSaveReconciliationJson = dcJsonResponse($postSaveReconciliationResponse);
+    $postSaveProduct = null;
+    foreach ((array) ($postSaveReconciliationJson['items'] ?? []) as $candidate) {
+        if ((int) ($candidate['product_id'] ?? 0) === $productId) {
+            $postSaveProduct = $candidate;
+            break;
+        }
+    }
+    $h->test('Recorded ending zero remains a valid count', is_array($postSaveProduct) && !empty($postSaveProduct['ending_recorded']) && abs((float) ($postSaveProduct['ending_qty'] ?? -1) - 0.0) < 0.001, $postSaveReconciliationResponse['body']);
+    $h->test('Calculated sales uses inventory formula after save', is_array($postSaveProduct) && abs((float) ($postSaveProduct['calculated_sales_qty'] ?? -999) - 4.0) < 0.001, $postSaveReconciliationResponse['body']);
+    $h->test('Sales variance compares calculated and POS sales', is_array($postSaveProduct) && abs((float) ($postSaveProduct['sales_variance_qty'] ?? -999) - (4.0 - $branchPosSalesQty)) < 0.001, $postSaveReconciliationResponse['body']);
+    $h->test('Stock variance compares ending and branch stock', is_array($postSaveProduct) && abs((float) ($postSaveProduct['stock_variance_qty'] ?? -999) + 3.0) < 0.001, $postSaveReconciliationResponse['body']);
+    $h->test('POS sales remains completed-order quantity', is_array($postSaveProduct) && abs((float) ($postSaveProduct['pos_sales_qty'] ?? -999) - $branchPosSalesQty) < 0.001, $postSaveReconciliationResponse['body']);
+
+    $clearEndingResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'POST',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/progress',
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier, [
+        'session_id' => $branchSessionId,
+        'items' => [[
+            'product_id' => $productId,
+            'beginning_qty' => 3,
+            'production_qty' => 1,
+            'pullout_qty' => 0,
+            'ending_qty' => null,
+            'notes' => 'cleared',
+        ]],
+    ]);
+    $clearedProgress = dcFetchOne(
+        $db,
+        "SELECT * FROM dc_inventory_progress WHERE session_id = ? AND product_id = ?",
+        [$branchSessionId, $productId]
+    );
+    $h->test('Clear ending request succeeds', (int) $clearEndingResponse['status'] === 200, $clearEndingResponse['raw']);
+    $h->test('Clear ending removes provenance metadata', is_array($clearedProgress) && $clearedProgress['ending_counted_at'] === null && $clearedProgress['ending_counted_by'] === null && $clearedProgress['ending_qty'] === null, json_encode($clearedProgress));
+
+    $clearedReconciliationResponse = dcRunEntrypointRequest([
+        'REQUEST_METHOD' => 'GET',
+        'REQUEST_URI' => '/dc-cafe/api/v1/inventory/reconciliation/' . $branchSessionId,
+        'HTTP_HOST' => 'baronbakeshop',
+        'SERVER_NAME' => 'baronbakeshop',
+        'HTTP_ACCEPT' => 'application/json',
+    ], $branchCashier);
+    $clearedReconciliationJson = dcJsonResponse($clearedReconciliationResponse);
+    $clearedProduct = null;
+    foreach ((array) ($clearedReconciliationJson['items'] ?? []) as $candidate) {
+        if ((int) ($candidate['product_id'] ?? 0) === $productId) {
+            $clearedProduct = $candidate;
+            break;
+        }
+    }
+    $h->test('Cleared ending restores pending reconciliation state', is_array($clearedProduct) && array_key_exists('calculated_sales_qty', $clearedProduct) && empty($clearedProduct['ending_recorded']) && $clearedProduct['calculated_sales_qty'] === null, $clearedReconciliationResponse['body']);
 
     $db->prepare(
         "INSERT INTO dc_sessions (user_id, store_id, starting_cash, shift_type, shift_start, shift_end, status)

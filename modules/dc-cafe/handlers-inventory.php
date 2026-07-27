@@ -30,6 +30,36 @@ function _dcLoadInventorySession(int $sessionId, bool $mustBeActive = false): ar
 }
 
 /**
+ * Derive reconciliation metrics from inventory counts and POS sales.
+ *
+ * @return array{calculated_sales_qty:?float,sales_variance_qty:?float,stock_variance_qty:?float}
+ */
+function _dcInventoryDerivedMetrics(
+    float $beginningQty,
+    float $productionQty,
+    float $pulloutQty,
+    ?float $endingQty,
+    float $posSalesQty,
+    float $branchStockQty
+): array {
+    if ($endingQty === null) {
+        return [
+            'calculated_sales_qty' => null,
+            'sales_variance_qty' => null,
+            'stock_variance_qty' => null,
+        ];
+    }
+
+    $calculatedSalesQty = $beginningQty + $productionQty - $pulloutQty - $endingQty;
+
+    return [
+        'calculated_sales_qty' => $calculatedSalesQty,
+        'sales_variance_qty' => $calculatedSalesQty - $posSalesQty,
+        'stock_variance_qty' => $endingQty - $branchStockQty,
+    ];
+}
+
+/**
  * GET /dc-cafe/api/v1/inventory — Current stock levels
  */
 function apiGetStockLevels(array $params = []): void
@@ -45,9 +75,8 @@ function apiGetStockLevels(array $params = []): void
  * GET /dc-cafe/api/v1/inventory/reconciliation/{session_id}
  * — Per-session reconciliation view.
  *
- * Returns: per-product actual sales (from completed orders) + saved progress
- * (beginning, production, pullout) so the client can compute expected ending
- * and compare with physical count.
+ * Returns: per-product POS sales, saved count progress, and derived
+ * reconciliation values for a single branch session.
  */
 function apiGetReconciliation(array $params = []): void
 {
@@ -78,7 +107,7 @@ function apiGetReconciliation(array $params = []): void
         $salesMap[(int) $s['product_id']] = (float) $s['qty_sold'];
     }
 
-    // Saved progress (manual beginning/production/pullout counts)
+    // Saved progress (manual count worksheet values)
     $progress = $db->query(
         "SELECT * FROM dc_inventory_progress WHERE session_id = ?",
         [$sessionId]
@@ -109,20 +138,41 @@ function apiGetReconciliation(array $params = []): void
     foreach ($products as $p) {
         $pid = (int) $p['product_id'];
         $saved = $progressMap[$pid] ?? null;
+        $beginningQty = $saved ? (float) $saved['beginning_qty'] : 0.0;
+        $productionQty = $saved ? (float) $saved['production_qty'] : 0.0;
+        $pulloutQty = $saved ? (float) $saved['pullout_qty'] : 0.0;
+        $endingRecorded = $saved !== null && !empty($saved['ending_counted_at']);
+        $endingQty = $endingRecorded ? (float) $saved['ending_qty'] : null;
+        $posSalesQty = $salesMap[$pid] ?? 0.0;
+        $branchStockQty = (float) $p['branch_stock'];
+        $derived = _dcInventoryDerivedMetrics(
+            $beginningQty,
+            $productionQty,
+            $pulloutQty,
+            $endingQty,
+            $posSalesQty,
+            $branchStockQty
+        );
         $item = [
             'product_id' => $pid,
             'name' => $p['name'],
             'category_name' => $p['category_name'],
             'ledger_group' => $p['ledger_group'],
-            'beginning_qty' => $saved ? (float) $saved['beginning_qty'] : 0,
-            'production_qty' => $saved ? (float) $saved['production_qty'] : 0,
-            'pullout_qty' => $saved ? (float) $saved['pullout_qty'] : 0,
-            'sold_qty' => $salesMap[$pid] ?? 0,
+            'beginning_qty' => $beginningQty,
+            'production_qty' => $productionQty,
+            'pullout_qty' => $pulloutQty,
+            'ending_qty' => $endingQty,
+            'ending_recorded' => $endingRecorded,
+            'ending_counted_at' => $saved['ending_counted_at'] ?? null,
+            'ending_counted_by' => isset($saved['ending_counted_by']) ? (int) $saved['ending_counted_by'] : null,
+            'calculated_sales_qty' => $derived['calculated_sales_qty'],
+            'pos_sales_qty' => $posSalesQty,
+            'sales_variance_qty' => $derived['sales_variance_qty'],
             'notes' => $saved ? ($saved['notes'] ?? '') : '',
-            'current_stock' => (float) $p['branch_stock'],
+            'branch_stock_qty' => $branchStockQty,
         ];
-        $item['expected_ending'] = $item['beginning_qty'] + $item['production_qty'] - $item['pullout_qty'] - $item['sold_qty'];
         $items[] = $item;
+        $items[count($items) - 1]['stock_variance_qty'] = $derived['stock_variance_qty'];
     }
 
     $sessionMeta = $db->query(
@@ -326,7 +376,7 @@ function apiAdjustStock(array $params = []): void
 /**
  * POST /dc-cafe/api/v1/inventory/progress — Save/update inventory progress for a session
  *
- * Input: { session_id, items: [{product_id, beginning_qty?, production_qty?, pullout_qty?, ending_qty?, sold_qty?, notes?}] }
+ * Input: { session_id, items: [{product_id, beginning_qty?, production_qty?, pullout_qty?, ending_qty?, notes?}] }
  */
 function apiSaveInventoryProgress(array $params = []): void
 {
@@ -368,11 +418,26 @@ function apiSaveInventoryProgress(array $params = []): void
             }
             $values[$field] = $value;
         }
+        $endingQty = null;
+        if (array_key_exists('ending_qty', $item)) {
+            $rawEnding = $item['ending_qty'];
+            if ($rawEnding !== null && $rawEnding !== '') {
+                if (!is_numeric($rawEnding)) {
+                    dcJsonError('ending_qty must be numeric', 400);
+                }
+                $endingValue = (float) $rawEnding;
+                if (!is_finite($endingValue) || $endingValue < 0) {
+                    dcJsonError('ending_qty must be a non-negative finite number', 400);
+                }
+                $endingQty = $endingValue;
+            }
+        }
         $normalizedItems[] = [
             'product_id' => $productId,
             'beginning_qty' => $values['beginning_qty'],
             'production_qty' => $values['production_qty'],
             'pullout_qty' => $values['pullout_qty'],
+            'ending_qty' => $endingQty,
             'notes' => substr(trim((string) ($item['notes'] ?? '')), 0, 1000),
         ];
     }
@@ -394,7 +459,10 @@ function apiSaveInventoryProgress(array $params = []): void
             $beginning = $item['beginning_qty'];
             $production = $item['production_qty'];
             $pullout = $item['pullout_qty'];
+            $ending = $item['ending_qty'];
             $notes = $item['notes'];
+            $endingCountedAt = $ending === null ? null : date('Y-m-d H:i:s');
+            $endingCountedBy = $ending === null ? null : (int) $ctx->user()['user_id'];
 
             // Upsert: insert or update
             $existing = $db->query(
@@ -405,16 +473,17 @@ function apiSaveInventoryProgress(array $params = []): void
             if ($existing) {
                 $db->query(
                     "UPDATE dc_inventory_progress SET beginning_qty = ?, production_qty = ?,
-                     pullout_qty = ?, ending_qty = ?, sold_qty = ?, notes = ?, updated_at = NOW()
+                     pullout_qty = ?, ending_qty = ?, ending_counted_at = ?, ending_counted_by = ?,
+                     notes = ?, updated_at = NOW()
                      WHERE progress_id = ?",
-                    [$beginning, $production, $pullout, 0, 0, $notes ?: null, (int) $existing['progress_id']]
+                    [$beginning, $production, $pullout, $ending, $endingCountedAt, $endingCountedBy, $notes ?: null, (int) $existing['progress_id']]
                 );
             } else {
                 $db->query(
                     "INSERT INTO dc_inventory_progress (session_id, product_id, beginning_qty, production_qty,
-                     pullout_qty, ending_qty, sold_qty, notes)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    [$sessionId, $productId, $beginning, $production, $pullout, 0, 0, $notes ?: null]
+                     pullout_qty, ending_qty, ending_counted_at, ending_counted_by, notes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    [$sessionId, $productId, $beginning, $production, $pullout, $ending, $endingCountedAt, $endingCountedBy, $notes ?: null]
                 );
             }
         }
@@ -453,6 +522,16 @@ function apiGetInventoryProgress(array $params = []): void
          WHERE ip.session_id = ?",
         [$sessionId]
     )->fetchAll(\PDO::FETCH_ASSOC);
+
+    foreach ($items as &$item) {
+        $item['ending_recorded'] = !empty($item['ending_counted_at']);
+        if (!$item['ending_recorded']) {
+            $item['ending_qty'] = null;
+        } else {
+            $item['ending_qty'] = (float) $item['ending_qty'];
+        }
+    }
+    unset($item);
 
     dcJsonResponse(['ok' => true, 'items' => $items]);
 }

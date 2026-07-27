@@ -53,9 +53,9 @@
     </div>
 
     <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <span class="font-semibold">Expected ending</span>
-        = Beginning + Production − Pullouts − Completed sales.
-        <span class="ml-1 text-xs text-amber-700">Branch stock is shown separately for comparison.</span>
+        <span class="font-semibold">Calculated Sales</span>
+        = Beginning + Production − Pullouts − Ending.
+        <span class="ml-1 text-xs text-amber-700">POS Sales comes from completed orders. Stock Variance compares Ending with current Branch Stock.</span>
     </div>
 
     <div x-show="!sessionId && !loading" class="rounded-xl border bg-white py-12 text-center text-gray-400">
@@ -80,55 +80,75 @@
                         <p class="text-xs text-gray-500" x-text="group.products.length + ' products'"></p>
                     </div>
                     <div class="text-right text-xs text-gray-500">
-                        Sold <b class="text-gray-800" x-text="groupTotals(group).sold.toFixed(0)"></b>
-                        · Expected <b class="text-gray-800" x-text="groupTotals(group).expected.toFixed(1)"></b>
+                        Calculated <b class="text-gray-800" x-text="formatQty(groupTotals(group).calculated)"></b>
+                        · POS <b class="text-gray-800" x-text="formatQty(groupTotals(group).pos)"></b>
+                        · Pending <b class="text-gray-800" x-text="groupTotals(group).pending"></b>
                     </div>
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[980px] text-sm">
+                    <table class="w-full min-w-[1380px] text-sm">
                         <thead class="bg-white text-xs uppercase tracking-wide text-gray-500">
                             <tr>
                                 <th class="px-4 py-3 text-left">Product</th>
                                 <th class="px-3 py-3 text-right">Beginning</th>
                                 <th class="px-3 py-3 text-right">Production</th>
                                 <th class="px-3 py-3 text-right">Pullouts</th>
-                                <th class="px-3 py-3 text-right">Sales</th>
-                                <th class="px-3 py-3 text-right">Expected end</th>
+                                <th class="px-3 py-3 text-right">Ending</th>
+                                <th class="px-3 py-3 text-right">Calculated Sales</th>
+                                <th class="px-3 py-3 text-right">POS Sales</th>
+                                <th class="px-3 py-3 text-right">Sales Variance</th>
                                 <th class="px-3 py-3 text-right">Branch stock</th>
-                                <th class="px-3 py-3 text-right">Variance</th>
+                                <th class="px-3 py-3 text-right">Stock Variance</th>
                                 <th class="px-4 py-3 text-left">Notes</th>
                             </tr>
                         </thead>
                         <tbody>
                             <template x-for="row in group.products" :key="row.product_id">
-                                <tr class="border-t border-gray-100" :class="Math.abs(row.variance) > 0.001 ? 'bg-amber-50/50' : ''">
+                                <tr class="border-t border-gray-100"
+                                    :class="row.has_discrepancy ? 'bg-amber-50/50' : ''">
                                     <td class="px-4 py-2 font-medium text-gray-800" x-text="row.name"></td>
                                     <td class="px-3 py-2">
                                         <input type="number" min="0" step="any" x-model.number="row.beginning_qty"
-                                               :disabled="!editable" @input.debounce.800ms="queueSave(row)"
+                                               :disabled="!editable" @input="queueSave(row)"
                                                class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
                                     </td>
                                     <td class="px-3 py-2">
                                         <input type="number" min="0" step="any" x-model.number="row.production_qty"
-                                               :disabled="!editable" @input.debounce.800ms="queueSave(row)"
+                                               :disabled="!editable" @input="queueSave(row)"
                                                class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
                                     </td>
                                     <td class="px-3 py-2">
                                         <input type="number" min="0" step="any" x-model.number="row.pullout_qty"
-                                               :disabled="!editable" @input.debounce.800ms="queueSave(row)"
+                                               :disabled="!editable" @input="queueSave(row)"
                                                class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
                                     </td>
-                                    <td class="px-3 py-2 text-right font-medium" x-text="row.sold_qty.toFixed(0)"></td>
-                                    <td class="px-3 py-2 text-right font-semibold" x-text="row.expected_ending.toFixed(2)"></td>
-                                    <td class="px-3 py-2 text-right" x-text="row.current_stock.toFixed(2)"></td>
+                                    <td class="px-3 py-2">
+                                        <input type="number" min="0" step="any" x-model="row.ending_input"
+                                               :disabled="!editable" @input="queueSave(row)"
+                                               placeholder="Count"
+                                               class="w-24 rounded border px-2 py-1.5 text-right disabled:bg-gray-100 disabled:text-gray-500">
+                                        <div x-show="row.ending_recorded && row.ending_counted_at" class="mt-1 text-[11px] text-gray-400"
+                                             x-text="'Counted ' + formatTimestamp(row.ending_counted_at)"></div>
+                                    </td>
                                     <td class="px-3 py-2 text-right font-semibold"
-                                        :class="Math.abs(row.variance) > 0.001 ? 'text-amber-700' : 'text-green-700'"
-                                        x-text="row.variance.toFixed(2)"></td>
+                                        :class="row.negative_calculated ? 'text-red-700' : 'text-gray-800'"
+                                        x-text="displayDerived(row.calculated_sales_qty)"></td>
+                                    <td class="px-3 py-2 text-right font-medium" x-text="formatQty(row.pos_sales_qty)"></td>
+                                    <td class="px-3 py-2 text-right font-semibold"
+                                        :class="row.sales_variance_class"
+                                        x-text="displayDerived(row.sales_variance_qty)"></td>
+                                    <td class="px-3 py-2 text-right" x-text="formatQty(row.branch_stock_qty)"></td>
+                                    <td class="px-3 py-2 text-right font-semibold"
+                                        :class="row.stock_variance_class"
+                                        x-text="displayDerived(row.stock_variance_qty)"></td>
                                     <td class="px-4 py-2">
                                         <input type="text" x-model="row.notes" :disabled="!editable"
                                                @input.debounce.1000ms="queueSave(row)" placeholder="Optional note"
                                                class="w-44 rounded border px-2 py-1.5 disabled:bg-gray-100 disabled:text-gray-500">
+                                        <div class="mt-1 text-[11px]"
+                                             :class="row.info_class"
+                                             x-text="row.info_text"></div>
                                     </td>
                                 </tr>
                             </template>
@@ -141,8 +161,9 @@
         <div class="flex flex-col gap-3 rounded-xl bg-amber-700 px-5 py-3 text-white sm:flex-row sm:items-center sm:justify-between">
             <div class="text-sm">
                 <b x-text="allRows().length"></b> products
-                · Sold <b x-text="grandTotals.sold.toFixed(0)"></b>
-                · Expected <b x-text="grandTotals.expected.toFixed(1)"></b>
+                · Pending Ending counts <b x-text="grandTotals.pending"></b>
+                · Calculated Sales <b x-text="formatQty(grandTotals.calculated)"></b>
+                · POS Sales <b x-text="formatQty(grandTotals.pos)"></b>
             </div>
             <button x-show="editable" @click="saveAllManual()" :disabled="dirtyCount === 0 || saving"
                     class="rounded bg-white px-4 py-2 text-sm font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50">
@@ -164,6 +185,7 @@ function inventoryLedger() {
         statusMsg: '',
         statusError: false,
         saveTimers: {},
+        loadSequence: 0,
 
         allRows() {
             return this.groups.flatMap(group => group.products);
@@ -173,17 +195,81 @@ function inventoryLedger() {
         },
         get grandTotals() {
             return this.allRows().reduce((totals, row) => {
-                totals.sold += row.sold_qty;
-                totals.expected += row.expected_ending;
+                totals.pos += row.pos_sales_qty || 0;
+                if (row.ending_recorded && row.calculated_sales_qty !== null) {
+                    totals.calculated += row.calculated_sales_qty;
+                } else {
+                    totals.pending += 1;
+                }
                 return totals;
-            }, {sold: 0, expected: 0});
+            }, {pos: 0, calculated: 0, pending: 0});
         },
         groupTotals(group) {
             return group.products.reduce((totals, row) => {
-                totals.sold += row.sold_qty;
-                totals.expected += row.expected_ending;
+                totals.pos += row.pos_sales_qty || 0;
+                if (row.ending_recorded && row.calculated_sales_qty !== null) {
+                    totals.calculated += row.calculated_sales_qty;
+                } else {
+                    totals.pending += 1;
+                }
                 return totals;
-            }, {sold: 0, expected: 0});
+            }, {pos: 0, calculated: 0, pending: 0});
+        },
+        formatQty(value) {
+            const qty = Number(value);
+            return Number.isFinite(qty) ? qty.toFixed(2) : '—';
+        },
+        displayDerived(value) {
+            return value === null || value === undefined ? 'Pending count' : this.formatQty(value);
+        },
+        formatTimestamp(value) {
+            if (!value) return '';
+            const parsed = new Date(String(value).replace(' ', 'T'));
+            return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+        },
+        syncDerived(row) {
+            const beginning = parseFloat(row.beginning_qty) || 0;
+            const production = parseFloat(row.production_qty) || 0;
+            const pullout = parseFloat(row.pullout_qty) || 0;
+            const posSales = parseFloat(row.pos_sales_qty) || 0;
+            const branchStock = parseFloat(row.branch_stock_qty) || 0;
+            const ending = row.ending_input !== '' && row.ending_input !== null
+                ? parseFloat(row.ending_input)
+                : null;
+
+            row.ending_qty = ending;
+            if (ending === null || Number.isNaN(ending)) {
+                row.ending_recorded = false;
+                row.calculated_sales_qty = null;
+                row.sales_variance_qty = null;
+                row.stock_variance_qty = null;
+                row.negative_calculated = false;
+                row.sales_variance_class = 'text-gray-500';
+                row.stock_variance_class = 'text-gray-500';
+                row.has_discrepancy = false;
+                row.info_class = 'text-gray-400';
+                row.info_text = 'Pending count. Calculated Sales and variances will appear after Ending is recorded.';
+                return;
+            }
+
+            row.ending_recorded = true;
+            row.calculated_sales_qty = beginning + production - pullout - ending;
+            row.sales_variance_qty = row.calculated_sales_qty - posSales;
+            row.stock_variance_qty = ending - branchStock;
+            row.negative_calculated = row.calculated_sales_qty < 0;
+            row.sales_variance_class = Math.abs(row.sales_variance_qty) > 0.001 ? 'text-amber-700' : 'text-green-700';
+            row.stock_variance_class = Math.abs(row.stock_variance_qty) > 0.001 ? 'text-amber-700' : 'text-green-700';
+            row.has_discrepancy = row.negative_calculated
+                || Math.abs(row.sales_variance_qty) > 0.001
+                || Math.abs(row.stock_variance_qty) > 0.001;
+            row.info_class = row.negative_calculated ? 'text-red-600' : 'text-gray-500';
+            row.info_text = row.negative_calculated
+                ? 'Negative Calculated Sales means the count exceeds available inventory for this shift.'
+                : (Math.abs(row.sales_variance_qty) > 0.001
+                    ? 'Sales Variance compares worksheet depletion with completed POS orders.'
+                    : (Math.abs(row.stock_variance_qty) > 0.001
+                        ? 'Stock Variance compares Ending with the current branch stock snapshot.'
+                        : 'Calculated Sales and POS Sales agree for this row.'));
         },
         clearPendingSaves() {
             Object.values(this.saveTimers).forEach(timer => clearTimeout(timer));
@@ -207,6 +293,7 @@ function inventoryLedger() {
             return data;
         },
         async loadReconciliation() {
+            const loadSequence = ++this.loadSequence;
             this.clearPendingSaves();
             this.groups = [];
             this.sessionMeta = null;
@@ -217,6 +304,7 @@ function inventoryLedger() {
             this.loading = true;
             try {
                 const data = await this.request('/dc-cafe/api/v1/inventory/reconciliation/' + this.sessionId);
+                if (loadSequence !== this.loadSequence) return;
                 this.sessionMeta = data.session || null;
                 this.editable = !!data.session?.editable;
 
@@ -227,43 +315,51 @@ function inventoryLedger() {
                     const beginning = parseFloat(item.beginning_qty) || 0;
                     const production = parseFloat(item.production_qty) || 0;
                     const pullout = parseFloat(item.pullout_qty) || 0;
-                    const sold = parseFloat(item.sold_qty) || 0;
-                    const current = parseFloat(item.current_stock) || 0;
-                    const expected = beginning + production - pullout - sold;
-                    groups.get(name).push({
+                    const endingRecorded = !!item.ending_recorded;
+                    const endingQty = endingRecorded && item.ending_qty !== null ? parseFloat(item.ending_qty) : null;
+                    const row = {
                         product_id: Number(item.product_id),
                         name: item.name,
                         beginning_qty: beginning,
                         production_qty: production,
                         pullout_qty: pullout,
-                        sold_qty: sold,
-                        expected_ending: expected,
-                        current_stock: current,
-                        variance: current - expected,
+                        ending_input: endingRecorded && endingQty !== null ? String(endingQty) : '',
+                        ending_qty: endingQty,
+                        ending_recorded: endingRecorded,
+                        ending_counted_at: item.ending_counted_at || '',
+                        calculated_sales_qty: item.calculated_sales_qty === null ? null : parseFloat(item.calculated_sales_qty),
+                        pos_sales_qty: parseFloat(item.pos_sales_qty) || 0,
+                        sales_variance_qty: item.sales_variance_qty === null ? null : parseFloat(item.sales_variance_qty),
+                        branch_stock_qty: parseFloat(item.branch_stock_qty) || 0,
+                        stock_variance_qty: item.stock_variance_qty === null ? null : parseFloat(item.stock_variance_qty),
                         notes: item.notes || '',
                         _dirty: false,
-                    });
+                        negative_calculated: false,
+                        sales_variance_class: 'text-gray-500',
+                        stock_variance_class: 'text-gray-500',
+                        has_discrepancy: false,
+                        info_class: 'text-gray-400',
+                        info_text: '',
+                    };
+                    this.syncDerived(row);
+                    groups.get(name).push(row);
                 });
                 this.groups = Array.from(groups, ([name, products]) => ({name, products}));
-                this.setStatus(this.editable ? 'Reconciliation loaded. Manual counts can be updated.' : 'Reconciliation loaded in read-only mode.');
+                this.setStatus(this.editable ? 'Ledger loaded. Physical Ending counts can be updated.' : 'Ledger loaded in read-only mode.');
             } catch (error) {
+                if (loadSequence !== this.loadSequence) return;
                 this.groups = [];
                 this.sessionMeta = null;
                 this.setStatus(error.message || 'Unable to load reconciliation.', true);
             } finally {
-                this.loading = false;
+                if (loadSequence === this.loadSequence) {
+                    this.loading = false;
+                }
             }
-        },
-        recalculate(row) {
-            row.expected_ending = (parseFloat(row.beginning_qty) || 0)
-                + (parseFloat(row.production_qty) || 0)
-                - (parseFloat(row.pullout_qty) || 0)
-                - (parseFloat(row.sold_qty) || 0);
-            row.variance = (parseFloat(row.current_stock) || 0) - row.expected_ending;
         },
         queueSave(row) {
             if (!this.editable) return;
-            this.recalculate(row);
+            this.syncDerived(row);
             row._dirty = true;
         },
         payloadFor(rows) {
@@ -274,6 +370,7 @@ function inventoryLedger() {
                     beginning_qty: parseFloat(row.beginning_qty) || 0,
                     production_qty: parseFloat(row.production_qty) || 0,
                     pullout_qty: parseFloat(row.pullout_qty) || 0,
+                    ending_qty: row.ending_input !== '' && row.ending_input !== null ? (parseFloat(row.ending_input) || 0) : null,
                     notes: row.notes || '',
                 })),
             };

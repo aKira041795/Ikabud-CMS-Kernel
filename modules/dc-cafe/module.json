@@ -81,7 +81,8 @@
         "database/migrations/027_add_store_coordinates.sql",
         "database/migrations/028_create_dc_product_store_stock.sql",
         "database/migrations/029_add_store_id_to_product_stock_movements.sql",
-        "database/migrations/030_create_dc_ledger_groups.sql"
+        "database/migrations/030_create_dc_ledger_groups.sql",
+        "database/migrations/031_add_inventory_ending_count_metadata.sql"
     ],
     "capabilities": {
         "exposes": [
