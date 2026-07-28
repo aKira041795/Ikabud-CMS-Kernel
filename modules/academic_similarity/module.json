@@ -45,7 +45,8 @@
         "migrations/006_academic_similarity_internet_sources.sql",
         "migrations/007_academic_similarity_ai_report_narrative.sql",
         "migrations/008_academic_similarity_reconcile_settings.sql",
-        "migrations/009_academic_similarity_multilayer_fingerprinting.sql"
+        "migrations/009_academic_similarity_multilayer_fingerprinting.sql",
+        "migrations/010_academic_similarity_evidence_taxonomy.sql"
     ],
     "routes": true,
     "settings": [],
@@ -200,6 +201,63 @@
                     "first"
                 ],
                 "description": "Discover internet sources for a submission (default handler; external modules can override at higher priority)"
+            },
+            {
+                "id": "academic_similarity.context.analyze@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Analyze the contextual and scholarly relationship between two passages. Returns relationship type, scholarly classification, attribution status, evidence, and limitations. Governed by AI rules: never declares plagiarism.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_passage": {
+                            "type": "string",
+                            "description": "The passage from the submission document"
+                        },
+                        "source_passage": {
+                            "type": "string",
+                            "description": "The matching passage from the source document"
+                        },
+                        "citation_context": {
+                            "type": "string",
+                            "description": "Optional citation text near the passage"
+                        },
+                        "surrounding_context": {
+                            "type": "object",
+                            "properties": {
+                                "submission_before": {
+                                    "type": "string"
+                                },
+                                "submission_after": {
+                                    "type": "string"
+                                },
+                                "source_before": {
+                                    "type": "string"
+                                },
+                                "source_after": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "document_sections": {
+                            "type": "object",
+                            "properties": {
+                                "submission": {
+                                    "type": "string"
+                                },
+                                "source": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "required": [
+                        "submission_passage",
+                        "source_passage"
+                    ]
+                }
             }
         ],
         "depends": [

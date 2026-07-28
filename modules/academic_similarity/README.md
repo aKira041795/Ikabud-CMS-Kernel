@@ -1,6 +1,10 @@
-# Academic Integrity & Similarity System (AISS)
+# Academic Integrity & Scholarship Intelligence System (AISS)
 
 Secure academic document submission and similarity detection system. Provides deterministic exact/near-exact matching via rolling-hash fingerprinting and Smith-Waterman local alignment, with optional semantic comparison and internet-assisted source discovery.
+
+> **AISS does not determine plagiarism or academic misconduct. It provides diagnostic evidence to support qualified human review.**
+>
+> This principle governs the scoring architecture, terminology, data model, AI prompts, reports, and workflow. No single percentage, score, or automated classification in this system constitutes a finding of misconduct. All evidence requires qualified human interpretation within the institution's academic integrity policy.
 
 ## Architecture
 

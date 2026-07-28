@@ -32,12 +32,17 @@ define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '009');
         '/Services/AcademicSimilaritySourceService.php',
         '/Services/AcademicSimilarityReportService.php',
         '/Services/AcademicSimilarityReviewService.php',
+        '/Services/AcademicSimilarityReviewWorkflowService.php',
+        '/Services/AcademicSimilarityScholarshipProfileService.php',
+        '/Services/AcademicSimilarityKnowledgeLineageService.php',
         '/Services/AcademicSimilarityNormalizationService.php',
         '/Services/AcademicSimilarityFingerprintService.php',
         '/Services/AcademicSimilarityMatchingService.php',
         '/Services/AcademicSimilarityScoringService.php',
         '/Services/AcademicSimilarityQuotaService.php',
         '/Services/AcademicSimilaritySemanticService.php',
+        '/Services/AcademicSimilarityContextAnalysisService.php',
+        '/Services/AcademicSimilarityCitationAnalysisService.php',
         '/Services/AcademicSimilarityInternetDiscoveryService.php',
         '/Services/AcademicSimilarityInternetSourceIngestionService.php',
         '/Services/AcademicSimilarityInternetCheckService.php',
@@ -46,6 +51,7 @@ define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '009');
         '/ValueObjects/AcademicSimilarityFingerprint.php',
         '/ValueObjects/AcademicSimilarityMatchResult.php',
         '/ValueObjects/AcademicSimilarityHighlightSpan.php',
+        '/ValueObjects/AcademicSimilarityEvidenceTaxonomy.php',
         '/Services/AcademicSimilarityHighlightService.php',
         '/Services/AcademicSimilarityUserResultService.php',
         '/Services/AcademicSimilarityPublicReportViewService.php',
@@ -455,6 +461,7 @@ function academic_similarity_capability_handlers(): array
         'academic_similarity.review.exclude@1' => 'ac_sim_cap_review_exclude_1',
         'academic_similarity.semantic.compare@1' => 'ac_sim_cap_semantic_compare_1',
         'academic_similarity.internet.discover@1' => 'ac_sim_cap_internet_discover_1',
+        'academic_similarity.context.analyze@1'  => 'ac_sim_cap_context_analyze_1',
     ];
 }
 
@@ -536,6 +543,16 @@ function ac_sim_cap_semantic_compare_1(mixed $payload, string $capabilityId = ''
     // If this handler is reached (service module disabled), semantic matching
     // is not available — return a clear error instead of silent false success.
     return ['ok' => false, 'error' => 'Semantic comparison service is not available. Enable the academic-similarity-semantic-service module.'];
+}
+
+function ac_sim_cap_context_analyze_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'Invalid payload'];
+    }
+    $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
+    $service = new AcademicSimilarityContextAnalysisService($tenantId);
+    return $service->analyze($payload);
 }
 
 function ac_sim_cap_internet_discover_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array

@@ -1,8 +1,16 @@
 # Academic Similarity — Architecture Overview
 
+## Governing Principle
+
+> **AISS does not determine plagiarism or academic misconduct. It provides diagnostic evidence to support qualified human review.**
+
+This principle governs every component in this system. No score, classification, or automated output constitutes a finding of misconduct. All evidence requires qualified human interpretation within the institution's academic integrity policy.
+
 ## Purpose
 
-The Academic Similarity module provides secure document submission and deterministic similarity detection for academic institutions. It detects exact and near-exact textual overlap between student submissions and an institutional corpus of source documents. The system produces reproducible similarity reports with offset-accurate highlighting and supports reviewer-driven match exclusions. Every operation is tenant-isolated and fully audited.
+The Academic Scholarship Intelligence System (AISS) identifies, classifies, explains, and organizes evidence showing how a submission relates to existing sources and scholarly knowledge. Its central question is: *What is the relationship between this passage and the source?* — not *How plagiarized is this paper?*
+
+The system detects exact and near-exact textual overlap between student submissions and an institutional corpus of source documents. It produces contextual evidence families (textual, contextual, scholarly) with offset-accurate highlighting and supports reviewer-driven classification and match exclusions. Every operation is tenant-isolated and fully audited.
 
 ## System Components
 
@@ -16,11 +24,11 @@ The module is organized into a service layer with clearly separated responsibili
 
 **Matching Service** — Runs two passes. The exact-match pass compares submission fingerprints against source fingerprints using direct hash lookup. The near-exact match pass uses a configurable similarity threshold (default 0.80) to detect partial overlaps via Jaccard similarity on fingerprint sets. Results are stored in `ac_similarity_matches` with per-match offset evidence in `ac_similarity_match_evidence`.
 
-**Scoring Service** — Computes similarity scores based on unique eligible word coverage. See scoring.md for methodology.
+**Scoring Service** — Computes similarity scores across two independent families: textual overlap (exact + near-exact only) and semantic resemblance (separate, never entering textual scores). Produces a categorical Reviewer Attention Level rather than an additive combined percentage. See scoring.md for methodology.
 
-**Report Service** — Assembles match data into a structured similarity report. Reports are stored in `ac_similarity_reports` and can be downloaded or viewed through the admin UI.
+**Report Service** — Assembles evidence into a structured report with separated score families, categorical attention levels, and contextual relationship summaries. Reports are stored in `ac_similarity_reports` and can be downloaded or viewed through the admin UI.
 
-**Review Service** — Allows reviewers to exclude false-positive matches from scoring. Exclusions are recorded in `ac_similarity_exclusions` with a reason and note, and trigger an `academic_similarity.review.excluded` event.
+**Review Service** — Allows reviewers to exclude false-positive matches from scoring, reclassify evidence types, record scholarly relationship classifications, and leave explanatory notes. Exclusions are recorded in `ac_similarity_exclusions` with a reason and note, and trigger an `academic_similarity.review.excluded` event.
 
 **Quota Service** — Tracks per-institution usage via `ac_similarity_usage_counters` and emits quota warning or exhaustion events.
 
