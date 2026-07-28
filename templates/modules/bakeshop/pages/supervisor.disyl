@@ -4683,7 +4683,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         await submitJson(api.productionVoid, {
             id: row.id,
-            void_reason: voidReason
+            void_reason: voidReason,
+            expected_version: row.version || 1
         }, 'Saved entry voided.', async () => {
             await loadProduction(true);
             await loadUsage();
@@ -5306,7 +5307,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 id: productionRunId,
                 produced_at: form.produced_at.value,
                 produced_by: form.produced_by.value,
-                notes: form.notes.value
+                notes: form.notes.value,
+                expected_version: (state.production.find((r) => Number(r.id) === productionRunId) || {}).version || 1
             }, 'Saved entry updated.', async (data) => {
                 await loadProduction(true);
                 const updatedId = Number((data && data.item && data.item.id) || productionRunId || 0);

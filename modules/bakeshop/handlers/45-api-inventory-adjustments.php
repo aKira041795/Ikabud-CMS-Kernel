@@ -17,6 +17,8 @@ function bakeshopAdjustmentSelectColumns(): string
             a.adjustment_type,
             a.reference,
             a.notes,
+            a.status,
+            a.version,
             a.created_by,
             a.created_at,
             a.updated_at,
@@ -159,8 +161,34 @@ function bakeshopApiAdjustmentsStore(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
-        bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopAdjustmentCreate(bakeshopInput());
+        $user = bakeshopCurrentUser('bakeshop.manage');
+        $input = bakeshopInput();
+        $item = bakeshopAdjustmentCreate($input);
+
+        $adjId = (int)($item['id'] ?? 0);
+        if ($adjId > 0) {
+            require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+            require_once __DIR__ . '/../Services/InventoryAdjustmentService.php';
+            try {
+                $svc = new BakeshopInventoryAdjustmentService();
+                $item = $svc->post($adjId, 1, (int)($user['id'] ?? 0));
+            } catch (\RuntimeException $e) {
+                write_log('bakeshop.adjustment.post_failed', 'warning', [
+                    'adjustment_id' => $adjId,
+                    'error' => $e->getMessage(),
+                ]);
+                $message = strtolower($e->getMessage());
+                $status = str_contains($message, 'stale version')
+                    || str_contains($message, 'concurrent')
+                    || str_contains($message, 'insufficient stock')
+                    || str_contains($message, 'cannot post adjustment')
+                    ? 409
+                    : 500;
+                bakeshopJsonError($e->getMessage(), $status);
+                return;
+            }
+        }
+
         bakeshopJsonMutationOk(['item' => $item], ['usage', 'adjustments'], 201);
     });
 }
@@ -169,8 +197,19 @@ function bakeshopApiAdjustmentsDelete(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
-        bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopAdjustmentDelete(bakeshopInput());
-        bakeshopJsonMutationOk(['item' => $item], ['usage', 'adjustments']);
+        $user = bakeshopCurrentUser('bakeshop.manage');
+        $input = bakeshopInput();
+        $adjId = (int)($input['id'] ?? 0);
+        $expectedVersion = isset($input['expected_version']) ? (int)$input['expected_version'] : 1;
+
+        require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+        require_once __DIR__ . '/../Services/InventoryAdjustmentService.php';
+        try {
+            $svc = new BakeshopInventoryAdjustmentService();
+            $item = $svc->void($adjId, 'Deleted by user', $expectedVersion, (int)($user['id'] ?? 0));
+            bakeshopJsonMutationOk(['item' => $item], ['usage', 'adjustments']);
+        } catch (\RuntimeException $e) {
+            bakeshopJsonError($e->getMessage(), 409);
+        }
     });
 }

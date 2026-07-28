@@ -12,6 +12,8 @@ function bakeshopProductionSelectColumns(): string
             pr.days_worth,
             pr.produced_by,
             pr.notes,
+            pr.status,
+            pr.version,
             pr.voided_at,
             pr.voided_by,
             pr.void_reason,
@@ -34,6 +36,8 @@ function bakeshopProductionGroupByColumns(): string
             pr.days_worth,
             pr.produced_by,
             pr.notes,
+            pr.status,
+            pr.version,
             pr.voided_at,
             pr.voided_by,
             pr.void_reason,
@@ -457,10 +461,55 @@ function bakeshopApiProductionStore(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
-        bakeshopCurrentUser('bakeshop.manage');
+        $user = bakeshopCurrentUser('bakeshop.manage');
         $input = bakeshopInput();
         $isUpdate = (($input['id'] ?? null) !== null && trim((string)$input['id']) !== '');
+
+        // Version check on updates — prevent stale writes
+        if ($isUpdate && isset($input['expected_version'])) {
+            $stmt = bakeshopDb()->prepare('SELECT version FROM bakeshop_production_runs WHERE id = :id');
+            $stmt->execute([':id' => (int)$input['id']]);
+            $currentVersion = (int)$stmt->fetchColumn();
+            if ($currentVersion !== (int)$input['expected_version']) {
+                bakeshopJsonError('Stale version: expected ' . $input['expected_version'] . ', current ' . $currentVersion, 409);
+                return;
+            }
+        }
+
         $item = $isUpdate ? bakeshopProductionUpdate($input) : bakeshopProductionCreate($input);
+
+        // Record ledger movements for completed production.
+        // If the ledger write fails, void the production run to prevent
+        // invisible draft records without corresponding ledger entries.
+        if (!$isUpdate && !empty($item['items'])) {
+            require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+            $runId = (int)($item['id'] ?? 0);
+            try {
+                $ledger = new BakeshopInventoryLedgerService();
+                $qtyProduced = (float)($item['qty_produced'] ?? 0);
+                $productId = (int)($item['product_id'] ?? 0);
+                $ledger->recordProductionCompletion($runId, $item['items'], $qtyProduced, $productId, (int)($user['id'] ?? 0));
+            } catch (\RuntimeException $e) {
+                write_log('bakeshop.production.ledger_failed', 'warning', [
+                    'run_id' => $runId, 'error' => $e->getMessage(),
+                ]);
+                // Compensating void: mark the run as voided so it doesn't
+                // remain as an invisible draft without ledger entries.
+                try {
+                    $db = bakeshopDb();
+                    $db->prepare(
+                        "UPDATE bakeshop_production_runs SET status = 'voided', voided_at = NOW(), void_reason = CONCAT('Ledger recording failed: ', LEFT(:reason, 200)) WHERE id = :id AND status = 'draft'"
+                    )->execute([':id' => $runId, ':reason' => $e->getMessage()]);
+                } catch (\Throwable $voidErr) {
+                    write_log('bakeshop.production.void_after_ledger_failure_failed', 'error', [
+                        'run_id' => $runId, 'error' => $voidErr->getMessage(),
+                    ]);
+                }
+                bakeshopJsonError('Production created but ledger recording failed. The run has been voided. Check logs and retry.', 500);
+                return;
+            }
+        }
+
         bakeshopJsonMutationOk(['item' => $item], ['production', 'usage'], $isUpdate ? 200 : 201);
     });
 }
@@ -470,8 +519,36 @@ function bakeshopApiProductionVoid(array $params = []): void
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
         $user = bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopProductionVoid(bakeshopInput(), $user);
-        bakeshopJsonMutationOk(['item' => $item], ['production', 'usage']);
+        $input = bakeshopInput();
+        $id = (int)($input['id'] ?? 0);
+        $reason = trim((string)($input['void_reason'] ?? ''));
+        $expectedVersion = isset($input['expected_version']) ? (int)$input['expected_version'] : null;
+
+        if ($id <= 0) {
+            bakeshopJsonError('Invalid production run ID.');
+            return;
+        }
+        if ($reason === '') {
+            bakeshopJsonError('void_reason is required.');
+            return;
+        }
+
+        // Use service with ledger integration when expected_version is provided
+        if ($expectedVersion !== null) {
+            require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+            require_once __DIR__ . '/../Services/ProductionExecutionService.php';
+            try {
+                $svc = new BakeshopProductionExecutionService();
+                $item = $svc->void($id, $reason, $expectedVersion, (int)($user['id'] ?? 0));
+                bakeshopJsonMutationOk(['item' => $item], ['production', 'usage']);
+            } catch (\RuntimeException $e) {
+                bakeshopJsonError($e->getMessage(), 409);
+            }
+        } else {
+            // Legacy path: no ledger, no version check (preserved for old clients)
+            $item = bakeshopProductionVoid($input, $user);
+            bakeshopJsonMutationOk(['item' => $item], ['production', 'usage']);
+        }
     });
 }
 

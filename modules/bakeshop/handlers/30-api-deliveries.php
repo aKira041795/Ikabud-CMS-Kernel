@@ -164,6 +164,7 @@ function bakeshopDeliveriesFetchItemsByDeliveryIds(array $deliveryIds): array
          FROM bakeshop_delivery_items di
          INNER JOIN bakeshop_ingredients i ON i.id = di.ingredient_id
          INNER JOIN bakeshop_units u ON u.id = di.unit_id
+         LEFT JOIN bakeshop_products p ON p.id = di.product_id
          WHERE di.delivery_id IN (' . $placeholders . ')
          ORDER BY di.delivery_id ASC, di.id ASC',
         array_values(array_map('intval', $deliveryIds))
@@ -403,6 +404,8 @@ function bakeshopDeliveriesList(): array
             d.branch_id,
             d.delivered_at,
             d.reference,
+            d.status,
+            d.version,
             ' . bakeshopDeliveriesCoverageDaysSelectSql('d') . '
             ' . bakeshopDeliveriesSourceSelectSql('d') . '
             d.received_by,
@@ -563,6 +566,8 @@ function bakeshopDeliveriesFindById(int $id): ?array
             d.branch_id,
             d.delivered_at,
             d.reference,
+            d.status,
+            d.version,
             ' . bakeshopDeliveriesCoverageDaysSelectSql('d') . '
             ' . bakeshopDeliveriesSourceSelectSql('d') . '
             d.received_by,
@@ -614,10 +619,24 @@ function bakeshopDeliveriesDeleteBatch(array $input): array
     $db = bakeshopDb();
     $deleted = [];
 
+    require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+    require_once __DIR__ . '/../Services/ReceivingService.php';
+    $svc = new BakeshopReceivingService();
+
     $db->beginTransaction();
     try {
         foreach ($ids as $id) {
-            $deleted[] = bakeshopDeliveriesDelete(['id' => $id]);
+            $version = $svc->getVersion($id);
+            try {
+                $deleted[] = $svc->void($id, 'Batch delete', $version);
+            } catch (\RuntimeException $e) {
+                write_log('bakeshop.delivery.batch_void_failed', 'warning', [
+                    'delivery_id' => $id, 'error' => $e->getMessage(),
+                ]);
+                // Fetch current state for the result
+                $delivery = bakeshopDeliveriesFindById($id);
+                $deleted[] = $delivery ?? ['id' => $id, 'error' => $e->getMessage()];
+            }
         }
         $db->commit();
     } catch (Throwable $e) {
@@ -678,8 +697,39 @@ function bakeshopApiDeliveriesStore(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
-        bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopDeliveriesCreate(bakeshopInput());
+        $user = bakeshopCurrentUser('bakeshop.manage');
+        $input = bakeshopInput();
+        $item = bakeshopDeliveriesCreate($input);
+
+        // Record ledger movements for new deliveries.
+        // If the ledger write fails, void the delivery to prevent
+        // invisible draft records without ledger entries.
+        if (!empty($item['items'])) {
+            require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+            $deliveryId = (int)($item['id'] ?? 0);
+            try {
+                $ledger = new BakeshopInventoryLedgerService();
+                $userId = (int)($user['id'] ?? 0);
+                $ledger->recordDeliveryPosting($deliveryId, $item['items'], $userId);
+            } catch (\RuntimeException $e) {
+                write_log('bakeshop.delivery.ledger_failed', 'warning', [
+                    'delivery_id' => $deliveryId, 'error' => $e->getMessage(),
+                ]);
+                try {
+                    $db = bakeshopDb();
+                    $db->prepare(
+                        "UPDATE bakeshop_deliveries SET status = 'voided', void_reason = CONCAT('Ledger recording failed: ', LEFT(:reason, 200)) WHERE id = :id AND status = 'posted'"
+                    )->execute([':id' => $deliveryId, ':reason' => $e->getMessage()]);
+                } catch (\Throwable $voidErr) {
+                    write_log('bakeshop.delivery.void_after_ledger_failure_failed', 'error', [
+                        'delivery_id' => $deliveryId, 'error' => $voidErr->getMessage(),
+                    ]);
+                }
+                bakeshopJsonError('Delivery created but ledger recording failed. The delivery has been voided. Check logs and retry.', 500);
+                return;
+            }
+        }
+
         bakeshopJsonMutationOk(['item' => $item], ['deliveries', 'usage'], 201);
     });
 }
@@ -688,9 +738,20 @@ function bakeshopApiDeliveriesDelete(array $params = []): void
 {
     bakeshopResponseGuard(static function (): void {
         bakeshopEnforceCsrf();
-        bakeshopCurrentUser('bakeshop.manage');
-        $item = bakeshopDeliveriesDelete(bakeshopInput());
-        bakeshopJsonMutationOk(['item' => $item], ['deliveries', 'usage']);
+        $user = bakeshopCurrentUser('bakeshop.manage');
+        $input = bakeshopInput();
+        $deliveryId = (int)($input['id'] ?? 0);
+        $expectedVersion = isset($input['expected_version']) ? (int)$input['expected_version'] : 1;
+
+        require_once __DIR__ . '/../Services/InventoryLedgerService.php';
+        require_once __DIR__ . '/../Services/ReceivingService.php';
+        try {
+            $svc = new BakeshopReceivingService();
+            $item = $svc->void($deliveryId, 'Deleted by user', $expectedVersion, (int)($user['id'] ?? 0));
+            bakeshopJsonMutationOk(['item' => $item], ['deliveries', 'usage']);
+        } catch (\RuntimeException $e) {
+            bakeshopJsonError($e->getMessage(), 409);
+        }
     });
 }
 

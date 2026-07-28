@@ -18,7 +18,17 @@
         "bakeshop_production_runs",
         "bakeshop_production_items",
         "bakeshop_inventory_adjustments",
-        "bakeshop_product_allocations"
+        "bakeshop_product_allocations",
+        "bakeshop_inventory_movements",
+        "bakeshop_document_numbers",
+        "bakeshop_user_branches",
+        "bakeshop_operational_periods",
+        "bakeshop_transfers",
+        "bakeshop_transfer_items",
+        "bakeshop_stocktake_sessions",
+        "bakeshop_stocktake_items",
+        "bakeshop_recipe_headers",
+        "bakeshop_recipe_version_lines"
     ],
     "reads_tables": [
         "bakeshop_ingredient_usage",
@@ -41,7 +51,11 @@
         "database/migrations/013_bakeshop_product_allocations.sql",
         "database/migrations/014_bakeshop_production_day_fraction.sql",
         "database/migrations/015_bakeshop_delivery_item_product.sql",
-        "database/migrations/016_bakeshop_username_case_sensitive.sql"
+        "database/migrations/016_bakeshop_username_case_sensitive.sql",
+        "database/migrations/017_bakeshop_inventory_ledger.sql",
+        "database/migrations/018_bakeshop_branch_access_and_periods.sql",
+        "database/migrations/019_bakeshop_alter_table_idempotency.sql",
+        "database/migrations/020_bakeshop_transfers_stocktakes_recipes.sql"
     ],
     "capabilities": {
         "exposes": [
