@@ -103,13 +103,14 @@ class AcademicSimilarityScoringService
         $highConfidenceSemantic = array_filter($semanticMatches, fn($m) => $m->confidence >= $semanticReportThreshold);
         $lowConfidenceSemantic = array_filter($semanticMatches, fn($m) => $m->confidence < $semanticReportThreshold);
 
-        // Textual score (unique word coverage — exact + near-exact only)
-        $textualCoverage = $this->calculateUniqueCoverage(array_merge($textualMatches, $highConfidenceSemantic), $totalEligibleWords);
+        // Textual score (unique word coverage — exact + near-exact ONLY).
+        // Semantic matches, regardless of confidence, never enter textual coverage.
+        $textualCoverage = $this->calculateUniqueCoverage($textualMatches, $totalEligibleWords);
 
         // Build source breakdown for weighted scoring
         $sourceBreakdown = $this->buildSourceBreakdown($matchResults);
 
-        // Weighted scores (all match types)
+        // Weighted scores (all match types — kept for backward compat)
         $weightedRaw = $this->calculateWeightedScore($matchResults, $totalEligibleWords, false);
         $weightedAdjusted = $this->calculateWeightedScore($matchResults, $totalEligibleWords, true);
 
@@ -126,8 +127,9 @@ class AcademicSimilarityScoringService
             ];
         }
 
+        // Adjusted textual coverage — exact + near-exact only, minus exclusions
         $activeTextualResults = [];
-        foreach (array_merge($textualMatches, $highConfidenceSemantic) as $mr) {
+        foreach ($textualMatches as $mr) {
             $excluded = false;
             foreach ($excludedRanges as $er) {
                 if ($mr->submissionWordStart === $er['start'] && $mr->submissionWordEnd === $er['end']) {
@@ -142,7 +144,7 @@ class AcademicSimilarityScoringService
 
         $adjustedCoverage = $this->calculateUniqueCoverage($activeTextualResults, $totalEligibleWords);
 
-        $rawScore = $totalEligibleWords > 0
+        $textualOverlapScore = $totalEligibleWords > 0
             ? round(($textualCoverage['unique_matched_words'] / $totalEligibleWords) * 100, 2)
             : 0.0;
 
@@ -150,14 +152,24 @@ class AcademicSimilarityScoringService
             ? round(($adjustedCoverage['unique_matched_words'] / $totalEligibleWords) * 100, 2)
             : 0.0;
 
+        // Reviewer Attention Level — categorical, not additive
+        $attentionLevel = $this->calculateReviewerAttentionLevel(
+            $textualOverlapScore,
+            $highConfidenceSemantic,
+            $lowConfidenceSemantic,
+            $totalEligibleWords
+        );
+
         return [
-            'raw_score' => $rawScore,
+            'raw_score' => $textualOverlapScore,
             'adjusted_score' => $adjustedScore,
+            'textual_overlap_score' => $textualOverlapScore,
             'weighted_raw_score' => round($weightedRaw, 2),
             'weighted_adjusted_score' => round($weightedAdjusted, 2),
             'semantic_resemblance_score' => round($semanticResemblance, 2),
-            'combined_score' => round(min(100.0, $rawScore + $semanticResemblance), 2),
-            'semantic_low_confidence_count' => count($lowConfidenceSemantic),
+            'reviewer_attention_level' => $attentionLevel,
+            'semantic_strong_relationships' => count($highConfidenceSemantic),
+            'semantic_weak_relationships' => count($lowConfidenceSemantic),
             'matched_word_count' => $adjustedCoverage['unique_matched_words'],
             'total_eligible_words' => $totalEligibleWords,
             'source_breakdown' => $sourceBreakdown,
@@ -307,6 +319,107 @@ class AcademicSimilarityScoringService
 
         // Cap at 100 to prevent inflation from overlapping semantic matches
         return min(100.0, ($totalWeight / $totalEligibleWords) * 100);
+    }
+
+    // ── Reviewer Attention Level (categorical, not additive) ──────
+
+    /**
+     * Calculate a categorical attention level based on transparent evidence rules.
+     *
+     * This replaces the additive combined_score. It is NOT a percentage — it
+     * is a risk-ranking indicator for reviewer triage.
+     *
+     * Rules engine:
+     *   High:   substantial exact overlap (>25%) without attribution, OR
+     *           several strong contextual matches with missing attribution, OR
+     *           direct copying of results/conclusions/original claims
+     *   Moderate: repeated near-exact overlap, OR
+     *             questionable paraphrasing, OR
+     *             incomplete methodological attribution
+     *   Low:    properly cited quotations, OR
+     *           standard terminology/methods, OR
+     *           weak topical relationships only
+     *   None:   no actionable evidence
+     *
+     * @param float $textualScore
+     * @param array $highConfidenceSemantic
+     * @param array $lowConfidenceSemantic
+     * @param int $totalEligibleWords
+     * @return array{level: string, label: string, reasons: array}
+     */
+    public function calculateReviewerAttentionLevel(
+        float $textualScore,
+        array $highConfidenceSemantic,
+        array $lowConfidenceSemantic,
+        int $totalEligibleWords
+    ): array {
+        $reasons = [];
+        $highCount = count($highConfidenceSemantic);
+        $lowCount = count($lowConfidenceSemantic);
+
+        // None — no evidence at all
+        if ($textualScore <= 0 && $highCount === 0 && $lowCount === 0) {
+            return [
+                'level' => 'none',
+                'label' => 'None',
+                'reasons' => ['No reportable evidence detected.'],
+            ];
+        }
+
+        // High triggers
+        if ($textualScore > 25) {
+            $reasons[] = 'Substantial exact or near-exact overlap (' . $textualScore . '% textual)';
+        }
+        if ($textualScore > 0 && $textualScore <= 25 && $highCount >= 3) {
+            $reasons[] = $highCount . ' strong contextual matches with substantial exact overlap';
+        }
+
+        // Moderate triggers
+        if ($textualScore > 10 && $textualScore <= 25) {
+            $reasons[] = 'Repeated near-exact overlap (' . $textualScore . '% textual)';
+        }
+        if ($textualScore > 0 && $textualScore <= 10 && $highCount >= 2) {
+            $reasons[] = $highCount . ' strong contextual matches with some exact overlap';
+        }
+        if ($highCount >= 5) {
+            $reasons[] = $highCount . ' strong contextual relationships detected';
+        }
+
+        // Low triggers
+        if ($textualScore > 0 && $textualScore <= 10 && $highCount === 0) {
+            $reasons[] = 'Minor exact overlap (' . $textualScore . '%) with no strong contextual matches';
+        }
+        if ($highCount > 0 && $highCount < 5 && $textualScore <= 10) {
+            $reasons[] = $highCount . ' strong contextual relationship(s), low textual overlap';
+        }
+        if ($lowCount > 0 && $highCount === 0 && $textualScore <= 0) {
+            $reasons[] = $lowCount . ' weak topical relationship(s) only — no textual overlap';
+        }
+
+        // Determine level
+        if ($textualScore > 25 || ($textualScore > 0 && $highCount >= 3)) {
+            $level = 'high';
+            $label = 'High';
+        } elseif ($textualScore > 10 || $highCount >= 5 || ($textualScore > 0 && $highCount >= 2)) {
+            $level = 'moderate';
+            $label = 'Moderate';
+        } elseif ($textualScore > 0 || $highCount > 0 || $lowCount > 0) {
+            $level = 'low';
+            $label = 'Low';
+        } else {
+            $level = 'none';
+            $label = 'None';
+        }
+
+        if (empty($reasons)) {
+            $reasons[] = 'No specific triggers matched the configured threshold rules.';
+        }
+
+        return [
+            'level' => $level,
+            'label' => $label,
+            'reasons' => $reasons,
+        ];
     }
 
     /**

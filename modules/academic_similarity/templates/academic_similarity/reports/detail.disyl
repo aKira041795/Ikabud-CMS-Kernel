@@ -32,15 +32,21 @@
             <div class="bg-white rounded-lg border border-gray-200 p-4">
                 <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Semantic Resemblance</p>
                 <p class="text-2xl font-bold text-indigo-600">{score_families.semantic_resemblance|default:0}%</p>
-                <p class="text-[10px] text-gray-400">Topic-level similarity (separate from copied text)</p>
-                {if score_families.semantic_low_count|default:0 > 0}
-                <p class="text-[10px] text-yellow-600 mt-1">+{score_families.semantic_low_count} below-report-threshold matches not counted</p>
-                {/if}
+                <p class="text-[10px] text-gray-400">Topic-level similarity — does not count as textual overlap</p>
+                <div class="mt-2 flex gap-2 text-[10px]">
+                    <span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded">{score_families.semantic_strong_relationships|default:0} strong</span>
+                    <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded">{score_families.semantic_weak_relationships|default:0} weak</span>
+                </div>
             </div>
             <div class="bg-white rounded-lg border border-gray-200 p-4">
-                <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Combined Review Indicator</p>
-                <p class="text-2xl font-bold text-gray-900">{score_families.combined_score|default:report.raw_similarity_score}%</p>
-                <p class="text-[10px] text-gray-400">Textual + semantic (for reviewer reference)</p>
+                <p class="text-xs text-gray-500 uppercase font-semibold mb-1">Reviewer Attention</p>
+                {assign attn: score_families.reviewer_attention_level|default:{'level':'none','label':'None','reasons':[]}}
+                <p class="text-2xl font-bold {if attn.level == 'high'}text-red-600{else if attn.level == 'moderate'}text-orange-600{else if attn.level == 'low'}text-yellow-600{else}text-gray-400{/if}">{attn.label}</p>
+                <ul class="mt-2 text-[10px] text-gray-500 list-disc list-inside">
+                {for reason in attn.reasons}
+                    <li>{reason}</li>
+                {/for}
+                </ul>
             </div>
         </div>
 
@@ -129,7 +135,7 @@
 
         <div class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
             <p class="font-semibold text-gray-900 mb-2">How to read this report</p>
-            <p><strong>Textual Similarity</strong> is the primary institutional score — it counts exact and near-exact word matches only. <strong>Semantic Resemblance</strong> is a separate signal showing topic-level similarity (conceptual overlap detected by AI), not copied text. The <strong>Combined Review Indicator</strong> adds both for reviewer reference but should not be treated as a plagiarism percentage.</p>
+            <p><strong>Textual Similarity</strong> is the primary institutional score — it counts exact and near-exact word matches only. <strong>Semantic Resemblance</strong> is a separate signal showing topic-level similarity (conceptual overlap detected by AI), not copied text. It never enters the textual score. The <strong>Reviewer Attention Level</strong> is a categorical triage indicator derived from transparent evidence rules — it is not a percentage and should not be treated as a plagiarism verdict.</p>
             <p class="mt-2">Raw score is the initial matched-text coverage. Adjusted score applies reviewer exclusions such as quotations, bibliography, or approved matches. Matched words show how much eligible text was tied to source evidence.</p>
 
             <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -139,7 +145,7 @@
                         <li class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded bg-red-300"></span> <strong>Exact Copy</strong> — Identical word-for-word match</li>
                         <li class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded bg-orange-300"></span> <strong>Similar Wording</strong> — Minor reordering or synonym changes</li>
                         <li class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded bg-indigo-300"></span> <strong>Topic Similarity</strong> — Same subject discussed in different words (Jaccard word-set overlap)</li>
-                        <li class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded bg-yellow-300"></span> <strong>Semantic Paraphrase</strong> — AI-detected conceptual similarity (counts toward Semantic Resemblance only)</li>
+                        <li class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded bg-yellow-300"></span> <strong>Semantic Paraphrase</strong> — AI-detected conceptual similarity (counts toward Semantic Resemblance only, never Textual Similarity)</li>
                         <li class="flex items-center gap-2"><span class="inline-block w-3 h-3 rounded bg-blue-300"></span> <strong>Quoted/Cited</strong> — Properly attributed quotation</li>
                     </ul>
                 </div>
