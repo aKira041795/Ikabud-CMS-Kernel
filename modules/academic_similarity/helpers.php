@@ -548,6 +548,16 @@ function ac_sim_cap_semantic_compare_1(mixed $payload, string $capabilityId = ''
     // is not available — return a clear error instead of silent false success.
     return ['ok' => false, 'error' => 'Semantic comparison service is not available. Enable the academic-similarity-semantic-service module.'];
 }
+
+function ac_sim_cap_context_analyze_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload) || (empty($payload['submission_passage']) && empty($payload['submission_id']))) {
+        return ['ok' => false, 'error' => 'submission_passage and source_passage required (or submission_id for match-based analysis)'];
+    }
+    $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
+    $service = new AcademicSimilarityContextAnalysisService($tenantId);
+    return $service->analyze($payload);
+}
 function ac_sim_cap_citation_analyze_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
     if (!is_array($payload) || empty($payload['submission_passage'])) {

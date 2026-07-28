@@ -48,6 +48,8 @@ class AcademicThesisReportService
 
         $report = [
             'case' => $case,
+            'evaluation_mode' => $this->determineEvaluationMode($snapshots),
+            'aiss_capabilities_used' => $this->determineCapabilitiesUsed($snapshots),
             'stages_completed' => array_map(function ($s) {
                 return [
                     'stage' => $s['stage_code'],
@@ -108,5 +110,85 @@ class AcademicThesisReportService
         ];
 
         return ['ok' => true, 'data' => $report];
+    }
+
+    /**
+     * Determine the evaluation mode based on evidence snapshots.
+     * Returns 'standalone' if no AISS analysis was performed,
+     * 'aiss_assisted' if AISS evidence was used.
+     */
+    private function determineEvaluationMode(array $snapshots): array
+    {
+        if (empty($snapshots)) {
+            return [
+                'mode' => 'standalone',
+                'label' => 'Standalone — No AISS analysis was performed',
+                'aiss_used' => false,
+            ];
+        }
+
+        // Check if any snapshot has actual AISS data (not just disabled/standalone flags)
+        $hasAissData = false;
+        $capabilitiesUsed = [];
+        foreach ($snapshots as $s) {
+            $maturity = json_decode($s['maturity_metadata'] ?? '{}', true);
+            $aissIntegration = $maturity['aiss_integration'] ?? null;
+
+            if ($aissIntegration === 'disabled_by_tenant') {
+                return [
+                    'mode' => 'standalone',
+                    'label' => 'Standalone — AISS integration is disabled for this tenant',
+                    'aiss_used' => false,
+                    'reason' => 'disabled_by_tenant',
+                ];
+            }
+
+            if ($aissIntegration === 'standalone_mode') {
+                return [
+                    'mode' => 'standalone',
+                    'label' => 'Standalone — AISS module is not available',
+                    'aiss_used' => false,
+                    'reason' => 'standalone_mode',
+                ];
+            }
+
+            foreach (['textual_matching', 'semantic_resemblance', 'citation_detection', 'context_analysis'] as $cap) {
+                if (($maturity[$cap] ?? 'unavailable') !== 'unavailable') {
+                    $capabilitiesUsed[$cap] = $maturity[$cap];
+                }
+            }
+
+            if (!empty($s['textual_result']) || !empty($s['aiss_submission_id'])) {
+                $hasAissData = true;
+            }
+        }
+
+        return [
+            'mode' => $hasAissData ? 'aiss_assisted' : 'standalone',
+            'label' => $hasAissData
+                ? 'AISS-Assisted — Similarity and scholarship evidence was analyzed'
+                : 'Standalone — No AISS evidence was generated',
+            'aiss_used' => $hasAissData,
+            'capabilities' => $capabilitiesUsed,
+        ];
+    }
+
+    private function determineCapabilitiesUsed(array $snapshots): array
+    {
+        $used = [];
+        foreach ($snapshots as $s) {
+            $maturity = json_decode($s['maturity_metadata'] ?? '{}', true);
+            foreach (['textual_matching', 'semantic_resemblance', 'citation_detection', 'context_analysis'] as $cap) {
+                $status = $maturity[$cap] ?? 'unavailable';
+                if ($status !== 'unavailable' && !isset($used[$cap])) {
+                    $used[$cap] = [
+                        'status' => $status,
+                        'capability_version' => $s['capability_version'] ?? 'unknown',
+                        'snapshot_id' => $s['id'],
+                    ];
+                }
+            }
+        }
+        return $used;
     }
 }
