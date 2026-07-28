@@ -65,10 +65,19 @@ class AcademicSimilarityEvidenceTaxonomy
 
     /**
      * Scholarly relationship — how the passage relates to scholarly norms.
+     *
+     * NOTE: Several values require reviewer confirmation:
+     *   - standard_method_confirmed_by_reviewer: requires reviewer or policy
+     *   - shared_topic_only: replaces independent_agreement (the system
+     *     cannot establish independence without provenance evidence)
+     *   - shared_method_description: machine-detectable; not the same as
+     *     "standard method" which requires disciplinary knowledge
      */
     public const SCHOLARLY_ATTRIBUTED_USE       = 'attributed_use';
     public const SCHOLARLY_COMMON_KNOWLEDGE     = 'common_knowledge';
     public const SCHOLARLY_STANDARD_METHOD      = 'standard_method';
+    public const SCHOLARLY_STANDARD_METHOD_CONFIRMED = 'standard_method_confirmed_by_reviewer';
+    public const SCHOLARLY_SHARED_METHOD_DESCRIPTION = 'shared_method_description';
     public const SCHOLARLY_PARAPHRASE           = 'paraphrase';
     public const SCHOLARLY_SYNTHESIS            = 'synthesis';
     public const SCHOLARLY_REPLICATION          = 'replication';
@@ -76,7 +85,8 @@ class AcademicSimilarityEvidenceTaxonomy
     public const SCHOLARLY_REFINEMENT           = 'refinement';
     public const SCHOLARLY_TRANSLATION          = 'translation';
     public const SCHOLARLY_CRITIQUE             = 'critique';
-    public const SCHOLARLY_INDEPENDENT_AGREEMENT = 'independent_agreement';
+    public const SCHOLARLY_INDEPENDENT_AGREEMENT = 'independent_agreement'; // Deprecated — use shared_topic_only
+    public const SCHOLARLY_SHARED_TOPIC_ONLY     = 'shared_topic_only';
     public const SCHOLARLY_INSUFFICIENT_ATTRIBUTION = 'insufficient_attribution';
     public const SCHOLARLY_POSSIBLE_UNATTRIBUTED_REUSE = 'possible_unattributed_reuse';
     public const SCHOLARLY_UNCERTAIN            = 'uncertain';
@@ -85,6 +95,8 @@ class AcademicSimilarityEvidenceTaxonomy
         self::SCHOLARLY_ATTRIBUTED_USE,
         self::SCHOLARLY_COMMON_KNOWLEDGE,
         self::SCHOLARLY_STANDARD_METHOD,
+        self::SCHOLARLY_STANDARD_METHOD_CONFIRMED,
+        self::SCHOLARLY_SHARED_METHOD_DESCRIPTION,
         self::SCHOLARLY_PARAPHRASE,
         self::SCHOLARLY_SYNTHESIS,
         self::SCHOLARLY_REPLICATION,
@@ -93,20 +105,36 @@ class AcademicSimilarityEvidenceTaxonomy
         self::SCHOLARLY_TRANSLATION,
         self::SCHOLARLY_CRITIQUE,
         self::SCHOLARLY_INDEPENDENT_AGREEMENT,
+        self::SCHOLARLY_SHARED_TOPIC_ONLY,
         self::SCHOLARLY_INSUFFICIENT_ATTRIBUTION,
         self::SCHOLARLY_POSSIBLE_UNATTRIBUTED_REUSE,
         self::SCHOLARLY_UNCERTAIN,
     ];
 
     /**
-     * Attribution status — whether the passage appears to be properly attributed.
+     * Attribution status — observed citation signals around a passage.
+     *
+     * NOTE: These are cautious observation statuses. The system does NOT
+     * assert that attribution is "present and supported" — that requires
+     * linking the citation to the specific source and verifying the source
+     * supports the claim, which AISS does not yet perform.
+     *
+     * Use these instead of the former PRESENT_SUPPORTED/MISSING which
+     * implied more certainty than the evidence supports.
      */
     public const ATTRIBUTION_NOT_REQUIRED         = 'not_required';
-    public const ATTRIBUTION_PRESENT_SUPPORTED    = 'present_and_supported';
+    public const ATTRIBUTION_PRESENT_SUPPORTED    = 'present_and_supported'; // Deprecated — requires citation-to-source verification
     public const ATTRIBUTION_PRESENT_INCOMPLETE   = 'present_but_incomplete';
     public const ATTRIBUTION_PRESENT_MISMATCHED   = 'present_but_mismatched';
-    public const ATTRIBUTION_MISSING              = 'missing';
+    public const ATTRIBUTION_MISSING              = 'missing'; // Deprecated — use citation_not_detected
     public const ATTRIBUTION_UNABLE_TO_DETERMINE  = 'unable_to_determine';
+
+    // Cautious attribution observation statuses (preferred)
+    public const ATTR_CITATION_DETECTED           = 'citation_detected';
+    public const ATTR_CITATION_NOT_DETECTED       = 'citation_not_detected';
+    public const ATTR_CITATION_AND_QUOTATION      = 'citation_and_quotation_detected';
+    public const ATTR_CITATION_UNRESOLVED         = 'citation_detected_source_unresolved';
+    public const ATTR_ATTRIBUTION_NEEDS_REVIEW    = 'attribution_needs_review';
 
     public const ATTRIBUTION_STATUSES = [
         self::ATTRIBUTION_NOT_REQUIRED,
@@ -115,6 +143,11 @@ class AcademicSimilarityEvidenceTaxonomy
         self::ATTRIBUTION_PRESENT_MISMATCHED,
         self::ATTRIBUTION_MISSING,
         self::ATTRIBUTION_UNABLE_TO_DETERMINE,
+        self::ATTR_CITATION_DETECTED,
+        self::ATTR_CITATION_NOT_DETECTED,
+        self::ATTR_CITATION_AND_QUOTATION,
+        self::ATTR_CITATION_UNRESOLVED,
+        self::ATTR_ATTRIBUTION_NEEDS_REVIEW,
     ];
 
     /**

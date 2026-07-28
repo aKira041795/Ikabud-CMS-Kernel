@@ -277,6 +277,11 @@ class AcademicSimilarityCitationAnalysisService
 
     /**
      * Determine overall attribution status for a passage.
+     *
+     * Uses cautious statuses. The system does NOT assert that attribution is
+     * "present and supported" — that requires linking the citation to the
+     * specific source and verifying it supports the claim, which this service
+     * does not yet perform.
      */
     public function determineAttributionStatus(
         bool $hasCitation,
@@ -285,18 +290,17 @@ class AcademicSimilarityCitationAnalysisService
         array $missingReferences
     ): string {
         if (!$hasCitation) {
-            return AcademicSimilarityEvidenceTaxonomy::ATTRIBUTION_MISSING;
+            return 'citation_not_detected';
         }
         if ($hasQuotes && $hasCitation && empty($missingReferences)) {
-            return AcademicSimilarityEvidenceTaxonomy::ATTRIBUTION_PRESENT_SUPPORTED;
+            // Citation and quotation detected, but the system has NOT verified
+            // that the cited source supports this specific passage.
+            return 'citation_and_quotation_detected';
         }
         if ($hasCitation && !empty($missingReferences)) {
-            return AcademicSimilarityEvidenceTaxonomy::ATTRIBUTION_PRESENT_INCOMPLETE;
-        }
-        if ($proximity === null) {
-            return AcademicSimilarityEvidenceTaxonomy::ATTRIBUTION_PRESENT_INCOMPLETE;
+            return 'citation_detected_source_unresolved';
         }
 
-        return AcademicSimilarityEvidenceTaxonomy::ATTRIBUTION_PRESENT_SUPPORTED;
+        return 'citation_detected';
     }
 }

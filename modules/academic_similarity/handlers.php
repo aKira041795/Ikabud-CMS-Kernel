@@ -445,6 +445,7 @@ function pageReportDetail(array $params = []): void
             'reviewer_attention_level'  => $scoreResult['reviewer_attention_level'] ?? ['level' => 'none', 'label' => 'None', 'reasons' => []],
             'semantic_strong_relationships' => $scoreResult['semantic_strong_relationships'] ?? 0,
             'semantic_weak_relationships'   => $scoreResult['semantic_weak_relationships'] ?? 0,
+            '_experimental'             => true,
         ],
         'active_nav'           => 'reports',
     ]);

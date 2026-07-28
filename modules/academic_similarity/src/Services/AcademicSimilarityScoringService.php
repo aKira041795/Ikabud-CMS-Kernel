@@ -152,12 +152,20 @@ class AcademicSimilarityScoringService
             ? round(($adjustedCoverage['unique_matched_words'] / $totalEligibleWords) * 100, 2)
             : 0.0;
 
-        // Reviewer Attention Level — categorical, not additive
+        // Reviewer Attention Level — categorical, not additive.
+        // Build evidence profile from match-level signals when available.
+        $evidenceProfile = [
+            'quotation_count' => $this->countMatchByType($matchResults, 'quotation'),
+            'exclusion_count' => count($excludedMatches),
+            'method_section_count' => 0, // Would require section metadata
+            'citation_count' => 0,       // Would require citation analysis
+        ];
         $attentionLevel = $this->calculateReviewerAttentionLevel(
             $textualOverlapScore,
             $highConfidenceSemantic,
             $lowConfidenceSemantic,
-            $totalEligibleWords
+            $totalEligibleWords,
+            $evidenceProfile
         );
 
         return [
@@ -173,6 +181,7 @@ class AcademicSimilarityScoringService
             'matched_word_count' => $adjustedCoverage['unique_matched_words'],
             'total_eligible_words' => $totalEligibleWords,
             'source_breakdown' => $sourceBreakdown,
+            '_experimental' => true,
         ];
     }
 
@@ -329,33 +338,34 @@ class AcademicSimilarityScoringService
      * This replaces the additive combined_score. It is NOT a percentage — it
      * is a risk-ranking indicator for reviewer triage.
      *
-     * Rules engine:
-     *   High:   substantial exact overlap (>25%) without attribution, OR
-     *           several strong contextual matches with missing attribution, OR
-     *           direct copying of results/conclusions/original claims
-     *   Moderate: repeated near-exact overlap, OR
-     *             questionable paraphrasing, OR
-     *             incomplete methodological attribution
-     *   Low:    properly cited quotations, OR
-     *           standard terminology/methods, OR
-     *           weak topical relationships only
-     *   None:   no actionable evidence
+     * Rules engine is now evidence-category-aware when $evidenceProfile is provided.
+     * When evidence signals (quotation, citation, section) are available, they
+     * can downgrade attention that would otherwise be driven by raw score alone.
      *
      * @param float $textualScore
      * @param array $highConfidenceSemantic
      * @param array $lowConfidenceSemantic
      * @param int $totalEligibleWords
+     * @param array|null $evidenceProfile Optional array with signal keys:
+     *   quotation_count, citation_count, method_section_count, exclusion_count
      * @return array{level: string, label: string, reasons: array}
      */
     public function calculateReviewerAttentionLevel(
         float $textualScore,
         array $highConfidenceSemantic,
         array $lowConfidenceSemantic,
-        int $totalEligibleWords
+        int $totalEligibleWords,
+        ?array $evidenceProfile = null
     ): array {
         $reasons = [];
         $highCount = count($highConfidenceSemantic);
         $lowCount = count($lowConfidenceSemantic);
+
+        // Extract evidence signals if available
+        $quotationCount = (int)($evidenceProfile['quotation_count'] ?? 0);
+        $citationCount = (int)($evidenceProfile['citation_count'] ?? 0);
+        $methodSectionCount = (int)($evidenceProfile['method_section_count'] ?? 0);
+        $exclusionCount = (int)($evidenceProfile['exclusion_count'] ?? 0);
 
         // None — no evidence at all
         if ($textualScore <= 0 && $highCount === 0 && $lowCount === 0) {
@@ -366,12 +376,31 @@ class AcademicSimilarityScoringService
             ];
         }
 
-        // High triggers
-        if ($textualScore > 25) {
-            $reasons[] = 'Substantial exact or near-exact overlap (' . $textualScore . '% textual)';
+        // Determine effective textual score after considering evidence signals.
+        // Quotations with citations should reduce concern (they're attributed).
+        $effectiveTextualScore = $textualScore;
+        if ($quotationCount > 0 && $citationCount > 0 && $effectiveTextualScore > 0) {
+            $effectiveTextualScore = max(0, $effectiveTextualScore - ($quotationCount * 2));
+            $reasons[] = $quotationCount . ' passage(s) with quotation markers and citations detected — these may represent properly attributed use.';
         }
+
+        // Method section passages are typically less concerning
+        if ($methodSectionCount > 0 && $effectiveTextualScore > 0) {
+            $effectiveTextualScore = max(0, $effectiveTextualScore - ($methodSectionCount * 1));
+            if ($methodSectionCount >= 2) {
+                $reasons[] = $methodSectionCount . ' passage(s) in methodology sections — may represent shared methodological description.';
+            }
+        }
+
+        // High triggers (using effective score where evidence signals are available)
+        if ($effectiveTextualScore > 25) {
+            $reasons[] = 'Substantial exact or near-exact overlap (' . round($effectiveTextualScore, 1) . '% textual)';
+        } elseif ($textualScore > 25 && $effectiveTextualScore <= 25) {
+            $reasons[] = 'Textual overlap is ' . $textualScore . '% but evidence signals (quotations, citations) reduce the attention level. Reviewer verification recommended.';
+        }
+
         if ($textualScore > 0 && $textualScore <= 25 && $highCount >= 3) {
-            $reasons[] = $highCount . ' strong contextual matches with substantial exact overlap';
+            $reasons[] = $highCount . ' strong contextual matches with exact overlap';
         }
 
         // Moderate triggers
@@ -396,11 +425,18 @@ class AcademicSimilarityScoringService
             $reasons[] = $lowCount . ' weak topical relationship(s) only — no textual overlap';
         }
 
-        // Determine level
-        if ($textualScore > 25 || ($textualScore > 0 && $highCount >= 3)) {
+        // Exclusion info
+        if ($exclusionCount > 0 && $textualScore > 0) {
+            $reasons[] = $exclusionCount . ' match(es) have been excluded by reviewer — textual score already reflects exclusions.';
+        }
+
+        // Determine level using effective score when available
+        $scoreForLevel = ($quotationCount > 0 || $methodSectionCount > 0) ? $effectiveTextualScore : $textualScore;
+
+        if ($scoreForLevel > 25 || ($textualScore > 0 && $highCount >= 3)) {
             $level = 'high';
             $label = 'High';
-        } elseif ($textualScore > 10 || $highCount >= 5 || ($textualScore > 0 && $highCount >= 2)) {
+        } elseif ($scoreForLevel > 10 || $highCount >= 5 || ($textualScore > 0 && $highCount >= 2)) {
             $level = 'moderate';
             $label = 'Moderate';
         } elseif ($textualScore > 0 || $highCount > 0 || $lowCount > 0) {
@@ -420,6 +456,20 @@ class AcademicSimilarityScoringService
             'label' => $label,
             'reasons' => $reasons,
         ];
+    }
+
+    /**
+     * Count matches of a specific type.
+     */
+    private function countMatchByType(array $matchResults, string $type): int
+    {
+        $count = 0;
+        foreach ($matchResults as $m) {
+            if ($m->matchType === $type) {
+                $count++;
+            }
+        }
+        return $count;
     }
 
     /**
