@@ -187,8 +187,14 @@
                     <p class="mt-1 text-xs text-gray-500">Stored encrypted at rest. Leave blank to keep the current key.</p>
                 </div>
                 <div>
-                    <label for="semantic_similarity_threshold" class="block text-sm font-medium text-gray-700 mb-1">Semantic Threshold</label>
-                    <input type="number" step="0.01" id="semantic_similarity_threshold" name="semantic_similarity_threshold" value="{settings.semantic_similarity_threshold|default:0.70}" min="0" max="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <label for="semantic_similarity_threshold" class="block text-sm font-medium text-gray-700 mb-1">Candidate Threshold (discovery)</label>
+                    <input type="number" step="0.01" id="semantic_similarity_threshold" name="semantic_similarity_threshold" value="{settings.semantic_similarity_threshold|default:0.25}" min="0" max="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Minimum similarity for the service to return potential matches. Lower values find more candidates but increase noise. Default: 0.25.</p>
+                </div>
+                <div>
+                    <label for="semantic_report_threshold" class="block text-sm font-medium text-gray-700 mb-1">Report Threshold (scoring inclusion)</label>
+                    <input type="number" step="0.01" id="semantic_report_threshold" name="semantic_report_threshold" value="{settings.semantic_report_threshold|default:0.70}" min="0" max="1" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                    <p class="mt-1 text-xs text-gray-500">Only matches at or above this threshold contribute to the similarity score. Scores below it are stored but excluded from calculations. Default: 0.70.</p>
                 </div>
                 <div>
                     <label for="semantic_max_segments" class="block text-sm font-medium text-gray-700 mb-1">Max Segments Per Payload</label>
@@ -302,8 +308,8 @@
         {if settings_section == 'all' or settings_section == 'internet'}
         <section class="bg-white rounded-lg shadow border border-gray-200 p-6">
             <div class="mb-4 flex flex-col gap-2">
-                <h2 class="text-lg font-semibold text-gray-900">AI Internet Check</h2>
-                <p class="text-sm text-gray-500">Opt-in bounded public source discovery. Results disclose provider limits and are not a comprehensive internet search.</p>
+                <h2 class="text-lg font-semibold text-gray-900">Internet Reference Sources</h2>
+                <p class="text-sm text-gray-500">Compared with configured reference sources — not a comprehensive internet search. Use the "seed URLs" provider for curated sources or an AI search provider for broader discovery.</p>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <label class="flex items-center gap-3">
@@ -372,7 +378,7 @@
                 <div class="md:col-span-2">
                     <label for="internet_check_seed_urls" class="block text-sm font-medium text-gray-700 mb-1">Seed URLs</label>
                     <textarea id="internet_check_seed_urls" name="internet_check_seed_urls" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{settings.internet_check_seed_urls}</textarea>
-                    <p class="mt-1 text-xs text-gray-500">One URL per line or comma-separated. Used for deterministic testing or curated public-source providers.</p>
+                    <p class="mt-1 text-xs text-gray-500">One URL per line or comma-separated. Used for deterministic reference sources. For production, replace topic-specific seed URLs with institution-approved repositories.</p>
                 </div>
             </div>
         </section>

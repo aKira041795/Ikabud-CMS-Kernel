@@ -1017,6 +1017,7 @@ class AcademicSimilarityPipelineService
             }
         }
 
+        $candidateThreshold = (float)($settings['semantic_similarity_threshold'] ?? 0.25);
         $result = $semantic->compare(
             array_column($submissionSegments, 'normalized_content'),
             $sourceBundle['texts'],
@@ -1024,7 +1025,7 @@ class AcademicSimilarityPipelineService
                 'institution_id' => $institutionId,
                 'provider' => (string)($settings['semantic_provider'] ?? 'token_overlap'),
                 'modelName' => (string)($settings['semantic_model_name'] ?? 'token_overlap'),
-                'threshold' => (float)($settings['semantic_similarity_threshold'] ?? 0.70),
+                'threshold' => $candidateThreshold,
             ]
         );
 
@@ -1035,7 +1036,8 @@ class AcademicSimilarityPipelineService
             return ['ok' => true, 'semantic_status' => 'failed', 'error' => $result['error'] ?? 'Semantic matching failed'];
         }
 
-        $threshold = (float)($settings['semantic_similarity_threshold'] ?? 0.70);
+        $candidateThreshold = (float)($settings['semantic_similarity_threshold'] ?? 0.25);
+        $reportThreshold = (float)($settings['semantic_report_threshold'] ?? 0.70);
         $matches = [];
         $bestBySource = []; // Deduplicate semantic matches by source — keep highest confidence
 
@@ -1049,7 +1051,7 @@ class AcademicSimilarityPipelineService
 
         foreach (($result['comparisons'] ?? []) as $comparison) {
             $score = (float)($comparison['similarity_score'] ?? 0);
-            if ($score < $threshold || empty($comparison['above_threshold'])) {
+            if ($score < $candidateThreshold || empty($comparison['above_threshold'])) {
                 continue;
             }
 

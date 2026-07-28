@@ -10,7 +10,7 @@ declare(strict_types=1);
  * each tenant's `_defaults_version` setting so stale tenants can be
  * detected automatically.
  */
-define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '008');
+define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '009');
 
 // ── Auto-load module services ────────────────────────────────────
 (function (): void {
@@ -97,7 +97,8 @@ function academic_similarity_get_settings(string $tenantId): array
         'semantic_service_token_env' => 'SEMANTIC_SERVICE_TOKEN',
         'semantic_external_api_key_env' => 'SEMANTIC_API_KEY',
         'semantic_external_api_key' => '',
-        'semantic_similarity_threshold' => '0.15',
+        'semantic_similarity_threshold' => '0.25',
+        'semantic_report_threshold' => '0.70',
         'semantic_max_segments' => '500',
         'semantic_payload_policy' => 'segments_only',
         'semantic_health_visible' => '1',
@@ -125,7 +126,7 @@ function academic_similarity_get_settings(string $tenantId): array
         'public_results_show_scores' => '1',
         'public_results_show_match_count' => '1',
         'public_results_show_report_links' => '1',
-        'public_results_allow_anonymous' => '1',
+        'public_results_allow_anonymous' => '0',
         'public_report_workspace_enabled' => '1',
         'public_report_download_enabled' => '1',
         'public_report_show_raw_score' => '1',
@@ -145,7 +146,7 @@ function academic_similarity_get_settings(string $tenantId): array
         'internet_check_auto_run_when_no_sources' => '1',
         'internet_check_allow_full_document_query' => '1',
         'internet_check_store_retrieved_text' => '1',
-        'internet_check_seed_urls' => "https://en.wikipedia.org/wiki/Social_media\nhttps://en.wikipedia.org/wiki/Academic_achievement\nhttps://en.wikipedia.org/wiki/Digital_literacy\nhttps://en.wikipedia.org/wiki/Educational_technology\nhttps://en.wikipedia.org/wiki/Higher_education",
+        'internet_check_seed_urls' => '',
         'internet_check_disclosure_visible' => '1',
         'report_ai_narrative_enabled' => '1',
     ];
@@ -200,7 +201,7 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'enabled', 'exact_match_enabled', 'near_match_enabled', 'semantic_match_enabled',
         'semantic_provider', 'semantic_model_name', 'semantic_service_endpoint',
         'semantic_service_token_env', 'semantic_external_api_key_env', 'semantic_external_api_key',
-        'semantic_similarity_threshold', 'semantic_max_segments',
+        'semantic_similarity_threshold', 'semantic_report_threshold', 'semantic_max_segments',
         'semantic_payload_policy', 'semantic_health_visible',
         'cms_public_submission_enabled', 'cms_submission_shortcode', 'cms_builder_block_enabled',
         'cms_default_submission_title', 'similarity_threshold', 'min_match_length',

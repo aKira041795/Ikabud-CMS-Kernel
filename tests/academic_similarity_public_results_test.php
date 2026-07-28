@@ -82,7 +82,7 @@ $settingsDefaults = [
     'public_results_show_scores' => '1',
     'public_results_show_match_count' => '1',
     'public_results_show_report_links' => '1',
-    'public_results_allow_anonymous' => '1',
+    'public_results_allow_anonymous' => '0',
 ];
 
 // Check helpers.php source for defaults

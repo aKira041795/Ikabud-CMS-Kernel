@@ -41,8 +41,8 @@ aiss_it('migration extends processing job enum', str_contains($migration, "'inte
 aiss_it('settings defaults enable internet check', str_contains($helpers, "'internet_check_enabled' => '1'"));
 aiss_it('settings defaults use bounded snippets policy', str_contains($helpers, "'internet_check_payload_policy' => 'snippets_only'"));
 aiss_it('settings allowlist includes provider limits', str_contains($helpers, "'internet_check_max_queries'") && str_contains($helpers, "'internet_check_max_sources'"));
-aiss_it('settings UI has internet tab in module view', str_contains($settings, 'AI Internet Check') && str_contains($settings, 'internet_check_seed_urls'));
-aiss_it('settings UI has internet tab in live view', str_contains($globalSettings, 'AI Internet Check') && str_contains($globalSettings, 'internet_check_provider'));
+aiss_it('settings UI has internet tab in module view', str_contains($settings, 'Internet Reference Sources') && str_contains($settings, 'internet_check_seed_urls'));
+aiss_it('settings UI has internet tab in live view', str_contains($globalSettings, 'Internet Reference Sources') && str_contains($globalSettings, 'internet_check_provider'));
 aiss_it('manual internet check route exists', str_contains($routes, "submissions/{id}/internet-check") && str_contains($routes, 'apiRunInternetCheck'));
 aiss_it('settings internet subroute exists', str_contains($routes, '/admin/academic-similarity/settings/internet'));
 aiss_it('handler exposes manual internet check', str_contains($handlers, 'function apiRunInternetCheck') && str_contains($handlers, 'runForSubmission($submissionId, true)'));

@@ -421,6 +421,9 @@ function pageReportDetail(array $params = []): void
     }
     unset($passage);
 
+    // Re-calculate scores via ScoringService for separated score families
+    $scoreResult = $scoringService->calculateScore($submissionId);
+
     echo $ctx->render('academic_similarity/reports/detail', [
         'report'               => $report,
         'submission'           => $submission,
@@ -433,6 +436,15 @@ function pageReportDetail(array $params = []): void
         'internet_sources'     => array_values($internetBySource),
         'evidence_by_match'    => $evidenceMap,
         'report_ai_narrative'  => $report['report_ai_narrative'] ?? null,
+        'score_families'       => [
+            'raw_score'         => $report['raw_similarity_score'],
+            'adjusted_score'    => $report['adjusted_similarity_score'],
+            'textual_raw'       => $scoreResult['raw_score'] ?? $report['raw_similarity_score'],
+            'textual_adjusted'  => $scoreResult['adjusted_score'] ?? $report['adjusted_similarity_score'],
+            'semantic_resemblance' => $scoreResult['semantic_resemblance_score'] ?? 0,
+            'combined_score'    => $scoreResult['combined_score'] ?? $report['raw_similarity_score'],
+            'semantic_low_count' => $scoreResult['semantic_low_confidence_count'] ?? 0,
+        ],
         'active_nav'           => 'reports',
     ]);
 }

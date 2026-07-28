@@ -86,15 +86,35 @@ class AcademicSimilarityScoringService
             ]);
         }
 
-        // Existing unweighted scores
-        $rawCoverage = $this->calculateUniqueCoverage($matchResults, $totalEligibleWords);
+        // Separate textual (exact + near-exact) from semantic matches
+        $textualMatches = array_filter($matchResults, fn($m) => in_array($m->matchType, ['exact', 'near-exact'], true));
+        $semanticMatches = array_filter($matchResults, fn($m) => $m->matchType === 'semantic');
+
+        // Load semantic report threshold from settings
+        $semanticReportThreshold = 0.70;
+        try {
+            $settings = academic_similarity_get_settings($this->tenantId);
+            $semanticReportThreshold = (float)($settings['semantic_report_threshold'] ?? 0.70);
+        } catch (\Throwable $e) {
+            // fallback to default
+        }
+
+        // Only semantic matches at or above report threshold count towards score
+        $highConfidenceSemantic = array_filter($semanticMatches, fn($m) => $m->confidence >= $semanticReportThreshold);
+        $lowConfidenceSemantic = array_filter($semanticMatches, fn($m) => $m->confidence < $semanticReportThreshold);
+
+        // Textual score (unique word coverage — exact + near-exact only)
+        $textualCoverage = $this->calculateUniqueCoverage(array_merge($textualMatches, $highConfidenceSemantic), $totalEligibleWords);
 
         // Build source breakdown for weighted scoring
         $sourceBreakdown = $this->buildSourceBreakdown($matchResults);
 
-        // Weighted scores
+        // Weighted scores (all match types)
         $weightedRaw = $this->calculateWeightedScore($matchResults, $totalEligibleWords, false);
         $weightedAdjusted = $this->calculateWeightedScore($matchResults, $totalEligibleWords, true);
+
+        // Semantic resemblance score (semantic-only, weighted)
+        $semanticResemblance = $this->calculateSemanticResemblanceScore($highConfidenceSemantic, $totalEligibleWords);
 
         // Handle excluded matches for unweighted adjusted score
         $excludedMatches = $matchRepo->findExcluded($submissionId);
@@ -106,8 +126,8 @@ class AcademicSimilarityScoringService
             ];
         }
 
-        $activeMatchResults = [];
-        foreach ($matchResults as $mr) {
+        $activeTextualResults = [];
+        foreach (array_merge($textualMatches, $highConfidenceSemantic) as $mr) {
             $excluded = false;
             foreach ($excludedRanges as $er) {
                 if ($mr->submissionWordStart === $er['start'] && $mr->submissionWordEnd === $er['end']) {
@@ -116,14 +136,14 @@ class AcademicSimilarityScoringService
                 }
             }
             if (!$excluded) {
-                $activeMatchResults[] = $mr;
+                $activeTextualResults[] = $mr;
             }
         }
 
-        $adjustedCoverage = $this->calculateUniqueCoverage($activeMatchResults, $totalEligibleWords);
+        $adjustedCoverage = $this->calculateUniqueCoverage($activeTextualResults, $totalEligibleWords);
 
         $rawScore = $totalEligibleWords > 0
-            ? round(($rawCoverage['unique_matched_words'] / $totalEligibleWords) * 100, 2)
+            ? round(($textualCoverage['unique_matched_words'] / $totalEligibleWords) * 100, 2)
             : 0.0;
 
         $adjustedScore = $totalEligibleWords > 0
@@ -135,6 +155,9 @@ class AcademicSimilarityScoringService
             'adjusted_score' => $adjustedScore,
             'weighted_raw_score' => round($weightedRaw, 2),
             'weighted_adjusted_score' => round($weightedAdjusted, 2),
+            'semantic_resemblance_score' => round($semanticResemblance, 2),
+            'combined_score' => round(min(100.0, $rawScore + $semanticResemblance), 2),
+            'semantic_low_confidence_count' => count($lowConfidenceSemantic),
             'matched_word_count' => $adjustedCoverage['unique_matched_words'],
             'total_eligible_words' => $totalEligibleWords,
             'source_breakdown' => $sourceBreakdown,
@@ -249,6 +272,41 @@ class AcademicSimilarityScoringService
 
         $weightedScore = ($totalWeight / $totalEligibleWords) * 100 * $diversityFactor;
         return min(100.0, $weightedScore);
+    }
+
+    // ── Semantic resemblance scoring (separate from textual) ───────
+
+    /**
+     * Calculate semantic resemblance score from high-confidence semantic matches only.
+     *
+     * This is a standalone score representing topic-level similarity, NOT
+     * textual copying. It should be displayed separately from the textual
+     * similarity score in reports.
+     *
+     * Formula:
+     *   semantic_resemblance = Σ(match_word_count × 0.2) / total_words × 100
+     *
+     * Uses a fixed 0.2 weight (semantic type weight) and no contiguous bonus
+     * or diversity factor, since semantic matches are segment-level properties
+     * rather than word-level exact runs.
+     *
+     * @param AcademicSimilarityMatchResult[] $semanticMatches High-confidence semantic matches only
+     * @param int $totalEligibleWords
+     * @return float
+     */
+    public function calculateSemanticResemblanceScore(array $semanticMatches, int $totalEligibleWords): float
+    {
+        if ($totalEligibleWords <= 0 || empty($semanticMatches)) {
+            return 0.0;
+        }
+
+        $totalWeight = 0.0;
+        foreach ($semanticMatches as $match) {
+            $totalWeight += $match->matchedWordCount * 0.2;
+        }
+
+        // Cap at 100 to prevent inflation from overlapping semantic matches
+        return min(100.0, ($totalWeight / $totalEligibleWords) * 100);
     }
 
     /**

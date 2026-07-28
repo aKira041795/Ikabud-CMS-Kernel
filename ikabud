@@ -2870,11 +2870,15 @@ switch ($command) {
             out('    ' . ($semEnabled ? green('✓') : yellow('⚠')) . ' semantic_match_enabled=' . cyan($settings['semantic_match_enabled'] ?? '0')
                 . ($semEnabled ? '' : ' — AI matching is disabled, enable in Settings → Semantic Matching'));
 
-            // 7d. Threshold sanity
-            $threshold = (float)($settings['semantic_similarity_threshold'] ?? 0.70);
-            $thresholdOk = $threshold <= 0.3;
-            out('    ' . ($thresholdOk ? green('✓') : yellow('⚠')) . ' semantic_similarity_threshold=' . cyan((string)$threshold)
-                . ($thresholdOk ? '' : ' — values above 0.30 may miss topic-level similarity'));
+            // 7d. Threshold sanity (two-tier)
+            $candidateThresh = (float)($settings['semantic_similarity_threshold'] ?? 0.25);
+            $reportThresh = (float)($settings['semantic_report_threshold'] ?? 0.70);
+            $candidateOk = $candidateThresh <= 0.30;
+            $reportOk = $reportThresh >= 0.60 && $reportThresh <= 0.80;
+            out('    ' . ($candidateOk ? green('✓') : yellow('⚠')) . ' semantic_similarity_threshold (candidate)=' . cyan((string)$candidateThresh)
+                . ($candidateOk ? '' : ' — values above 0.30 may miss topic-level candidates'));
+            out('    ' . ($reportOk ? green('✓') : yellow('⚠')) . ' semantic_report_threshold (report)=' . cyan((string)$reportThresh)
+                . ($reportOk ? '' : ' — values outside 0.60–0.80 may over- or under-include semantic matches in scores'));
 
             // 7e. Internet check provider
             $icp = (string)($settings['internet_check_provider'] ?? 'not set');
