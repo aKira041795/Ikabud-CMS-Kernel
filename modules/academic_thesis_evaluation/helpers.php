@@ -108,6 +108,7 @@ function ate_get_settings(string $tenantId): array
         'require_ethics_clearance' => '1',
         'require_adviser_endorsement' => '1',
         'auto_generate_aiss_on_submit' => '0',
+        'aiss_integration_enabled' => '0',
         '_defaults_version' => ATE_DEFAULTS_VERSION,
     ];
 
@@ -150,6 +151,7 @@ function ate_save_settings(string $tenantId, array $input): void
         'default_retention_policy', 'max_manuscript_size_mb',
         'allowed_manuscript_extensions', 'require_ethics_clearance',
         'require_adviser_endorsement', 'auto_generate_aiss_on_submit',
+        'aiss_integration_enabled',
         '_defaults_version',
     ];
 

@@ -5,10 +5,10 @@
     "description": "Configurable thesis and dissertation evaluation workflow consuming AISS evidence without allowing AISS to determine academic outcomes.",
     "author": "Ikabud Kernel Team",
     "depends": [
-        "academic-similarity",
         "users"
     ],
     "optional_depends": [
+        "academic-similarity",
         "notifications",
         "document_management",
         "calendar",
@@ -55,7 +55,12 @@
             "type": "string",
             "default": "retained_institutionally",
             "label": "Default manuscript retention policy",
-            "options": ["temporary", "retained_institutionally", "added_to_comparison_repository", "deleted_after_evaluation"]
+            "options": [
+                "temporary",
+                "retained_institutionally",
+                "added_to_comparison_repository",
+                "deleted_after_evaluation"
+            ]
         },
         {
             "key": "max_manuscript_size_mb",
@@ -86,19 +91,49 @@
             "type": "boolean",
             "default": "0",
             "label": "Automatically generate AISS evidence snapshot on manuscript submission"
+        },
+        {
+            "key": "aiss_integration_enabled",
+            "type": "boolean",
+            "default": "0",
+            "label": "Enable AISS similarity checking integration"
         }
     ],
     "hooks": [],
     "nav": {
         "admin": [
-            {"label": "Dashboard", "url": "/admin/thesis-evaluation", "icon": "dashboard"},
-            {"label": "Cases", "url": "/admin/thesis-evaluation/cases", "icon": "folder"},
-            {"label": "Profiles", "url": "/admin/thesis-evaluation/profiles", "icon": "settings"},
-            {"label": "Rubrics", "url": "/admin/thesis-evaluation/rubrics", "icon": "checklist"}
+            {
+                "label": "Dashboard",
+                "url": "/admin/thesis-evaluation",
+                "icon": "dashboard"
+            },
+            {
+                "label": "Cases",
+                "url": "/admin/thesis-evaluation/cases",
+                "icon": "folder"
+            },
+            {
+                "label": "Profiles",
+                "url": "/admin/thesis-evaluation/profiles",
+                "icon": "settings"
+            },
+            {
+                "label": "Rubrics",
+                "url": "/admin/thesis-evaluation/rubrics",
+                "icon": "checklist"
+            }
         ],
         "student": [
-            {"label": "My Thesis", "url": "/thesis", "icon": "school"},
-            {"label": "Submit", "url": "/thesis/submit", "icon": "upload"}
+            {
+                "label": "My Thesis",
+                "url": "/thesis",
+                "icon": "school"
+            },
+            {
+                "label": "Submit",
+                "url": "/thesis/submit",
+                "icon": "upload"
+            }
         ]
     },
     "capabilities": {
@@ -106,130 +141,178 @@
             {
                 "id": "academic_thesis_evaluation.case.create@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Create a new thesis evaluation case",
                 "schema": {
                     "type": "object",
                     "properties": {
-                        "profile_code": {"type": "string"},
-                        "title": {"type": "string"},
-                        "degree_program": {"type": "string"},
-                        "research_category": {"type": "string"}
+                        "profile_code": {
+                            "type": "string"
+                        },
+                        "title": {
+                            "type": "string"
+                        },
+                        "degree_program": {
+                            "type": "string"
+                        },
+                        "research_category": {
+                            "type": "string"
+                        }
                     }
                 }
             },
             {
                 "id": "academic_thesis_evaluation.case.get@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Retrieve an evaluation case by ID"
             },
             {
                 "id": "academic_thesis_evaluation.case.list@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "List evaluation cases with optional filters"
             },
             {
                 "id": "academic_thesis_evaluation.case.transition@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Transition an evaluation case to a new stage"
             },
             {
                 "id": "academic_thesis_evaluation.manuscript.submit@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Submit a manuscript version for an evaluation case"
             },
             {
                 "id": "academic_thesis_evaluation.manuscript.revise@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Submit a revised manuscript version"
             },
             {
                 "id": "academic_thesis_evaluation.manuscript.history@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Get manuscript version history for a case"
             },
             {
                 "id": "academic_thesis_evaluation.reviewer.assign@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Assign a reviewer to an evaluation case"
             },
             {
                 "id": "academic_thesis_evaluation.reviewer.accept@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Accept a reviewer assignment"
             },
             {
                 "id": "academic_thesis_evaluation.reviewer.submit@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Submit a reviewer's rubric and findings"
             },
             {
                 "id": "academic_thesis_evaluation.rubric.get@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Get rubric template with criteria"
             },
             {
                 "id": "academic_thesis_evaluation.rubric.score@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Submit rubric scores for a case"
             },
             {
                 "id": "academic_thesis_evaluation.rubric.summary@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Get aggregated rubric summary for a case"
             },
             {
                 "id": "academic_thesis_evaluation.evidence.generate@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Generate AISS evidence snapshot for a manuscript version"
             },
             {
                 "id": "academic_thesis_evaluation.evidence.review@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Record human review decision on AISS evidence"
             },
             {
                 "id": "academic_thesis_evaluation.evidence.snapshot@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Retrieve a stored AISS evidence snapshot"
             },
             {
                 "id": "academic_thesis_evaluation.revision.request@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Create a revision request for a case"
             },
             {
                 "id": "academic_thesis_evaluation.revision.resolve@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Resolve a revision request"
             },
             {
                 "id": "academic_thesis_evaluation.disposition.issue@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Issue final disposition for an evaluation case"
             },
             {
                 "id": "academic_thesis_evaluation.workflow.advance@1",
                 "priority": 50,
-                "modes": ["first"],
+                "modes": [
+                    "first"
+                ],
                 "description": "Advance a case to the next stage based on outcome"
             }
         ]

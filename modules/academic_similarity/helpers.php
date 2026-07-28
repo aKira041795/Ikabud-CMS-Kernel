@@ -462,6 +462,10 @@ function academic_similarity_capability_handlers(): array
         'academic_similarity.semantic.compare@1' => 'ac_sim_cap_semantic_compare_1',
         'academic_similarity.internet.discover@1' => 'ac_sim_cap_internet_discover_1',
         'academic_similarity.context.analyze@1'  => 'ac_sim_cap_context_analyze_1',
+        'academic_similarity.citation.analyze@1' => 'ac_sim_cap_citation_analyze_1',
+        'academic_similarity.scholarship.profile@1' => 'ac_sim_cap_scholarship_profile_1',
+        'academic_similarity.lineage.graph@1' => 'ac_sim_cap_lineage_graph_1',
+        'academic_similarity.review.workflow.action@1' => 'ac_sim_cap_review_workflow_action_1',
     ];
 }
 

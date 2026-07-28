@@ -8,14 +8,22 @@
             "code": "submission",
             "label": "Submission",
             "role": "student",
-            "next": ["administrative_validation"],
-            "requirements": ["manuscript_uploaded"]
+            "next": [
+                "administrative_validation"
+            ],
+            "requirements": [
+                "manuscript_uploaded"
+            ]
         },
         {
             "code": "administrative_validation",
             "label": "Administrative Validation",
             "role": "graduate_coordinator",
-            "requirements": ["manuscript_uploaded", "adviser_endorsement", "ethics_clearance"],
+            "requirements": [
+                "manuscript_uploaded",
+                "adviser_endorsement",
+                "ethics_clearance"
+            ],
             "outcomes": {
                 "validated": "aiss_evidence_review",
                 "returned": "submission",
@@ -26,7 +34,11 @@
             "code": "aiss_evidence_review",
             "label": "AISS Evidence Review",
             "role": "integrity_reviewer",
-            "requirements": ["textual_scan_complete", "evidence_snapshot_saved", "material_matches_reviewed"],
+            "requirements": [
+                "textual_scan_complete",
+                "evidence_snapshot_saved",
+                "material_matches_reviewed"
+            ],
             "outcomes": {
                 "complete": "academic_evaluation",
                 "revision": "revision",
@@ -37,7 +49,10 @@
             "code": "academic_evaluation",
             "label": "Academic Rubric Evaluation",
             "role": "panel_member",
-            "requirements": ["rubric_submitted", "reviewer_comments_submitted"],
+            "requirements": [
+                "rubric_submitted",
+                "reviewer_comments_submitted"
+            ],
             "outcomes": {
                 "proceed": "revision",
                 "not_approved": "final_disposition"
@@ -47,7 +62,10 @@
             "code": "revision",
             "label": "Revision",
             "role": "student",
-            "requirements": ["revision_items_resolved", "revised_manuscript_uploaded"],
+            "requirements": [
+                "revision_items_resolved",
+                "revised_manuscript_uploaded"
+            ],
             "outcomes": {
                 "resubmit": "aiss_evidence_review",
                 "final_review": "final_disposition"
@@ -58,7 +76,9 @@
             "label": "Final Disposition",
             "role": "graduate_dean",
             "terminal": true,
-            "requirements": ["disposition_issued"]
+            "requirements": [
+                "disposition_issued"
+            ]
         }
     ],
     "rubric_template_code": "doctoral_dissertation_v1"

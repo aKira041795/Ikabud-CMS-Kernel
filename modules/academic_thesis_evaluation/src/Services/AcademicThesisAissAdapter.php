@@ -56,8 +56,19 @@ class AcademicThesisAissAdapter
         $capabilityVersion = null;
         $sourceHash = null;
 
-        // Attempt to access AISS via capability bus
-        try {
+        // Check if AISS integration is enabled for this tenant
+        $settings = ate_get_settings($this->tenantId);
+        $aissEnabled = ($settings['aiss_integration_enabled'] ?? '0') === '1';
+
+        if (!$aissEnabled) {
+            $warnings[] = 'AISS integration is disabled for this tenant (aiss_integration_enabled=0). Enable in Thesis Evaluation settings.';
+            $maturityMetadata['aiss_integration'] = 'disabled_by_tenant';
+        } elseif (!function_exists('isModuleEnabledForTenant') || !function_exists('moduleTenantSettingsTenantId')) {
+            $warnings[] = 'AISS module manager helpers unavailable — running in standalone mode';
+            $maturityMetadata['aiss_integration'] = 'standalone_mode';
+        } else {
+            // Attempt to access AISS via capability bus
+            try {
             $caps = app()->capabilities();
             if (method_exists($caps, 'call')) {
                 // 1. Submit to AISS
@@ -121,6 +132,7 @@ class AcademicThesisAissAdapter
         } catch (\Throwable $e) {
             $warnings[] = 'AISS capability bus not available: ' . $e->getMessage();
         }
+        } // end if aissEnabled
 
         // Store snapshot (always, even with no AISS data)
         $snapshotId = $this->snapshotRepo->create([

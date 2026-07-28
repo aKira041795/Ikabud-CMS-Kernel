@@ -49,6 +49,14 @@
                 </label>
             </div>
 
+            <div class="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="aiss_integration_enabled" value="1" {if settings.aiss_integration_enabled|default:'0' == '1'}checked{/if} class="rounded">
+                    <span class="text-sm font-medium text-gray-700">Enable AISS Similarity Checking Integration</span>
+                </label>
+                <p class="text-xs text-gray-500 mt-1 ml-6">When enabled, manuscripts will be submitted to AISS for textual matching, citation detection, and semantic resemblance analysis. AISS must be installed and enabled for the tenant. When disabled, the evaluation workflow functions normally without similarity checking.</p>
+            </div>
+
             <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Save Settings</button>
             <span id="save-status" class="ml-3 text-sm text-green-600 hidden">Saved</span>
         </form>
