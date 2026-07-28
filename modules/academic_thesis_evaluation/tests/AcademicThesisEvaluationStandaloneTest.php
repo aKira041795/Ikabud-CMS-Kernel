@@ -111,14 +111,14 @@ $reportSvc = new AcademicThesisReportService($tenantId);
 $report = $reportSvc->generateEvaluationReport($caseId);
 t('report generated', $report['ok'] === true);
 
-$evalMode = $report['data']['evaluation_mode'] ?? [];
-t('evaluation_mode present', !empty($evalMode));
-t('mode is standalone', ($evalMode['mode'] ?? '') === 'standalone');
-t('aiss_used is false', ($evalMode['aiss_used'] ?? true) === false);
-t('label says AISS was not performed', str_contains(strtolower($evalMode['label'] ?? ''), 'standalone') || str_contains(strtolower($evalMode['label'] ?? ''), 'not'));
-
-$capsUsed = $report['data']['aiss_capabilities_used'] ?? [];
-t('no capabilities marked as used', empty($capsUsed));
+$profile = $report['data']['analysis_profile'] ?? [];
+t('analysis_profile present', !empty($profile));
+t('engine is ATE', ($profile['engine'] ?? '') === 'ATE');
+t('mode is standalone', ($profile['mode'] ?? '') === 'standalone');
+t('extensions.AISS is false', ($profile['extensions']['AISS'] ?? true) === false);
+t('label says AISS was not performed', str_contains(strtolower($profile['label'] ?? ''), 'standalone') || str_contains(strtolower($profile['label'] ?? ''), 'not'));
+t('all capabilities disabled', ($profile['capabilities']['textual_matching'] ?? '') === 'disabled');
+t('semantic_resemblance is disabled', ($profile['capabilities']['semantic_resemblance'] ?? '') === 'disabled');
 
 echo "\n── 3. Verify no empty evidence is misinterpreted ──\n";
 

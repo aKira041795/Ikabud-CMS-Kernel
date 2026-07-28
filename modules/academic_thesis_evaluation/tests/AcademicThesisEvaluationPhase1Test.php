@@ -291,9 +291,11 @@ t('has stages', isset($report['data']['stages_completed']));
 t('has manuscripts', isset($report['data']['manuscript_versions']));
 t('has disposition', isset($report['data']['disposition']));
 t('has audit', isset($report['data']['audit_trail']));
-t('has evaluation_mode', isset($report['data']['evaluation_mode']));
-t('evaluation_mode is standalone or aiss_assisted', in_array($report['data']['evaluation_mode']['mode'] ?? '', ['standalone', 'aiss_assisted'], true));
-t('has aiss_capabilities_used', isset($report['data']['aiss_capabilities_used']));
+t('has analysis_profile', isset($report['data']['analysis_profile']));
+t('analysis_profile has engine=ATE', ($report['data']['analysis_profile']['engine'] ?? '') === 'ATE');
+t('analysis_profile has mode', in_array($report['data']['analysis_profile']['mode'] ?? '', ['standalone', 'aiss_assisted'], true));
+t('analysis_profile has extensions', isset($report['data']['analysis_profile']['extensions']));
+t('analysis_profile has capabilities', isset($report['data']['analysis_profile']['capabilities']));
 
 // ── Log check ────────────────────────────────────────────────────
 echo "\n── Logs ──\n";
