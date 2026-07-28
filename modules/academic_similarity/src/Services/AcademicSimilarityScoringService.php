@@ -338,9 +338,17 @@ class AcademicSimilarityScoringService
      * This replaces the additive combined_score. It is NOT a percentage — it
      * is a risk-ranking indicator for reviewer triage.
      *
-     * Rules engine is now evidence-category-aware when $evidenceProfile is provided.
+     * Rules engine is evidence-category-aware when $evidenceProfile is provided.
      * When evidence signals (quotation, citation, section) are available, they
      * can downgrade attention that would otherwise be driven by raw score alone.
+     *
+     * NOTE: Current evidence profile uses match-type counts (quotation_count).
+     * Future iterations should use PASSAGE-LEVEL LINKING: each attention signal
+     * should be verified against the specific match it applies to, e.g.:
+     *   match 17 → quotation spans match 17 → citation resolves to source 4
+     *   → citation proximity acceptable → source relationship verified
+     * Count-based adjustments are useful for triage but passage-level linking
+     * is safer for high-stakes decisions.
      *
      * @param float $textualScore
      * @param array $highConfidenceSemantic

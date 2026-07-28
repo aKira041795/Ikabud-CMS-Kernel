@@ -107,7 +107,8 @@ class AcademicSimilarityContextAnalysisService
             $input['document_sections'] ?? []
         );
 
-        // Step 4: Build candidate relationships (not a single forced classification)
+        // Step 4: Determine best machine candidate (top candidate, not a verdict)
+        $machineCandidate = $this->determineMachineCandidate($evidenceStrength, $signals);
         $candidates = $this->buildCandidates($evidenceStrength, $signals);
 
         // Step 5: Determine cautious attribution signals (not a definitive status)
@@ -129,6 +130,9 @@ class AcademicSimilarityContextAnalysisService
         return [
             'ok' => true,
             'relationship' => AcademicSimilarityEvidenceTaxonomy::CONTEXT_UNCERTAIN,
+            'machine_relationship' => $machineCandidate,
+            'machine_relationship_status' => 'candidate',
+            'relationship_confirmed' => false,
             'candidate_relationships' => $candidates,
             'evidence_strength' => $evidenceStrength,
             'scholarly_signals' => $signals['scholarly'] ?? [],
@@ -208,6 +212,47 @@ class AcademicSimilarityContextAnalysisService
     }
 
     // ── Candidate relationships ──────────────────────────────────
+
+    // ── Machine candidate (best guess, always unconfirmed) ───────
+
+    /**
+     * Determine the best machine candidate relationship.
+     *
+     * This is the system's best single guess based on available signals.
+     * It is ALWAYS returned with status 'candidate' and must be confirmed
+     * by a reviewer before it becomes an asserted relationship.
+     *
+     * When evidence is insufficient, returns null to signal abstention.
+     */
+    private function determineMachineCandidate(string $strength, array $signals): ?string
+    {
+        if ($strength === self::STRENGTH_NONE) {
+            return null; // Abstain — no evidence to support any candidate
+        }
+
+        // Strong evidence with both-method-sections → method description
+        if ($strength === self::STRENGTH_STRONG && ($signals['both_method_sections'] ?? false)) {
+            return 'shared_method_description';
+        }
+
+        // Evidence with quotation + citation → possible quotation
+        if (($signals['quotation_markers_detected'] ?? false) && ($signals['citation_detected'] ?? false)) {
+            return 'possible_quotation';
+        }
+
+        // Strong evidence → conceptual resemblance (unspecified relationship)
+        if ($strength === self::STRENGTH_STRONG) {
+            return 'strong_conceptual_resemblance';
+        }
+
+        // Moderate evidence
+        if ($strength === self::STRENGTH_MODERATE) {
+            return 'moderate_conceptual_resemblance';
+        }
+
+        // Weak evidence
+        return 'weak_conceptual_resemblance';
+    }
 
     /**
      * Build candidate relationships that the evidence MAY support.
@@ -389,6 +434,9 @@ class AcademicSimilarityContextAnalysisService
             'ok' => false,
             'error' => $message,
             'relationship' => AcademicSimilarityEvidenceTaxonomy::CONTEXT_UNCERTAIN,
+            'machine_relationship' => null,
+            'machine_relationship_status' => null,
+            'relationship_confirmed' => false,
             'candidate_relationships' => [],
             'evidence_strength' => self::STRENGTH_NONE,
             'scholarly_signals' => [],

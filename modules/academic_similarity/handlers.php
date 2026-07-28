@@ -445,7 +445,14 @@ function pageReportDetail(array $params = []): void
             'reviewer_attention_level'  => $scoreResult['reviewer_attention_level'] ?? ['level' => 'none', 'label' => 'None', 'reasons' => []],
             'semantic_strong_relationships' => $scoreResult['semantic_strong_relationships'] ?? 0,
             'semantic_weak_relationships'   => $scoreResult['semantic_weak_relationships'] ?? 0,
-            '_experimental'             => true,
+        ],
+        'feature_maturity'     => [
+            'textual_matching'     => 'stable',
+            'semantic_resemblance' => 'experimental',
+            'context_analysis'     => 'experimental',
+            'citation_detection'   => 'beta',
+            'scholarship_profile'  => 'experimental',
+            'reviewer_workflow'    => 'beta',
         ],
         'active_nav'           => 'reports',
     ]);

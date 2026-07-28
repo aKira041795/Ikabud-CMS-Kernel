@@ -14,11 +14,21 @@
         </div>
     </div>
 
-    <!-- Experimental Warning -->
-    {if score_families._experimental}
+    <!-- Feature Maturity Warning -->
+    {assign experimentalFeatures: []}
+    {for key, level in feature_maturity}
+        {if level == 'experimental'}
+            {experimentalFeatures[] = key}
+        {/if}
+    {/for}
+    {if experimentalFeatures|count > 0}
     <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4 text-xs text-yellow-800">
         <p class="font-semibold">Experimental Features</p>
-        <p>The semantic resemblance score, reviewer attention level, and all contextual evidence features are experimental and not validated for institutional decisions. They provide reviewer assistance only. All outputs require qualified human review.</p>
+        <p>The following features are experimental and not validated for institutional decisions. They provide reviewer assistance only: <strong>{experimentalFeatures|join:', '}</strong>.</p>
+        {if feature_maturity.citation_detection == 'beta'}
+        <p class="mt-1">Citation detection is in <strong>beta</strong> — it detects nearby citation syntax but does not verify that the cited source supports the specific claim.</p>
+        {/if}
+        <p class="mt-1">All outputs require qualified human review.</p>
     </div>
     {/if}
 
@@ -356,13 +366,14 @@
                     </div>
                 </div>
 
-                <!-- Passage Diagnostic Card -->
-                {if passage.context_relationship || passage.scholarly_relationship}
+                <!-- Passage Diagnostic Card (experimental) -->
+                {if passage.machine_context_relationship || passage.context_relationship || passage.scholarly_relationship}
                 <div class="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
                         <div>
-                            <span class="text-indigo-600 font-semibold">Relationship</span>
-                            <p class="text-gray-800">{passage.context_relationship|default:'Not classified'}</p>
+                            <span class="text-indigo-600 font-semibold">Machine Candidate</span>
+                            <p class="text-gray-800">{passage.machine_context_relationship|default:passage.context_relationship|default:'Not analyzed'}</p>
+                            <p class="text-[9px] text-indigo-400">Candidate — not confirmed</p>
                         </div>
                         <div>
                             <span class="text-indigo-600 font-semibold">Scholarly</span>
@@ -372,16 +383,11 @@
                             <span class="text-indigo-600 font-semibold">Attribution</span>
                             <p class="text-gray-800">{passage.attribution_status|default:'Not checked'}</p>
                         </div>
-                        {if passage.machine_context_confidence}
-                        <div>
-                            <span class="text-indigo-600 font-semibold">Confidence</span>
-                            <p class="text-gray-800">{(passage.machine_context_confidence * 100)|round}%</p>
-                        </div>
-                        {/if}
                     </div>
                     {if passage.machine_context_explanation}
                     <p class="mt-2 text-gray-600">{passage.machine_context_explanation}</p>
                     {/if}
+                    <p class="mt-1 text-[9px] text-indigo-300">Experimental — not validated for institutional decisions</p>
                 </div>
                 {/if}
 
@@ -486,16 +492,19 @@
     {/if}
 </div>
 
-    <!-- Scholarship Profile -->
+    <!-- Scholarship Profile (experimental) -->
     {if report.submission_id}
     <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold text-gray-900">Scholarship Profile</h2>
-            <button onclick="loadScholarshipProfile({report.submission_id})" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">Generate</button>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-yellow-100 text-yellow-800">Experimental</span>
+                <button onclick="loadScholarshipProfile({report.submission_id})" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">Generate</button>
+            </div>
         </div>
         <div id="scholarship-profile-content">
-            <p class="text-sm text-gray-500">Click <strong>Generate</strong> to produce a multi-dimensional scholarship profile for this submission.</p>
-            <p class="text-xs text-gray-400 mt-2">The profile analyzes synthesis, methodology, attribution, independent engagement, and extension — it is not a single percentage or a plagiarism verdict.</p>
+            <p class="text-sm text-gray-500">Click <strong>Generate</strong> to produce an observed evidence distribution for this submission.</p>
+            <p class="text-xs text-gray-400 mt-2">The profile shows how detected evidence distributes across categories among analyzed passages only. It is not an assessment of the full document and is not validated for institutional decisions.</p>
         </div>
     </div>
 
@@ -514,10 +523,17 @@
             var p = d.profile;
             var html = '';
 
+            // Experimental warning
+            if (p._experimental) {
+                html += '<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-2 mb-3 text-[10px] text-yellow-700">';
+                html += 'Experimental — not validated for institutional decisions.';
+                html += '</div>';
+            }
+
             // Summary narrative
             if (p.summary && p.summary.length) {
                 html += '<div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">';
-                html += '<p class="text-xs text-indigo-600 font-semibold mb-2">Scholarship Summary</p>';
+                html += '<p class="text-xs text-indigo-600 font-semibold mb-2">Evidence Summary</p>';
                 html += '<ul class="text-sm text-gray-700 space-y-1">';
                 for (var i = 0; i < p.summary.length; i++) {
                     html += '<li class="flex items-start gap-2"><span class="text-indigo-500 mt-0.5">•</span>' + p.summary[i] + '</li>';
@@ -525,26 +541,28 @@
                 html += '</ul></div>';
             }
 
-            // Dimensions
-            if (p.dimensions) {
-                html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3">';
-                var dims = {
-                    'synthesis': 'Synthesis',
-                    'methodological_dependence': 'Methodology',
-                    'attribution_completeness': 'Attribution',
-                    'attribution_concerns': 'Attribution Concerns',
-                    'independent_engagement': 'Independent',
-                    'extension': 'Extension',
-                    'critical_engagement': 'Critical',
-                    'possible_unattributed_reuse': 'Unattributed'
+            // Observed evidence distribution (counts, not percentages)
+            if (p.observed_evidence_distribution) {
+                var dist = p.observed_evidence_distribution;
+                html += '<p class="text-xs text-gray-500 mb-2">Observed evidence distribution among ' + (dist.total_classified_passages || 0) + ' analyzed passage(s):</p>';
+                html += '<div class="grid grid-cols-2 md:grid-cols-3 gap-2">';
+                var labels = {
+                    'synthesis_related_evidence': 'Synthesis/paraphrase',
+                    'shared_method_description_evidence': 'Shared method description',
+                    'passages_with_nearby_citation': 'Nearby citation',
+                    'passages_without_detected_citation': 'No detected citation',
+                    'attribution_needs_review': 'Attribution needs review',
+                    'shared_topic_only_evidence': 'Shared topic only',
+                    'extension_related_evidence': 'Extension-related',
+                    'critical_engagement_evidence': 'Critical engagement',
+                    'possible_unattributed_reuse_evidence': 'Possible unattributed reuse',
+                    'unclassified_evidence': 'Unclassified'
                 };
-                for (var key in dims) {
-                    var val = p.dimensions[key];
-                    if (val !== undefined) {
-                        var color = val > 50 ? 'text-orange-600' : (val > 20 ? 'text-yellow-600' : 'text-green-600');
-                        html += '<div class="bg-gray-50 rounded-lg border border-gray-200 p-3 text-center">';
-                        html += '<p class="text-xs text-gray-500 uppercase">' + dims[key] + '</p>';
-                        html += '<p class="text-lg font-bold ' + color + '">' + val + '%</p>';
+                for (var key in labels) {
+                    if (dist[key] !== undefined && dist[key] > 0) {
+                        html += '<div class="bg-gray-50 rounded border border-gray-200 p-2 text-center">';
+                        html += '<p class="text-lg font-bold text-gray-800">' + dist[key] + '</p>';
+                        html += '<p class="text-[10px] text-gray-500">' + labels[key] + '</p>';
                         html += '</div>';
                     }
                 }
