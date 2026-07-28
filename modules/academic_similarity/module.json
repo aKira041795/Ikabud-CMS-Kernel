@@ -276,7 +276,9 @@
                             "type": "string"
                         }
                     },
-                    "required": ["submission_passage"]
+                    "required": [
+                        "submission_passage"
+                    ]
                 }
             },
             {
@@ -293,7 +295,9 @@
                             "type": "integer"
                         }
                     },
-                    "required": ["submission_id"]
+                    "required": [
+                        "submission_id"
+                    ]
                 }
             },
             {
@@ -311,10 +315,15 @@
                         },
                         "format": {
                             "type": "string",
-                            "enum": ["json", "mermaid"]
+                            "enum": [
+                                "json",
+                                "mermaid"
+                            ]
                         }
                     },
-                    "required": ["submission_id"]
+                    "required": [
+                        "submission_id"
+                    ]
                 }
             },
             {
@@ -354,7 +363,11 @@
                             "type": "object"
                         }
                     },
-                    "required": ["match_id", "action", "reason"]
+                    "required": [
+                        "match_id",
+                        "action",
+                        "reason"
+                    ]
                 }
             }
         ],
