@@ -292,10 +292,13 @@ t('has manuscripts', isset($report['data']['manuscript_versions']));
 t('has disposition', isset($report['data']['disposition']));
 t('has audit', isset($report['data']['audit_trail']));
 t('has analysis_profile', isset($report['data']['analysis_profile']));
-t('analysis_profile has engine=ATE', ($report['data']['analysis_profile']['engine'] ?? '') === 'ATE');
-t('analysis_profile has mode', in_array($report['data']['analysis_profile']['mode'] ?? '', ['standalone', 'aiss_assisted'], true));
-t('analysis_profile has extensions', isset($report['data']['analysis_profile']['extensions']));
-t('analysis_profile has capabilities', isset($report['data']['analysis_profile']['capabilities']));
+t('schema_version is 1.0', ($report['data']['analysis_profile']['schema_version'] ?? '') === '1.0');
+t('engine.id is academic_thesis_evaluation', ($report['data']['analysis_profile']['engine']['id'] ?? '') === 'academic_thesis_evaluation');
+t('engine.version present', !empty($report['data']['analysis_profile']['engine']['version'] ?? null));
+t('mode is standalone or aiss_assisted', in_array($report['data']['analysis_profile']['mode'] ?? '', ['standalone', 'aiss_assisted'], true));
+t('extensions.academic_similarity present', isset($report['data']['analysis_profile']['extensions']['academic_similarity']));
+t('capabilities present', isset($report['data']['analysis_profile']['capabilities']));
+t('generated_at present', !empty($report['data']['analysis_profile']['generated_at'] ?? null));
 
 // ── Log check ────────────────────────────────────────────────────
 echo "\n── Logs ──\n";

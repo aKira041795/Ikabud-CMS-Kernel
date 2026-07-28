@@ -112,65 +112,74 @@ class AcademicThesisReportService
     }
 
     /**
-     * Build a self-describing analysis profile that captures the evaluation
-     * engine, mode, and which capabilities participated. This object can
-     * evolve without changing the report schema.
+     * Build a self-describing analysis profile — the authoritative provenance
+     * record for how this evaluation was produced.
+     *
+     * Contract shape (schema_version 1.0):
+     * {
+     *   schema_version, engine: {id, version}, mode,
+     *   extensions: { module_id: {enabled, version} },
+     *   capabilities: { short_name: 'disabled' | {id, status, version} },
+     *   label, reason?, generated_at
+     * }
      */
     private function buildAnalysisProfile(array $snapshots): array
     {
-        // Known AISS capabilities with their default state
-        $capabilities = [
-            'textual_matching' => 'disabled',
-            'semantic_resemblance' => 'disabled',
-            'citation_detection' => 'disabled',
-            'context_analysis' => 'disabled',
+        $base = [
+            'schema_version' => '1.0',
+            'engine' => [
+                'id' => 'academic_thesis_evaluation',
+                'version' => $this->getModuleVersion(),
+            ],
+            'mode' => 'standalone',
+            'extensions' => [
+                'academic_similarity' => ['enabled' => false, 'version' => null],
+            ],
+            'capabilities' => [
+                'textual_matching' => 'disabled',
+                'semantic_resemblance' => 'disabled',
+                'citation_detection' => 'disabled',
+                'context_analysis' => 'disabled',
+            ],
+            'label' => 'Standalone — No AISS analysis was performed',
+            'generated_at' => date('c'),
         ];
 
         if (empty($snapshots)) {
-            return [
-                'engine' => 'ATE',
-                'mode' => 'standalone',
-                'extensions' => ['AISS' => false],
-                'capabilities' => $capabilities,
-                'label' => 'Standalone — No AISS analysis was performed',
-            ];
+            return $base;
         }
 
         $hasAissData = false;
-        $extensionEnabled = false;
 
         foreach ($snapshots as $s) {
             $maturity = json_decode($s['maturity_metadata'] ?? '{}', true);
             $aissIntegration = $maturity['aiss_integration'] ?? null;
 
-            // Explicit flags override everything
             if ($aissIntegration === 'disabled_by_tenant') {
-                return [
-                    'engine' => 'ATE',
-                    'mode' => 'standalone',
-                    'extensions' => ['AISS' => false],
-                    'capabilities' => $capabilities,
-                    'label' => 'Standalone — AISS integration is disabled for this tenant',
-                    'reason' => 'disabled_by_tenant',
-                ];
+                $base['label'] = 'Standalone — AISS integration is disabled for this tenant';
+                $base['reason'] = 'disabled_by_tenant';
+                return $base;
             }
 
             if ($aissIntegration === 'standalone_mode') {
-                return [
-                    'engine' => 'ATE',
-                    'mode' => 'standalone',
-                    'extensions' => ['AISS' => false],
-                    'capabilities' => $capabilities,
-                    'label' => 'Standalone — AISS module is not available',
-                    'reason' => 'standalone_mode',
-                ];
+                $base['label'] = 'Standalone — AISS module is not available';
+                $base['reason'] = 'standalone_mode';
+                return $base;
             }
 
-            // Populate capability statuses from maturity metadata
-            foreach (array_keys($capabilities) as $cap) {
-                $status = $maturity[$cap] ?? 'unavailable';
-                if ($status === 'stable' || $status === 'beta' || $status === 'experimental') {
-                    $capabilities[$cap] = [
+            // Populate capabilities from maturity metadata
+            $capMap = [
+                'textual_matching' => 'academic_similarity.textual.match@1',
+                'semantic_resemblance' => 'academic_similarity.semantic.resemblance@1',
+                'citation_detection' => 'academic_similarity.citation.analysis@1',
+                'context_analysis' => 'academic_similarity.context.analysis@1',
+            ];
+
+            foreach ($capMap as $shortName => $capId) {
+                $status = $maturity[$shortName] ?? 'unavailable';
+                if (in_array($status, ['stable', 'beta', 'experimental'], true)) {
+                    $base['capabilities'][$shortName] = [
+                        'id' => $capId,
                         'status' => $status,
                         'version' => $s['capability_version'] ?? '1',
                     ];
@@ -179,18 +188,40 @@ class AcademicThesisReportService
 
             if (!empty($s['textual_result']) || !empty($s['aiss_submission_id'])) {
                 $hasAissData = true;
-                $extensionEnabled = true;
             }
         }
 
-        return [
-            'engine' => 'ATE',
-            'mode' => $hasAissData ? 'aiss_assisted' : 'standalone',
-            'extensions' => ['AISS' => $extensionEnabled],
-            'capabilities' => $capabilities,
-            'label' => $hasAissData
-                ? 'AISS-Assisted — Similarity and scholarship evidence was analyzed'
-                : 'Standalone — No AISS evidence was generated',
-        ];
+        if ($hasAissData) {
+            $base['mode'] = 'aiss_assisted';
+            $base['extensions']['academic_similarity'] = [
+                'enabled' => true,
+                'version' => $this->getAissVersion(),
+            ];
+            $base['label'] = 'AISS-Assisted — Similarity and scholarship evidence was analyzed';
+        }
+
+        return $base;
+    }
+
+    private function getModuleVersion(): string
+    {
+        static $version = null;
+        if ($version === null) {
+            $json = @file_get_contents(__DIR__ . '/../../module.json');
+            $data = $json ? json_decode($json, true) : [];
+            $version = $data['version'] ?? '0.1.0';
+        }
+        return $version;
+    }
+
+    private function getAissVersion(): ?string
+    {
+        static $aissVersion = null;
+        if ($aissVersion === null) {
+            $json = @file_get_contents(__DIR__ . '/../../../academic_similarity/module.json');
+            $data = $json ? json_decode($json, true) : [];
+            $aissVersion = $data['version'] ?? null;
+        }
+        return $aissVersion;
     }
 }

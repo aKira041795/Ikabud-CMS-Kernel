@@ -113,12 +113,14 @@ t('report generated', $report['ok'] === true);
 
 $profile = $report['data']['analysis_profile'] ?? [];
 t('analysis_profile present', !empty($profile));
-t('engine is ATE', ($profile['engine'] ?? '') === 'ATE');
+t('schema_version is 1.0', ($profile['schema_version'] ?? '') === '1.0');
+t('engine.id is academic_thesis_evaluation', ($profile['engine']['id'] ?? '') === 'academic_thesis_evaluation');
 t('mode is standalone', ($profile['mode'] ?? '') === 'standalone');
-t('extensions.AISS is false', ($profile['extensions']['AISS'] ?? true) === false);
+t('extensions.academic_similarity.enabled is false', ($profile['extensions']['academic_similarity']['enabled'] ?? true) === false);
 t('label says AISS was not performed', str_contains(strtolower($profile['label'] ?? ''), 'standalone') || str_contains(strtolower($profile['label'] ?? ''), 'not'));
-t('all capabilities disabled', ($profile['capabilities']['textual_matching'] ?? '') === 'disabled');
+t('textual_matching is disabled', ($profile['capabilities']['textual_matching'] ?? '') === 'disabled');
 t('semantic_resemblance is disabled', ($profile['capabilities']['semantic_resemblance'] ?? '') === 'disabled');
+t('generated_at present', !empty($profile['generated_at'] ?? null));
 
 echo "\n── 3. Verify no empty evidence is misinterpreted ──\n";
 
