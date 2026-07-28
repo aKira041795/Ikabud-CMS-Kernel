@@ -258,6 +258,104 @@
                         "source_passage"
                     ]
                 }
+            },
+            {
+                "id": "academic_similarity.citation.analyze@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Analyze a passage for citation and attribution signals. Detects in-text citations, quotation marks, and cross-references against a bibliography.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_passage": {
+                            "type": "string"
+                        },
+                        "bibliography_text": {
+                            "type": "string"
+                        }
+                    },
+                    "required": ["submission_passage"]
+                }
+            },
+            {
+                "id": "academic_similarity.scholarship.profile@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Generate a multi-dimensional scholarship profile for a submission. Returns synthesis, methodology, attribution, and engagement scores with narrative summary.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        }
+                    },
+                    "required": ["submission_id"]
+                }
+            },
+            {
+                "id": "academic_similarity.lineage.graph@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Build a knowledge lineage graph showing how a submission relates to its sources. Supports JSON and Mermaid output formats.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "format": {
+                            "type": "string",
+                            "enum": ["json", "mermaid"]
+                        }
+                    },
+                    "required": ["submission_id"]
+                }
+            },
+            {
+                "id": "academic_similarity.review.workflow.action@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Perform a reviewer workflow action on a match. Actions: confirm_relationship, reclassify_evidence, exclude_common_knowledge, mark_standard_method, identify_quotation, flag_insufficient_attribution, request_revision, refer_formal_review, leave_note.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "match_id": {
+                            "type": "integer"
+                        },
+                        "action": {
+                            "type": "string",
+                            "enum": [
+                                "confirm_relationship",
+                                "reclassify_evidence",
+                                "exclude_common_knowledge",
+                                "mark_standard_method",
+                                "identify_quotation",
+                                "flag_insufficient_attribution",
+                                "request_revision",
+                                "refer_formal_review",
+                                "leave_note"
+                            ]
+                        },
+                        "user_id": {
+                            "type": "integer"
+                        },
+                        "reason": {
+                            "type": "string"
+                        },
+                        "classification": {
+                            "type": "object"
+                        }
+                    },
+                    "required": ["match_id", "action", "reason"]
+                }
             }
         ],
         "depends": [

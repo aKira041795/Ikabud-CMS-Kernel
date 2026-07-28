@@ -348,17 +348,104 @@
                     </div>
                 </div>
 
-                <!-- Evaluation Controls -->
-                <div class="mt-3 flex items-center gap-3">
-                    <button onclick="keepMatch({passage.id})" class="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 border border-green-200 {if passage.is_excluded}opacity-50{/if}">✓ Keep</button>
-                    <button onclick="promptExclude({passage.id})" class="text-xs bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 border border-red-200">✕ Exclude</button>
-                    <div class="flex-1"></div>
-                    <span class="text-[10px] text-gray-400">Click footnote <sup>[{passage.id}]</sup> in the highlighted text above to scroll here</span>
+                <!-- Passage Diagnostic Card -->
+                {if passage.context_relationship || passage.scholarly_relationship}
+                <div class="mt-3 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-xs">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div>
+                            <span class="text-indigo-600 font-semibold">Relationship</span>
+                            <p class="text-gray-800">{passage.context_relationship|default:'Not classified'}</p>
+                        </div>
+                        <div>
+                            <span class="text-indigo-600 font-semibold">Scholarly</span>
+                            <p class="text-gray-800">{passage.scholarly_relationship|default:'Not classified'}</p>
+                        </div>
+                        <div>
+                            <span class="text-indigo-600 font-semibold">Attribution</span>
+                            <p class="text-gray-800">{passage.attribution_status|default:'Not checked'}</p>
+                        </div>
+                        {if passage.machine_context_confidence}
+                        <div>
+                            <span class="text-indigo-600 font-semibold">Confidence</span>
+                            <p class="text-gray-800">{(passage.machine_context_confidence * 100)|round}%</p>
+                        </div>
+                        {/if}
+                    </div>
+                    {if passage.machine_context_explanation}
+                    <p class="mt-2 text-gray-600">{passage.machine_context_explanation}</p>
+                    {/if}
+                </div>
+                {/if}
+
+                <!-- Reviewer Action Panel -->
+                <div class="mt-3 border border-gray-200 rounded-lg overflow-hidden">
+                    <div class="bg-gray-50 px-3 py-2 border-b border-gray-200 flex items-center gap-2">
+                        <span class="text-xs font-semibold text-gray-700">Reviewer Actions</span>
+                        <span class="text-[10px] text-gray-400" id="action-status-{passage.id}"></span>
+                    </div>
+                    <div class="p-3">
+                        <div class="flex flex-wrap gap-1.5 mb-2">
+                            <button onclick="reviewAction({passage.id}, 'confirm_relationship')" class="text-[10px] bg-green-50 text-green-700 px-2 py-1 rounded hover:bg-green-100 border border-green-200">✓ Confirm</button>
+                            <button onclick="reviewAction({passage.id}, 'identify_quotation')" class="text-[10px] bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 border border-blue-200">❝ Quotation</button>
+                            <button onclick="reviewAction({passage.id}, 'mark_standard_method')" class="text-[10px] bg-purple-50 text-purple-700 px-2 py-1 rounded hover:bg-purple-100 border border-purple-200">⚙ Standard Method</button>
+                            <button onclick="reviewAction({passage.id}, 'exclude_common_knowledge')" class="text-[10px] bg-yellow-50 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-100 border border-yellow-200">📚 Common Knowledge</button>
+                            <button onclick="reviewAction({passage.id}, 'flag_insufficient_attribution')" class="text-[10px] bg-orange-50 text-orange-700 px-2 py-1 rounded hover:bg-orange-100 border border-orange-200">⚠ Attribution</button>
+                            <button onclick="reviewAction({passage.id}, 'request_revision')" class="text-[10px] bg-red-50 text-red-700 px-2 py-1 rounded hover:bg-red-100 border border-red-200">✏ Request Revision</button>
+                            <button onclick="reviewAction({passage.id}, 'refer_formal_review')" class="text-[10px] bg-red-100 text-red-800 px-2 py-1 rounded hover:bg-red-200 border border-red-300">⚖ Formal Review</button>
+                            <button onclick="reviewActionPrompt({passage.id})" class="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded hover:bg-gray-200 border border-gray-200">✎ Note</button>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="action-reason-{passage.id}" placeholder="Reason for action..." class="flex-1 text-xs border border-gray-200 rounded px-2 py-1">
+                            <input type="hidden" id="csrf-token-{passage.id}" value="{csrf_token}">
+                        </div>
+                    </div>
                 </div>
             </div>
             {/for}
         </div>
     </div>
+
+    <script>
+    function reviewAction(matchId, action) {
+        var reason = document.getElementById('action-reason-' + matchId).value;
+        if (!reason) { reason = action.replace(/_/g, ' '); }
+        var status = document.getElementById('action-status-' + matchId);
+        status.textContent = 'Processing...';
+        status.className = 'text-[10px] text-gray-400';
+
+        fetch('/api/v1/academic-similarity/reviews/' + matchId + '/action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({
+                action: action,
+                reason: reason,
+                _token: document.getElementById('csrf-token-' + matchId).value
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                status.textContent = '✅ ' + action.replace(/_/g, ' ');
+                status.className = 'text-[10px] text-green-600';
+            } else {
+                status.textContent = '❌ ' + (d.error || 'Failed');
+                status.className = 'text-[10px] text-red-600';
+            }
+        })
+        .catch(function() {
+            status.textContent = '❌ Network error';
+            status.className = 'text-[10px] text-red-600';
+        });
+    }
+
+    function reviewActionPrompt(matchId) {
+        var reason = prompt('Enter note:');
+        if (reason) {
+            document.getElementById('action-reason-' + matchId).value = reason;
+            reviewAction(matchId, 'leave_note');
+        }
+    }
+    </script>
     {else}
     <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6" id="fn-section">
         <h2 class="text-lg font-semibold text-gray-900 mb-3">Evidence & Footnotes</h2>
@@ -390,6 +477,99 @@
     </div>
     {/if}
 </div>
+
+    <!-- Scholarship Profile -->
+    {if report.submission_id}
+    <div class="bg-white rounded-lg shadow border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Scholarship Profile</h2>
+            <button onclick="loadScholarshipProfile({report.submission_id})" class="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">Generate</button>
+        </div>
+        <div id="scholarship-profile-content">
+            <p class="text-sm text-gray-500">Click <strong>Generate</strong> to produce a multi-dimensional scholarship profile for this submission.</p>
+            <p class="text-xs text-gray-400 mt-2">The profile analyzes synthesis, methodology, attribution, independent engagement, and extension — it is not a single percentage or a plagiarism verdict.</p>
+        </div>
+    </div>
+
+    <script>
+    function loadScholarshipProfile(submissionId) {
+        var container = document.getElementById('scholarship-profile-content');
+        container.innerHTML = '<p class="text-sm text-gray-500">Generating profile...</p>';
+
+        fetch('/api/v1/academic-similarity/submissions/' + submissionId + '/scholarship-profile')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (!d.ok || !d.profile) {
+                container.innerHTML = '<p class="text-sm text-red-600">Failed to generate profile: ' + (d.error || 'Unknown error') + '</p>';
+                return;
+            }
+            var p = d.profile;
+            var html = '';
+
+            // Summary narrative
+            if (p.summary && p.summary.length) {
+                html += '<div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 mb-4">';
+                html += '<p class="text-xs text-indigo-600 font-semibold mb-2">Scholarship Summary</p>';
+                html += '<ul class="text-sm text-gray-700 space-y-1">';
+                for (var i = 0; i < p.summary.length; i++) {
+                    html += '<li class="flex items-start gap-2"><span class="text-indigo-500 mt-0.5">•</span>' + p.summary[i] + '</li>';
+                }
+                html += '</ul></div>';
+            }
+
+            // Dimensions
+            if (p.dimensions) {
+                html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-3">';
+                var dims = {
+                    'synthesis': 'Synthesis',
+                    'methodological_dependence': 'Methodology',
+                    'attribution_completeness': 'Attribution',
+                    'attribution_concerns': 'Attribution Concerns',
+                    'independent_engagement': 'Independent',
+                    'extension': 'Extension',
+                    'critical_engagement': 'Critical',
+                    'possible_unattributed_reuse': 'Unattributed'
+                };
+                for (var key in dims) {
+                    var val = p.dimensions[key];
+                    if (val !== undefined) {
+                        var color = val > 50 ? 'text-orange-600' : (val > 20 ? 'text-yellow-600' : 'text-green-600');
+                        html += '<div class="bg-gray-50 rounded-lg border border-gray-200 p-3 text-center">';
+                        html += '<p class="text-xs text-gray-500 uppercase">' + dims[key] + '</p>';
+                        html += '<p class="text-lg font-bold ' + color + '">' + val + '%</p>';
+                        html += '</div>';
+                    }
+                }
+                html += '</div>';
+            }
+
+            // Source relationships
+            if (p.relationship_summary) {
+                html += '<div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">';
+                html += '<div class="bg-gray-50 rounded-lg border border-gray-200 p-3">';
+                html += '<p class="text-xs text-gray-500 font-semibold mb-2">Scholarly Relationships</p>';
+                var rels = p.relationship_summary.scholarly_relationships || {};
+                for (var rel in rels) {
+                    html += '<div class="flex justify-between text-xs py-0.5"><span>' + rel + '</span><span class="font-semibold">' + rels[rel] + '</span></div>';
+                }
+                html += '</div>';
+                html += '<div class="bg-gray-50 rounded-lg border border-gray-200 p-3">';
+                html += '<p class="text-xs text-gray-500 font-semibold mb-2">Attribution Statuses</p>';
+                var attrs = p.relationship_summary.attribution_statuses || {};
+                for (var attr in attrs) {
+                    html += '<div class="flex justify-between text-xs py-0.5"><span>' + attr + '</span><span class="font-semibold">' + attrs[attr] + '</span></div>';
+                }
+                html += '</div></div>';
+            }
+
+            container.innerHTML = html;
+        })
+        .catch(function() {
+            container.innerHTML = '<p class="text-sm text-red-600">Network error loading scholarship profile.</p>';
+        });
+    }
+    </script>
+    {/if}
 
 <!-- Exclude Modal -->
 <div id="excludeModal" class="fixed inset-0 z-50 hidden flex items-center justify-center" style="background: rgba(0,0,0,0.5);">

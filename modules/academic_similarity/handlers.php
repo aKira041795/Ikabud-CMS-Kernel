@@ -931,6 +931,138 @@ function apiExcludeMatch(array $params = []): void
     }
 }
 
+function apiReviewWorkflowAction(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    academic_similarity_require_admin($ctx);
+    app()->csrfEnforce();
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $matchId = (int)($params['match_id'] ?? 0);
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+    try {
+        $service = new AcademicSimilarityReviewWorkflowService($tenantId);
+        $result = $service->performAction(
+            $matchId,
+            $input['action'] ?? '',
+            (int)($input['user_id'] ?? 0),
+            $input['reason'] ?? '',
+            $input['classification'] ?? null
+        );
+        echo json_encode($result);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+function apiContextAnalyze(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    academic_similarity_require_admin($ctx);
+    app()->csrfEnforce();
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+    try {
+        $service = new AcademicSimilarityContextAnalysisService($tenantId);
+        $result = $service->analyze($input);
+        echo json_encode($result);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+function apiCitationAnalyze(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    academic_similarity_require_admin($ctx);
+    app()->csrfEnforce();
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+    try {
+        $service = new AcademicSimilarityCitationAnalysisService($tenantId);
+        $result = $service->analyzePassage(
+            $input['submission_passage'] ?? '',
+            $input['bibliography_text'] ?? null
+        );
+        echo json_encode($result);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+function apiScholarshipProfile(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    academic_similarity_require_admin($ctx);
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['id'] ?? 0);
+
+    try {
+        $service = new AcademicSimilarityScholarshipProfileService($tenantId);
+        $result = $service->generateProfile($submissionId);
+        echo json_encode($result);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+function apiLineageGraph(array $params = []): void
+{
+    header('Content-Type: application/json');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    academic_similarity_require_admin($ctx);
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['id'] ?? 0);
+
+    try {
+        $service = new AcademicSimilarityKnowledgeLineageService($tenantId);
+        $result = $service->buildGraph($submissionId);
+        echo json_encode($result);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+function apiLineageMermaid(array $params = []): void
+{
+    header('Content-Type: text/plain; charset=utf-8');
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    academic_similarity_require_admin($ctx);
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['id'] ?? 0);
+
+    try {
+        $service = new AcademicSimilarityKnowledgeLineageService($tenantId);
+        echo $service->renderMermaid($submissionId);
+    } catch (\Throwable $e) {
+        http_response_code(500);
+        echo 'Error generating lineage graph: ' . $e->getMessage();
+    }
+}
+
 function apiSaveSettings(array $params = []): void
 {
     $ctx = module();

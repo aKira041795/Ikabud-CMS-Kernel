@@ -544,15 +544,58 @@ function ac_sim_cap_semantic_compare_1(mixed $payload, string $capabilityId = ''
     // is not available — return a clear error instead of silent false success.
     return ['ok' => false, 'error' => 'Semantic comparison service is not available. Enable the academic-similarity-semantic-service module.'];
 }
-
-function ac_sim_cap_context_analyze_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+function ac_sim_cap_citation_analyze_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
-    if (!is_array($payload)) {
-        return ['ok' => false, 'error' => 'Invalid payload'];
+    if (!is_array($payload) || empty($payload['submission_passage'])) {
+        return ['ok' => false, 'error' => 'submission_passage is required'];
     }
     $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
-    $service = new AcademicSimilarityContextAnalysisService($tenantId);
-    return $service->analyze($payload);
+    $service = new AcademicSimilarityCitationAnalysisService($tenantId);
+    return $service->analyzePassage(
+        $payload['submission_passage'],
+        $payload['bibliography_text'] ?? null
+    );
+}
+
+function ac_sim_cap_scholarship_profile_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload) || empty($payload['submission_id'])) {
+        return ['ok' => false, 'error' => 'submission_id is required'];
+    }
+    $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
+    $service = new AcademicSimilarityScholarshipProfileService($tenantId);
+    return $service->generateProfile((int)$payload['submission_id']);
+}
+
+function ac_sim_cap_lineage_graph_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload) || empty($payload['submission_id'])) {
+        return ['ok' => false, 'error' => 'submission_id is required'];
+    }
+    $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
+    $service = new AcademicSimilarityKnowledgeLineageService($tenantId);
+    $format = $payload['format'] ?? 'json';
+    if ($format === 'mermaid') {
+        return ['ok' => true, 'mermaid' => $service->renderMermaid((int)$payload['submission_id'])];
+    }
+    return $service->buildGraph((int)$payload['submission_id']);
+}
+
+function ac_sim_cap_review_workflow_action_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload) || empty($payload['match_id']) || empty($payload['action'])) {
+        return ['ok' => false, 'error' => 'match_id and action are required'];
+    }
+    $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
+    $userId = (int)($payload['user_id'] ?? 0);
+    $service = new AcademicSimilarityReviewWorkflowService($tenantId);
+    return $service->performAction(
+        (int)$payload['match_id'],
+        $payload['action'],
+        $userId,
+        $payload['reason'] ?? '',
+        $payload['classification'] ?? null
+    );
 }
 
 function ac_sim_cap_internet_discover_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
