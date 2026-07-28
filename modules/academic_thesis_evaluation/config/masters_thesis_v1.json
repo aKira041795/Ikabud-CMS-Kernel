@@ -1,0 +1,65 @@
+{
+    "code": "masters_thesis_v1",
+    "name": "Master's Thesis Evaluation",
+    "degree_level": "masters",
+    "version": "1.0",
+    "stages": [
+        {
+            "code": "submission",
+            "label": "Submission",
+            "role": "student",
+            "next": ["administrative_validation"],
+            "requirements": ["manuscript_uploaded"]
+        },
+        {
+            "code": "administrative_validation",
+            "label": "Administrative Validation",
+            "role": "graduate_coordinator",
+            "requirements": ["manuscript_uploaded", "adviser_endorsement"],
+            "outcomes": {
+                "validated": "aiss_evidence_review",
+                "returned": "submission",
+                "rejected": "final_disposition"
+            }
+        },
+        {
+            "code": "aiss_evidence_review",
+            "label": "AISS Evidence Review",
+            "role": "integrity_reviewer",
+            "requirements": ["textual_scan_complete", "evidence_snapshot_saved", "material_matches_reviewed"],
+            "outcomes": {
+                "complete": "academic_evaluation",
+                "revision": "revision",
+                "formal_review": "formal_integrity_review"
+            }
+        },
+        {
+            "code": "academic_evaluation",
+            "label": "Academic Rubric Evaluation",
+            "role": "panel_member",
+            "requirements": ["rubric_submitted", "reviewer_comments_submitted"],
+            "outcomes": {
+                "proceed": "revision",
+                "not_approved": "final_disposition"
+            }
+        },
+        {
+            "code": "revision",
+            "label": "Revision",
+            "role": "student",
+            "requirements": ["revision_items_resolved", "revised_manuscript_uploaded"],
+            "outcomes": {
+                "resubmit": "aiss_evidence_review",
+                "final_review": "final_disposition"
+            }
+        },
+        {
+            "code": "final_disposition",
+            "label": "Final Disposition",
+            "role": "graduate_dean",
+            "terminal": true,
+            "requirements": ["disposition_issued"]
+        }
+    ],
+    "rubric_template_code": "masters_thesis_v1"
+}

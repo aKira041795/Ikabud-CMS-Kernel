@@ -1,0 +1,33 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <h1 class="text-2xl font-bold mb-6">Evaluation Profiles</h1>
+
+    {if profiles|default:[]|length > 0}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {for p in profiles}
+        <a href="/admin/thesis-evaluation/profiles/{p.id}" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow block">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="text-lg font-semibold">{p.name}</h3>
+                    <p class="text-sm text-gray-500 mt-1">Code: {p.code} &middot; v{p.version}</p>
+                    <p class="text-sm text-gray-500">Degree: {p.degree_level|capitalize}</p>
+                </div>
+                <span class="px-2 py-1 text-xs rounded-full {if p.status == 'active'}bg-green-100 text-green-800{else if p.status == 'draft'}bg-yellow-100 text-yellow-800{else}bg-gray-100 text-gray-600{/if}">
+                    {p.status|capitalize}
+                </span>
+            </div>
+            {if p.description}
+            <p class="text-sm text-gray-600 mt-3">{p.description|truncate:120}</p>
+            {/if}
+        </a>
+        {/for}
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No evaluation profiles found. Seed profiles from admin panel or config files.
+    </div>
+    {/if}
+</div>
+{/block}

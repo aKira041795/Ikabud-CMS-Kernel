@@ -1,0 +1,65 @@
+{extends "layouts/student"}
+
+{block content}
+<div class="p-6 max-w-2xl mx-auto">
+    <h1 class="text-2xl font-bold mb-6">Submit Thesis</h1>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <form method="POST" action="/api/v1/thesis-evaluation/cases" id="submit-form" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{csrf_token}">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Evaluation Profile</label>
+                <select name="profile_code" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" required>
+                    <option value="">Select profile...</option>
+                    {for profile in profiles|default:[]}
+                    <option value="{profile.code}">{profile.name} ({profile.degree_level})</option>
+                    {/for}
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Thesis Title</label>
+                <input type="text" name="title" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" required>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Student Number</label>
+                <input type="text" name="student_number" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Research Category</label>
+                <input type="text" name="research_category" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" placeholder="e.g., Computer Science, Engineering">
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Manuscript File</label>
+                <input type="file" name="manuscript" class="w-full border border-gray-300 rounded px-3 py-2 text-sm" accept=".pdf,.docx,.doc,.txt">
+            </div>
+
+            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium">
+                Submit Thesis
+            </button>
+        </form>
+    </div>
+</div>
+
+{script id="submit-form-js"}
+document.getElementById('submit-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var formData = new FormData(this);
+    fetch('/api/v1/thesis-evaluation/cases', {
+        method: 'POST',
+        headers: {'X-CSRF-TOKEN': '{csrf_token}'},
+        body: formData
+    }).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.ok) {
+            window.location.href = '/thesis/cases/' + data.data.id;
+        } else {
+            alert('Error: ' + (data.error || 'Submission failed'));
+        }
+    });
+});
+{/script}
+{/block}

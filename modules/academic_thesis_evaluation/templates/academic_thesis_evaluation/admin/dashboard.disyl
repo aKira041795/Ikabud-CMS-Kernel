@@ -1,0 +1,38 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <h1 class="text-2xl font-bold mb-6">Thesis Evaluation Dashboard</h1>
+
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">Total Cases</div>
+            <div class="text-2xl font-bold">{stats.total|default:'0'}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">In Review</div>
+            <div class="text-2xl font-bold text-blue-600">{stats.in_review|default:'0'}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">In Revision</div>
+            <div class="text-2xl font-bold text-orange-600">{stats.in_revision|default:'0'}</div>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+            <div class="text-sm text-gray-500">Completed</div>
+            <div class="text-2xl font-bold text-green-600">{stats.completed|default:'0'}</div>
+        </div>
+    </div>
+
+    <div class="flex gap-4">
+        <a href="/admin/thesis-evaluation/cases" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            View All Cases
+        </a>
+        <a href="/admin/thesis-evaluation/profiles" class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+            Manage Profiles
+        </a>
+        <a href="/admin/thesis-evaluation/rubrics" class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+            Manage Rubrics
+        </a>
+    </div>
+</div>
+{/block}

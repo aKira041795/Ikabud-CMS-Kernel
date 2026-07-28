@@ -1,0 +1,11 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <h1 class="text-2xl font-bold mb-6">Not Found</h1>
+    <div class="bg-white rounded-lg shadow p-8 text-center">
+        <p class="text-gray-500 text-lg">{resource|default:'Resource'} not found.</p>
+        <a href="/admin/thesis-evaluation" class="mt-4 inline-block text-blue-600 hover:underline">Return to Dashboard</a>
+    </div>
+</div>
+{/block}

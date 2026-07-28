@@ -1,0 +1,35 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">Rubric Templates</h1>
+    </div>
+
+    {if templates|default:[]|length > 0}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {for t in templates}
+        <a href="/admin/thesis-evaluation/rubrics/{t.id}" class="bg-white rounded-lg shadow p-6 hover:shadow-md transition-shadow block">
+            <div class="flex justify-between items-start">
+                <div>
+                    <h3 class="text-lg font-semibold">{t.name}</h3>
+                    <p class="text-sm text-gray-500 mt-1">Code: {t.code} &middot; v{t.version}</p>
+                    <p class="text-sm text-gray-500">Degree: {t.degree_level|default:'Any'|capitalize}</p>
+                </div>
+                <span class="px-2 py-1 text-xs rounded-full {if t.status == 'active'}bg-green-100 text-green-800{else}bg-gray-100 text-gray-600{/if}">
+                    {t.status|capitalize}
+                </span>
+            </div>
+            <div class="mt-3 text-sm text-gray-600">
+                Weight: {t.total_weight}%
+            </div>
+        </a>
+        {/for}
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No rubric templates found. Run the rubric seed migration.
+    </div>
+    {/if}
+</div>
+{/block}

@@ -1,0 +1,50 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">Evaluation Cases</h1>
+    </div>
+
+    {if cases|default:[]|length > 0}
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profile</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stage</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {for case in cases}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm">{case.id}</td>
+                    <td class="px-6 py-4">
+                        <a href="/admin/thesis-evaluation/cases/{case.id}" class="text-blue-600 hover:underline text-sm">
+                            {case.title|truncate:80}
+                        </a>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">{case.profile_code|default:'—'}</td>
+                    <td class="px-6 py-4 text-sm">
+                        <span class="px-2 py-1 text-xs rounded-full bg-gray-100">{case.current_stage}</span>
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">{case.status}</span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">{case.updated_at|date:"M d, Y"}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No evaluation cases found.
+    </div>
+    {/if}
+</div>
+{/block}

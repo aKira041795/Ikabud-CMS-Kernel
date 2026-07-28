@@ -1,0 +1,57 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <div class="mb-6">
+        <a href="/admin/thesis-evaluation/cases/{case.id|default:'0'}" class="text-blue-600 hover:underline text-sm">&larr; Back to Case</a>
+    </div>
+
+    <h1 class="text-2xl font-bold mb-6">Rubric Evaluation</h1>
+
+    {if rubric_summary.reviewer_summaries|default:[]|length > 0}
+    <div class="space-y-6">
+        {for summary in rubric_summary.reviewer_summaries}
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-semibold capitalize">{summary.role|replace:'_':' '}</h3>
+                <span class="text-2xl font-bold text-blue-600">{summary.weighted_total|number_format:2}%</span>
+            </div>
+
+            {if summary.scores|default:[]|length > 0}
+            <div class="space-y-3">
+                {for score in summary.scores}
+                <div class="p-3 bg-gray-50 rounded">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex justify-between mb-1">
+                                <span class="font-medium text-sm">{score.criterion}</span>
+                                <span class="text-sm font-semibold">{score.score|number_format:1} / 100</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-blue-600 h-2 rounded-full" style="width: {score.score|default:'0'}%"></div>
+                            </div>
+                            {if score.comment}
+                            <p class="text-xs text-gray-500 mt-1">{score.comment}</p>
+                            {/if}
+                        </div>
+                    </div>
+                </div>
+                {/for}
+            </div>
+            {else}
+            <p class="text-sm text-gray-500">No rubric responses submitted yet.</p>
+            {/if}
+        </div>
+        {/for}
+    </div>
+
+    <div class="mt-4 text-sm text-gray-500">
+        Total reviewers: {rubric_summary.total_reviewers|default:'0'}
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No rubric evaluations have been submitted yet.
+    </div>
+    {/if}
+</div>
+{/block}

@@ -1,0 +1,69 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <div class="mb-6">
+        <a href="/admin/thesis-evaluation/rubrics" class="text-blue-600 hover:underline text-sm">&larr; Back to Rubrics</a>
+    </div>
+
+    {if template|default:null}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h1 class="text-2xl font-bold">{template.name}</h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Code: {template.code} &middot; v{template.version} &middot; {template.degree_level|default:'Any'|capitalize}
+                </p>
+            </div>
+            <span class="px-3 py-1 text-sm rounded-full {if template.status == 'active'}bg-green-100 text-green-800{else}bg-gray-100 text-gray-600{/if}">
+                {template.status|capitalize}
+            </span>
+        </div>
+        <p class="text-sm text-gray-600">Total Weight: {template.total_weight}%</p>
+    </div>
+
+    {if criteria|default:[]|length > 0}
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-4 bg-gray-50 border-b">
+            <h2 class="text-lg font-semibold">Criteria</h2>
+        </div>
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Label</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Weight</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Score Range</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Comment Below</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {for c in criteria}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-3 text-sm">{c.sort_order}</td>
+                    <td class="px-6 py-3 text-sm font-mono">{c.code}</td>
+                    <td class="px-6 py-3 text-sm">
+                        <div class="font-medium">{c.label}</div>
+                        {if c.description}
+                        <div class="text-xs text-gray-500 mt-0.5">{c.description}</div>
+                        {/if}
+                    </td>
+                    <td class="px-6 py-3 text-sm">{c.weight}%</td>
+                    <td class="px-6 py-3 text-sm">{c.score_min} - {c.score_max}</td>
+                    <td class="px-6 py-3 text-sm">{if c.required_comment_below}&lt; {c.required_comment_below}{else}—{/if}</td>
+                </tr>
+                {/for}
+            </tbody>
+        </table>
+    </div>
+    {else}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No criteria defined for this rubric.
+    </div>
+    {/if}
+    {else}
+    <p class="text-gray-500">Rubric template not found.</p>
+    {/if}
+</div>
+{/block}

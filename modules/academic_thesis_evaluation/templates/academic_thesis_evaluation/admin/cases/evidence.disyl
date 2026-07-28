@@ -1,0 +1,83 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6">
+    <div class="mb-6">
+        <a href="/admin/thesis-evaluation/cases/{case.id|default:'0'}" class="text-blue-600 hover:underline text-sm">&larr; Back to Case</a>
+    </div>
+
+    <h1 class="text-2xl font-bold mb-6">Evidence Review</h1>
+
+    {if snapshots|default:[]|length > 0}
+    {for snapshot in snapshots}
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h3 class="text-lg font-semibold">Evidence Snapshot #{snapshot.id}</h3>
+                <p class="text-sm text-gray-500">Generated: {snapshot.generated_at|date:"M d, Y H:i"}</p>
+            </div>
+            <span class="px-3 py-1 text-xs rounded-full bg-gray-100">v{snapshot.evidence_version|default:'1.0'}</span>
+        </div>
+
+        {* Maturity badges *}
+        {if snapshot.maturity_metadata|default:null}
+        <div class="flex flex-wrap gap-2 mb-4">
+            {* Maturity metadata loaded as JSON — show raw */}
+            <span class="text-xs text-gray-500">Maturity: {snapshot.maturity_metadata}</span>
+        </div>
+        {/if}
+
+        {* Warnings *}
+        {if snapshot.capability_warnings|default:null}
+        <div class="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4">
+            <p class="text-sm font-medium text-yellow-800">Capability Warnings</p>
+            <p class="text-xs text-yellow-700">{snapshot.capability_warnings}</p>
+        </div>
+        {/if}
+
+        {* Reviewer decisions *}
+        <h4 class="font-medium text-sm mb-2">Reviewer Decisions</h4>
+        <div class="space-y-2">
+            {for decision in decisions|default:[]}
+            {if decision.evidence_snapshot_id|default:'0' == snapshot.id}
+            <div class="p-3 bg-gray-50 rounded text-sm">
+                <div class="flex justify-between">
+                    <span>Machine: <code class="text-xs bg-gray-200 px-1 rounded">{decision.machine_relationship|default:'—'}</code></span>
+                    <span>Reviewer: <code class="text-xs bg-blue-100 px-1 rounded">{decision.reviewer_relationship|default:'—'}</code></span>
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800">{decision.reviewer_action}</span>
+                </div>
+                {if decision.reviewer_reason}
+                <p class="text-xs text-gray-500 mt-1">{decision.reviewer_reason}</p>
+                {/if}
+            </div>
+            {/if}
+            {/for}
+        </div>
+    </div>
+    {/for}
+    {else}
+    <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+        No evidence snapshots generated yet.
+        <div class="mt-4">
+            <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                    onclick="generateEvidence({case.id|default:'0'})">
+                Generate AISS Analysis
+            </button>
+        </div>
+    </div>
+    {/if}
+</div>
+
+{script id="evidence-generate-js"}
+function generateEvidence(caseId) {
+    fetch('/api/v1/thesis-evaluation/cases/' + caseId + '/aiss-analysis', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{csrf_token}'},
+        body: JSON.stringify({})
+    }).then(r => r.json()).then(data => {
+        if (data.ok) { location.reload(); }
+        else { alert('Error: ' + (data.error || 'Unknown')); }
+    });
+}
+{/script}
+{/block}

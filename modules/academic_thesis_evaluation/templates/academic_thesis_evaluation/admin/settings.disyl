@@ -1,0 +1,77 @@
+{extends "layouts/admin"}
+
+{block content}
+<div class="p-6 max-w-2xl">
+    <h1 class="text-2xl font-bold mb-6">Thesis Evaluation Settings</h1>
+
+    <div class="bg-white rounded-lg shadow p-6">
+        <form method="POST" action="/api/v1/thesis-evaluation/settings" id="settings-form">
+            <input type="hidden" name="csrf_token" value="{csrf_token}">
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Default Retention Policy</label>
+                <select name="default_retention_policy" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                    <option value="temporary" {if settings.default_retention_policy|default:'' == 'temporary'}selected{/if}>Temporary (delete after evaluation)</option>
+                    <option value="retained_institutionally" {if settings.default_retention_policy|default:'' == 'retained_institutionally'}selected{/if}>Retained Institutionally</option>
+                    <option value="added_to_comparison_repository" {if settings.default_retention_policy|default:'' == 'added_to_comparison_repository'}selected{/if}>Added to Comparison Repository</option>
+                    <option value="deleted_after_evaluation" {if settings.default_retention_policy|default:'' == 'deleted_after_evaluation'}selected{/if}>Deleted After Evaluation</option>
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Max Manuscript Size (MB)</label>
+                <input type="number" name="max_manuscript_size_mb" value="{settings.max_manuscript_size_mb|default:'50'}" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Allowed Manuscript Extensions</label>
+                <input type="text" name="allowed_manuscript_extensions" value="{settings.allowed_manuscript_extensions|default:'pdf,docx,doc,txt'}" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+
+            <div class="mb-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="require_ethics_clearance" value="1" {if settings.require_ethics_clearance|default:'1' == '1'}checked{/if} class="rounded">
+                    <span class="text-sm font-medium text-gray-700">Require Ethics Clearance</span>
+                </label>
+            </div>
+
+            <div class="mb-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="require_adviser_endorsement" value="1" {if settings.require_adviser_endorsement|default:'1' == '1'}checked{/if} class="rounded">
+                    <span class="text-sm font-medium text-gray-700">Require Adviser Endorsement</span>
+                </label>
+            </div>
+
+            <div class="mb-4">
+                <label class="flex items-center gap-2">
+                    <input type="checkbox" name="auto_generate_aiss_on_submit" value="1" {if settings.auto_generate_aiss_on_submit|default:'0' == '1'}checked{/if} class="rounded">
+                    <span class="text-sm font-medium text-gray-700">Auto-generate AISS Analysis on Manuscript Submission</span>
+                </label>
+            </div>
+
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Save Settings</button>
+            <span id="save-status" class="ml-3 text-sm text-green-600 hidden">Saved</span>
+        </form>
+    </div>
+</div>
+
+{script id="settings-save-js"}
+document.getElementById('settings-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var fd = new FormData(this);
+    fetch('/api/v1/thesis-evaluation/settings', {
+        method: 'POST',
+        headers: {'X-CSRF-TOKEN': '{csrf_token}'},
+        body: fd
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.ok) {
+            var s = document.getElementById('save-status');
+            s.classList.remove('hidden');
+            setTimeout(function() { s.classList.add('hidden'); }, 3000);
+        } else {
+            alert('Error: ' + (d.error || 'Unknown'));
+        }
+    });
+});
+{/script}
+{/block}
