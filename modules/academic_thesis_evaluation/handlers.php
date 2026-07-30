@@ -129,6 +129,18 @@ function pageEvidenceReview(array $params = []): void
 
     $snapshotRepo = new \AissEvidenceSnapshotRepository($tenantId);
     $snapshots = $snapshotRepo->findByCaseId($caseId);
+    foreach ($snapshots as &$snapshot) {
+        foreach (['textual_result', 'maturity_metadata', 'capability_warnings'] as $field) {
+            if (!is_string($snapshot[$field] ?? null) || $snapshot[$field] === '') {
+                continue;
+            }
+            $decoded = json_decode($snapshot[$field], true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $snapshot[$field] = $decoded;
+            }
+        }
+    }
+    unset($snapshot);
 
     $decisionRepo = new \EvidenceReviewDecisionRepository($tenantId);
     $decisions = $decisionRepo->findByCaseId($caseId);

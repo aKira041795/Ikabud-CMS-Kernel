@@ -40,9 +40,10 @@ class AcademicSimilarityPipelineService
      * it is skipped (idempotent).
      *
      * @param int $submissionId
+     * @param array{external_text_processing_allowed?: bool} $options
      * @return array{ok: bool, stages: array<string, array{status: string, result: mixed}>, error?: string}
      */
-    public function processSubmission(int $submissionId): array
+    public function processSubmission(int $submissionId, array $options = []): array
     {
         $stages = [
             'extract',
@@ -57,6 +58,12 @@ class AcademicSimilarityPipelineService
             'score',
             'report',
         ];
+        if (($options['external_text_processing_allowed'] ?? true) !== true) {
+            $stages = array_values(array_filter(
+                $stages,
+                static fn(string $stage): bool => $stage !== 'semantic_match'
+            ));
+        }
 
         $results = [];
 
@@ -202,8 +209,9 @@ class AcademicSimilarityPipelineService
                 return ['ok' => false, 'error' => $textLengthError];
             }
 
-            $wordCount = str_word_count($text);
-            $textHash = hash('sha256', $text);
+            $safeText = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+            $wordCount = str_word_count($safeText);
+            $textHash = hash('sha256', $safeText);
 
             // Store text version
             $tvStmt = $this->db->prepare("
@@ -215,7 +223,7 @@ class AcademicSimilarityPipelineService
             $tvStmt->execute([
                 ':tid' => $this->tenantId,
                 ':sid' => $submissionId,
-                ':text' => $text,
+                ':text' => $safeText,
                 ':wcount' => $wordCount,
                 ':pcount' => $pageCount,
                 ':thash' => $textHash,
@@ -407,8 +415,8 @@ class AcademicSimilarityPipelineService
                     ':sid' => $submissionId,
                     ':stype' => $seg->type,
                     ':sidx' => $seg->index,
-                    ':content' => $seg->content,
-                    ':ncontent' => $seg->normalizedContent,
+                    ':content' => mb_convert_encoding($seg->content, 'UTF-8', 'UTF-8'),
+                    ':ncontent' => mb_convert_encoding($seg->normalizedContent, 'UTF-8', 'UTF-8'),
                     ':wcount' => $seg->wordCount,
                     ':ccount' => $seg->charCount,
                     ':osoff' => $seg->originalStartOffset,

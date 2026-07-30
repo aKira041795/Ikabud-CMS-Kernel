@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS ac_similarity_internet_search_runs (
     submission_id    INT UNSIGNED NOT NULL,
     institution_id   INT UNSIGNED NOT NULL DEFAULT 0,
     provider         VARCHAR(80) NOT NULL DEFAULT '',
-    status           ENUM('pending','completed','partial','failed','skipped') NOT NULL DEFAULT 'pending',
+    status           ENUM('pending','completed','completed_partial','completed_none','partial','failed','skipped') NOT NULL DEFAULT 'pending',
     query_count      INT UNSIGNED NOT NULL DEFAULT 0,
     candidate_count  INT UNSIGNED NOT NULL DEFAULT 0,
     imported_count   INT UNSIGNED NOT NULL DEFAULT 0,

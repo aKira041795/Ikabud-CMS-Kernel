@@ -312,6 +312,8 @@ class AcademicSimilaritySourceService
             $this->db->prepare("DELETE FROM ac_similarity_text_versions WHERE source_id = :sid AND tenant_id = :tid AND text_type = 'source'")
                 ->execute([':sid' => $sourceId, ':tid' => $this->tenantId]);
 
+            $safeText = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+            $safeNorm = mb_convert_encoding($normalizedText, 'UTF-8', 'UTF-8');
             $stmt = $this->db->prepare(
                 "INSERT INTO ac_similarity_text_versions
                     (tenant_id, source_id, text_type, extracted_text, normalized_text, word_count,
@@ -324,18 +326,18 @@ class AcademicSimilaritySourceService
             $stmt->execute([
                 ':tid' => $this->tenantId,
                 ':sid' => $sourceId,
-                ':text' => $text,
-                ':norm' => $normalizedText,
+                ':text' => $safeText,
+                ':norm' => $safeNorm,
                 ':wcount' => $wordCount,
-                ':nwcount' => str_word_count($normalizedText),
-                ':thash' => hash('sha256', $text),
-                ':nhash' => hash('sha256', $normalizedText),
+                ':nwcount' => str_word_count($safeNorm),
+                ':thash' => hash('sha256', $safeText),
+                ':nhash' => hash('sha256', $safeNorm),
                 ':offsets' => json_encode($normalized->offsetMap),
                 ':method' => $mimeType === 'application/pdf' ? 'pdf' : ($mimeType === 'text/plain' ? 'txt_plain' : 'upload'),
             ]);
             $textVersionId = (int)$this->db->lastInsertId();
 
-            $segments = $this->buildSourceSegments($text, $normalizer);
+            $segments = $this->buildSourceSegments($safeText, $normalizer);
             $insertStmt = $this->db->prepare(
                 "INSERT INTO ac_similarity_segments
                     (tenant_id, text_version_id, source_id, segment_type, segment_index,
@@ -358,8 +360,8 @@ class AcademicSimilaritySourceService
                     ':sid' => $sourceId,
                     ':stype' => $seg->type,
                     ':sidx' => $seg->index,
-                    ':content' => $seg->content,
-                    ':ncontent' => $seg->normalizedContent,
+                    ':content' => mb_convert_encoding($seg->content, 'UTF-8', 'UTF-8'),
+                    ':ncontent' => mb_convert_encoding($seg->normalizedContent, 'UTF-8', 'UTF-8'),
                     ':wcount' => $seg->wordCount,
                     ':ccount' => $seg->charCount,
                     ':osoff' => $seg->originalStartOffset,

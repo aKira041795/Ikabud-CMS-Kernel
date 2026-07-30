@@ -76,10 +76,72 @@
                     {/if}
                 </div>
                 {if internet_check_enabled}
-                <form method="POST" action="/api/v1/academic-similarity/submissions/{submission.submission_id}/internet-check">
-                    <input type="hidden" name="_token" value="{csrf_token}">
-                    <button type="submit" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800">Run Internet Check</button>
-                </form>
+                <div id="internet-check-area">
+                    <button id="run-internet-check-btn" onclick="runInternetCheck({submission.submission_id})"
+                            class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-wait">
+                        Run Internet Check
+                    </button>
+                    <div id="internet-check-progress" class="hidden mt-2 text-sm text-gray-600">
+                        <span class="inline-block animate-spin mr-2">&#9696;</span>
+                        <span id="internet-check-progress-text">Discovering internet sources…</span>
+                    </div>
+                    <div id="internet-check-result" class="hidden mt-2 text-sm"></div>
+                </div>
+                <script>
+                async function runInternetCheck(submissionId) {
+                    var btn = document.getElementById('run-internet-check-btn');
+                    var progress = document.getElementById('internet-check-progress');
+                    var progressText = document.getElementById('internet-check-progress-text');
+                    var result = document.getElementById('internet-check-result');
+                    var token = '{csrf_token}';
+
+                    btn.disabled = true;
+                    btn.textContent = 'Running…';
+                    progress.classList.remove('hidden');
+                    result.classList.add('hidden');
+
+                    try {
+                        var resp = await fetch('/api/v1/academic-similarity/submissions/' + submissionId + '/internet-check?force_sync=1', {
+                            method: 'POST',
+                            headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: '_token=' + encodeURIComponent(token)
+                        });
+                        var data = await resp.json();
+                        progress.classList.add('hidden');
+
+                        if (data.ok) {
+                            var imported = data.imported_count || 0;
+                            var candidates = data.candidate_count || 0;
+                            var status = data.status || 'unknown';
+                            result.className = 'mt-2 text-sm p-2 rounded';
+                            if (imported > 0) {
+                                result.className += ' bg-green-50 text-green-700';
+                                result.textContent = '✓ Imported ' + imported + ' of ' + candidates + ' sources. Reloading page…';
+                                setTimeout(function() { location.reload(); }, 1500);
+                            } else if (candidates > 0) {
+                                result.className += ' bg-yellow-50 text-yellow-700';
+                                result.textContent = 'Found ' + candidates + ' candidates but none were importable. Reloading page…';
+                                setTimeout(function() { location.reload(); }, 2000);
+                            } else {
+                                result.className += ' bg-gray-50 text-gray-600';
+                                result.textContent = 'No internet sources found. Reloading page…';
+                                setTimeout(function() { location.reload(); }, 1500);
+                            }
+                        } else {
+                            result.className = 'mt-2 text-sm p-2 rounded bg-red-50 text-red-700';
+                            result.textContent = '✗ ' + (data.error || 'Internet check failed');
+                            btn.disabled = false;
+                            btn.textContent = 'Run Internet Check';
+                        }
+                    } catch (err) {
+                        progress.classList.add('hidden');
+                        result.className = 'mt-2 text-sm p-2 rounded bg-red-50 text-red-700';
+                        result.textContent = '✗ Network error: ' + err.message;
+                        btn.disabled = false;
+                        btn.textContent = 'Run Internet Check';
+                    }
+                }
+                </script>
                 {else}
                 <span class="text-xs rounded-full bg-yellow-100 text-yellow-800 px-3 py-1">Disabled in settings</span>
                 {/if}
@@ -92,15 +154,51 @@
         </div>
         {/if}
 
+        {if internet_check_enabled and internet_run.id and internet_run.status != 'completed'}
+        <div class="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <p class="text-sm font-semibold text-amber-800">Internet similarity coverage is partial.</p>
+            <p class="text-sm text-amber-700 mt-1">
+                {internet_run.imported_count|default:0} of {internet_run.candidate_count|default:0} discovered academic sources were importable.
+                A 0% score means no reportable overlap was found in the local corpus and imported full text; it is not proof of zero similarity across all Scholar results.
+            </p>
+        </div>
+        {/if}
+
+        {if internet_candidates|default:[]|length > 0}
+        <div class="mt-4 border border-gray-200 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <p class="text-sm font-semibold text-gray-900">Google Scholar discoveries ({internet_candidates|length})</p>
+                <p class="text-xs text-gray-500 mt-1">Discovery results are evidence of search coverage; only imported full text contributes to the similarity score.</p>
+            </div>
+            <div class="divide-y divide-gray-100">
+                {for candidate in internet_candidates}
+                <div class="px-4 py-3">
+                    <div class="flex items-start justify-between gap-3">
+                        <a href="{candidate.source_url}" target="_blank" rel="noopener noreferrer"
+                           class="text-sm font-medium text-blue-700 hover:underline">
+                            {candidate.title|default:'Untitled academic result'}
+                        </a>
+                        <span class="shrink-0 px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-700">
+                            {candidate.retrieval_status|default:'candidate'}
+                        </span>
+                    </div>
+                    {if candidate.publisher}<p class="text-xs text-gray-500 mt-1">{candidate.publisher}</p>{/if}
+                    {if candidate.retrieval_error}<p class="text-xs text-amber-700 mt-1">{candidate.retrieval_error}</p>{/if}
+                </div>
+                {/for}
+            </div>
+        </div>
+        {/if}
+
         {if submission.raw_similarity_score !== null}
         <div class="mt-6 flex gap-4">
             <div class="bg-gray-50 rounded-lg p-4 text-center">
                 <p class="text-2xl font-bold">{submission.raw_similarity_score}%</p>
-                <p class="text-xs text-gray-500 uppercase">Raw Score</p>
+                <p class="text-xs text-gray-500 uppercase">Indexed Corpus Raw Score</p>
             </div>
             <div class="bg-green-50 rounded-lg p-4 text-center">
                 <p class="text-2xl font-bold">{submission.adjusted_similarity_score}%</p>
-                <p class="text-xs text-gray-500 uppercase">Adjusted Score</p>
+                <p class="text-xs text-gray-500 uppercase">Indexed Corpus Adjusted Score</p>
             </div>
         </div>
         {/if}

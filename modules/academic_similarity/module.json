@@ -98,6 +98,10 @@
                     "properties": {
                         "submission_id": {
                             "type": "integer"
+                        },
+                        "external_text_processing_allowed": {
+                            "type": "boolean",
+                            "description": "Explicitly allow a configured external semantic provider to receive text segments; false skips semantic_match"
                         }
                     }
                 }
@@ -540,6 +544,40 @@
                 {
                     "value": "serpapi",
                     "label": "SerpAPI (serpapi.com)"
+                }
+            ]
+        },
+        {
+            "key": "internet_search_engine",
+            "type": "select",
+            "label": "SerpAPI Search Engine",
+            "default": "google_scholar",
+            "description": "Use Google Scholar for academic source discovery; Google web search remains available as a fallback.",
+            "options": [
+                {
+                    "value": "google_scholar",
+                    "label": "Google Scholar"
+                },
+                {
+                    "value": "google",
+                    "label": "Google Web Search"
+                }
+            ]
+        },
+        {
+            "key": "internet_query_generation_mode",
+            "type": "select",
+            "label": "Search Query Generation",
+            "default": "local",
+            "description": "Local mode keeps document text on this server. AI mode sends the bounded abstract to the configured AI provider and requires explicit privacy approval.",
+            "options": [
+                {
+                    "value": "local",
+                    "label": "Local contextual extraction"
+                },
+                {
+                    "value": "ai",
+                    "label": "External AI abstract extraction"
                 }
             ]
         },

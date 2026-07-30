@@ -35,9 +35,10 @@ class AcademicSimilaritySubmissionService
      * @param array $input Expects: institution_id, submission_title, source_type,
      *                     author_name, author_identifier, file (for upload),
      *                     pasted_text (for pasted), idempotency_key (optional)
+     * @param bool $trustedLocalFile True only for a temp file created by a trusted capability adapter.
      * @return array{ok: bool, submission_id?: int, error?: string}
      */
-    public function create(array $input): array
+    public function create(array $input, bool $trustedLocalFile = false): array
     {
         // 1. Validate required fields
         $institutionId = (int)($input['institution_id'] ?? 0);
@@ -74,14 +75,16 @@ class AcademicSimilaritySubmissionService
             }
 
             // Validate file
-            $validation = $this->fileValidator->validate($file, $settings);
+            $validation = $this->fileValidator->validate($file, $settings, $trustedLocalFile);
             if (!($validation['ok'] ?? false)) {
                 return ['ok' => false, 'error' => $validation['error'] ?? 'File validation failed'];
             }
 
             // Store file
             try {
-                $fileData = $this->storage->storeUploadedFile($file);
+                $fileData = $trustedLocalFile
+                    ? $this->storage->storeFile((string)$file['tmp_name'], (string)($file['name'] ?? 'upload.bin'))
+                    : $this->storage->storeUploadedFile($file);
                 $fileData['original_filename'] = $file['name'] ?? 'upload.bin';
                 $fileData['mime_type'] = $this->fileValidator->detectMimeType($file['tmp_name']);
             } catch (\Throwable $e) {
@@ -303,6 +306,7 @@ class AcademicSimilaritySubmissionService
      */
     private function createTextVersion(int $submissionId, string $text, int $wordCount, string $mimeType, string $sourceType): void
     {
+        $safeText = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         $stmt = $this->db->prepare(
             "INSERT INTO ac_similarity_text_versions
                 (tenant_id, submission_id, text_type, extracted_text, word_count, page_count,
@@ -314,10 +318,10 @@ class AcademicSimilaritySubmissionService
         $stmt->execute([
             ':tid' => $this->tenantId,
             ':sid' => $submissionId,
-            ':text' => $text,
+            ':text' => $safeText,
             ':wcount' => $wordCount,
             ':pcount' => 1,
-            ':thash' => hash('sha256', $text),
+            ':thash' => hash('sha256', $safeText),
             ':method' => $sourceType === 'upload' ? 'file_extraction' : 'pasted',
         ]);
     }

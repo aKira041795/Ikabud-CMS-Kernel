@@ -28,6 +28,7 @@ function tenantSafeKernelMigrationArtifacts(?string $entryModuleId = null): arra
 {
     $artifacts = [
         '001_kernel_events_and_triggers.sql' => BASE_PATH . '/migrations/001_kernel_events_and_triggers.sql',
+        '006_kernel_job_queue.sql' => BASE_PATH . '/migrations/006_kernel_job_queue.sql',
         '006_kernel_workflow_tables.sql' => BASE_PATH . '/database/migrations/006_kernel_workflow_tables.sql',
         '007_kernel_runtime_tables.sql' => BASE_PATH . '/database/migrations/007_kernel_runtime_tables.sql',
         '010_integration_bridge.sql' => BASE_PATH . '/database/migrations/010_integration_bridge.sql',

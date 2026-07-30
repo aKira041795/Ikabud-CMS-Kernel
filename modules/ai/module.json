@@ -111,6 +111,9 @@
             },
             "payload_policy": {
               "type": "string"
+            },
+            "search_engine": {
+              "type": "string"
             }
           }
         }
@@ -130,7 +133,8 @@
           "allow_callers": [
             "kernel",
             "ai",
-            "cms"
+            "cms",
+            "academic-similarity"
           ]
         },
         "ai.explain@1": {

@@ -336,7 +336,22 @@
                         <option value="google_cse" {if settings.internet_search_backend == 'google_cse'}selected{/if}>Google Custom Search</option>
                         <option value="bing" {if settings.internet_search_backend == 'bing'}selected{/if}>Bing Web Search API</option>
                     </select>
+                </div>
+                <div>
+                    <label for="internet_search_engine" class="block text-sm font-medium text-gray-700 mb-1">SerpAPI Search Engine</label>
+                    <select id="internet_search_engine" name="internet_search_engine" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="google_scholar" {if settings.internet_search_engine == 'google_scholar'}selected{/if}>Google Scholar</option>
+                        <option value="google" {if settings.internet_search_engine == 'google'}selected{/if}>Google Web Search</option>
                     </select>
+                    <p class="mt-1 text-xs text-gray-500">Google Scholar is the recommended source corpus for thesis similarity discovery.</p>
+                </div>
+                <div>
+                    <label for="internet_query_generation_mode" class="block text-sm font-medium text-gray-700 mb-1">Query Generation</label>
+                    <select id="internet_query_generation_mode" name="internet_query_generation_mode" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="local" {if settings.internet_query_generation_mode == 'local'}selected{/if}>Local contextual extraction</option>
+                        <option value="ai" {if settings.internet_query_generation_mode == 'ai'}selected{/if}>External AI abstract extraction</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">Local mode sends only sanitized topic queries to the search provider. AI mode sends a bounded abstract to the configured AI provider and requires privacy approval.</p>
                 </div>
                 <div>
                     <label for="internet_check_api_key_env" class="block text-sm font-medium text-gray-700 mb-1">Provider API Key Env Var</label>

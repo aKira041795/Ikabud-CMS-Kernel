@@ -159,15 +159,15 @@ class AcademicSimilarityInternetCheckService
                 return ['ok' => true, 'status' => 'skipped', 'reason' => 'An internet check is already in progress for this submission'];
             }
 
-            $text = $this->loadSubmissionText($submissionId);
-            if ($text === '') {
+            $submissionText = $this->loadSubmissionText($submissionId);
+            if ($submissionText === '') {
                 $this->db->rollBack();
                 return ['ok' => true, 'status' => 'skipped', 'reason' => 'No extracted submission text available'];
             }
 
             $provider = (string)($settings['internet_check_provider'] ?? 'capability');
             $payloadPolicy = (string)($settings['internet_check_payload_policy'] ?? 'snippets_only');
-            $queries = $this->discovery->buildQueries($submission, $text, $settings);
+            $queries = $this->discovery->buildQueries($submission, $submissionText, $settings);
             $runId = $this->runRepo->create($submissionId, (int)($submission['institution_id'] ?? 0), $provider, $payloadPolicy, [
                 'queries' => $queries,
                 'full_document_query_allowed' => ($settings['internet_check_allow_full_document_query'] ?? '0') === '1',
@@ -225,6 +225,15 @@ class AcademicSimilarityInternetCheckService
 
             $text = (string)($fetched['text'] ?? '');
             $this->sourceRepo->markRetrieved($candidateId, $text, strlen($text));
+
+            // Relevance gate: skip sources with negligible word overlap against the submission
+            if ($this->relevanceScore($text, $submissionText) < 0.05) {
+                $error = 'Irrelevant: no meaningful word overlap with submission';
+                $this->sourceRepo->markFailed($candidateId, $error);
+                $errors[] = $url . ': ' . $error;
+                continue;
+            }
+
             $ingested = $this->ingestion->ingest((int)($submission['institution_id'] ?? 0), $candidate, $text, $maxChars);
             if (!($ingested['ok'] ?? false)) {
                 $error = (string)($ingested['error'] ?? 'Ingestion failed');
@@ -242,22 +251,26 @@ class AcademicSimilarityInternetCheckService
             $status = ($errors === []) ? 'completed' : 'completed_partial';
             $this->breakerReset(); // Success resets breaker
         } elseif (count($candidates) > 0) {
-            $status = 'completed_none'; // Found candidates but none were importable
+            $status = 'failed';
+            $errors[] = 'Academic candidates were found, but none could be imported as usable evidence';
             $this->breakerRecordFailure();
         } else {
-            $status = 'skipped';
+            $status = 'failed';
+            $errors[] = 'No academic source candidates were discovered; similarity coverage is incomplete';
+            $this->breakerRecordFailure();
         }
         $errorText = $errors === [] ? '' : implode('; ', array_slice($errors, 0, 5));
         $this->runRepo->updateSummary($runId, $status, count($queries), count($candidates), $imported, $this->coverageDisclosure($provider, count($queries), count($candidates)), $errorText);
 
         return [
-            'ok' => $status !== 'failed',
+            'ok' => $imported > 0,
             'status' => $status,
             'search_run_id' => $runId,
             'queries' => $queries,
             'candidate_count' => count($candidates),
             'imported_count' => $imported,
             'errors' => $errors,
+            'error' => $status === 'failed' ? $errorText : null,
             'disclosure' => $this->coverageDisclosure($provider, count($queries), count($candidates)),
         ];
     }
@@ -276,6 +289,37 @@ class AcademicSimilarityInternetCheckService
         );
         $stmt->execute([':tid' => $this->tenantId, ':sid' => $submissionId]);
         return (string)($stmt->fetchColumn() ?: '');
+    }
+
+    /**
+     * Compute word-overlap relevance between retrieved text and submission.
+     * Returns a float in [0.0, 1.0]. Threshold of 0.05 means at least 5% of
+     * the submission's significant words must appear in the retrieved text.
+     */
+    private function relevanceScore(string $retrievedText, string $submissionText): float
+    {
+        $tokenize = function (string $t): array {
+            $words = preg_split('/\s+/', strtolower(preg_replace('/[^a-zA-Z\s]/', '', $t))) ?: [];
+            return array_filter($words, fn(string $w) => strlen($w) >= 4);
+        };
+
+        $subTokens = $tokenize($submissionText);
+        $retTokens = $tokenize($retrievedText);
+
+        if (count($subTokens) === 0 || count($retTokens) === 0) {
+            return 0.0;
+        }
+
+        // Use significant words only: top-200 most frequent from submission
+        $freq = array_count_values($subTokens);
+        arsort($freq);
+        $sigWords = array_keys(array_slice($freq, 0, 200));
+        $sigSet = array_flip($sigWords);
+
+        $retSet = array_flip($retTokens);
+        $overlap = count(array_intersect_key($sigSet, $retSet));
+
+        return $overlap / count($sigSet);
     }
 
     private function indexedSourceCount(): int

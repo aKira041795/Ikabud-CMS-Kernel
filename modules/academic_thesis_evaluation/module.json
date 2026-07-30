@@ -315,6 +315,32 @@
                 ],
                 "description": "Advance a case to the next stage based on outcome"
             }
+        ],
+        "consumes": [
+            {
+                "id": "academic_similarity.submit@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.check@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.report.view@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.context.analyze@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.scholarship.profile@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.lineage.graph@1",
+                "optional": true
+            }
         ]
     }
 }

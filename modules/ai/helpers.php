@@ -512,6 +512,10 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
     $candidates = [];
     $searched = 0;
     $backend = (string)($payload['internet_search_backend'] ?? 'serpapi');
+    $searchEngine = (string)($payload['search_engine'] ?? 'google_scholar');
+    if (!in_array($searchEngine, ['google_scholar', 'google'], true)) {
+        $searchEngine = 'google_scholar';
+    }
 
     // Check for unimplemented backend before executing queries
     if (!in_array($backend, ['serpapi'], true)) {
@@ -525,7 +529,14 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
     foreach ($queries as $query) {
         if ($searched >= $maxSources * 2) break;
 
-        $results = ai_search_backend_dispatch($query, $apiKey, min(10, $maxSources), $backend, (int)($payload['timeout_seconds'] ?? 15));
+        $results = ai_search_backend_dispatch(
+            (string)$query,
+            $apiKey,
+            min(10, $maxSources),
+            $backend,
+            (int)($payload['timeout_seconds'] ?? 15),
+            $searchEngine
+        );
         if (!is_array($results)) continue;
 
         foreach ($results as $result) {
@@ -535,7 +546,7 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
                 if (($existing['url'] ?? '') === $url) continue 2;
             }
             $candidates[] = [
-                'provider' => 'serpapi',
+                'provider' => 'serpapi:' . $searchEngine,
                 'query' => $query,
                 'rank' => count($candidates) + 1,
                 'url' => $url,
@@ -549,8 +560,8 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
     }
 
     $disclosure = $candidates === []
-        ? "Searched {$searched} queries via SerpAPI but found no matching sources."
-        : "Searched {$searched} queries via SerpAPI and discovered " . count($candidates) . " candidate source(s). This is not a comprehensive internet search.";
+        ? "Searched {$searched} queries via SerpAPI {$searchEngine} but found no matching sources."
+        : "Searched {$searched} queries via SerpAPI {$searchEngine} and discovered " . count($candidates) . " candidate source(s). This is not a comprehensive internet search.";
 
     return ['ok' => true, 'candidates' => $candidates, 'disclosure' => $disclosure];
 }
@@ -559,10 +570,17 @@ function ai_cap_ai_search_discover_1(mixed $payload, string $capabilityId = '', 
  * Backend dispatch — routes to the configured search backend.
  * Returns the same result format as ai_search_serpapi_direct().
  */
-function ai_search_backend_dispatch(string $query, string $apiKey, int $max, string $backend, int $timeout = 15): array
+function ai_search_backend_dispatch(
+    string $query,
+    string $apiKey,
+    int $max,
+    string $backend,
+    int $timeout = 15,
+    string $searchEngine = 'google_scholar'
+): array
 {
     return match ($backend) {
-        'serpapi' => ai_search_serpapi_direct($query, $apiKey, $max, $timeout),
+        'serpapi' => ai_search_serpapi_direct($query, $apiKey, $max, $timeout, $searchEngine),
         'google_cse' => ai_search_google_cse_direct($query, $apiKey, $max),
         'bing' => ai_search_bing_direct($query, $apiKey, $max),
         default => [],
@@ -597,8 +615,18 @@ function ai_search_bing_direct(string $query, string $apiKey, int $max): array
  * Note: SerpAPI requires the API key as a query parameter. Ensure server access
  * logs are not publicly accessible and the key is encrypted at rest in settings.
  */
-function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10, int $timeout = 15): array
+function ai_search_serpapi_direct(
+    string $query,
+    string $apiKey,
+    int $max = 10,
+    int $timeout = 15,
+    string $searchEngine = 'google_scholar'
+): array
 {
+    if (!in_array($searchEngine, ['google_scholar', 'google'], true)) {
+        $searchEngine = 'google_scholar';
+    }
+
     // Retry with exponential backoff: max 2 retries on connection errors
     $maxRetries = 2;
     $retryDelay = [1, 3]; // seconds
@@ -608,7 +636,7 @@ function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10, 
         $url = 'https://serpapi.com/search?q=' . rawurlencode($query)
              . '&api_key=' . rawurlencode($apiKey)
              . '&num=' . $max
-             . '&engine=google';
+             . '&engine=' . rawurlencode($searchEngine);
 
         $ctx = stream_context_create([
             'http' => [
@@ -649,6 +677,7 @@ function ai_search_serpapi_direct(string $query, string $apiKey, int $max = 10, 
                     'url' => (string)($item['link'] ?? ''),
                     'title' => (string)($item['title'] ?? ''),
                     'snippet' => (string)($item['snippet'] ?? ''),
+                    'publisher' => (string)($item['publication_info']['summary'] ?? ''),
                 ];
                 if (count($results) >= $max) break;
             }

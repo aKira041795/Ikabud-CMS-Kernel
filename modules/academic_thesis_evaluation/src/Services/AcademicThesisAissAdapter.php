@@ -12,14 +12,17 @@ class AcademicThesisAissAdapter
     private ManuscriptVersionRepository $manuscriptRepo;
     private AissEvidenceSnapshotRepository $snapshotRepo;
     private AuditEventRepository $auditRepo;
+    /** @var callable|null */
+    private $capabilityCaller;
 
-    public function __construct(string $tenantId)
+    public function __construct(string $tenantId, ?callable $capabilityCaller = null)
     {
         $this->tenantId = $tenantId;
         $this->caseRepo = new EvaluationCaseRepository($tenantId);
         $this->manuscriptRepo = new ManuscriptVersionRepository($tenantId);
         $this->snapshotRepo = new AissEvidenceSnapshotRepository($tenantId);
         $this->auditRepo = new AuditEventRepository($tenantId);
+        $this->capabilityCaller = $capabilityCaller;
     }
 
     public function generateSnapshot(int $caseId, int $actorId): array
@@ -45,6 +48,7 @@ class AcademicThesisAissAdapter
             'citation_detection' => 'unavailable',
             'context_analysis' => 'unavailable',
             'semantic_resemblance' => 'unavailable',
+            'internet_coverage' => 'unavailable',
         ];
         $textualResult = null;
         $citationResult = null;
@@ -63,51 +67,81 @@ class AcademicThesisAissAdapter
         if (!$aissEnabled) {
             $warnings[] = 'AISS integration is disabled for this tenant (aiss_integration_enabled=0). Enable in Thesis Evaluation settings.';
             $maturityMetadata['aiss_integration'] = 'disabled_by_tenant';
-        } elseif (!function_exists('isModuleEnabledForTenant') || !function_exists('moduleTenantSettingsTenantId')) {
-            $warnings[] = 'AISS module manager helpers unavailable — running in standalone mode';
-            $maturityMetadata['aiss_integration'] = 'standalone_mode';
         } else {
-            // Attempt to access AISS via capability bus
             try {
-            $caps = app()->capabilities();
-            if (method_exists($caps, 'call')) {
-                // 1. Submit to AISS
-                $submitResult = $caps->call('academic_similarity.submit@1', [
+                $fileReference = (string)($manuscript['file_reference'] ?? '');
+                if ($fileReference === '' || !is_file($fileReference)) {
+                    return ['ok' => false, 'error' => 'Active manuscript file is unavailable; AISS analysis was not saved'];
+                }
+
+                $submitResult = $this->callCapability('academic_similarity.submit@1', [
                     '_tenant_id' => $this->tenantId,
                     'submission_title' => $case['title'],
-                    'file_content' => base64_encode(
-                        is_file($manuscript['file_reference'] ?? '') ? file_get_contents($manuscript['file_reference']) : ($manuscript['file_reference'] ?? '')
-                    ),
-                    'filename' => basename($manuscript['file_reference'] ?? 'manuscript.pdf'),
+                    'file_content' => base64_encode((string)file_get_contents($fileReference)),
+                    'filename' => basename($fileReference),
                     'source_type' => 'upload',
                 ]);
 
-                if (!empty($submitResult['ok']) && !empty($submitResult['data']['submission_id'])) {
-                    $aissSubmissionId = (int)$submitResult['data']['submission_id'];
-                    $capabilityVersion = $submitResult['data']['capability_version'] ?? '1.0';
-
-                    // 2. Run similarity check
-                    $caps->call('academic_similarity.check@1', [
-                        '_tenant_id' => $this->tenantId,
-                        'submission_id' => $aissSubmissionId,
-                    ]);
-
-                    // 3. Get report (textual matching)
-                    $reportResult = $caps->call('academic_similarity.report.view@1', [
-                        '_tenant_id' => $this->tenantId,
-                        'submission_id' => $aissSubmissionId,
-                    ]);
-
-                    if (!empty($reportResult['ok'])) {
-                        $textualResult = $reportResult['data'] ?? null;
-                        $sourceHash = hash('sha256', json_encode($textualResult));
-                        $maturityMetadata['textual_matching'] = 'stable';
-                    }
+                if (empty($submitResult['ok']) || empty($submitResult['submission_id'])) {
+                    return [
+                        'ok' => false,
+                        'error' => (string)($submitResult['error'] ?? 'AISS submission failed; no evidence snapshot was saved'),
+                    ];
                 }
 
-                // 4. Context analysis (experimental)
+                $aissSubmissionId = (int)$submitResult['submission_id'];
+                $capabilityVersion = (string)($submitResult['capability_version'] ?? '1.0');
+                $checkResult = $this->callCapability('academic_similarity.check@1', [
+                    '_tenant_id' => $this->tenantId,
+                    'submission_id' => $aissSubmissionId,
+                    'external_text_processing_allowed' => false,
+                ]);
+                if (empty($checkResult['ok'])) {
+                    return [
+                        'ok' => false,
+                        'error' => (string)($checkResult['error'] ?? 'AISS processing failed; no evidence snapshot was saved'),
+                        'aiss_submission_id' => $aissSubmissionId,
+                    ];
+                }
+
+                $reportResult = $this->callCapability('academic_similarity.report.view@1', [
+                    '_tenant_id' => $this->tenantId,
+                    'submission_id' => $aissSubmissionId,
+                ]);
+                if (empty($reportResult['ok'])) {
+                    return [
+                        'ok' => false,
+                        'error' => (string)($reportResult['error'] ?? 'AISS report was unavailable; no evidence snapshot was saved'),
+                        'aiss_submission_id' => $aissSubmissionId,
+                    ];
+                }
+
+                $textualResult = $reportResult;
+                $sourceHash = hash('sha256', (string)json_encode($textualResult));
+                $maturityMetadata['textual_matching'] = 'stable';
+                $internetCoverage = $reportResult['internet_coverage'] ?? null;
+                if (is_array($internetCoverage)) {
+                    $importedCount = (int)($internetCoverage['imported_count'] ?? 0);
+                    $candidateCount = (int)($internetCoverage['candidate_count'] ?? 0);
+                    $maturityMetadata['internet_coverage'] =
+                        (($internetCoverage['status'] ?? '') === 'completed'
+                            && $candidateCount > 0
+                            && $importedCount === $candidateCount)
+                            ? 'completed'
+                            : ($importedCount > 0 ? 'partial' : 'incomplete');
+                }
+
+                $semanticMatches = array_values(array_filter(
+                    is_array($reportResult['matches'] ?? null) ? $reportResult['matches'] : [],
+                    static fn(array $match): bool => ($match['match_type'] ?? '') === 'semantic'
+                ));
+                if ($semanticMatches !== []) {
+                    $semanticResult = ['ok' => true, 'matches' => $semanticMatches];
+                    $maturityMetadata['semantic_resemblance'] = 'experimental';
+                }
+
                 try {
-                    $contextResult = $caps->call('academic_similarity.context.analyze@1', [
+                    $contextResult = $this->callCapability('academic_similarity.context.analyze@1', [
                         '_tenant_id' => $this->tenantId,
                         'submission_id' => $aissSubmissionId,
                     ]);
@@ -116,25 +150,33 @@ class AcademicThesisAissAdapter
                     $warnings[] = 'Context analysis unavailable: ' . $e->getMessage();
                 }
 
-                // 5. Semantic comparison (experimental)
                 try {
-                    $semanticResult = $caps->call('academic_similarity.semantic.compare@1', [
+                    $scholarshipResult = $this->callCapability('academic_similarity.scholarship.profile@1', [
                         '_tenant_id' => $this->tenantId,
                         'submission_id' => $aissSubmissionId,
                     ]);
-                    $maturityMetadata['semantic_resemblance'] = 'experimental';
                 } catch (\Throwable $e) {
-                    $warnings[] = 'Semantic comparison unavailable: ' . $e->getMessage();
+                    $warnings[] = 'Scholarship profile unavailable: ' . $e->getMessage();
                 }
-            } else {
-                $warnings[] = 'AISS capability bus not available — running in offline mode';
+
+                try {
+                    $lineageResult = $this->callCapability('academic_similarity.lineage.graph@1', [
+                        '_tenant_id' => $this->tenantId,
+                        'submission_id' => $aissSubmissionId,
+                        'format' => 'json',
+                    ]);
+                } catch (\Throwable $e) {
+                    $warnings[] = 'Lineage graph unavailable: ' . $e->getMessage();
+                }
+            } catch (\Throwable $e) {
+                return [
+                    'ok' => false,
+                    'error' => 'AISS capability call failed; no evidence snapshot was saved: ' . $e->getMessage(),
+                    'aiss_submission_id' => $aissSubmissionId,
+                ];
             }
-        } catch (\Throwable $e) {
-            $warnings[] = 'AISS capability bus not available: ' . $e->getMessage();
-        }
         } // end if aissEnabled
 
-        // Store snapshot (always, even with no AISS data)
         $snapshotId = $this->snapshotRepo->create([
             'evaluation_case_id' => $caseId,
             'manuscript_version_id' => $activeVersionId,
@@ -167,5 +209,24 @@ class AcademicThesisAissAdapter
             'warnings' => $warnings,
             'maturity' => $maturityMetadata,
         ];
+    }
+
+    private function callCapability(string $capabilityId, array $payload): array
+    {
+        if ($this->capabilityCaller !== null) {
+            $result = ($this->capabilityCaller)($capabilityId, $payload);
+        } else {
+            $result = app()->cap()->call(
+                $capabilityId,
+                $payload,
+                ['caller_module' => 'academic_thesis_evaluation']
+            );
+        }
+
+        if (!is_array($result)) {
+            throw new \RuntimeException("Capability {$capabilityId} returned an invalid response");
+        }
+
+        return $result;
     }
 }

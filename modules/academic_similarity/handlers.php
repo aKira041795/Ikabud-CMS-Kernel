@@ -85,8 +85,18 @@ function pageSubmissionDetail(array $params = []): void
     $matches = $matchRepo->findBySubmissionId($submissionId);
     $report = \AcademicSimilarityReportService::getForSubmission($tenantId, $submissionId);
     $internetRun = null;
+    $internetCandidates = [];
     try {
         $internetRun = (new \AcademicSimilarityInternetCheckService($tenantId))->latestRun($submissionId);
+        if (!empty($internetRun['id'])) {
+            $allInternetSources = (new \AcademicSimilarityInternetSourceRepository($tenantId))
+                ->findBySubmission($submissionId);
+            $internetCandidates = array_values(array_filter(
+                $allInternetSources,
+                static fn(array $source): bool =>
+                    (int)($source['search_run_id'] ?? 0) === (int)$internetRun['id']
+            ));
+        }
     } catch (\Throwable $e) {
         write_log('Failed to load internet check status for submission ' . $submissionId . ': ' . $e->getMessage());
     }
@@ -100,6 +110,7 @@ function pageSubmissionDetail(array $params = []): void
         'matches' => $matches,
         'report' => $report,
         'internet_run' => $internetRun ?? [],
+        'internet_candidates' => $internetCandidates,
         'internet_check_query' => $internetCheckQuery,
         'process_query' => $processQuery,
         'internet_check_enabled' => (academic_similarity_get_settings($tenantId)['internet_check_enabled'] ?? '0') === '1',
@@ -548,6 +559,15 @@ function apiCreateSubmission(array $params = []): void
     if (isset($_FILES['file']) && is_array($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
         $input['file'] = $_FILES['file'];
     }
+
+    // Infer source_type from input: default to 'upload' when a file is present, 'pasted' otherwise
+    $pastedText = trim((string)($input['pasted_text'] ?? ''));
+    if ($pastedText !== '' && empty($input['file'])) {
+        $input['source_type'] = 'pasted';
+    } elseif (($input['source_type'] ?? '') === '') {
+        $input['source_type'] = !empty($input['file']) ? 'upload' : 'pasted';
+    }
+
     if ((int)($input['institution_id'] ?? 0) <= 0) {
         $stmt = academic_similarity_db()->prepare("SELECT id FROM ac_similarity_institutions WHERE tenant_id = :tid AND is_active = 1 ORDER BY id ASC LIMIT 1");
         $stmt->execute([':tid' => $tenantId]);

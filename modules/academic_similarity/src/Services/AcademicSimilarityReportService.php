@@ -38,12 +38,23 @@ class AcademicSimilarityReportService
 
         $report = $this->reportRepo->findBySubmissionId($submissionId);
         $matches = $this->matchRepo->findBySubmissionId($submissionId);
+        $internetStmt = $this->db->prepare(
+            "SELECT id, provider, status, query_count, candidate_count, imported_count,
+                    payload_policy, disclosure, error_message, completed_at
+             FROM ac_similarity_internet_search_runs
+             WHERE submission_id = :sid AND tenant_id = :tid
+             ORDER BY id DESC
+             LIMIT 1"
+        );
+        $internetStmt->execute([':sid' => $submissionId, ':tid' => $this->tenantId]);
+        $internetCoverage = $internetStmt->fetch(\PDO::FETCH_ASSOC) ?: null;
 
         return [
             'ok' => true,
             'report' => $report,
             'matches' => $matches,
             'submission' => $submission,
+            'internet_coverage' => $internetCoverage,
         ];
     }
 

@@ -84,9 +84,50 @@ function academic_similarity_render(string $template, array $data = []): string
 }
 
 // ── DB helper ────────────────────────────────────────────────────
-function academic_similarity_db(): \Ikabud\Kernel\Contracts\ModuleDB
+function academic_similarity_db(?string $tenantId = null): \Ikabud\Kernel\Contracts\ModuleDB
 {
-    return module()->db();
+    if ($tenantId === null && function_exists('module') && module() !== null) {
+        try {
+            return module()->db();
+        } catch (\Throwable $e) {
+            // Fall through to the explicit tenant-safe CLI/integration path.
+        }
+    }
+
+    $resolvedTenantId = $tenantId ?? (string)(app()->tenant()->current() ?? '');
+    if (!is_numeric($resolvedTenantId)) {
+        $kernelDb = app()->db();
+        $stmt = $kernelDb->prepare(
+            'SELECT t.id
+             FROM kernel_tenants t
+             LEFT JOIN kernel_tenant_domains d ON d.tenant_id = t.id
+             WHERE t.tenant_key = :key OR d.domain = :domain
+             LIMIT 1'
+        );
+        $stmt->execute([':key' => $resolvedTenantId, ':domain' => $resolvedTenantId]);
+        $resolvedTenantId = (string)($stmt->fetchColumn() ?: '');
+    }
+
+    $numericTenantId = (int)$resolvedTenantId;
+    if ($numericTenantId <= 0) {
+        throw new \RuntimeException('Academic Similarity tenant context is unavailable');
+    }
+
+    $tenantDb = app()->dbForTenant($numericTenantId);
+    $manifestPath = __DIR__ . '/module.json';
+    $manifest = is_file($manifestPath)
+        ? (json_decode((string)file_get_contents($manifestPath), true) ?: [])
+        : [];
+    if ($manifest === [] && function_exists('discoverModules')) {
+        $manifest = discoverModules()['academic-similarity'] ?? [];
+    }
+
+    return new \Ikabud\Kernel\Contracts\ModuleDB(
+        $tenantDb,
+        'academic-similarity',
+        is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [],
+        is_array($manifest['reads_tables'] ?? null) ? $manifest['reads_tables'] : []
+    );
 }
 
 // ── Settings ─────────────────────────────────────────────────────
@@ -144,6 +185,8 @@ function academic_similarity_get_settings(string $tenantId): array
         'internet_check_api_key_env' => 'AISS_INTERNET_API_KEY',
         'internet_check_api_key' => '',
         'internet_search_backend' => 'serpapi',
+        'internet_search_engine' => 'google_scholar',
+        'internet_query_generation_mode' => 'local',
         'internet_check_max_queries' => '3',
         'internet_check_max_sources' => '5',
         'internet_check_max_chars_per_source' => '12000',
@@ -223,7 +266,8 @@ function academic_similarity_save_settings(string $tenantId, array $input): void
         'public_report_show_raw_score', 'public_report_show_source_names',
         'public_report_show_full_document', 'public_report_default_mode',
         'internet_check_enabled', 'internet_check_provider', 'internet_check_api_key_env',
-        'internet_check_api_key', 'internet_search_backend',
+        'internet_check_api_key', 'internet_search_backend', 'internet_search_engine',
+        'internet_query_generation_mode',
         'internet_check_max_queries', 'internet_check_max_sources',
         'internet_check_max_chars_per_source', 'internet_check_timeout',
         'internet_check_payload_policy',
@@ -475,8 +519,52 @@ function ac_sim_cap_submit_1(mixed $payload, string $capabilityId = '', string $
         return ['ok' => false, 'error' => 'Invalid payload'];
     }
     $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
+
+    if ((int)($payload['institution_id'] ?? 0) <= 0) {
+        $stmt = academic_similarity_db()->prepare(
+            'SELECT id FROM ac_similarity_institutions WHERE tenant_id = :tid AND is_active = 1 ORDER BY id ASC LIMIT 1'
+        );
+        $stmt->execute([':tid' => $tenantId]);
+        $payload['institution_id'] = (int)($stmt->fetchColumn() ?: 0);
+    }
+
+    $temporaryFile = null;
+    if (($payload['source_type'] ?? '') === 'upload' && !empty($payload['file_content'])) {
+        $settings = academic_similarity_get_settings((string)$tenantId);
+        $maxBytes = max(1, (int)($settings['max_file_size_mb'] ?? 20)) * 1024 * 1024;
+        $encoded = (string)$payload['file_content'];
+        if (strlen($encoded) > (int)ceil($maxBytes * 4 / 3) + 8) {
+            return ['ok' => false, 'error' => 'Encoded file exceeds the configured upload size limit'];
+        }
+
+        $decoded = base64_decode($encoded, true);
+        if (!is_string($decoded)) {
+            return ['ok' => false, 'error' => 'file_content must be valid base64'];
+        }
+        if (strlen($decoded) > $maxBytes) {
+            return ['ok' => false, 'error' => 'Decoded file exceeds the configured upload size limit'];
+        }
+
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'aiss_cap_');
+        if (!is_string($temporaryFile) || file_put_contents($temporaryFile, $decoded, LOCK_EX) === false) {
+            return ['ok' => false, 'error' => 'Unable to create a temporary capability upload'];
+        }
+        $payload['file'] = [
+            'tmp_name' => $temporaryFile,
+            'name' => basename((string)($payload['filename'] ?? 'manuscript.pdf')),
+            'size' => strlen($decoded),
+            'error' => UPLOAD_ERR_OK,
+        ];
+    }
+
     $service = new \AcademicSimilaritySubmissionService($tenantId);
-    return $service->create($payload);
+    try {
+        return $service->create($payload, $temporaryFile !== null);
+    } finally {
+        if ($temporaryFile !== null && is_file($temporaryFile)) {
+            @unlink($temporaryFile);
+        }
+    }
 }
 
 function ac_sim_cap_check_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
@@ -486,7 +574,13 @@ function ac_sim_cap_check_1(mixed $payload, string $capabilityId = '', string $p
     }
     $tenantId = $payload['_tenant_id'] ?? app()->tenant()->current() ?? '';
     $pipeline = new \AcademicSimilarityPipelineService($tenantId);
-    return $pipeline->processSubmission((int)$payload['submission_id']);
+    return $pipeline->processSubmission(
+        (int)$payload['submission_id'],
+        [
+            'external_text_processing_allowed' =>
+                ($payload['external_text_processing_allowed'] ?? true) === true,
+        ]
+    );
 }
 
 function ac_sim_cap_match_exact_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array

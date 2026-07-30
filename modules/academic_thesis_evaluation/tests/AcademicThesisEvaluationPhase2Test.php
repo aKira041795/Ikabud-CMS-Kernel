@@ -25,6 +25,7 @@ function t(string $label, bool $ok, string $detail = ''): void {
 
 $tenantId = 'aiss.test';
 $actorId = 1;
+$originalSettings = ate_get_settings($tenantId);
 
 echo "\n=== Academic Thesis Evaluation — Phase 2+3 ===\n\n";
 
@@ -79,7 +80,9 @@ $c = $caseSvc->create(['profile_code' => 'masters_thesis_v1', 'title' => 'Rubric
 $caseId = (int)($c['data']['id'] ?? 0);
 t('case created', $caseId > 0);
 
-$caseSvc->submitManuscript($caseId, ['file_reference' => '/s/rubric_test.pdf', 'file_hash' => hash('sha256', 'rubric'), 'submitted_by' => $actorId]);
+$testManuscript = tempnam(sys_get_temp_dir(), 'ate_aiss_');
+file_put_contents($testManuscript, "%PDF-1.4\nATE AISS integration fixture\n%%EOF");
+$caseSvc->submitManuscript($caseId, ['file_reference' => $testManuscript, 'file_hash' => hash_file('sha256', $testManuscript), 'submitted_by' => $actorId]);
 
 // Assign two reviewers
 $reviewerSvc = new AcademicThesisReviewerService($tenantId);
@@ -132,15 +135,59 @@ t('reviewer scores differ (disagreement preserved)', ($reviewerData1['weighted_t
 // ══════════════════════════════════════════════════════════════════
 echo "\n── 3. Evidence Review ──\n";
 
-// Generate snapshot
-$adapter = new AcademicThesisAissAdapter($tenantId);
+// Generate snapshot through the enabled AISS capability contract.
+ate_save_settings($tenantId, ['aiss_integration_enabled' => '1']);
+$calledCapabilities = [];
+$checkPayload = [];
+$capabilityCaller = static function (string $capabilityId, array $payload) use (&$calledCapabilities, &$checkPayload): array {
+    $calledCapabilities[] = $capabilityId;
+    if ($capabilityId === 'academic_similarity.check@1') {
+        $checkPayload = $payload;
+    }
+    return match ($capabilityId) {
+        'academic_similarity.submit@1' => ['ok' => true, 'submission_id' => 701, 'capability_version' => '1.0'],
+        'academic_similarity.check@1' => ['ok' => true, 'status' => 'processed'],
+        'academic_similarity.report.view@1' => [
+            'ok' => true,
+            'report' => ['id' => 91, 'adjusted_score' => 2.5],
+            'submission' => ['id' => 701, 'status' => 'processed'],
+            'matches' => [
+                ['id' => 1, 'match_type' => 'exact', 'matched_word_count' => 18],
+                ['id' => 2, 'match_type' => 'semantic', 'matched_word_count' => 0],
+            ],
+            'internet_coverage' => [
+                'status' => 'completed_partial',
+                'candidate_count' => 15,
+                'imported_count' => 2,
+            ],
+        ],
+        'academic_similarity.context.analyze@1',
+        'academic_similarity.scholarship.profile@1',
+        'academic_similarity.lineage.graph@1' => ['ok' => true],
+        default => throw new RuntimeException('Unexpected capability: ' . $capabilityId),
+    };
+};
+$adapter = new AcademicThesisAissAdapter($tenantId, $capabilityCaller);
 $snapResult = $adapter->generateSnapshot($caseId, $actorId);
-t('snapshot generated', is_array($snapResult));
+$storedTextualResult = json_decode((string)($snapResult['data']['textual_result'] ?? ''), true) ?: [];
+t('snapshot generated', ($snapResult['ok'] ?? false) === true, $snapResult['error'] ?? '');
+t('AISS direct submission id accepted', (int)($snapResult['data']['aiss_submission_id'] ?? 0) === 701);
+t('ATE denies external text processing by default', ($checkPayload['external_text_processing_allowed'] ?? null) === false);
+t('invalid semantic compare capability not called', !in_array('academic_similarity.semantic.compare@1', $calledCapabilities, true));
+t('report capability response stored directly', (int)($storedTextualResult['report']['id'] ?? 0) === 91);
+t('partial internet coverage maturity recorded', ($snapResult['maturity']['internet_coverage'] ?? '') === 'partial');
 
 $snapRepo = new AissEvidenceSnapshotRepository($tenantId);
 $snapshots = $snapRepo->findByCaseId($caseId);
 t('snapshot stored', count($snapshots) >= 1);
 $snapshotId = (int)($snapshots[0]['id'] ?? 0);
+$failedAdapter = new AcademicThesisAissAdapter(
+    $tenantId,
+    static fn(string $capabilityId, array $payload): array => ['ok' => false, 'error' => 'provider unavailable']
+);
+$failedSnapshot = $failedAdapter->generateSnapshot($caseId, $actorId);
+t('enabled AISS failure is returned', ($failedSnapshot['ok'] ?? true) === false);
+t('enabled AISS failure does not create zero snapshot', count($snapRepo->findByCaseId($caseId)) === count($snapshots));
 
 // Record reviewer decision (machine + reviewer separation)
 $evidenceSvc = new AcademicThesisEvidenceService($tenantId);
@@ -215,6 +262,13 @@ $db->execute("DELETE FROM ate_workflow_stages WHERE evaluation_case_id = :cid", 
 $db->execute("DELETE FROM ate_manuscript_versions WHERE evaluation_case_id = :cid", [':cid' => $caseId]);
 $db->execute("DELETE FROM ate_final_dispositions WHERE evaluation_case_id = :cid", [':cid' => $caseId]);
 $db->execute("DELETE FROM ate_evaluation_cases WHERE id = :cid", [':cid' => $caseId]);
+ate_save_settings($tenantId, [
+    'aiss_integration_enabled' => (string)($originalSettings['aiss_integration_enabled'] ?? '0'),
+    'auto_generate_aiss_on_submit' => (string)($originalSettings['auto_generate_aiss_on_submit'] ?? '0'),
+]);
+if (is_string($testManuscript) && is_file($testManuscript)) {
+    unlink($testManuscript);
+}
 t('cleanup done', true);
 
 echo "\n" . str_repeat('─', 50) . "\n";

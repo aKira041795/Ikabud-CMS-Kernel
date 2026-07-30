@@ -23,9 +23,10 @@ class AcademicSimilarityFileValidator
      *
      * @param array $file     A $_FILES entry.
      * @param array $settings Module settings (expects 'max_file_size_mb' int).
+     * @param bool  $allowTrustedLocalFile Allow an internal capability-created temp file.
      * @return array{ok: bool, error?: string}
      */
-    public function validate(array $file, array $settings): array
+    public function validate(array $file, array $settings, bool $allowTrustedLocalFile = false): array
     {
         // Check for upload errors
         if (isset($file['error']) && $file['error'] !== UPLOAD_ERR_OK) {
@@ -33,13 +34,16 @@ class AcademicSimilarityFileValidator
         }
 
         // Ensure a file was actually provided
-        if (empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        $tmpName = (string)($file['tmp_name'] ?? '');
+        $validUploadedFile = $tmpName !== '' && is_uploaded_file($tmpName);
+        $validTrustedFile = $allowTrustedLocalFile && $tmpName !== '' && is_file($tmpName);
+        if (!$validUploadedFile && !$validTrustedFile) {
             return $this->fail('No valid uploaded file provided');
         }
 
         // Validate extension
         $filename = $file['name'] ?? '';
-        $allowedExtensions = 'docx,pdf,txt';
+        $allowedExtensions = (string)($settings['allowed_extensions'] ?? 'docx,pdf,txt');
 
         if (!$this->validateExtension($filename, $allowedExtensions)) {
             return $this->fail("File extension not allowed. Allowed: {$allowedExtensions}");
