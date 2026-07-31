@@ -24,6 +24,7 @@ define('ATE_DEFAULTS_VERSION', '001');
         '/Repositories/RubricResponseRepository.php',
         '/Repositories/AissEvidenceSnapshotRepository.php',
         '/Repositories/EvidenceReviewDecisionRepository.php',
+        '/Repositories/EvidenceSuggestionRepository.php',
         '/Repositories/RevisionRequestRepository.php',
         '/Repositories/FinalDispositionRepository.php',
         '/Repositories/AuditEventRepository.php',
@@ -34,6 +35,7 @@ define('ATE_DEFAULTS_VERSION', '001');
         '/Services/AcademicThesisRubricService.php',
         '/Services/AcademicThesisReviewerService.php',
         '/Services/AcademicThesisEvidenceService.php',
+        '/Services/AcademicThesisSuggestionReviewService.php',
         '/Services/AcademicThesisAissAdapter.php',
         '/Services/AcademicThesisRevisionService.php',
         '/Services/AcademicThesisDispositionService.php',
@@ -92,8 +94,8 @@ function ate_db(?string $tenantId = null): \Ikabud\Kernel\Contracts\ModuleDB
         'ate_evaluation_profiles', 'ate_evaluation_cases', 'ate_manuscript_versions',
         'ate_workflow_stages', 'ate_reviewer_assignments', 'ate_rubric_templates',
         'ate_rubric_criteria', 'ate_rubric_responses', 'ate_aiss_evidence_snapshots',
-        'ate_evidence_review_decisions', 'ate_revision_requests', 'ate_final_dispositions',
-        'ate_audit_events', 'ate_settings',
+        'ate_evidence_review_decisions', 'ate_evidence_suggestion_reviews',
+        'ate_revision_requests', 'ate_final_dispositions', 'ate_audit_events', 'ate_settings',
     ];
     return new \Ikabud\Kernel\Contracts\ModuleDB($rawDb, 'academic_thesis_evaluation', $owns, []);
 }

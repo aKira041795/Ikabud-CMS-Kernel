@@ -4,7 +4,7 @@ declare(strict_types=1);
 /**
  * AISS Capability Contract Dispatch Test
  *
- * Verifies all 13 declared AISS capabilities are dispatchable through
+ * Verifies all declared AISS capabilities are dispatchable through
  * the capability bus. Catches the regression where 4 capabilities had
  * handler implementations but were missing from the handler map.
  */
@@ -33,13 +33,13 @@ echo "── 1. Handler Map Completeness ──\n";
 
 $handlers = academic_similarity_capability_handlers();
 $handlerCount = count($handlers);
-t('13 handlers registered', $handlerCount === 13, "got {$handlerCount}");
+t('19 handlers registered', $handlerCount === 19, "got {$handlerCount}");
 
 // Read declared capabilities from module.json
 $moduleJson = json_decode(file_get_contents(__DIR__ . '/../modules/academic_similarity/module.json'), true);
 $declared = array_column($moduleJson['capabilities']['exposes'] ?? [], 'id');
 $declaredCount = count($declared);
-t('13 capabilities declared in module.json', $declaredCount === 13, "got {$declaredCount}");
+t('19 capabilities declared in module.json', $declaredCount === 19, "got {$declaredCount}");
 
 // Every declared capability must have a handler
 $unregistered = array_diff($declared, array_keys($handlers));
@@ -73,6 +73,23 @@ foreach ($previouslyMissing as $capId) {
     if ($registered) {
         t("{$capId} handler is callable", is_callable($handlers[$capId]));
     }
+}
+
+// ── Verify assessment bundle contracts ────────────────────────────
+echo "\n── 4. Assessment Bundle Handlers ──\n";
+
+$assessmentCapabilities = [
+    'academic_similarity.document.structure@1',
+    'academic_similarity.document.provenance@1',
+    'academic_similarity.document.relevance@1',
+    'academic_similarity.contribution.landscape@1',
+    'academic_similarity.reviewer.suggestions@1',
+    'academic_similarity.assessment.bundle@1',
+];
+
+foreach ($assessmentCapabilities as $capId) {
+    t("{$capId} is registered", isset($handlers[$capId]));
+    t("{$capId} handler is callable", isset($handlers[$capId]) && is_callable($handlers[$capId]));
 }
 
 // ── Log check ────────────────────────────────────────────────────

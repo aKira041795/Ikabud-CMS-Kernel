@@ -49,6 +49,7 @@ class AcademicThesisAissAdapter
             'context_analysis' => 'unavailable',
             'semantic_resemblance' => 'unavailable',
             'internet_coverage' => 'unavailable',
+            'assessment_bundle' => 'unavailable',
         ];
         $textualResult = null;
         $citationResult = null;
@@ -59,6 +60,8 @@ class AcademicThesisAissAdapter
         $aissSubmissionId = null;
         $capabilityVersion = null;
         $sourceHash = null;
+        $reportResult = null;
+        $internetCoverage = null;
 
         // Check if AISS integration is enabled for this tenant
         $settings = ate_get_settings($this->tenantId);
@@ -104,22 +107,41 @@ class AcademicThesisAissAdapter
                     ];
                 }
 
-                $reportResult = $this->callCapability('academic_similarity.report.view@1', [
-                    '_tenant_id' => $this->tenantId,
-                    'submission_id' => $aissSubmissionId,
-                ]);
-                if (empty($reportResult['ok'])) {
-                    return [
-                        'ok' => false,
-                        'error' => (string)($reportResult['error'] ?? 'AISS report was unavailable; no evidence snapshot was saved'),
-                        'aiss_submission_id' => $aissSubmissionId,
-                    ];
+                try {
+                    $bundleResult = $this->callCapability('academic_similarity.assessment.bundle@1', [
+                        '_tenant_id' => $this->tenantId,
+                        'submission_id' => $aissSubmissionId,
+                        'payload_policy' => 'deterministic_internal_only',
+                    ]);
+                } catch (\Throwable $e) {
+                    $bundleResult = ['ok' => false, 'error' => $e->getMessage()];
                 }
 
-                $textualResult = $reportResult;
+                if (empty($bundleResult['ok'])) {
+                    $reportResult = $this->callCapability('academic_similarity.report.view@1', [
+                        '_tenant_id' => $this->tenantId,
+                        'submission_id' => $aissSubmissionId,
+                    ]);
+                    if (empty($reportResult['ok'])) {
+                        return [
+                            'ok' => false,
+                            'error' => (string)($bundleResult['error'] ?? $reportResult['error'] ?? 'AISS evidence bundle was unavailable; no evidence snapshot was saved'),
+                            'aiss_submission_id' => $aissSubmissionId,
+                        ];
+                    }
+                    $textualResult = $reportResult;
+                    $warnings[] = 'AISS assessment bundle unavailable; stored legacy report payload only.';
+                } else {
+                    $textualResult = ['assessment_bundle' => $bundleResult];
+                    $maturityMetadata = array_merge($maturityMetadata, is_array($bundleResult['maturity'] ?? null) ? $bundleResult['maturity'] : []);
+                    $maturityMetadata['assessment_bundle'] = 'beta';
+                    $internetCoverage = is_array($bundleResult['coverage'] ?? null) ? $bundleResult['coverage'] : null;
+                    if (is_array($bundleResult['limitations'] ?? null)) {
+                        $warnings = array_values(array_unique(array_merge($warnings, $bundleResult['limitations'])));
+                    }
+                }
                 $sourceHash = hash('sha256', (string)json_encode($textualResult));
                 $maturityMetadata['textual_matching'] = 'stable';
-                $internetCoverage = $reportResult['internet_coverage'] ?? null;
                 if (is_array($internetCoverage)) {
                     $importedCount = (int)($internetCoverage['imported_count'] ?? 0);
                     $candidateCount = (int)($internetCoverage['candidate_count'] ?? 0);

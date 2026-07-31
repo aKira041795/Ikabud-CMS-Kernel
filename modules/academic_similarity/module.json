@@ -32,6 +32,11 @@
         "ac_similarity_retention_policies",
         "ac_similarity_internet_search_runs",
         "ac_similarity_internet_sources",
+        "ac_similarity_assessment_runs",
+        "ac_similarity_document_sections",
+        "ac_similarity_research_claims",
+        "ac_similarity_assessment_evidence",
+        "ac_similarity_reviewer_suggestions",
         "ac_similarity_audit_events",
         "ac_similarity_settings"
     ],
@@ -46,7 +51,8 @@
         "migrations/007_academic_similarity_ai_report_narrative.sql",
         "migrations/008_academic_similarity_reconcile_settings.sql",
         "migrations/009_academic_similarity_multilayer_fingerprinting.sql",
-        "migrations/010_academic_similarity_evidence_taxonomy.sql"
+        "migrations/010_academic_similarity_evidence_taxonomy.sql",
+        "migrations/011_academic_similarity_document_assessment.sql"
     ],
     "routes": true,
     "settings": [],
@@ -371,6 +377,138 @@
                         "match_id",
                         "action",
                         "reason"
+                    ]
+                }
+            },
+            {
+                "id": "academic_similarity.document.structure@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return deterministic document sections and extracted research claims for reviewer inspection.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "submission_id"
+                    ]
+                }
+            },
+            {
+                "id": "academic_similarity.document.provenance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return observable integrity and provenance signals without authorship or authenticity verdicts.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "submission_id"
+                    ]
+                }
+            },
+            {
+                "id": "academic_similarity.document.relevance@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return evidence-bound research alignment items with maturity, uncertainty, and limitations.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "submission_id"
+                    ]
+                }
+            },
+            {
+                "id": "academic_similarity.contribution.landscape@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return relative contribution and prior-art coverage evidence within the searched corpus.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "submission_id"
+                    ]
+                }
+            },
+            {
+                "id": "academic_similarity.reviewer.suggestions@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return structured reviewer suggestions grounded in stored evidence.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "submission_id"
+                    ]
+                }
+            },
+            {
+                "id": "academic_similarity.assessment.bundle@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return the composite document assessment bundle with structure, provenance, relevance, contribution coverage, suggestions, maturity, limitations, and reproducibility metadata.",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "submission_id": {
+                            "type": "integer"
+                        },
+                        "payload_policy": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "submission_id"
                     ]
                 }
             }

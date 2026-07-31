@@ -157,6 +157,40 @@ class AcademicSimilarityEvidenceTaxonomy
     public const FAMILY_CONTEXTUAL = 'contextual';
     public const FAMILY_SCHOLARLY  = 'scholarly';
 
+    public const MACHINE_OBSERVATION = 'machine_observation';
+    public const MACHINE_CANDIDATE = 'machine_candidate';
+    public const REVIEWER_CLASSIFICATION = 'reviewer_classification';
+    public const INSTITUTIONAL_DECISION = 'institutional_decision';
+
+    public const AUTH_SIGNAL_FILE_HASH_RECORDED = 'file_hash_recorded';
+    public const AUTH_SIGNAL_TEXT_HASH_RECORDED = 'text_hash_recorded';
+    public const AUTH_SIGNAL_VERSION_DISCONTINUITY = 'version_discontinuity';
+    public const AUTH_SIGNAL_UNRESOLVED_ATTRIBUTION = 'unresolved_attribution';
+    public const AUTH_SIGNAL_SOURCE_CHRONOLOGY_NEEDS_REVIEW = 'source_chronology_needs_review';
+
+    public const RELEVANCE_SUPPORTED = 'supported';
+    public const RELEVANCE_PARTIALLY_SUPPORTED = 'partially_supported';
+    public const RELEVANCE_NOT_EVIDENCED = 'not_evidenced';
+    public const RELEVANCE_UNCERTAIN = 'uncertain';
+
+    public const CONTRIBUTION_NO_CLOSE_PRIOR_ART_FOUND = 'no_close_prior_art_found_in_searched_corpus';
+    public const CONTRIBUTION_INSUFFICIENT_COVERAGE = 'insufficient_coverage';
+
+    public const SUGGESTION_ACTION_VERIFY = 'verify';
+    public const SUGGESTION_ACTION_CONSIDER = 'consider';
+    public const SUGGESTION_ACTION_CLARIFY = 'clarify';
+    public const SUGGESTION_ACTION_COMPARE = 'compare';
+    public const SUGGESTION_ACTION_REQUEST_SUPPORT = 'request_support';
+
+    public const FORBIDDEN_MACHINE_CONCLUSIONS = [
+        'authentic',
+        'plagiarized',
+        'novel',
+        'irrelevant',
+        'ai-generated',
+        'ai_generated',
+    ];
+
     /**
      * Get the evidence family for a given evidence type.
      */
@@ -207,5 +241,16 @@ class AcademicSimilarityEvidenceTaxonomy
     public static function isValidAttributionStatus(string $status): bool
     {
         return in_array($status, self::ATTRIBUTION_STATUSES, true);
+    }
+
+    public static function containsForbiddenMachineConclusion(string $text): bool
+    {
+        $normalized = strtolower($text);
+        foreach (self::FORBIDDEN_MACHINE_CONCLUSIONS as $term) {
+            if (str_contains($normalized, $term)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

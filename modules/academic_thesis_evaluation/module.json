@@ -25,6 +25,7 @@
         "ate_rubric_responses",
         "ate_aiss_evidence_snapshots",
         "ate_evidence_review_decisions",
+        "ate_evidence_suggestion_reviews",
         "ate_revision_requests",
         "ate_final_dispositions",
         "ate_audit_events",
@@ -46,7 +47,9 @@
         "migrations/010_final_dispositions.sql",
         "migrations/011_audit_events.sql",
         "migrations/012_settings.sql",
-        "migrations/013_seed_rubric_templates.sql"
+        "migrations/013_seed_rubric_templates.sql",
+        "migrations/014_evidence_suggestion_reviews.sql",
+        "migrations/015_aiss_snapshot_regeneration.sql"
     ],
     "routes": true,
     "settings": [
@@ -339,6 +342,30 @@
             },
             {
                 "id": "academic_similarity.lineage.graph@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.assessment.bundle@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.document.structure@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.document.provenance@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.document.relevance@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.contribution.landscape@1",
+                "optional": true
+            },
+            {
+                "id": "academic_similarity.reviewer.suggestions@1",
                 "optional": true
             }
         ]

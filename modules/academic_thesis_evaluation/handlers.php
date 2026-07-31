@@ -539,9 +539,24 @@ function apiGetEvidence(array $params = []): void
 
     $decisionRepo = new \EvidenceReviewDecisionRepository($tenantId);
     $decisions = $decisionRepo->findByCaseId($caseId);
+    $suggestionService = new \AcademicThesisSuggestionReviewService($tenantId);
+    $suggestions = $suggestionService->listForCase($caseId);
 
     header('Content-Type: application/json');
-    echo json_encode(['ok' => true, 'data' => ['snapshots' => $snapshots, 'decisions' => $decisions]]);
+    echo json_encode(['ok' => true, 'data' => ['snapshots' => $snapshots, 'decisions' => $decisions, 'suggestion_reviews' => $suggestions['data'] ?? []]]);
+}
+
+function apiGetSuggestionReviews(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    $user = ate_require_reviewer($ctx);
+
+    $service = new \AcademicThesisSuggestionReviewService(ate_tenant_id());
+    $result = $service->listForCase((int)($params['id'] ?? 0));
+
+    header('Content-Type: application/json');
+    echo json_encode($result);
 }
 
 function apiReviewEvidence(array $params = []): void
@@ -549,6 +564,7 @@ function apiReviewEvidence(array $params = []): void
     $ctx = module();
     if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
     $user = ate_require_reviewer($ctx);
+    app()->csrfEnforce();
 
     $caseId = (int)($params['id'] ?? 0);
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -568,7 +584,37 @@ function apiReviewEvidence(array $params = []): void
     }
 
     $service = new \AcademicThesisEvidenceService(ate_tenant_id());
-    $result = $service->recordReview($snapshotId, $input);
+    $result = $service->recordReview($snapshotId, $input, $caseId);
+
+    header('Content-Type: application/json');
+    echo json_encode($result);
+}
+
+function apiReviewSuggestion(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo json_encode(['ok' => false, 'error' => 'Module context unavailable']); return; }
+    $user = ate_require_reviewer($ctx);
+    app()->csrfEnforce();
+
+    $caseId = (int)($params['id'] ?? 0);
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $input['reviewer_id'] = (int)$user['user_id'];
+
+    $snapshotId = (int)($input['snapshot_id'] ?? 0);
+    if (!$snapshotId) {
+        $snapRepo = new \AissEvidenceSnapshotRepository(ate_tenant_id());
+        $snapshots = $snapRepo->findByCaseId($caseId);
+        $snapshotId = !empty($snapshots) ? (int)$snapshots[0]['id'] : 0;
+    }
+    if (!$snapshotId) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => 'No evidence snapshot found. Generate AISS analysis first.']);
+        return;
+    }
+
+    $service = new \AcademicThesisSuggestionReviewService(ate_tenant_id());
+    $result = $service->review($snapshotId, $input, $caseId);
 
     header('Content-Type: application/json');
     echo json_encode($result);

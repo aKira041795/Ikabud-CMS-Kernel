@@ -34,6 +34,7 @@ $db = ate_db($tenantId);
 // ── Cleanup from prior runs ──────────────────────────────────────
 $db->execute("DELETE FROM ate_audit_events WHERE tenant_id = :tid", [':tid' => $tenantId]);
 $db->execute("DELETE FROM ate_evidence_review_decisions WHERE tenant_id = :tid", [':tid' => $tenantId]);
+$db->execute("DELETE FROM ate_evidence_suggestion_reviews WHERE tenant_id = :tid", [':tid' => $tenantId]);
 $db->execute("DELETE FROM ate_aiss_evidence_snapshots WHERE tenant_id = :tid", [':tid' => $tenantId]);
 $db->execute("DELETE FROM ate_rubric_responses WHERE tenant_id = :tid", [':tid' => $tenantId]);
 $db->execute("DELETE FROM ate_reviewer_assignments WHERE tenant_id = :tid", [':tid' => $tenantId]);
@@ -147,6 +148,39 @@ $capabilityCaller = static function (string $capabilityId, array $payload) use (
     return match ($capabilityId) {
         'academic_similarity.submit@1' => ['ok' => true, 'submission_id' => 701, 'capability_version' => '1.0'],
         'academic_similarity.check@1' => ['ok' => true, 'status' => 'processed'],
+        'academic_similarity.assessment.bundle@1' => [
+            'ok' => true,
+            'assessment_run_id' => 44,
+            'submission_id' => 701,
+            'manuscript_hash' => 'abc123',
+            'capability_version' => '1.0',
+            'maturity' => [
+                'integrity_and_provenance' => 'beta',
+                'research_alignment' => 'experimental',
+                'contribution_relationship' => 'experimental',
+                'reviewer_attention' => 'beta',
+            ],
+            'coverage' => [
+                'status' => 'partial',
+                'candidate_count' => 15,
+                'imported_count' => 2,
+            ],
+            'limitations' => ['Zero similarity is not evidence of authenticity or novelty.'],
+            'provenance' => ['payload_disclosures' => ['pdf_bytes' => false, 'claims' => false]],
+            'structure' => ['sections' => [], 'claims' => []],
+            'evidence' => [],
+            'suggestions' => [
+                [
+                    'id' => 1,
+                    'suggestion_key' => 'expand-prior-art-coverage',
+                    'category' => 'contribution_relationship',
+                    'priority' => 'high',
+                    'reviewer_action' => 'compare',
+                    'title' => 'Compare contribution claims against more prior work',
+                    'rationale' => 'Coverage is not sufficient for no-close-prior-art language.',
+                ],
+            ],
+        ],
         'academic_similarity.report.view@1' => [
             'ok' => true,
             'report' => ['id' => 91, 'adjusted_score' => 2.5],
@@ -174,7 +208,8 @@ t('snapshot generated', ($snapResult['ok'] ?? false) === true, $snapResult['erro
 t('AISS direct submission id accepted', (int)($snapResult['data']['aiss_submission_id'] ?? 0) === 701);
 t('ATE denies external text processing by default', ($checkPayload['external_text_processing_allowed'] ?? null) === false);
 t('invalid semantic compare capability not called', !in_array('academic_similarity.semantic.compare@1', $calledCapabilities, true));
-t('report capability response stored directly', (int)($storedTextualResult['report']['id'] ?? 0) === 91);
+t('assessment bundle capability preferred', in_array('academic_similarity.assessment.bundle@1', $calledCapabilities, true));
+t('assessment bundle stored in immutable snapshot', (int)($storedTextualResult['assessment_bundle']['assessment_run_id'] ?? 0) === 44);
 t('partial internet coverage maturity recorded', ($snapResult['maturity']['internet_coverage'] ?? '') === 'partial');
 
 $snapRepo = new AissEvidenceSnapshotRepository($tenantId);
@@ -189,6 +224,25 @@ $failedSnapshot = $failedAdapter->generateSnapshot($caseId, $actorId);
 t('enabled AISS failure is returned', ($failedSnapshot['ok'] ?? true) === false);
 t('enabled AISS failure does not create zero snapshot', count($snapRepo->findByCaseId($caseId)) === count($snapshots));
 
+$throwingBundleAdapter = new AcademicThesisAissAdapter(
+    $tenantId,
+    static function (string $capabilityId, array $payload): array {
+        return match ($capabilityId) {
+            'academic_similarity.submit@1' => ['ok' => true, 'submission_id' => 702, 'capability_version' => '1.0'],
+            'academic_similarity.check@1' => ['ok' => true, 'status' => 'processed'],
+            'academic_similarity.assessment.bundle@1' => throw new RuntimeException('bundle capability not registered'),
+            'academic_similarity.report.view@1' => ['ok' => true, 'report' => ['id' => 92], 'matches' => [], 'internet_coverage' => ['status' => 'unavailable']],
+            'academic_similarity.context.analyze@1',
+            'academic_similarity.scholarship.profile@1',
+            'academic_similarity.lineage.graph@1' => ['ok' => true],
+            default => throw new RuntimeException('Unexpected capability: ' . $capabilityId),
+        };
+    }
+);
+$fallbackSnapshot = $throwingBundleAdapter->generateSnapshot($caseId, $actorId);
+$fallbackTextual = json_decode((string)($fallbackSnapshot['data']['textual_result'] ?? ''), true) ?: [];
+t('thrown bundle capability falls back to legacy report', ($fallbackSnapshot['ok'] ?? false) === true && (int)($fallbackTextual['report']['id'] ?? 0) === 92);
+
 // Record reviewer decision (machine + reviewer separation)
 $evidenceSvc = new AcademicThesisEvidenceService($tenantId);
 $dec1 = $evidenceSvc->recordReview($snapshotId, [
@@ -199,6 +253,11 @@ $dec1 = $evidenceSvc->recordReview($snapshotId, [
     'reviewer_reason' => 'This is a standard methodology used across the field.',
 ]);
 t('reviewer decision recorded', $dec1['ok'] === true, $dec1['error'] ?? '');
+$wrongCaseDecision = $evidenceSvc->recordReview($snapshotId, [
+    'reviewer_id' => 2,
+    'reviewer_action' => 'confirmed',
+], $caseId + 999);
+t('cross-case evidence review rejected', ($wrongCaseDecision['ok'] ?? true) === false);
 
 $dec2 = $evidenceSvc->recordReview($snapshotId, [
     'reviewer_id' => 3,
@@ -225,6 +284,32 @@ foreach ($decisions as $d) {
 t('machine value preserved', ($decision1['machine_relationship'] ?? '') === 'shared_method_description');
 t('reviewer value stored separately', ($decision1['reviewer_relationship'] ?? '') === 'common_knowledge');
 t('machine != reviewer (not overwritten)', ($decision1['machine_relationship'] ?? '') !== ($decision1['reviewer_relationship'] ?? ''));
+
+$suggestionSvc = new AcademicThesisSuggestionReviewService($tenantId);
+$suggestionReview = $suggestionSvc->review($snapshotId, [
+    'reviewer_id' => 2,
+    'machine_suggestion' => $storedTextualResult['assessment_bundle']['suggestions'][0] ?? [],
+    'reviewer_status' => 'accepted',
+    'reviewer_reason' => 'Reviewer will compare this claim against additional literature.',
+    'rubric_criterion_id' => (int)($criteria[0]['id'] ?? 0),
+]);
+t('suggestion review decision recorded', $suggestionReview['ok'] === true, $suggestionReview['error'] ?? '');
+$badSuggestionReview = $suggestionSvc->review($snapshotId, [
+    'reviewer_id' => 2,
+    'machine_suggestion' => $storedTextualResult['assessment_bundle']['suggestions'][0] ?? [],
+    'reviewer_status' => 'converted_to_revision',
+    'reviewer_reason' => 'Needs a formal revision item.',
+]);
+t('conversion without revision request rejected', ($badSuggestionReview['ok'] ?? true) === false);
+$wrongCaseSuggestion = $suggestionSvc->review($snapshotId, [
+    'reviewer_id' => 2,
+    'machine_suggestion' => $storedTextualResult['assessment_bundle']['suggestions'][0] ?? [],
+    'reviewer_status' => 'accepted',
+    'reviewer_reason' => 'Wrong case guard.',
+], $caseId + 999);
+t('cross-case suggestion review rejected', ($wrongCaseSuggestion['ok'] ?? true) === false);
+$suggestionReviews = $suggestionSvc->listForCase($caseId);
+t('suggestion review stays separate from rubric score', count($suggestionReviews['data'] ?? []) >= 1);
 
 // ══════════════════════════════════════════════════════════════════
 // 4. Report includes rubric + evidence

@@ -7,8 +7,8 @@ class AcademicSimilarityMatchRepository
     private \Ikabud\Kernel\Contracts\ModuleDB $db;
 
     public function __construct(string $tenantId) {
-        $this->tenantId = $tenantId;
-        $this->db = academic_similarity_db();
+        $this->tenantId = academic_similarity_resolve_tenant_id($tenantId);
+        $this->db = academic_similarity_db($tenantId);
     }
 
     public function findById(int $id): ?array {

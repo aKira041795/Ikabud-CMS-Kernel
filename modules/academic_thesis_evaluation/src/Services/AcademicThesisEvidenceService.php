@@ -19,11 +19,14 @@ class AcademicThesisEvidenceService
         $this->auditRepo = new AuditEventRepository($tenantId);
     }
 
-    public function recordReview(int $snapshotId, array $data): array
+    public function recordReview(int $snapshotId, array $data, ?int $expectedCaseId = null): array
     {
         $snapshot = $this->snapshotRepo->findById($snapshotId);
         if (!$snapshot) {
             return ['ok' => false, 'error' => 'Evidence snapshot not found'];
+        }
+        if ($expectedCaseId !== null && (int)$snapshot['evaluation_case_id'] !== $expectedCaseId) {
+            return ['ok' => false, 'error' => 'Evidence snapshot does not belong to this case'];
         }
 
         if (empty($data['reviewer_id'])) {

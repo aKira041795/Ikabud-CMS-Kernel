@@ -27,6 +27,7 @@ define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '009');
         '/Repositories/AcademicSimilarityUsageCounterRepository.php',
         '/Repositories/AcademicSimilarityInternetSearchRunRepository.php',
         '/Repositories/AcademicSimilarityInternetSourceRepository.php',
+        '/Repositories/AcademicSimilarityAssessmentRepository.php',
         '/Services/AcademicSimilaritySubmissionService.php',
         '/Services/AcademicSimilarityPipelineService.php',
         '/Services/AcademicSimilaritySourceService.php',
@@ -46,6 +47,7 @@ define('ACADEMIC_SIMILARITY_DEFAULTS_VERSION', '009');
         '/Services/AcademicSimilarityInternetDiscoveryService.php',
         '/Services/AcademicSimilarityInternetSourceIngestionService.php',
         '/Services/AcademicSimilarityInternetCheckService.php',
+        '/Services/AcademicAssessmentBundleService.php',
         '/ValueObjects/AcademicSimilarityNormalizedText.php',
         '/ValueObjects/AcademicSimilaritySegment.php',
         '/ValueObjects/AcademicSimilarityFingerprint.php',
@@ -94,18 +96,9 @@ function academic_similarity_db(?string $tenantId = null): \Ikabud\Kernel\Contra
         }
     }
 
-    $resolvedTenantId = $tenantId ?? (string)(app()->tenant()->current() ?? '');
+    $resolvedTenantId = academic_similarity_resolve_tenant_id($tenantId ?? (string)(app()->tenant()->current() ?? ''));
     if (!is_numeric($resolvedTenantId)) {
-        $kernelDb = app()->db();
-        $stmt = $kernelDb->prepare(
-            'SELECT t.id
-             FROM kernel_tenants t
-             LEFT JOIN kernel_tenant_domains d ON d.tenant_id = t.id
-             WHERE t.tenant_key = :key OR d.domain = :domain
-             LIMIT 1'
-        );
-        $stmt->execute([':key' => $resolvedTenantId, ':domain' => $resolvedTenantId]);
-        $resolvedTenantId = (string)($stmt->fetchColumn() ?: '');
+        $resolvedTenantId = '';
     }
 
     $numericTenantId = (int)$resolvedTenantId;
@@ -128,6 +121,24 @@ function academic_similarity_db(?string $tenantId = null): \Ikabud\Kernel\Contra
         is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [],
         is_array($manifest['reads_tables'] ?? null) ? $manifest['reads_tables'] : []
     );
+}
+
+function academic_similarity_resolve_tenant_id(?string $tenantId = null): string
+{
+    $resolvedTenantId = $tenantId ?? (string)(app()->tenant()->current() ?? '');
+    if ($resolvedTenantId !== '' && !is_numeric($resolvedTenantId)) {
+        $kernelDb = app()->db();
+        $stmt = $kernelDb->prepare(
+            'SELECT t.id
+             FROM kernel_tenants t
+             LEFT JOIN kernel_tenant_domains d ON d.tenant_id = t.id
+             WHERE t.tenant_key = :key OR d.domain = :domain
+             LIMIT 1'
+        );
+        $stmt->execute([':key' => $resolvedTenantId, ':domain' => $resolvedTenantId]);
+        $resolvedTenantId = (string)($stmt->fetchColumn() ?: '');
+    }
+    return $resolvedTenantId;
 }
 
 // ── Settings ─────────────────────────────────────────────────────
@@ -200,7 +211,7 @@ function academic_similarity_get_settings(string $tenantId): array
         'report_ai_narrative_enabled' => '1',
     ];
 
-    $db = academic_similarity_db();
+    $db = academic_similarity_db($tenantId);
     $stmt = $db->prepare("SELECT setting_key, setting_value FROM ac_similarity_settings WHERE tenant_id = :tid");
     $stmt->execute([':tid' => $tenantId]);
     $stored = [];
@@ -510,6 +521,12 @@ function academic_similarity_capability_handlers(): array
         'academic_similarity.scholarship.profile@1' => 'ac_sim_cap_scholarship_profile_1',
         'academic_similarity.lineage.graph@1' => 'ac_sim_cap_lineage_graph_1',
         'academic_similarity.review.workflow.action@1' => 'ac_sim_cap_review_workflow_action_1',
+        'academic_similarity.document.structure@1' => 'ac_sim_cap_assessment_bundle_1',
+        'academic_similarity.document.provenance@1' => 'ac_sim_cap_assessment_bundle_1',
+        'academic_similarity.document.relevance@1' => 'ac_sim_cap_assessment_bundle_1',
+        'academic_similarity.contribution.landscape@1' => 'ac_sim_cap_assessment_bundle_1',
+        'academic_similarity.reviewer.suggestions@1' => 'ac_sim_cap_assessment_bundle_1',
+        'academic_similarity.assessment.bundle@1' => 'ac_sim_cap_assessment_bundle_1',
     ];
 }
 
@@ -716,6 +733,73 @@ function ac_sim_cap_internet_discover_1(mixed $payload, string $capabilityId = '
         'candidates' => [],
         'disclosure' => 'No search provider configured. Add seed URLs in Settings → Internet Check, or install a search provider module.',
     ];
+}
+
+function ac_sim_cap_assessment_bundle_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
+{
+    if (!is_array($payload) || empty($payload['submission_id'])) {
+        return ['ok' => false, 'error' => 'submission_id is required'];
+    }
+
+    $tenantId = (string)($payload['_tenant_id'] ?? app()->tenant()->current() ?? '');
+    $service = new AcademicAssessmentBundleService($tenantId);
+    $bundle = $service->generate((int)$payload['submission_id'], [
+        'payload_policy' => (string)($payload['payload_policy'] ?? 'deterministic_internal_only'),
+    ]);
+    if (empty($bundle['ok'])) {
+        return $bundle;
+    }
+
+    return match ($capabilityId) {
+        'academic_similarity.document.structure@1' => [
+            'ok' => true,
+            'assessment_run_id' => $bundle['assessment_run_id'],
+            'manuscript_hash' => $bundle['manuscript_hash'],
+            'maturity' => $bundle['maturity']['research_alignment'] ?? 'experimental',
+            'coverage' => $bundle['coverage'],
+            'limitations' => $bundle['limitations'],
+            'structure' => $bundle['structure'],
+            'provenance' => $bundle['provenance'],
+        ],
+        'academic_similarity.document.provenance@1' => [
+            'ok' => true,
+            'assessment_run_id' => $bundle['assessment_run_id'],
+            'manuscript_hash' => $bundle['manuscript_hash'],
+            'maturity' => $bundle['maturity']['integrity_and_provenance'] ?? 'beta',
+            'coverage' => $bundle['coverage'],
+            'limitations' => $bundle['limitations'],
+            'provenance' => $bundle['provenance'],
+            'evidence' => array_values(array_filter($bundle['evidence'], static fn(array $item): bool => ($item['dimension'] ?? '') === 'integrity_and_provenance')),
+        ],
+        'academic_similarity.document.relevance@1' => [
+            'ok' => true,
+            'assessment_run_id' => $bundle['assessment_run_id'],
+            'manuscript_hash' => $bundle['manuscript_hash'],
+            'maturity' => $bundle['maturity']['research_alignment'] ?? 'experimental',
+            'coverage' => $bundle['coverage'],
+            'limitations' => $bundle['limitations'],
+            'evidence' => array_values(array_filter($bundle['evidence'], static fn(array $item): bool => ($item['dimension'] ?? '') === 'research_alignment')),
+        ],
+        'academic_similarity.contribution.landscape@1' => [
+            'ok' => true,
+            'assessment_run_id' => $bundle['assessment_run_id'],
+            'manuscript_hash' => $bundle['manuscript_hash'],
+            'maturity' => $bundle['maturity']['contribution_relationship'] ?? 'experimental',
+            'coverage' => $bundle['coverage'],
+            'limitations' => $bundle['limitations'],
+            'evidence' => array_values(array_filter($bundle['evidence'], static fn(array $item): bool => ($item['dimension'] ?? '') === 'contribution_relationship')),
+        ],
+        'academic_similarity.reviewer.suggestions@1' => [
+            'ok' => true,
+            'assessment_run_id' => $bundle['assessment_run_id'],
+            'manuscript_hash' => $bundle['manuscript_hash'],
+            'maturity' => $bundle['maturity']['reviewer_attention'] ?? 'beta',
+            'coverage' => $bundle['coverage'],
+            'limitations' => $bundle['limitations'],
+            'suggestions' => $bundle['suggestions'],
+        ],
+        default => $bundle,
+    };
 }
 
 // ── CMS Admin Nav Injection ──────────────────────────────────────
