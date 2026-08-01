@@ -1,5 +1,5 @@
 {
-    "id": "academic_thesis_evaluation",
+    "id": "academic-thesis-evaluation",
     "name": "Academic Thesis Evaluation",
     "version": "0.1.0",
     "description": "Configurable thesis and dissertation evaluation workflow consuming AISS evidence without allowing AISS to determine academic outcomes.",
@@ -49,7 +49,8 @@
         "migrations/012_settings.sql",
         "migrations/013_seed_rubric_templates.sql",
         "migrations/014_evidence_suggestion_reviews.sql",
-        "migrations/015_aiss_snapshot_regeneration.sql"
+        "migrations/015_aiss_snapshot_regeneration.sql",
+        "migrations/016_ate_module_id_reconcile.sql"
     ],
     "routes": true,
     "settings": [

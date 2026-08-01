@@ -19,6 +19,33 @@ class EvidenceSuggestionRepository
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
+    /**
+     * Find an already-recorded disposition identical to the incoming one, so a
+     * double-submit does not create duplicate review rows. Reviewer decisions
+     * still append: a different status/reason for the same suggestion is a new
+     * decision, not a duplicate.
+     */
+    public function findIdenticalReview(int $caseId, int $snapshotId, string $suggestionKey, int $reviewerId, string $status, string $reason): ?int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id FROM ate_evidence_suggestion_reviews
+             WHERE tenant_id = :tid AND evaluation_case_id = :cid AND evidence_snapshot_id = :sid
+               AND suggestion_key = :key AND reviewer_id = :rid AND reviewer_status = :status AND reviewer_reason = :reason
+             ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute([
+            ':tid' => $this->tenantId,
+            ':cid' => $caseId,
+            ':sid' => $snapshotId,
+            ':key' => $suggestionKey,
+            ':rid' => $reviewerId,
+            ':status' => $status,
+            ':reason' => $reason,
+        ]);
+        $id = $stmt->fetchColumn();
+        return ($id === false || $id === null) ? null : (int)$id;
+    }
+
     public function create(array $data): int
     {
         $stmt = $this->db->prepare(

@@ -45,21 +45,43 @@ class AcademicThesisSuggestionReviewService
             return ['ok' => false, 'error' => 'revision_request_id is required when converting a suggestion to a revision'];
         }
 
-        $machine = is_array($data['machine_suggestion'] ?? null) ? $data['machine_suggestion'] : [];
-        $suggestionKey = trim((string)($machine['suggestion_key'] ?? $data['suggestion_key'] ?? ''));
-        $machineRationale = trim((string)($machine['rationale'] ?? $data['machine_rationale'] ?? ''));
-        if ($suggestionKey === '' || $machineRationale === '') {
-            return ['ok' => false, 'error' => 'machine suggestion key and rationale are required'];
+        // Resolve the machine suggestion from the immutable stored bundle so the
+        // machine fields are never taken from the requesting client. A client may
+        // still reference a suggestion by key or by the AISS suggestion id.
+        $machine = $this->resolveMachineSuggestion($snapshot, $data);
+        if ($machine === null) {
+            return ['ok' => false, 'error' => 'Machine suggestion not found in the stored evidence snapshot'];
         }
+        $suggestionKey = trim((string)($machine['suggestion_key'] ?? ''));
+        $machineRationale = trim((string)($machine['rationale'] ?? ''));
+        if ($suggestionKey === '' || $machineRationale === '') {
+            return ['ok' => false, 'error' => 'Machine suggestion key and rationale are required'];
+        }
+
+        // Idempotency: an identical disposition for the same snapshot/suggestion/
+        // reviewer/status/reason returns the already-recorded row instead of
+        // creating a duplicate on double-submit.
+        $existingId = $this->suggestionRepo->findIdenticalReview(
+            (int)$snapshot['evaluation_case_id'],
+            $snapshotId,
+            $suggestionKey,
+            (int)($data['reviewer_id'] ?? 0),
+            $status,
+            (string)($data['reviewer_reason'] ?? '')
+        );
+        if ($existingId !== null) {
+            return ['ok' => true, 'data' => ['suggestion_review_id' => $existingId, 'duplicate' => true]];
+        }
+
         $suggestionId = $this->suggestionRepo->create([
             'evaluation_case_id' => (int)$snapshot['evaluation_case_id'],
             'evidence_snapshot_id' => $snapshotId,
-            'machine_suggestion_id' => $machine['id'] ?? ($data['machine_suggestion_id'] ?? null),
+            'machine_suggestion_id' => $machine['id'] ?? null,
             'suggestion_key' => $suggestionKey,
-            'machine_category' => (string)($machine['category'] ?? $data['machine_category'] ?? 'reviewer_attention'),
-            'machine_priority' => (string)($machine['priority'] ?? $data['machine_priority'] ?? 'medium'),
-            'machine_action' => (string)($machine['reviewer_action'] ?? $data['machine_action'] ?? 'verify'),
-            'machine_title' => (string)($machine['title'] ?? $data['machine_title'] ?? 'Reviewer suggestion'),
+            'machine_category' => (string)($machine['category'] ?? 'reviewer_attention'),
+            'machine_priority' => (string)($machine['priority'] ?? 'medium'),
+            'machine_action' => (string)($machine['reviewer_action'] ?? 'verify'),
+            'machine_title' => (string)($machine['title'] ?? 'Reviewer suggestion'),
             'machine_rationale' => $machineRationale,
             'reviewer_status' => $status,
             'reviewer_title' => $data['reviewer_title'] ?? null,
@@ -89,5 +111,55 @@ class AcademicThesisSuggestionReviewService
     public function listForCase(int $caseId): array
     {
         return ['ok' => true, 'data' => $this->suggestionRepo->findByCaseId($caseId)];
+    }
+
+    /**
+     * Pull the machine suggestion from the immutable snapshot bundle. A
+     * client-supplied machine suggestion is accepted only for legacy snapshots
+     * that predate stored bundle suggestions; when a bundle exists, a
+     * non-matching key is treated as a fabrication and rejected.
+     */
+    private function resolveMachineSuggestion(array $snapshot, array $data): ?array
+    {
+        $provided = is_array($data['machine_suggestion'] ?? null) ? $data['machine_suggestion'] : [];
+        $requestedKey = trim((string)($data['suggestion_key'] ?? ($provided['suggestion_key'] ?? '')));
+        $requestedId = (int)($data['machine_suggestion_id'] ?? ($provided['id'] ?? 0));
+
+        $snapshotSuggestions = $this->snapshotBundleSuggestions($snapshot);
+
+        foreach ($snapshotSuggestions as $suggestion) {
+            if (!is_array($suggestion)) {
+                continue;
+            }
+            if ($requestedKey !== '' && strcasecmp((string)($suggestion['suggestion_key'] ?? ''), $requestedKey) === 0) {
+                return $suggestion;
+            }
+            if ($requestedId > 0 && (int)($suggestion['id'] ?? 0) === $requestedId) {
+                return $suggestion;
+            }
+        }
+
+        // Legacy snapshots without a bundle: accept the client-supplied machine
+        // suggestion only when it still carries key and rationale.
+        if ($snapshotSuggestions === []
+            && $provided !== []
+            && trim((string)($provided['suggestion_key'] ?? '')) !== ''
+            && trim((string)($provided['rationale'] ?? '')) !== '') {
+            return $provided;
+        }
+        return null;
+    }
+
+    private function snapshotBundleSuggestions(array $snapshot): array
+    {
+        $textual = $snapshot['textual_result'] ?? null;
+        if (is_string($textual)) {
+            $textual = json_decode($textual, true);
+        }
+        if (!is_array($textual) || !isset($textual['assessment_bundle']['suggestions'])) {
+            return [];
+        }
+        $suggestions = $textual['assessment_bundle']['suggestions'];
+        return is_array($suggestions) ? $suggestions : [];
     }
 }

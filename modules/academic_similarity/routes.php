@@ -54,6 +54,7 @@ return [
         '/api/v1/academic-similarity/submissions/{id}/process'    => 'academic-similarity:apiProcessSubmission',
         '/api/v1/academic-similarity/submissions/{id}/internet-check' => 'academic-similarity:apiRunInternetCheck',
         '/api/v1/academic-similarity/submissions/{id}/delete'     => 'academic-similarity:apiDeleteSubmission',
+        '/api/v1/academic-similarity/submissions/{id}/assessment' => 'academic-similarity:apiGenerateAssessment',
         '/api/v1/academic-similarity/sources'                     => 'academic-similarity:apiCreateSource',
         '/api/v1/academic-similarity/sources/{id}/reindex'        => 'academic-similarity:apiReindexSource',
         '/api/v1/academic-similarity/sources/{id}/delete'         => 'academic-similarity:apiDeleteSource',

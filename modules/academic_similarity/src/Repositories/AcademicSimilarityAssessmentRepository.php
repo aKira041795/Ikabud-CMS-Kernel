@@ -28,6 +28,14 @@ class AcademicSimilarityAssessmentRepository
         return $row ?: null;
     }
 
+    public function findLatestRunBySubmissionId(int $submissionId): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM ac_similarity_assessment_runs WHERE tenant_id = :tid AND submission_id = :sid ORDER BY id DESC LIMIT 1');
+        $stmt->execute([':tid' => $this->tenantId, ':sid' => $submissionId]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $row ?: null;
+    }
+
     public function createRun(array $data): int
     {
         $stmt = $this->db->prepare(

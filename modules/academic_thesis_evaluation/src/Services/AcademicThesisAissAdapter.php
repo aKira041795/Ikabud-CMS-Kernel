@@ -145,10 +145,10 @@ class AcademicThesisAissAdapter
                 if (is_array($internetCoverage)) {
                     $importedCount = (int)($internetCoverage['imported_count'] ?? 0);
                     $candidateCount = (int)($internetCoverage['candidate_count'] ?? 0);
+                    // Bundle coverage status is "sufficient"/"partial" (not "completed"),
+                    // so maturity is derived from actual import/candidate counts.
                     $maturityMetadata['internet_coverage'] =
-                        (($internetCoverage['status'] ?? '') === 'completed'
-                            && $candidateCount > 0
-                            && $importedCount === $candidateCount)
+                        ($candidateCount > 0 && $importedCount === $candidateCount)
                             ? 'completed'
                             : ($importedCount > 0 ? 'partial' : 'incomplete');
                 }
@@ -241,7 +241,7 @@ class AcademicThesisAissAdapter
             $result = app()->cap()->call(
                 $capabilityId,
                 $payload,
-                ['caller_module' => 'academic_thesis_evaluation']
+                ['caller_module' => 'academic-thesis-evaluation']
             );
         }
 

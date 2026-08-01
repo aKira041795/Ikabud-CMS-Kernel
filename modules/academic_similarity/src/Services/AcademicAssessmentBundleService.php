@@ -75,7 +75,7 @@ class AcademicAssessmentBundleService
                 'text_hash_sha256' => $textHash,
                 'assessment_version' => self::ASSESSMENT_VERSION,
                 'search_provider' => $internetCoverage['provider'] ?? ($settings['internet_search_engine'] ?? null),
-                'sanitized_queries' => $this->decodeJson($internetCoverage['queries_json'] ?? null),
+                'sanitized_queries' => $this->internetQueries($internetCoverage),
                 'coverage' => $coverage,
                 'settings' => [
                     'external_document_text_processing_allowed' => false,
@@ -102,7 +102,7 @@ class AcademicAssessmentBundleService
                     'claims' => false,
                     'passages' => false,
                     'embeddings' => false,
-                    'search_queries' => !empty($internetCoverage),
+                    'search_queries' => $this->internetQueries($internetCoverage) !== [],
                 ],
                 'maturity' => $maturity,
                 'limitations' => $limitations,
@@ -117,10 +117,26 @@ class AcademicAssessmentBundleService
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollBack();
+            // A concurrent identical request may have already committed the same
+            // idempotency key. Return that run instead of an error.
+            $existing = $this->repo->findRunByIdempotencyKey($idempotencyKey);
+            if ($existing !== null) {
+                return $this->buildResponse($existing);
+            }
             return ['ok' => false, 'error' => 'Assessment bundle persistence failed: ' . $e->getMessage()];
         }
 
         return $this->buildResponse($this->repo->findRunById($runId) ?? []);
+    }
+
+    /**
+     * Return the most recently generated assessment bundle for a submission,
+     * without generating a new run.
+     */
+    public function latest(int $submissionId): ?array
+    {
+        $run = $this->repo->findLatestRunBySubmissionId($submissionId);
+        return $run !== null ? $this->buildResponse($run) : null;
     }
 
     private function buildResponse(array $run): array
@@ -170,33 +186,58 @@ class AcademicAssessmentBundleService
     private function extractSections(string $text): array
     {
         $known = ['abstract', 'introduction', 'background', 'literature review', 'methodology', 'methods', 'results', 'findings', 'discussion', 'conclusion', 'recommendations', 'references'];
-        $sections = [];
-        if (preg_match_all('/^(abstract|introduction|background|literature review|methodology|methods|results|findings|discussion|conclusion|recommendations|references)\\b.*$/im', $text, $matches, PREG_OFFSET_CAPTURE)) {
-            foreach ($matches[0] as $index => $match) {
-                $heading = trim((string)$match[0]);
-                $start = (int)$match[1];
-                $next = $matches[0][$index + 1][1] ?? strlen($text);
-                $key = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', $matches[1][$index][0]), '_'));
-                $sections[] = [
-                    'section_key' => $key,
-                    'heading' => $heading,
-                    'section_order' => $index + 1,
-                    'start_offset' => $start,
-                    'end_offset' => (int)$next,
-                    'extraction_confidence' => in_array(strtolower($matches[1][$index][0]), $known, true) ? 0.85 : 0.55,
-                    'maturity' => 'beta',
-                ];
+        $keywordPattern = implode('|', array_map(static fn(string $k): string => preg_quote($k, '/'), $known));
+
+        // Headings may appear at line starts (newline-preserving extraction) or
+        // prefixed by a CHAPTER marker (newline-less PDF extraction). Match both,
+        // but never match a keyword inside running prose.
+        $hits = [];
+        if (preg_match_all('/^(' . $keywordPattern . ')\\b.*$/im', $text, $m, PREG_OFFSET_CAPTURE)) {
+            foreach ($m[1] as $capture) {
+                $hits[] = [(int)$capture[1], strtolower(trim((string)$capture[0]))];
             }
         }
-        if ($sections === [] && trim($text) !== '') {
+        if (preg_match_all('/\\b(?:CHAPTER|CH\\.)\\s*\\d+\\s+(?:[A-Za-z&\'()-]+\\s*){0,8}?(' . $keywordPattern . ')\\b/i', $text, $m, PREG_OFFSET_CAPTURE)) {
+            foreach ($m[1] as $capture) {
+                $hits[] = [(int)$capture[1], strtolower(trim((string)$capture[0]))];
+            }
+        }
+
+        if ($hits === []) {
+            if (trim($text) !== '') {
+                return [[
+                    'section_key' => 'document_body',
+                    'heading' => 'Document body',
+                    'section_order' => 1,
+                    'start_offset' => 0,
+                    'end_offset' => strlen($text),
+                    'extraction_confidence' => 0.35,
+                    'maturity' => 'partial',
+                ]];
+            }
+            return [];
+        }
+
+        // For a repeated section key, keep the LAST occurrence (body sections
+        // appear after any table-of-contents entries).
+        $best = [];
+        foreach ($hits as [$offset, $heading]) {
+            $key = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '_', $heading), '_'));
+            $best[$key] = [$offset, $heading, $key];
+        }
+        $best = array_values($best);
+        usort($best, static fn(array $a, array $b): int => $a[0] <=> $b[0]);
+
+        $sections = [];
+        foreach ($best as $index => [$start, $heading, $key]) {
             $sections[] = [
-                'section_key' => 'document_body',
-                'heading' => 'Document body',
-                'section_order' => 1,
-                'start_offset' => 0,
-                'end_offset' => strlen($text),
-                'extraction_confidence' => 0.35,
-                'maturity' => 'partial',
+                'section_key' => $key,
+                'heading' => $heading,
+                'section_order' => $index + 1,
+                'start_offset' => $start,
+                'end_offset' => $best[$index + 1][0] ?? strlen($text),
+                'extraction_confidence' => in_array($heading, $known, true) ? 0.85 : 0.55,
+                'maturity' => 'beta',
             ];
         }
         return $sections;
@@ -421,5 +462,19 @@ class AcademicAssessmentBundleService
         }
         $decoded = json_decode($value, true);
         return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Read the sanitized search queries recorded for the latest internet run.
+     * Queries are persisted in the run's metadata_json (key "queries"); a
+     * queries_json column does not exist on ac_similarity_internet_search_runs.
+     */
+    private function internetQueries(array $run): array
+    {
+        $meta = $this->decodeJson($run['metadata_json'] ?? null);
+        if (isset($meta['queries']) && is_array($meta['queries'])) {
+            return $meta['queries'];
+        }
+        return $this->decodeJson($run['queries_json'] ?? null);
     }
 }

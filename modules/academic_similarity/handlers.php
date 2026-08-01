@@ -105,6 +105,13 @@ function pageSubmissionDetail(array $params = []): void
     $internetCheckQuery = (string)($_GET['internet_check'] ?? '');
     $processQuery = (string)($_GET['process'] ?? '');
 
+    $assessmentBundle = null;
+    try {
+        $assessmentBundle = (new \AcademicAssessmentBundleService($tenantId))->latest($submissionId);
+    } catch (\Throwable $e) {
+        write_log('Failed to load assessment bundle for submission ' . $submissionId . ': ' . $e->getMessage());
+    }
+
     echo $ctx->render('academic_similarity/submissions/detail', [
         'submission' => $submission,
         'matches' => $matches,
@@ -113,10 +120,34 @@ function pageSubmissionDetail(array $params = []): void
         'internet_candidates' => $internetCandidates,
         'internet_check_query' => $internetCheckQuery,
         'process_query' => $processQuery,
+        'assessment' => $assessmentBundle,
+        'assessment_query' => (string)($_GET['assessment'] ?? ''),
         'internet_check_enabled' => (academic_similarity_get_settings($tenantId)['internet_check_enabled'] ?? '0') === '1',
         'active_nav' => 'submissions',
         'csrf_token' => app()->csrfToken() ?? '',
     ]);
+}
+
+function apiGenerateAssessment(array $params = []): void
+{
+    $ctx = module();
+    if (!$ctx) { http_response_code(500); echo 'Module context unavailable'; return; }
+    academic_similarity_require_admin($ctx);
+    app()->csrfEnforce();
+
+    $tenantId = (string)(app()->tenant()->current() ?? '');
+    $submissionId = (int)($params['id'] ?? 0);
+    try {
+        $result = (new \AcademicAssessmentBundleService($tenantId))->generate(
+            $submissionId,
+            ['payload_policy' => 'deterministic_internal_only']
+        );
+        header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?assessment=' . (($result['ok'] ?? false) ? 'generated' : 'failed') . '#assessment');
+    } catch (\Throwable $e) {
+        write_log('Assessment generation failed: ' . $e->getMessage());
+        header('Location: /admin/academic-similarity/submissions/' . $submissionId . '?assessment=failed#assessment');
+    }
+    exit;
 }
 
 function pageSubmissionUpload(array $params = []): void

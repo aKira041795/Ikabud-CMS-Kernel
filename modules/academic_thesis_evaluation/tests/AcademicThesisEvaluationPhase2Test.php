@@ -308,6 +308,53 @@ $wrongCaseSuggestion = $suggestionSvc->review($snapshotId, [
     'reviewer_reason' => 'Wrong case guard.',
 ], $caseId + 999);
 t('cross-case suggestion review rejected', ($wrongCaseSuggestion['ok'] ?? true) === false);
+
+// Machine fields are resolved from the immutable snapshot bundle, not the client.
+$fabricatedSuggestion = $suggestionSvc->review($snapshotId, [
+    'reviewer_id' => 2,
+    'suggestion_key' => 'fabricated-not-in-bundle',
+    'machine_suggestion' => [
+        'id' => 999,
+        'suggestion_key' => 'fabricated-not-in-bundle',
+        'category' => 'research_alignment',
+        'priority' => 'high',
+        'reviewer_action' => 'verify',
+        'title' => 'Fabricated machine suggestion',
+        'rationale' => 'Not present in the stored evidence bundle.',
+    ],
+    'reviewer_status' => 'accepted',
+    'reviewer_reason' => 'Trying to inject a machine suggestion that is not in the bundle.',
+]);
+t('fabricated machine suggestion rejected', ($fabricatedSuggestion['ok'] ?? true) === false);
+
+// A disposition resolved by key uses the stored machine fields, not client fields.
+$byKeyReview = $suggestionSvc->review($snapshotId, [
+    'reviewer_id' => 3,
+    'suggestion_key' => 'expand-prior-art-coverage',
+    'reviewer_status' => 'dismissed',
+    'reviewer_reason' => 'Coverage will be expanded by the next internet check.',
+]);
+t('review by suggestion key resolves machine fields', $byKeyReview['ok'] === true, $byKeyReview['error'] ?? '');
+// Verify the stored machine title came from the bundle, not the client payload.
+$byKeyRowStmt = $db->prepare(
+    "SELECT machine_title, machine_rationale FROM ate_evidence_suggestion_reviews
+     WHERE tenant_id = :tid AND id = :id"
+);
+$byKeyRowStmt->execute([':tid' => $tenantId, ':id' => (int)($byKeyReview['data']['suggestion_review_id'] ?? 0)]);
+$byKeyStored = $byKeyRowStmt->fetch(\PDO::FETCH_ASSOC);
+$bundleSuggestion = $storedTextualResult['assessment_bundle']['suggestions'][0] ?? [];
+t('stored machine title matches bundle', ($byKeyStored['machine_title'] ?? '') === ($bundleSuggestion['title'] ?? ''), json_encode($byKeyStored['machine_title'] ?? ''));
+t('stored machine rationale matches bundle', ($byKeyStored['machine_rationale'] ?? '') === ($bundleSuggestion['rationale'] ?? ''), json_encode($byKeyStored['machine_rationale'] ?? ''));
+
+// Idempotency: an identical disposition for the same reviewer returns the same row.
+$dupReview = $suggestionSvc->review($snapshotId, [
+    'reviewer_id' => 3,
+    'suggestion_key' => 'expand-prior-art-coverage',
+    'reviewer_status' => 'dismissed',
+    'reviewer_reason' => 'Coverage will be expanded by the next internet check.',
+]);
+t('identical duplicate disposition is idempotent', ($dupReview['ok'] ?? false) === true && !empty($dupReview['data']['duplicate'] ?? null));
+t('duplicate reuses the same review row', (int)($dupReview['data']['suggestion_review_id'] ?? 0) === (int)($byKeyReview['data']['suggestion_review_id'] ?? 0));
 $suggestionReviews = $suggestionSvc->listForCase($caseId);
 t('suggestion review stays separate from rubric score', count($suggestionReviews['data'] ?? []) >= 1);
 

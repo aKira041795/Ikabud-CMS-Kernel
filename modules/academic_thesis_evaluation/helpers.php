@@ -56,7 +56,7 @@ function ate_render(string $template, array $data = []): string
         'active_nav' => '',
         'csrf_token' => app()->csrfToken() ?? '',
     ];
-    return app()->render('modules/academic_thesis_evaluation/' . ltrim($template, '/'), $data);
+    return app()->render('modules/academic-thesis-evaluation/' . ltrim($template, '/'), $data);
 }
 
 // ── DB helper ────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ function ate_db(?string $tenantId = null): \Ikabud\Kernel\Contracts\ModuleDB
         'ate_evidence_review_decisions', 'ate_evidence_suggestion_reviews',
         'ate_revision_requests', 'ate_final_dispositions', 'ate_audit_events', 'ate_settings',
     ];
-    return new \Ikabud\Kernel\Contracts\ModuleDB($rawDb, 'academic_thesis_evaluation', $owns, []);
+    return new \Ikabud\Kernel\Contracts\ModuleDB($rawDb, 'academic-thesis-evaluation', $owns, []);
 }
 
 // ── Settings ─────────────────────────────────────────────────────

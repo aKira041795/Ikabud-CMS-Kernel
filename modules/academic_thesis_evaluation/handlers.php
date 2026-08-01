@@ -12,12 +12,12 @@ require_once __DIR__ . '/helpers.php';
 
 function ate_require_admin(\Ikabud\Kernel\Contracts\ModuleContext $ctx): array
 {
-    return $ctx->requireAnyRole('admin', 'graduate_coordinator', 'graduate_dean');
+    return $ctx->requireAnyRole('admin', 'administrator', 'graduate_coordinator', 'graduate_dean');
 }
 
 function ate_require_reviewer(\Ikabud\Kernel\Contracts\ModuleContext $ctx): array
 {
-    return $ctx->requireAnyRole('admin', 'graduate_coordinator', 'panel_chair', 'panel_member', 'integrity_reviewer', 'methodologist', 'statistician');
+    return $ctx->requireAnyRole('admin', 'administrator', 'graduate_coordinator', 'panel_chair', 'panel_member', 'integrity_reviewer', 'methodologist', 'statistician');
 }
 
 function ate_require_student(\Ikabud\Kernel\Contracts\ModuleContext $ctx): array
@@ -145,10 +145,30 @@ function pageEvidenceReview(array $params = []): void
     $decisionRepo = new \EvidenceReviewDecisionRepository($tenantId);
     $decisions = $decisionRepo->findByCaseId($caseId);
 
+    $suggestionService = new \AcademicThesisSuggestionReviewService($tenantId);
+    $suggestionReviews = $suggestionService->listForCase($caseId);
+
+    // Rubric criteria for the case: the rubric template code mirrors the profile
+    // code, so reviewers can link a suggestion to a criterion without changing scores.
+    $rubricCriteria = [];
+    try {
+        $rubricResult = (new \AcademicThesisRubricService($tenantId))->getByCode((string)($case['profile_code'] ?? ''));
+        if (!empty($rubricResult['ok'])) {
+            $rubricCriteria = $rubricResult['data']['criteria'] ?? [];
+        }
+    } catch (\Throwable $e) {
+        write_log('Failed to load rubric criteria for evidence page: ' . $e->getMessage());
+    }
+
+    $revisions = (new \RevisionRequestRepository($tenantId))->findByCaseId($caseId);
+
     echo ate_render('admin/cases/evidence', [
         'case' => $case,
         'snapshots' => $snapshots,
         'decisions' => $decisions,
+        'suggestion_reviews' => $suggestionReviews['data'] ?? [],
+        'rubric_criteria' => $rubricCriteria,
+        'revisions' => $revisions,
         'active_nav' => 'cases',
     ]);
 }
@@ -317,7 +337,7 @@ function pageStudentDashboard(array $params = []): void
 
     $tenantId = ate_tenant_id();
     $caseRepo = new \EvaluationCaseRepository($tenantId);
-    $cases = $caseRepo->findByOwner((int)$user['user_id']);
+    $cases = $caseRepo->findByOwner((int)($user['id'] ?? 0));
 
     echo ate_render('student/dashboard', [
         'cases' => $cases,
@@ -352,7 +372,7 @@ function pageStudentCaseDetail(array $params = []): void
 
     $caseRepo = new \EvaluationCaseRepository($tenantId);
     $case = $caseRepo->findById($caseId);
-    if (!$case || (int)$case['submission_owner_id'] !== (int)$user['user_id']) {
+    if (!$case || (int)$case['submission_owner_id'] !== (int)($user['id'] ?? 0)) {
         http_response_code(404);
         echo ate_render('not_found', ['resource' => 'Evaluation Case']);
         return;
@@ -383,7 +403,7 @@ function pageStudentRevisions(array $params = []): void
 
     $caseRepo = new \EvaluationCaseRepository($tenantId);
     $case = $caseRepo->findById($caseId);
-    if (!$case || (int)$case['submission_owner_id'] !== (int)$user['user_id']) {
+    if (!$case || (int)$case['submission_owner_id'] !== (int)($user['id'] ?? 0)) {
         http_response_code(404);
         echo ate_render('not_found', ['resource' => 'Evaluation Case']);
         return;
@@ -412,7 +432,7 @@ function apiCreateCase(array $params = []): void
     $user = ate_require_student($ctx);
 
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['submission_owner_id'] = (int)$user['user_id'];
+    $input['submission_owner_id'] = (int)($user['id'] ?? 0);
     $input['_tenant_id'] = ate_tenant_id();
 
     $service = new \AcademicThesisEvaluationCaseService(ate_tenant_id());
@@ -463,7 +483,7 @@ function apiTransitionCase(array $params = []): void
     $result = $engine->transition(
         $caseId,
         $input['target_stage'],
-        (int)$user['user_id'],
+        (int)($user['id'] ?? 0),
         $input['reason'] ?? '',
         $input['context'] ?? []
     );
@@ -485,7 +505,7 @@ function apiSubmitManuscript(array $params = []): void
 
     $payload = array_merge($input, [
         '_tenant_id' => ate_tenant_id(),
-        'submitted_by' => (int)$user['user_id'],
+        'submitted_by' => (int)($user['id'] ?? 0),
     ]);
 
     $service = new \AcademicThesisEvaluationCaseService(ate_tenant_id());
@@ -519,7 +539,7 @@ function apiGenerateAissAnalysis(array $params = []): void
 
     $caseId = (int)($params['id'] ?? 0);
     $adapter = new \AcademicThesisAissAdapter(ate_tenant_id());
-    $result = $adapter->generateSnapshot($caseId, (int)$user['user_id']);
+    $result = $adapter->generateSnapshot($caseId, (int)($user['id'] ?? 0));
 
     header('Content-Type: application/json');
     echo json_encode($result);
@@ -568,7 +588,7 @@ function apiReviewEvidence(array $params = []): void
 
     $caseId = (int)($params['id'] ?? 0);
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['reviewer_id'] = (int)$user['user_id'];
+    $input['reviewer_id'] = (int)($user['id'] ?? 0);
 
     // Accept snapshot_id from input, or fall back to latest snapshot for this case
     $snapshotId = (int)($input['snapshot_id'] ?? 0);
@@ -599,7 +619,7 @@ function apiReviewSuggestion(array $params = []): void
 
     $caseId = (int)($params['id'] ?? 0);
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['reviewer_id'] = (int)$user['user_id'];
+    $input['reviewer_id'] = (int)($user['id'] ?? 0);
 
     $snapshotId = (int)($input['snapshot_id'] ?? 0);
     if (!$snapshotId) {
@@ -651,7 +671,7 @@ function apiAcceptAssignment(array $params = []): void
 
     $assignmentId = (int)($params['assignment_id'] ?? 0);
     $service = new \AcademicThesisReviewerService(ate_tenant_id());
-    $result = $service->accept($assignmentId, (int)$user['user_id']);
+    $result = $service->accept($assignmentId, (int)($user['id'] ?? 0));
 
     header('Content-Type: application/json');
     echo json_encode($result);
@@ -702,7 +722,7 @@ function apiCreateRevisionRequest(array $params = []): void
 
     $caseId = (int)($params['id'] ?? 0);
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['created_by'] = (int)$user['user_id'];
+    $input['created_by'] = (int)($user['id'] ?? 0);
 
     $service = new \AcademicThesisRevisionService(ate_tenant_id());
     $result = $service->createRequest($caseId, $input);
@@ -719,7 +739,7 @@ function apiResolveRevision(array $params = []): void
 
     $revisionId = (int)($params['revision_id'] ?? 0);
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['resolved_by'] = (int)$user['user_id'];
+    $input['resolved_by'] = (int)($user['id'] ?? 0);
 
     $service = new \AcademicThesisRevisionService(ate_tenant_id());
     $result = $service->resolve($revisionId, $input);
@@ -752,7 +772,7 @@ function apiIssueDisposition(array $params = []): void
 
     $caseId = (int)($params['id'] ?? 0);
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['decided_by'] = (int)$user['user_id'];
+    $input['decided_by'] = (int)($user['id'] ?? 0);
     $input['authority_role'] = $user['role'] ?? 'admin';
 
     $service = new \AcademicThesisDispositionService(ate_tenant_id());
@@ -811,7 +831,7 @@ function apiCreateProfile(array $params = []): void
     $user = ate_require_admin($ctx);
 
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $input['created_by'] = (int)$user['user_id'];
+    $input['created_by'] = (int)($user['id'] ?? 0);
 
     $service = new \AcademicThesisProfileService(ate_tenant_id());
     $result = $service->create($input);
