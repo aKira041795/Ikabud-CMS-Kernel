@@ -535,18 +535,24 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $configuredSiteScope = !empty($configuredSiteManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
         ? cmsThemeCustomizerScopeFromManifest($configuredSiteManifest)
         : 'native';
+    $configuredSiteScopeBase = function_exists('cmsParseCustomizerScope')
+        ? (string)(cmsParseCustomizerScope($configuredSiteScope)['base'] ?? 'native')
+        : $configuredSiteScope;
 
     $preferredStorefrontTheme = cmsPreferredEcommerceTheme();
     $preferredStorefrontManifest = cmsThemeManifestForSlug($preferredStorefrontTheme);
     $preferredStorefrontScope = !empty($preferredStorefrontManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
         ? cmsThemeCustomizerScopeFromManifest($preferredStorefrontManifest)
         : 'native';
+    $preferredStorefrontScopeBase = function_exists('cmsParseCustomizerScope')
+        ? (string)(cmsParseCustomizerScope($preferredStorefrontScope)['base'] ?? 'native')
+        : $preferredStorefrontScope;
 
     $resolvedTheme = $configuredSiteTheme;
     $resolvedThemeSource = $resolvedTheme !== null ? 'site' : 'default';
 
     if ($isEcommerceStorefrontThemeRoute) {
-        if ($configuredSiteTheme !== null && $configuredSiteScope === 'ecommerce') {
+        if ($configuredSiteTheme !== null && $configuredSiteScopeBase === 'ecommerce') {
             $resolvedTheme = $configuredSiteTheme;
             $resolvedThemeSource = 'site';
         } elseif ($preferredStorefrontTheme !== null) {
@@ -559,8 +565,11 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
     $resolvedScope = !empty($resolvedManifest) && function_exists('cmsThemeCustomizerScopeFromManifest')
         ? cmsThemeCustomizerScopeFromManifest($resolvedManifest)
         : 'native';
+    $resolvedScopeBase = function_exists('cmsParseCustomizerScope')
+        ? (string)(cmsParseCustomizerScope($resolvedScope)['base'] ?? 'native')
+        : $resolvedScope;
     $resolvedMode = 'traditional';
-    if ($isEcommerceEntityRouteKind && $resolvedScope === 'ecommerce') {
+    if ($isEcommerceEntityRouteKind && $resolvedScopeBase === 'ecommerce') {
         $resolvedMode = 'entity_view';
     } elseif ($isEcommerceEntityRouteKind && is_array($resolvedManifest)) {
         $themeEcom = $resolvedManifest['ecommerce'] ?? [];
@@ -581,11 +590,11 @@ function cmsResolveEcommerceThemePolicy(array $context = []): array
         'is_ecommerce_entity_route' => $isEcommerceEntityRoute,
         'is_ecommerce_storefront_theme_route' => $isEcommerceStorefrontThemeRoute,
         'configured_site_theme' => $configuredSiteTheme,
-        'configured_site_theme_scope' => $configuredSiteScope,
+        'configured_site_theme_scope' => $configuredSiteScopeBase,
         'preferred_storefront_theme' => $preferredStorefrontTheme,
-        'preferred_storefront_theme_scope' => $preferredStorefrontScope,
+        'preferred_storefront_theme_scope' => $preferredStorefrontScopeBase,
         'active_theme' => $resolvedTheme,
-        'active_theme_scope' => $resolvedScope,
+        'active_theme_scope' => $resolvedScopeBase,
         'active_theme_source' => $resolvedThemeSource,
         'requested_public_presentation_mode' => $requestedMode,
         'public_presentation_mode' => $resolvedMode,
@@ -624,15 +633,13 @@ function cmsAvailableThemes(): array
         if ($entry === '.' || $entry === '..') continue;
         $themeDir = $dir . '/' . $entry;
         if (!is_dir($themeDir)) continue;
-        $metaFile = $themeDir . '/theme.json';
-        $meta = ['slug' => $entry, 'name' => ucfirst($entry), 'version' => '1.0', 'author' => '', 'description' => ''];
-        if (is_file($metaFile)) {
-            $decoded = kernelReadJsonFile($metaFile);
-            if (!empty($decoded)) {
-                $meta = array_merge($meta, $decoded);
-            }
-        }
+        $meta = cmsThemeManifestForSlug($entry);
+        $meta = array_merge(['slug' => $entry, 'name' => ucfirst($entry), 'version' => '1.0', 'author' => '', 'description' => ''], is_array($meta) ? $meta : []);
         $meta['slug'] = $entry;
+        $version = trim((string)($meta['version'] ?? '1.0'));
+        if (preg_match('/^(\d+\.\d+)\.0$/', $version, $matches)) {
+            $meta['version'] = $matches[1];
+        }
         // Count override files
         $overrides = 0;
         foreach (['layouts/public.disyl', 'public/home.disyl', 'public/single.disyl', 'public/page.disyl'] as $tpl) {
@@ -919,19 +926,11 @@ function cmsActiveThemeManifest(): array
         return [];
     }
 
-    // Phase 2: prefer theme.manifest.json, fall back to theme.json
-    $manifestFile = cmsThemesPath() . '/' . $active . '/theme.manifest.json';
-    if (!is_file($manifestFile)) {
-        $manifestFile = cmsThemesPath() . '/' . $active . '/theme.json';
-    }
-    if (!is_file($manifestFile)) {
-        $GLOBALS[$valueKey] = ['slug' => $active];
-        return $GLOBALS[$valueKey];
+    $manifest = cmsThemeManifestForSlug($active);
+    if ($manifest === []) {
+        $manifest = ['slug' => $active];
     }
 
-    $decoded = kernelReadJsonFile($manifestFile);
-    $manifest = is_array($decoded) ? $decoded : [];
-    $manifest['slug'] = $active;
     $GLOBALS[$valueKey] = $manifest;
     return $manifest;
 }

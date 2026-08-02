@@ -372,9 +372,44 @@ function ecApplyPublicCurrencyContext(array $context): array
 
 function ecRender(string $template, array $context = []): void
 {
+    if (!array_key_exists('current_request_uri', $context)) {
+        $context['current_request_uri'] = (string)($_SERVER['REQUEST_URI'] ?? '/ecommerce/shop');
+    }
+
+    if (!array_key_exists('store_filter', $context)) {
+        $context['store_filter'] = 0;
+    }
+
     if (!array_key_exists('cart_count', $context)) {
         $cart = ecCartGet();
         $context['cart_count'] = (int)($cart['totals']['item_count'] ?? 0);
+    }
+
+    if (is_array($context['cart']['totals'] ?? null)) {
+        $context['cart']['totals'] = array_merge([
+            'non_loyalty_discount_amount' => 0,
+            'non_loyalty_discount_amount_fmt' => '0.00',
+            'loyalty_points_applied' => 0,
+            'loyalty_discount_amount_fmt' => '0.00',
+        ], $context['cart']['totals']);
+    }
+
+    if (is_array($context['checkout_totals'] ?? null)) {
+        $context['checkout_totals'] = array_merge([
+            'non_loyalty_discount_amount' => 0,
+            'non_loyalty_discount_amount_fmt' => '0.00',
+            'loyalty_points_applied' => 0,
+            'loyalty_discount_amount_fmt' => '0.00',
+        ], $context['checkout_totals']);
+    }
+
+    if (is_array($context['order'] ?? null)) {
+        $context['order'] = array_merge([
+            'non_loyalty_discount_amount' => 0,
+            'non_loyalty_discount_amount_fmt' => '0.00',
+            'loyalty_points_redeemed' => 0,
+            'loyalty_discount_amount_fmt' => '0.00',
+        ], $context['order']);
     }
 
     if (!array_key_exists('wishlist_count', $context)) {

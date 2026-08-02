@@ -208,16 +208,16 @@ class ThemeManifestValidator
         $warnings = [];
 
         // tokens.json
-        if (!empty($manifest['tokens'])) {
-            $tokensPath = $themeDir . '/' . ltrim((string)$manifest['tokens'], '/');
+        if (!empty($manifest['tokens']) && is_string($manifest['tokens'])) {
+            $tokensPath = $themeDir . '/' . ltrim($manifest['tokens'], '/');
             if (!is_file($tokensPath)) {
                 $warnings[] = "Declared tokens file '{$manifest['tokens']}' not found at {$tokensPath}";
             }
         }
 
         // Shell template
-        if (!empty($manifest['shell'])) {
-            $shellPath = $themeDir . '/' . ltrim((string)$manifest['shell'], '/');
+        if (!empty($manifest['shell']) && is_string($manifest['shell'])) {
+            $shellPath = $themeDir . '/' . ltrim($manifest['shell'], '/');
             if (!is_file($shellPath)) {
                 $warnings[] = "Declared shell template '{$manifest['shell']}' not found";
             }
@@ -261,8 +261,8 @@ class ThemeManifestValidator
     {
         $warnings = [];
 
-        $tokensFile = !empty($manifest['tokens'])
-            ? $themeDir . '/' . ltrim((string)$manifest['tokens'], '/')
+        $tokensFile = (!empty($manifest['tokens']) && is_string($manifest['tokens']))
+            ? $themeDir . '/' . ltrim($manifest['tokens'], '/')
             : $themeDir . '/tokens.json';
 
         if (!is_file($tokensFile)) {

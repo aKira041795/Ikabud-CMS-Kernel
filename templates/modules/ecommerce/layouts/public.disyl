@@ -19,12 +19,10 @@
     {if active_theme_slug == 'entity-commerce-poc'}<div class="poc-shell__backdrop"></div>{/if}
 
 {set header_region_present = header_region.present|default:has_customized_header|default:false}
-{set header_region_html = header_region.html|default:customized_header|default:''}
 {set footer_region_present = footer_region.present|default:has_customized_footer|default:false}
-{set footer_region_html = footer_region.html|default:customized_footer|default:''}
 
 {if header_region_present}
-{header_region_html|raw}
+{if header_region.html}{header_region.html|raw}{else}{customized_header|raw}{/if}
 {else}
 <header class="border-b border-gray-200 bg-white sticky top-0 z-10">
     <div class="cms-public-shell px-4 sm:px-6 py-4 flex items-center justify-between">
@@ -98,7 +96,7 @@
 </main>
 
 {if footer_region_present}
-{footer_region_html|raw}
+{if footer_region.html}{footer_region.html|raw}{else}{customized_footer|raw}{/if}
 {else}
 <footer class="mt-16 border-t border-gray-200 py-8 text-center text-sm text-gray-400">
     <div class="cms-public-shell px-4 sm:px-6">

@@ -744,9 +744,20 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'builder_page_settings' => [],
             'cms_head' => '',
             'structured_data' => '',
+            'page_title' => '',
+            'site_title' => '',
+            'current_year' => date('Y'),
+            'theme_script_url' => '',
+            'colors_style' => '',
+            'custom_css' => '',
+            'head_code' => '',
+            'header_region_html' => '',
+            'footer_region_html' => '',
+            'body_end_code' => '',
             'cart_enabled' => false,
             'cart_action_url' => '',
             'action_sections' => '',
+            'current_request_uri' => '',
             'public_render_origin' => 'cms',
             'public_route_kind' => 'generic',
             'public_presentation_mode' => 'canonical',
@@ -778,6 +789,17 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'entity_presentation' => [],
             'pagination' => [],
             'cms_head' => '',
+            'page_title' => '',
+            'site_title' => '',
+            'current_year' => date('Y'),
+            'theme_script_url' => '',
+            'colors_style' => '',
+            'custom_css' => '',
+            'head_code' => '',
+            'header_region_html' => '',
+            'footer_region_html' => '',
+            'body_end_code' => '',
+            'current_request_uri' => '',
             'public_render_origin' => 'cms',
             'public_route_kind' => 'generic',
             'public_presentation_mode' => 'canonical',
@@ -843,6 +865,7 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'show_summary' => true,
             'show_lessons' => true,
             'show_taxonomies' => true,
+            'header_title' => '',
         ], $context['entity_view_context']);
         $context['entity_taxonomies'] = array_merge([
             'categories' => [],
@@ -860,8 +883,14 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
             'search_action_url' => '',
             'base_list_url' => '',
             'all_items_url' => '',
+            'item_base_url' => '',
             'search' => '',
+            'search_placeholder' => '',
+            'search_button_label' => '',
             'category_slug' => '',
+            'category_navigation_label' => '',
+            'category_submit_label' => '',
+            'all_items_label' => '',
             'result_count' => 0,
             'active_filter_count' => 0,
         ], $context['entity_list_context']);
@@ -891,6 +920,12 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
                 $item[$key] = is_scalar($value) || $value === null ? (string)$value : '';
             }
 
+            if (!isset($item['detail_url']) || !is_scalar($item['detail_url'])) {
+                $item['detail_url'] = $item['url'] ?? '';
+            } else {
+                $item['detail_url'] = (string)$item['detail_url'];
+            }
+
             $normalizedItems[] = $item;
         }
         $context['items'] = $normalizedItems;
@@ -898,6 +933,22 @@ function cmsCanonicalRenderContextNormalize(array $context, string $template): a
 
     if ($shouldLog && ($missingKeys !== [] || $typeMismatches !== [])) {
         if (function_exists('kernelAppendRenderTraceNormalizationAction')) {
+
+    $context['storefront'] = array_merge([
+        'route' => ['kind' => '', 'mode' => ''],
+        'page' => ['kind' => '', 'title' => '', 'description' => ''],
+        'product' => ['id' => '', 'slug' => ''],
+        'collection' => ['total' => 0],
+    ], is_array($context['storefront'] ?? null) ? $context['storefront'] : []);
+    foreach (['route', 'page', 'product', 'collection'] as $branch) {
+        if (!is_array($context['storefront'][$branch] ?? null)) {
+            $context['storefront'][$branch] = [];
+        }
+    }
+    $context['storefront']['route'] = array_merge(['kind' => '', 'mode' => ''], $context['storefront']['route']);
+    $context['storefront']['page'] = array_merge(['kind' => '', 'title' => '', 'description' => ''], $context['storefront']['page']);
+    $context['storefront']['product'] = array_merge(['id' => '', 'slug' => ''], $context['storefront']['product']);
+    $context['storefront']['collection'] = array_merge(['total' => 0], $context['storefront']['collection']);
             $context = kernelAppendRenderTraceNormalizationAction($context, [
                 'source' => 'cms_canonical',
                 'contract' => $contract,

@@ -5143,10 +5143,24 @@ class TemplateEngine
                 }
                 $value = $resolveCache[$varPath];
 
+                $hasDefaultLikeFilter = false;
+                foreach ($filters as $candidateFilter) {
+                    $candidateFilter = trim($candidateFilter);
+                    if ($candidateFilter === '') {
+                        continue;
+                    }
+                    $candidateFilterName = trim(explode(':', $candidateFilter, 2)[0]);
+                    if ($candidateFilterName === 'default' || $candidateFilterName === 'fallback') {
+                        $hasDefaultLikeFilter = true;
+                        break;
+                    }
+                }
+
                 // Strict mode: warn when filtered variable is undefined,
-                // but skip if the variable root is declared via {@var}.
+                // but skip if the variable root is declared via {@var} or a default-like filter
+                // will intentionally handle the missing value.
                 $filteredVarRoot = strtok($varPath, '.');
-                if ($this->strictMode && $value === null && ($filteredVarRoot === false || !array_key_exists($filteredVarRoot, $this->declaredVars))) {
+                if ($this->strictMode && !$hasDefaultLikeFilter && $value === null && ($filteredVarRoot === false || !array_key_exists($filteredVarRoot, $this->declaredVars))) {
                     $this->logError("[strict] Undefined variable: {$varPath}");
                 }
 
@@ -5164,9 +5178,6 @@ class TemplateEngine
                             continue;
                         }
                         $hasRaw = true;
-                        if ($this->strictMode) {
-                            $this->logError("[strict] Raw filter used on variable: {$varPath}");
-                        }
                         continue;
                     }
 

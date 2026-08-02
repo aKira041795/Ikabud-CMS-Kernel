@@ -226,8 +226,7 @@ function cmsValidateColorsSettings(array $input): array
  *
  * Accepts composite scopes in the format "{base}_{theme_slug}" where base
  * is "native" or "ecommerce" — e.g. "native_ark", "ecommerce_entity-commerce-poc".
- * Legacy bare "native" / "ecommerce" values are still accepted for backward
- * compatibility (themes without a distinct slug).
+ * Public/runtime callers receive the normalized base scope only.
  */
 function cmsNormalizeCustomizerScope(?string $scope, string $fallback = 'native'): string
 {
@@ -236,14 +235,14 @@ function cmsNormalizeCustomizerScope(?string $scope, string $fallback = 'native'
         return $fallback;
     }
 
-    // Direct match on base scopes (legacy / no theme slug)
+    // Direct match on base scopes.
     if (in_array($scope, ['native', 'ecommerce'], true)) {
         return $scope;
     }
 
-    // Composite scope: {base}_{theme_slug}
-    if (preg_match('/^(native|ecommerce)_([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$/', $scope)) {
-        return $scope;
+    // Composite scope: expose the public base only.
+    if (preg_match('/^(native|ecommerce)_([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)$/', $scope, $matches)) {
+        return $matches[1];
     }
 
     return $fallback;
@@ -400,13 +399,7 @@ function cmsValidateCustomizerSectionSettings(string $section, array $settings, 
 
 function cmsThemeCustomizerScopeFromManifest(array $manifest): string
 {
-    $base = cmsNormalizeCustomizerScope((string)($manifest['customizer_scope'] ?? 'native'));
-    $slug = trim((string)($manifest['slug'] ?? $manifest['name'] ?? ''));
-    if ($slug === '' || $slug === 'default' || !preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', $slug)) {
-        return $base;
-    }
-    // Composite scope: {base}_{theme_slug} — makes customizer per-theme
-    return $base . '_' . $slug;
+    return cmsNormalizeCustomizerScope((string)($manifest['customizer_scope'] ?? 'native'));
 }
 
 function cmsThemeManifestEntityViewDefaults(?array $manifest = null): array
@@ -747,13 +740,11 @@ function cmsCustomizerStorageSection(string $section, ?string $scope = null): st
     $scope = $scope !== null ? trim($scope) : cmsActiveCustomizerScope();
     $parsed = cmsParseCustomizerScope($scope);
 
-    // Legacy bare scopes ('native', 'ecommerce') use unprefixed section keys
-    if ($parsed['theme'] === null) {
+    if ($parsed['base'] === 'native') {
         return $section;
     }
 
-    // Composite scopes ('native_ark', 'ecommerce_ark') get their own DB rows
-    return $scope . ':' . $section;
+    return $parsed['base'] . ':' . $section;
 }
 
 function cmsCustomizerScopeTag(?string $scope = null): string
