@@ -10,6 +10,8 @@ if (file_exists($composerAutoload)) {
     require_once $composerAutoload;
 }
 
+require_once __DIR__ . '/src/http/capability-cache.php';
+
 // Base paths
 define('BASE_PATH', __DIR__);
 define('CONFIG_PATH', BASE_PATH . '/config');
@@ -18,6 +20,33 @@ define('STORAGE_PATH', BASE_PATH . '/storage');
 define('PUBLIC_PATH', BASE_PATH . '/public');
 define('KERNEL_PATH', BASE_PATH . '/kernel');
 define('TEMPLATES_PATH', BASE_PATH . '/templates');
+
+function kernel_ensure_writable_session_path(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $current = session_save_path();
+    $path = $current !== '' ? $current : sys_get_temp_dir();
+    if (is_dir($path) && is_writable($path)) {
+        return;
+    }
+
+    $fallback = STORAGE_PATH . '/sessions';
+    if ((!is_dir($fallback) && !@mkdir($fallback, 0700, true)) || !is_writable($fallback)) {
+        $fallback = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . '/ikabud-sessions';
+        if (!is_dir($fallback)) {
+            @mkdir($fallback, 0700, true);
+        }
+    }
+
+    if (is_dir($fallback) && is_writable($fallback)) {
+        session_save_path($fallback);
+    }
+}
+
+kernel_ensure_writable_session_path();
 
 error_reporting(E_ALL);
 ini_set('display_errors', '0');

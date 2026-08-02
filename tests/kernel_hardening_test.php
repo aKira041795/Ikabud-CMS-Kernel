@@ -360,8 +360,8 @@ t(
 
 heading('Capability Runtime State');
 
-$metricsFile = STORAGE_PATH . '/cache/capability_metrics.json';
-$breakersFile = STORAGE_PATH . '/cache/capability_breakers.json';
+$metricsFile = capability_cache_path('capability_metrics.json');
+$breakersFile = capability_cache_path('capability_breakers.json');
 $metricsBackup = is_file($metricsFile) ? (string)file_get_contents($metricsFile) : null;
 $breakersBackup = is_file($breakersFile) ? (string)file_get_contents($breakersFile) : null;
 

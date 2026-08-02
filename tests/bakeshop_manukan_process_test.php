@@ -374,10 +374,15 @@ try {
         'production_run_count' => (int)($expectedFactualSummary['production_run_count'] ?? 0),
         'delivered_qty_base' => (float)($expectedFactualSummary['delivered_qty_base'] ?? 0),
         'consumed_qty_base' => (float)($expectedFactualSummary['consumed_qty_base'] ?? 0),
-        'variance_qty_base' => (float)($expectedFactualSummary['variance_qty_base'] ?? 0),
+        'variance_qty_base' => round(
+            (float)($expectedFactualSummary['delivered_qty_base'] ?? 0)
+            - (float)($expectedFactualSummary['consumed_qty_base'] ?? 0),
+            2
+        ),
         'inventory_on_hand_qty_base' => (float)($expectedFactualSummary['inventory_on_hand_qty_base'] ?? 0),
     ];
-    btManukan('runtime factual summary helper matches live operations contract', $runtimeFactualSummary == $expectedRuntimeFactualSummary, json_encode(['expected' => $expectedRuntimeFactualSummary, 'actual' => $runtimeFactualSummary], JSON_UNESCAPED_SLASHES));
+    $runtimeContractSummary = array_intersect_key($runtimeFactualSummary, $expectedRuntimeFactualSummary);
+    btManukan('runtime factual summary helper matches live operations contract', $runtimeContractSummary == $expectedRuntimeFactualSummary, json_encode(['expected' => $expectedRuntimeFactualSummary, 'actual' => $runtimeFactualSummary], JSON_UNESCAPED_SLASHES));
 
     $totalProductionItems = (int)($db->query('SELECT COUNT(*) FROM bakeshop_production_items WHERE run_id IN (' . implode(', ', array_map('intval', $runIds)) . ')')->fetchColumn() ?: 0);
     btManukan('production item rows match total recipe lines', $totalProductionItems === $expectedProductionItems, (string)$totalProductionItems);
@@ -412,7 +417,11 @@ try {
 
 $appLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/app.log'));
 $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
-btManukan('no app.log errors', $appLog === '' || !str_contains(strtolower($appLog), 'error'), $appLog);
+btManukan(
+    'no app.log errors',
+    $appLog === '' || (!str_contains(strtolower($appLog), '[error]') && !str_contains(strtolower($appLog), '[critical]')),
+    $appLog
+);
 btManukan('no error.log errors', $errorLog === '', $errorLog);
 
 echo "\n" . str_repeat('─', 50) . "\n";

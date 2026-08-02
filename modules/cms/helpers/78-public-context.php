@@ -170,7 +170,8 @@ function cmsPublicContext(array $extra = []): array
     // context when multiple handlers call cmsPublicContext() in the same request.
     static $cached = null;
     static $cachedExtra = null;
-    if ($cached !== null && $cachedExtra === $extra) {
+    $hasEntityContext = !empty($extra['entity']['id']);
+    if (!$hasEntityContext && $cached !== null && $cachedExtra === $extra) {
         return $cached;
     }
 

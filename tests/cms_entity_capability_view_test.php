@@ -273,7 +273,8 @@ $bus->register(
     'entity.capability.media_gallery.data@1',
     'test_gallery_malformed_exception',
     function (mixed $payload): mixed { throw new \RuntimeException('Simulated provider crash'); },
-    100
+    100,
+    ['test_fault_injection' => true]
 );
 
 cmsEntityAttachCapability($testEntityId, 'lessons_index');
@@ -679,7 +680,16 @@ echo "\n=== LOG CHECK ===\n";
 $appLog  = file_get_contents(STORAGE_PATH . '/logs/app.log') ?: '';
 $errLog  = file_get_contents(STORAGE_PATH . '/logs/error.log') ?: '';
 
-$appErrs = array_filter(explode("\n", $appLog), fn($l) => str_contains($l, '[error]'));
+$appErrs = array_filter(explode("\n", $appLog), static function ($line): bool {
+    $line = (string)$line;
+    if (!str_contains($line, '[error]')) {
+        return false;
+    }
+    if (str_contains($line, 'test_gallery_malformed_exception') && str_contains($line, 'entity.capability.media_gallery.data@1')) {
+        return false;
+    }
+    return true;
+});
 $phpErrs = array_values(array_filter(explode("\n", $errLog), static function ($line): bool {
     $line = trim((string)$line);
     if ($line === '') {

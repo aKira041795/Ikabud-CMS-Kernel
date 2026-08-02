@@ -637,6 +637,21 @@ class ComponentRegistry
                     'required' => false,
                     'description' => 'Custom empty-state message'
                 ],
+                'excerpt-length' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'description' => 'Maximum subtitle/excerpt characters for card-grid rendering'
+                ],
+                'excerpt_length' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'description' => 'Maximum subtitle/excerpt characters for card-grid rendering'
+                ],
+                'excerptLength' => [
+                    'type' => Grammar::TYPE_INTEGER,
+                    'required' => false,
+                    'description' => 'Maximum subtitle/excerpt characters for card-grid rendering'
+                ],
                 'actions' => [
                     'type' => Grammar::TYPE_STRING,
                     'required' => false,

@@ -1796,7 +1796,9 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
     }
 
     // ── Standard CMS entity types: delegate to DiSyL component ──
-    if (str_contains($entityType, '.')) {
+    if ($entityType === 'product') {
+        $source = 'ecommerce_product.recent';
+    } elseif (str_contains($entityType, '.')) {
         $source = $entityType . '.recent';
     } else {
         $source = 'cms.' . $entityType . '.recent';
@@ -1806,6 +1808,24 @@ function cmsRenderWidget_entity_list(array $props, array $style, array $attrs, s
     $attrsStr = '';
     if ($emptyMessage !== '') {
         $attrsStr .= ' empty="' . htmlspecialchars($emptyMessage, ENT_QUOTES, 'UTF-8') . '"';
+    }
+    $gridColumns = (int)($props['gridColumns'] ?? 0);
+    if ($gridColumns > 0 && $view === 'card_grid') {
+        $gridColumns = max(1, min(6, $gridColumns));
+        $attrsStr .= ' style="grid-template-columns: repeat(' . $gridColumns . ', 1fr)"';
+    }
+    $excerptLength = (int)($props['excerptLength'] ?? 0);
+    if (!empty($props['showExcerpt']) && $excerptLength > 0) {
+        $attrsStr .= ' excerptLength="' . max(1, min(500, $excerptLength)) . '"';
+    }
+    $sanitizedSourceType = str_replace('.', '_', strtok($source, '.') ?: $source);
+    $requiredCapability = 'entity.list.' . $sanitizedSourceType . '@1';
+    if (
+        function_exists('loadModuleRoutes')
+        && method_exists(app(), 'capabilities')
+        && !app()->capabilities()->has($requiredCapability)
+    ) {
+        loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
     }
 
     return $engine->renderString(

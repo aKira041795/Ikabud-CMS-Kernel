@@ -32,7 +32,7 @@ function btReset(string $label, bool $ok, string $detail = ''): void
     echo "  ✗ {$label}" . ($detail !== '' ? " — {$detail}" : '') . "\n";
 }
 
-function runBakeshopAuthJsonRequest(string $handlerName, string $requestUri, string $rawBody, string $setupCode = '', string $probeCode = 'return [];'): array
+function runBakeshopAuthJsonRequest(string $handlerName, string $requestUri, string $rawBody, string $setupCode = '', string $probeCode = 'return [];', string $remoteAddr = '127.0.0.1'): array
 {
     $patchedAppPath = sys_get_temp_dir() . '/ikabud-bakeshop-auth-app-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
     $runnerPath = sys_get_temp_dir() . '/ikabud-bakeshop-auth-runner-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
@@ -52,6 +52,8 @@ function runBakeshopAuthJsonRequest(string $handlerName, string $requestUri, str
     $requestUriExport = var_export($requestUri, true);
     $setupCodeExport = var_export($setupCode, true);
     $probeCodeExport = var_export($probeCode, true);
+    $rawBodyExport = var_export($rawBody, true);
+    $remoteAddrExport = var_export($remoteAddr, true);
 
     $runner = <<<PHP
 <?php
@@ -82,12 +84,13 @@ require_once {$handlers};
 
 
 \$_SERVER['HTTP_HOST'] = 'cmsnew.test';
-\$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+\$_SERVER['REMOTE_ADDR'] = {$remoteAddrExport};
 \$_SERVER['REQUEST_METHOD'] = 'POST';
 \$_SERVER['REQUEST_URI'] = {$requestUriExport};
 \$_SERVER['CONTENT_TYPE'] = 'application/json';
 \$_GET = [];
 \$_POST = [];
+\Ikabud\Kernel\Http\Input::setRawInputForTesting({$rawBodyExport});
 
 \$setupCode = {$setupCodeExport};
 if (\$setupCode !== '') {
@@ -192,8 +195,11 @@ $runner->migrate('bakeshop');
 $originalSettings = getModuleSettings('bakeshop');
 $previousUser = app()->user();
 
-$uiTestUsername = 'test-reset-user';
-$apiTestUsername = 'test-reset-api-user';
+$runSuffix = bin2hex(random_bytes(4));
+$uiTestUsername = 'test-reset-user-' . $runSuffix;
+$apiTestUsername = 'test-reset-api-user-' . $runSuffix;
+$uiTestEmail = 'test-reset-user-' . $runSuffix . '@example.test';
+$apiTestEmail = 'test-reset-api-user-' . $runSuffix . '@example.test';
 
 $lookup = $db->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
 $lookup->execute([$uiTestUsername]);
@@ -208,7 +214,7 @@ $created = $db->prepare(
 );
 $created->execute([
     $uiTestUsername,
-    'not-an-email',
+    $uiTestEmail,
     password_hash('startpass123', PASSWORD_DEFAULT),
     'Test Reset User',
     'supervisor',
@@ -257,26 +263,28 @@ try {
     btReset('reset password page uses configured store name', str_contains($resetPageHtml, 'Sunrise Dough'));
 
     $staleForgotToken = bin2hex(random_bytes(32));
-    $forgotSetupCode = <<<'PHP'
+$forgotSetupCode = <<<'PHP'
 $lookup = bakeshopDb()->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
-$lookup->execute(['test-reset-api-user']);
+$lookup->execute([__API_USERNAME__]);
 $existingId = (int)($lookup->fetchColumn() ?: 0);
 if ($existingId > 0) {
     bakeshopDb()->prepare('DELETE FROM bakeshop_password_resets WHERE user_id = ?')->execute([$existingId]);
     bakeshopDb()->prepare('DELETE FROM bakeshop_users WHERE id = ?')->execute([$existingId]);
 }
 $insert = bakeshopDb()->prepare('INSERT INTO bakeshop_users (username, email, phone, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 1, NOW(), NOW())');
-$insert->execute(['test-reset-api-user', 'not-an-email', password_hash('startpass123', PASSWORD_DEFAULT), 'Test Reset API User', 'supervisor']);
-$lookup->execute(['test-reset-api-user']);
+$insert->execute([__API_USERNAME__, __API_EMAIL__, password_hash('startpass123', PASSWORD_DEFAULT), 'Test Reset API User', 'supervisor']);
+$lookup->execute([__API_USERNAME__]);
 $probeUserId = (int)($lookup->fetchColumn() ?: 0);
 $staleInsert = bakeshopDb()->prepare('INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL __TTL_MINUTES__ MINUTE), NOW())');
 $staleInsert->execute([$probeUserId, hash('sha256', __STALE_TOKEN__), '127.0.0.1']);
 PHP;
+    $forgotSetupCode = str_replace('__API_USERNAME__', var_export($apiTestUsername, true), $forgotSetupCode);
+    $forgotSetupCode = str_replace('__API_EMAIL__', var_export($apiTestEmail, true), $forgotSetupCode);
     $forgotSetupCode = str_replace('__TTL_MINUTES__', (string)$passwordResetTtlMinutes, $forgotSetupCode);
     $forgotSetupCode = str_replace('__STALE_TOKEN__', var_export($staleForgotToken, true), $forgotSetupCode);
     $forgotProbeCode = <<<'PHP'
 $lookup = bakeshopDb()->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
-$lookup->execute(['test-reset-api-user']);
+$lookup->execute([__API_USERNAME__]);
 $probeUserId = (int)($lookup->fetchColumn() ?: 0);
 $stmt = bakeshopDb()->prepare('SELECT token_hash, used_at, expires_at, created_at FROM bakeshop_password_resets WHERE user_id = ? ORDER BY id DESC LIMIT 2');
 $stmt->execute([$probeUserId]);
@@ -286,13 +294,15 @@ return [
     'reset_rows' => $rows,
 ];
 PHP;
+    $forgotProbeCode = str_replace('__API_USERNAME__', var_export($apiTestUsername, true), $forgotProbeCode);
 
     $forgotResponse = runBakeshopAuthJsonRequest(
         'bakeshopApiForgotPassword',
         '/api/v1/bakeshop/auth/forgot-password',
         json_encode(['identity' => $apiTestUsername], JSON_UNESCAPED_SLASHES),
         $forgotSetupCode,
-        $forgotProbeCode
+        $forgotProbeCode,
+        '127.0.0.5'
     );
     btReset('forgot password API exits cleanly', ($forgotResponse['exit_code'] ?? 1) === 0, json_encode($forgotResponse, JSON_UNESCAPED_SLASHES));
     btReset('forgot password API returns success', (int)($forgotResponse['status'] ?? 0) === 200 && (($forgotResponse['json']['ok'] ?? false) === true), json_encode($forgotResponse, JSON_UNESCAPED_SLASHES));
@@ -317,12 +327,15 @@ PHP;
             'confirm_password' => 'renewedpass456',
         ], JSON_UNESCAPED_SLASHES),
         '',
-        'return [];'
+        'return [];',
+        '127.0.0.2'
     );
     btReset('stale token is rejected after a newer request', (int)($staleResetResponse['status'] ?? 0) === 422 && (($staleResetResponse['json']['error'] ?? '') === $passwordResetPolicy['invalid_token_message']), json_encode($staleResetResponse, JSON_UNESCAPED_SLASHES));
 
     $resetRawToken = bin2hex(random_bytes(32));
     $resetRawTokenExport = var_export($resetRawToken, true);
+    $apiTestUsernameExport = var_export($apiTestUsername, true);
+    $apiTestEmailExport = var_export($apiTestEmail, true);
     $resetSetupCode = <<<PHP
 
 
@@ -376,21 +389,21 @@ PHP;
 
 
 \$lookup = bakeshopDb()->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
-\$lookup->execute(['test-reset-api-user']);
+\$lookup->execute([{$apiTestUsernameExport}]);
 \$existingId = (int)(\$lookup->fetchColumn() ?: 0);
 if (\$existingId > 0) {
     bakeshopDb()->prepare('DELETE FROM bakeshop_password_resets WHERE user_id = ?')->execute([\$existingId]);
     bakeshopDb()->prepare('DELETE FROM bakeshop_users WHERE id = ?')->execute([\$existingId]);
 }
 \$insert = bakeshopDb()->prepare('INSERT INTO bakeshop_users (username, email, phone, password_hash, full_name, role, is_active, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, 1, NOW(), NOW())');
-\$insert->execute(['test-reset-api-user', 'not-an-email', password_hash('startpass123', PASSWORD_DEFAULT), 'Test Reset API User', 'supervisor']);
+\$insert->execute([{$apiTestUsernameExport}, {$apiTestEmailExport}, password_hash('startpass123', PASSWORD_DEFAULT), 'Test Reset API User', 'supervisor']);
 \$userId = (int)bakeshopDb()->lastInsertId();
 \$resetInsert = bakeshopDb()->prepare('INSERT INTO bakeshop_password_resets (user_id, token_hash, requester_ip, expires_at, created_at) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL {$passwordResetTtlMinutes} MINUTE), NOW())');
 \$resetInsert->execute([\$userId, hash('sha256', {$resetRawTokenExport}), '127.0.0.1']);
 PHP;
     $resetProbeCode = <<<'PHP'
 $lookup = bakeshopDb()->prepare('SELECT id FROM bakeshop_users WHERE username = ? LIMIT 1');
-$lookup->execute(['test-reset-api-user']);
+$lookup->execute([__API_USERNAME__]);
 $probeUserId = (int)($lookup->fetchColumn() ?: 0);
 $userStmt = bakeshopDb()->prepare('SELECT password_hash, COALESCE(token_version, 0) AS token_version FROM bakeshop_users WHERE id = ? LIMIT 1');
 $userStmt->execute([$probeUserId]);
@@ -399,7 +412,7 @@ $usedStmt = bakeshopDb()->prepare('SELECT used_at FROM bakeshop_password_resets 
 $usedStmt->execute([$probeUserId]);
 $usedRow = $usedStmt->fetch(PDO::FETCH_ASSOC);
 $auth = bakeshop_cap_kernel_auth_authenticate_1([
-    'username' => '@bakeshop:test-reset-api-user',
+    'username' => '@bakeshop:' . __API_USERNAME__,
     'password' => 'renewedpass456',
 ]);
 return [
@@ -408,6 +421,7 @@ return [
     'auth' => $auth,
 ];
 PHP;
+    $resetProbeCode = str_replace('__API_USERNAME__', var_export($apiTestUsername, true), $resetProbeCode);
 
     $resetResponse = runBakeshopAuthJsonRequest(
         'bakeshopApiResetPassword',
@@ -419,7 +433,8 @@ PHP;
         ], JSON_UNESCAPED_SLASHES)
         ,
         $resetSetupCode,
-        $resetProbeCode
+        $resetProbeCode,
+        '127.0.0.3'
     );
     btReset('reset password API exits cleanly', ($resetResponse['exit_code'] ?? 1) === 0, json_encode($resetResponse, JSON_UNESCAPED_SLASHES));
     btReset('reset password API returns success', (int)($resetResponse['status'] ?? 0) === 200 && (($resetResponse['json']['ok'] ?? false) === true), json_encode($resetResponse, JSON_UNESCAPED_SLASHES));
@@ -443,7 +458,8 @@ PHP;
             'confirm_password' => 'renewedpass456',
         ], JSON_UNESCAPED_SLASHES),
         '',
-        'return [];'
+        'return [];',
+        '127.0.0.4'
     );
     btReset('reused token is rejected', (int)($reusedResponse['status'] ?? 0) === 422 && (($reusedResponse['json']['error'] ?? '') === $passwordResetPolicy['invalid_token_message']), json_encode($reusedResponse, JSON_UNESCAPED_SLASHES));
 } finally {

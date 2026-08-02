@@ -92,7 +92,19 @@ foreach ($files as $file) {
         1 => ['pipe', 'w'],
         2 => ['pipe', 'w'],
     ];
-    $process = proc_open(['php', $file], $descriptors, $pipes, $root);
+    $env = null;
+    if (in_array($relName, ['pal_reconciliation_test.php', 'pal_service_integration_test.php'], true)
+        && getenv('PAL_TENANT_ID') === false
+    ) {
+        $env = ['PAL_TENANT_ID' => '502'];
+        foreach (array_merge($_ENV, $_SERVER) as $key => $value) {
+            if (is_scalar($value)) {
+                $env[(string)$key] = (string)$value;
+            }
+        }
+    }
+
+    $process = proc_open(['php', $file], $descriptors, $pipes, $root, $env);
 
     if (!is_resource($process)) {
         $ms = (int) round((microtime(true) - $start) * 1000);
@@ -105,6 +117,7 @@ foreach ($files as $file) {
             'output'     => '',
         ];
         $error++;
+        echo "[ERROR] {$relName} ({$ms}ms)\n";
         continue;
     }
 
@@ -119,11 +132,21 @@ foreach ($files as $file) {
     while (true) {
         $now = microtime(true);
         $remaining = max(0, (int)(($deadline - $now) * 1_000_000));
-        $read = [$pipes[1], $pipes[2]];
+        $read = [];
+        foreach ([1, 2] as $pipeIndex) {
+            if (isset($pipes[$pipeIndex]) && is_resource($pipes[$pipeIndex])) {
+                $read[] = $pipes[$pipeIndex];
+            }
+        }
+        if ($read === []) {
+            break;
+        }
         $write = null;
         $except = null;
+        $waitSeconds = intdiv($remaining, 1_000_000);
+        $waitMicroseconds = $remaining % 1_000_000;
 
-        $changed = stream_select($read, $write, $except, 0, $remaining);
+        $changed = stream_select($read, $write, $except, $waitSeconds, $waitMicroseconds);
 
         if ($changed === false) {
             break; // stream_select error
@@ -136,7 +159,7 @@ foreach ($files as $file) {
         }
 
         // Read available data
-        if (in_array($pipes[1], $read, true)) {
+        if (isset($pipes[1]) && in_array($pipes[1], $read, true)) {
             $chunk = @fread($pipes[1], 8192);
             if ($chunk === false || $chunk === '') {
                 // stdout closed
@@ -191,6 +214,7 @@ foreach ($files as $file) {
             'output'     => $output,
         ];
         $fail++;
+        echo "[TIMEOUT] {$relName} ({$ms}ms)\n";
         continue;
     }
 
@@ -222,6 +246,10 @@ foreach ($files as $file) {
         'assertions' => $testAssertions,
         'output'     => $output,
     ];
+    echo "[{$status}] {$relName} ({$ms}ms)\n";
+    if (function_exists('flush')) {
+        flush();
+    }
 }
 
 $totalMs = (int) round((microtime(true) - $totalStart) * 1000);

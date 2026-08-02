@@ -21,6 +21,13 @@
                 <a href="{not_found_primary_href|default:'/'}" class="ark-btn ark-btn--primary">{not_found_primary_label|default:'Go to Home'}</a>
                 <a href="{not_found_secondary_href|default:'/blog'}" class="ark-btn ark-btn--outline">{not_found_secondary_label|default:'Browse Posts'}</a>
             </div>
+            <form class="ark-search-form ark-not-found__search" action="{not_found_search_action|default:'/cms/search'}" method="get" role="search">
+                <label class="ark-form-label" for="not-found-search">Try a Search Instead</label>
+                <div class="ark-form-row">
+                    <input id="not-found-search" class="ark-input" type="search" name="q" placeholder="Search the site">
+                    <button class="ark-btn ark-btn--secondary" type="submit">Search</button>
+                </div>
+            </form>
         </div>
     {/ikb_container}
 {/ikb_section}

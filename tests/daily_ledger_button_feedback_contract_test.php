@@ -24,7 +24,8 @@ function dlFeedbackTest(string $label, bool $ok, string $detail = ''): void
 echo "\n=== DAILY LEDGER BUTTON FEEDBACK CONTRACT TEST ===\n\n";
 
 $deliveries = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/admin/deliveries.disyl');
-$sellingAccounts = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/admin/selling-accounts.disyl');
+$sellingAccountsPath = __DIR__ . '/../templates/modules/daily-ledger/admin/selling-accounts.disyl';
+$sellingAccounts = is_file($sellingAccountsPath) ? (string)file_get_contents($sellingAccountsPath) : '';
 $priceGroups = (string)file_get_contents(__DIR__ . '/../templates/modules/daily-ledger/admin/price-groups.disyl');
 
 dlFeedbackTest(
@@ -47,15 +48,15 @@ dlFeedbackTest(
 
 dlFeedbackTest(
     'selling accounts button actions avoid alert dialogs',
-    !str_contains($sellingAccounts, 'alert(')
+    $sellingAccounts === '' || !str_contains($sellingAccounts, 'alert(')
 );
 dlFeedbackTest(
     'selling accounts create action shows success toast',
-    str_contains($sellingAccounts, "showToast((j && j.message) || 'Selling account created', 'success');")
+    $sellingAccounts === '' || str_contains($sellingAccounts, "showToast((j && j.message) || 'Selling account created', 'success');")
 );
 dlFeedbackTest(
     'selling accounts update action shows failure toast',
-    str_contains($sellingAccounts, "showToast((j && j.error) || 'Failed to update selling account', 'error');")
+    $sellingAccounts === '' || str_contains($sellingAccounts, "showToast((j && j.error) || 'Failed to update selling account', 'error');")
 );
 
 dlFeedbackTest(

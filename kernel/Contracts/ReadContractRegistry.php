@@ -192,6 +192,10 @@ final class ReadContractRegistry
                 $currentColumns = $this->snapshotColumns($db, $tableName);
 
                 if ($currentColumns === null) {
+                    if (empty($contract['columns'])) {
+                        continue;
+                    }
+
                     // Table no longer exists
                     write_log(
                         "Read contract drift: table '{$tableName}' (read by '{$readerId}') no longer exists",

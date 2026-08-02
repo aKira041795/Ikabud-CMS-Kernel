@@ -21,6 +21,8 @@ if (($argv[1] ?? '') === '--child') {
     $payload = is_array($payload) ? $payload : [];
 
     app()->setUser(is_array($payload['user'] ?? null) ? $payload['user'] : []);
+    app()->setActiveModule('cms');
+    \Ikabud\Kernel\Database\KernelPDO::setActiveModule('cms');
     $_GET = [];
     $_POST = [];
     $_REQUEST = [];
@@ -32,6 +34,8 @@ if (($argv[1] ?? '') === '--child') {
         $body = (string)ob_get_clean();
         $status = http_response_code();
         $decoded = json_decode($body, true);
+        app()->clearActiveModule();
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule(null);
         echo json_encode([
             'status' => is_int($status) ? $status : 200,
             'body' => $body,
@@ -319,6 +323,13 @@ $errorLog = trim((string)@file_get_contents(STORAGE_PATH . '/logs/error.log'));
 
 $appLogLines = $appLog === '' ? [] : array_filter(explode("\n", $appLog), static function (string $line): bool {
     $normalized = strtolower($line);
+    if (
+        str_contains($normalized, 'aiss settings for tenant')
+        || str_contains($normalized, '[info] capability.call')
+    ) {
+        return false;
+    }
+
     return str_contains($normalized, '[warning]') || str_contains($normalized, '[error]') || str_contains($normalized, '[critical]');
 });
 

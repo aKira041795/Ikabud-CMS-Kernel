@@ -74,7 +74,35 @@ final class CsrfManager
     private static function ensureSession(): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+            self::ensureWritableSessionPath();
             session_start();
+        }
+    }
+
+    private static function ensureWritableSessionPath(): void
+    {
+        if (function_exists('kernel_ensure_writable_session_path')) {
+            kernel_ensure_writable_session_path();
+            return;
+        }
+
+        $current = session_save_path();
+        $path = $current !== '' ? $current : sys_get_temp_dir();
+
+        if (is_dir($path) && is_writable($path)) {
+            return;
+        }
+
+        $fallback = dirname(__DIR__, 2) . '/storage/sessions';
+        if ((!is_dir($fallback) && !@mkdir($fallback, 0700, true)) || !is_writable($fallback)) {
+            $fallback = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . '/ikabud-sessions';
+            if (!is_dir($fallback)) {
+                @mkdir($fallback, 0700, true);
+            }
+        }
+
+        if (is_dir($fallback) && is_writable($fallback)) {
+            session_save_path($fallback);
         }
     }
 }

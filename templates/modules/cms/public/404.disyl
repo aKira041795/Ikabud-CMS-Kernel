@@ -8,4 +8,13 @@
     not_found_title: not_found_title|default:'Page not found',
     not_found_body: not_found_body|default:'The page you requested could not be found or may have moved.'
 }}
+<section class="kernel-404-link" aria-label="CMS search fallback">
+    <div class="kernel-404-link-label">Search fallback</div>
+    <div class="kernel-404-link-title">Try a Search Instead</div>
+    <div class="kernel-404-link-copy">Search published CMS content if the original page moved.</div>
+    <form action="{not_found_search_action|default:'/cms/search'}" method="get" role="search">
+        <input type="search" name="q" placeholder="Search the site">
+        <button type="submit">Search</button>
+    </form>
+</section>
 {/block}

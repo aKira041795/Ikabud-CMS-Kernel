@@ -70,6 +70,24 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'empty_state' => 'No posts to display.',
     ]);
 
+    $views->registerView('cms.post', 'card_grid', [
+        'fields' => ['title', 'excerpt', 'image', 'author_name', 'published_at'],
+        'actions' => ['view'],
+        'capability' => 'cms.content.list@1',
+        'limit' => 12,
+        'sort' => ['field' => 'published_at', 'direction' => 'desc'],
+        'empty_state' => 'No posts to display.',
+    ]);
+
+    $views->registerView('cms.page', 'default', [
+        'fields' => ['id', 'title', 'slug', 'status', 'updated_at'],
+        'actions' => ['view', 'edit'],
+        'capability' => 'cms.content.list@1',
+        'limit' => 25,
+        'sort' => ['field' => 'updated_at', 'direction' => 'desc'],
+        'empty_state' => 'No pages in this collection.',
+    ]);
+
     $views->registerView('cms_post', 'compact', [
         'fields' => ['title', 'published_at'],
         'actions' => ['view'],

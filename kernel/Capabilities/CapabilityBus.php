@@ -58,17 +58,19 @@ final class CapabilityBus implements CapabilityBusContract
             $operations = $this->breakerOperations;
 
             if ($useApcu) {
-                // APCu: atomic read-modify-write via fetch + store (no flock).
-                $state = $this->loadState('breakers');
-                foreach ($operations as $key => $events) {
-                    foreach ($events as $event) {
-                        $type = (string)($event['type'] ?? '');
-                        if ($type === 'success') {
-                            $this->applyBreakerSuccess($state, (string)$key);
-                        } elseif ($type === 'failure') {
-                            $settings = is_array($event['settings'] ?? null) ? $event['settings'] : [];
-                            $now = (int)($event['now'] ?? time());
-                            $this->applyBreakerFailure($state, (string)$key, $settings, $now);
+                $state = $this->breakerStateCache;
+                if ($state === null) {
+                    $state = $this->loadState('breakers');
+                    foreach ($operations as $key => $events) {
+                        foreach ($events as $event) {
+                            $type = (string)($event['type'] ?? '');
+                            if ($type === 'success') {
+                                $this->applyBreakerSuccess($state, (string)$key);
+                            } elseif ($type === 'failure') {
+                                $settings = is_array($event['settings'] ?? null) ? $event['settings'] : [];
+                                $now = (int)($event['now'] ?? time());
+                                $this->applyBreakerFailure($state, (string)$key, $settings, $now);
+                            }
                         }
                     }
                 }
@@ -145,8 +147,7 @@ final class CapabilityBus implements CapabilityBusContract
             };
 
             if ($useApcu) {
-                $metrics = $this->loadState('metrics');
-                $metrics = $mergeMetrics($metrics);
+                $metrics = $this->metricsStateCache ?? $mergeMetrics($this->loadState('metrics'));
                 $this->metricsStateCache = $metrics;
                 $this->saveState('metrics', $metrics);
             } else {
@@ -693,8 +694,9 @@ final class CapabilityBus implements CapabilityBusContract
     private function resolveCaller(array $options): array
     {
         $ctx = function_exists('capability_call_context') ? capability_call_context() : null;
-        $module = $options['caller_module'] ?? ($ctx['module'] ?? 'kernel');
-        $user = $options['caller_user'] ?? ($ctx['user'] ?? (function_exists('app') ? app()->user() : null));
+        $explicitCaller = is_array($options['caller'] ?? null) ? $options['caller'] : [];
+        $module = $options['caller_module'] ?? ($explicitCaller['module'] ?? ($ctx['module'] ?? 'kernel'));
+        $user = $options['caller_user'] ?? ($explicitCaller['user'] ?? ($ctx['user'] ?? (function_exists('app') ? app()->user() : null)));
         $requestId = $options['request_id'] ?? ($ctx['request_id'] ?? (function_exists('request_id') ? request_id() : null));
 
         return [
@@ -805,12 +807,20 @@ final class CapabilityBus implements CapabilityBusContract
 
     private function metricsFile(): string
     {
+        if (\function_exists('capability_cache_path')) {
+            return \capability_cache_path('capability_metrics.json');
+        }
+
         $storage = app()->config('paths.storage', defined('STORAGE_PATH') ? STORAGE_PATH : __DIR__);
         return rtrim($storage, '/') . '/cache/capability_metrics.json';
     }
 
     private function breakerFile(): string
     {
+        if (\function_exists('capability_cache_path')) {
+            return \capability_cache_path('capability_breakers.json');
+        }
+
         $storage = app()->config('paths.storage', defined('STORAGE_PATH') ? STORAGE_PATH : __DIR__);
         return rtrim($storage, '/') . '/cache/capability_breakers.json';
     }
@@ -862,11 +872,9 @@ final class CapabilityBus implements CapabilityBusContract
     {
         $apcuKey = 'ikabud_capbus_' . $kind;
         if (function_exists('apcu_enabled') && apcu_enabled()) {
-            // APCu is atomic per key — no flock contention.
             apcu_store($apcuKey, $data, 3600);
-            return;
         }
-        // Fallback to file-based storage.
+
         $path = $kind === 'metrics' ? $this->metricsFile() : $this->breakerFile();
         $this->saveJsonFile($path, $data);
     }

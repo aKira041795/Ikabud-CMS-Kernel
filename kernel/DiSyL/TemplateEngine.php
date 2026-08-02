@@ -34,6 +34,9 @@
 
 namespace Ikabud\Kernel\DiSyL;
 
+require_once __DIR__ . '/ExpressionEvaluator.php';
+require_once __DIR__ . '/v4/FunctionRegistry.php';
+
 use Ikabud\Kernel\DiSyL\Bridge\BridgeManager;
 use Ikabud\Kernel\DiSyL\v4\RenderContext;
 
@@ -349,7 +352,7 @@ class TemplateEngine
      * Stale eligibility cache files from older versions are automatically
      * ignored — no manual cache clearing required.
      */
-    private const COMPILED_ELIGIBILITY_CACHE_VERSION = 2;
+    private const COMPILED_ELIGIBILITY_CACHE_VERSION = 4;
 
     /** Maximum output size in bytes (5 MB default — prevents runaway templates) */
     private const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
@@ -433,10 +436,12 @@ class TemplateEngine
                         // Return a silent no-op so the page still renders
                         $c = $this->compiledCache->compileSource('', $tmpl);
                         $c->setTemplateLoader($loader);
+                        $c->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                         return $c;
                     }
                     $c = $this->compiledCache->get($path);
                     $c->setTemplateLoader($loader);
+                    $c->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                     // Provide consistent filter state to loaded includes
                     $registry = new \Ikabud\Kernel\DiSyL\v4\FilterRegistry();
                     foreach ($this->filters as $name => $f) {
@@ -451,6 +456,7 @@ class TemplateEngine
                     $registry->register($name, $f);
                 }
                 $compiled->setTemplateLoader($loader);
+                $compiled->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                 $compiled->setFilters($registry);
                 
                 $ctx_obj = new RenderContext($context);
@@ -463,6 +469,7 @@ class TemplateEngine
                     $parentPath = $this->resolveTemplatePath($parentName);
                     $parentCompiled = $this->compiledCache->get($parentPath);
                     $parentCompiled->setTemplateLoader($loader);
+                    $parentCompiled->setErrorHandler(\Closure::fromCallable([$this, 'logError']));
                     $parentCompiled->setFilters($registry);
                     $result = $parentCompiled->executeRaw($ctx_obj);
                 }
@@ -1468,6 +1475,12 @@ class TemplateEngine
         // Array literal: delegate directly to expression evaluator
         if (trim($expr) !== '' && trim($expr)[0] === '[') {
             $value = $this->evaluator()->resolveValue(trim($expr), $context);
+            return $this->coerceType($value, $varType, '');
+        }
+
+        // A bare identifier is an assignment source, not a boolean condition.
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_.]*$/', trim($expr))) {
+            $value = $this->resolveValue(trim($expr), $context);
             return $this->coerceType($value, $varType, '');
         }
 
@@ -3215,7 +3228,7 @@ class TemplateEngine
         if ($resolved !== null) {
             $childCtx[$let] = $resolved;
         }
-        return $this->compile($info['body'], $childCtx);
+        return $this->compile($info['thenBody'] ?? $info['body'], $childCtx);
     }
 
     /**
@@ -3364,7 +3377,7 @@ class TemplateEngine
         if (array_key_exists('value', $result)) {
             $childCtx = $context;
             $childCtx[$let] = $result['value'];
-            return $this->compile($info['body'], $childCtx);
+            return $this->compile($info['thenBody'] ?? $info['body'], $childCtx);
         }
         // error
         if ($info['catch'] !== null) {
@@ -4516,6 +4529,10 @@ class TemplateEngine
 
     private function readTemplateSource(string $templatePath): string|false
     {
+        if ($templatePath === '' || !is_file($templatePath) || !is_readable($templatePath)) {
+            return false;
+        }
+
         if ($this->cacheEnabled && isset($this->templateSourceCache[$templatePath])) {
             self::$cacheMetrics['source_hits']++;
             return $this->templateSourceCache[$templatePath];
@@ -4627,6 +4644,24 @@ class TemplateEngine
         // or layouts that use them must fall back to the interpreted engine.
         if (str_contains($source, '{macro ') || str_contains($source, '{call ')) {
             return true;
+        }
+
+        // Inheritance safety (cycle detection, depth limits, and nearest-safe-
+        // ancestor block preservation) currently lives in processExtends().
+        // Keep inherited templates on that enforcing path until the compiler
+        // provides the same rejection and diagnostics contract.
+        if (str_contains($source, '{extends ')) {
+            return true;
+        }
+
+        foreach ([
+            '{cache ', '{invalidate ', '{depends_on ', '{experiment ', '{variant ', '{convert ',
+            '{sandbox', '{trusted', '{untrusted', '{parallel', '{await ', '{suspense',
+            '{federated_query ', '{ai_generate ', '{ai_query ', '{ai_complete ',
+        ] as $interpretedOnlyTag) {
+            if (str_contains($source, $interpretedOnlyTag)) {
+                return true;
+            }
         }
 
         if (!preg_match_all('/\{(?:extends|include)\s+"([^"]+)"/', $source, $matches)) {
@@ -5568,10 +5603,10 @@ class TemplateEngine
             'capitalize' => fn($v) => ucfirst((string) $v),
             'title' => fn($v) => ucwords(str_replace('_', ' ', (string) $v)),
             'trim' => fn($v) => trim((string) $v),
-            'truncate' => fn($v, $a, $n) => mb_strlen((string)$v) > (int)(($n['length'] ?? $a[0]) ?? 100) 
-                ? mb_substr((string)$v, 0, (int)(($n['length'] ?? $a[0]) ?? 100)) . '...' 
+            'truncate' => fn($v, $a, $n) => mb_strlen((string)$v) > (int)($n['length'] ?? ($a[0] ?? 100))
+                ? mb_substr((string)$v, 0, (int)($n['length'] ?? ($a[0] ?? 100))) . '...'
                 : (string)$v,
-            'nl2br' => fn($v) => nl2br((string) $v),
+            'nl2br' => fn($v) => nl2br(htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8')),
             'json' => fn($v) => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
             // json_attr: JSON-encode then HTML-escape for safe embedding in double-quoted HTML attributes.
             // Use {myArray | json_attr} in x-data="{raw: {myArray | json_attr}}" and similar Alpine/x-* attrs.
@@ -5581,7 +5616,7 @@ class TemplateEngine
                 ENT_QUOTES,
                 'UTF-8'
             ),
-            'date' => fn($v, $a, $n) => $v ? date(($n['format'] ?? $a[0]) ?? 'Y-m-d', is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
+            'date' => fn($v, $a, $n) => $v ? date($n['format'] ?? ($a[0] ?? 'Y-m-d'), is_numeric($v) ? (int)$v : strtotime((string)$v)) : '',
             'default' => fn($v, $a) => ($v !== null && $v !== '') ? $v : ($a[0] ?? ''),
             'count' => fn($v) => is_countable($v) ? count($v) : 0,
             'join' => fn($v, $a) => is_array($v) ? implode($a[0] ?? ', ', $v) : $v,
@@ -7785,6 +7820,22 @@ class TemplateEngine
 
         $rows = $resolved['rows'] ?? [];
         $attrs['_children'] = $children;
+        $excerptLength = (int)($attrs['excerptLength'] ?? $attrs['excerpt_length'] ?? $attrs['excerpt-length'] ?? 0);
+        $subtitleField = is_array($resolved['view']['role_fields'] ?? null)
+            ? (string)($resolved['view']['role_fields']['subtitle'] ?? '')
+            : '';
+        if ($excerptLength > 0 && $subtitleField !== '') {
+            foreach ($rows as &$row) {
+                if (!is_array($row) || !isset($row[$subtitleField])) {
+                    continue;
+                }
+                $value = (string)$row[$subtitleField];
+                $row[$subtitleField] = mb_strlen($value) > $excerptLength
+                    ? mb_substr($value, 0, max(0, $excerptLength - 3)) . '...'
+                    : $value;
+            }
+            unset($row);
+        }
 
         // Validate requested fields against the view contract
         if (isset($attrs['fields']) && is_string($attrs['fields']) && $attrs['fields'] !== '') {

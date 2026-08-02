@@ -80,7 +80,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
     private function doRenderList(array $rows, array $view, array $attrs, array $context = []): string
     {
-        $this->renderContext = $context;
+        $this->renderContext = array_merge($attrs, $context, ['_view' => $view]);
         $this->beforeRenderList($attrs, $context);
 
         $use = (string)($attrs['use'] ?? 'tailwind');
@@ -235,7 +235,8 @@ final class DefaultEntityRenderer implements EntityRendererInterface
                 . ($paginated ? $this->renderPagination($total, $queryState) : '')
                 . '</div>';
         } else {
-            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . '>'
+            $styleAttr = isset($attrs['style']) ? ' style="' . htmlspecialchars((string)$attrs['style'], ENT_QUOTES, 'UTF-8') . '"' : '';
+            $out = '<div class="' . $wrapperClass . ' ' . $entityClass . ' ' . $class . '" ' . $entityDataAttr . ' ' . $wbComponentAttr . ' ' . $wbEntityAttr . ' ' . $sourceDataAttr . ' ' . $viewDataAttr . $listDataAttr . $styleAttr . '>'
                 . $searchHtml . $out . '</div>';
         }
 
@@ -461,7 +462,13 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $titleField = $ctx->fields[0] ?? 'id';
         $subField = $ctx->fields[1] ?? null;
         $title = htmlspecialchars((string)($ctx->row[$titleField] ?? $titleField), ENT_QUOTES, 'UTF-8');
-        $sub = $subField ? htmlspecialchars((string)($ctx->row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+        $subRaw = $subField ? (string)($ctx->row[$subField] ?? '') : '';
+        $viewContract = is_array($this->renderContext['_view'] ?? null) ? $this->renderContext['_view'] : [];
+        $excerptLength = (int)($this->renderContext['excerpt-length'] ?? $this->renderContext['excerpt_length'] ?? $viewContract['excerpt_length'] ?? 0);
+        if ($excerptLength > 0 && $subRaw !== '') {
+            $subRaw = mb_strlen($subRaw) > $excerptLength ? mb_substr($subRaw, 0, max(0, $excerptLength - 1)) . '...' : $subRaw;
+        }
+        $sub = htmlspecialchars($subRaw, ENT_QUOTES, 'UTF-8');
 
         $actionHtml = $this->renderRowActions($ctx);
         $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
@@ -490,7 +497,13 @@ final class DefaultEntityRenderer implements EntityRendererInterface
         $subField = $ctx->roleFields['subtitle'] ?? ($ctx->fields[1] ?? null);
         $imageField = $ctx->roleFields['image'] ?? (in_array('image', $ctx->fields, true) ? 'image' : (in_array('thumbnail', $ctx->fields, true) ? 'thumbnail' : null));
         $title = htmlspecialchars((string)($ctx->row[$titleField] ?? ''), ENT_QUOTES, 'UTF-8');
-        $sub = $subField ? htmlspecialchars((string)($ctx->row[$subField] ?? ''), ENT_QUOTES, 'UTF-8') : '';
+        $subRaw = $subField ? (string)($ctx->row[$subField] ?? '') : '';
+        $viewContract = is_array($this->renderContext['_view'] ?? null) ? $this->renderContext['_view'] : [];
+        $excerptLength = (int)($this->renderContext['excerptLength'] ?? $this->renderContext['excerpt-length'] ?? $this->renderContext['excerpt_length'] ?? $viewContract['excerpt_length'] ?? 0);
+        if ($excerptLength > 0 && $subRaw !== '') {
+            $subRaw = mb_strlen($subRaw) > $excerptLength ? mb_substr($subRaw, 0, max(0, $excerptLength - 1)) . '...' : $subRaw;
+        }
+        $sub = htmlspecialchars($subRaw, ENT_QUOTES, 'UTF-8');
 
         $imageHtml = '';
         if ($imageField && !empty($ctx->row[$imageField])) {
@@ -500,6 +513,19 @@ final class DefaultEntityRenderer implements EntityRendererInterface
 
         $actionHtml = $this->renderRowActions($ctx);
         $subHtml = $sub !== '' ? "<p class=\"{$subClass}\">{$sub}</p>" : '';
+        $detailHtml = '';
+        foreach ($ctx->fields as $field) {
+            if ($field === $titleField || $field === $subField || $field === $imageField || $field === 'id') {
+                continue;
+            }
+            if (!array_key_exists($field, $ctx->row)) {
+                continue;
+            }
+            $renderer = $ctx->renderers[$field] ?? null;
+            $detailHtml .= '<div class="mt-2 text-sm text-gray-700 ikb-card-field ikb-card-field--' . htmlspecialchars((string)$field, ENT_QUOTES, 'UTF-8') . '">'
+                . $this->renderCell($ctx->row[$field], is_string($renderer) ? $renderer : null, (string)$field, $ctx->row, 'card_grid')
+                . '</div>';
+        }
         $clickAttrs = $this->renderRowClickAttrs($ctx->row, $ctx->rowClick, $ctx->rowClickTarget);
 
         return <<<HTML
@@ -508,6 +534,7 @@ final class DefaultEntityRenderer implements EntityRendererInterface
             <div class="p-4">
                 <h3 class="{$titleClass}">{$title}</h3>
                 {$subHtml}
+                {$detailHtml}
                 <div class="mt-3 flex gap-2">{$actionHtml}</div>
             </div>
         </div>

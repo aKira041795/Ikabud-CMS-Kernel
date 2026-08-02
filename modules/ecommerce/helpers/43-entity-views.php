@@ -21,6 +21,16 @@ if (\function_exists('app') && ($app = \app()) !== null && method_exists($app, '
         'sortable_fields' => ['name' => 'name', 'price' => 'price', 'created_at' => 'created_at'],
     ], $moduleId);
 
+    $views->registerView('ecommerce_product', 'card_grid', [
+        'fields' => ['name', 'excerpt', 'price', 'stock_status', 'id'],
+        'role_fields' => ['title' => 'name', 'subtitle' => 'excerpt'],
+        'excerpt_length' => 18,
+        'actions' => ['view', 'add_to_cart'],
+        'limit' => 12,
+        'empty_state' => 'No products found.',
+        'sortable_fields' => ['name' => 'name', 'price' => 'price', 'created_at' => 'created_at'],
+    ], $moduleId);
+
     $views->registerView('ecommerce_order', 'compact', [
         'fields' => ['id', 'order_number', 'status', 'total', 'created_at'],
         'actions' => ['view'],

@@ -24,7 +24,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
-    <style>
+    {if !theme_style_url}<style>
         :root {
             --color-primary: #6366f1; --color-primary-dark: #4f46e5; --color-primary-light: #eef2ff;
             --color-surface: #fff; --color-surface-muted: #f8fafc;
@@ -39,7 +39,7 @@
             --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
             --spacing-sm: 0.75rem; --spacing-md: 1.25rem; --spacing-lg: 2rem; --spacing-xl: 3rem;
         }
-    </style>
+    </style>{/if}
     {# ARK CSS served via theme_style_url above (cmsThemeAssetUrl resolves to public/assets/cms/themes/ark/style.css) #}
 </head>
 <body>
@@ -49,6 +49,9 @@
 
     {# ── Governed theme slots (Phase 1) ── #}
     {ikb_slot name="site.before" /}
+    {ikb_region name="header"}{/ikb_region}
+    {ikb_region name="sidebar"}{/ikb_region}
+    {ikb_region name="footer"}{/ikb_region}
 
     {block header}
     {# ARK is self-contained — always renders its own header #}
@@ -69,9 +72,13 @@
         </div>
     </div>
     {/if}
+    {ikb_slot name="header.before" /}
+    {ikb_region name="header"}
+    {ikb_slot name="header.main" /}
     <header class="ark-header" role="banner">
         <div class="ark-header__inner">
             <a href="{base_url}/" class="ark-header__brand">{site_title|default:'ARK Theme'}</a>
+            <button type="button" class="ark-header__mobile-toggle" aria-label="Toggle navigation" aria-expanded="false">Menu</button>
             <nav class="ark-header__nav" aria-label="Main navigation">
                 {if primary_menu}{primary_menu|raw}{/if}
                 {if cart_enabled}
@@ -82,6 +89,8 @@
             </nav>
         </div>
     </header>
+    {/ikb_region}
+    {ikb_slot name="header.after" /}
     {/block}
 
     {ikb_slot name="hero" /}
@@ -90,20 +99,25 @@
     <div class="ark-content-area">
         <main id="main-content" class="ark-main" tabindex="-1">
             {ikb_slot name="content.before" /}
+            {ikb_slot name="content" /}
             {block content}
                 {if body}{body|raw}{/if}
             {/block}
             {ikb_slot name="content.after" /}
         </main>
         <aside class="ark-sidebar-region" aria-label="Sidebar">
+            {ikb_region name="sidebar"}
             {ikb_slot name="sidebar.primary" /}
             {ikb_slot name="sidebar.secondary" /}
+            {/ikb_region}
         </aside>
     </div>
 
     {# ARK is self-contained — always renders its own footer, no customizer override #}
     <footer class="ark-footer" role="contentinfo">
         {ikb_slot name="footer.before" /}
+        {ikb_region name="footer"}
+        {ikb_slot name="footer.main" /}
         <div class="ark-footer__inner">
             <div class="ark-footer__col">
                 <h4 class="ark-footer__heading">{site_title|default:'ARK Theme'}</h4>
@@ -128,6 +142,7 @@
         <div class="ark-footer__bottom">
             Built on Ikabud Kernel OS 6.1 + DiSyL 4.7
         </div>
+        {/ikb_region}
         {ikb_slot name="footer.after" /}
     </footer>
 

@@ -863,16 +863,45 @@ function ec_capability_handlers_entity(): array
 
 function ec_cap_entity_list_product_1(mixed $payload, string $capabilityId = '', string $providerId = ''): array
 {
+    if (\function_exists('moduleCurrentId') && \function_exists('moduleWithContext') && moduleCurrentId() !== 'ecommerce') {
+        return moduleWithContext('ecommerce', static fn (): array => ec_cap_entity_list_product_1($payload, $capabilityId, $providerId));
+    }
+
     $limit = min((int)($payload['limit'] ?? 20), 100);
     $qualifier = (string)($payload['qualifier'] ?? '');
-    $filter = "c.type = 'product'";
-    if ($qualifier === 'featured') { $filter .= ' AND (SELECT 1 FROM cms_content_meta WHERE content_id = c.id AND meta_key = \'_is_featured\' AND meta_value = \'1\' LIMIT 1) IS NOT NULL'; }
     try {
-        $db = cmsDb();
-        $stmt = $db->query("SELECT c.id, c.title AS name, (SELECT meta_value FROM cms_content_meta WHERE content_id = c.id AND meta_key = '_price' LIMIT 1) AS price, (SELECT meta_value FROM cms_content_meta WHERE content_id = c.id AND meta_key = '_stock_status' LIMIT 1) AS stock_status, c.created_at, (SELECT m.file_path FROM cms_content_media cm JOIN cms_media m ON m.id = cm.media_id WHERE cm.content_id = c.id AND cm.is_featured = 1 LIMIT 1) AS image FROM cms_content c WHERE {$filter} AND c.status = 'published' AND c.deleted_at IS NULL ORDER BY c.created_at DESC LIMIT {$limit}");
-        $rows = $stmt ? $stmt->fetchAll(\PDO::FETCH_ASSOC) : [];
-        $countStmt = $db->query("SELECT COUNT(*) FROM cms_content c WHERE {$filter} AND c.status = 'published' AND c.deleted_at IS NULL");
-        $total = $countStmt ? (int)$countStmt->fetchColumn() : count($rows);
+        $result = ecProductList([
+            'status' => 'published',
+            'limit' => $limit,
+            'order_by' => 'created_at',
+            'order' => 'desc',
+            'featured' => $qualifier === 'featured',
+        ]);
+        $items = is_array($result['items'] ?? null) ? $result['items'] : [];
+        $rows = array_map(static function (array $row): array {
+            $pricing = is_array($row['pricing'] ?? null) ? $row['pricing'] : [];
+            $inventory = is_array($row['inventory'] ?? null) ? $row['inventory'] : [];
+            $badge = $inventory['badge'] ?? '';
+            if (is_array($badge)) {
+                $badge = $badge['label'] ?? '';
+            }
+            if (array_key_exists('in_stock', $inventory)) {
+                $badge = !empty($inventory['in_stock'])
+                    ? (!empty($inventory['low_stock']) ? 'Low stock' : 'In stock')
+                    : 'Out of stock';
+            } elseif ((string)$badge === '') {
+                $badge = 'Out of stock';
+            }
+            return [
+                'id' => (int)($row['id'] ?? 0),
+                'name' => (string)($row['title'] ?? $row['name'] ?? ''),
+                'excerpt' => (string)($row['excerpt'] ?? ''),
+                'price' => (string)($pricing['formatted'] ?? ''),
+                'stock_status' => (string)$badge,
+                'created_at' => (string)($row['created_at'] ?? ''),
+            ];
+        }, $items);
+        $total = (int)($result['total'] ?? count($rows));
         return ['rows' => $rows, 'total' => $total];
     } catch (\Throwable $e) {
         if (\function_exists('write_log')) { \write_log('entity.list.ecommerce_product: ' . $e->getMessage(), 'warning'); }

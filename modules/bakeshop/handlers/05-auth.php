@@ -266,8 +266,6 @@ function bakeshopApiResetPassword(array $params = []): void
         return;
     }
 
-    bakeshopResetPasswordRateLimitRecord($requestIp);
-
     try {
         $tokenHash = bakeshopPasswordResetTokenHash($token);
         $stmt = bakeshopDb()->prepare(
@@ -284,6 +282,7 @@ function bakeshopApiResetPassword(array $params = []): void
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!is_array($row)) {
+            bakeshopResetPasswordRateLimitRecord($requestIp);
             bakeshopJsonError((string)$policy['invalid_token_message']);
             return;
         }
@@ -315,6 +314,7 @@ function bakeshopApiResetPassword(array $params = []): void
             'redirect' => '/bakeshop/login',
         ]);
     } catch (Throwable $e) {
+        bakeshopResetPasswordRateLimitRecord($requestIp);
         write_log('bakeshop reset-password failed: ' . $e->getMessage(), 'error');
         bakeshopJsonError('Unable to reset password right now.', 500);
     }

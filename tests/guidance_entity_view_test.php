@@ -71,9 +71,8 @@ $tableContract = $resolver->viewContract('guidance_case', 'table');
 vt('table contract registered', is_array($tableContract));
 
 $tableFields = $tableContract['fields'] ?? [];
-vt('table has 8 fields', count($tableFields) === 8, 'got: ' . count($tableFields) . ' — ' . implode(', ', $tableFields));
-
 $expectedTableFields = ['student_name', 'case_number', 'status', 'severity', 'category', 'college_code', 'counselor_name', 'updated_at'];
+vt('table has 8 display fields plus hidden id', count(array_intersect($expectedTableFields, $tableFields)) === 8 && in_array('id', $tableFields, true), 'got: ' . count($tableFields) . ' — ' . implode(', ', $tableFields));
 foreach ($expectedTableFields as $field) {
     vt("table field '{$field}' present", in_array($field, $tableFields, true));
 }
@@ -91,9 +90,8 @@ $compactContract = $resolver->viewContract('guidance_case', 'compact');
 vt('compact contract registered', is_array($compactContract));
 
 $compactFields = $compactContract['fields'] ?? [];
-vt('compact has 4 fields', count($compactFields) === 4, 'got: ' . count($compactFields) . ' — ' . implode(', ', $compactFields));
-
 $expectedCompactFields = ['student_name', 'status', 'counselor_name', 'updated_at'];
+vt('compact has 4 display fields plus hidden id', count(array_intersect($expectedCompactFields, $compactFields)) === 4 && in_array('id', $compactFields, true), 'got: ' . count($compactFields) . ' — ' . implode(', ', $compactFields));
 foreach ($expectedCompactFields as $field) {
     vt("compact field '{$field}' present", in_array($field, $compactFields, true));
 }
