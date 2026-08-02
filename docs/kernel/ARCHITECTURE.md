@@ -57,7 +57,7 @@ ikabud/
 │   ├── Database/              # QueryBuilder, KernelPDO, ConnectionPool, MigrationRunner
 │   ├── DiSyL/                 # TemplateEngine, Compiler, Component, Hydration, Reactive, AI, Async, Federation, Security, Types, i18n
 │   ├── EntityAuthority/       # EntityAuthorityRegistry, SyncContractRegistry
-│   ├── EntityContext/         # ContextRegistry, EntityViewResolver, ContextProfile, DefaultEntityRenderer, CellRendererRegistry, EntitySourceRegistry
+│   ├── EntityContext/         # ContextRegistry, EntityViewResolver, ContextProfile, DefaultEntityRenderer, CellRendererRegistry
 │   ├── Http/                  # TenantEntryRouter, SecurityHeaders
 │   └── Services/              # KernelExport, ReportManager, DatabaseManager, TenantProvisioner, OpenApiGenerator, LocaleResolver, ApiKeyAuth, SlotRegistry, ThemeCustomizerOrchestrator
 ├── modules/                   # Feature modules (manifest-driven)
@@ -115,7 +115,7 @@ The `App` class is the kernel's central service container — a lazy-loading sin
 | **Request** | `input(?string $key)`, `sanitizeInput()`, `isHtmx()`, `isHtmxBoosted()`, `htmx()` |
 | **Response** | `json()`, `html()`, `redirect()`, `htmxResponse()`, `csrfToken()`, `csrfField()`, `csrfEnforce()`, `csrfRotate()` |
 | **Rendering** | `render(string $template, array $context)`, `templates()`, `buildRenderBaseContext()`, `finalizeRenderContext()` |
-| **Entity** | `entityContexts()` (ContextRegistry), `entityAuthority()` (EntityAuthority), `entityViews()` (EntityViewResolver), `syncContracts()`, `entitySources()` (EntitySourceRegistry), `entityRenderers()` (EntityRendererInterface), `entityCellRenderers()` (CellRendererRegistryInterface) |
+| **Entity** | `entityContexts()` (ContextRegistry), `entityAuthority()` (EntityAuthority), `entityViews()` (the operational EntityViewResolver registry), `syncContracts()`, `entityRenderers()` (EntityRendererInterface), `entityCellRenderers()` (CellRendererRegistryInterface) |
 | **Slots** | `slotRegistry()` (SlotRegistry) |
 | **Config** | `config(string $key, $default)`, `platformIdentity()`, `glossary()`, `tenant()`, `jwt()`, `cache()` |
 | **Logging** | `log(string $message, string $level, array $context)` |

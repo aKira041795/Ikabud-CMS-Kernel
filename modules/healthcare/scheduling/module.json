@@ -143,8 +143,8 @@
     ],
     "routes": true,
     "events": [
-        "ehr.appointment.scheduled",
-        "ehr.appointment.updated",
-        "ehr.appointment.handoff"
+        {"key": "ehr.appointment.scheduled"},
+        {"key": "ehr.appointment.updated"},
+        {"key": "ehr.appointment.handoff"}
     ]
 }

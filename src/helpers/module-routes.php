@@ -241,15 +241,15 @@ function loadModuleRoutes(array $routes): array
                             continue;
                         }
                         write_log(
-                            "Module '{$moduleId}' is service-module but ServiceProxy could not be built",
+                            "[cert_blocker] Module '{$moduleId}' is service-module but ServiceProxy could not be built",
                             'warning',
-                            ['module' => $moduleId, 'capability' => $capId]
+                            ['severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value, 'module' => $moduleId, 'capability' => $capId, 'correction' => 'Declare a valid service endpoint and transport configuration.']
                         );
                     } else {
                         write_log(
-                            "Module '{$moduleId}' declares capability '{$capId}' but no handler callable was found",
+                            "[cert_blocker] Module '{$moduleId}' declares capability '{$capId}' but no handler callable was found",
                             'warning',
-                            ['module' => $moduleId, 'capability' => $capId]
+                            ['severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value, 'module' => $moduleId, 'capability' => $capId, 'correction' => "Export the callable from {$handlersExportFn}() in helpers.php or remove the declaration."]
                         );
                     }
                 }
@@ -418,7 +418,39 @@ function loadModuleRoutes(array $routes): array
             }
         }
 
-        $routesFile = $module['_path'] . '/routes.php';
+        $moduleId = $module['id'] ?? 'unknown';
+
+        // Event declarations are validated before route handling so route-less
+        // modules cannot bypass fatal manifest synchronization rules. Failure
+        // is fatal for the declaring module only: its routes are not loaded.
+        if (function_exists('kernelRegisterModuleEvents')) {
+            $declaredEvents = $module['events'] ?? [];
+            try {
+                kernelRegisterModuleEvents((string)$moduleId, is_array($declaredEvents) ? $declaredEvents : []);
+            } catch (RuntimeException $eventError) {
+                write_log($eventError->getMessage(), 'error', [
+                    'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal->value,
+                    'module' => (string)$moduleId,
+                ]);
+                if (function_exists('recordSkippedModule')) {
+                    recordSkippedModule((string)$moduleId, 'malformed_event_declarations', [
+                        'error' => $eventError->getMessage(),
+                    ]);
+                }
+                continue;
+            }
+        }
+
+        // Schema v1 is authoritative for route-file selection. Absent remains
+        // legacy-compatible with routes.php; false/[] explicitly disable routes.
+        $routesDeclaration = $module['routes'] ?? true;
+        if ($routesDeclaration === false || (is_array($routesDeclaration) && $routesDeclaration === [])) {
+            continue;
+        }
+        $routesRelativePath = is_string($routesDeclaration)
+            ? ltrim($routesDeclaration, '/')
+            : 'routes.php';
+        $routesFile = rtrim((string)$module['_path'], '/') . '/' . $routesRelativePath;
         if (!is_file($routesFile)) {
             continue;
         }
@@ -426,16 +458,6 @@ function loadModuleRoutes(array $routes): array
         $moduleRoutes = require $routesFile;
         if (!is_array($moduleRoutes)) {
             continue;
-        }
-
-        $moduleId = $module['id'] ?? 'unknown';
-
-        // Sync module-declared events[] into the kernel event registry (additive, non-fatal).
-        if (function_exists('kernelRegisterModuleEvents')) {
-            $declaredEvents = $module['events'] ?? null;
-            if (is_array($declaredEvents)) {
-                kernelRegisterModuleEvents((string)$moduleId, $declaredEvents);
-            }
         }
 
         foreach (['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as $method) {
@@ -465,6 +487,7 @@ function loadModuleRoutes(array $routes): array
                     }
 
                     $context = [
+                        'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value,
                         'module' => $moduleId,
                         'method' => $method,
                         'pattern' => $pattern,
@@ -475,7 +498,7 @@ function loadModuleRoutes(array $routes): array
 
                     if ($ambiguityMode === 'block') {
                         write_log(
-                            "Route ambiguity blocked: module '{$moduleId}' {$method} {$pattern} conflicts with '{$owner}' route {$existingPattern}",
+                            "[cert_blocker] Route ambiguity blocked: module '{$moduleId}' {$method} {$pattern} conflicts with '{$owner}' route {$existingPattern}",
                             'warning',
                             $context
                         );
@@ -484,7 +507,7 @@ function loadModuleRoutes(array $routes): array
                     }
 
                     write_log(
-                        "Route ambiguity warning: module '{$moduleId}' registered {$method} {$pattern} which may conflict with '{$owner}' route {$existingPattern}",
+                        "[cert_blocker] Route ambiguity warning: module '{$moduleId}' registered {$method} {$pattern} which may conflict with '{$owner}' route {$existingPattern}",
                         'warning',
                         $context
                     );

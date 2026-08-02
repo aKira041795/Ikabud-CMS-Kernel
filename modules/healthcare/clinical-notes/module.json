@@ -97,10 +97,10 @@
     ],
     "routes": true,
     "events": [
-        "ehr.note.created",
-        "ehr.note.viewed",
-        "ehr.note.access_denied",
-        "ehr.note.signed",
-        "ehr.note.amended"
+        {"key": "ehr.note.created"},
+        {"key": "ehr.note.viewed"},
+        {"key": "ehr.note.access_denied"},
+        {"key": "ehr.note.signed"},
+        {"key": "ehr.note.amended"}
     ]
 }

@@ -70,7 +70,7 @@ bt('entity.list.pal_audit_log@1 declared', in_array('entity.list.pal_audit_log@1
 bt('at least 30 exposes declared', count($exposes) >= 30);
 
 echo "\n── Events ──\n";
-$events = $manifest['events'] ?? [];
+$events = array_column($manifest['events'] ?? [], 'key');
 bt('pal.project.created declared', in_array('pal.project.created', $events, true));
 bt('pal.expense.approved declared', in_array('pal.expense.approved', $events, true));
 bt('pal.inventory.stocked_in declared', in_array('pal.inventory.stocked_in', $events, true));

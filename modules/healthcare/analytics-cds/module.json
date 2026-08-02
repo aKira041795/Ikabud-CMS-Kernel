@@ -125,8 +125,8 @@
     ],
     "routes": true,
     "events": [
-        "ehr.cds.rule.added",
-        "ehr.cds.alert.fired",
-        "ehr.cds.alert.acknowledged"
+        {"key": "ehr.cds.rule.added"},
+        {"key": "ehr.cds.alert.fired"},
+        {"key": "ehr.cds.alert.acknowledged"}
     ]
 }

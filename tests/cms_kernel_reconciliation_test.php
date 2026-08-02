@@ -6,6 +6,25 @@ require_once __DIR__ . '/../src/helpers/module-manager.php';
 require_once __DIR__ . '/../modules/cms/helpers.php';
 require_once __DIR__ . '/../modules/cms/handlers.php';
 
+function removeReconciliationModuleFixture(string $path): void
+{
+    if (!is_dir($path)) {
+        return;
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $entry) {
+        if ($entry->isLink() || $entry->isFile()) {
+            @unlink($entry->getPathname());
+        } else {
+            @rmdir($entry->getPathname());
+        }
+    }
+    @rmdir($path);
+}
+
 function runReconciliationTest()
 {
     echo "\n=== CMS/Kernel Reconciliation Test ===\n";
@@ -19,15 +38,27 @@ function runReconciliationTest()
     $db->exec("CREATE TABLE IF NOT EXISTS test_module_a (id INT)");
     $db->exec("CREATE TABLE IF NOT EXISTS test_module_b (id INT)");
 
-    $modAPath = modulesPath() . '/test_module_a';
-    $modBPath = modulesPath() . '/test_module_b';
+    $modAPath = modulesPath() . '/test-module-a';
+    $modBPath = modulesPath() . '/test-module-b';
+    register_shutdown_function('removeReconciliationModuleFixture', $modAPath);
+    register_shutdown_function('removeReconciliationModuleFixture', $modBPath);
     if (!is_dir($modAPath)) mkdir($modAPath, 0777, true);
     if (!is_dir($modBPath)) mkdir($modBPath, 0777, true);
 
-    file_put_contents($modAPath . '/module.json', json_encode(['owns_tables' => ['test_module_a']]));
-    file_put_contents($modBPath . '/module.json', json_encode(['owns_tables' => ['test_module_b']]));
+    file_put_contents($modAPath . '/module.json', json_encode([
+        'id' => 'test-module-a',
+        'name' => 'Test Module A',
+        'version' => '1.0.0',
+        'owns_tables' => ['test_module_a'],
+    ], JSON_PRETTY_PRINT));
+    file_put_contents($modBPath . '/module.json', json_encode([
+        'id' => 'test-module-b',
+        'name' => 'Test Module B',
+        'version' => '1.0.0',
+        'owns_tables' => ['test_module_b'],
+    ], JSON_PRETTY_PRINT));
 
-    $res = uninstallModule('test_module_a', ['purge' => true]);
+    $res = uninstallModule('test-module-a', ['purge' => true]);
     
     $tables = $db->query("SHOW TABLES LIKE 'test_module_%'")->fetchAll(PDO::FETCH_COLUMN);
     if (in_array('test_module_a', $tables)) {
@@ -38,8 +69,8 @@ function runReconciliationTest()
     }
     
     $db->exec("DROP TABLE IF EXISTS test_module_b");
-    exec("rm -rf " . escapeshellarg($modAPath));
-    exec("rm -rf " . escapeshellarg($modBPath));
+    removeReconciliationModuleFixture($modAPath);
+    removeReconciliationModuleFixture($modBPath);
 
     echo "  ✓ module uninstall purge relies strictly on manifest instead of wildcards\n";
 

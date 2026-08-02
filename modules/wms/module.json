@@ -149,20 +149,18 @@
             "kernel.auth.user@1"
         ]
     },
-    "events": {
-        "emits": [
-            "wms.stock.low",
-            "wms.stock.movement.created",
-            "wms.order.picked",
-            "wms.order.dispatched",
-            "wms.order.delivered",
-            "wms.order.payment_collected",
-            "wms.production.completed",
-            "wms.delivery.received",
-            "wms.cycle_count.completed",
-            "wms.return.restocked"
-        ]
-    },
+    "events": [
+        {"key": "wms.stock.low"},
+        {"key": "wms.stock.movement.created"},
+        {"key": "wms.order.picked"},
+        {"key": "wms.order.dispatched"},
+        {"key": "wms.order.delivered"},
+        {"key": "wms.order.payment_collected"},
+        {"key": "wms.production.completed"},
+        {"key": "wms.delivery.received"},
+        {"key": "wms.cycle_count.completed"},
+        {"key": "wms.return.restocked"}
+    ],
     "settings_fields": [
         {
             "key": "warehouse_name",

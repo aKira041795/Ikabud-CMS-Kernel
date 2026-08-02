@@ -259,8 +259,6 @@ exit($errorCount > 0 ? 1 : 0);
  */
 function resolveTemplatePathForLint(string $path, string $projectRoot, string $fromDir = ''): ?string
 {
-    $projectRoot = __DIR__;
-
     // 0. Resolve relative to the file being linted (e.g., blocks/pricing/... relative to theme/public/)
     if ($fromDir !== '') {
         $relative = $fromDir . '/' . ltrim($path, '/');
@@ -301,6 +299,27 @@ function resolveTemplatePathForLint(string $path, string $projectRoot, string $f
         }
         if (is_file($moduleTemplate . '.disyl')) {
             return $moduleTemplate . '.disyl';
+        }
+
+        // Established modules may retain a legacy physical folder while their
+        // canonical manifest id is kebab-case. Resolve the logical id through
+        // the same manifest inventory used by runtime validation.
+        if (function_exists('moduleManifestFilesV1')) {
+            foreach (moduleManifestFilesV1($projectRoot . '/modules') as $manifestPath) {
+                $validation = validateModuleManifestFileV1($manifestPath);
+                $manifest = is_array($validation['manifest'] ?? null) ? $validation['manifest'] : [];
+                if (($manifest['id'] ?? '') !== $m[1]) {
+                    continue;
+                }
+                $physicalRelativePath = ltrim(str_replace($projectRoot . '/modules', '', dirname($manifestPath)), '/');
+                $physicalTemplate = $projectRoot . '/templates/modules/' . $physicalRelativePath . '/' . $m[2];
+                if (is_file($physicalTemplate)) {
+                    return $physicalTemplate;
+                }
+                if (is_file($physicalTemplate . '.disyl')) {
+                    return $physicalTemplate . '.disyl';
+                }
+            }
         }
     }
 

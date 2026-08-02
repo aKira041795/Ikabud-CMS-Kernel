@@ -109,8 +109,8 @@
     ],
     "routes": true,
     "events": [
-        "ehr.interop.exported",
-        "ehr.interop.message.logged",
-        "ehr.interop.identifier.mapped"
+        {"key": "ehr.interop.exported"},
+        {"key": "ehr.interop.message.logged"},
+        {"key": "ehr.interop.identifier.mapped"}
     ]
 }

@@ -83,8 +83,8 @@
     },
     "routes": true,
     "events": [
-        "ehr.order.created",
-        "ehr.order.updated",
-        "ehr.order.canceled"
+        {"key": "ehr.order.created"},
+        {"key": "ehr.order.updated"},
+        {"key": "ehr.order.canceled"}
     ]
 }

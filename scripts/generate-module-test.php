@@ -132,7 +132,10 @@ if (is_file($target) && !$force) {
     $capIds = array_column($exposedCaps, 'id');
     $settingsKeys = array_column($settings, 'key');
     $depIds = $dependsCaps;
-    $eventIds = is_array($events) ? (isset($events[0]) ? $events : array_keys($events)) : [];
+    $eventIds = is_array($events) ? array_values(array_filter(array_map(
+        static fn($event): string => is_array($event) ? (string)($event['key'] ?? '') : (string)$event,
+        $events,
+    ))) : [];
 
     $content = <<<PHP
 <?php

@@ -170,8 +170,8 @@
     ],
     "routes": true,
     "events": [
-        "ehr.encounter.started",
-        "ehr.encounter.closed",
-        "ehr.vitals.recorded"
+        {"key": "ehr.encounter.started"},
+        {"key": "ehr.encounter.closed"},
+        {"key": "ehr.vitals.recorded"}
     ]
 }

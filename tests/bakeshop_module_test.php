@@ -39,6 +39,7 @@ echo "── Manifest ──\n";
 $manifestPath = BASE_PATH . '/modules/bakeshop/module.json';
 bt('module.json exists', is_file($manifestPath));
 $manifest = json_decode((string) file_get_contents($manifestPath), true);
+$eventKeys = array_column($manifest['events'] ?? [], 'key');
 bt('module.json is valid JSON', is_array($manifest));
 bt('module id is bakeshop', ($manifest['id'] ?? '') === 'bakeshop');
 bt('owns_tables declared', is_array($manifest['owns_tables'] ?? null) && in_array('bakeshop_products', $manifest['owns_tables'], true));
@@ -51,10 +52,10 @@ bt('bakeshop.read capability declared', in_array('bakeshop.read@1', array_column
 bt('bakeshop.manage capability declared', in_array('bakeshop.manage@1', array_column($manifest['capabilities']['exposes'] ?? [], 'id'), true));
 bt('bakeshop.product.read capability declared', in_array('bakeshop.product.read@1', array_column($manifest['capabilities']['exposes'] ?? [], 'id'), true));
 bt('bakeshop.ingredient.usage.read capability declared', in_array('bakeshop.ingredient.usage.read@1', array_column($manifest['capabilities']['exposes'] ?? [], 'id'), true));
-bt('catalog events declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.product.created', $manifest['events'], true));
-bt('delivery events declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.delivery.created', $manifest['events'], true));
-bt('production event declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.production.created', $manifest['events'], true));
-bt('production update event declared', is_array($manifest['events'] ?? null) && in_array('bakeshop.production.updated', $manifest['events'], true));
+bt('catalog events declared', in_array('bakeshop.product.created', $eventKeys, true));
+bt('delivery events declared', in_array('bakeshop.delivery.created', $eventKeys, true));
+bt('production event declared', in_array('bakeshop.production.created', $eventKeys, true));
+bt('production update event declared', in_array('bakeshop.production.updated', $eventKeys, true));
 bt('role_permissions setting declared', array_reduce($manifest['settings_fields'] ?? [], static function (bool $carry, array $field): bool {
     return $carry || (($field['key'] ?? '') === 'role_permissions');
 }, false));
@@ -90,10 +91,10 @@ foreach ($declaredMigrations as $declaredPath) {
 bt('every declared migration exists on disk', $missingFromDisk === [], implode(', ', $missingFromDisk));
 
 // New event declarations
-bt('product deleted event declared', in_array('bakeshop.product.deleted', $manifest['events'] ?? [], true));
-bt('ingredient deleted event declared', in_array('bakeshop.ingredient.deleted', $manifest['events'] ?? [], true));
-bt('unit created event declared', in_array('bakeshop.unit.created', $manifest['events'] ?? [], true));
-bt('adjustment created event declared', in_array('bakeshop.adjustment.created', $manifest['events'] ?? [], true));
+bt('product deleted event declared', in_array('bakeshop.product.deleted', $eventKeys, true));
+bt('ingredient deleted event declared', in_array('bakeshop.ingredient.deleted', $eventKeys, true));
+bt('unit created event declared', in_array('bakeshop.unit.created', $eventKeys, true));
+bt('adjustment created event declared', in_array('bakeshop.adjustment.created', $eventKeys, true));
 
 echo "\n── Discovery ──\n";
 $all = discoverModules();
@@ -325,7 +326,7 @@ try {
     bt('supervisor template defines shared two-decimal display helper', str_contains($shellHtml, 'function displayTwoDecimalQuantity(value, fallback = \'0.00\')'));
     bt('supervisor template defines shared detail list helper', str_contains($shellHtml, 'function renderDetailList(items, renderItem, emptyMessage = \'No detail loaded.\')'));
     bt('supervisor template sets history review note when opening focused editor', str_contains($shellHtml, "Reviewing this product from activity history."));
-    bt('supervisor template frames deliveries as daily branch receiving', str_contains($shellHtml, 'Saving posts one daily branch receipt and includes only ingredients with a quantity greater than zero.'));
+    bt('supervisor template frames deliveries as branch receiving', str_contains($shellHtml, 'Saving posts one branch receipt and includes only ingredients with a quantity greater than zero.'));
     bt('supervisor template exposes product multi-delete controls', str_contains($shellHtml, 'products-delete-selected') && str_contains($shellHtml, 'products-select-all'));
     bt('supervisor template separates active and archived products', str_contains($shellHtml, 'products-view-active') && str_contains($shellHtml, 'products-view-archived') && str_contains($shellHtml, 'No archived products yet.'));
     bt('supervisor template exposes ingredient multi-delete controls', str_contains($shellHtml, 'ingredients-delete-selected') && str_contains($shellHtml, 'ingredients-select-all') && str_contains($shellHtml, 'Delete Selected'));

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/manifest-validation.php';
+
 // ─── Paths ────────────────────────────────────────────────────────────────
 
 function modulesPath(): string
@@ -659,15 +661,49 @@ function discoverModules(): array
     sort($manifestPaths);
 
     foreach ($manifestPaths as $manifestPath) {
-        $manifest = json_decode((string) file_get_contents($manifestPath), true);
-        if (!is_array($manifest) || empty($manifest['id'])) {
+        $validation = validateModuleManifestFileV1($manifestPath);
+        if (empty($validation['ok'])) {
+            // Fatal for the declaring module only: skip it entirely so one bad
+            // drop-in manifest cannot take down every tenant at boot.
+            $diagnostic = $validation['diagnostics'][0] ?? [];
+            $folderId = basename(dirname($manifestPath));
+            $message = '[fatal] Invalid module manifest at ' . $manifestPath . ': '
+                . (string)($diagnostic['message'] ?? 'schema-v1 validation failed')
+                . ' Correction: ' . (string)($diagnostic['correction'] ?? 'Run the strict manifest guard.');
+            if (function_exists('write_log')) {
+                write_log($message, 'error', [
+                    'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal->value,
+                    'module' => $folderId,
+                    'manifest' => $manifestPath,
+                ]);
+            }
+            if (function_exists('recordSkippedModule')) {
+                recordSkippedModule($folderId, 'manifest_schema_v1_failed', [
+                    'manifest' => $manifestPath,
+                    'diagnostic' => $diagnostic,
+                ]);
+            }
             continue;
         }
+        $manifest = $validation['manifest'];
 
         $moduleId = (string)$manifest['id'];
         if (isset($result[$moduleId])) {
+            // Keep the first occurrence; the duplicate is skipped fatally.
+            $message = "[fatal] Duplicate module id '{$moduleId}' at '{$manifestPath}'. "
+                . 'Correction: assign a unique id or remove the duplicate manifest.';
             if (function_exists('write_log')) {
-                write_log('Duplicate module id discovered: ' . $moduleId . ' at ' . $manifestPath . ' (keeping first occurrence)', 'warning');
+                write_log($message, 'error', [
+                    'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal->value,
+                    'module' => $moduleId,
+                    'manifest' => $manifestPath,
+                ]);
+            }
+            if (function_exists('recordSkippedModule')) {
+                recordSkippedModule($moduleId . ':' . basename(dirname($manifestPath)), 'duplicate_module_id', [
+                    'manifest' => $manifestPath,
+                    'kept' => $result[$moduleId]['_path'] ?? '',
+                ]);
             }
             continue;
         }
@@ -681,12 +717,20 @@ function discoverModules(): array
         $coOwns = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
         foreach (array_merge($owns, $coOwns) as $tableName) {
             if (is_string($tableName) && trim($tableName) !== '') {
-                \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance()->registerTableOwner(trim($tableName), $moduleId);
+                $registry = \Ikabud\Kernel\Contracts\ReadContractRegistry::getInstance();
+                $normalizedTable = trim($tableName);
+                $registry->registerTableOwner($normalizedTable, $moduleId);
+                if ($normalizedTable === 'wms_stock') {
+                    $registry->registerTableOwner('wms_stocks', $moduleId);
+                }
             }
         }
     }
 
     $GLOBALS['_kernel_discovered_modules'] = $result;
+    if (function_exists('kernelRegisterModuleReadContracts')) {
+        kernelRegisterModuleReadContracts($result);
+    }
     return $result;
 }
 
@@ -1375,9 +1419,7 @@ function validateModuleEntityContexts(array $manifest): array
 
 function isValidCapabilityId(string $capId): bool
 {
-    // contract.id@major (major is integer)
-    // Segments: lowercase letter/digit/underscore; must start with a letter.
-    return (bool) preg_match('/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*@\d+$/', $capId);
+    return moduleManifestCapabilityIdIsValid($capId);
 }
 
 function isValidEntityContextId(string $contextId): bool
@@ -1459,6 +1501,8 @@ function modulePushContext(string|\Ikabud\Kernel\Contracts\ModuleContext $module
 
     kernel_request_context_push('_moduleContextStack', module());
     kernel_request_context_set('_activeModuleContext', $ctx);
+    app()->setActiveModule($ctx->moduleId());
+    \Ikabud\Kernel\Database\KernelPDO::setActiveModule($ctx->moduleId());
     return $ctx;
 }
 
@@ -1466,6 +1510,14 @@ function modulePopContext(): void
 {
     $previous = kernel_request_context_pop('_moduleContextStack');
     kernel_request_context_set('_activeModuleContext', $previous);
+    if ($previous instanceof \Ikabud\Kernel\Contracts\ModuleContext) {
+        app()->setActiveModule($previous->moduleId());
+        \Ikabud\Kernel\Database\KernelPDO::setActiveModule($previous->moduleId());
+        return;
+    }
+
+    app()->clearActiveModule();
+    \Ikabud\Kernel\Database\KernelPDO::setActiveModule(null);
 }
 
 function moduleWithContext(string|\Ikabud\Kernel\Contracts\ModuleContext $module, callable $callback): mixed
@@ -2099,72 +2151,23 @@ registerModuleManagerHooks();
  * Validate a module.json manifest.
  * Returns ['ok' => true, 'manifest' => [...]] or ['ok' => false, 'error' => '...']
  */
-function validateModuleManifest(string $path): array
+function validateModuleManifest(string $path, array $context = []): array
 {
-    if (!is_file($path)) {
-        return ['ok' => false, 'error' => 'module.json not found', 'error_code' => 'manifest_not_found'];
+    $schemaValidation = validateModuleManifestFileV1($path, $context);
+    if (empty($schemaValidation['ok'])) {
+        $diagnostic = $schemaValidation['diagnostics'][0] ?? [];
+        return [
+            'ok' => false,
+            'error' => (string)($diagnostic['message'] ?? 'module.json failed schema-v1 validation')
+                . ' Correction: ' . (string)($diagnostic['correction'] ?? 'Run the strict manifest guard.'),
+            'error_code' => (string)($diagnostic['code'] ?? 'manifest_invalid'),
+            'severity' => (string)($diagnostic['severity'] ?? 'fatal'),
+            'rule' => (string)($diagnostic['rule'] ?? 'manifest.v1'),
+            'diagnostics' => $schemaValidation['diagnostics'] ?? [],
+        ];
     }
 
-    $manifest = json_decode((string) file_get_contents($path), true);
-    if (!is_array($manifest)) {
-        return ['ok' => false, 'error' => 'module.json is not valid JSON', 'error_code' => 'manifest_invalid_json'];
-    }
-
-    $required = ['id', 'name', 'version'];
-    foreach ($required as $key) {
-        if (empty($manifest[$key])) {
-            return ['ok' => false, 'error' => "module.json missing required field: {$key}", 'error_code' => 'manifest_missing_required_field'];
-        }
-    }
-
-    if (!is_string($manifest['id']) || trim($manifest['id']) === '') {
-        return ['ok' => false, 'error' => 'module.json field id must be a non-empty string', 'error_code' => 'manifest_invalid_id'];
-    }
-    if (!is_string($manifest['name']) || trim($manifest['name']) === '') {
-        return ['ok' => false, 'error' => 'module.json field name must be a non-empty string', 'error_code' => 'manifest_invalid_name'];
-    }
-    if (!is_string($manifest['version']) || trim($manifest['version']) === '') {
-        return ['ok' => false, 'error' => 'module.json field version must be a non-empty string', 'error_code' => 'manifest_invalid_version'];
-    }
-
-    if (strlen($manifest['id']) > 64) {
-        return ['ok' => false, 'error' => 'Module id must be at most 64 characters', 'error_code' => 'manifest_invalid_id'];
-    }
-
-    // id must be lowercase alphanumeric + hyphens
-    if (!preg_match('/^[a-z0-9]([a-z0-9\-]*[a-z0-9])?$/', $manifest['id'])) {
-        return ['ok' => false, 'error' => 'Module id must be lowercase alphanumeric with hyphens (e.g. "daily-ledger")', 'error_code' => 'manifest_invalid_id'];
-    }
-
-    // version must look like semver (allow prerelease/build suffixes)
-    if (!preg_match('/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.\-]+)?$/', $manifest['version'])) {
-        return ['ok' => false, 'error' => 'module.json field version must follow semver format (e.g. 1.0.0)', 'error_code' => 'manifest_invalid_version'];
-    }
-
-    $validateTableList = static function (mixed $value, string $field): ?array {
-        if ($value === null) {
-            return null;
-        }
-        if (!is_array($value)) {
-            return ['ok' => false, 'error' => "module.json field {$field} must be an array of table names", 'error_code' => 'manifest_invalid_table_list'];
-        }
-        foreach ($value as $table) {
-            if (!is_string($table) || trim($table) === '') {
-                return ['ok' => false, 'error' => "module.json field {$field} must only contain non-empty strings", 'error_code' => 'manifest_invalid_table_list'];
-            }
-            if (!preg_match('/^[A-Za-z0-9_]+$/', $table)) {
-                return ['ok' => false, 'error' => "module.json field {$field} contains invalid table name: {$table}", 'error_code' => 'manifest_invalid_table_list'];
-            }
-        }
-        return null;
-    };
-
-    foreach (['owns_tables', 'co_owns_tables', 'reads_tables', 'requires_tables'] as $tableField) {
-        $tableValidation = $validateTableList($manifest[$tableField] ?? null, $tableField);
-        if (is_array($tableValidation) && empty($tableValidation['ok'])) {
-            return $tableValidation;
-        }
-    }
+    $manifest = $schemaValidation['manifest'];
 
     if (array_key_exists('auth_cookie', $manifest)) {
         if (!is_string($manifest['auth_cookie']) || trim($manifest['auth_cookie']) === '') {
@@ -2260,7 +2263,12 @@ function validateModuleManifest(string $path): array
         ];
     }
 
-    return ['ok' => true, 'manifest' => $manifest];
+    return [
+        'ok' => true,
+        'manifest' => $manifest,
+        'schema_version' => MODULE_MANIFEST_SCHEMA_VERSION,
+        'diagnostics' => $schemaValidation['diagnostics'] ?? [],
+    ];
 }
 
 /**
@@ -2336,13 +2344,13 @@ function moduleRoutePatternMatchesPath(string $route, string $path): bool
 /**
  * @param array<string, mixed> $manifest
  * @param array<string, array<string, mixed>>|null $installedModules
- * @return array{ok: bool, missing: array<int, string>, undeclared_dependencies: array<string, array<int, string>>, checked: int, detail: string}
+ * @return array{ok: bool, severity: string, missing: array<int, string>, undeclared_dependencies: array<string, array<int, string>>, checked: int, detail: string}
  */
 function validateModuleNavigationRoutes(array $manifest, ?array $installedModules = null): array
 {
     $urls = moduleNavigationUrls($manifest);
     if ($urls === []) {
-        return ['ok' => true, 'missing' => [], 'undeclared_dependencies' => [], 'checked' => 0, 'detail' => 'No internal navigation URLs declared'];
+        return ['ok' => true, 'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value, 'missing' => [], 'undeclared_dependencies' => [], 'checked' => 0, 'detail' => 'No internal navigation URLs declared'];
     }
 
     $moduleId = trim((string)($manifest['id'] ?? ''));
@@ -2417,6 +2425,7 @@ function validateModuleNavigationRoutes(array $manifest, ?array $installedModule
 
     return [
         'ok' => $ok,
+        'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value,
         'missing' => $missing,
         'undeclared_dependencies' => $undeclaredDependencies,
         'checked' => count($urls),
@@ -2431,7 +2440,7 @@ function validateModuleNavigationRoutes(array $manifest, ?array $installedModule
  * A module must pass ALL checks to be certified.
  *
  * @param array<string, mixed> $manifest
- * @return array{ok: bool, checks: array<int, array{check: string, passed: bool, detail: string}>, score: int, max: int}
+ * @return array{ok: bool, checks: array<int, array{check: string, passed: bool, severity: string, detail: string}>, score: int, max: int}
  */
 function validateModuleCertification(array $manifest): array
 {
@@ -2456,10 +2465,10 @@ function validateModuleCertification(array $manifest): array
         $checks[] = ['check' => 'C2: Table ownership', 'passed' => true, 'detail' => 'N/A for service-module'];
         $passed++;
     } else {
-        $owns = is_array($manifest['owns_tables'] ?? null) && !empty($manifest['owns_tables']);
-        $reads = is_array($manifest['reads_tables'] ?? null) && !empty($manifest['reads_tables']);
-        $ok = $owns || $reads;
-        $checks[] = ['check' => 'C2: Table ownership', 'passed' => $ok, 'detail' => $ok ? 'owns_tables or reads_tables declared' : 'No table ownership declared'];
+        $owns = array_key_exists('owns_tables', $manifest) && is_array($manifest['owns_tables']);
+        $reads = array_key_exists('reads_tables', $manifest) && is_array($manifest['reads_tables']);
+        $ok = $owns && $reads;
+        $checks[] = ['check' => 'C2: Table ownership', 'passed' => $ok, 'detail' => $ok ? 'owns_tables and reads_tables explicitly declared' : 'Missing explicit owns_tables or reads_tables declaration'];
         if ($ok) $passed++;
     }
 
@@ -2477,6 +2486,45 @@ function validateModuleCertification(array $manifest): array
     $count = is_array($capsExposes) ? count($capsExposes) : 0;
     $checks[] = ['check' => 'C3: Capabilities', 'passed' => $ok, 'detail' => $ok ? ($count > 0 ? "{$count} capabilities exposed" : 'capabilities declared (none exposed)') : 'No capabilities declared'];
     if ($ok) $passed++;
+
+    // C3b: Every PHP capability declaration resolves to a runtime callable.
+    $total++;
+    if ($isServiceModule || !is_array($capsExposes) || $capsExposes === []) {
+        $checks[] = ['check' => 'C3b: Capability handlers', 'passed' => true, 'detail' => $isServiceModule ? 'N/A for service-module' : 'No handlers required'];
+        $passed++;
+    } else {
+        loadModuleHelpers($manifest);
+        $modulePrefix = preg_replace('/[^a-z0-9]+/i', '_', $moduleId);
+        $exportFunction = $modulePrefix . '_capability_handlers';
+        $handlerMap = [];
+        if (function_exists($exportFunction)) {
+            $exportedHandlers = $exportFunction();
+            if (is_array($exportedHandlers)) {
+                $handlerMap = $exportedHandlers;
+            }
+        }
+        $missingHandlers = [];
+        foreach ($capsExposes as $expose) {
+            if (!is_array($expose) || !is_string($expose['id'] ?? null)) {
+                continue;
+            }
+            $capabilityId = $expose['id'];
+            $sanitized = preg_replace('/[^a-z0-9]+/i', '_', $capabilityId);
+            $conventionFunction = $modulePrefix . '_cap_' . strtolower(trim((string)$sanitized, '_'));
+            if ((!isset($handlerMap[$capabilityId]) || !is_callable($handlerMap[$capabilityId])) && !is_callable($conventionFunction)) {
+                $missingHandlers[] = $capabilityId;
+            }
+        }
+        $ok = $missingHandlers === [];
+        $checks[] = [
+            'check' => 'C3b: Capability handlers',
+            'passed' => $ok,
+            'detail' => $ok
+                ? 'All declared capability handlers resolve'
+                : 'Missing handler reference(s): ' . implode(', ', $missingHandlers) . ". Export them from {$exportFunction}() in helpers.php.",
+        ];
+        if ($ok) $passed++;
+    }
 
     // C4: Events declared (accept empty array — module has declared it, just has none)
     $total++;
@@ -2539,9 +2587,14 @@ function validateModuleCertification(array $manifest): array
         $passed++;
     } else {
         $navigation = validateModuleNavigationRoutes($manifest);
-        $ok = $navigation['ok'];
-        $checks[] = ['check' => 'C10: Navigation routes', 'passed' => $ok, 'detail' => $navigation['detail']];
-        if ($ok) $passed++;
+        $ok = true;
+        $checks[] = [
+            'check' => 'C10: Navigation routes',
+            'passed' => true,
+            'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value,
+            'detail' => $navigation['ok'] ? $navigation['detail'] : 'Advisory: ' . $navigation['detail'],
+        ];
+        $passed++;
     }
 
     // C11: Service-module endpoint (only if type=service-module)
@@ -2552,6 +2605,11 @@ function validateModuleCertification(array $manifest): array
         $checks[] = ['check' => 'C11: Service endpoint', 'passed' => $ok, 'detail' => $ok ? (string)$manifest['service']['endpoint'] : 'No service endpoint declared'];
         if ($ok) $passed++;
     }
+
+    foreach ($checks as &$check) {
+        $check['severity'] ??= \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value;
+    }
+    unset($check);
 
     return [
         'ok' => $passed === $total,
@@ -2601,6 +2659,9 @@ function installModuleFromZip(string $zipPath): array
     // Find module.json in the zip (could be at root or inside a single top-level folder)
     $manifestIndex = null;
     $prefix = '';
+    $packagePrefix = '__ikabud_package/';
+    $packageTemplatesPrefix = $packagePrefix . 'templates/';
+    $hasPackagedTemplates = false;
 
     // Normalize + validate zip entry names before any extraction.
     // This blocks Zip Slip style traversal, absolute paths, and null-byte names.
@@ -2708,6 +2769,17 @@ function installModuleFromZip(string $zipPath): array
             continue;
         }
 
+        if (str_starts_with($relativeName, $packagePrefix)) {
+            if (!str_starts_with($relativeName, $packageTemplatesPrefix)) {
+                $zip->close();
+                return moduleInstallFailure('zip_unknown_package_section', "Zip contains an unsupported package section: {$name}");
+            }
+            $templateRelativeName = substr($relativeName, strlen($packageTemplatesPrefix));
+            if ($templateRelativeName !== '') {
+                $hasPackagedTemplates = true;
+            }
+        }
+
         $isDirectory = str_ends_with($relativeName, '/');
         if (!$isSafeZipEntryType($i, $isDirectory)) {
             $zip->close();
@@ -2741,7 +2813,7 @@ function installModuleFromZip(string $zipPath): array
     $manifestJson = $zip->getFromIndex($manifestIndex);
     $tempManifest = tempnam(sys_get_temp_dir(), 'mod_manifest_');
     file_put_contents($tempManifest, $manifestJson);
-    $validation = validateModuleManifest($tempManifest);
+    $validation = validateModuleManifest($tempManifest, ['check_filesystem' => false]);
     @unlink($tempManifest);
 
     if (!$validation['ok']) {
@@ -2761,6 +2833,7 @@ function installModuleFromZip(string $zipPath): array
 
     $moduleId = $manifest['id'];
     $targetDir = modulesPath() . '/' . $moduleId;
+    $targetTemplateDir = BASE_PATH . '/templates/modules/' . $moduleId;
     $removeDirectory = static function (string $path): void {
         if (!is_dir($path)) {
             return;
@@ -2783,6 +2856,17 @@ function installModuleFromZip(string $zipPath): array
         $zip->close();
         return moduleInstallFailure('module_already_exists', "Module '{$moduleId}' already exists. Remove it first or use update.");
     }
+    if ($hasPackagedTemplates && (file_exists($targetTemplateDir) || is_link($targetTemplateDir))) {
+        $zip->close();
+        return moduleInstallFailure('module_templates_already_exist', "Templates for module '{$moduleId}' already exist. Remove them first or use update.");
+    }
+
+    $cleanupInstall = static function () use ($removeDirectory, $targetDir, $targetTemplateDir, $hasPackagedTemplates): void {
+        $removeDirectory($targetDir);
+        if ($hasPackagedTemplates) {
+            $removeDirectory($targetTemplateDir);
+        }
+    };
 
     // Extract
     @mkdir($targetDir, 0775, true);
@@ -2791,21 +2875,32 @@ function installModuleFromZip(string $zipPath): array
         $zip->close();
         return moduleInstallFailure('target_dir_init_failed', 'Failed to initialize module target directory');
     }
+    $targetTemplateRoot = null;
+    if ($hasPackagedTemplates) {
+        @mkdir($targetTemplateDir, 0775, true);
+        $targetTemplateRoot = realpath($targetTemplateDir);
+        if ($targetTemplateRoot === false) {
+            $zip->close();
+            $cleanupInstall();
+            return moduleInstallFailure('template_target_dir_init_failed', 'Failed to initialize module template target directory');
+        }
+    }
 
     for ($i = 0; $i < $zip->numFiles; $i++) {
         $rawName = (string)$zip->getNameIndex($i);
         $name = $sanitizeEntryName($rawName);
         if ($name === null) {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
             return moduleInstallFailure('zip_invalid_path', "Zip contains invalid entry path: {$rawName}");
         }
 
-        // Strip the top-level prefix if present
+        // Strip the optional top-level module prefix before interpreting the
+        // reserved package section.
         if ($prefix !== '') {
             if (!str_starts_with($name, $prefix)) {
                 $zip->close();
-                $removeDirectory($targetDir);
+                $cleanupInstall();
                 return moduleInstallFailure('zip_outside_module_root', "Zip contains files outside module root: {$name}");
             }
             $relativeName = substr($name, strlen($prefix));
@@ -2813,34 +2908,49 @@ function installModuleFromZip(string $zipPath): array
             $relativeName = $name;
         }
 
+        $isTemplateEntry = str_starts_with($relativeName, $packageTemplatesPrefix);
+        $destinationRelativeName = $isTemplateEntry
+            ? substr($relativeName, strlen($packageTemplatesPrefix))
+            : $relativeName;
+        $destinationRoot = $isTemplateEntry ? $targetTemplateRoot : $targetRoot;
+        $destinationBase = $isTemplateEntry ? $targetTemplateDir : $targetDir;
+
         if ($relativeName === '' || str_ends_with($relativeName, '/')) {
             if (!$isSafeZipEntryType($i, true)) {
                 $zip->close();
-                $removeDirectory($targetDir);
+                $cleanupInstall();
                 return moduleInstallFailure('zip_unsupported_entry_type', "Zip contains unsupported directory entry type: {$name}");
             }
-            // Directory
-            @mkdir($targetDir . '/' . $relativeName, 0775, true);
+            if ($isTemplateEntry && $destinationRelativeName !== '') {
+                @mkdir($destinationBase . '/' . $destinationRelativeName, 0775, true);
+            } elseif (!$isTemplateEntry && !str_starts_with($relativeName, $packagePrefix)) {
+                @mkdir($destinationBase . '/' . $destinationRelativeName, 0775, true);
+            }
             continue;
         }
 
         if (!$isSafeZipEntryType($i, false)) {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
             return moduleInstallFailure('zip_unsupported_entry_type', "Zip contains unsupported file entry type: {$name}");
         }
 
-        $relativeName = ltrim(str_replace('\\\\', '/', $relativeName), '/');
-        if ($relativeName === '' || str_contains($relativeName, "\0") || str_contains($relativeName, '../')) {
+        $destinationRelativeName = ltrim(str_replace('\\\\', '/', $destinationRelativeName), '/');
+        if ($destinationRelativeName === '' || str_contains($destinationRelativeName, "\0") || str_contains($destinationRelativeName, '../')) {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
             return moduleInstallFailure('zip_invalid_path', "Zip contains invalid file path: {$name}");
         }
 
-        $fullPath = $targetDir . '/' . $relativeName;
-        if (str_starts_with($fullPath, $targetRoot . DIRECTORY_SEPARATOR) === false) {
+        if (!is_string($destinationRoot) || $destinationRoot === '') {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
+            return moduleInstallFailure('target_dir_resolution_failed', "Failed resolving extraction target: {$name}");
+        }
+        $fullPath = $destinationBase . '/' . $destinationRelativeName;
+        if (str_starts_with($fullPath, $destinationRoot . DIRECTORY_SEPARATOR) === false) {
+            $zip->close();
+            $cleanupInstall();
             return moduleInstallFailure('zip_outside_module_root', "Zip entry escapes module root: {$name}");
         }
 
@@ -2851,29 +2961,42 @@ function installModuleFromZip(string $zipPath): array
         $realDir = realpath($dir);
         if ($realDir === false) {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
             return moduleInstallFailure('target_dir_resolution_failed', "Failed resolving extraction directory: {$name}");
         }
-        if (!($realDir === $targetRoot || str_starts_with($realDir, $targetRoot . DIRECTORY_SEPARATOR))) {
+        if (!($realDir === $destinationRoot || str_starts_with($realDir, $destinationRoot . DIRECTORY_SEPARATOR))) {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
             return moduleInstallFailure('zip_outside_module_root', "Zip extraction directory escapes module root: {$name}");
         }
 
         $contents = $zip->getFromIndex($i);
         if ($contents === false || file_put_contents($fullPath, $contents) === false) {
             $zip->close();
-            $removeDirectory($targetDir);
+            $cleanupInstall();
             return moduleInstallFailure('zip_extraction_failed', "Failed extracting file: {$name}");
         }
     }
     $zip->close();
 
-    $installManifest = $manifest;
+    // Re-run the authoritative validator against extracted files. Preflight
+    // intentionally disables filesystem checks because the module does not yet
+    // exist; install must not certify a package with missing declared files.
+    $postExtractionValidation = validateModuleManifest($targetDir . '/module.json');
+    if (empty($postExtractionValidation['ok']) || !is_array($postExtractionValidation['manifest'] ?? null)) {
+        $cleanupInstall();
+        return moduleInstallFailure(
+            (string)($postExtractionValidation['error_code'] ?? 'post_extract_manifest_validation_failed'),
+            'Extracted module failed manifest validation: ' . (string)($postExtractionValidation['error'] ?? 'unknown error'),
+            ['diagnostics' => $postExtractionValidation['diagnostics'] ?? []]
+        );
+    }
+
+    $installManifest = $postExtractionValidation['manifest'];
     $installManifest['_path'] = $targetDir;
     $certification = validateModuleCertification($installManifest);
     if (empty($certification['ok'])) {
-        $removeDirectory($targetDir);
+        $cleanupInstall();
         $failedChecks = array_values(array_map(
             static fn(array $check): string => (string)$check['check'] . ': ' . (string)$check['detail'],
             array_filter($certification['checks'], static fn(array $check): bool => empty($check['passed']))
@@ -2991,6 +3114,12 @@ function uninstallModule(string $moduleId, array $options = []): array
         }
     }
 
+    $modulesRoot = rtrim(modulesPath(), '/');
+    $relativeModulePath = str_starts_with($dir, $modulesRoot . '/')
+        ? substr($dir, strlen($modulesRoot) + 1)
+        : $moduleId;
+    $templateDir = BASE_PATH . '/templates/modules/' . $relativeModulePath;
+
     // Recursively remove
     $it = new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS);
     $files = new \RecursiveIteratorIterator($it, \RecursiveIteratorIterator::CHILD_FIRST);
@@ -3002,6 +3131,25 @@ function uninstallModule(string $moduleId, array $options = []): array
         }
     }
     @rmdir($dir);
+
+    // Templates mirror the physical module path and are part of the package
+    // lifecycle. Remove only that exact module-owned template subtree.
+    if (is_link($templateDir)) {
+        @unlink($templateDir);
+    } elseif (is_dir($templateDir)) {
+        $templateIterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($templateDir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($templateIterator as $templateEntry) {
+            if ($templateEntry->isLink() || $templateEntry->isFile()) {
+                @unlink($templateEntry->getPathname());
+            } else {
+                @rmdir($templateEntry->getPathname());
+            }
+        }
+        @rmdir($templateDir);
+    }
 
     $res = ['ok' => true];
     if (is_array($exportResult)) {

@@ -3,18 +3,9 @@
 declare(strict_types=1);
 
 /**
- * Guard script: validate each module manifest under the modules directory.
+ * Authoritative CLI entry point for module manifest schema-v1 validation.
  *
- * Checks performed:
- * 1) JSON/schema validation via validateModuleManifest()
- * 2) Capabilities block validation via validateModuleCapabilities()
- * 3) Optional sanity check: folder name should match manifest id
- * 4) Informational duplicate capability expose detection across modules
- *
- * Usage:
- *   php scripts/guard-module-manifests.php
- *   php scripts/guard-module-manifests.php --strict
- *   php scripts/guard-module-manifests.php --json
+ * Usage: php scripts/guard-module-manifests.php [--strict] [--json]
  */
 
 $basePath = dirname(__DIR__);
@@ -23,203 +14,149 @@ $strict = in_array('--strict', $options, true);
 $jsonOutput = in_array('--json', $options, true);
 
 require_once $basePath . '/bootstrap.php';
-if (!function_exists('validateModuleManifest') || !function_exists('validateModuleCapabilities')) {
-    require_once $basePath . '/src/helpers/module-manager.php';
-}
+require_once $basePath . '/src/helpers/manifest-validation.php';
 
-$modulesDir = $basePath . '/modules';
-if (!is_dir($modulesDir)) {
-    fwrite(STDERR, "ERROR: modules directory not found: {$modulesDir}\n");
-    exit(2);
-}
+$manifestFiles = array_values(array_filter(
+    moduleManifestFilesV1($basePath . '/modules'),
+    static fn (string $path): bool => preg_match('/\.bak_\d{8}_\d{6}\//', $path) !== 1
+));
 
-$entries = scandir($modulesDir);
-if ($entries === false) {
-    fwrite(STDERR, "ERROR: unable to read modules directory: {$modulesDir}\n");
-    exit(2);
-}
-
-$checked = 0;
-$warnings = 0;
-$errors = [];
 $results = [];
+$diagnostics = [];
+$moduleIds = [];
+$ownedTables = [];
+$coOwnedTables = [];
 $exposedCapabilities = [];
 
-foreach ($entries as $entry) {
-    if ($entry === '.' || $entry === '..') {
-        continue;
+foreach ($manifestFiles as $manifestPath) {
+    $validation = validateModuleManifestForGuardV1($manifestPath);
+    $manifest = is_array($validation['manifest'] ?? null) ? $validation['manifest'] : [];
+    $moduleId = is_string($manifest['id'] ?? null) && trim($manifest['id']) !== ''
+        ? trim($manifest['id'])
+        : basename(dirname($manifestPath));
+    $relativePath = str_replace($basePath . '/', '', $manifestPath);
+
+    foreach ($validation['diagnostics'] ?? [] as $diagnostic) {
+        $diagnostic['module'] = $moduleId;
+        $diagnostic['path'] = $relativePath;
+        $diagnostics[] = $diagnostic;
     }
 
-    $modulePath = $modulesDir . '/' . $entry;
-    if (!is_dir($modulePath)) {
-        continue;
+    if (isset($moduleIds[$moduleId]) && $moduleIds[$moduleId] !== $manifestPath) {
+        $diagnostic = moduleManifestDiagnostic(
+            \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal,
+            'duplicate_module_id',
+            'manifest.v1.fleet.unique-id',
+            '/id',
+            "Module id '{$moduleId}' is declared by more than one manifest.",
+            'Assign a unique id to one module or remove the duplicate manifest.'
+        );
+        $diagnostic['module'] = $moduleId;
+        $diagnostic['path'] = $relativePath;
+        $diagnostics[] = $diagnostic;
+    } else {
+        $moduleIds[$moduleId] = $manifestPath;
     }
 
-    if (preg_match('/\.bak_\d{8}_\d{6}$/', $entry)) {
-        continue;
-    }
-
-    $manifestPath = $modulePath . '/module.json';
-    if (!is_file($manifestPath)) {
-        continue;
-    }
-
-    $checked++;
-
-    $manifestCheck = validateModuleManifest($manifestPath);
-    if (empty($manifestCheck['ok'])) {
-        $code = (string)($manifestCheck['error_code'] ?? 'manifest_invalid');
-        $msg = (string)($manifestCheck['error'] ?? 'Unknown manifest validation error');
-        $errors[] = "[ERROR] {$entry}: {$code} - {$msg}";
-        $results[] = [
-            'module' => $entry,
-            'ok' => false,
-            'error_code' => $code,
-            'error' => $msg,
-        ];
-        continue;
-    }
-
-    $manifest = is_array($manifestCheck['manifest'] ?? null) ? $manifestCheck['manifest'] : [];
-    $moduleId = (string)($manifest['id'] ?? '');
-
-    if ($moduleId !== '' && $moduleId !== $entry) {
-        $warnings++;
-        $warningLine = "[WARN]  {$entry}: folder name differs from manifest id '{$moduleId}'";
-        if ($strict) {
-            $errors[] = str_replace('[WARN]', '[ERROR]', $warningLine);
-        } elseif (!$jsonOutput) {
-            fwrite(STDOUT, $warningLine . "\n");
-        }
-    }
-
-    $capsCheck = validateModuleCapabilities($manifest);
-    if (empty($capsCheck['ok'])) {
-        $msg = (string)($capsCheck['error'] ?? 'Invalid capabilities block');
-        $errors[] = "[ERROR] {$entry}: capabilities_invalid - {$msg}";
-        $results[] = [
-            'module' => $entry,
-            'ok' => false,
-            'error_code' => 'capabilities_invalid',
-            'error' => $msg,
-        ];
-        continue;
-    }
-
-    $exposesCount = is_array($capsCheck['exposes'] ?? null) ? count($capsCheck['exposes']) : 0;
-    $dependsCount = is_array($capsCheck['depends'] ?? null) ? count($capsCheck['depends']) : 0;
-    foreach (($capsCheck['exposes'] ?? []) as $expose) {
-        $capabilityId = is_array($expose) ? (string)($expose['id'] ?? '') : '';
-        if ($capabilityId === '') {
-            continue;
-        }
-        // Pipeline-mode capabilities are intentionally multi-provider; skip duplicate-warning.
-        $modes = is_array($expose) && isset($expose['modes']) && is_array($expose['modes'])
-            ? array_map('strval', $expose['modes'])
-            : [];
-        $isPipeline = in_array('pipeline', $modes, true);
-        if (isset($exposedCapabilities[$capabilityId]) && $exposedCapabilities[$capabilityId] !== $entry && !$isPipeline) {
-            $warnings++;
-            if (!$jsonOutput) {
-                fwrite(
-                    STDOUT,
-                    "[WARN]  {$entry}: duplicate capability expose '{$capabilityId}' also provided by {$exposedCapabilities[$capabilityId]}\n"
-                );
-            }
-        }
-        $exposedCapabilities[$capabilityId] = $entry;
-    }
-
-    // Phase 6 additions: routes file existence + owns_tables collision detection
-    $routesFile = isset($manifest['routes']) ? (string)$manifest['routes'] : '';
-    if ($routesFile !== '') {
-        $routesPath = $modulePath . '/' . ltrim($routesFile, '/');
-        if (!is_file($routesPath)) {
-            $errors[] = "[ERROR] {$entry}: routes_file_missing - declared routes file '{$routesFile}' not found";
-            $results[] = [
-                'module' => $entry,
-                'ok' => false,
-                'error_code' => 'routes_file_missing',
-                'error' => "declared routes file '{$routesFile}' not found",
-            ];
-            continue;
-        }
-    }
-
-    $ownsTables = is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [];
-    $coOwnsTables = is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [];
-    if (!isset($GLOBALS['__guard_owned_tables'])) {
-        $GLOBALS['__guard_owned_tables'] = [];
-    }
-    if (!isset($GLOBALS['__guard_co_owned_tables'])) {
-        $GLOBALS['__guard_co_owned_tables'] = [];
-    }
-    foreach ($ownsTables as $table) {
-        $tableName = is_string($table) ? trim($table) : '';
-        if ($tableName === '') {
-            continue;
-        }
-        if (isset($GLOBALS['__guard_owned_tables'][$tableName]) && $GLOBALS['__guard_owned_tables'][$tableName] !== $entry) {
-            $other = $GLOBALS['__guard_owned_tables'][$tableName];
-            $line = "[ERROR] {$entry}: table '{$tableName}' already declared owned by {$other}; declare 'co_owns_tables' instead for non-canonical co-ownership";
-            $errors[] = $line;
+    foreach (is_array($manifest['owns_tables'] ?? null) ? $manifest['owns_tables'] : [] as $table) {
+        if (isset($ownedTables[$table]) && $ownedTables[$table] !== $moduleId) {
+            $diagnostic = moduleManifestDiagnostic(
+                \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal,
+                'duplicate_table_owner',
+                'manifest.v1.fleet.table-owner',
+                '/owns_tables',
+                "Table '{$table}' is already owned by module '{$ownedTables[$table]}'.",
+                "Keep one canonical owner and declare intentional secondary access through co_owns_tables or reads_tables."
+            );
+            $diagnostic['module'] = $moduleId;
+            $diagnostic['path'] = $relativePath;
+            $diagnostics[] = $diagnostic;
         } else {
-            $GLOBALS['__guard_owned_tables'][$tableName] = $entry;
+            $ownedTables[$table] = $moduleId;
         }
     }
-    foreach ($coOwnsTables as $table) {
-        $tableName = is_string($table) ? trim($table) : '';
-        if ($tableName === '') {
-            continue;
-        }
-        if (!isset($GLOBALS['__guard_owned_tables'][$tableName])) {
-            // Co-owner without canonical owner — defer until end (canonical may load later).
-            // Tracking only; final reconciliation happens after the discovery loop.
-        }
-        $GLOBALS['__guard_co_owned_tables'][$tableName][] = $entry;
+    foreach (is_array($manifest['co_owns_tables'] ?? null) ? $manifest['co_owns_tables'] : [] as $table) {
+        $coOwnedTables[$table][] = $moduleId;
     }
 
-    $version = (string)($manifest['version'] ?? '');
-    if ($version === '' || !preg_match('/^\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?$/', $version)) {
-        $warnings++;
-        if (!$jsonOutput) {
-            fwrite(STDOUT, "[WARN]  {$entry}: non-semver version '{$version}'\n");
+    $exposes = is_array($manifest['capabilities']['exposes'] ?? null) ? $manifest['capabilities']['exposes'] : [];
+    foreach ($exposes as $expose) {
+        if (!is_array($expose) || !is_string($expose['id'] ?? null)) {
+            continue;
         }
+        $capabilityId = $expose['id'];
+        $modes = is_array($expose['modes'] ?? null) ? array_map('strtolower', $expose['modes']) : ['first'];
+        if (isset($exposedCapabilities[$capabilityId]) && !in_array('pipeline', $modes, true)) {
+            $diagnostic = moduleManifestDiagnostic(
+                \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory,
+                'duplicate_capability_provider',
+                'manifest.v1.fleet.capability-provider',
+                '/capabilities/exposes',
+                "Capability '{$capabilityId}' is also provided by '{$exposedCapabilities[$capabilityId]}'.",
+                'Use pipeline mode for intentional multi-provider capabilities or remove the duplicate provider.'
+            );
+            $diagnostic['module'] = $moduleId;
+            $diagnostic['path'] = $relativePath;
+            $diagnostics[] = $diagnostic;
+        }
+        $exposedCapabilities[$capabilityId] = $moduleId;
     }
 
     $results[] = [
-        'module' => $entry,
-        'ok' => true,
-        'exposes' => $exposesCount,
-        'depends' => $dependsCount,
+        'module' => $moduleId,
+        'path' => $relativePath,
+        'ok' => !empty($validation['ok']),
+        'schema_version' => MODULE_MANIFEST_SCHEMA_VERSION,
+        'exposes' => count($exposes),
+        'depends' => count(is_array($manifest['capabilities']['depends'] ?? null) ? $manifest['capabilities']['depends'] : []),
     ];
+}
 
-    if (!$jsonOutput) {
-        fwrite(STDOUT, "[OK]    {$entry}: manifest + capabilities valid (exposes={$exposesCount}, depends={$dependsCount})\n");
+foreach ($coOwnedTables as $table => $modules) {
+    if (!isset($ownedTables[$table])) {
+        foreach ($modules as $moduleId) {
+            $diagnostic = moduleManifestDiagnostic(
+                \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal,
+                'co_owned_table_without_owner',
+                'manifest.v1.fleet.co-owner',
+                '/co_owns_tables',
+                "Table '{$table}' has co-owner '{$moduleId}' but no canonical owner.",
+                'Declare one module as canonical owner in owns_tables.'
+            );
+            $diagnostic['module'] = $moduleId;
+            $diagnostic['path'] = str_replace($basePath . '/', '', $moduleIds[$moduleId] ?? '');
+            $diagnostics[] = $diagnostic;
+        }
     }
 }
+
+$blockingSeverities = $strict ? ['fatal', 'cert_blocker'] : ['fatal'];
+$blocking = array_values(array_filter($diagnostics, static fn (array $diagnostic): bool => in_array($diagnostic['severity'] ?? '', $blockingSeverities, true)));
 
 if ($jsonOutput) {
     echo json_encode([
-        'ok' => empty($errors),
+        'ok' => $blocking === [],
+        'schema_version' => MODULE_MANIFEST_SCHEMA_VERSION,
+        'authoritative' => true,
         'strict' => $strict,
-        'checked' => $checked,
-        'warnings' => $warnings,
+        'checked' => count($manifestFiles),
         'results' => $results,
-        'errors' => $errors,
+        'diagnostics' => $diagnostics,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
-    exit(empty($errors) ? 0 : 1);
+    exit($blocking === [] ? 0 : 1);
 }
 
-fwrite(STDOUT, "\nChecked {$checked} module manifest(s).\n");
+foreach ($diagnostics as $diagnostic) {
+    $severity = strtoupper((string)$diagnostic['severity']);
+    $line = "[{$severity}] {$diagnostic['module']}: {$diagnostic['code']} ({$diagnostic['rule']}) - {$diagnostic['message']} Correction: {$diagnostic['correction']}";
+    fwrite(in_array($diagnostic['severity'], $blockingSeverities, true) ? STDERR : STDOUT, $line . "\n");
+}
 
-if (!empty($errors)) {
-    fwrite(STDERR, "\nGuard failed with " . count($errors) . " error(s):\n");
-    foreach ($errors as $line) {
-        fwrite(STDERR, $line . "\n");
-    }
+fwrite(STDOUT, "Checked " . count($manifestFiles) . " module manifest(s) against schema v" . MODULE_MANIFEST_SCHEMA_VERSION . ".\n");
+if ($blocking !== []) {
+    fwrite(STDERR, 'Guard failed with ' . count($blocking) . " blocking diagnostic(s).\n");
     exit(1);
 }
 
-fwrite(STDOUT, "Guard passed with {$warnings} warning(s).\n");
+fwrite(STDOUT, "Guard passed.\n");
 exit(0);

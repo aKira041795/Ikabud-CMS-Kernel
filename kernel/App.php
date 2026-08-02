@@ -27,7 +27,6 @@ use Ikabud\Kernel\EntityContext\EntityRendererInterface;
 use Ikabud\Kernel\EntityContext\DefaultEntityRenderer;
 use Ikabud\Kernel\EntityContext\CellRendererRegistryInterface;
 use Ikabud\Kernel\EntityContext\CellRendererRegistry;
-use Ikabud\Kernel\EntityContext\EntitySourceRegistry;
 use Ikabud\Kernel\Services\SlotRegistry;
 
 use Ikabud\Kernel\TenantResolver;
@@ -57,7 +56,6 @@ final class App
     private ?SyncContractRegistry $syncContractRegistry = null;
     private ?EntityViewResolver $entityViewResolver = null;
     private ?EntityRendererInterface $entityRenderer = null;
-    private ?EntitySourceRegistry $entitySourceRegistry = null;
     private ?CellRendererRegistryInterface $entityCellRendererRegistry = null;
     private ?IntegrationBridge $integrationBridge = null;
     private ?TriggerService $triggerService = null;
@@ -554,11 +552,6 @@ final class App
         // Use cache() accessor for lazy initialization (avoids null on first boot).
         $this->cache()->warmKernelState();
 
-        // Freeze registries to prevent mid-request mutations
-        if ($this->entitySourceRegistry !== null) {
-            $this->entitySourceRegistry->freeze();
-        }
-
         return $this;
     }
 
@@ -786,17 +779,6 @@ final class App
     public function slotRegistry(): SlotRegistry
     {
         return SlotRegistry::getInstance();
-    }
-
-    /**
-     * Get the entity renderer — renders resolved entity data to HTML.
-     */
-    public function entitySources(): EntitySourceRegistry
-    {
-        if ($this->entitySourceRegistry === null) {
-            $this->entitySourceRegistry = new EntitySourceRegistry();
-        }
-        return $this->entitySourceRegistry;
     }
 
     public function entityRenderers(): EntityRendererInterface

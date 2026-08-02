@@ -190,7 +190,9 @@ Workflows become a first-class reusable runtime primitive.
 ## Phase 6 — Developer Platform Experience
 
 **Status:** 🟡 **PARTIAL** — in kernel 3.2.0:
-- Module scaffolder shipped: [scripts/scaffold-module.php](../../scripts/scaffold-module.php) (extended in 4.0.0 with `--with=capability,event,migration` flags)
+- The historical `scripts/scaffold-module.php` scaffolder shipped in 3.2.0 and
+  was extended in 4.0.0. It is now a hard-deprecation tombstone. The sole
+  supported command is `php ikabud make:module <module-id>`.
 - Manifest guard expanded: [scripts/guard-module-manifests.php](../../scripts/guard-module-manifests.php) now checks routes-file existence, owns_tables collisions (errors in 4.0.0), `co_owns_tables` reconciliation, and semver shape.
 - Primitive-selection guide shipped: [choosing-the-right-primitive.md](choosing-the-right-primitive.md)
 - Co-owned-tables convention introduced: [co-owned-tables.md](co-owned-tables.md) (4.0.0)

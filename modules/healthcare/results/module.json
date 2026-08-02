@@ -122,10 +122,10 @@
     ],
     "routes": true,
     "events": [
-        "ehr.result.entered",
-        "ehr.result.viewed",
-        "ehr.result.access_denied",
-        "ehr.result.verified",
-        "ehr.result.released"
+        {"key": "ehr.result.entered"},
+        {"key": "ehr.result.viewed"},
+        {"key": "ehr.result.access_denied"},
+        {"key": "ehr.result.verified"},
+        {"key": "ehr.result.released"}
     ]
 }

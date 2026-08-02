@@ -804,7 +804,7 @@ return [
 ## 8. Implementation Phases
 
 ### Phase 1 — Database Foundation (Days 1-2)
-- Scaffold module via `php scripts/scaffold-module.php attendance-wage --name="Attendance & Wage" --with=migration`
+- Scaffold module via the canonical `php ikabud make:module attendance-wage`
 - Write all 12 migration SQL files
 - Create `module.json`, `routes.php`, `handlers.php`
 - Bootstrap auth guards and helpers stub

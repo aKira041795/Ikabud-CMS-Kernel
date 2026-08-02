@@ -7,6 +7,41 @@ on:
     branches: [ main, master ]
 
 jobs:
+  module-contracts:
+    name: Module manifest and golden lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo, pdo_mysql, mbstring, json, openssl, zip
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Create storage directories
+        run: mkdir -p storage/logs storage/cache
+
+      - name: Enforce module manifest schema v1
+        run: php scripts/guard-module-manifests.php --strict
+
+      - name: Certify every discovered module
+        run: php ikabud module:certify --all
+
+      - name: Verify shared manifest and runtime route contracts
+        run: |
+          php tests/manifest_schema_v1_test.php
+          php tests/manifest_validator_parity_test.php
+          php tests/module_route_declaration_runtime_test.php
+
+      - name: Prove canonical module lifecycle
+        run: php scripts/golden-module-ci.php
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -54,7 +89,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo, pdo_mysql, mbstring, json, openssl
+          extensions: pdo, pdo_mysql, mbstring, json, openssl, zip
           coverage: none
 
       - name: Install Composer dependencies

@@ -256,6 +256,16 @@ function kernelRegisterModuleEvents(string $moduleId, array $events): void
         return;
     }
 
+    require_once dirname(__DIR__) . '/src/helpers/manifest-validation.php';
+    $diagnostics = validateModuleEventDeclarationsV1($events);
+    if ($diagnostics !== []) {
+        $diagnostic = $diagnostics[0];
+        throw new RuntimeException(
+            "[fatal] Module '{$moduleId}' has malformed events declaration at {$diagnostic['field']}: "
+            . $diagnostic['message'] . ' Correction: ' . $diagnostic['correction']
+        );
+    }
+
     // Collect events for deferred batch sync instead of syncing per-module
     app()->triggers()->addPendingRegistration($moduleId, $events);
 }
@@ -295,13 +305,7 @@ function kernelFlushPendingEventRegistrations(): void
 
         foreach ($pending as $moduleId => $events) {
             foreach ($events as $e) {
-                if (!is_array($e)) {
-                    continue;
-                }
                 $key = trim((string)($e['key'] ?? ''));
-                if ($key === '') {
-                    continue;
-                }
 
                 $desc = null;
                 if (isset($e['description'])) {
@@ -348,9 +352,12 @@ function kernelFlushPendingEventRegistrations(): void
             }
         }
 
-        // Non-fatal: event registry is additive.
-        write_log('kernelFlushPendingEventRegistrations failed: ' . $e->getMessage(), 'warning', [
+        // Registry persistence remains additive; malformed declarations have
+        // already failed before they can enter this batch.
+        write_log('[advisory] kernelFlushPendingEventRegistrations failed: ' . $e->getMessage(), 'warning', [
+            'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value,
             'modules' => array_keys($pending),
+            'correction' => 'Restore tenant database connectivity and rerun module boot to synchronize declared events.',
         ]);
     }
 }

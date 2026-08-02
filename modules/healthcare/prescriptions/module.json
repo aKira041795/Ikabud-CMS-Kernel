@@ -109,7 +109,7 @@
     },
     "routes": true,
     "events": [
-        "ehr.prescription.issued",
-        "ehr.prescription.canceled"
+        {"key": "ehr.prescription.issued"},
+        {"key": "ehr.prescription.canceled"}
     ]
 }

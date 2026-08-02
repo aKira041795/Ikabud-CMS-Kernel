@@ -23,7 +23,7 @@
  *   php ikabud routes                    List all registered routes
  *   php ikabud disyl:lint [path]         Lint templates for errors
  *   php ikabud disyl:list-sources        List registered entity sources for entity views
- *   php ikabud entity:list               List all entity sources with schema from EntitySourceRegistry
+ *   php ikabud entity:list               List operational EntityViewResolver contracts
  *   php ikabud entity:context <source>   Show resolved context for a source
  *   php ikabud tinker <sql>              Run a raw SQL query
  *   php ikabud work:queue [name]         Run queue worker (--sleep=N, --once)
@@ -799,6 +799,7 @@ switch ($command) {
         out('    ' . dim('    ') . green('tenant:canonical-domain:set') . ' <tenant_id> --clear');
         out('    ' . green('tenant:db:set') . ' <tenant_id> --host=.. --name=.. --user=.. [--port=3306] [--driver=mysql] [--charset=utf8mb4] [--pass=..]');
         out('    ' . green('tenant:db:check') . ' <tenant_id>    Show DB config + pass status');
+        out('    ' . green('tenant:db:encrypt-legacy') . ' <tenant_id>|--all  Encrypt and clear legacy plaintext DB passwords');
         out('    ' . green('tenant:provision') . ' <tenant_id> [--skip-db-create] [--admin-user=..] [--admin-pass=..] [--admin-name=..]');
         out('    ' . dim('  bakeshop entry tenants require --admin-user and --admin-pass so the module gets a real first admin.') );
         out('    ' . green('tenant:verify') . ' <tenant_id>      Health-check a tenant (DB, tables, isolation, admin user)');
@@ -1343,6 +1344,79 @@ switch ($command) {
         }
         break;
 
+    // ── tenant:db:encrypt-legacy ───────────────────────────────────
+    case 'tenant:db:encrypt-legacy':
+        $clean = paramsWithoutFlags($params);
+        $tenantId = (int)($clean[0] ?? 0);
+        $all = hasFlag('--all');
+        banner();
+        if (!$all && $tenantId <= 0) {
+            out('  ' . red('✗ Usage: ') . 'php ikabud tenant:db:encrypt-legacy <tenant_id>|--all');
+            out('');
+            exit(1);
+        }
+        try {
+            $pdo = app()->controlDb();
+            $pdo->beginTransaction();
+            $sql = 'SELECT tenant_id, db_pass, db_pass_ciphertext, db_pass_iv, db_pass_tag '
+                . 'FROM kernel_tenant_db_connections WHERE db_pass IS NOT NULL AND db_pass <> \'\'';
+            $bindings = [];
+            if (!$all) {
+                $sql .= ' AND tenant_id = :tid';
+                $bindings[':tid'] = $tenantId;
+            }
+            $sql .= ' FOR UPDATE';
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($bindings);
+            $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt->closeCursor();
+
+            $encrypted = 0;
+            $cleared = 0;
+            $crypto = new Crypto();
+            $update = $pdo->prepare(
+                'UPDATE kernel_tenant_db_connections SET db_pass = NULL, '
+                . 'db_pass_ciphertext = :cipher, db_pass_iv = :iv, db_pass_tag = :tag '
+                . 'WHERE tenant_id = :tid'
+            );
+            foreach ($rows as $row) {
+                $cipher = trim((string)($row['db_pass_ciphertext'] ?? ''));
+                $iv = trim((string)($row['db_pass_iv'] ?? ''));
+                $tag = trim((string)($row['db_pass_tag'] ?? ''));
+                if ($cipher === '' || $iv === '' || $tag === '') {
+                    $value = $crypto->encryptString((string)$row['db_pass']);
+                    $cipher = (string)($value['ciphertext'] ?? '');
+                    $iv = (string)($value['iv'] ?? '');
+                    $tag = (string)($value['tag'] ?? '');
+                    if ($cipher === '' || $iv === '' || $tag === '') {
+                        throw new RuntimeException('Encryption failed for tenant #' . (string)$row['tenant_id']);
+                    }
+                    $encrypted++;
+                } else {
+                    $cleared++;
+                }
+                $update->execute([
+                    ':cipher' => $cipher,
+                    ':iv' => $iv,
+                    ':tag' => $tag,
+                    ':tid' => (int)$row['tenant_id'],
+                ]);
+            }
+            $pdo->commit();
+            out('  ' . green('✓') . ' Legacy tenant DB credentials upgraded');
+            out('    ' . dim('encrypted: ') . (string)$encrypted);
+            out('    ' . dim('plaintext cleared: ') . (string)$cleared);
+            out('');
+        } catch (Throwable $e) {
+            if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            out('  ' . red('✗ Failed: ') . $e->getMessage());
+            out('');
+            exit(1);
+        }
+        break;
+
     // ── tenant:provision ──────────────────────────────────────────
     case 'tenant:provision':
         $clean = paramsWithoutFlags($params);
@@ -1475,7 +1549,7 @@ switch ($command) {
             }
 
             // 6. Run tenant-safe kernel migrations only (never control-plane schema)
-            $kernelApplied = tenantSyncKernelMigrations($tenantPdo);
+            $kernelApplied = tenantSyncKernelMigrations($tenantPdo, null, $entryModule !== '' ? $entryModule : null);
             if (!empty($kernelApplied)) {
                 out('    ' . bold('kernel'));
                 foreach ($kernelApplied as $artifactName) {
@@ -1496,11 +1570,15 @@ switch ($command) {
                 }
 
                 // Check if users table exists
-                $tableCheck = $tenantPdo->query("SHOW TABLES LIKE '{$usersTable}'")->fetchColumn();
+                $tableStmt = $tenantPdo->query("SHOW TABLES LIKE '{$usersTable}'");
+                $tableCheck = $tableStmt->fetchColumn();
+                $tableStmt->closeCursor();
                 if ($tableCheck !== false) {
                     $existStmt = $tenantPdo->prepare("SELECT id FROM `{$usersTable}` WHERE username = :u LIMIT 1");
                     $existStmt->execute([':u' => $adminUser]);
-                    if ($existStmt->fetch()) {
+                    $existingUser = $existStmt->fetch();
+                    $existStmt->closeCursor();
+                    if ($existingUser) {
                         out('  ' . yellow('!') . " User '{$adminUser}' already exists in {$usersTable}");
                     } else {
                         $hash = password_hash($adminPass, PASSWORD_BCRYPT);
@@ -2467,12 +2545,49 @@ switch ($command) {
         $files = new RecursiveIteratorIterator($it);
         foreach ($files as $f) {
             /** @var SplFileInfo $f */
+            if ($f->isLink()) {
+                $zip->close();
+                @unlink($zipOut);
+                out(red("  ✗ Refusing to pack symlinked module entry: {$f->getPathname()}"));
+                exit(1);
+            }
             if (!$f->isFile()) continue;
             $fullPath = $f->getRealPath();
             if ($fullPath === false) continue;
             $rel = substr($fullPath, $rootLen);
             $rel = str_replace('\\', '/', $rel);
             $zip->addFile($fullPath, $rel);
+        }
+
+        // Module templates live outside modules/<id> by repository convention.
+        // Store them under a reserved package prefix so a clean install can
+        // restore them without permitting arbitrary archive destinations.
+        $templateDir = BASE_PATH . '/templates/modules/' . $moduleId;
+        if (is_link($templateDir)) {
+            $zip->close();
+            @unlink($zipOut);
+            out(red("  ✗ Refusing to pack symlinked module template directory: {$templateDir}"));
+            exit(1);
+        }
+        if (is_dir($templateDir)) {
+            $templateRootLen = strlen(rtrim($templateDir, '/')) + 1;
+            $templateFiles = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($templateDir, FilesystemIterator::SKIP_DOTS)
+            );
+            foreach ($templateFiles as $templateFile) {
+                /** @var SplFileInfo $templateFile */
+                if ($templateFile->isLink()) {
+                    $zip->close();
+                    @unlink($zipOut);
+                    out(red("  ✗ Refusing to pack symlinked template entry: {$templateFile->getPathname()}"));
+                    exit(1);
+                }
+                if (!$templateFile->isFile()) continue;
+                $fullPath = $templateFile->getRealPath();
+                if ($fullPath === false) continue;
+                $rel = str_replace('\\', '/', substr($fullPath, $templateRootLen));
+                $zip->addFile($fullPath, '__ikabud_package/templates/' . $rel);
+            }
         }
         $zip->close();
 
@@ -3177,7 +3292,7 @@ switch ($command) {
             'name' => $label,
             'version' => '1.0.0',
             'description' => "{$label} module for Ikabud Kernel",
-            'author' => '',
+            'author' => 'Ikabud',
             'owns_tables' => [],
             'reads_tables' => [],
             'migrations' => [
@@ -3185,11 +3300,9 @@ switch ($command) {
             ],
             'capabilities' => [
                 'exposes' => [],
-                'depends' => [
-                    'kernel.auth.user@1',
-                    'kernel.audit.record@1',
-                ],
+                'depends' => [],
             ],
+            'routes' => true,
             'events' => [],
             'nav' => [
                 [
@@ -3221,6 +3334,7 @@ declare(strict_types=1);
 return [
     'GET' => [
         '/admin/{$id}' => '{$id}:page{$funcPrefix}Home',
+        '/api/v1/{$id}/health' => '{$id}:api{$funcPrefix}Health',
     ],
     'POST' => [
         // '/api/v1/{$id}/example' => '{$id}:api{$funcPrefix}Example',
@@ -3254,6 +3368,15 @@ function page{$funcPrefix}Home(array \$params = []): void
     echo {$shortPrefix}Render('pages/home.disyl', [
         'page_title' => '{$label}',
     ]);
+}
+
+/**
+ * GET /api/v1/{$id}/health — Dependency-free lifecycle smoke endpoint.
+ */
+function api{$funcPrefix}Health(array \$params = []): void
+{
+    header('Content-Type: application/json');
+    echo json_encode(['ok' => true, 'module' => '{$id}', 'version' => '1.0.0']);
 }
 
 // Example API handler (uncomment route in routes.php):
@@ -3298,8 +3421,8 @@ PHP;
  * Scoped helper functions provide isolated access to module context,
  * database, input, and rendering. Register event listeners here too.
  *
- * @see docs/module-development-guide.md
- * @see docs/module-quickstart.md
+ * @see docs/kernel/module-development-guide.md
+ * @see docs/kernel/module-quickstart.md
  */
 
 declare(strict_types=1);
@@ -4038,11 +4161,39 @@ MD;
         out('  ' . bold('Architecture Check') . dim(' — boundary rules + cross-module audit'));
         out('');
 
+        $failCount = 0;
+        $totalChecks = 0;
+
+        // Phase 0: canonical manifest schema-v1 validation. This is the same
+        // code path used by the authoritative strict manifest guard.
+        $manifestFailures = [];
+        foreach (moduleManifestFilesV1(BASE_PATH . '/modules') as $manifestPath) {
+            $validation = validateModuleManifestForArchitectureV1($manifestPath);
+            foreach ($validation['diagnostics'] ?? [] as $diagnostic) {
+                if (($diagnostic['severity'] ?? '') !== 'fatal') {
+                    continue;
+                }
+                $manifestFailures[] = [
+                    'path' => str_replace(BASE_PATH . '/', '', $manifestPath),
+                    'diagnostic' => $diagnostic,
+                ];
+            }
+        }
+        $totalChecks++;
+        if ($manifestFailures === []) {
+            out('  ' . green('✓') . ' Manifest schema v' . MODULE_MANIFEST_SCHEMA_VERSION . ': shared validator passed');
+        } else {
+            $failCount += count($manifestFailures);
+            foreach ($manifestFailures as $failure) {
+                $diagnostic = $failure['diagnostic'];
+                out('  ' . red('✗') . ' ' . $failure['path'] . ': ' . $diagnostic['code'] . ' (' . $diagnostic['rule'] . ')');
+                out('      ' . $diagnostic['message'] . ' Correction: ' . $diagnostic['correction']);
+            }
+        }
+
         $mods = discoverModules();
         $allTables = []; // table_name => owning_module_id
         $allCapExposes = []; // capability_id => owning_module_id
-        $failCount = 0;
-        $totalChecks = 0;
 
         // Phase 1: Build table ownership map + capability exposes map
         foreach ($mods as $mid => $manifest) {
@@ -4497,7 +4648,8 @@ MD;
         $declaredEmitters = [];
         foreach ($mods as $mid => $manifest) {
             foreach ((array)($manifest['events'] ?? []) as $ev) {
-                if ((string)$ev === $eventName) {
+                $declaredKey = is_array($ev) ? (string)($ev['key'] ?? '') : (string)$ev;
+                if ($declaredKey === $eventName) {
                     $declaredEmitters[] = $mid;
                 }
             }
@@ -6452,41 +6604,39 @@ PHP;
     // ── entity:list ──────────────────────────────────────────────
     case 'entity:list':
         banner();
-        out('  ' . bold('Registered Entity Sources (EntitySourceRegistry)') . "\n");
+        out('  ' . bold('Registered Entity Views (EntityViewResolver)') . "\n");
 
         require_once __DIR__ . '/bootstrap.php';
         if (function_exists('app') && ($app = app()) !== null) {
             $app->boot();
         }
-
-        $sources = [];
-        if (method_exists($app ?? null, 'entitySources')) {
-            $registry = $app->entitySources();
-            foreach ($registry->all() as $sourceId) {
-                $def = $registry->get($sourceId);
-                $sources[$sourceId] = $def;
-            }
+        if (function_exists('loadModuleRoutes')) {
+            loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'PATCH' => [], 'DELETE' => []]);
         }
 
-        if (empty($sources)) {
-            out('  ' . yellow('No entity sources registered in EntitySourceRegistry.'));
-            out('  ' . 'Module capability handlers are still available via convention.');
+        $resolver = $app->entityViews();
+        $contracts = $resolver->registeredViewContracts();
+
+        if (empty($contracts)) {
+            out('  ' . yellow('No module entity view contracts are registered.'));
         } else {
-            ksort($sources);
-            foreach ($sources as $id => $def) {
-                $type = $def['entity_type'] ?? $id;
-                $listCap = $def['list_capability'] ?? '—';
-                $detailCap = $def['detail_capability'] ?? '—';
-                $timeout = $def['timeout_ms'] ?? 10000;
-                $filters = !empty($def['filters']) ? implode(', ', array_keys($def['filters'])) : '—';
-                out('  ' . green($id) . '  (' . $type . ')');
-                out('    └─ List: ' . cyan((string)$listCap));
-                out('    └─ Detail: ' . cyan((string)$detailCap));
+            foreach ($contracts as $key => $contract) {
+                $entityType = (string)($contract['entity_type'] ?? '—');
+                $view = (string)($contract['view'] ?? '—');
+                $provider = (string)($contract['provider'] ?? '—');
+                $capability = (string)($contract['capability'] ?? '');
+                if ($capability === '') {
+                    $capability = 'entity.list.' . str_replace('.', '_', $entityType);
+                }
+                $timeout = (int)($contract['timeout_ms'] ?? 10000);
+                out('  ' . green($key));
+                out('    └─ Entity: ' . $entityType . '  View: ' . $view);
+                out('    └─ Provider: ' . $provider);
+                out('    └─ Capability: ' . cyan($capability));
                 out('    └─ Timeout: ' . $timeout . 'ms');
-                out('    └─ Filters: ' . $filters);
             }
             out('');
-            out('  Total: ' . cyan((string)count($sources)) . ' registered source(s)');
+            out('  Total: ' . cyan((string)count($contracts)) . ' registered view contract(s)');
         }
         out('');
         exit(0);
@@ -6745,7 +6895,7 @@ PHP;
         $sourceId = $params[0] ?? '';
         if ($sourceId === '') {
             out(red('  Usage: php ikabud entity:context <source_id>'));
-            out('  Example: php ikabud entity:context pal.expense');
+            out('  Example: php ikabud entity:context pal_expense');
             exit(1);
         }
 
@@ -6759,48 +6909,26 @@ PHP;
             loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
         }
 
-        // Show EntitySourceRegistry entry
-        if (method_exists($app ?? null, 'entitySources')) {
-            $registry = $app->entitySources();
-            $def = $registry->get($sourceId);
-            if ($def !== null) {
-                out('  Entity Source: ' . bold(green($sourceId)));
-                out('  Entity Type:   ' . ($def['entity_type'] ?? '—'));
-                out('  List Cap:      ' . ($def['list_capability'] ?? '—'));
-                out('  Detail Cap:    ' . ($def['detail_capability'] ?? '—'));
-                out('  Timeout:       ' . ($def['timeout_ms'] ?? 10000) . 'ms');
-                out('  Max Limit:     ' . ($def['max_limit'] ?? 100));
-                if (!empty($def['filters'])) {
-                    out('  Filters:');
-                    foreach ($def['filters'] as $name => $rule) {
-                        $type = $rule['type'] ?? 'string';
-                        $values = !empty($rule['values']) ? ' [' . implode(', ', $rule['values']) . ']' : '';
-                        out('    └─ ' . $name . ': ' . $type . $values);
-                    }
-                }
-                if (!empty($def['sort'])) {
-                    out('  Sortable: ' . implode(', ', (array)$def['sort']));
-                }
-            } else {
-                out('  ' . yellow("Source '{$sourceId}' not registered in EntitySourceRegistry."));
-            }
-        }
-
         // Show view contracts from EntityViewResolver
         if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
             $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
+            out('  Entity Type: ' . bold(green($sourceId)));
             $found = false;
-            foreach (['table', 'compact', 'card_grid', 'detailed', 'summary'] as $view) {
-                $contract = $resolver->viewContract($sourceId, $view);
-                if ($contract !== null) {
-                    if (!$found) {
-                        out('  View Contracts:');
-                        $found = true;
-                    }
-                    $fields = $contract['fields'] ?? [];
-                    $fieldStr = is_array($fields) ? implode(', ', $fields) : (string)$fields;
-                    out('    └─ ' . bold($view) . ': ' . $fieldStr);
+            foreach ($resolver->registeredViewContracts() as $contract) {
+                if ((string)($contract['entity_type'] ?? '') !== $sourceId) {
+                    continue;
                 }
+                if (!$found) {
+                    out('  View Contracts:');
+                    $found = true;
+                }
+                $view = (string)($contract['view'] ?? 'default');
+                $fields = $contract['fields'] ?? [];
+                $fieldStr = is_array($fields) ? implode(', ', $fields) : (string)$fields;
+                out('    └─ ' . bold($view) . ': ' . $fieldStr);
+            }
+            if (!$found) {
+                out('  ' . yellow("No registered view contracts for '{$sourceId}'."));
             }
         }
         out('');
@@ -6812,7 +6940,7 @@ PHP;
         $sourceId = $params[0] ?? '';
         if ($sourceId === '') {
             out(red('  Usage: php ikabud entity:describe <source_id>'));
-            out('  Example: php ikabud entity:describe pal.expense');
+            out('  Example: php ikabud entity:describe pal_expense');
             exit(1);
         }
 
@@ -6824,33 +6952,8 @@ PHP;
             loadModuleRoutes(['GET' => [], 'POST' => [], 'PUT' => [], 'DELETE' => []]);
         }
 
-        // 1. Entity source definition
+        // 1. Entity identity
         out('  ' . bold('Entity: ') . green($sourceId));
-        out('');
-        if (method_exists($app ?? null, 'entitySources')) {
-            $def = $app->entitySources()->get($sourceId);
-            if ($def !== null) {
-                out('  ' . dim('Source definition'));
-                out('    Entity Type:   ' . ($def['entity_type'] ?? '—'));
-                out('    List Cap:      ' . ($def['list_capability'] ?? '—'));
-                out('    Detail Cap:    ' . ($def['detail_capability'] ?? '—'));
-                out('    Timeout:       ' . ($def['timeout_ms'] ?? 10000) . 'ms');
-                out('    Max Limit:     ' . ($def['max_limit'] ?? 100));
-                if (!empty($def['filters'])) {
-                    out('    Filters:');
-                    foreach ($def['filters'] as $name => $rule) {
-                        $type = $rule['type'] ?? 'string';
-                        $vals = !empty($rule['values']) ? ' [' . implode(', ', $rule['values']) . ']' : '';
-                        out('      └─ ' . $name . ': ' . $type . $vals);
-                    }
-                }
-                if (!empty($def['sort'])) {
-                    out('    Sortable: ' . implode(', ', (array)$def['sort']));
-                }
-            } else {
-                out('  ' . yellow('Not registered in EntitySourceRegistry'));
-            }
-        }
 
         // 2. View contracts
         out('');
@@ -6858,22 +6961,23 @@ PHP;
         if (class_exists('Ikabud\\Kernel\\EntityContext\\EntityViewResolver', true)) {
             $resolver = \Ikabud\Kernel\EntityContext\EntityViewResolver::getInstance();
             $found = false;
-            foreach (['table', 'compact', 'card_grid', 'detailed', 'summary'] as $view) {
-                $contract = $resolver->viewContract($sourceId, $view);
-                if ($contract !== null) {
-                    if (!$found) { $found = true; }
-                    $fields = $contract['fields'] ?? [];
-                    $fieldStr = is_array($fields) ? implode(', ', $fields) : (string)$fields;
-                    $roleFields = '';
-                    if (!empty($contract['role_fields'])) {
-                        $rf = [];
-                        foreach ((array)$contract['role_fields'] as $role => $fld) {
-                            $rf[] = "$role=$fld";
-                        }
-                        $roleFields = ' [' . implode(', ', $rf) . ']';
-                    }
-                    out('    ' . bold($view) . ': ' . $fieldStr . dim($roleFields));
+            foreach ($resolver->registeredViewContracts() as $contract) {
+                if ((string)($contract['entity_type'] ?? '') !== $sourceId) {
+                    continue;
                 }
+                $found = true;
+                $view = (string)($contract['view'] ?? 'default');
+                $fields = $contract['fields'] ?? [];
+                $fieldStr = is_array($fields) ? implode(', ', $fields) : (string)$fields;
+                $roleFields = '';
+                if (!empty($contract['role_fields'])) {
+                    $rf = [];
+                    foreach ((array)$contract['role_fields'] as $role => $fld) {
+                        $rf[] = "$role=$fld";
+                    }
+                    $roleFields = ' [' . implode(', ', $rf) . ']';
+                }
+                out('    ' . bold($view) . ': ' . $fieldStr . dim($roleFields));
             }
             if (!$found) {
                 out('    ' . dim('none registered'));

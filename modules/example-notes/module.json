@@ -29,8 +29,8 @@
   },
   "routes": true,
   "events": [
-    "example-notes.note.created",
-    "example-notes.note.deleted"
+    {"key": "example-notes.note.created"},
+    {"key": "example-notes.note.deleted"}
   ],
   "nav": [
     {

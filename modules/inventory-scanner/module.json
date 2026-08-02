@@ -4,6 +4,8 @@
     "version": "1.0.0",
     "description": "Standalone barcode-based inventory scanning with offline-capable mobile app",
     "author": "Ikabud",
+    "routes": "routes.php",
+    "events": [],
     "auth_owned": {
         "users_table": "is_users",
         "username_column": "username",
@@ -39,12 +41,12 @@
     ],
     "capabilities": {
         "exposes": [
-            "kernel.auth.authenticate@1",
-            "inventory-scanner.scan.lookup@1",
-            "inventory-scanner.scan.save@1",
-            "inventory-scanner.products.list@1",
-            "inventory-scanner.products.export@1",
-            "inventory-scanner.scan.sync@1"
+            {"id": "kernel.auth.authenticate@1", "modes": ["pipeline"]},
+            {"id": "inventory_scanner.scan.lookup@1", "modes": ["first"]},
+            {"id": "inventory_scanner.scan.save@1", "modes": ["first"]},
+            {"id": "inventory_scanner.products.list@1", "modes": ["first"]},
+            {"id": "inventory_scanner.products.export@1", "modes": ["first"]},
+            {"id": "inventory_scanner.scan.sync@1", "modes": ["first"]}
         ],
         "depends": []
     },

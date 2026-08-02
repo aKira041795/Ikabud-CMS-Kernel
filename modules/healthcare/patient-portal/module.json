@@ -148,12 +148,12 @@
     ],
     "routes": true,
     "events": [
-        "ehr.portal.account.provisioned",
-        "ehr.portal.account.updated",
-        "ehr.portal.account.password_reset_by_admin",
-        "ehr.portal.account.reactivated",
-        "ehr.portal.account.deactivated",
-        "ehr.portal.session.started",
-        "ehr.portal.session.ended"
+        {"key": "ehr.portal.account.provisioned"},
+        {"key": "ehr.portal.account.updated"},
+        {"key": "ehr.portal.account.password_reset_by_admin"},
+        {"key": "ehr.portal.account.reactivated"},
+        {"key": "ehr.portal.account.deactivated"},
+        {"key": "ehr.portal.session.started"},
+        {"key": "ehr.portal.session.ended"}
     ]
 }

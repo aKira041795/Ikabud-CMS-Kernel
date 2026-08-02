@@ -147,18 +147,18 @@
     },
     "routes": true,
     "events": [
-        "bakeshop.branch.created",
-        "bakeshop.delivery.created",
-        "bakeshop.production.created",
-        "bakeshop.production.updated",
-        "bakeshop.production.voided",
-        "bakeshop.product.created",
-        "bakeshop.product.deleted",
-        "bakeshop.ingredient.created",
-        "bakeshop.ingredient.deleted",
-        "bakeshop.unit.created",
-        "bakeshop.recipe.saved",
-        "bakeshop.adjustment.created"
+        {"key": "bakeshop.branch.created"},
+        {"key": "bakeshop.delivery.created"},
+        {"key": "bakeshop.production.created"},
+        {"key": "bakeshop.production.updated"},
+        {"key": "bakeshop.production.voided"},
+        {"key": "bakeshop.product.created"},
+        {"key": "bakeshop.product.deleted"},
+        {"key": "bakeshop.ingredient.created"},
+        {"key": "bakeshop.ingredient.deleted"},
+        {"key": "bakeshop.unit.created"},
+        {"key": "bakeshop.recipe.saved"},
+        {"key": "bakeshop.adjustment.created"}
     ],
     "settings_fields": [
         {

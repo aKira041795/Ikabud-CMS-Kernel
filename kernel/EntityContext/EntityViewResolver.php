@@ -313,6 +313,15 @@ final class EntityViewResolver
         // Normalize entity type: dots → underscores for capability IDs
         $sanitizedType = str_replace('.', '_', $entityType);
         $capabilityId = "entity.list.{$sanitizedType}";
+        if (
+            \function_exists('app')
+            && ($app = \app()) !== null
+            && method_exists($app, 'capabilities')
+            && !$app->capabilities()->has($capabilityId)
+            && $app->capabilities()->has($capabilityId . '@1')
+        ) {
+            $capabilityId .= '@1';
+        }
         $rows = null;
         $total = 0;
         $error = null;
@@ -562,6 +571,18 @@ final class EntityViewResolver
     public function registeredViews(): array
     {
         return array_keys($this->viewContracts);
+    }
+
+    /**
+     * Return the operationally registered view contracts for diagnostics.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function registeredViewContracts(): array
+    {
+        $contracts = $this->viewContracts;
+        ksort($contracts);
+        return $contracts;
     }
 
     /**

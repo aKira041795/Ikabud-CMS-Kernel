@@ -133,8 +133,8 @@
     ],
     "routes": true,
     "events": [
-        "ehr.adt.admitted",
-        "ehr.adt.transferred",
-        "ehr.adt.discharged"
+        {"key": "ehr.adt.admitted"},
+        {"key": "ehr.adt.transferred"},
+        {"key": "ehr.adt.discharged"}
     ]
 }

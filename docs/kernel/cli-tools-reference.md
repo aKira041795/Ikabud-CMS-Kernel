@@ -356,7 +356,7 @@ php ikabud disyl:lint templates/modules/cms/
 
 ### `entity:list`
 
-List all entity sources with their schemas from EntitySourceRegistry.
+List all operational entity view contracts registered in `EntityViewResolver`.
 
 ```
 php ikabud entity:list
@@ -369,7 +369,7 @@ php ikabud entity:list
 Show the resolved context profile for an entity source.
 
 ```
-php ikabud entity:context products
+php ikabud entity:context pal_expense
 ```
 
 ---
@@ -488,7 +488,7 @@ php ikabud module:certify --all
 | `module:enable <id>` | Enable a module |
 | `module:disable <id>` | Disable a module |
 | `module:validate <id>` | Full compliance check (manifest, capabilities, routes, tables, migrations) |
-| `module:pack <id> [zip]` | Create an installable module zip |
+| `module:pack <id> [zip]` | Create an installable module zip, including external `templates/modules/<id>` assets |
 | `module:uninstall <id>` | Remove module files and disable it |
 | `module:check-boundaries` | Validate module boundary rules |
 | `module:graph [id]` | Dependency graph + impact analysis |

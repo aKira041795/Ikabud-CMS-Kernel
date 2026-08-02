@@ -132,11 +132,11 @@
     ],
     "routes": true,
     "events": [
-        "ehr.document.uploaded",
-        "ehr.document.viewed",
-        "ehr.document.access_denied",
-        "ehr.document.printed",
-        "ehr.document.exported",
-        "ehr.document.restricted"
+        {"key": "ehr.document.uploaded"},
+        {"key": "ehr.document.viewed"},
+        {"key": "ehr.document.access_denied"},
+        {"key": "ehr.document.printed"},
+        {"key": "ehr.document.exported"},
+        {"key": "ehr.document.restricted"}
     ]
 }

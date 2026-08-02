@@ -21,6 +21,10 @@ one up yet, follow the [Installation Guide](installation.md) first.
 
 ## Step 1: Scaffold the Module
 
+`php ikabud make:module` is the only supported module scaffolder. The former
+`scripts/scaffold-module.php` entry point is a non-operational deprecation
+tombstone and must not be used by tooling or documentation.
+
 ```bash
 php ikabud make:module notes
 ```

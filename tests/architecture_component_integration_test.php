@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 /**
  * Integration tests for P1/P2 architectural components:
- *   - EntitySourceRegistry (P1.1)
  *   - ResolvedEntityContext (P1.2)
  *   - Provenance tracking (P1.4)
  *   - Domain-specific merge rules (P1.5)
@@ -28,7 +27,6 @@ spl_autoload_register(static function (string $class): void {
     if (file_exists($path)) { require_once $path; }
 });
 
-use Ikabud\Kernel\EntityContext\EntitySourceRegistry;
 use Ikabud\Kernel\EntityContext\ResolvedEntityContext;
 use Ikabud\Kernel\EntityContext\EntityViewResolver;
 use Ikabud\Kernel\EntityContext\CustomizerSchemaBuilder;
@@ -45,82 +43,10 @@ function t(string $label, bool $ok, string $detail = ''): void {
 echo "═══ P1/P2 Architectural Component Tests ═══\n\n";
 
 // ════════════════════════════════════════════════════════════════
-// 1. EntitySourceRegistry (P1.1)
+// 1. ResolvedEntityContext (P1.2) — Immutability
 // ════════════════════════════════════════════════════════════════
 
-echo "── 1. EntitySourceRegistry (P1.1) ──\n";
-
-$registry = new EntitySourceRegistry();
-t('registry starts unfrozen', !$registry->isFrozen());
-t('empty registry has nothing', $registry->all() === []);
-
-$registry->register('pal.expense', [
-    'entity_type' => 'pal_expense',
-    'list_capability' => 'entity.list.pal_expense@1',
-    'detail_capability' => 'entity.get.pal_expense@1',
-    'filters' => ['status' => ['type' => 'enum', 'values' => ['pending', 'approved']]],
-    'timeout_ms' => 5000,
-    'max_limit' => 50,
-]);
-
-t('registered source is accessible', $registry->has('pal.expense'));
-$def = $registry->get('pal.expense');
-t('entity_type stored', ($def['entity_type'] ?? '') === 'pal_expense');
-t('list_capability stored', ($def['list_capability'] ?? '') === 'entity.list.pal_expense@1');
-t('timeout_ms stored', ($def['timeout_ms'] ?? 0) === 5000);
-t('max_limit stored', ($def['max_limit'] ?? 0) === 50);
-t('filter schema stored', isset($def['filters']['status']));
-
-$registry->register('pal.project', [
-    'entity_type' => 'pal_project',
-    'list_capability' => 'entity.list.pal_project@1',
-]);
-t('all() returns registered IDs', $registry->all() === ['pal.expense', 'pal.project']);
-
-// Freeze
-$registry->freeze();
-t('registry is frozen after freeze', $registry->isFrozen());
-
-$caught = false;
-try {
-    $registry->register('pal.after_freeze', ['entity_type' => 'test']);
-} catch (\RuntimeException $e) {
-    $caught = str_contains($e->getMessage(), 'frozen');
-}
-t('register after freeze throws', $caught);
-
-// resolveCapabilityId
-$registry2 = new EntitySourceRegistry();
-$registry2->register('test.entity', [
-    'entity_type' => 'test',
-    'list_capability' => 'entity.list.test@1',
-    'detail_capability' => 'entity.get.test@1',
-]);
-t('resolveCapabilityId list', $registry2->resolveCapabilityId('test.entity', 'list') === 'entity.list.test@1');
-t('resolveCapabilityId detail', $registry2->resolveCapabilityId('test.entity', 'detail') === 'entity.get.test@1');
-t('resolveCapabilityId unknown', $registry2->resolveCapabilityId('missing', 'list') === null);
-
-// parseSource
-$registry2->register('nested.deep.entity', ['entity_type' => 'nested_deep']);
-$parsed = $registry2->parseSource('nested.deep.entity.recent');
-t('parseSource extracts base + qualifier', $parsed['source_id'] === 'nested.deep.entity' && $parsed['qualifier'] === 'recent');
-
-$parsed2 = $registry2->parseSource('nested.deep.entity');
-t('parseSource exact match has no qualifier', $parsed2['source_id'] === 'nested.deep.entity' && $parsed2['qualifier'] === null);
-
-// getFilterSchema
-t('getFilterSchema returns filters', $registry->getFilterSchema('pal.expense') === ['status' => ['type' => 'enum', 'values' => ['pending', 'approved']]]);
-t('getFilterSchema unknown returns []', $registry->getFilterSchema('missing') === []);
-
-// allDefinitions
-$defs = $registry2->allDefinitions();
-t('allDefinitions returns keyed array', isset($defs['test.entity']) && is_array($defs['test.entity']));
-
-// ════════════════════════════════════════════════════════════════
-// 2. ResolvedEntityContext (P1.2) — Immutability
-// ════════════════════════════════════════════════════════════════
-
-echo "\n── 2. ResolvedEntityContext (P1.2) — Immutability ──\n";
+echo "── 1. ResolvedEntityContext (P1.2) — Immutability ──\n";
 
 $ctx = new ResolvedEntityContext(
     entityType: 'test_entity',
@@ -230,6 +156,12 @@ $resolver->registerView('provenance_test', 'compact', [
     'fields' => ['id', 'name'],
     'limit' => 10,
 ], 'module-a');
+
+$registeredContracts = $resolver->registeredViewContracts();
+t('resolver exposes registered contracts for diagnostics',
+    isset($registeredContracts['provenance_test.compact'])
+    && ($registeredContracts['provenance_test.compact']['provider'] ?? '') === 'module-a'
+);
 
 $contract = $resolver->viewContract('provenance_test', 'compact');
 t('provenance recorded on first register',

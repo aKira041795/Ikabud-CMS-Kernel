@@ -517,16 +517,14 @@
             "kernel.audit.record@1"
         ]
     },
-    "events": {
-        "emits": [
-            "academic_similarity.submission.created",
-            "academic_similarity.submission.processed",
-            "academic_similarity.report.generated",
-            "academic_similarity.review.excluded",
-            "academic_similarity.quota.warning",
-            "academic_similarity.quota.exhausted"
-        ]
-    },
+    "events": [
+        {"key": "academic_similarity.submission.created"},
+        {"key": "academic_similarity.submission.processed"},
+        {"key": "academic_similarity.report.generated"},
+        {"key": "academic_similarity.review.excluded"},
+        {"key": "academic_similarity.quota.warning"},
+        {"key": "academic_similarity.quota.exhausted"}
+    ],
     "settings_fields": [
         {
             "key": "enabled",

@@ -143,8 +143,8 @@
     ],
     "routes": true,
     "events": [
-        "ehr.patient.created",
-        "ehr.patient.updated",
-        "ehr.patient.merged"
+        {"key": "ehr.patient.created"},
+        {"key": "ehr.patient.updated"},
+        {"key": "ehr.patient.merged"}
     ]
 }
