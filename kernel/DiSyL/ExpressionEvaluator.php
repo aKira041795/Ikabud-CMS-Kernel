@@ -760,7 +760,7 @@ class ExpressionEvaluator
 
     public function hasEscapeFilter(string $expr, array $parsedFilterNames = []): bool
     {
-        $escapeFilters = ['esc_html', 'esc_attr', 'esc_url', 'esc_js', 'json', 'url_encode', 'base64'];
+        $escapeFilters = ['esc_html', 'esc_attr', 'esc_url', 'esc_js', 'json', 'url_encode', 'base64', 'nl2br'];
         foreach ($escapeFilters as $ef) {
             if (in_array($ef, $parsedFilterNames, true)) {
                 return true;
@@ -973,6 +973,18 @@ class ExpressionEvaluator
                 return null;
             }
             $type = substr($type, 1);
+        }
+
+        if (preg_match_all('/"([^"]*)"/', $type, $literalMatches) && str_contains($type, '|')) {
+            $allowed = $literalMatches[1] ?? [];
+            if (in_array((string)$value, $allowed, true)) {
+                return (string)$value;
+            }
+            $fallback = (string)($allowed[0] ?? '');
+            if ($this->strictMode) {
+                $this->logError("[strict] Invalid literal for \${$varName}: expected {$type}");
+            }
+            return $fallback;
         }
 
         if ($this->strictMode) {

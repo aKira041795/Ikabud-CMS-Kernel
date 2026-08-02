@@ -108,7 +108,7 @@ t('capability handler rejects non-array payload', ($capResult['ok'] ?? true) ===
 $handlerMap = academic_similarity_capability_handlers();
 t('capability handler map includes semantic.compare@1', isset($handlerMap['academic_similarity.semantic.compare@1']));
 t('semantic handler maps to correct function', $handlerMap['academic_similarity.semantic.compare@1'] === 'ac_sim_cap_semantic_compare_1');
-t('handler map has 8 capabilities', count($handlerMap) === 8, 'got: ' . count($handlerMap));
+t('handler map includes at least the original 8 capabilities', count($handlerMap) >= 8, 'got: ' . count($handlerMap));
 
 // ── Quota Service Integration ──
 

@@ -26,6 +26,11 @@ abstract class CompiledTemplate
     protected FilterRegistry $filters;
     /** @var callable|null */
     protected $templateLoader = null;
+    /** @var callable|null */
+    protected $errorHandler = null;
+    /** @var array<string, true> Active compiled include names for cycle detection. */
+    private static array $includeStack = [];
+    private const MAX_INCLUDE_DEPTH = 20;
     
     public function __construct(
         ?CMSAdapterInterface $cms = null,
@@ -57,6 +62,11 @@ abstract class CompiledTemplate
     public function setTemplateLoader(callable $loader): void
     {
         $this->templateLoader = $loader;
+    }
+
+    public function setErrorHandler(callable $handler): void
+    {
+        $this->errorHandler = $handler;
     }
     
     /**
@@ -134,20 +144,39 @@ abstract class CompiledTemplate
             return "<!-- include: {$template} -->";
         }
         
-        $loaded = ($this->templateLoader)($template);
-        
-        if ($loaded instanceof CompiledTemplate) {
-            $loaded->setCMS($this->cms);
-            $loaded->setTemplateLoader($this->templateLoader);
-            
-            $ctx->pushScope($variables);
-            $output = $loaded->render($ctx);
-            $ctx->popScope();
-            
-            return $output;
+        $key = trim($template);
+        if ($key === '' || isset(self::$includeStack[$key]) || count(self::$includeStack) >= self::MAX_INCLUDE_DEPTH) {
+            if ($this->errorHandler !== null) {
+                ($this->errorHandler)($key === ''
+                    ? 'Blank compiled include rejected'
+                    : "Circular or excessively deep include detected: {$template}");
+            }
+            return '';
         }
+
+        self::$includeStack[$key] = true;
+        try {
+            $loaded = ($this->templateLoader)($template);
         
-        return '';
+            if ($loaded instanceof CompiledTemplate) {
+                $loaded->setCMS($this->cms);
+                $loaded->setTemplateLoader($this->templateLoader);
+                if ($this->errorHandler !== null) {
+                    $loaded->setErrorHandler($this->errorHandler);
+                }
+
+                $ctx->pushScope($variables);
+                try {
+                    return $loaded->render($ctx);
+                } finally {
+                    $ctx->popScope();
+                }
+            }
+
+            return '';
+        } finally {
+            unset(self::$includeStack[$key]);
+        }
     }
     
     /**

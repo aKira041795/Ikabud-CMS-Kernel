@@ -9,6 +9,7 @@
     "contact_forms",
     "contact_form_fields"
   ],
+  "reads_tables": [],
   "migrations": [
     "migrations/001_contact_form_submissions.sql",
     "migrations/002_contact_forms_and_fields.sql",

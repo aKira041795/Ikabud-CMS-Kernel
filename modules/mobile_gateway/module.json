@@ -4,6 +4,7 @@
     "version": "1.0.0",
     "description": "Mobile API gateway — bootstrap, sync, device registration, and push notification integration. Wires kernel SyncEngine, PushNotification, and JWT auth into a unified mobile API surface.",
     "author": "Ikabud Kernel Team",
+    "events": [],
     "requires_kernel": "6.1.0",
     "type": "php-module",
     "requires_tables": [],

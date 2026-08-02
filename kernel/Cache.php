@@ -180,6 +180,18 @@ class Cache
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
+
+        if (!is_dir($dir) || !is_writable($dir)) {
+            $fallbackRoot = rtrim(sys_get_temp_dir(), '/') . '/ikabud-cache-'
+                . substr(hash('sha256', $this->cacheDir), 0, 12);
+            if (!is_dir($fallbackRoot)) {
+                @mkdir($fallbackRoot, 0700, true);
+            }
+            $dir = $fallbackRoot . '/' . $safeId;
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0700, true);
+            }
+        }
         
         return $dir;
     }

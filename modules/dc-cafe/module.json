@@ -4,6 +4,7 @@
     "version": "1.0.0",
     "description": "Standalone point-of-sale, inventory, and sales management system for DC Cafe. Module-owned auth, products, orders, ingredients, and customer loyalty.",
     "author": "Ikabud Platform Team",
+    "events": [],
     "auth_owned": {
         "users_table": "dc_users",
         "id_column": "user_id",

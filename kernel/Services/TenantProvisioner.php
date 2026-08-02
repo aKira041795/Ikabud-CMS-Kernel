@@ -91,7 +91,7 @@ class TenantProvisioner
             $migrationCount = $this->runModuleMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
 
             // Step 7: Run kernel migrations
-            $kernelCount = $this->runKernelMigrations($tenantPdo);
+            $kernelCount = $this->runKernelMigrations($tenantPdo, $entryModule !== '' ? $entryModule : null);
             $migrationCount += $kernelCount;
 
             // Step 8: Seed admin user
@@ -235,9 +235,9 @@ class TenantProvisioner
         return $total;
     }
 
-    private function runKernelMigrations(PDO $tenantPdo): int
+    private function runKernelMigrations(PDO $tenantPdo, ?string $entryModule): int
     {
-        $applied = tenantSyncKernelMigrations($tenantPdo);
+        $applied = tenantSyncKernelMigrations($tenantPdo, null, $entryModule);
         if (!empty($applied)) {
             $this->log('Kernel migrations: ' . count($applied) . ' applied');
         }

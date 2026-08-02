@@ -1,6 +1,8 @@
 {
     "name": "Minimal",
-    "version": "1.0",
+    "version": "1.0.0",
+    "label": "Minimal",
+    "supported_surfaces": ["public"],
     "author": "CMS Team",
     "description": "A clean, minimal theme with larger typography and a centered layout."
 }

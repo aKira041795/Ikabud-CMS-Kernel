@@ -2,6 +2,9 @@
     "name": "ikabud/kernel",
     "description": "Multi-tenant application platform and modular business OS powered by DiSyL, the kernel-native rendering runtime for visual CMS, workflow automation, commerce, and tenant-scoped operations modules.",
     "type": "project",
+    "config": {
+        "process-timeout": 1800
+    },
     "scripts": {
         "test": "php scripts/run-tests.php",
         "test:single": "php",

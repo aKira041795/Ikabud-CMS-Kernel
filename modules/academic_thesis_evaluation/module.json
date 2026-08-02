@@ -4,6 +4,7 @@
     "version": "0.1.0",
     "description": "Configurable thesis and dissertation evaluation workflow consuming AISS evidence without allowing AISS to determine academic outcomes.",
     "author": "Ikabud Kernel Team",
+    "events": [],
     "depends": [
         "users"
     ],

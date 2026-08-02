@@ -9,7 +9,7 @@ define('STORAGE_PATH', $basePath . '/storage');
 spl_autoload_register(function($c) {
     $p = 'Ikabud\\Kernel\\';
     if (strncmp($c, $p, strlen($p)) !== 0) return;
-    $f = KERNEL_PATH . '/' . substr($c, strlen($p)) . '.php';
+    $f = KERNEL_PATH . '/' . str_replace('\\', '/', substr($c, strlen($p))) . '.php';
     if (file_exists($f)) require_once $f;
 });
 use Ikabud\Kernel\DiSyL\TemplateEngine;

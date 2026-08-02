@@ -4,6 +4,7 @@
     "version": "0.1.0",
     "description": "Employee attendance tracking, payroll computation, government benefits, cash advances, holiday management, and reporting.",
     "author": "Ikabud Kernel Team",
+    "events": [],
     "owns_tables": [
         "attendance_records",
         "attendance_wage_users",

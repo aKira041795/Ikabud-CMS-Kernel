@@ -256,8 +256,9 @@ class IntegrationBridge
                     'SELECT 1 FROM kernel_integrations WHERE trigger_event = ? AND target_capability = ? AND is_active = 1 LIMIT 1'
                 );
                 $stmt->execute([$event, $targetCapability]);
-
-                return $stmt->fetchColumn() !== false;
+                $found = $stmt->fetchColumn() !== false;
+                $stmt->closeCursor();
+                return $found;
             });
         } catch (Throwable $e) {
             return false;
@@ -290,6 +291,7 @@ class IntegrationBridge
                 $stmt = $db->prepare('SELECT * FROM kernel_integrations WHERE trigger_event = ? AND is_active = 1 ORDER BY id ASC');
                 $stmt->execute([$event]);
                 $integrations = $stmt->fetchAll();
+                $stmt->closeCursor();
 
                 // Cache the result for subsequent fires of the same event this request.
                 if (self::$integrationCache === null) {

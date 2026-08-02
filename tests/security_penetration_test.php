@@ -174,8 +174,10 @@ if (class_exists($engineClass)) {
     t('esc_url blocks javascript: protocol', !str_contains($output, 'javascript:'));
 
     // 6.4 Template injection: {set} cannot execute PHP
+    ob_start();
     $output = $engine->renderString('{set x = phpinfo()}', []);
-    t('Template injection: phpinfo() not executed', !str_contains($output, 'PHP Version'));
+    $sideEffects = (string)ob_get_clean();
+    t('Template injection: phpinfo() not executed', $sideEffects === '' && !str_contains($output, 'PHP Version'));
 
     // 6.5 Path traversal in includes should be prevented
     try {
@@ -194,7 +196,12 @@ echo "\n── Section 7: Session Configuration ──\n";
 // Verify the source code enforces secure session config.
 $indexSource = file_get_contents(__DIR__ . '/../public/index.php');
 t('Session cookie httponly enforced in entrypoint', str_contains($indexSource, "'httponly' => true"));
-t('Session cookie samesite enforced in entrypoint', str_contains($indexSource, "'samesite' => 'Strict'") || str_contains($indexSource, "'samesite' => 'Lax'"));
+t(
+    'Session cookie samesite enforced in entrypoint',
+    str_contains($indexSource, "'samesite' => \$samesite")
+        && str_contains($indexSource, "['lax', 'strict', 'none']")
+        && str_contains($indexSource, "APP_COOKIE_SAMESITE")
+);
 
 // ─── Section 8: Encryption ─────────────────────────────────────────────
 echo "\n── Section 8: Encryption Safety ──\n";

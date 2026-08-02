@@ -347,6 +347,8 @@ final class KernelPDO extends PDO
                 write_log('Kernel runtime migration self-heal failed', 'error', [
                     'table' => $table,
                     'error' => $syncError->getMessage(),
+                    'exception' => get_class($syncError),
+                    'trace' => $syncError->getTraceAsString(),
                 ]);
             }
             return false;
@@ -381,7 +383,12 @@ final class KernelPDO extends PDO
                     return $db;
                 }
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $connectionError) {
+            if (function_exists('write_log')) {
+                write_log('Kernel runtime migration repair connection unavailable', 'warning', [
+                    'error' => $connectionError->getMessage(),
+                ]);
+            }
             return $fallback;
         }
 

@@ -113,12 +113,16 @@ function tenantProvisionEntryBundleModules(?string $entryModuleId): array
  */
 function tenantProvisionModulePlan(?string $entryModuleId): array
 {
-    $enabled = getEnabledModules();
+    $entryModuleId = trim((string)$entryModuleId);
+    // A new tenant has no module-settings state yet. Planning an explicit
+    // entry-module bundle must therefore use manifests only; consulting
+    // getEnabledModules() switches into the empty tenant database and can
+    // trigger runtime reads before kernel migrations exist.
+    $enabled = $entryModuleId !== '' ? discoverModules() : getEnabledModules();
     if (empty($enabled)) {
         return [];
     }
 
-    $entryModuleId = trim((string)$entryModuleId);
     if ($entryModuleId === '') {
         $all = [];
         foreach ($enabled as $moduleId => $manifest) {
@@ -465,6 +469,7 @@ function tenantAppliedModuleMigrations(PDO $db, string $moduleId): array
         $stmt = $db->prepare('SELECT migration FROM _migrations WHERE module = :module');
         $stmt->execute([':module' => $moduleId]);
         $rows = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+        $stmt->closeCursor();
         $applied = [];
         foreach ($rows as $row) {
             $name = trim((string)$row);
@@ -489,6 +494,7 @@ function tenantAllAppliedMigrations(PDO $db): array
     try {
         $stmt = $db->query('SELECT module, migration FROM _migrations');
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $stmt->closeCursor();
         $result = [];
         foreach ($rows as $row) {
             $mod = trim((string)($row['module'] ?? ''));
@@ -510,6 +516,7 @@ function tenantRecordModuleMigration(PDO $db, string $moduleId, string $migratio
     $batchStmt = $db->prepare('SELECT COALESCE(MAX(batch), 0) + 1 FROM _migrations WHERE module = :module');
     $batchStmt->execute([':module' => $moduleId]);
     $batch = (int)$batchStmt->fetchColumn();
+    $batchStmt->closeCursor();
     if ($batch <= 0) {
         $batch = 1;
     }
@@ -568,6 +575,10 @@ function tenantApplySqlArtifact(PDO $db, string $moduleId, string $artifactName,
     }
 
     $sql = preg_replace('/--.*$/m', '', $sql) ?? $sql;
+    // Dynamic idempotency branches must not return a result set. A prepared
+    // `SELECT 1` executed through PDO::exec() leaves MySQL unbuffered and makes
+    // the next migration statement fail with error 2014.
+    $sql = preg_replace("/(['\"])SELECT\\s+1\\1/i", '$1DO 0$1', $sql) ?? $sql;
     $statements = array_filter(array_map('trim', explode(';', $sql)), static fn(string $statement): bool => $statement !== '');
     foreach ($statements as $statement) {
         try {

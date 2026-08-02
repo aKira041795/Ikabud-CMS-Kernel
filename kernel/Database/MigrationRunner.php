@@ -79,6 +79,7 @@ class MigrationRunner
         $lockStmt = $this->pdo->prepare('SELECT GET_LOCK(?, ?)');
         $lockStmt->execute([$lockName, $lockTimeout]);
         $lockAcquired = (int) $lockStmt->fetchColumn();
+        $lockStmt->closeCursor();
 
         if ($lockAcquired !== 1) {
             throw new \RuntimeException(
@@ -564,6 +565,8 @@ class MigrationRunner
      */
     private function executeSql(string $sql): void
     {
+        $sql = preg_replace("/(['\"])SELECT\\s+1\\1/i", '$1DO 0$1', $sql) ?? $sql;
+
         // Permissive baseline — mirrors what the Bluehost upgrade bundles use.
         // This suppresses error 1101 (BLOB/TEXT column can't have a default) on
         // older MySQL/MariaDB and allows the idempotent DDL patterns we rely on.

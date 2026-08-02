@@ -23,6 +23,9 @@ final class Input
     /** @var string|null Cache invalidation signature for CLI mode */
     private static ?string $inputSignature = null;
 
+    /** @var string|null Explicit request body used by CLI test harnesses only. */
+    private static ?string $rawInputForTesting = null;
+
     /**
      * Get a parsed input value, or the full input array.
      *
@@ -65,7 +68,7 @@ final class Input
         $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 
         if (str_contains($contentType, 'application/json')) {
-            $raw = file_get_contents('php://input');
+            $raw = self::$rawInputForTesting ?? file_get_contents('php://input');
             if ($raw === false || strlen($raw) > self::MAX_INPUT_SIZE) {
                 return [];
             }
@@ -75,7 +78,7 @@ final class Input
             }
             $input = $decoded ?? [];
         } elseif (in_array($_SERVER['REQUEST_METHOD'] ?? 'GET', ['PUT', 'PATCH', 'DELETE'], true)) {
-            $raw = file_get_contents('php://input');
+            $raw = self::$rawInputForTesting ?? file_get_contents('php://input');
             if ($raw !== false && strlen($raw) <= self::MAX_INPUT_SIZE) {
                 parse_str($raw, $parsed);
                 $input = array_merge($_GET, $parsed);
@@ -118,5 +121,17 @@ final class Input
     {
         self::$input = null;
         self::$inputSignature = null;
+    }
+
+    /**
+     * Supply a raw request body to a CLI test process without replacing runtime classes.
+     */
+    public static function setRawInputForTesting(?string $raw): void
+    {
+        if (PHP_SAPI !== 'cli' && PHP_SAPI !== 'phpdbg') {
+            throw new \LogicException('Raw input overrides are available only in CLI test processes.');
+        }
+        self::$rawInputForTesting = $raw;
+        self::reset();
     }
 }

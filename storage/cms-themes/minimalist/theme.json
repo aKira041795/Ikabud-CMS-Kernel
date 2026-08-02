@@ -1,6 +1,8 @@
 {
   "name": "Minimalist",
   "version": "1.0.0",
+  "label": "Minimalist",
+  "supported_surfaces": ["public"],
   "author": "Test Theme Author",
   "description": "A clean, minimal theme with a focus on readability and simplicity.",
   "templates": [

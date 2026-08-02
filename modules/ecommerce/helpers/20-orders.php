@@ -2439,15 +2439,17 @@ function ecOrderGenerateNumber(): string
     $year   = date('Y');
 
     try {
-        $count = (int)ecDb()->query(
-            "SELECT COUNT(*) FROM ec_orders WHERE YEAR(created_at) = ?",
-            [$year]
+        $lastSequence = (int)ecDb()->query(
+            "SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(order_number, '-', -1) AS UNSIGNED)), 0)
+             FROM ec_orders
+             WHERE YEAR(created_at) = ? AND order_number LIKE ?",
+            [$year, $prefix . '-' . $year . '-%']
         )->fetchColumn();
     } catch (\Throwable $e) {
-        $count = 0;
+        $lastSequence = 0;
     }
 
-    return $prefix . '-' . $year . '-' . str_pad((string)($count + 1), 4, '0', STR_PAD_LEFT);
+    return $prefix . '-' . $year . '-' . str_pad((string)($lastSequence + 1), 4, '0', STR_PAD_LEFT);
 }
 
 /**

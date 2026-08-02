@@ -65,6 +65,16 @@ function enRender(string $template, array $context = []): string
     return enCtx()->render($resolved, kernelPrepareRenderContext($resolved, $context));
 }
 
+function example_notes_capability_handlers(): array
+{
+    return ['example_notes.ping@1' => 'example_notes_cap_ping_1'];
+}
+
+function example_notes_cap_ping_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    return ['ok' => true, 'module' => 'example-notes', 'echo' => is_array($payload) ? $payload : []];
+}
+
 // ── Event Listeners ──────────────────────────────────────────────
 // Example: react to an event fired by another module.
 //

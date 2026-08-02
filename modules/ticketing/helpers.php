@@ -179,6 +179,50 @@ function ticketing_cap_entity_get_ticket_1(mixed $payload, string $resolvedCapab
     return is_array($ticket) ? tkEntityRow($ticket) : [];
 }
 
+function ticketing_capability_handlers(): array
+{
+    return [
+        'ticketing.create@1' => 'ticketing_cap_create_1',
+        'entity.list.ticket@1' => 'ticketing_cap_entity_list_ticket_1',
+        'entity.get.ticket@1' => 'ticketing_cap_entity_get_ticket_1',
+    ];
+}
+
+function ticketing_cap_create_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $input = is_array($payload) ? $payload : [];
+    $subject = trim((string)($input['subject'] ?? ''));
+    $createdBy = (int)($input['created_by'] ?? 0);
+    if ($subject === '' || $createdBy < 1) {
+        return ['ok' => false, 'error' => 'subject and created_by are required.'];
+    }
+
+    $priority = in_array(($input['priority'] ?? 'medium'), ['low', 'medium', 'high', 'urgent'], true)
+        ? (string)$input['priority']
+        : 'medium';
+    $categories = ['plumbing', 'electrical', 'pest_control', 'common_area', 'security', 'other'];
+    $category = in_array(($input['category'] ?? 'other'), $categories, true) ? (string)$input['category'] : 'other';
+    $ticketNo = function_exists('tk_nextTicketNo') ? tk_nextTicketNo() : ('TKT-' . date('YmdHis') . '-' . bin2hex(random_bytes(2)));
+    $db = tkCtx()->db();
+    $stmt = $db->prepare(
+        'INSERT INTO tickets (ticket_no, subject, description, priority, created_by, assigned_to, category, unit_no, source) '
+        . 'VALUES (:no, :subject, :description, :priority, :created_by, :assigned_to, :category, :unit_no, :source)'
+    );
+    $stmt->execute([
+        ':no' => $ticketNo,
+        ':subject' => $subject,
+        ':description' => trim((string)($input['description'] ?? '')) ?: null,
+        ':priority' => $priority,
+        ':created_by' => $createdBy,
+        ':assigned_to' => !empty($input['assigned_to']) ? (int)$input['assigned_to'] : null,
+        ':category' => $category,
+        ':unit_no' => substr(trim((string)($input['unit_no'] ?? '')), 0, 40) ?: null,
+        ':source' => trim((string)($input['source'] ?? 'capability')) ?: 'capability',
+    ]);
+
+    return ['ok' => true, 'ticket_id' => (int)$db->lastInsertId(), 'ticket_no' => $ticketNo];
+}
+
 kernelRegisterRenderContextContract('ticketing.page.list', [
     'template' => 'modules/ticketing/list.disyl',
     'priority' => 20,

@@ -52,7 +52,7 @@ function runTenantSeedJsonRequest(string $rawBody, array $user, string $csrfToke
     $runnerPath = sys_get_temp_dir() . '/ikabud-tenant-seed-json-' . getmypid() . '-' . bin2hex(random_bytes(4)) . '.php';
 
     $appSource = (string)file_get_contents(__DIR__ . '/../kernel/App.php');
-    $replacement = "file_get_contents('data://text/plain," . rawurlencode($rawBody) . "')";
+    $replacement = "file_get_contents('data://text/plain;base64," . base64_encode($rawBody) . "')";
     $appSource = str_replace("file_get_contents('php://input')", $replacement, $appSource);
     file_put_contents($patchedAppPath, $appSource);
 
@@ -64,6 +64,7 @@ function runTenantSeedJsonRequest(string $rawBody, array $user, string $csrfToke
     $patchedApp = var_export($patchedAppPath, true);
     $userExport = var_export($user, true);
     $csrfTokenExport = var_export($csrfToken, true);
+    $rawBodyExport = var_export($rawBody, true);
 
     $runner = <<<PHP
 <?php
@@ -97,6 +98,7 @@ require_once {$adminHandlers};
 \$_SERVER['CONTENT_TYPE'] = 'application/json';
 \$_GET = [];
 \$_POST = [];
+\Ikabud\Kernel\Http\Input::setRawInputForTesting({$rawBodyExport});
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
@@ -222,6 +224,10 @@ try {
     ]);
     $tenantId = (int)$controlDb->lastInsertId();
 
+    $encryptedDbPass = (new \Ikabud\Kernel\Crypto())->encryptString(
+        (string)($dbConfig['password'] ?? '')
+    );
+
     $connectionInsertStmt = $controlDb->prepare(
         'INSERT INTO kernel_tenant_db_connections '
         . '(tenant_id, db_driver, db_host, db_port, db_name, db_user, db_pass, db_charset, db_pass_ciphertext, db_pass_iv, db_pass_tag) '
@@ -234,11 +240,11 @@ try {
         ':db_port' => (string)($dbConfig['port'] ?? '3306'),
         ':db_name' => $tenantDbName,
         ':db_user' => (string)($dbConfig['username'] ?? ''),
-        ':db_pass' => (string)($dbConfig['password'] ?? ''),
+        ':db_pass' => null,
         ':db_charset' => (string)($dbConfig['charset'] ?? 'utf8mb4'),
-        ':cipher' => '',
-        ':iv' => '',
-        ':tag' => '',
+        ':cipher' => (string)($encryptedDbPass['ciphertext'] ?? ''),
+        ':iv' => (string)($encryptedDbPass['iv'] ?? ''),
+        ':tag' => (string)($encryptedDbPass['tag'] ?? ''),
     ]);
 
     $_SERVER['REQUEST_METHOD'] = 'POST';

@@ -10,6 +10,7 @@
     "gm_sms_log",
     "gm_sms_templates"
   ],
+  "reads_tables": [],
   "settings_fields": [
     {
       "key": "sms_gateway",
@@ -32,6 +33,8 @@
         "description": "Send SMS notification for guidance events"
       }
     ],
-    "depends": []
+    "depends": [
+      "sms.send@1"
+    ]
   }
 }

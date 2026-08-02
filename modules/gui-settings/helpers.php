@@ -240,6 +240,24 @@ function getGuiContext(): array
     ];
 }
 
+function gui_settings_capability_handlers(): array
+{
+    return ['gui_settings.apply@1' => 'gui_settings_cap_apply_1'];
+}
+
+function gui_settings_cap_apply_1(mixed $payload, string $resolvedCapabilityId = '', string $providerId = ''): array
+{
+    $input = is_array($payload) ? $payload : [];
+    $settings = is_array($input['settings'] ?? null) ? $input['settings'] : $input;
+    $settings = array_intersect_key($settings, guiSettingsDefaults());
+    if ($settings === []) {
+        return ['ok' => false, 'error' => 'At least one recognized GUI setting is required.'];
+    }
+
+    saveGuiSettings($settings);
+    return ['ok' => true, 'settings' => readGuiSettings()];
+}
+
 // ─── Kernel Hook Registration ─────────────────────────────────────────────
 // Register with kernel.gui_context hook so the kernel never calls
 // getGuiContext() or readGuiSettings() directly.

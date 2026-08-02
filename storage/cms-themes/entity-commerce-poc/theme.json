@@ -1,6 +1,8 @@
 {
     "name": "Entity Commerce",
     "version": "1.0.0",
+    "label": "Entity Commerce",
+    "supported_surfaces": ["public"],
     "author": "GitHub Copilot",
     "description": "Ecommerce storefront theme with product showcase, pricing, inventory, and cart integration through the CMS universal entity rendering system.",
     "customizer_scope": "ecommerce",
@@ -42,16 +44,5 @@
         "pricing.block.disyl",
         "action.block.disyl"
     ],
-    "tokens": {
-        "color-primary": "#0f4c81",
-        "color-accent": "#c56a1a",
-        "color-background": "#f4efe6",
-        "color-surface": "#fffaf2",
-        "color-text": "#18212b",
-        "color-muted": "#68707a",
-        "color-border": "#d7cec1",
-        "radius-card": "28px",
-        "radius-pill": "999px",
-        "container-max": "1180px"
-    }
+    "tokens": "tokens.json"
 }

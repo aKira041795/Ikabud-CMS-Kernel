@@ -275,6 +275,13 @@
         "description": "Apply GUI settings for a tenant"
       }
     ],
-    "depends": []
+    "depends": [],
+    "policy": {
+      "capabilities": {
+        "gui_settings.apply@1": {
+          "allow_callers": ["kernel", "gui-settings"]
+        }
+      }
+    }
   }
 }

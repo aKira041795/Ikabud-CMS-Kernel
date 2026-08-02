@@ -183,16 +183,21 @@ function isRequireAuth(array $roles = ['scanner', 'admin']): array
 
 // ─── Capability Handlers ───────────────────────────────────────────────
 
-function is_capability_handlers(): array
+function inventory_scanner_capability_handlers(): array
 {
     return [
         'kernel.auth.authenticate@1' => 'isAuthAuthenticate',
-        'inventory-scanner.scan.lookup@1' => 'isScanLookup',
-        'inventory-scanner.scan.save@1' => 'isScanSave',
-        'inventory-scanner.products.list@1' => 'isProductsList',
-        'inventory-scanner.products.export@1' => 'isProductsExport',
-        'inventory-scanner.scan.sync@1' => 'isScanSync',
+        'inventory_scanner.scan.lookup@1' => 'isScanLookup',
+        'inventory_scanner.scan.save@1' => 'isScanSave',
+        'inventory_scanner.products.list@1' => 'isProductsList',
+        'inventory_scanner.products.export@1' => 'isProductsExport',
+        'inventory_scanner.scan.sync@1' => 'isScanSync',
     ];
+}
+
+function is_capability_handlers(): array
+{
+    return inventory_scanner_capability_handlers();
 }
 
 function isAuthAuthenticate($ctx): ?array

@@ -65,6 +65,13 @@ class TemplateCache
             }
             $freshCompiledCode = $this->compile($templatePath, $className, $cachePath);
         }
+
+        $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
+        if (class_exists($fullClassName, false)) {
+            $template = new $fullClassName();
+            $this->loaded[$className] = $template;
+            return $template;
+        }
         
         // Load and instantiate
         if (file_exists($cachePath) && $freshCompiledCode === null) {
@@ -78,8 +85,6 @@ class TemplateCache
             // not from user input.
             eval("?>" . $freshCompiledCode);
         }
-        $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
-        
         $template = new $fullClassName();
         $this->loaded[$className] = $template;
         
@@ -96,6 +101,13 @@ class TemplateCache
         
         if (isset($this->loaded[$className])) {
             return $this->loaded[$className];
+        }
+
+        $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
+        if (class_exists($fullClassName, false)) {
+            $template = new $fullClassName();
+            $this->loaded[$className] = $template;
+            return $template;
         }
         
         if (!file_exists($cachePath)) {
@@ -126,8 +138,6 @@ class TemplateCache
             // not from user input.
             eval("?>" . $code);
         }
-        $fullClassName = "Ikabud\Kernel\DiSyL\Compiled\\{$className}";
-        
         $template = new $fullClassName();
         $this->loaded[$className] = $template;
         
@@ -442,7 +452,8 @@ class TemplateCache
     private function getClassName(string $templatePath): string
     {
         $version = TemplateCompiler::COMPILER_VERSION;
-        $hash = md5($templatePath . ':v' . $version);
+        $sourceHash = is_file($templatePath) ? (sha1_file($templatePath) ?: '') : '';
+        $hash = md5($templatePath . ':' . $sourceHash . ':v' . $version);
         $name = preg_replace('/[^a-zA-Z0-9]/', '_', basename($templatePath, '.disyl'));
         return 'Template_' . $name . '_v' . $version . '_' . substr($hash, 0, 8);
     }

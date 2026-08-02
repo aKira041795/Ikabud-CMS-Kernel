@@ -59,8 +59,25 @@ echo "\n=== BAKESHOP HISTORY PERMISSION TEST ===\n\n";
 $originalSettings = getModuleSettings('bakeshop');
 $originalRolePermissions = $originalSettings['role_permissions'] ?? null;
 $previousUser = app()->user();
+$fixtureUserIds = [];
 
 try {
+    $insertUser = bakeshopDb()->prepare(
+        'INSERT INTO bakeshop_users (username, email, password_hash, full_name, role, is_active, created_at, updated_at) '
+        . 'VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())'
+    );
+    foreach (['supervisor', 'admin'] as $fixtureRole) {
+        $fixtureUsername = 'history_' . $fixtureRole . '_' . bin2hex(random_bytes(4));
+        $insertUser->execute([
+            $fixtureUsername,
+            $fixtureUsername . '@example.test',
+            password_hash(bin2hex(random_bytes(16)), PASSWORD_DEFAULT),
+            'History ' . ucfirst($fixtureRole),
+            $fixtureRole,
+        ]);
+        $fixtureUserIds[$fixtureRole] = (int)bakeshopDb()->lastInsertId();
+    }
+
     saveModuleSettings('bakeshop', [
         'role_permissions' => json_encode([
             'admin' => ['bakeshop.read', 'bakeshop.manage'],
@@ -69,8 +86,8 @@ try {
     ]);
 
     app()->setUser([
-        'id' => 2001,
-        'sub' => 'bakeshop:2001',
+        'id' => $fixtureUserIds['supervisor'],
+        'sub' => 'bakeshop:' . $fixtureUserIds['supervisor'],
         'username' => 'supervisor',
         'role' => 'supervisor',
         'source' => 'bakeshop',
@@ -84,8 +101,8 @@ try {
     btHistoryPermission('supervisor forbidden history response returns json error', (($supervisorResponse['json']['ok'] ?? true) === false) && (($supervisorResponse['json']['error'] ?? '') === 'Forbidden'), json_encode($supervisorResponse, JSON_UNESCAPED_SLASHES));
 
     app()->setUser([
-        'id' => 2002,
-        'sub' => 'bakeshop:2002',
+        'id' => $fixtureUserIds['admin'],
+        'sub' => 'bakeshop:' . $fixtureUserIds['admin'],
         'username' => 'admin',
         'role' => 'admin',
         'source' => 'bakeshop',
@@ -98,6 +115,12 @@ try {
     btHistoryPermission('admin history page request succeeds', ($adminResponse['status'] ?? 0) === 200, json_encode($adminResponse, JSON_UNESCAPED_SLASHES));
     btHistoryPermission('admin history page renders html heading', str_contains($adminResponse['body'] ?? '', 'Activity History'), $adminResponse['body'] ?? '');
 } finally {
+    if ($fixtureUserIds !== []) {
+        $deleteUser = bakeshopDb()->prepare('DELETE FROM bakeshop_users WHERE id = ?');
+        foreach ($fixtureUserIds as $fixtureUserId) {
+            $deleteUser->execute([$fixtureUserId]);
+        }
+    }
     saveModuleSettings('bakeshop', [
         'role_permissions' => $originalRolePermissions,
     ]);

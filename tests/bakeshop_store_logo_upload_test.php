@@ -102,6 +102,8 @@ try {
     btLogo('logo upload stores an image mime type', str_starts_with((string)($result['mime_type'] ?? ''), 'image/'), json_encode($result, JSON_UNESCAPED_SLASHES));
     btLogo('logo upload path is branding-scoped', str_contains((string)($result['relative_path'] ?? ''), 'branding/'), (string)($result['relative_path'] ?? ''));
     btLogo('logo upload reports stored dimensions', (int)($result['width'] ?? 0) > 0 && (int)($result['height'] ?? 0) > 0, json_encode($result, JSON_UNESCAPED_SLASHES));
+    $rateLimitAfterUpload = bakeshopStoreLogoUploadRateLimitState();
+    btLogo('successful logo upload records the rate limit window', !empty($rateLimitAfterUpload['limited']), json_encode($rateLimitAfterUpload, JSON_UNESCAPED_SLASHES));
     if (extension_loaded('gd')) {
         btLogo('logo upload normalizes oversized raster images', (int)($result['width'] ?? 0) <= bakeshopStoreLogoMaxDimension() && (int)($result['height'] ?? 0) <= bakeshopStoreLogoMaxDimension() && !empty($result['normalized']), json_encode($result, JSON_UNESCAPED_SLASHES));
     } else {

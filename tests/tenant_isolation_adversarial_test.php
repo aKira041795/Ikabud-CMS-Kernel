@@ -98,9 +98,11 @@ $poolClass = 'Ikabud\Kernel\Database\ConnectionPool';
 t('ConnectionPool class exists', class_exists($poolClass));
 
 if (class_exists($poolClass)) {
-    $source = file_get_contents(__DIR__ . '/../kernel/Database/ConnectionPool.php');
-    t('ConnectionPool uses keys for connection identity', str_contains($source, 'register') && str_contains($source, 'resolve'));
-    t('ConnectionPool supports closeAll', str_contains($source, 'closeAll'));
+    $pool = new $poolClass();
+    $pool->register('tenant:9001', ['database' => 'tenant_9001']);
+    $pool->register('tenant:9002', ['database' => 'tenant_9002']);
+    t('ConnectionPool uses keys for connection identity', $pool->has('tenant:9001') && $pool->has('tenant:9002') && !$pool->has('tenant:9003'));
+    t('ConnectionPool supports closeAll', method_exists($pool, 'closeAll'));
 }
 
 // ─── Section 5: DatabaseManager Tenant Isolation ────────────────────────

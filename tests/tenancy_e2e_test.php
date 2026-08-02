@@ -442,6 +442,7 @@ section('11. Provisioning Scope');
 $tenantKernelMigrations = tenantSafeKernelMigrationFiles();
 $expectedTenantKernelMigrations = [
     '001_kernel_events_and_triggers.sql',
+    '006_kernel_job_queue.sql',
     '006_kernel_workflow_tables.sql',
     '007_kernel_runtime_tables.sql',
     '010_integration_bridge.sql',
