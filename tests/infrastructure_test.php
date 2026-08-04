@@ -197,6 +197,209 @@ ok('make:module creates template', is_file(__DIR__ . '/../templates/modules/cli-
 // cleanup
 shell_exec("rm -rf {$base}/modules/cli-test-tmp {$base}/templates/modules/cli-test-tmp");
 
+heading('CLI Tool — Grouped module paths');
+
+$rrmdir = static function (string $path): void {
+    if (!is_dir($path)) {
+        return;
+    }
+    $it = new RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS);
+    $files = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
+    foreach ($files as $file) {
+        if ($file->isDir()) {
+            @rmdir($file->getPathname());
+        } else {
+            @unlink($file->getPathname());
+        }
+    }
+    @rmdir($path);
+};
+
+$tmpSuffix = strtolower(substr(bin2hex(random_bytes(4)), 0, 8));
+$cli = 'php ' . escapeshellarg(__DIR__ . '/../ikabud');
+
+$rootModuleId = 'tmpmod-' . $tmpSuffix;
+$groupSuiteId = 'zzsuite-alpha';
+$groupedModuleId = $groupSuiteId . '-' . $tmpSuffix;
+$groupedEntity = 'ticket';
+$groupedCapability = $groupedModuleId . '.health.check@1';
+$groupedCapabilityBase = $groupedModuleId . '.health.check';
+$groupedCapHandler = __DIR__ . '/../modules/' . $groupSuiteId . '/' . $groupedModuleId . '/helpers/cap-' . str_replace(['.', '@'], '-', $groupedCapabilityBase) . '.php';
+$zipPath = __DIR__ . '/../storage/' . $groupedModuleId . '-' . $tmpSuffix . '.zip';
+
+$rootModulePath = __DIR__ . '/../modules/' . $rootModuleId;
+$rootTemplatePath = __DIR__ . '/../templates/modules/' . $rootModuleId;
+$groupSuitePath = __DIR__ . '/../modules/' . $groupSuiteId;
+$groupedModulePath = $groupSuitePath . '/' . $groupedModuleId;
+$groupedFlatPath = __DIR__ . '/../modules/' . $groupedModuleId;
+$groupedTemplatePath = __DIR__ . '/../templates/modules/' . $groupedModuleId;
+
+$ownedSuiteId = 'suiteown-alpha';
+$ownedSuitePath = __DIR__ . '/../modules/' . $ownedSuiteId;
+$ownedSuiteModuleManifest = $ownedSuitePath . '/module.json';
+$ownedChildId = $ownedSuiteId . '-child-' . $tmpSuffix;
+$ownedChildRootPath = __DIR__ . '/../modules/' . $ownedChildId;
+
+$ambiguousSuiteId = 'school-guidance';
+$ambiguousSuitePath = __DIR__ . '/../modules/' . $ambiguousSuiteId;
+$ambiguousModuleId = $ambiguousSuiteId . '-report-' . $tmpSuffix;
+
+$dupSuiteId = 'dupsuite-beta';
+$dupSuitePath = __DIR__ . '/../modules/' . $dupSuiteId;
+$dupId = $dupSuiteId . '-' . $tmpSuffix;
+$dupGroupedPath = $dupSuitePath . '/' . $dupId;
+$dupRootPath = __DIR__ . '/../modules/' . $dupId;
+
+$movedBucketPath = __DIR__ . '/../modules/moved-bucket-' . $tmpSuffix;
+$movedRootPath = $movedBucketPath . '/' . $rootModuleId;
+
+// Ensure a clean slate for this random suffix.
+foreach ([
+    $rootModulePath,
+    $rootTemplatePath,
+    $groupedModulePath,
+    $groupedFlatPath,
+    $groupedTemplatePath,
+    $ownedChildRootPath,
+    $dupGroupedPath,
+    $dupRootPath,
+    $movedRootPath,
+] as $p) {
+    $rrmdir($p);
+}
+@unlink($zipPath);
+foreach (glob(__DIR__ . '/../tests/' . $groupedModuleId . '_*') ?: [] as $generatedTest) {
+    @unlink($generatedTest);
+}
+@unlink(__DIR__ . '/../tests/' . $rootModuleId . '_module_test.php');
+
+if (is_dir($groupSuitePath) && !is_file($groupSuitePath . '/module.json')) {
+    $rrmdir($groupSuitePath);
+}
+if (is_dir($ownedSuitePath) && !is_file($ownedSuiteModuleManifest)) {
+    $rrmdir($ownedSuitePath);
+}
+if (is_dir($ambiguousSuitePath) && !is_file($ambiguousSuitePath . '/module.json')) {
+    $rrmdir($ambiguousSuitePath);
+}
+if (is_dir($dupSuitePath) && !is_file($dupSuitePath . '/module.json')) {
+    $rrmdir($dupSuitePath);
+}
+if (is_dir($movedBucketPath) && !is_file($movedBucketPath . '/module.json')) {
+    $rrmdir($movedBucketPath);
+}
+
+ok('moduleInstallTargetDirForId 2-part id stays root', moduleInstallTargetDirForId('simple-' . $tmpSuffix) === __DIR__ . '/../modules/simple-' . $tmpSuffix);
+
+@mkdir($groupSuitePath, 0775, true);
+ok('ikabud make:module root id', (int) shell_exec($cli . ' make:module ' . escapeshellarg($rootModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('root module path created at modules/<id>', is_dir($rootModulePath));
+
+ok('ikabud make:module grouped id', (int) shell_exec($cli . ' make:module ' . escapeshellarg($groupedModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('grouped module path created under suite container', is_dir($groupedModulePath));
+ok('grouped module not created at root modules/<id>', !is_dir($groupedFlatPath));
+ok('grouped module templates remain in templates/modules/<id>', is_file($groupedTemplatePath . '/pages/home.disyl'));
+ok('modulePathForId resolves grouped module path', modulePathForId($groupedModuleId) === realpath($groupedModulePath));
+
+$resolvedThreePart = moduleInstallTargetDirForId($groupedModuleId);
+$resolvedFourPart = moduleInstallTargetDirForId($groupSuiteId . '-feature-' . $tmpSuffix);
+ok('moduleInstallTargetDirForId groups 3-part ids into suite', $resolvedThreePart === $groupedModulePath);
+ok('moduleInstallTargetDirForId groups 4-part ids into suite', $resolvedFourPart === $groupSuitePath . '/' . $groupSuiteId . '-feature-' . $tmpSuffix);
+
+ok('ikabud make:capability grouped module', (int) shell_exec($cli . ' make:capability ' . escapeshellarg($groupedCapability) . ' --module=' . escapeshellarg($groupedModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('grouped capability handler created under grouped path', is_file($groupedCapHandler));
+
+ok('ikabud make:entity grouped module', (int) shell_exec($cli . ' make:entity ' . escapeshellarg($groupedModuleId . '.' . $groupedEntity) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('grouped entity handler created under grouped path', is_file($groupedModulePath . '/helpers/' . $groupedEntity . '-entity.php'));
+ok('grouped entity templates created under templates/modules/<id>', is_file($groupedTemplatePath . '/' . $groupedEntity . '-list.disyl') && is_file($groupedTemplatePath . '/' . $groupedEntity . '-detail.disyl'));
+
+ok('ikabud module:pack grouped module', (int) shell_exec($cli . ' module:pack ' . escapeshellarg($groupedModuleId) . ' ' . escapeshellarg($zipPath) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('grouped module zip created', is_file($zipPath));
+
+ok('ikabud module:uninstall grouped module', (int) shell_exec($cli . ' module:uninstall ' . escapeshellarg($groupedModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('grouped module path removed on uninstall', !is_dir($groupedModulePath));
+ok('grouped templates removed on uninstall', !is_dir($groupedTemplatePath));
+
+$installResult = installModuleFromZip($zipPath);
+ok('installModuleFromZip grouped module succeeds', !empty($installResult['ok']));
+ok('installModuleFromZip restores grouped path', is_dir($groupedModulePath));
+
+$wasEnabled = isModuleEnabled($groupedModuleId);
+disableModule($groupedModuleId);
+ok('disableModule updates grouped module enabled state', !isModuleEnabled($groupedModuleId));
+enableModule($groupedModuleId);
+ok('enableModule updates grouped module enabled state', isModuleEnabled($groupedModuleId));
+if (!$wasEnabled) {
+    disableModule($groupedModuleId);
+}
+
+@mkdir($ownedSuitePath, 0775, true);
+file_put_contents($ownedSuiteModuleManifest, json_encode([
+    'id' => $ownedSuiteId,
+    'name' => 'Owned Suite',
+    'version' => '1.0.0',
+], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+ok('suite dir with module.json keeps child module at root path', moduleInstallTargetDirForId($ownedChildId) === $ownedChildRootPath);
+
+@mkdir($ambiguousSuitePath, 0775, true);
+ok('ambiguous suite-like id groups when bare container exists', moduleInstallTargetDirForId($ambiguousModuleId) === $ambiguousSuitePath . '/' . $ambiguousModuleId);
+
+@mkdir($dupSuitePath, 0775, true);
+@mkdir($dupGroupedPath, 0775, true);
+@mkdir($dupRootPath, 0775, true);
+file_put_contents($dupGroupedPath . '/module.json', json_encode(['id' => $dupId, 'name' => 'Dup Grouped', 'version' => '1.0.0'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+file_put_contents($dupRootPath . '/module.json', json_encode(['id' => $dupId, 'name' => 'Dup Root', 'version' => '1.0.0'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$allModules = discoverModules();
+ok('duplicate id across root and grouped paths registers one module id', isset($allModules[$dupId]) && count(array_filter(array_keys($allModules), static fn(string $id): bool => $id === $dupId)) === 1);
+
+@mkdir($movedBucketPath, 0775, true);
+if (is_dir($rootModulePath) && !is_dir($movedRootPath)) {
+    @rename($rootModulePath, $movedRootPath);
+}
+$movedModules = discoverModules();
+$movedResolved = modulePathForId($rootModuleId);
+ok('discoverModules still finds module after moving into nested folder', isset($movedModules[$rootModuleId]));
+ok('modulePathForId resolves moved module nested path', is_string($movedResolved) && $movedResolved === realpath($movedRootPath));
+ok('moved module templates remain under templates/modules/<id>', is_file($rootTemplatePath . '/pages/home.disyl'));
+
+// cleanup grouped-path temporary artifacts
+foreach (glob(__DIR__ . '/../tests/' . $groupedModuleId . '_*') ?: [] as $generatedTest) {
+    @unlink($generatedTest);
+}
+@unlink(__DIR__ . '/../tests/' . $rootModuleId . '_module_test.php');
+@unlink($zipPath);
+
+foreach ([
+    $movedRootPath,
+    $movedBucketPath,
+    $rootModulePath,
+    $rootTemplatePath,
+    $groupedModulePath,
+    $groupedTemplatePath,
+    $groupedFlatPath,
+    $ownedChildRootPath,
+    $dupGroupedPath,
+    $dupRootPath,
+] as $p) {
+    $rrmdir($p);
+}
+
+if (is_file($ownedSuiteModuleManifest)) {
+    @unlink($ownedSuiteModuleManifest);
+}
+if (is_dir($ownedSuitePath) && !is_file($ownedSuiteModuleManifest)) {
+    $rrmdir($ownedSuitePath);
+}
+if (is_dir($ambiguousSuitePath) && !is_file($ambiguousSuitePath . '/module.json')) {
+    $rrmdir($ambiguousSuitePath);
+}
+if (is_dir($dupSuitePath) && !is_file($dupSuitePath . '/module.json')) {
+    $rrmdir($dupSuitePath);
+}
+if (is_dir($groupSuitePath) && !is_file($groupSuitePath . '/module.json')) {
+    $rrmdir($groupSuitePath);
+}
+
 // ── 5. TENANT RESOLVER ──────────────────────────────────────────
 heading('TenantResolver — Disabled (default)');
 $tr = new TenantResolver(['enabled' => false]);

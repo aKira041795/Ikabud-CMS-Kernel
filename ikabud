@@ -2496,7 +2496,7 @@ switch ($command) {
             out(red('  ✗ PHP zip extension is required.'));
             exit(1);
         }
-        $modDir = modulesPath() . '/' . $moduleId;
+        $modDir = modulePathForId($moduleId) ?? (modulesPath() . '/' . $moduleId);
         if (!is_dir($modDir)) {
             out(red("  ✗ Module '{$moduleId}' not found in modules/."));
             exit(1);
