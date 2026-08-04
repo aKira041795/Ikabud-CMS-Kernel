@@ -335,9 +335,11 @@ function tenantProvisionModulePlan(?string $entryModuleId): array
  * Report module dependencies that cannot be resolved instead of silently
  * omitting them from the tenant plan.
  *
- * Scans the `depends` (module-id) list of every module in scope and returns the
- * references that have no discoverable manifest. Callers can surface these to
- * an operator rather than shipping an incomplete plan without explanation.
+ * When an entry module is supplied, the report is scoped to that entry's
+ * selected plan (entry roots + forward closure + reverse-selected dependents
+ * and their forward closure), so it does not surface noise from unrelated
+ * modules in the repository. Without an entry module (legacy mode) it scans
+ * all enabled modules.
  *
  * @return array<int, array{module: string, depends: string}>
  */
@@ -345,10 +347,20 @@ function tenantProvisionPlanMissingDependencies(?string $entryModuleId): array
 {
     $entryModuleId = trim((string)$entryModuleId);
     $modules = discoverModules();
-    $scope = $entryModuleId !== '' ? $modules : getEnabledModules();
+
+    if ($entryModuleId === '') {
+        $scopeIds = array_keys(getEnabledModules());
+    } else {
+        $scopeIds = tenantProvisionModulePlan($entryModuleId);
+        if (!in_array($entryModuleId, $scopeIds, true) && isset($modules[$entryModuleId])) {
+            $scopeIds[] = $entryModuleId;
+        }
+    }
 
     $missing = [];
-    foreach ($scope as $moduleId => $manifest) {
+    foreach ($scopeIds as $moduleId) {
+        $moduleId = trim((string)$moduleId);
+        $manifest = $modules[$moduleId] ?? null;
         if (!is_array($manifest)) {
             continue;
         }
@@ -359,11 +371,21 @@ function tenantProvisionPlanMissingDependencies(?string $entryModuleId): array
         foreach ($deps as $dep) {
             $dep = trim((string)$dep);
             if ($dep !== '' && !isset($modules[$dep])) {
-                $missing[] = ['module' => (string)$moduleId, 'depends' => $dep];
+                $missing[] = ['module' => $moduleId, 'depends' => $dep];
             }
         }
     }
     return $missing;
+}
+
+/**
+ * Canonical typed-confirmation phrase required before destructive scope
+ * cleanup is allowed to run. Tied to the tenant so an operator confirms the
+ * exact target rather than a generic "yes".
+ */
+function tenantScopeRepairConfirmationPhrase(int $tenantId): string
+{
+    return 'REPAIR TENANT ' . (int)$tenantId;
 }
 
 function tenantEntryModuleIdForTenant(int $tenantId): ?string
@@ -1004,8 +1026,10 @@ function tenantComputeMigrationScopeCleanup(array $unexpectedModules, ?string $e
  * Safety model:
  * - Default (non-destructive): detect, report, and require explicit
  *   confirmation. Never touches tables or migration rows.
- * - Destructive mode requires BOTH `$destructive = true` and
- *   `$confirmed = true` (a typed confirmation from an explicit admin action).
+ * - Destructive mode requires `$destructive = true` AND a confirmation. The
+ *   confirmation may be the typed phrase `"REPAIR TENANT {id}"` (preferred,
+ *   see tenantScopeRepairConfirmationPhrase()) or an explicit boolean `true`
+ *   for backward compatibility.
  * - Tenant-enabled add-on modules, same-suite modules, modules whose tables or
  *   capabilities are referenced elsewhere, and modules without owned tables
  *   are never cleanup candidates.
@@ -1014,9 +1038,10 @@ function tenantComputeMigrationScopeCleanup(array $unexpectedModules, ?string $e
  * - Migration rows are only deleted AFTER every drop succeeds, so a partial
  *   failure never leaves untracked tables.
  *
+ * @param bool|string $confirmed Typed phrase or boolean confirmation.
  * @param PDO|null $db Optional injected connection (used by tests).
  */
-function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId = null, bool $destructive = false, bool $confirmed = false, ?PDO $db = null): array
+function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId = null, bool $destructive = false, bool|string $confirmed = false, ?PDO $db = null): array
 {
     if ($tenantId <= 0) {
         return ['ok' => false, 'error' => 'Invalid tenant ID'];
@@ -1042,6 +1067,7 @@ function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId =
     );
 
     $cleanupModules = (array)($decision['cleanup_modules'] ?? []);
+    $expectedPhrase = tenantScopeRepairConfirmationPhrase($tenantId);
     $baseResult = [
         'ok' => true,
         'tenant_id' => $tenantId,
@@ -1057,6 +1083,7 @@ function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId =
         'deleted_tenant_settings_rows' => 0,
         'family_prefix' => (string)($decision['family_prefix'] ?? ''),
         'tenant_enabled_modules' => array_values($tenantEnabled),
+        'expected_confirmation' => $expectedPhrase,
     ];
 
     if ($cleanupModules === []) {
@@ -1071,7 +1098,23 @@ function tenantRepairMigrationScopeDrift(int $tenantId, ?string $entryModuleId =
     if (!$confirmed) {
         return [
             'ok' => false,
-            'error' => 'destructive scope repair requires explicit confirmation (confirmed=true)',
+            'error' => 'destructive scope repair requires explicit confirmation',
+            'expected_confirmation' => $expectedPhrase,
+            'tenant_id' => $tenantId,
+            'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
+            'dry_run' => false,
+            'changed' => false,
+            'unexpected_modules' => array_values($unexpectedModules),
+            'cleanup_modules' => $cleanupModules,
+            'would_drop_tables' => (array)($decision['would_drop_tables'] ?? []),
+        ];
+    }
+
+    if (is_string($confirmed) && strcasecmp(trim($confirmed), $expectedPhrase) !== 0) {
+        return [
+            'ok' => false,
+            'error' => 'confirmation phrase does not match the tenant target',
+            'expected_confirmation' => $expectedPhrase,
             'tenant_id' => $tenantId,
             'entry_module_id' => $entryModuleId !== '' ? $entryModuleId : null,
             'dry_run' => false,

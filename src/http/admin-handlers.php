@@ -135,12 +135,13 @@ if (!function_exists('kernelTenantScopedMigrationSync')) {
      * Scope repair is NON-destructive by default: drift is detected, reported,
      * and returned to the caller so an operator can decide. Destructive cleanup
      * is only possible when an explicit admin action passes `$destructive` AND
-     * `$confirmed`.
+     * `$confirmed` (a typed phrase such as "REPAIR TENANT 42" or a boolean for
+     * backward compatibility).
      *
      * @param bool $destructive Whether to allow physical table cleanup.
-     * @param bool $confirmed    Typed confirmation required for destructive mode.
+     * @param bool|string $confirmed Typed confirmation required for destructive mode.
      */
-    function kernelTenantScopedMigrationSync(int $tenantId, ?string $entryModuleId = null, bool $destructive = false, bool $confirmed = false): array
+    function kernelTenantScopedMigrationSync(int $tenantId, ?string $entryModuleId = null, bool $destructive = false, bool|string $confirmed = false): array
     {
         $entryModuleId = is_string($entryModuleId) ? trim($entryModuleId) : null;
 
@@ -675,8 +676,13 @@ if (!function_exists('kernelHandleApiTenantRepairScope')) {
      *
      * Default behavior is a DRY RUN: it reports which modules are outside the
      * tenant entry plan and which tables would be dropped, without changing
-     * anything. Destructive cleanup requires `{"destructive": true,
-     * "confirmed": true}`.
+     * anything.
+     *
+     * Destructive cleanup requires `{"destructive": true}` plus a typed
+     * confirmation phrase tied to the tenant:
+     * `{"destructive": true, "confirmation": "REPAIR TENANT 42"}`. The phrase
+     * is validated server-side and is included in every dry-run response as
+     * `expected_confirmation`.
      */
     function kernelHandleApiTenantRepairScope(): void
     {
@@ -688,7 +694,9 @@ if (!function_exists('kernelHandleApiTenantRepairScope')) {
         $tenantId = (int)($input['tenant_id'] ?? 0);
         $entryModuleId = trim((string)($input['entry_module_id'] ?? ''));
         $destructive = !empty($input['destructive']);
-        $confirmed = !empty($input['confirmed']);
+        $confirmationPhrase = trim((string)($input['confirmation'] ?? ''));
+        $confirmedLegacy = !empty($input['confirmed']);
+        $confirmed = $confirmationPhrase !== '' ? $confirmationPhrase : $confirmedLegacy;
 
         if ($tenantId <= 0) {
             http_response_code(422);
@@ -709,6 +717,7 @@ if (!function_exists('kernelHandleApiTenantRepairScope')) {
                 echo json_encode([
                     'ok' => false,
                     'error' => $repair['error'] ?? 'Scope repair failed',
+                    'expected_confirmation' => $repair['expected_confirmation'] ?? null,
                     'tenant_id' => $tenantId,
                     'dry_run' => true,
                     'request_id' => request_id(),
@@ -722,7 +731,7 @@ if (!function_exists('kernelHandleApiTenantRepairScope')) {
                 'request_id' => request_id(),
                 'note' => $destructive
                     ? 'destructive scope repair executed with confirmation'
-                    : 'dry run — no changes made; pass destructive=true + confirmed=true to apply cleanup',
+                    : 'dry run — no changes made; pass destructive=true + confirmation="' . ($repair['expected_confirmation'] ?? 'REPAIR TENANT <id>') . '" to apply cleanup',
             ]));
         } catch (Throwable $e) {
             write_log('apiTenantRepairScope failed: ' . $e->getMessage(), 'error', [

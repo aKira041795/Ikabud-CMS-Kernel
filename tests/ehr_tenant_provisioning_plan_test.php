@@ -231,6 +231,16 @@ foreach ($missingDeps as $missingDep) {
 }
 t('unresolvable dependency is reported, not silently omitted', $missingFound, json_encode($missingDeps));
 
+$scopedMissing = tenantProvisionPlanMissingDependencies('ztest-entry-root');
+$unrelatedReported = false;
+foreach ($scopedMissing as $missingEntry) {
+    if ((string)($missingEntry['module'] ?? '') === 'ztest-missing-dep-child') {
+        $unrelatedReported = true;
+        break;
+    }
+}
+t('missing-dependency report is scoped to the selected plan', !$unrelatedReported, json_encode($scopedMissing));
+
 // ── Pure repair decision logic (no DB) ─────────────────────────────────
 $allModulesForRepair = discoverModules();
 
@@ -323,6 +333,19 @@ $failDb->exec("INSERT INTO _migrations (module, migration, batch, executed_at) V
 $partialRepair = tenantRepairMigrationScopeDrift(999, 'cms', true, true, $failDb);
 $rowsAfterPartial = (int)$failDb->query('SELECT COUNT(*) FROM _migrations')->fetchColumn();
 t('partial cleanup failure does not delete migration rows prematurely', empty($partialRepair['ok']) && $rowsAfterPartial === 2, json_encode($partialRepair));
+
+// ── Typed confirmation phrase (P2 follow-up A) ─────────────────────────
+$repairDbPhrase = ztestSqliteRepairDb();
+$repairDbPhrase->exec("INSERT INTO _migrations (module, migration, batch, executed_at) VALUES ('ztest-rev-dep', '001_initial.sql', 1, '2026-01-01 00:00:00')");
+
+$phraseDryRun = tenantRepairMigrationScopeDrift(999, 'cms', false, false, $repairDbPhrase);
+t('dry run advertises the typed confirmation phrase', ($phraseDryRun['expected_confirmation'] ?? null) === 'REPAIR TENANT 999', json_encode($phraseDryRun));
+
+$wrongPhrase = tenantRepairMigrationScopeDrift(999, 'cms', true, 'REPAIR TENANT 1', $repairDbPhrase);
+t('wrong typed phrase is rejected and leaves data intact', empty($wrongPhrase['ok']) && str_contains((string)($wrongPhrase['error'] ?? ''), 'phrase') && ztestSqliteTableExists($repairDbPhrase, 'ztest_rev_dep_table'), json_encode($wrongPhrase));
+
+$rightPhrase = tenantRepairMigrationScopeDrift(999, 'cms', true, 'REPAIR TENANT 999', $repairDbPhrase);
+t('correct typed phrase executes destructive cleanup', !empty($rightPhrase['changed']) && !ztestSqliteTableExists($repairDbPhrase, 'ztest_rev_dep_table'), json_encode($rightPhrase));
 
 // ── Manifest-declared entry delegate / routing ─────────────────────────
 t('cms akira profile delegates auth to cms via manifest', tenantEntryModuleDelegateId('cms-akira-profile-standard') === 'cms', tenantEntryModuleDelegateId('cms-akira-profile-standard'));
