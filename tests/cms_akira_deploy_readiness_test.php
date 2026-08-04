@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
-require_once __DIR__ . '/../modules/cms-akira-core/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-core/helpers.php';
 
 $pass = 0;
 $fail = 0;
@@ -41,7 +41,16 @@ function registerAkiraCoreHandlers(): void
 
 function readManifest(string $moduleId): array
 {
-    $path = BASE_PATH . '/modules/' . $moduleId . '/module.json';
+    $modulePath = modulePathForId($moduleId);
+    if (!is_string($modulePath) || $modulePath === '') {
+        return [];
+    }
+
+    $path = rtrim($modulePath, '/') . '/module.json';
+    if (!is_file($path)) {
+        return [];
+    }
+
     $decoded = json_decode((string)file_get_contents($path), true);
     return is_array($decoded) ? $decoded : [];
 }

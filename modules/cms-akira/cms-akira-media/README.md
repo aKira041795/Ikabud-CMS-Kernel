@@ -1,21 +1,21 @@
-# Cms Akira Seo
+# Cms Akira Media
 
-Cms Akira Seo module for Ikabud Kernel
+Cms Akira Media module for Ikabud Kernel
 
 ## Quick Start
 
 ```bash
 # 1. Edit your schema
-vim modules/cms-akira-seo/database/migrations/001_initial.sql
+vim modules/cms-akira/cms-akira-media/database/migrations/001_initial.sql
 
 # 2. Run migrations
-php ikabud migrate cms-akira-seo
+php ikabud migrate cms-akira-media
 
 # 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-seo
+php ikabud module:enable cms-akira-media
 
 # 4. Visit the admin page
-open /admin/cms-akira-seo
+open /admin/cms-akira-media
 ```
 
 ## Structure
@@ -23,16 +23,16 @@ open /admin/cms-akira-seo
 | File | Purpose |
 |------|---------|
 | `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-seo:handler']` |
+| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-media:handler']` |
 | `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (casCtx, casDb, casRender) |
+| `helpers.php` | Auto-loaded scoped helpers (camCtx, camDb, camRender) |
 | `database/migrations/` | Numbered SQL migration files |
 
 ## Routes
 
 | Method | Path | Handler |
 |--------|------|---------|
-| GET | `/admin/cms-akira-seo` | `pageCmsAkiraSeoHome` |
+| GET | `/admin/cms-akira-media` | `pageCmsAkiraMediaHome` |
 
 ## Tables Owned
 
@@ -41,7 +41,7 @@ _(none yet — add tables to `database/migrations/001_initial.sql` and list them
 ## Testing
 
 ```bash
-php tests/cms_akira_seo_module_test.php
+php tests/cms_akira_media_module_test.php
 ```
 
 ## Further Reading

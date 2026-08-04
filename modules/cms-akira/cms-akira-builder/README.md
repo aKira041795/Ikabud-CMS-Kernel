@@ -1,21 +1,21 @@
-# Cms Akira Search Adapter
+# Cms Akira Builder
 
-Cms Akira Search Adapter module for Ikabud Kernel
+Cms Akira Builder module for Ikabud Kernel
 
 ## Quick Start
 
 ```bash
 # 1. Edit your schema
-vim modules/cms-akira-search-adapter/database/migrations/001_initial.sql
+vim modules/cms-akira/cms-akira-builder/database/migrations/001_initial.sql
 
 # 2. Run migrations
-php ikabud migrate cms-akira-search-adapter
+php ikabud migrate cms-akira-builder
 
 # 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-search-adapter
+php ikabud module:enable cms-akira-builder
 
 # 4. Visit the admin page
-open /admin/cms-akira-search-adapter
+open /admin/cms-akira-builder
 ```
 
 ## Structure
@@ -23,16 +23,16 @@ open /admin/cms-akira-search-adapter
 | File | Purpose |
 |------|---------|
 | `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-search-adapter:handler']` |
+| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-builder:handler']` |
 | `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (casaCtx, casaDb, casaRender) |
+| `helpers.php` | Auto-loaded scoped helpers (cabCtx, cabDb, cabRender) |
 | `database/migrations/` | Numbered SQL migration files |
 
 ## Routes
 
 | Method | Path | Handler |
 |--------|------|---------|
-| GET | `/admin/cms-akira-search-adapter` | `pageCmsAkiraSearchAdapterHome` |
+| GET | `/admin/cms-akira-builder` | `pageCmsAkiraBuilderHome` |
 
 ## Tables Owned
 
@@ -41,7 +41,7 @@ _(none yet — add tables to `database/migrations/001_initial.sql` and list them
 ## Testing
 
 ```bash
-php tests/cms_akira_search_adapter_module_test.php
+php tests/cms_akira_builder_module_test.php
 ```
 
 ## Further Reading

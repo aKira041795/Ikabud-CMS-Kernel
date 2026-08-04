@@ -1,21 +1,21 @@
-# Cms Akira Theme
+# Cms Akira Navigation
 
-Cms Akira Theme module for Ikabud Kernel
+Cms Akira Navigation module for Ikabud Kernel
 
 ## Quick Start
 
 ```bash
 # 1. Edit your schema
-vim modules/cms-akira-theme/database/migrations/001_initial.sql
+vim modules/cms-akira/cms-akira-navigation/database/migrations/001_initial.sql
 
 # 2. Run migrations
-php ikabud migrate cms-akira-theme
+php ikabud migrate cms-akira-navigation
 
 # 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-theme
+php ikabud module:enable cms-akira-navigation
 
 # 4. Visit the admin page
-open /admin/cms-akira-theme
+open /admin/cms-akira-navigation
 ```
 
 ## Structure
@@ -23,16 +23,16 @@ open /admin/cms-akira-theme
 | File | Purpose |
 |------|---------|
 | `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-theme:handler']` |
+| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-navigation:handler']` |
 | `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (catCtx, catDb, catRender) |
+| `helpers.php` | Auto-loaded scoped helpers (canCtx, canDb, canRender) |
 | `database/migrations/` | Numbered SQL migration files |
 
 ## Routes
 
 | Method | Path | Handler |
 |--------|------|---------|
-| GET | `/admin/cms-akira-theme` | `pageCmsAkiraThemeHome` |
+| GET | `/admin/cms-akira-navigation` | `pageCmsAkiraNavigationHome` |
 
 ## Tables Owned
 
@@ -41,7 +41,7 @@ _(none yet — add tables to `database/migrations/001_initial.sql` and list them
 ## Testing
 
 ```bash
-php tests/cms_akira_theme_module_test.php
+php tests/cms_akira_navigation_module_test.php
 ```
 
 ## Further Reading

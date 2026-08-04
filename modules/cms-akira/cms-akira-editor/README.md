@@ -1,21 +1,21 @@
-# Cms Akira Profile Headless
+# Cms Akira Editor
 
-Cms Akira Profile Headless module for Ikabud Kernel
+Cms Akira Editor module for Ikabud Kernel
 
 ## Quick Start
 
 ```bash
 # 1. Edit your schema
-vim modules/cms-akira-profile-headless/database/migrations/001_initial.sql
+vim modules/cms-akira/cms-akira-editor/database/migrations/001_initial.sql
 
 # 2. Run migrations
-php ikabud migrate cms-akira-profile-headless
+php ikabud migrate cms-akira-editor
 
 # 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-profile-headless
+php ikabud module:enable cms-akira-editor
 
 # 4. Visit the admin page
-open /admin/cms-akira-profile-headless
+open /admin/cms-akira-editor
 ```
 
 ## Structure
@@ -23,16 +23,16 @@ open /admin/cms-akira-profile-headless
 | File | Purpose |
 |------|---------|
 | `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-profile-headless:handler']` |
+| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-editor:handler']` |
 | `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (caphCtx, caphDb, caphRender) |
+| `helpers.php` | Auto-loaded scoped helpers (caeCtx, caeDb, caeRender) |
 | `database/migrations/` | Numbered SQL migration files |
 
 ## Routes
 
 | Method | Path | Handler |
 |--------|------|---------|
-| GET | `/admin/cms-akira-profile-headless` | `pageCmsAkiraProfileHeadlessHome` |
+| GET | `/admin/cms-akira-editor` | `pageCmsAkiraEditorHome` |
 
 ## Tables Owned
 
@@ -41,7 +41,7 @@ _(none yet — add tables to `database/migrations/001_initial.sql` and list them
 ## Testing
 
 ```bash
-php tests/cms_akira_profile_headless_module_test.php
+php tests/cms_akira_editor_module_test.php
 ```
 
 ## Further Reading

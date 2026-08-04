@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 require __DIR__ . '/../bootstrap.php';
 require_once __DIR__ . '/../src/helpers/module-manager.php';
-require_once __DIR__ . '/../modules/cms-akira-core/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-theme/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-navigation/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-workflow/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-search-adapter/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-media/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-seo/helpers.php';
-require_once __DIR__ . '/../modules/cms-akira-ai/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-core/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-theme/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-navigation/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-workflow/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-search-adapter/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-media/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-seo/helpers.php';
+require_once __DIR__ . '/../modules/cms-akira/cms-akira-ai/helpers.php';
 
 $pass = 0;
 $fail = 0;

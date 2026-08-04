@@ -45,7 +45,7 @@ echo "
 // ── 1. Manifest ─────────────────────────────────────────────────────
 echo "── Manifest ──
 ";
-$manifestPath = BASE_PATH . '/modules/cms-akira-navigation/module.json';
+$manifestPath = BASE_PATH . '/modules/cms-akira/cms-akira-navigation/module.json';
 t('module.json exists', is_file($manifestPath));
 
 $manifest = json_decode((string)file_get_contents($manifestPath), true);
@@ -72,7 +72,7 @@ t('Capability declarations valid', !empty($capCheck['ok']), ($capCheck['error'] 
 echo "
 ── Routes ──
 ";
-$modulePath = BASE_PATH . '/modules/cms-akira-navigation';
+$modulePath = BASE_PATH . '/modules/cms-akira/cms-akira-navigation';
 $routesFile = $modulePath . '/routes.php';
 t('routes.php exists', is_file($routesFile));
 $routes = require $routesFile;

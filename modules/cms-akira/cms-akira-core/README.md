@@ -1,21 +1,21 @@
-# Cms Akira Profile Standard
+# Cms Akira Core
 
-Cms Akira Profile Standard module for Ikabud Kernel
+Cms Akira Core module for Ikabud Kernel
 
 ## Quick Start
 
 ```bash
 # 1. Edit your schema
-vim modules/cms-akira-profile-standard/database/migrations/001_initial.sql
+vim modules/cms-akira/cms-akira-core/database/migrations/001_initial.sql
 
 # 2. Run migrations
-php ikabud migrate cms-akira-profile-standard
+php ikabud migrate cms-akira-core
 
 # 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-profile-standard
+php ikabud module:enable cms-akira-core
 
 # 4. Visit the admin page
-open /admin/cms-akira-profile-standard
+open /admin/cms-akira-core
 ```
 
 ## Structure
@@ -23,16 +23,16 @@ open /admin/cms-akira-profile-standard
 | File | Purpose |
 |------|---------|
 | `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-profile-standard:handler']` |
+| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-core:handler']` |
 | `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (capsCtx, capsDb, capsRender) |
+| `helpers.php` | Auto-loaded scoped helpers (cacCtx, cacDb, cacRender) |
 | `database/migrations/` | Numbered SQL migration files |
 
 ## Routes
 
 | Method | Path | Handler |
 |--------|------|---------|
-| GET | `/admin/cms-akira-profile-standard` | `pageCmsAkiraProfileStandardHome` |
+| GET | `/admin/cms-akira-core` | `pageCmsAkiraCoreHome` |
 
 ## Tables Owned
 
@@ -41,7 +41,7 @@ _(none yet — add tables to `database/migrations/001_initial.sql` and list them
 ## Testing
 
 ```bash
-php tests/cms_akira_profile_standard_module_test.php
+php tests/cms_akira_core_module_test.php
 ```
 
 ## Further Reading
