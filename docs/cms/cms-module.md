@@ -5,6 +5,11 @@
 
 This document is the authoritative current-state guide for the CMS module as it exists today.
 
+For architecture extraction planning, see:
+
+- `docs/cms/cms-module-boundary-map.md`
+- `docs/cms/cms-adjacent-module-blueprint.md`
+
 ## 1. What the CMS is
 
 The CMS is a full application module that provides:
