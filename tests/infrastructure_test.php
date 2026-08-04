@@ -227,6 +227,15 @@ $groupedCapabilityBase = $groupedModuleId . '.health.check';
 $groupedCapHandler = __DIR__ . '/../modules/' . $groupSuiteId . '/' . $groupedModuleId . '/helpers/cap-' . str_replace(['.', '@'], '-', $groupedCapabilityBase) . '.php';
 $zipPath = __DIR__ . '/../storage/' . $groupedModuleId . '-' . $tmpSuffix . '.zip';
 
+$explicitSuiteId = 'suiteexplicit';
+$explicitModuleId = $explicitSuiteId . '-' . $tmpSuffix;
+$explicitSuitePath = __DIR__ . '/../modules/' . $explicitSuiteId;
+$explicitModulePath = $explicitSuitePath . '/' . $explicitModuleId;
+$explicitFlatPath = __DIR__ . '/../modules/' . $explicitModuleId;
+$explicitTemplatePath = __DIR__ . '/../templates/modules/' . $explicitModuleId;
+$explicitManifestPath = $explicitModulePath . '/module.json';
+$explicitZipPath = __DIR__ . '/../storage/' . $explicitModuleId . '-' . $tmpSuffix . '.zip';
+
 $rootModulePath = __DIR__ . '/../modules/' . $rootModuleId;
 $rootTemplatePath = __DIR__ . '/../templates/modules/' . $rootModuleId;
 $groupSuitePath = __DIR__ . '/../modules/' . $groupSuiteId;
@@ -260,6 +269,9 @@ foreach ([
     $groupedModulePath,
     $groupedFlatPath,
     $groupedTemplatePath,
+    $explicitModulePath,
+    $explicitFlatPath,
+    $explicitTemplatePath,
     $ownedChildRootPath,
     $dupGroupedPath,
     $dupRootPath,
@@ -268,13 +280,20 @@ foreach ([
     $rrmdir($p);
 }
 @unlink($zipPath);
+@unlink($explicitZipPath);
 foreach (glob(__DIR__ . '/../tests/' . $groupedModuleId . '_*') ?: [] as $generatedTest) {
+    @unlink($generatedTest);
+}
+foreach (glob(__DIR__ . '/../tests/' . $explicitModuleId . '_*') ?: [] as $generatedTest) {
     @unlink($generatedTest);
 }
 @unlink(__DIR__ . '/../tests/' . $rootModuleId . '_module_test.php');
 
 if (is_dir($groupSuitePath) && !is_file($groupSuitePath . '/module.json')) {
     $rrmdir($groupSuitePath);
+}
+if (is_dir($explicitSuitePath) && !is_file($explicitSuitePath . '/module.json')) {
+    $rrmdir($explicitSuitePath);
 }
 if (is_dir($ownedSuitePath) && !is_file($ownedSuiteModuleManifest)) {
     $rrmdir($ownedSuitePath);
@@ -290,6 +309,7 @@ if (is_dir($movedBucketPath) && !is_file($movedBucketPath . '/module.json')) {
 }
 
 ok('moduleInstallTargetDirForId 2-part id stays root', moduleInstallTargetDirForId('simple-' . $tmpSuffix) === __DIR__ . '/../modules/simple-' . $tmpSuffix);
+ok('moduleInstallTargetDirForId explicit suite groups 2-part id', moduleInstallTargetDirForId($explicitModuleId, $explicitSuiteId) === $explicitModulePath);
 
 @mkdir($groupSuitePath, 0775, true);
 ok('ikabud make:module root id', (int) shell_exec($cli . ' make:module ' . escapeshellarg($rootModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
@@ -300,6 +320,13 @@ ok('grouped module path created under suite container', is_dir($groupedModulePat
 ok('grouped module not created at root modules/<id>', !is_dir($groupedFlatPath));
 ok('grouped module templates remain in templates/modules/<id>', is_file($groupedTemplatePath . '/pages/home.disyl'));
 ok('modulePathForId resolves grouped module path', modulePathForId($groupedModuleId) === realpath($groupedModulePath));
+
+ok('ikabud make:module explicit suite id', (int) shell_exec($cli . ' make:module ' . escapeshellarg($explicitModuleId) . ' --suite=' . escapeshellarg($explicitSuiteId) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('explicit suite module created under suite container', is_dir($explicitModulePath));
+ok('explicit suite module not created at root modules/<id>', !is_dir($explicitFlatPath));
+ok('explicit suite module templates remain in templates/modules/<id>', is_file($explicitTemplatePath . '/pages/home.disyl'));
+$explicitManifest = is_file($explicitManifestPath) ? json_decode((string)file_get_contents($explicitManifestPath), true) : null;
+ok('explicit suite persisted in module manifest', is_array($explicitManifest) && (($explicitManifest['suite'] ?? null) === $explicitSuiteId));
 
 $resolvedThreePart = moduleInstallTargetDirForId($groupedModuleId);
 $resolvedFourPart = moduleInstallTargetDirForId($groupSuiteId . '-feature-' . $tmpSuffix);
@@ -315,14 +342,23 @@ ok('grouped entity templates created under templates/modules/<id>', is_file($gro
 
 ok('ikabud module:pack grouped module', (int) shell_exec($cli . ' module:pack ' . escapeshellarg($groupedModuleId) . ' ' . escapeshellarg($zipPath) . ' >/dev/null 2>&1; echo $?') === 0);
 ok('grouped module zip created', is_file($zipPath));
+ok('ikabud module:pack explicit suite module', (int) shell_exec($cli . ' module:pack ' . escapeshellarg($explicitModuleId) . ' ' . escapeshellarg($explicitZipPath) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('explicit suite module zip created', is_file($explicitZipPath));
 
 ok('ikabud module:uninstall grouped module', (int) shell_exec($cli . ' module:uninstall ' . escapeshellarg($groupedModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
 ok('grouped module path removed on uninstall', !is_dir($groupedModulePath));
 ok('grouped templates removed on uninstall', !is_dir($groupedTemplatePath));
+ok('ikabud module:uninstall explicit suite module', (int) shell_exec($cli . ' module:uninstall ' . escapeshellarg($explicitModuleId) . ' >/dev/null 2>&1; echo $?') === 0);
+ok('explicit suite module path removed on uninstall', !is_dir($explicitModulePath));
+ok('explicit suite templates removed on uninstall', !is_dir($explicitTemplatePath));
 
 $installResult = installModuleFromZip($zipPath);
 ok('installModuleFromZip grouped module succeeds', !empty($installResult['ok']));
 ok('installModuleFromZip restores grouped path', is_dir($groupedModulePath));
+
+$explicitInstallResult = installModuleFromZip($explicitZipPath);
+ok('installModuleFromZip explicit suite module succeeds', !empty($explicitInstallResult['ok']));
+ok('installModuleFromZip explicit suite restores grouped path', is_dir($explicitModulePath));
 
 $wasEnabled = isModuleEnabled($groupedModuleId);
 disableModule($groupedModuleId);
@@ -340,6 +376,7 @@ file_put_contents($ownedSuiteModuleManifest, json_encode([
     'version' => '1.0.0',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
 ok('suite dir with module.json keeps child module at root path', moduleInstallTargetDirForId($ownedChildId) === $ownedChildRootPath);
+ok('make:module --suite fails when suite path is a real module', (int) shell_exec($cli . ' make:module ' . escapeshellarg($ownedChildId) . ' --suite=' . escapeshellarg($ownedSuiteId) . ' >/dev/null 2>&1; echo $?') !== 0);
 
 @mkdir($ambiguousSuitePath, 0775, true);
 ok('ambiguous suite-like id groups when bare container exists', moduleInstallTargetDirForId($ambiguousModuleId) === $ambiguousSuitePath . '/' . $ambiguousModuleId);
@@ -366,8 +403,12 @@ ok('moved module templates remain under templates/modules/<id>', is_file($rootTe
 foreach (glob(__DIR__ . '/../tests/' . $groupedModuleId . '_*') ?: [] as $generatedTest) {
     @unlink($generatedTest);
 }
+foreach (glob(__DIR__ . '/../tests/' . $explicitModuleId . '_*') ?: [] as $generatedTest) {
+    @unlink($generatedTest);
+}
 @unlink(__DIR__ . '/../tests/' . $rootModuleId . '_module_test.php');
 @unlink($zipPath);
+@unlink($explicitZipPath);
 
 foreach ([
     $movedRootPath,
@@ -377,6 +418,9 @@ foreach ([
     $groupedModulePath,
     $groupedTemplatePath,
     $groupedFlatPath,
+    $explicitModulePath,
+    $explicitTemplatePath,
+    $explicitFlatPath,
     $ownedChildRootPath,
     $dupGroupedPath,
     $dupRootPath,
@@ -398,6 +442,9 @@ if (is_dir($dupSuitePath) && !is_file($dupSuitePath . '/module.json')) {
 }
 if (is_dir($groupSuitePath) && !is_file($groupSuitePath . '/module.json')) {
     $rrmdir($groupSuitePath);
+}
+if (is_dir($explicitSuitePath) && !is_file($explicitSuitePath . '/module.json')) {
+    $rrmdir($explicitSuitePath);
 }
 
 // ── 5. TENANT RESOLVER ──────────────────────────────────────────

@@ -3237,17 +3237,28 @@ switch ($command) {
 
     // ── make:module ──────────────────────────────────────────────
     case 'make:module':
-        $name = $params[0] ?? '';
+        $clean = paramsWithoutFlags($params);
+        $name = $clean[0] ?? '';
+        $suiteRaw = getFlagValue('--suite=');
+        $suiteId = normalizeModuleSuiteId($suiteRaw);
         if ($name === '') {
             out(red('  ✗ Module name required.'));
-            out('  Usage: php ikabud make:module <name>');
+            out('  Usage: php ikabud make:module <name> [--suite=<suite-id>]');
             out('  Example: php ikabud make:module hr');
+            exit(1);
+        }
+        if ($suiteRaw !== null && $suiteId === null) {
+            out(red("  ✗ Invalid suite id '{$suiteRaw}'. Use lowercase kebab-case (e.g. cms-akira)."));
             exit(1);
         }
 
         // Normalize: lowercase, hyphens
         $id = strtolower(preg_replace('/[^a-zA-Z0-9\-]/', '-', $name));
         $id = preg_replace('/-+/', '-', trim($id, '-'));
+        if ($suiteId !== null && !str_starts_with($id . '-', $suiteId . '-')) {
+            out(red("  ✗ Module id '{$id}' must start with suite prefix '{$suiteId}-' when --suite is provided."));
+            exit(1);
+        }
 
         // Pretty label
         $label = ucwords(str_replace('-', ' ', $id));
@@ -3262,8 +3273,16 @@ switch ($command) {
         $tablePrefix = $shortPrefix . '_';
 
         $modulePath = function_exists('moduleInstallTargetDirForId')
-            ? moduleInstallTargetDirForId($id)
+            ? moduleInstallTargetDirForId($id, $suiteId)
             : modulesPath() . '/' . $id;
+        if ($suiteId !== null) {
+            $suitePath = modulesPath() . '/' . $suiteId;
+            if (is_file($suitePath . '/module.json')) {
+                out(red("  ✗ Suite path '{$suitePath}' is an actual module (module.json exists)."));
+                out(red("    Choose a different suite id or move this module to avoid nesting under a real module."));
+                exit(1);
+            }
+        }
         $templatePath = BASE_PATH . '/templates/modules/' . $id;
         $testPath = BASE_PATH . '/tests/' . str_replace('-', '_', $id) . '_module_test.php';
         $moduleRelativePath = ltrim(str_replace(BASE_PATH . '/', '', $modulePath), '/');
@@ -3316,6 +3335,9 @@ switch ($command) {
                 ],
             ],
         ];
+        if ($suiteId !== null) {
+            $manifest['suite'] = $suiteId;
+        }
         file_put_contents(
             $modulePath . '/module.json',
             json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"

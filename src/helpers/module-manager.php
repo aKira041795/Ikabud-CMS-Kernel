@@ -11,6 +11,37 @@ function modulesPath(): string
     return BASE_PATH . '/modules';
 }
 
+function normalizeModuleSuiteId(?string $suiteId): ?string
+{
+    if (!is_string($suiteId)) {
+        return null;
+    }
+
+    $suiteId = strtolower(trim($suiteId));
+    if ($suiteId === '') {
+        return null;
+    }
+
+    // Normalize to kebab-case and reject malformed values.
+    $suiteId = preg_replace('/[^a-z0-9\-]/', '-', $suiteId);
+    $suiteId = preg_replace('/-+/', '-', trim((string)$suiteId, '-'));
+    if ($suiteId === '' || preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $suiteId) !== 1) {
+        return null;
+    }
+
+    return $suiteId;
+}
+
+function moduleSuiteFromManifest(array $manifest): ?string
+{
+    $raw = $manifest['suite'] ?? null;
+    if (!is_string($raw)) {
+        return null;
+    }
+
+    return normalizeModuleSuiteId($raw);
+}
+
 /**
  * Resolve filesystem target directory for a module id.
  *
@@ -21,12 +52,17 @@ function modulesPath(): string
  * @param string $moduleId
  * @return string
  */
-function moduleInstallTargetDirForId(string $moduleId): string
+function moduleInstallTargetDirForId(string $moduleId, ?string $explicitSuiteId = null): string
 {
     $moduleId = trim($moduleId);
     $base = rtrim(modulesPath(), '/');
     if ($moduleId === '') {
         return $base;
+    }
+
+    $suiteId = normalizeModuleSuiteId($explicitSuiteId);
+    if ($suiteId !== null) {
+        return $base . '/' . $suiteId . '/' . $moduleId;
     }
 
     $parts = array_values(array_filter(explode('-', $moduleId), fn($p) => $p !== ''));
@@ -2864,7 +2900,23 @@ function installModuleFromZip(string $zipPath): array
     }
 
     $moduleId = $manifest['id'];
-    $targetDir = moduleInstallTargetDirForId($moduleId);
+    $suiteId = moduleSuiteFromManifest($manifest);
+    if ($suiteId !== null && !str_starts_with($moduleId . '-', $suiteId . '-')) {
+        $zip->close();
+        return moduleInstallFailure('manifest_invalid_suite', "Module '{$moduleId}' declares suite '{$suiteId}' but id does not use the suite prefix.");
+    }
+
+    $targetDir = moduleInstallTargetDirForId($moduleId, $suiteId);
+    if ($suiteId !== null) {
+        $suiteDir = rtrim(modulesPath(), '/') . '/' . $suiteId;
+        if (is_file($suiteDir . '/module.json')) {
+            $zip->close();
+            return moduleInstallFailure(
+                'manifest_invalid_suite_container',
+                "Cannot install '{$moduleId}' into suite '{$suiteId}' because modules/{$suiteId}/module.json exists (suite path is a real module)."
+            );
+        }
+    }
     $targetTemplateDir = BASE_PATH . '/templates/modules/' . $moduleId;
     $removeDirectory = static function (string $path): void {
         if (!is_dir($path)) {
