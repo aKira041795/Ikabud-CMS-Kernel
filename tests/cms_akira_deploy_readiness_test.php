@@ -72,12 +72,37 @@ foreach ($expectedProfiles as $profileModule => $requiredDepends) {
 
 $coreManifest = readManifest('cms-akira-core');
 $exposes = is_array($coreManifest['capabilities']['exposes'] ?? null) ? $coreManifest['capabilities']['exposes'] : [];
+$coreDepends = is_array($coreManifest['capabilities']['depends'] ?? null) ? $coreManifest['capabilities']['depends'] : [];
 $exposedIds = array_values(array_filter(array_map(
     static fn(array $row): string => (string)($row['id'] ?? ''),
     array_filter($exposes, 'is_array')
 )));
 
 t('cms-akira-core exposes akira.providers.status@1', in_array('akira.providers.status@1', $exposedIds, true));
+
+$optionalProviderCaps = [
+    'akira.seo.meta.build@1',
+    'akira.ai.summary.suggest@1',
+    'akira.theme.resolve@1',
+    'akira.navigation.resolve@1',
+    'akira.workflow.evaluate@1',
+    'akira.search.document.build@1',
+    'akira.media.resolve@1',
+];
+foreach ($optionalProviderCaps as $capId) {
+    t("cms-akira-core does not hard-depend on optional capability {$capId}", !in_array($capId, $coreDepends, true));
+}
+
+$bootStatus = app()->cap()->call('akira.providers.status@1', []);
+t('akira.providers.status@1 callable without manual registration', ($bootStatus['ok'] ?? false) === true);
+
+$bootCompose = app()->cap()->call('akira.content.compose@1', [
+    'title' => 'Boot Path Compose Check',
+    'slug' => 'boot-path-compose-check',
+    'status' => 'draft',
+    'body' => '<p>Boot path composition check.</p>',
+]);
+t('akira.content.compose@1 callable without manual registration', ($bootCompose['ok'] ?? false) === true);
 
 registerAkiraCoreHandlers();
 $status = app()->cap()->call('akira.providers.status@1', []);

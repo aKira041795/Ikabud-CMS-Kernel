@@ -56,8 +56,8 @@ function cam_cap_akira_media_resolve_1(mixed $payload, string $capabilityId = 'a
     }
 
     $mediaId = isset($payload['media_id']) ? (int)$payload['media_id'] : null;
-    $url = trim((string)($payload['url'] ?? $payload['featured_image_url'] ?? ''));
-    $alt = trim((string)($payload['alt'] ?? $payload['featured_image_alt'] ?? ''));
+    $url = trim((string)($payload['featured_image_url'] ?? $payload['url'] ?? ''));
+    $alt = trim((string)($payload['featured_image_alt'] ?? $payload['alt'] ?? ''));
 
     return [
         'ok' => true,

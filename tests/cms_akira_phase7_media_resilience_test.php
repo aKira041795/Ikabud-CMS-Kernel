@@ -57,6 +57,17 @@ $payload = [
     'featured_image_alt' => 'Cover image',
 ];
 
+$conflictPayload = [
+    'title' => 'Akira Media Conflict Precedence Test',
+    'slug' => 'akira-media-conflict-precedence-test',
+    'status' => 'draft',
+    'body' => '<p>Conflict precedence phase test.</p>',
+    'featured_image_url' => 'https://cdn.example.test/images/featured-priority.jpg',
+    'url' => 'https://cdn.example.test/images/url-secondary.jpg',
+    'featured_image_alt' => 'Featured alt text',
+    'alt' => 'Secondary alt text',
+];
+
 try {
     enableModule($moduleId);
     $providerResult = app()->cap()->call('akira.content.compose@1', $payload);
@@ -65,12 +76,22 @@ try {
     t('media provider mode is provider when module enabled', (($providerResult['data']['provider_mode']['media'] ?? '') === 'provider'));
     t('media url is resolved by provider path', (($providerResult['data']['media']['url'] ?? '') === 'https://cdn.example.test/images/cover.jpg'));
 
+    $providerConflict = app()->cap()->call('akira.content.compose@1', $conflictPayload);
+    t('compose succeeds for provider conflict payload', ($providerConflict['ok'] ?? false) === true);
+    t('provider conflict prefers featured_image_url over url', (($providerConflict['data']['media']['url'] ?? '') === 'https://cdn.example.test/images/featured-priority.jpg'));
+    t('provider conflict prefers featured_image_alt over alt', (($providerConflict['data']['media']['alt'] ?? '') === 'Featured alt text'));
+
     disableModule($moduleId);
     $fallbackResult = app()->cap()->call('akira.content.compose@1', $payload);
 
     t('compose succeeds when media module disabled', ($fallbackResult['ok'] ?? false) === true);
     t('media provider mode is fallback when module disabled', (($fallbackResult['data']['provider_mode']['media'] ?? '') === 'fallback'));
     t('media url remains available via fallback', (($fallbackResult['data']['media']['url'] ?? '') === 'https://cdn.example.test/images/cover.jpg'));
+
+    $fallbackConflict = app()->cap()->call('akira.content.compose@1', $conflictPayload);
+    t('compose succeeds for fallback conflict payload', ($fallbackConflict['ok'] ?? false) === true);
+    t('fallback conflict prefers featured_image_url over url', (($fallbackConflict['data']['media']['url'] ?? '') === 'https://cdn.example.test/images/featured-priority.jpg'));
+    t('fallback conflict prefers featured_image_alt over alt', (($fallbackConflict['data']['media']['alt'] ?? '') === 'Featured alt text'));
 } finally {
     if ($wasEnabled) {
         enableModule($moduleId);
