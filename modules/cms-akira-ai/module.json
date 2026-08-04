@@ -4,14 +4,28 @@
     "version": "1.0.0",
     "description": "Cms Akira Ai module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"
     ],
     "capabilities": {
-        "exposes": [],
-        "depends": []
+        "exposes": [
+            {
+                "id": "akira.ai.summary.suggest@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Generate summary and keyword suggestions for Akira content"
+            }
+        ],
+        "depends": [
+            "akira.content.get@1"
+        ]
     },
     "routes": true,
     "events": [],

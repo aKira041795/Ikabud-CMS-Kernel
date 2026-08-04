@@ -9,6 +9,8 @@ function cms_akira_core_capability_handlers(): array
         'akira.content.list@1' => 'cac_cap_akira_content_list_1',
         'akira.content.create@1' => 'cac_cap_akira_content_create_1',
         'akira.content.update@1' => 'cac_cap_akira_content_update_1',
+        'akira.content.enrich@1' => 'cac_cap_akira_content_enrich_1',
+        'akira.providers.status@1' => 'cac_cap_akira_providers_status_1',
     ];
 }
 
@@ -46,7 +48,24 @@ function cac_cap_akira_content_create_1(mixed $payload, string $capabilityId = '
         return ['ok' => false, 'error' => 'title is required'];
     }
 
-    return cacLegacyCmsContentAdapter()->create($payload);
+    $body = (string)($payload['body'] ?? '');
+    $editor = cacEditorPrepareContent(['content' => $body]);
+    if (($editor['ok'] ?? false) !== true) {
+        return ['ok' => false, 'error' => (string)($editor['error'] ?? 'Invalid content body')];
+    }
+
+    $payload['body'] = (string)($editor['data']['content'] ?? $body);
+
+    $result = cacLegacyCmsContentAdapter()->create($payload);
+    if (($result['ok'] ?? false) !== true) {
+        return $result;
+    }
+
+    $result['data'] = is_array($result['data'] ?? null) ? $result['data'] : [];
+    $result['data']['provider_mode'] = [
+        'editor' => (string)($editor['mode'] ?? 'fallback'),
+    ];
+    return $result;
 }
 
 function cac_cap_akira_content_update_1(mixed $payload, string $capabilityId = 'akira.content.update@1', string $caller = 'unknown'): array
@@ -60,5 +79,65 @@ function cac_cap_akira_content_update_1(mixed $payload, string $capabilityId = '
         return ['ok' => false, 'error' => 'id is required'];
     }
 
-    return cacLegacyCmsContentAdapter()->update($payload);
+    $editorMode = 'fallback';
+    if (array_key_exists('body', $payload)) {
+        $body = (string)($payload['body'] ?? '');
+        $editor = cacEditorPrepareContent(['content' => $body]);
+        if (($editor['ok'] ?? false) !== true) {
+            return ['ok' => false, 'error' => (string)($editor['error'] ?? 'Invalid content body')];
+        }
+        $payload['body'] = (string)($editor['data']['content'] ?? $body);
+        $editorMode = (string)($editor['mode'] ?? 'fallback');
+    }
+
+    $result = cacLegacyCmsContentAdapter()->update($payload);
+    if (($result['ok'] ?? false) !== true) {
+        return $result;
+    }
+
+    $result['data'] = is_array($result['data'] ?? null) ? $result['data'] : [];
+    $result['data']['provider_mode'] = [
+        'editor' => $editorMode,
+    ];
+
+    return $result;
+}
+
+function cac_cap_akira_providers_status_1(mixed $payload, string $capabilityId = 'akira.providers.status@1', string $caller = 'unknown'): array
+{
+    if ($payload !== null && !is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    return [
+        'ok' => true,
+        'data' => cacProviderRuntimeStatus(),
+    ];
+}
+
+function cac_cap_akira_content_enrich_1(mixed $payload, string $capabilityId = 'akira.content.enrich@1', string $caller = 'unknown'): array
+{
+    if (!is_array($payload)) {
+        return ['ok' => false, 'error' => 'payload must be an object'];
+    }
+
+    $title = trim((string)($payload['title'] ?? ''));
+    if ($title === '') {
+        return ['ok' => false, 'error' => 'title is required'];
+    }
+
+    $seo = cacSeoMetaForContent($payload);
+    $ai = cacAiSummaryForContent($payload);
+
+    return [
+        'ok' => true,
+        'data' => [
+            'seo' => $seo['data'] ?? [],
+            'ai' => $ai['data'] ?? [],
+            'provider_mode' => [
+                'seo' => $seo['mode'] ?? 'fallback',
+                'ai' => $ai['mode'] ?? 'fallback',
+            ],
+        ],
+    ];
 }

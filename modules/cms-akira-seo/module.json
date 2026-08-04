@@ -4,14 +4,28 @@
     "version": "1.0.0",
     "description": "Cms Akira Seo module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"
     ],
     "capabilities": {
-        "exposes": [],
-        "depends": []
+        "exposes": [
+            {
+                "id": "akira.seo.meta.build@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Build SEO metadata for Akira content"
+            }
+        ],
+        "depends": [
+            "akira.content.get@1"
+        ]
     },
     "routes": true,
     "events": [],

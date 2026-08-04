@@ -4,14 +4,60 @@
     "version": "1.0.0",
     "description": "Cms Akira Editor module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
         "database/migrations/001_initial.sql"
     ],
     "capabilities": {
-        "exposes": [],
-        "depends": []
+        "exposes": [
+            {
+                "id": "editor.render@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Render editor content into final HTML"
+            },
+            {
+                "id": "editor.normalize@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Normalize editor content format"
+            },
+            {
+                "id": "editor.sanitize@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Sanitize editor content for safe rendering"
+            },
+            {
+                "id": "editor.validate@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Validate editor content payload"
+            },
+            {
+                "id": "editor.assets@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "Return editor runtime asset list"
+            }
+        ],
+        "depends": [
+            "akira.content.get@1"
+        ]
     },
     "routes": true,
     "events": [],

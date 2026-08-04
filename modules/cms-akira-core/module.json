@@ -42,13 +42,31 @@
                     "first"
                 ],
                 "description": "CMS Akira content update adapter backed by legacy cms.content.update@1"
+            },
+            {
+                "id": "akira.content.enrich@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira optional SEO/AI enrichment for content previews with fallback behavior"
+            },
+            {
+                "id": "akira.providers.status@1",
+                "priority": 50,
+                "modes": [
+                    "first"
+                ],
+                "description": "CMS Akira provider boundary runtime status and fallback map"
             }
         ],
         "depends": [
             "cms.content.get@1",
             "cms.content.list@1",
             "cms.content.create@1",
-            "cms.content.update@1"
+            "cms.content.update@1",
+            "akira.seo.meta.build@1",
+            "akira.ai.summary.suggest@1"
         ]
     },
     "routes": true,
