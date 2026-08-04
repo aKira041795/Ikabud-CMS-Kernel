@@ -5552,7 +5552,7 @@ MD;
         $baseId = $cm[1]; $version = $cm[2] ?? '1'; $fullId = $baseId . '@' . $version;
         $capParts = explode('.', $baseId);
         $moduleId = $moduleFlag ?? $capParts[0];
-        $modPath = BASE_PATH . '/modules/' . $moduleId;
+        $modPath = modulePathForId($moduleId) ?? (modulesPath() . '/' . $moduleId);
         if (!is_dir($modPath)) { out(red("  ✗ Module '{$moduleId}' not found")); exit(1); }
         $phpPrefix = str_replace(['-', '.'], '_', $moduleId);
         $funcName = $phpPrefix . '_cap_' . str_replace(['-', '.', '@'], '_', $baseId) . '_' . $version;
