@@ -4167,26 +4167,40 @@ MD;
         // Phase 0: canonical manifest schema-v1 validation. This is the same
         // code path used by the authoritative strict manifest guard.
         $manifestFailures = [];
+        $manifestBlockers = [];
         foreach (moduleManifestFilesV1(BASE_PATH . '/modules') as $manifestPath) {
             $validation = validateModuleManifestForArchitectureV1($manifestPath);
             foreach ($validation['diagnostics'] ?? [] as $diagnostic) {
-                if (($diagnostic['severity'] ?? '') !== 'fatal') {
+                $severity = (string)($diagnostic['severity'] ?? '');
+                if ($severity === 'fatal') {
+                    $manifestFailures[] = [
+                        'path' => str_replace(BASE_PATH . '/', '', $manifestPath),
+                        'diagnostic' => $diagnostic,
+                    ];
                     continue;
                 }
-                $manifestFailures[] = [
+                if ($severity !== 'cert_blocker') {
+                    continue;
+                }
+                $manifestBlockers[] = [
                     'path' => str_replace(BASE_PATH . '/', '', $manifestPath),
                     'diagnostic' => $diagnostic,
                 ];
             }
         }
         $totalChecks++;
-        if ($manifestFailures === []) {
+        if ($manifestFailures === [] && $manifestBlockers === []) {
             out('  ' . green('✓') . ' Manifest schema v' . MODULE_MANIFEST_SCHEMA_VERSION . ': shared validator passed');
         } else {
-            $failCount += count($manifestFailures);
+            $failCount += count($manifestFailures) + count($manifestBlockers);
             foreach ($manifestFailures as $failure) {
                 $diagnostic = $failure['diagnostic'];
                 out('  ' . red('✗') . ' ' . $failure['path'] . ': ' . $diagnostic['code'] . ' (' . $diagnostic['rule'] . ')');
+                out('      ' . $diagnostic['message'] . ' Correction: ' . $diagnostic['correction']);
+            }
+            foreach ($manifestBlockers as $failure) {
+                $diagnostic = $failure['diagnostic'];
+                out('  ' . yellow('⚠') . ' ' . $failure['path'] . ': ' . $diagnostic['code'] . ' (' . $diagnostic['rule'] . ')');
                 out('      ' . $diagnostic['message'] . ' Correction: ' . $diagnostic['correction']);
             }
         }

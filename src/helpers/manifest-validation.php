@@ -232,7 +232,79 @@ function validateModuleManifestForGuardV1(string $path): array
     return validateModuleManifestFileV1($path);
 }
 
+/** @return array<int,array<string,string>> */
+function validateModuleManifestArchitecturePoliciesV1(array $manifest): array
+{
+    $diagnostics = [];
+
+    $depends = $manifest['capabilities']['depends'] ?? [];
+    if (is_array($depends)) {
+        foreach ($depends as $index => $dependency) {
+            if (!is_string($dependency)) {
+                continue;
+            }
+            if ($dependency === 'kernel.auth.authenticate@1') {
+                $diagnostics[] = moduleManifestDiagnostic(
+                    DiagnosticSeverity::CertificationBlocker,
+                    'manifest_arch_dependency_overreach',
+                    'manifest.arch.depends.kernel-auth-authenticate',
+                    '/capabilities/depends/' . (string)$index,
+                    'Do not depend on kernel.auth.authenticate@1 in capabilities.depends; it can pull large transitive module trees during tenant provisioning.',
+                    'Remove this dependency and call kernel auth APIs directly (for example app()->auth()) or depend only on true inter-module contracts.'
+                );
+            }
+        }
+    }
+
+    $authOwned = $manifest['auth_owned'] ?? null;
+    if (is_array($authOwned)) {
+        $idColumn = trim((string)($authOwned['id_column'] ?? ''));
+        if ($idColumn === '') {
+            $diagnostics[] = moduleManifestDiagnostic(
+                DiagnosticSeverity::CertificationBlocker,
+                'manifest_arch_auth_owned_missing_id_column',
+                'manifest.arch.auth-owned.id-column',
+                '/auth_owned/id_column',
+                'auth_owned.id_column is required for tenant admin password-push/update flows.',
+                'Set auth_owned.id_column to the primary key column used by the module users table (for example user_id).'
+            );
+        }
+
+        $roleColumn = trim((string)($authOwned['role_column'] ?? ''));
+        if ($roleColumn === '') {
+            $diagnostics[] = moduleManifestDiagnostic(
+                DiagnosticSeverity::CertificationBlocker,
+                'manifest_arch_auth_owned_missing_role_column',
+                'manifest.arch.auth-owned.role-column',
+                '/auth_owned/role_column',
+                'auth_owned.role_column is required for tenant admin password-push/update role filtering.',
+                'Set auth_owned.role_column to the role column in the module users table (for example role).'
+            );
+        }
+    }
+
+    return $diagnostics;
+}
+
 function validateModuleManifestForArchitectureV1(string $path): array
 {
-    return validateModuleManifestFileV1($path);
+    $result = validateModuleManifestFileV1($path);
+    $manifest = is_array($result['manifest'] ?? null) ? $result['manifest'] : [];
+    foreach (validateModuleManifestArchitecturePoliciesV1($manifest) as $diagnostic) {
+        $result['diagnostics'][] = $diagnostic;
+    }
+
+    $fatalCount = count(array_filter(
+        $result['diagnostics'],
+        static fn (array $d): bool => ($d['severity'] ?? '') === DiagnosticSeverity::Fatal->value
+    ));
+    $blockerCount = count(array_filter(
+        $result['diagnostics'],
+        static fn (array $d): bool => ($d['severity'] ?? '') === DiagnosticSeverity::CertificationBlocker->value
+    ));
+
+    $result['ok'] = $fatalCount === 0;
+    $result['certifiable'] = $fatalCount === 0 && $blockerCount === 0;
+
+    return $result;
 }
