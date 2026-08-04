@@ -389,6 +389,14 @@ All database execution paths are instrumented with two hook/event seams:
 
 Tenant database migrations are applied explicitly via CLI (`php ikabud tenant:migrate <tenant>`) or through the provisioning flow. The kernel no longer auto-applies migrations on every HTTP request — standalone databases require explicit migration management.
 
+Tenant provisioning is entry-module driven. The Admin > Tenants page selects the tenant's `entry_module_id`, and that value is the seed for `tenantProvisionModulePlan(entry_module_id)`.
+
+- If the module is the tenant's entry module, it must be selected for each new tenant so the correct module bundle is provisioned.
+- If the module declares `auth_owned`, the tenant must provision that bundle to seed the admin user and support password-push recovery.
+- Modules that are neither entry modules nor part of the auth-owned bundle should not be added manually as a workaround; declare the correct dependencies or provisioning contract in the module manifest instead.
+
+This is unavoidable by design: the tenant page is where the tenant-specific module bundle is chosen.
+
 ```
 syncTenantMigrationsForTenant(tenantId)
   → resolves tenant ID

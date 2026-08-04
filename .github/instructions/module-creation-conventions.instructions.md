@@ -7,7 +7,14 @@ applyTo: "**/*.php **/*.disyl **/module.json"
 ## User Seeding
 - Role ENUM must include ALL roles upfront. Use `migration 020 → ALTER TABLE` only if missed.
 - Seed users: one per role with bcrypt hash, email, and store_id.
-- `module.json` `auth_owned.email_column` must be `"email"`.- `module.json` `auth_owned` MUST declare `id_column` (matches table PK, e.g. `"user_id"`) and `role_column` (e.g. `"role"`). The kernel tenant admin push handlers use these to build SQL — missing `id_column` causes the table to be silently skipped on email/password changes.
+- `module.json` `auth_owned.email_column` must be `"email"`.
+- `module.json` `auth_owned` MUST declare `id_column` (matches table PK, e.g. `"user_id"`) and `role_column` (e.g. `"role"`). The kernel tenant admin push handlers use these to build SQL — missing `id_column` causes the table to be silently skipped on email/password changes.
+
+## Standalone Entry Modules
+- Any new module that owns users/auth is a standalone tenant-entry module, not a shared helper module.
+- Such modules MUST declare `auth_owned` in `module.json` and MUST be selected in Admin > Tenants for each tenant that should receive that module bundle.
+- If the module is intended to be the default tenant bundle, make that default explicit in the manifest/docs rather than relying on hidden assumptions.
+- If the module is not an auth-owning entry module, keep it dependency-only and do not expect it to appear as a tenant dropdown default.
 ## DiSyL Syntax
 - `{block name}` — NO quotes around block name. `{block "name"}` breaks silently.
 - `{ikb_entity_view name="X" view="Y"}` — config uses `name=` not `source=`.

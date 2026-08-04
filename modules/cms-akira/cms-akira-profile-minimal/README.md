@@ -1,50 +1,32 @@
-# Cms Akira Profile Minimal
+# CMS Akira Profile Minimal
 
-Cms Akira Profile Minimal module for Ikabud Kernel
+cms-akira-profile-minimal is a CMS Akira submodule.
+
+## Responsibility
+
+Minimal profile bundle for lean CMS Akira deployments.
+
+## Suite Placement
+
+- Module path: modules/cms-akira/cms-akira-profile-minimal
+- Templates path: templates/modules/cms-akira-profile-minimal
 
 ## Quick Start
 
-```bash
-# 1. Edit your schema
-vim modules/cms-akira/cms-akira-profile-minimal/database/migrations/001_initial.sql
+1. Run migrations: php ikabud migrate cms-akira-profile-minimal
+2. Enable module: php ikabud module:enable cms-akira-profile-minimal
+3. Open admin route: /admin/cms-akira-profile-minimal
 
-# 2. Run migrations
-php ikabud migrate cms-akira-profile-minimal
+## Validation
 
-# 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-profile-minimal
+- Module scaffold test: php tests/cms_akira_profile_minimal_module_test.php
+- Suite-wide checks:
+	- php tests/cms_akira_deploy_readiness_test.php
+	- php tests/cms_akira_provider_boundary_health_test.php
+	- php ikabud architecture:check
 
-# 4. Visit the admin page
-open /admin/cms-akira-profile-minimal
-```
+## Notes
 
-## Structure
-
-| File | Purpose |
-|------|---------|
-| `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-profile-minimal:handler']` |
-| `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (capmCtx, capmDb, capmRender) |
-| `database/migrations/` | Numbered SQL migration files |
-
-## Routes
-
-| Method | Path | Handler |
-|--------|------|---------|
-| GET | `/admin/cms-akira-profile-minimal` | `pageCmsAkiraProfileMinimalHome` |
-
-## Tables Owned
-
-_(none yet — add tables to `database/migrations/001_initial.sql` and list them in `module.json` `owns_tables`)_
-
-## Testing
-
-```bash
-php tests/cms_akira_profile_minimal_module_test.php
-```
-
-## Further Reading
-
-- [Module Development Guide](../../docs/module-development-guide.md)
-- [Module Quickstart Tutorial](../../docs/module-quickstart.md)
+- Keep dependencies explicit in module.json capabilities.depends.
+- Keep shared behavior capability-exposed; do not rely on suite-folder implicit coupling.
+- For suite overview, see modules/cms-akira/README.md.

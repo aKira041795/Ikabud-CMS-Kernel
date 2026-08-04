@@ -274,10 +274,29 @@ Common examples:
 
 Modules that own their own users table (instead of relying on the kernel-installer `users` table or the `cms_users` table) can declare an `auth_owned` block in `module.json`. The kernel uses this declaration to drive **two platform-wide flows** without any module-specific code in the kernel:
 
+An auth-owned module is a standalone tenant-entry module. It is not a shared helper package.
+
+- If the tenant should receive that module's users/auth tables, the module must be selected in Admin > Tenants for that tenant.
+- If the module is intended to be provisioned for every tenant, make it part of the entry-module bundle or an explicit dependency path.
+- Do not rely on a hidden default; the tenant selection is the provisioning decision.
+
 1. **Tenant provisioning** (`php ikabud tenant:provision` and `Ikabud\Kernel\Services\TenantProvisioner::provision()`) — when the tenant's `entry_module_id` matches a module that declares `auth_owned`, the provisioner seeds the initial admin user directly into the module's users table using the spec's columns and `default_admin_role`. Idempotent: if a row with the same username already exists it is left in place.
 2. **Admin password push / recovery** (`POST /api/v1/admin/tenants/password-push`) — the kernel iterates every enabled module's `auth_owned` spec and runs a single `UPDATE` per declared users table, scoped to `admin_roles` (and optionally `active_column` / `deleted_column`). Tables are de-duplicated, so two modules declaring the same physical table (e.g. `users` and `cms` both declaring `cms_users`) result in exactly one update.
 
 > The kernel-installer `users` table is intentionally **not** declared by any module — it remains a separate fallback inside the password-push handler.
+
+### Tenant dashboard requirement
+
+When a new tenant is created in the Admin > Tenants page, the dropdown is selecting the tenant's `entry_module_id` bundle. That selection is required because the kernel uses it to build the provisioning plan for:
+
+- the entry module itself,
+- any module dependencies,
+- any capability providers required by that plan,
+- and any `auth_owned` modules that must seed admin users or participate in password-push recovery.
+
+In practice, this means a new module may need to be selected again for each new tenant if it is the tenant's entry module or if it is part of the initial auth-owned bundle. This is not duplicate manual work; it is the tenant-specific provisioning decision that determines which module manifests are applied to that tenant.
+
+If a module must always be provisioned for every tenant, declare that through the appropriate entry-module or dependency path rather than relying on ad hoc manual selection.
 
 ### Schema
 

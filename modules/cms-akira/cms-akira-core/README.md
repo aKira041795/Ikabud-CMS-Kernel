@@ -1,50 +1,33 @@
-# Cms Akira Core
+# CMS Akira Core
 
-Cms Akira Core module for Ikabud Kernel
+cms-akira-core is a CMS Akira submodule.
+
+## Responsibility
+
+Core content orchestration and provider-boundary contracts.
+
+## Suite Placement
+
+- Module path: modules/cms-akira/cms-akira-core
+- Templates path: templates/modules/cms-akira-core
 
 ## Quick Start
 
-```bash
-# 1. Edit your schema
-vim modules/cms-akira/cms-akira-core/database/migrations/001_initial.sql
+1. Run migrations: php ikabud migrate cms-akira-core
+2. Enable module: php ikabud module:enable cms-akira-core
+3. Open admin route: /admin/cms-akira-core
 
-# 2. Run migrations
-php ikabud migrate cms-akira-core
+## Validation
 
-# 3. Enable the module (if not already)
-php ikabud module:enable cms-akira-core
+- Module scaffold test: php tests/cms_akira_core_module_test.php
+- Core/suite checks:
+	- php tests/cms_akira_core_adapter_contract_test.php
+	- php tests/cms_akira_provider_boundary_health_test.php
+	- php tests/cms_akira_deploy_readiness_test.php
+	- php ikabud architecture:check
 
-# 4. Visit the admin page
-open /admin/cms-akira-core
-```
+## Notes
 
-## Structure
-
-| File | Purpose |
-|------|---------|
-| `module.json` | Module manifest — tables, capabilities, events, nav |
-| `routes.php` | Route map: `'METHOD' => ['/path' => 'cms-akira-core:handler']` |
-| `handlers.php` | Route handler functions |
-| `helpers.php` | Auto-loaded scoped helpers (cacCtx, cacDb, cacRender) |
-| `database/migrations/` | Numbered SQL migration files |
-
-## Routes
-
-| Method | Path | Handler |
-|--------|------|---------|
-| GET | `/admin/cms-akira-core` | `pageCmsAkiraCoreHome` |
-
-## Tables Owned
-
-_(none yet — add tables to `database/migrations/001_initial.sql` and list them in `module.json` `owns_tables`)_
-
-## Testing
-
-```bash
-php tests/cms_akira_core_module_test.php
-```
-
-## Further Reading
-
-- [Module Development Guide](../../docs/module-development-guide.md)
-- [Module Quickstart Tutorial](../../docs/module-quickstart.md)
+- Keep optional providers runtime-boundary based; avoid hard coupling.
+- Keep dependencies explicit in module.json capabilities.depends.
+- For suite overview, see modules/cms-akira/README.md.

@@ -28,6 +28,20 @@ Provide a repeatable, manifest-first blueprint for new CMS-adjacent modules that
 2. Validate table declarations match real SQL usage.
 3. Validate tenant provisioning/upgrade paths for fresh and existing tenants.
 4. Validate auth-owned password push compatibility when applicable.
+5. If the module is intended to be a tenant entry module or auth-owned admin surface, make that explicit in `module.json` and test the tenant provisioning flow.
+
+## Tenant Dashboard Provisioning Rule
+
+The Admin > Tenants page is not just a record list; it is the place where the platform chooses which module bundle is provisioned for a tenant.
+
+If the module owns users/auth, treat it as a standalone tenant-entry module.
+
+- The dropdown selects the tenant's `entry_module_id` and therefore controls `tenantProvisionModulePlan(entry_module_id)`.
+- Auth-owned modules must declare `auth_owned` so the kernel can seed the initial admin user and perform password-push recovery.
+- If a new module owns its own users table, the new tenant must be provisioned with that module bundle selected or the tenant will not receive the correct auth tables/users.
+- If a module is not an entry module and is not auth-owned, it should not need tenant-dashboard selection unless it is intentionally part of the tenant's initial bundle.
+
+This is a required provisioning step, not an optional UI preference. New module manifests must be designed with it in mind.
 
 ## Minimal Contract Skeleton
 ```json

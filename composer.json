@@ -1,6 +1,6 @@
 {
     "name": "ikabud/kernel",
-    "description": "Multi-tenant application platform and modular business OS powered by DiSyL, the kernel-native rendering runtime for visual CMS, workflow automation, commerce, and tenant-scoped operations modules.",
+    "description": "Multi-tenant application platform and modular business OS powered by DiSyL, the kernel-native rendering runtime for visual CMS, workflow automation, commerce, and tenant-scoped operations modules. Tenant provisioning is entry-module driven; auth-owned modules must be declared in module.json and may need to be selected per tenant.",
     "type": "project",
     "config": {
         "process-timeout": 1800
