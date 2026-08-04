@@ -1,9 +1,12 @@
 {
     "id": "cms-akira-ai",
-    "name": "Cms Akira Ai",
+    "name": "CMS Akira AI Assistant",
     "version": "1.0.0",
-    "description": "Cms Akira Ai module for Ikabud Kernel",
+    "description": "CMS Akira AI assistant extension — generates summaries and keyword suggestions for Akira content.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],

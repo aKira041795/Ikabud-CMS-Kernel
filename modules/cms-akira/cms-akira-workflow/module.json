@@ -1,9 +1,12 @@
 {
     "id": "cms-akira-workflow",
-    "name": "Cms Akira Workflow",
+    "name": "CMS Akira Workflow",
     "version": "1.0.0",
-    "description": "Cms Akira Workflow module for Ikabud Kernel",
+    "description": "CMS Akira workflow extension — evaluates content workflow status and allowed transitions.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],

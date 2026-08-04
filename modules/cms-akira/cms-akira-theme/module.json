@@ -1,9 +1,12 @@
 {
     "id": "cms-akira-theme",
-    "name": "Cms Akira Theme",
+    "name": "CMS Akira Theme",
     "version": "1.0.0",
-    "description": "Cms Akira Theme module for Ikabud Kernel",
+    "description": "CMS Akira theme extension — resolves theme context for Akira content rendering.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],

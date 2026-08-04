@@ -130,6 +130,25 @@ foreach ($coOwnedTables as $table => $modules) {
     }
 }
 
+// Fleet-level product suite contract checks (schema-v2 layer): extends targets
+// exist, contribution hosts exist, and contributed extension points are
+// declared by the host. Builds a module-id-keyed manifest map from discovery.
+$fleetManifests = [];
+foreach ($manifestFiles as $manifestPath) {
+    $validation = validateModuleManifestForGuardV1($manifestPath);
+    $manifest = is_array($validation['manifest'] ?? null) ? $validation['manifest'] : [];
+    $moduleId = is_string($manifest['id'] ?? null) && trim($manifest['id']) !== ''
+        ? trim($manifest['id'])
+        : basename(dirname($manifestPath));
+    $fleetManifests[$moduleId] = $manifest;
+}
+if (function_exists('validateModuleSuiteFleetV1')) {
+    foreach (validateModuleSuiteFleetV1($fleetManifests) as $suiteDiagnostic) {
+        $suiteDiagnostic['path'] = str_replace($basePath . '/', '', $moduleIds[$suiteDiagnostic['module'] ?? ''] ?? '');
+        $diagnostics[] = $suiteDiagnostic;
+    }
+}
+
 $blockingSeverities = $strict ? ['fatal', 'cert_blocker'] : ['fatal'];
 $blocking = array_values(array_filter($diagnostics, static fn (array $diagnostic): bool => in_array($diagnostic['severity'] ?? '', $blockingSeverities, true)));
 

@@ -1,9 +1,16 @@
 {
     "id": "cms-akira-profile-headless",
-    "name": "Cms Akira Profile Headless",
+    "name": "CMS Akira Headless Profile",
     "version": "1.0.0",
-    "description": "Cms Akira Profile Headless module for Ikabud Kernel",
+    "description": "CMS Akira Headless installation profile — API-first content surface with search + workflow.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "profile",
+    "installs": [
+        "cms-akira-core",
+        "cms-akira-search-adapter",
+        "cms-akira-workflow"
+    ],
     "depends": [
         "cms-akira-core",
         "cms-akira-search-adapter",

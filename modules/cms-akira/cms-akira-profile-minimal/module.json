@@ -1,9 +1,15 @@
 {
     "id": "cms-akira-profile-minimal",
-    "name": "Cms Akira Profile Minimal",
+    "name": "CMS Akira Minimal Profile",
     "version": "1.0.0",
-    "description": "Cms Akira Profile Minimal module for Ikabud Kernel",
+    "description": "CMS Akira Minimal installation profile — minimal content surface built on the core.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "profile",
+    "installs": [
+        "cms-akira-core",
+        "cms-akira-editor"
+    ],
     "depends": [
         "cms-akira-core"
     ],

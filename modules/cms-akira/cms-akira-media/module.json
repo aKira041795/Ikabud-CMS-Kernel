@@ -1,9 +1,12 @@
 {
     "id": "cms-akira-media",
-    "name": "Cms Akira Media",
+    "name": "CMS Akira Media",
     "version": "1.0.0",
-    "description": "Cms Akira Media module for Ikabud Kernel",
+    "description": "CMS Akira media extension — resolves media references for Akira content rendering.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],

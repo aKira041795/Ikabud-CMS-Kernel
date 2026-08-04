@@ -1,10 +1,19 @@
 {
     "id": "cms-akira-profile-standard",
-    "name": "CMS Akira",
+    "name": "CMS Akira Standard Profile",
     "version": "1.0.0",
-    "description": "Cms Akira Profile Standard module for Ikabud Kernel",
+    "description": "CMS Akira Standard installation profile — bundles the core suite modules into a coherent product configuration.",
     "author": "Ikabud",
     "suite": "cms-akira",
+    "kind": "profile",
+    "installs": [
+        "cms-akira-core",
+        "cms-akira-editor",
+        "cms-akira-theme",
+        "cms-akira-navigation",
+        "cms-akira-media",
+        "cms-akira-seo"
+    ],
     "depends": [
         "cms-akira-core",
         "cms-akira-editor",

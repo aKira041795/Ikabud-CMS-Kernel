@@ -1,9 +1,12 @@
 {
     "id": "cms-akira-search-adapter",
-    "name": "Cms Akira Search Adapter",
+    "name": "CMS Akira Search Adapter",
     "version": "1.0.0",
-    "description": "Cms Akira Search Adapter module for Ikabud Kernel",
+    "description": "CMS Akira search adapter — adapts an external search backend into the suite contract.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "adapter",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],

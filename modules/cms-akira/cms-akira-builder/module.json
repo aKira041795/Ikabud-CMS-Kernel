@@ -1,9 +1,15 @@
 {
     "id": "cms-akira-builder",
-    "name": "Cms Akira Builder",
+    "name": "CMS Akira Builder",
     "version": "1.0.0",
-    "description": "Cms Akira Builder module for Ikabud Kernel",
+    "description": "CMS Akira builder extension — contributes administration and presentation capabilities to the suite.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

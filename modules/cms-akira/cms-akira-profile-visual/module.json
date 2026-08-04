@@ -1,9 +1,22 @@
 {
     "id": "cms-akira-profile-visual",
-    "name": "Cms Akira Profile Visual",
+    "name": "CMS Akira Visual Profile",
     "version": "1.0.0",
-    "description": "Cms Akira Profile Visual module for Ikabud Kernel",
+    "description": "CMS Akira Visual installation profile — full visual editing suite built on the core.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "profile",
+    "installs": [
+        "cms-akira-core",
+        "cms-akira-editor",
+        "cms-akira-theme",
+        "cms-akira-navigation",
+        "cms-akira-builder",
+        "cms-akira-media",
+        "cms-akira-seo",
+        "cms-akira-workflow",
+        "cms-akira-search-adapter"
+    ],
     "depends": [
         "cms-akira-core",
         "cms-akira-editor",

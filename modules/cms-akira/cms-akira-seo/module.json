@@ -1,12 +1,47 @@
 {
     "id": "cms-akira-seo",
-    "name": "Cms Akira Seo",
+    "name": "CMS Akira SEO",
     "version": "1.0.0",
-    "description": "Cms Akira Seo module for Ikabud Kernel",
+    "description": "CMS Akira SEO extension — registers SEO sidebar contributions and settings for the cms-akira suite. Proves the dynamic contribution + lifecycle model.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],
+    "contributes": [
+        {
+            "extension_point": "cms.sidebar",
+            "provider": "cms-akira-seo.nav@1"
+        },
+        {
+            "extension_point": "cms.settings.sections",
+            "provider": "cms-akira-seo.settings@1"
+        }
+    ],
+    "admin_contributions": [
+        {
+            "host": "cms",
+            "location": "sidebar",
+            "group": "optimization",
+            "label": "SEO",
+            "icon": "search",
+            "route": "/admin/cms-akira-seo",
+            "permission": "cms.seo.manage",
+            "order": 60
+        }
+    ],
+    "compatibility": {
+        "kernel": ">=6.0.0",
+        "suite": ">=1.0.0"
+    },
+    "uninstall": {
+        "disable_safe": true,
+        "retain_data_by_default": true,
+        "supports_data_export": true,
+        "requires_confirmation_to_drop_data": true
+    },
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

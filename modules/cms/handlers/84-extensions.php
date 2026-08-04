@@ -102,6 +102,15 @@ function _cmsAvailableModuleCard(string $moduleId, array $manifest, ?int $tenant
         'request_notes' => is_array($request) ? (string)($request['request_notes'] ?? '') : '',
         'request_review_notes' => is_array($request) ? (string)($request['review_notes'] ?? '') : '',
         'request_has_license_key' => is_array($request) ? !empty($request['has_license_key']) : false,
+        // Product suite contract metadata (additive)
+        'kind' => function_exists('moduleManifestKindFromManifest') ? moduleManifestKindFromManifest($manifest) : '',
+        'suite' => is_string($manifest['suite'] ?? null) ? $manifest['suite'] : '',
+        'extends' => is_string($manifest['extends'] ?? null) ? $manifest['extends'] : (is_string($manifest['parent'] ?? null) ? $manifest['parent'] : ''),
+        'extension_points' => is_array($manifest['extension_points'] ?? null) ? $manifest['extension_points'] : [],
+        'contributes' => is_array($manifest['contributes'] ?? null) ? $manifest['contributes'] : [],
+        'admin_contributions' => is_array($manifest['admin_contributions'] ?? null) ? $manifest['admin_contributions'] : [],
+        'compatibility' => is_array($manifest['compatibility'] ?? null) ? $manifest['compatibility'] : null,
+        'uninstall' => is_array($manifest['uninstall'] ?? null) ? $manifest['uninstall'] : null,
     ];
 }
 
@@ -1388,6 +1397,15 @@ function _cmsDiscoverSubModules(): array
             'catalog_managed' => is_array($catalogEntry),
             'commercial_mode' => is_array($catalogEntry) ? (string)($catalogEntry['commercial_mode'] ?? 'free') : '',
             'approval_status' => is_array($catalogEntry) ? (string)($catalogEntry['approval_status'] ?? 'pending') : '',
+            // Product suite contract metadata (additive; absent for legacy modules)
+            'kind'            => function_exists('moduleManifestKindFromManifest') ? moduleManifestKindFromManifest($m) : '',
+            'suite'           => is_string($m['suite'] ?? null) ? $m['suite'] : '',
+            'extends'         => is_string($m['extends'] ?? null) ? $m['extends'] : (is_string($m['parent'] ?? null) ? $m['parent'] : ''),
+            'extension_points' => is_array($m['extension_points'] ?? null) ? $m['extension_points'] : [],
+            'contributes'     => is_array($m['contributes'] ?? null) ? $m['contributes'] : [],
+            'admin_contributions' => is_array($m['admin_contributions'] ?? null) ? $m['admin_contributions'] : [],
+            'compatibility'   => is_array($m['compatibility'] ?? null) ? $m['compatibility'] : null,
+            'uninstall'       => is_array($m['uninstall'] ?? null) ? $m['uninstall'] : null,
         ];
     }
     usort($result, function ($a, $b) {

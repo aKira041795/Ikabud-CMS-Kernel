@@ -1,9 +1,12 @@
 {
     "id": "cms-akira-navigation",
-    "name": "Cms Akira Navigation",
+    "name": "CMS Akira Navigation",
     "version": "1.0.0",
-    "description": "Cms Akira Navigation module for Ikabud Kernel",
+    "description": "CMS Akira navigation extension — resolves navigation context for Akira content pages.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "extension",
+    "extends": "cms-akira-core",
     "depends": [
         "cms-akira-core"
     ],

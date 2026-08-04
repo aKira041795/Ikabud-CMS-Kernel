@@ -8,6 +8,19 @@ use Ikabud\Kernel\Contracts\DiagnosticSeverity;
 
 const MODULE_MANIFEST_SCHEMA_VERSION = '1';
 
+// Product Suite & Extension Contract — additive schema-v2 layer.
+// The base schema version stays at '1' for backward compatibility. Suite
+// contract fields are optional; when present they are validated strictly.
+const MODULE_SUITE_CONTRACT_SCHEMA_VERSION = '2';
+
+const MODULE_KIND_PRODUCT_CORE = 'product-core';
+const MODULE_KIND_EXTENSION = 'extension';
+const MODULE_KIND_ADAPTER = 'adapter';
+const MODULE_KIND_PROFILE = 'profile';
+const MODULE_KIND_SERVICE = 'service';
+const MODULE_KIND_INTEGRATION = 'integration';
+const MODULE_KIND_STANDALONE = 'standalone-application';
+
 /**
  * @return array{severity:string,code:string,rule:string,field:string,message:string,correction:string}
  */
@@ -176,8 +189,17 @@ function validateModuleManifestV1(array $manifest, array $context = []): array
     $fatalCount = count(array_filter($diagnostics, static fn (array $d): bool => $d['severity'] === DiagnosticSeverity::Fatal->value));
     $blockerCount = count(array_filter($diagnostics, static fn (array $d): bool => $d['severity'] === DiagnosticSeverity::CertificationBlocker->value));
 
+    // Product suite contract (additive schema-v2 layer). Only validates fields
+    // that are present, so existing schema-v1 manifests remain valid.
+    foreach (validateModuleSuiteContractV1($manifest) as $suiteDiagnostic) {
+        $diagnostics[] = $suiteDiagnostic;
+    }
+    $fatalCount = count(array_filter($diagnostics, static fn (array $d): bool => $d['severity'] === DiagnosticSeverity::Fatal->value));
+    $blockerCount = count(array_filter($diagnostics, static fn (array $d): bool => $d['severity'] === DiagnosticSeverity::CertificationBlocker->value));
+
     return [
         'schema_version' => MODULE_MANIFEST_SCHEMA_VERSION,
+        'suite_contract_version' => MODULE_SUITE_CONTRACT_SCHEMA_VERSION,
         'ok' => $fatalCount === 0,
         'certifiable' => $fatalCount === 0 && $blockerCount === 0,
         'manifest' => $manifest,
@@ -185,7 +207,283 @@ function validateModuleManifestV1(array $manifest, array $context = []): array
     ];
 }
 
-/** @return array<string,mixed> */
+/**
+ * All valid module `kind` values for the product suite contract.
+ *
+ * @return string[]
+ */
+function moduleManifestValidKinds(): array
+{
+    return [
+        MODULE_KIND_PRODUCT_CORE,
+        MODULE_KIND_EXTENSION,
+        MODULE_KIND_ADAPTER,
+        MODULE_KIND_PROFILE,
+        MODULE_KIND_SERVICE,
+        MODULE_KIND_INTEGRATION,
+        MODULE_KIND_STANDALONE,
+    ];
+}
+
+/**
+ * Resolve a module's kind, with legacy fallbacks so schema-v1 manifests
+ * are interpreted consistently without declaring `kind`.
+ */
+function moduleManifestKindFromManifest(array $manifest): string
+{
+    $kind = trim((string)($manifest['kind'] ?? ''));
+    if ($kind !== '' && in_array($kind, moduleManifestValidKinds(), true)) {
+        return $kind;
+    }
+    // Legacy inference: profile bundles declare installs.
+    if (is_array($manifest['installs'] ?? null) && $manifest['installs'] !== []) {
+        return MODULE_KIND_PROFILE;
+    }
+    // Legacy inference: anything extending a host is an extension.
+    if (is_string($manifest['extends'] ?? null) && trim((string)$manifest['extends']) !== '') {
+        return MODULE_KIND_EXTENSION;
+    }
+    return MODULE_KIND_STANDALONE;
+}
+
+/**
+ * Validate the product suite contract fields of a single manifest.
+ *
+ * Additive: only fields that are present are validated. This keeps every
+ * existing schema-v1 manifest valid while enforcing the v2 contract when
+ * modules opt in.
+ *
+ * @param array<string,mixed> $manifest
+ * @return array<int,array<string,string>>
+ */
+function validateModuleSuiteContractV1(array $manifest): array
+{
+    $diagnostics = [];
+    $fatal = static function (string $code, string $rule, string $field, string $message, string $correction) use (&$diagnostics): void {
+        $diagnostics[] = moduleManifestDiagnostic(DiagnosticSeverity::Fatal, $code, $rule, $field, $message, $correction);
+    };
+
+    // ── suite ────────────────────────────────────────────────────────────
+    if (array_key_exists('suite', $manifest)) {
+        $suite = $manifest['suite'];
+        if (!is_string($suite) || preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', trim($suite)) !== 1) {
+            $fatal('suite_invalid_id', 'manifest.v2.suite', '/suite', 'suite must be a non-empty kebab-case identifier.', 'Use a kebab-case suite id such as cms-akira or pal.');
+        }
+    }
+
+    // ── kind ─────────────────────────────────────────────────────────────
+    if (array_key_exists('kind', $manifest)) {
+        $kind = $manifest['kind'];
+        if (!is_string($kind) || !in_array($kind, moduleManifestValidKinds(), true)) {
+            $fatal('suite_invalid_kind', 'manifest.v2.kind', '/kind', 'kind must be one of: ' . implode(', ', moduleManifestValidKinds()) . '.', 'Set kind to a supported value or omit it for standalone-application behavior.');
+        }
+    }
+    $kind = moduleManifestKindFromManifest($manifest);
+
+    // ── extends ──────────────────────────────────────────────────────────
+    $extends = $manifest['extends'] ?? $manifest['parent'] ?? null;
+    if ($extends !== null) {
+        if (!is_string($extends) || preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', trim($extends)) !== 1) {
+            $fatal('suite_invalid_extends', 'manifest.v2.extends', '/extends', 'extends must be a valid module id (kebab-case).', 'Point extends at the host module id, for example cms-akira-core.');
+        }
+    }
+
+    // ── kind/extends policy ──────────────────────────────────────────────
+    if ($kind === MODULE_KIND_EXTENSION || $kind === MODULE_KIND_ADAPTER) {
+        if (!is_string($extends) || trim($extends) === '') {
+            $fatal('suite_extends_required', 'manifest.v2.extends.required', '/extends', "kind '{$kind}' requires an extends declaration.", "Add \"extends\": \"<host-module-id>\" to declare the host this module builds on.");
+        }
+    }
+    if ($kind === MODULE_KIND_PRODUCT_CORE) {
+        $suite = $manifest['suite'] ?? null;
+        if (!is_string($suite) || trim($suite) === '') {
+            $fatal('suite_core_requires_suite', 'manifest.v2.suite.required', '/suite', "kind 'product-core' requires a suite declaration.", "Add \"suite\": \"<suite-id>\" to name the product suite this core anchors.");
+        }
+    }
+    if ($kind === MODULE_KIND_PROFILE) {
+        $installs = $manifest['installs'] ?? null;
+        if (!is_array($installs) || $installs === []) {
+            $fatal('suite_profile_requires_installs', 'manifest.v2.installs.required', '/installs', "kind 'profile' requires a non-empty installs list.", "Declare \"installs\": [\"<module-id>\", ...] to define the profile bundle.");
+        } else {
+            foreach ($installs as $index => $target) {
+                if (!is_string($target) || preg_match('/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/', trim($target)) !== 1) {
+                    $fatal('suite_profile_installs_invalid', 'manifest.v2.installs.entry', "/installs/{$index}", 'Profile installs entries must be valid module ids.', 'Use kebab-case module ids inside the installs array.');
+                }
+            }
+        }
+    }
+
+    // ── extension_points (host-declared) ─────────────────────────────────
+    if (array_key_exists('extension_points', $manifest)) {
+        $points = $manifest['extension_points'];
+        if (!is_array($points) || $points === []) {
+            $fatal('suite_extension_points_invalid', 'manifest.v2.extension-points', '/extension_points', 'extension_points must be a non-empty array of point ids.', 'Declare point ids such as "cms.sidebar", "pal.settings.sections".');
+        } else {
+            foreach ($points as $index => $point) {
+                if (!is_string($point) || trim($point) === '' || preg_match('/^[a-z0-9]+(\.[a-z0-9]+)+$/', trim($point)) !== 1) {
+                    $fatal('suite_extension_point_invalid', 'manifest.v2.extension-points.entry', "/extension_points/{$index}", 'extension_point ids must be dotted identifiers (e.g. cms.sidebar).', 'Use a dotted point id with at least one dot.');
+                }
+            }
+        }
+    }
+
+    // ── contributes ──────────────────────────────────────────────────────
+    if (array_key_exists('contributes', $manifest)) {
+        $contributes = $manifest['contributes'];
+        if (!is_array($contributes) || $contributes === []) {
+            $fatal('suite_contributes_invalid', 'manifest.v2.contributes', '/contributes', 'contributes must be a non-empty array.', 'Declare contributions as [{extension_point, provider}].');
+        } else {
+            foreach ($contributes as $index => $contribution) {
+                if (!is_array($contribution)) {
+                    $fatal('suite_contributes_entry_invalid', 'manifest.v2.contributes.entry', "/contributes/{$index}", 'Each contributes entry must be an object.', 'Declare {extension_point, provider} objects.');
+                    continue;
+                }
+                $point = $contribution['extension_point'] ?? null;
+                $provider = $contribution['provider'] ?? null;
+                if (!is_string($point) || trim($point) === '') {
+                    $fatal('suite_contributes_point_missing', 'manifest.v2.contributes.extension-point', "/contributes/{$index}/extension_point", 'contributes entries require an extension_point id.', 'Set extension_point to a point declared by the host.');
+                }
+                if (!is_string($provider) || trim($provider) === '') {
+                    $fatal('suite_contributes_provider_missing', 'manifest.v2.contributes.provider', "/contributes/{$index}/provider", 'contributes entries require a provider reference.', 'Set provider to a versioned capability or service id, for example "pal-advanced-reporting.report-provider@1".');
+                }
+            }
+        }
+    }
+
+    // ── admin_contributions ──────────────────────────────────────────────
+    if (array_key_exists('admin_contributions', $manifest)) {
+        $adminContribs = $manifest['admin_contributions'];
+        if (!is_array($adminContribs) || $adminContribs === []) {
+            $fatal('suite_admin_contributions_invalid', 'manifest.v2.admin-contributions', '/admin_contributions', 'admin_contributions must be a non-empty array.', 'Declare admin contributions as [{host, location, label, route}].');
+        } else {
+            foreach ($adminContribs as $index => $contribution) {
+                if (!is_array($contribution)) {
+                    $fatal('suite_admin_contributions_entry_invalid', 'manifest.v2.admin-contributions.entry', "/admin_contributions/{$index}", 'Each admin_contributions entry must be an object.', 'Declare {host, location, label, route} objects.');
+                    continue;
+                }
+                foreach (['host', 'location', 'label'] as $requiredField) {
+                    $value = $contribution[$requiredField] ?? null;
+                    if (!is_string($value) || trim($value) === '') {
+                        $fatal('suite_admin_contributions_field_missing', 'manifest.v2.admin-contributions.' . $requiredField, "/admin_contributions/{$index}/{$requiredField}", "admin_contributions entries require a non-empty '{$requiredField}'.", "Set {$requiredField} on the contribution.");
+                    }
+                }
+                $route = $contribution['route'] ?? null;
+                if ($route !== null && (!is_string($route) || trim($route) === '' || !str_starts_with($route, '/'))) {
+                    $fatal('suite_admin_contributions_route_invalid', 'manifest.v2.admin-contributions.route', "/admin_contributions/{$index}/route", 'admin_contributions routes must be absolute paths starting with "/".', 'Set route to an absolute path such as "/admin/cms/seo".');
+                }
+                if (array_key_exists('order', $contribution) && (!is_int($contribution['order']) || $contribution['order'] < 0)) {
+                    $fatal('suite_admin_contributions_order_invalid', 'manifest.v2.admin-contributions.order', "/admin_contributions/{$index}/order", 'admin_contributions order must be a non-negative integer.', 'Set order to a sorting integer such as 60.');
+                }
+                if (array_key_exists('permission', $contribution) && (!is_string($contribution['permission']) || trim((string)$contribution['permission']) === '')) {
+                    $fatal('suite_admin_contributions_permission_invalid', 'manifest.v2.admin-contributions.permission', "/admin_contributions/{$index}/permission", 'admin_contributions permission must be a non-empty string.', 'Set permission to a capability id such as cms.seo.manage.');
+                }
+            }
+        }
+    }
+
+    // ── compatibility ────────────────────────────────────────────────────
+    if (array_key_exists('compatibility', $manifest)) {
+        $compatibility = $manifest['compatibility'];
+        if (!is_array($compatibility)) {
+            $fatal('suite_compatibility_invalid', 'manifest.v2.compatibility', '/compatibility', 'compatibility must be an object.', 'Declare compatibility ranges as {kernel, suite}.');
+        } else {
+            foreach (['kernel', 'suite'] as $compatKey) {
+                $range = $compatibility[$compatKey] ?? null;
+                if ($range !== null && (!is_string($range) || preg_match('/^(\d+\.\d+(\.\d+)?([-+][0-9A-Za-z.\-]+)?|>=|<=|>|<|~|\^)/', trim($range)) !== 1)) {
+                    $fatal('suite_compatibility_range_invalid', 'manifest.v2.compatibility.' . $compatKey, "/compatibility/{$compatKey}", "compatibility.{$compatKey} must be a semver range string.", 'Use a range such as ">=1.0.0" or "^1.2.0".');
+                }
+            }
+        }
+    }
+
+    // ── uninstall policy ─────────────────────────────────────────────────
+    if (array_key_exists('uninstall', $manifest)) {
+        $uninstall = $manifest['uninstall'];
+        if (!is_array($uninstall)) {
+            $fatal('suite_uninstall_invalid', 'manifest.v2.uninstall', '/uninstall', 'uninstall must be an object.', 'Declare uninstall policy as {disable_safe, retain_data_by_default, supports_data_export, requires_confirmation_to_drop_data}.');
+        } else {
+            foreach (['disable_safe', 'retain_data_by_default', 'supports_data_export', 'requires_confirmation_to_drop_data'] as $flagKey) {
+                if (array_key_exists($flagKey, $uninstall) && !is_bool($uninstall[$flagKey])) {
+                    $fatal('suite_uninstall_flag_invalid', 'manifest.v2.uninstall.' . $flagKey, "/uninstall/{$flagKey}", "uninstall.{$flagKey} must be a boolean.", "Set {$flagKey} to true or false.");
+                }
+            }
+        }
+    }
+
+    return $diagnostics;
+}
+
+/**
+ * Fleet-level product suite contract validation across all discovered
+ * manifests. Unlike the per-manifest validator, this checks cross-module
+ * relationships: extends targets exist, contribution hosts exist, and
+ * contributed extension points are declared by the host.
+ *
+ * @param array<string,array<string,mixed>> $manifests keyed by module id
+ * @return array<int,array<string,string>>
+ */
+function validateModuleSuiteFleetV1(array $manifests): array
+{
+    $diagnostics = [];
+    $fatal = static function (string $code, string $rule, string $field, string $message, string $correction) use (&$diagnostics): void {
+        $diagnostics[] = moduleManifestDiagnostic(DiagnosticSeverity::Fatal, $code, $rule, $field, $message, $correction);
+    };
+
+    // Build host → declared extension points map from product-core modules.
+    $hostExtensionPoints = [];
+    foreach ($manifests as $moduleId => $manifest) {
+        $kind = moduleManifestKindFromManifest($manifest);
+        if ($kind === MODULE_KIND_PRODUCT_CORE && is_array($manifest['extension_points'] ?? null)) {
+            $hostExtensionPoints[$moduleId] = array_values(array_filter(
+                array_map('trim', $manifest['extension_points']),
+                static fn ($p): bool => $p !== ''
+            ));
+        }
+    }
+
+    foreach ($manifests as $moduleId => $manifest) {
+        // extends target must exist
+        $extends = $manifest['extends'] ?? $manifest['parent'] ?? null;
+        if (is_string($extends) && trim($extends) !== '' && !isset($manifests[$extends])) {
+            $fatal('suite_fleet_extends_missing', 'manifest.v2.fleet.extends-target', '/extends', "Module '{$moduleId}' extends '{$extends}' but that module is not present in the fleet.", 'Install the host module or correct the extends target.');
+        }
+
+        // contribution hosts must exist
+        $adminContribs = $manifest['admin_contributions'] ?? null;
+        if (is_array($adminContribs)) {
+            foreach ($adminContribs as $index => $contribution) {
+                if (!is_array($contribution)) {
+                    continue;
+                }
+                $host = trim((string)($contribution['host'] ?? ''));
+                if ($host !== '' && !isset($manifests[$host])) {
+                    $fatal('suite_fleet_contribution_host_missing', 'manifest.v2.fleet.contribution-host', "/admin_contributions/{$index}/host", "Module '{$moduleId}' contributes to host '{$host}' but that module is not present in the fleet.", 'Point the contribution host at an installed admin shell module.');
+                }
+            }
+        }
+
+        // contributed extension points must be declared by the extends host
+        $contributes = $manifest['contributes'] ?? null;
+        if (is_array($contributes) && is_string($extends) && trim($extends) !== '') {
+            $declaredPoints = $hostExtensionPoints[$extends] ?? [];
+            if ($declaredPoints !== []) {
+                foreach ($contributes as $index => $contribution) {
+                    if (!is_array($contribution) || !is_string($contribution['extension_point'] ?? null)) {
+                        continue;
+                    }
+                    $point = trim($contribution['extension_point']);
+                    if ($point !== '' && !in_array($point, $declaredPoints, true)) {
+                        $fatal('suite_fleet_extension_point_undeclared', 'manifest.v2.fleet.extension-point', "/contributes/{$index}/extension_point", "Module '{$moduleId}' contributes to extension point '{$point}' which host '{$extends}' does not declare.", "Declare '{$point}' in the host's extension_points or drop the contribution.");
+                    }
+                }
+            }
+        }
+    }
+
+    return $diagnostics;
+}
+
+/** @return array<string,string> */
 function validateModuleManifestFileV1(string $path, array $context = []): array
 {
     if (!is_file($path)) {

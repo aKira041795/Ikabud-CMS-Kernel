@@ -1,9 +1,22 @@
 {
     "id": "cms-akira-core",
-    "name": "Cms Akira Core",
+    "name": "CMS Akira Core",
     "version": "1.0.0",
-    "description": "Cms Akira Core module for Ikabud Kernel",
+    "description": "CMS Akira product core — authoritative host module for the cms-akira suite. Declares the suite's extension points and product identity.",
     "author": "Ikabud",
+    "suite": "cms-akira",
+    "kind": "product-core",
+    "product": {
+        "id": "cms-akira",
+        "name": "CMS Akira"
+    },
+    "extension_points": [
+        "cms.sidebar",
+        "cms.settings.sections",
+        "cms.content.processors",
+        "cms.editor.tools",
+        "cms.dashboard.widgets"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

@@ -106,6 +106,376 @@ function moduleManifestPathForId(string $moduleId): ?string
     return is_file($manifestPath) ? $manifestPath : null;
 }
 
+// ─── Product Suite Graph Registry ────────────────────────────────────────
+// Physical folder nesting is cosmetic; this registry derives authoritative
+// product-suite relationships from module manifests. It is a read-only
+// sidecar over discoverModules() — it never changes discovery results.
+
+/**
+ * Resolve the authoritative kind for a module, with legacy inference so
+ * schema-v1 manifests are classified consistently.
+ */
+function moduleKindForModule(string $moduleId): string
+{
+    $modules = discoverModules();
+    $manifest = $modules[$moduleId] ?? [];
+    return function_exists('moduleManifestKindFromManifest')
+        ? moduleManifestKindFromManifest($manifest)
+        : MODULE_KIND_STANDALONE;
+}
+
+/**
+ * Resolve the host module a module extends (kind extension/adapter), or null.
+ */
+function moduleExtendsForModule(string $moduleId): ?string
+{
+    $modules = discoverModules();
+    $manifest = $modules[$moduleId] ?? [];
+    $extends = $manifest['extends'] ?? $manifest['parent'] ?? null;
+    return is_string($extends) && trim($extends) !== '' ? trim($extends) : null;
+}
+
+/**
+ * Build the product suite graph from discovered modules.
+ *
+ * Returns a map keyed by normalized suite id:
+ *   {
+ *     'cms-akira' => [
+ *       'id'         => 'cms-akira',
+ *       'core'       => 'cms-akira-core',          // product-core module (or null)
+ *       'name'       => 'CMS Akira',               // from product block / core name
+ *       'modules'    => ['cms-akira-core', ...],   // all members
+ *       'extensions' => ['cms-akira-seo', ...],    // kind extension|adapter
+ *       'profiles'   => ['cms-akira-profile-standard', ...],
+ *       'extension_points' => ['cms.sidebar', ...],// union across cores
+ *     ],
+ *   }
+ *
+ * @param array<string,array<string,mixed>>|null $modules override discovery (tests)
+ * @return array<string,array<string,mixed>>
+ */
+function moduleSuiteGraph(?array $modules = null): array
+{
+    if ($modules === null) {
+        $modules = discoverModules();
+    }
+
+    $graph = [];
+    foreach ($modules as $moduleId => $manifest) {
+        $suite = moduleSuiteFromManifest($manifest);
+        if ($suite === null) {
+            continue;
+        }
+        if (!isset($graph[$suite])) {
+            $graph[$suite] = [
+                'id'              => $suite,
+                'core'            => null,
+                'name'            => $suite,
+                'modules'         => [],
+                'extensions'      => [],
+                'adapters'        => [],
+                'profiles'        => [],
+                'extension_points'=> [],
+            ];
+        }
+        $graph[$suite]['modules'][] = $moduleId;
+
+        $kind = function_exists('moduleManifestKindFromManifest')
+            ? moduleManifestKindFromManifest($manifest)
+            : MODULE_KIND_STANDALONE;
+
+        if ($kind === MODULE_KIND_PRODUCT_CORE && $graph[$suite]['core'] === null) {
+            $graph[$suite]['core'] = $moduleId;
+            $product = $manifest['product'] ?? null;
+            if (is_array($product) && is_string($product['name'] ?? null) && trim($product['name']) !== '') {
+                $graph[$suite]['name'] = $product['name'];
+            } else {
+                $graph[$suite]['name'] = (string)($manifest['name'] ?? $suite);
+            }
+            foreach (is_array($manifest['extension_points'] ?? null) ? $manifest['extension_points'] : [] as $point) {
+                if (is_string($point) && trim($point) !== '') {
+                    $graph[$suite]['extension_points'][] = trim($point);
+                }
+            }
+        } elseif ($kind === MODULE_KIND_EXTENSION) {
+            $graph[$suite]['extensions'][] = $moduleId;
+        } elseif ($kind === MODULE_KIND_ADAPTER) {
+            $graph[$suite]['adapters'][] = $moduleId;
+        } elseif ($kind === MODULE_KIND_PROFILE) {
+            $graph[$suite]['profiles'][] = $moduleId;
+        }
+    }
+
+    foreach ($graph as &$suiteEntry) {
+        sort($suiteEntry['modules']);
+        sort($suiteEntry['extensions']);
+        sort($suiteEntry['adapters']);
+        sort($suiteEntry['profiles']);
+        sort($suiteEntry['extension_points']);
+        $suiteEntry['extension_points'] = array_values(array_unique($suiteEntry['extension_points']));
+    }
+    unset($suiteEntry);
+
+    ksort($graph);
+    return $graph;
+}
+
+/**
+ * List all product suite ids present in the fleet.
+ *
+ * @return string[]
+ */
+function moduleSuites(?array $modules = null): array
+{
+    return array_keys(moduleSuiteGraph($modules));
+}
+
+/**
+ * Return the full member list (module ids) of a product suite, or [].
+ *
+ * @return string[]
+ */
+function moduleSuiteMembers(string $suiteId, ?array $modules = null): array
+{
+    $graph = moduleSuiteGraph($modules);
+    $suiteId = (string)normalizeModuleSuiteId($suiteId);
+    return $graph[$suiteId]['modules'] ?? [];
+}
+
+/**
+ * Return the product-core module id of a suite, or null.
+ */
+function moduleSuiteCore(string $suiteId, ?array $modules = null): ?string
+{
+    $graph = moduleSuiteGraph($modules);
+    $suiteId = (string)normalizeModuleSuiteId($suiteId);
+    $core = $graph[$suiteId]['core'] ?? null;
+    return is_string($core) && $core !== '' ? $core : null;
+}
+
+/**
+ * Return the extension-point ids a suite exposes (union across its cores).
+ *
+ * @return string[]
+ */
+function moduleSuiteExtensionPoints(string $suiteId, ?array $modules = null): array
+{
+    $graph = moduleSuiteGraph($modules);
+    $suiteId = (string)normalizeModuleSuiteId($suiteId);
+    return $graph[$suiteId]['extension_points'] ?? [];
+}
+
+/**
+ * Return the suite id a module belongs to (from manifest), or null.
+ */
+function moduleSuiteForModule(string $moduleId): ?string
+{
+    $modules = discoverModules();
+    $manifest = $modules[$moduleId] ?? [];
+    return moduleSuiteFromManifest($manifest);
+}
+
+/**
+ * Resolve the admin shell host for a suite contribution. The suite core may
+ * declare an `admin_host` in its manifest; otherwise the core module id is
+ * treated as the default admin host.
+ */
+function moduleSuiteAdminHost(string $suiteId): ?string
+{
+    $graph = moduleSuiteGraph();
+    $suiteId = (string)normalizeModuleSuiteId($suiteId);
+    if (!isset($graph[$suiteId])) {
+        return null;
+    }
+    $coreId = $graph[$suiteId]['core'];
+    if ($coreId === null) {
+        return null;
+    }
+    $modules = discoverModules();
+    $manifest = $modules[$coreId] ?? [];
+    $adminHost = $manifest['admin_host'] ?? null;
+    return is_string($adminHost) && trim($adminHost) !== '' ? trim($adminHost) : $coreId;
+}
+
+// ─── Dynamic Contribution Registry ──────────────────────────────────────
+// Aggregates manifest-declared admin contributions from enabled modules into
+// a normalized, host/location-addressed registry. This is the "administration
+// is a contribution surface" contract: a module registers its surfaces in its
+// manifest, the kernel aggregates and validates them, and admin shells render
+// whatever is valid for the current tenant/enablement state.
+
+/**
+ * Normalize a raw admin_contributions entry into the canonical shape.
+ *
+ * @param array<string,mixed> $raw
+ * @return array<string,mixed>
+ */
+function kernelContributionNormalize(array $raw, string $moduleId): array
+{
+    return [
+        'host'       => trim((string)($raw['host'] ?? '')),
+        'location'   => trim((string)($raw['location'] ?? '')),
+        'group'      => trim((string)($raw['group'] ?? '')),
+        'label'      => trim((string)($raw['label'] ?? '')),
+        'icon'       => trim((string)($raw['icon'] ?? '')),
+        'route'      => trim((string)($raw['route'] ?? '')),
+        'permission' => trim((string)($raw['permission'] ?? '')),
+        'order'      => is_int($raw['order'] ?? null) ? $raw['order'] : 0,
+        'active_key' => trim((string)($raw['active_key'] ?? '')),
+        'module'     => $moduleId,
+    ];
+}
+
+/**
+ * Build the full contribution registry from enabled modules.
+ *
+ * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @return array<string,array<int,array<string,mixed>>> keyed "host:location"
+ */
+function kernelContributionRegistry(?array $modules = null): array
+{
+    if ($modules === null) {
+        $modules = discoverModules();
+    }
+
+    $registry = [];
+    foreach ($modules as $moduleId => $manifest) {
+        if (empty($manifest['_enabled'])) {
+            continue; // disabled modules must not contribute surfaces
+        }
+        $contribs = $manifest['admin_contributions'] ?? [];
+        if (!is_array($contribs)) {
+            continue;
+        }
+        foreach ($contribs as $raw) {
+            if (!is_array($raw)) {
+                continue;
+            }
+            $normalized = kernelContributionNormalize($raw, $moduleId);
+            if ($normalized['host'] === '' || $normalized['location'] === '') {
+                continue;
+            }
+            $key = $normalized['host'] . ':' . $normalized['location'];
+            $registry[$key][] = $normalized;
+        }
+    }
+
+    foreach ($registry as $key => &$items) {
+        usort($items, static fn (array $a, array $b): int => ($a['order'] ?? 0) <=> ($b['order'] ?? 0));
+    }
+    unset($items);
+
+    ksort($registry);
+    return $registry;
+}
+
+/**
+ * List normalized contributions for a host (optionally filtered by location).
+ *
+ * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @return array<int,array<string,mixed>>
+ */
+function kernelContributionsForHost(string $host, ?string $location = null, ?array $modules = null): array
+{
+    $host = trim($host);
+    if ($host === '') {
+        return [];
+    }
+    $registry = kernelContributionRegistry($modules);
+    $result = [];
+    foreach ($registry as $key => $items) {
+        [$candidateHost, $candidateLocation] = explode(':', $key, 2);
+        if ($candidateHost !== $host) {
+            continue;
+        }
+        if ($location !== null && $candidateLocation !== $location) {
+            continue;
+        }
+        foreach ($items as $item) {
+            $result[] = $item;
+        }
+    }
+    return $result;
+}
+
+/**
+ * Convenience: contributions for a specific host + location.
+ *
+ * @param array<string,array<string,mixed>>|null $modules override discovery
+ * @return array<int,array<string,mixed>>
+ */
+function kernelContributionsForHostLocation(string $host, string $location, ?array $modules = null): array
+{
+    return kernelContributionsForHost($host, $location, $modules);
+}
+
+/**
+ * Check whether an enabled host module declares a given contribution location.
+ * Used by install gates and Workbench checks.
+ */
+function kernelHostDeclaresLocation(string $hostModuleId, string $location): bool
+{
+    $modules = discoverModules();
+    $manifest = $modules[$hostModuleId] ?? [];
+    $points = is_array($manifest['extension_points'] ?? null) ? $manifest['extension_points'] : [];
+    return in_array($location, $points, true);
+}
+
+/**
+ * Bridge: fold manifest-declared sidebar contributions for host "cms" into the
+ * existing `cms.admin.nav_items` hook so the CMS admin shell renders them
+ * without template changes. Grouped contributions become collapsible sections
+ * (matching the admin.disyl rendering contract); ungrouped become flat items.
+ *
+ * @param array<string,array<string,mixed>>|null $modules override discovery (tests)
+ */
+function kernelContributionBridgeCmsNavItems(?array $modules = null): callable
+{
+    return static function (array $items) use ($modules): array {
+        $contribs = kernelContributionsForHostLocation('cms', 'sidebar', $modules);
+        if ($contribs === []) {
+            return $items;
+        }
+
+        $flat = [];
+        $grouped = [];
+        foreach ($contribs as $contrib) {
+            if ($contrib['group'] !== '') {
+                $grouped[$contrib['group']][] = $contrib;
+            } else {
+                $flat[] = $contrib;
+            }
+        }
+
+        foreach ($flat as $contrib) {
+            $items[] = [
+                'label'      => $contrib['label'],
+                'url'        => $contrib['route'],
+                'icon'       => $contrib['icon'] !== '' ? $contrib['icon'] : 'box',
+                'active_key' => $contrib['active_key'],
+                'module'     => $contrib['module'],
+            ];
+        }
+        foreach ($grouped as $groupLabel => $groupItems) {
+            $children = [];
+            foreach ($groupItems as $contrib) {
+                $children[] = [
+                    'label'      => $contrib['label'],
+                    'url'        => $contrib['route'],
+                    'icon'       => $contrib['icon'] !== '' ? $contrib['icon'] : 'box',
+                    'active_key' => $contrib['active_key'],
+                ];
+            }
+            $items[] = [
+                'section'  => true,
+                'label'    => ucfirst($groupLabel),
+                'children' => $children,
+            ];
+        }
+        return $items;
+    };
+}
+
 /**
  * Export a module's owned tables to a SQL file (INSERT statements) in storage/module-exports/.
  * Returns ['ok'=>true,'dir'=>'...','files'=>string[]] or ['ok'=>false,'error'=>'...']
@@ -2239,6 +2609,11 @@ function registerModuleManagerHooks(): void
         return array_merge($items, getModuleNavItems($role));
     });
 
+    // cms.admin.nav_items: fold manifest-declared CMS sidebar contributions
+    // into the existing CMS admin nav injection seam (priority 5 = before
+    // module-registered hooks at default priority 10).
+    $hooks->on('cms.admin.nav_items', kernelContributionBridgeCmsNavItems(), 5);
+
     // kernel.home_url: resolve the home URL for a role from modules
     $hooks->on('kernel.home_url', function (?string $url, string $role, ?array $user = null) {
         return $url ?? getModuleHomeUrl($role, $user);
@@ -2720,22 +3095,204 @@ function validateModuleCertification(array $manifest): array
         if ($ok) $passed++;
     }
 
+    // C12: Product suite contract (additive — lenient for legacy modules that
+    // do not declare suite/kind fields; strict when the contract is used).
+    $total++;
+    $suiteContractDiags = function_exists('validateModuleSuiteContractV1') ? validateModuleSuiteContractV1($manifest) : [];
+    $suiteContractFatal = array_values(array_filter(
+        $suiteContractDiags,
+        static fn (array $d): bool => ($d['severity'] ?? '') === \Ikabud\Kernel\Contracts\DiagnosticSeverity::Fatal->value
+    ));
+    $ok = $suiteContractFatal === [];
+    $checks[] = [
+        'check' => 'C12: Product suite contract',
+        'passed' => $ok,
+        'detail' => $ok
+            ? (array_key_exists('kind', $manifest) || array_key_exists('suite', $manifest) ? 'Suite contract fields valid' : 'N/A — no suite contract declared')
+            : 'Suite contract violation(s): ' . implode('; ', array_map(
+                static fn (array $d): string => (string)($d['message'] ?? 'invalid'),
+                $suiteContractFatal
+            )),
+    ];
+    if ($ok) $passed++;
+
+    // C13: Dynamic admin contributions well-formed and routes resolvable.
+    // Advisory when the module declares contributions; skipped otherwise.
+    $total++;
+    $contribs = is_array($manifest['admin_contributions'] ?? null) ? $manifest['admin_contributions'] : [];
+    $hasContribs = $contribs !== [];
+    $badRoutes = [];
+    if ($hasContribs) {
+        foreach ($contribs as $contribution) {
+            if (!is_array($contribution)) {
+                continue;
+            }
+            $route = trim((string)($contribution['route'] ?? ''));
+            $host = trim((string)($contribution['host'] ?? ''));
+            if ($route === '' || !str_starts_with($route, '/') || $host === '') {
+                $badRoutes[] = 'route/host required';
+                break;
+            }
+        }
+    }
+    $ok = $badRoutes === [];
+    $checks[] = [
+        'check' => 'C13: Admin contributions',
+        'passed' => $ok, // advisory — must not break standalone/legacy modules
+        'severity' => \Ikabud\Kernel\Contracts\DiagnosticSeverity::Advisory->value,
+        'detail' => $hasContribs
+            ? ($ok ? count($contribs) . ' contribution(s) declared with routes' : 'Malformed contribution: ' . implode('; ', $badRoutes))
+            : 'No admin contributions declared',
+    ];
+    if ($ok) $passed++;
+
     foreach ($checks as &$check) {
         $check['severity'] ??= \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value;
     }
     unset($check);
 
+    // Only CertificationBlocker checks determine certification success.
+    // Advisory checks (e.g. nav route hints, admin contribution shape) inform
+    // but never block a module. score/max reflect ALL checks for display
+    // compatibility with CLI/Workbench/superadmin consumers.
+    $blockingChecks = array_values(array_filter(
+        $checks,
+        static fn (array $check): bool => ($check['severity'] ?? '') === \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value
+    ));
+    $blockingPassed = count(array_filter(
+        $blockingChecks,
+        static fn (array $check): bool => !empty($check['passed'])
+    ));
+    $passedTotal = count(array_filter($checks, static fn (array $check): bool => !empty($check['passed'])));
+
     return [
-        'ok' => $passed === $total,
+        'ok' => $blockingPassed === count($blockingChecks),
         'checks' => $checks,
-        'score' => $passed,
-        'max' => $total,
+        'score' => $passedTotal,
+        'max' => count($checks),
     ];
 }
 
 function moduleInstallFailure(string $errorCode, string $error, array $extra = []): array
 {
     return ['ok' => false, 'error_code' => $errorCode, 'error' => $error] + $extra;
+}
+
+/**
+ * Product suite install gate. Validates cross-module ownership and
+ * compatibility before a package is allowed to be installed/enabled.
+ *
+ * Rules enforced:
+ *  - extension/adapter kind requires an `extends` host present in the fleet.
+ *  - contribution hosts must exist in the fleet.
+ *  - contributed extension points must be declared by the extends host.
+ *  - a profile's `installs` list must not reference the profile itself.
+ *
+ * Standalone/legacy modules (no kind/suite contract) pass through untouched.
+ *
+ * @param array<string,mixed> $manifest the package manifest
+ * @param array<string,array<string,mixed>> $fleet discovered modules
+ * @return array{ok:bool,error?:string,error_code?:string,checks?:array}
+ */
+function validateModuleSuiteContractForInstall(array $manifest, array $fleet): array
+{
+    $checks = [];
+    $passed = 0;
+    $total = 0;
+    $failures = [];
+
+    $moduleId = (string)($manifest['id'] ?? '');
+    $kind = moduleManifestKindFromManifest($manifest);
+    $extends = $manifest['extends'] ?? $manifest['parent'] ?? null;
+    $extends = is_string($extends) && trim($extends) !== '' ? trim($extends) : null;
+
+    // G1: extension/adapter requires an installed host
+    $total++;
+    if ($kind === MODULE_KIND_EXTENSION || $kind === MODULE_KIND_ADAPTER) {
+        $hostPresent = $extends !== null && isset($fleet[$extends]);
+        $checks[] = ['check' => 'G1: Host present', 'passed' => $hostPresent, 'detail' => $hostPresent ? "Host '{$extends}' present" : ($extends !== null ? "Host '{$extends}' is not installed" : 'No extends declared')];
+        if ($hostPresent) {
+            $passed++;
+        } else {
+            $failures[] = $extends !== null ? "host '{$extends}' not installed" : 'missing extends';
+        }
+    } else {
+        $checks[] = ['check' => 'G1: Host present', 'passed' => true, 'detail' => 'N/A for kind ' . $kind];
+        $passed++;
+    }
+
+    // G2: contribution hosts exist in the fleet
+    $total++;
+    $contribs = is_array($manifest['admin_contributions'] ?? null) ? $manifest['admin_contributions'] : [];
+    $unknownHosts = [];
+    foreach ($contribs as $contribution) {
+        if (!is_array($contribution)) {
+            continue;
+        }
+        $host = trim((string)($contribution['host'] ?? ''));
+        if ($host !== '' && !isset($fleet[$host])) {
+            $unknownHosts[] = $host;
+        }
+    }
+    $hostsOk = $unknownHosts === [];
+    $checks[] = ['check' => 'G2: Contribution hosts', 'passed' => $hostsOk, 'detail' => $hostsOk ? 'All contribution hosts present' : 'Unknown host(s): ' . implode(', ', array_unique($unknownHosts))];
+    if ($hostsOk) {
+        $passed++;
+    } else {
+        $failures[] = 'unknown contribution host(s): ' . implode(', ', array_unique($unknownHosts));
+    }
+
+    // G3: contributed extension points declared by host
+    $total++;
+    $contributes = is_array($manifest['contributes'] ?? null) ? $manifest['contributes'] : [];
+    $undeclaredPoints = [];
+    if ($contributes !== [] && $extends !== null && isset($fleet[$extends])) {
+        $declaredPoints = is_array($fleet[$extends]['extension_points'] ?? null) ? $fleet[$extends]['extension_points'] : [];
+        foreach ($contributes as $contribution) {
+            if (!is_array($contribution) || !is_string($contribution['extension_point'] ?? null)) {
+                continue;
+            }
+            $point = trim($contribution['extension_point']);
+            if ($point !== '' && !in_array($point, $declaredPoints, true)) {
+                $undeclaredPoints[] = $point;
+            }
+        }
+    }
+    $pointsOk = $undeclaredPoints === [];
+    $checks[] = ['check' => 'G3: Extension points', 'passed' => $pointsOk, 'detail' => $pointsOk ? 'Contributed points are declared by host' : 'Undeclared point(s): ' . implode(', ', array_unique($undeclaredPoints))];
+    if ($pointsOk) {
+        $passed++;
+    } else {
+        $failures[] = 'undeclared extension point(s): ' . implode(', ', array_unique($undeclaredPoints));
+    }
+
+    // G4: profile must not install itself
+    $total++;
+    $selfRef = false;
+    if ($kind === MODULE_KIND_PROFILE && is_array($manifest['installs'] ?? null)) {
+        $selfRef = in_array($moduleId, $manifest['installs'], true);
+    }
+    $checks[] = ['check' => 'G4: Profile self-reference', 'passed' => !$selfRef, 'detail' => $selfRef ? "Profile '{$moduleId}' cannot install itself" : 'No self-reference'];
+    if (!$selfRef) {
+        $passed++;
+    } else {
+        $failures[] = 'profile installs itself';
+    }
+
+    foreach ($checks as &$check) {
+        $check['severity'] ??= \Ikabud\Kernel\Contracts\DiagnosticSeverity::CertificationBlocker->value;
+    }
+    unset($check);
+
+    if ($passed === $total) {
+        return ['ok' => true, 'checks' => $checks];
+    }
+    return [
+        'ok' => false,
+        'error_code' => 'module_suite_contract_failed',
+        'error' => 'Module failed product suite contract: ' . implode('; ', $failures),
+        'checks' => $checks,
+    ];
 }
 
 /**
@@ -3138,6 +3695,19 @@ function installModuleFromZip(string $zipPath): array
         );
     }
 
+    // Product suite install gate: extension ownership, contribution hosts, and
+    // declared extension points are validated against the current fleet before
+    // the module may be enabled.
+    $suiteGate = validateModuleSuiteContractForInstall($installManifest, discoverModules());
+    if (empty($suiteGate['ok'])) {
+        $cleanupInstall();
+        return moduleInstallFailure(
+            (string)($suiteGate['error_code'] ?? 'module_suite_contract_failed'),
+            'Module failed product suite contract: ' . (string)($suiteGate['error'] ?? 'unknown error'),
+            ['suite_contract' => $suiteGate]
+        );
+    }
+
     // Auto-enable the newly installed module if capability dependencies are satisfiable.
     // If not satisfiable, install succeeds but module remains disabled.
     $capCheck = validateModuleCapabilities($manifest);
@@ -3178,7 +3748,47 @@ function installModuleFromZip(string $zipPath): array
 }
 
 /**
+ * Resolve a module's declared uninstall policy, merged with safe defaults.
+ *
+ * @param array<string,mixed> $manifest
+ * @return array{disable_safe:bool,retain_data_by_default:bool,supports_data_export:bool,requires_confirmation_to_drop_data:bool}
+ */
+function moduleUninstallPolicyForManifest(array $manifest): array
+{
+    $raw = $manifest['uninstall'] ?? null;
+    $raw = is_array($raw) ? $raw : [];
+
+    return [
+        'disable_safe' => !array_key_exists('disable_safe', $raw) ? true : (bool)$raw['disable_safe'],
+        'retain_data_by_default' => !array_key_exists('retain_data_by_default', $raw) ? true : (bool)$raw['retain_data_by_default'],
+        'supports_data_export' => !array_key_exists('supports_data_export', $raw) ? false : (bool)$raw['supports_data_export'],
+        'requires_confirmation_to_drop_data' => !array_key_exists('requires_confirmation_to_drop_data', $raw) ? true : (bool)$raw['requires_confirmation_to_drop_data'],
+    ];
+}
+
+/**
+ * Resolve uninstall policy for a module id (reads its manifest from disk).
+ */
+function moduleUninstallPolicyForModule(string $moduleId): array
+{
+    $manifestPath = moduleManifestPathForId($moduleId);
+    $manifest = [];
+    if ($manifestPath !== null && is_file($manifestPath)) {
+        $decoded = json_decode((string)file_get_contents($manifestPath), true);
+        $manifest = is_array($decoded) ? $decoded : [];
+    }
+    return moduleUninstallPolicyForManifest($manifest);
+}
+
+/**
  * Uninstall a module (remove files + disable).
+ * Options:
+ *   - purge: drop owned tables (data removal).
+ *   - export: export owned tables before purge.
+ *   - export_dir: target directory for the export.
+ *   - force: bypass disable_safe=false block.
+ *   - confirm_purge: explicit operator intent required when the manifest
+ *     declares requires_confirmation_to_drop_data.
  */
 function uninstallModule(string $moduleId, array $options = []): array
 {
@@ -3190,12 +3800,30 @@ function uninstallModule(string $moduleId, array $options = []): array
     $purge = !empty($options['purge']);
     $export = !empty($options['export']);
     $exportDir = is_string($options['export_dir'] ?? null) ? (string)$options['export_dir'] : null;
+    $force = !empty($options['force']);
+    $confirmPurge = !empty($options['confirm_purge']);
 
     $manifest = [];
     $manifestPath = $dir . '/module.json';
     if (is_file($manifestPath)) {
         $m = json_decode((string)file_get_contents($manifestPath), true);
         $manifest = is_array($m) ? $m : [];
+    }
+    $policy = moduleUninstallPolicyForManifest($manifest);
+
+    // Policy: module declares itself unsafe to disable → require force.
+    if (!$policy['disable_safe'] && !$force) {
+        return ['ok' => false, 'error' => "Module '{$moduleId}' declares disable_safe=false. Re-run with force to uninstall.", 'error_code' => 'uninstall_not_disable_safe'];
+    }
+
+    // Policy: export requested but module does not support it → refuse.
+    if ($export && !$policy['supports_data_export']) {
+        return ['ok' => false, 'error' => "Module '{$moduleId}' does not declare supports_data_export. Re-run without export.", 'error_code' => 'uninstall_export_unsupported'];
+    }
+
+    // Policy: purge (data drop) requires explicit confirmation when declared.
+    if ($purge && $policy['requires_confirmation_to_drop_data'] && !$confirmPurge) {
+        return ['ok' => false, 'error' => "Module '{$moduleId}' requires confirmation to drop owned data. Re-run with confirm_purge=true.", 'error_code' => 'uninstall_purge_requires_confirmation'];
     }
 
     // Disable first
