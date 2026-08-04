@@ -12,6 +12,7 @@ return [
     'GET' => [
         '/admin/cms-akira-core' => 'cms-akira-core:pageCmsAkiraCoreHome',
         '/api/v1/cms-akira-core/health' => 'cms-akira-core:apiCmsAkiraCoreHealth',
+        '/api/v1/cms-akira-core/providers/health' => 'cms-akira-core:apiCmsAkiraCoreProvidersHealth',
     ],
     'POST' => [
         // '/api/v1/cms-akira-core/example' => 'cms-akira-core:apiCmsAkiraCoreExample',

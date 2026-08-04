@@ -4,6 +4,12 @@
     "version": "1.0.0",
     "description": "Cms Akira Profile Standard module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core",
+        "cms-akira-editor",
+        "cms-akira-theme",
+        "cms-akira-navigation"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

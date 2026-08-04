@@ -4,6 +4,11 @@
     "version": "1.0.0",
     "description": "Cms Akira Profile Headless module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core",
+        "cms-akira-search-adapter",
+        "cms-akira-workflow"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [

@@ -31,6 +31,21 @@ function apiCmsAkiraCoreHealth(array $params = []): void
     echo json_encode(['ok' => true, 'module' => 'cms-akira-core', 'version' => '1.0.0']);
 }
 
+/**
+ * GET /api/v1/cms-akira-core/providers/health — Provider boundary runtime status.
+ */
+function apiCmsAkiraCoreProvidersHealth(array $params = []): void
+{
+    header('Content-Type: application/json');
+
+    $result = cac_cap_akira_providers_status_1([], 'akira.providers.status@1', 'cms-akira-core');
+    if (empty($result['ok'])) {
+        http_response_code(500);
+    }
+
+    echo json_encode($result);
+}
+
 // Example API handler (uncomment route in routes.php):
 //
 // /**

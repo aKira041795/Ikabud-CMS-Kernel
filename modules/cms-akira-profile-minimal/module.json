@@ -4,6 +4,9 @@
     "version": "1.0.0",
     "description": "Cms Akira Profile Minimal module for Ikabud Kernel",
     "author": "Ikabud",
+    "depends": [
+        "cms-akira-core"
+    ],
     "owns_tables": [],
     "reads_tables": [],
     "migrations": [
