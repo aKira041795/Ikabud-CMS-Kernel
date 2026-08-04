@@ -11,6 +11,8 @@
         "password_column": "password_hash",
         "name_column": "display_name",
         "active_column": "is_active",
+        "id_column": "id",
+        "role_column": "role",
         "admin_roles": [
             "administrator"
         ],

@@ -134,6 +134,8 @@
         "password_column": "password_hash",
         "name_column": "full_name",
         "active_column": "is_active",
+        "id_column": "id",
+        "role_column": "role",
         "admin_roles": [
             "admin"
         ],
@@ -147,18 +149,42 @@
     },
     "routes": true,
     "events": [
-        {"key": "bakeshop.branch.created"},
-        {"key": "bakeshop.delivery.created"},
-        {"key": "bakeshop.production.created"},
-        {"key": "bakeshop.production.updated"},
-        {"key": "bakeshop.production.voided"},
-        {"key": "bakeshop.product.created"},
-        {"key": "bakeshop.product.deleted"},
-        {"key": "bakeshop.ingredient.created"},
-        {"key": "bakeshop.ingredient.deleted"},
-        {"key": "bakeshop.unit.created"},
-        {"key": "bakeshop.recipe.saved"},
-        {"key": "bakeshop.adjustment.created"}
+        {
+            "key": "bakeshop.branch.created"
+        },
+        {
+            "key": "bakeshop.delivery.created"
+        },
+        {
+            "key": "bakeshop.production.created"
+        },
+        {
+            "key": "bakeshop.production.updated"
+        },
+        {
+            "key": "bakeshop.production.voided"
+        },
+        {
+            "key": "bakeshop.product.created"
+        },
+        {
+            "key": "bakeshop.product.deleted"
+        },
+        {
+            "key": "bakeshop.ingredient.created"
+        },
+        {
+            "key": "bakeshop.ingredient.deleted"
+        },
+        {
+            "key": "bakeshop.unit.created"
+        },
+        {
+            "key": "bakeshop.recipe.saved"
+        },
+        {
+            "key": "bakeshop.adjustment.created"
+        }
     ],
     "settings_fields": [
         {

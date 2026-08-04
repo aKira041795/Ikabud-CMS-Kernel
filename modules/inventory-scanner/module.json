@@ -13,6 +13,8 @@
         "password_column": "password_hash",
         "name_column": "full_name",
         "active_column": "is_active",
+        "id_column": "id",
+        "role_column": "role",
         "deleted_column": "deleted_at",
         "admin_roles": [
             "admin"
@@ -41,12 +43,42 @@
     ],
     "capabilities": {
         "exposes": [
-            {"id": "kernel.auth.authenticate@1", "modes": ["pipeline"]},
-            {"id": "inventory_scanner.scan.lookup@1", "modes": ["first"]},
-            {"id": "inventory_scanner.scan.save@1", "modes": ["first"]},
-            {"id": "inventory_scanner.products.list@1", "modes": ["first"]},
-            {"id": "inventory_scanner.products.export@1", "modes": ["first"]},
-            {"id": "inventory_scanner.scan.sync@1", "modes": ["first"]}
+            {
+                "id": "kernel.auth.authenticate@1",
+                "modes": [
+                    "pipeline"
+                ]
+            },
+            {
+                "id": "inventory_scanner.scan.lookup@1",
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "inventory_scanner.scan.save@1",
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "inventory_scanner.products.list@1",
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "inventory_scanner.products.export@1",
+                "modes": [
+                    "first"
+                ]
+            },
+            {
+                "id": "inventory_scanner.scan.sync@1",
+                "modes": [
+                    "first"
+                ]
+            }
         ],
         "depends": []
     },
