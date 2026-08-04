@@ -2,7 +2,9 @@
     "servers": {
         "lean-ctx": {
             "type": "stdio",
-            "command": "lean-ctx"
+            "command": "lean-ctx",
+            "args": [],
+            "env": {}
         }
     }
 }
