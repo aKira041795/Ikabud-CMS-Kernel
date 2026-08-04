@@ -160,6 +160,7 @@ function cac_cap_akira_content_compose_1(mixed $payload, string $capabilityId = 
     $navigation = cacNavigationResolveForContent($payload);
     $workflow = cacWorkflowEvaluateForContent($payload);
     $search = cacSearchDocumentBuildForContent($payload);
+    $media = cacMediaResolveForContent($payload);
 
     return [
         'ok' => true,
@@ -170,6 +171,7 @@ function cac_cap_akira_content_compose_1(mixed $payload, string $capabilityId = 
             'navigation' => $navigation['data'] ?? [],
             'workflow' => $workflow['data'] ?? [],
             'search' => $search['data'] ?? [],
+            'media' => $media['data'] ?? [],
             'provider_mode' => [
                 'seo' => $seo['mode'] ?? 'fallback',
                 'ai' => $ai['mode'] ?? 'fallback',
@@ -177,6 +179,7 @@ function cac_cap_akira_content_compose_1(mixed $payload, string $capabilityId = 
                 'navigation' => $navigation['mode'] ?? 'fallback',
                 'workflow' => $workflow['mode'] ?? 'fallback',
                 'search' => $search['mode'] ?? 'fallback',
+                'media' => $media['mode'] ?? 'fallback',
             ],
         ],
     ];

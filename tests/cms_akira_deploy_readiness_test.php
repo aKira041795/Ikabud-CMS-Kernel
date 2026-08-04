@@ -52,7 +52,7 @@ file_put_contents(STORAGE_PATH . '/logs/error.log', '');
 $expectedProfiles = [
     'cms-akira-profile-minimal' => ['cms-akira-core'],
     'cms-akira-profile-standard' => ['cms-akira-core', 'cms-akira-editor', 'cms-akira-theme', 'cms-akira-navigation'],
-    'cms-akira-profile-visual' => ['cms-akira-core', 'cms-akira-editor', 'cms-akira-theme', 'cms-akira-navigation', 'cms-akira-builder', 'cms-akira-seo', 'cms-akira-workflow', 'cms-akira-search-adapter'],
+    'cms-akira-profile-visual' => ['cms-akira-core', 'cms-akira-editor', 'cms-akira-theme', 'cms-akira-navigation', 'cms-akira-builder', 'cms-akira-media', 'cms-akira-seo', 'cms-akira-workflow', 'cms-akira-search-adapter'],
     'cms-akira-profile-headless' => ['cms-akira-core', 'cms-akira-search-adapter', 'cms-akira-workflow'],
 ];
 

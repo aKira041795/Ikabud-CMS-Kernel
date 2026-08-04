@@ -173,7 +173,7 @@ function cacIsModuleEnabledSafe(string $moduleId): bool
 function cacProviderRuntimeMap(): array
 {
     return [
-        new CacCoreProviderRuntimeStatus('MediaGateway', CacMediaGatewayInterface::class),
+        new CacOptionalModuleProviderRuntimeStatus('MediaGateway', CacMediaGatewayInterface::class, 'cms-akira-media'),
         new CacOptionalModuleProviderRuntimeStatus('EditorProvider', CacEditorProviderInterface::class, 'cms-akira-editor'),
         new CacCoreProviderRuntimeStatus('PresentationProvider', CacPresentationProviderInterface::class),
         new CacOptionalModuleProviderRuntimeStatus('ThemeProvider', CacThemeProviderInterface::class, 'cms-akira-theme'),
@@ -428,6 +428,35 @@ function cacSearchDocumentBuildForContent(array $payload): array
                 'slug' => trim((string)($payload['slug'] ?? '')),
                 'text' => trim(strip_tags((string)($payload['body'] ?? ''))),
             ],
+        ],
+    ];
+}
+
+function cacMediaResolveForContent(array $payload): array
+{
+    if (cacIsModuleEnabledSafe('cms-akira-media')) {
+        try {
+            $result = app()->cap()->call('akira.media.resolve@1', $payload);
+            if (($result['ok'] ?? false) === true) {
+                return [
+                    'mode' => 'provider',
+                    'data' => is_array($result['data'] ?? null) ? $result['data'] : [],
+                ];
+            }
+        } catch (Throwable $e) {
+            // fall through to fallback
+        }
+    }
+
+    $url = trim((string)($payload['featured_image_url'] ?? $payload['url'] ?? ''));
+    $alt = trim((string)($payload['featured_image_alt'] ?? $payload['alt'] ?? ''));
+
+    return [
+        'mode' => 'fallback',
+        'data' => [
+            'media_id' => isset($payload['media_id']) ? (int)$payload['media_id'] : null,
+            'url' => $url,
+            'alt' => $alt,
         ],
     ];
 }

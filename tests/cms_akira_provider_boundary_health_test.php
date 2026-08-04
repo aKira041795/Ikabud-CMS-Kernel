@@ -73,33 +73,61 @@ t('provider status includes EditorProvider', isset($providers['EditorProvider'])
 t('provider status includes ThemeProvider', isset($providers['ThemeProvider']));
 t('provider status includes IdentityResolver', isset($providers['IdentityResolver']));
 
-t('core provider mode is core', (($providers['MediaGateway']['mode'] ?? '') === 'core'));
+$initialMediaMode = (string)($providers['MediaGateway']['mode'] ?? '');
+$initialMediaEnabled = isset(discoverModules()['cms-akira-media']) ? isModuleEnabled('cms-akira-media') : false;
+t('media gateway mode matches module state at startup', $initialMediaMode === ($initialMediaEnabled ? 'provider' : 'fallback'));
 t('identity provider mode is core', (($providers['IdentityResolver']['mode'] ?? '') === 'core'));
 
-$moduleId = 'cms-akira-theme';
-$moduleExists = isset(discoverModules()[$moduleId]);
-$wasEnabled = $moduleExists ? isModuleEnabled($moduleId) : false;
+$themeModuleId = 'cms-akira-theme';
+$themeModuleExists = isset(discoverModules()[$themeModuleId]);
+$themeWasEnabled = $themeModuleExists ? isModuleEnabled($themeModuleId) : false;
+
+$mediaModuleId = 'cms-akira-media';
+$mediaModuleExists = isset(discoverModules()[$mediaModuleId]);
+$mediaWasEnabled = $mediaModuleExists ? isModuleEnabled($mediaModuleId) : false;
 
 try {
-    if ($moduleExists) {
-        disableModule($moduleId);
+    if ($themeModuleExists) {
+        disableModule($themeModuleId);
         $fallback = app()->cap()->call('akira.providers.status@1', []);
         $fallbackProviders = mapByProvider(is_array($fallback['data'] ?? null) ? $fallback['data'] : []);
         t('theme provider enters fallback mode when module disabled', (($fallbackProviders['ThemeProvider']['mode'] ?? '') === 'fallback'));
 
-        enableModule($moduleId);
+        enableModule($themeModuleId);
         $enabled = app()->cap()->call('akira.providers.status@1', []);
         $enabledProviders = mapByProvider(is_array($enabled['data'] ?? null) ? $enabled['data'] : []);
         t('theme provider enters provider mode when module enabled', (($enabledProviders['ThemeProvider']['mode'] ?? '') === 'provider'));
     } else {
         t('theme module not discovered in this environment (skip)', true);
     }
+
+    if ($mediaModuleExists) {
+        disableModule($mediaModuleId);
+        $fallback = app()->cap()->call('akira.providers.status@1', []);
+        $fallbackProviders = mapByProvider(is_array($fallback['data'] ?? null) ? $fallback['data'] : []);
+        t('media gateway enters fallback mode when module disabled', (($fallbackProviders['MediaGateway']['mode'] ?? '') === 'fallback'));
+
+        enableModule($mediaModuleId);
+        $enabled = app()->cap()->call('akira.providers.status@1', []);
+        $enabledProviders = mapByProvider(is_array($enabled['data'] ?? null) ? $enabled['data'] : []);
+        t('media gateway enters provider mode when module enabled', (($enabledProviders['MediaGateway']['mode'] ?? '') === 'provider'));
+    } else {
+        t('media module not discovered in this environment (skip)', true);
+    }
 } finally {
-    if ($moduleExists) {
-        if ($wasEnabled) {
-            enableModule($moduleId);
+    if ($themeModuleExists) {
+        if ($themeWasEnabled) {
+            enableModule($themeModuleId);
         } else {
-            disableModule($moduleId);
+            disableModule($themeModuleId);
+        }
+    }
+
+    if ($mediaModuleExists) {
+        if ($mediaWasEnabled) {
+            enableModule($mediaModuleId);
+        } else {
+            disableModule($mediaModuleId);
         }
     }
 }

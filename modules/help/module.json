@@ -1,0 +1,28 @@
+{
+    "id": "help",
+    "name": "Help",
+    "version": "1.0.0",
+    "description": "Help module for Ikabud Kernel",
+    "author": "Ikabud",
+    "owns_tables": [],
+    "reads_tables": [],
+    "migrations": [
+        "database/migrations/001_initial.sql"
+    ],
+    "capabilities": {
+        "exposes": [],
+        "depends": []
+    },
+    "routes": true,
+    "events": [],
+    "nav": [
+        {
+            "label": "Help",
+            "url": "/admin/help",
+            "icon": "box",
+            "roles": [
+                "admin"
+            ]
+        }
+    ]
+}

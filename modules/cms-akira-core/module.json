@@ -78,7 +78,8 @@
             "akira.theme.resolve@1",
             "akira.navigation.resolve@1",
             "akira.workflow.evaluate@1",
-            "akira.search.document.build@1"
+            "akira.search.document.build@1",
+            "akira.media.resolve@1"
         ]
     },
     "routes": true,
